@@ -79,6 +79,8 @@ type MetricsConfig struct {
 	// Controls the cycle time metrics.
 	// TODO(albin): Not used yet.
 	CycleTimeConfig PrometheusSummaryConfig
+	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
+	ResetInterval time.Duration
 }
 
 // PrometheusSummaryConfig contains the relevant config for a prometheus.Summary.

@@ -2,17 +2,14 @@ package nodedb
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -74,7 +71,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
 		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 	)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
+	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
@@ -101,7 +98,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
 		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 	)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
+	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
@@ -436,31 +433,31 @@ func TestScheduleIndividually(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 
-			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
+			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs)
 
 			for i, jctx := range jctxs {
-				ok, err := nodeDb.ScheduleMany([]*schedulercontext.JobSchedulingContext{jctx})
+				nodeDbTxn := nodeDb.Txn(true)
+				gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
+
+				require.Equal(t, tc.ExpectSuccess[i], ok)
+
 				pctx := jctx.PodSchedulingContext
 
-				if !tc.ExpectSuccess[i] {
-					assert.False(t, ok)
+				if !ok {
+					nodeDbTxn.Abort()
 					if pctx != nil {
 						assert.Equal(t, "", pctx.NodeId)
 					}
 					continue
 				}
 
-				assert.True(t, ok)
+				nodeDbTxn.Commit()
+
 				require.NotNil(t, pctx)
-
 				nodeId := pctx.NodeId
-				if !tc.ExpectSuccess[i] {
-					assert.Equal(t, "", nodeId)
-					continue
-				}
 				require.NotEqual(t, "", nodeId)
-
 				job := jctx.Job
 				node, err := nodeDb.GetNode(nodeId)
 				require.NoError(t, err)
@@ -531,27 +528,26 @@ func TestScheduleMany(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 			for i, jobs := range tc.Jobs {
-				minCardinalityStr, ok := jobs[0].GetAnnotations()[configuration.GangMinimumCardinalityAnnotation]
-				if !ok {
-					minCardinalityStr = "1"
-				}
-				minCardinality, err := strconv.Atoi(minCardinalityStr)
-				if err != nil {
-					minCardinality = 1
-				}
-				extractGangInfo := func(_ map[string]string) (string, int, int, bool, error) {
-					id, _ := uuid.NewUUID()
-					return id.String(), 1, minCardinality, true, nil
-				}
-
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, extractGangInfo)
-				ok, err = nodeDb.ScheduleMany(jctxs)
+				nodeDbTxn := nodeDb.Txn(true)
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
-				assert.Equal(t, tc.ExpectSuccess[i], ok)
+				require.Equal(t, tc.ExpectSuccess[i], ok)
+				if ok {
+					nodeDbTxn.Commit()
+				} else {
+					nodeDbTxn.Abort()
+					// We make no assertions about pctx in this case; if some of
+					// the jobs in the gang were scheduled successfully and
+					// others were not, then pctx.NodeId will be inconsistent
+					// until the gang is returned back to the gang scheduler.
+					continue
+				}
 				for _, jctx := range jctxs {
 					pctx := jctx.PodSchedulingContext
 					require.NotNil(t, pctx)
-					if tc.ExpectSuccess[i] && !jctx.ShouldFail {
+					if !jctx.ShouldFail {
 						assert.NotEqual(t, "", pctx.NodeId)
 					}
 				}
@@ -618,9 +614,10 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
+		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 		txn := nodeDb.Txn(true)
-		_, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
+		_, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
 		txn.Abort()
 		require.NoError(b, err)
 	}

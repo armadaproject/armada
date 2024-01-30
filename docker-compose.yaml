@@ -64,7 +64,7 @@ services:
       - eventingester
     working_dir: /app
     env_file:
-      - ./developer/env/server-legacy.env
+      - ./developer/env/docker/server.env
     command: sh -c "sleep 30 && ./server --config /config/insecure-armada.yaml"
 
   server-pulsar:
@@ -84,7 +84,7 @@ services:
       - eventingester
     working_dir: /app
     env_file:
-      - ./developer/env/server-pulsar.env
+      - ./developer/env/docker/server-pulsar.env
     command: sh -c "sleep 30 && ./server --config /config/insecure-armada.yaml"
 
   scheduler:
@@ -104,7 +104,7 @@ services:
       - scheduleringester
     working_dir: /app
     env_file:
-      - ./developer/env/scheduler.env
+      - ./developer/env/docker/scheduler.env
     command: ./scheduler run --config /config/insecure-armada.yaml
 
   scheduler-migration:
@@ -116,7 +116,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     working_dir: /app
-    command: ./scheduler migrateDatabase
+    command:  ./scheduler migrateDatabase
 
   scheduleringester:
     container_name: scheduleringester
@@ -129,7 +129,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
-      - ./developer/env/scheduleringester.env
+      - ./developer/env/docker/scheduleringester.env
     depends_on:
       - scheduler-migration
     working_dir: /app
@@ -140,6 +140,8 @@ services:
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - 9001:9001
       - 4001:4000
@@ -150,7 +152,7 @@ services:
     environment:
       - KUBECONFIG=/.kube/config
     env_file:
-      - ./developer/env/executor-legacy.env
+      - ./developer/env/docker/executor.env
     working_dir: /app
     command: ./executor
 
@@ -159,6 +161,8 @@ services:
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - 9001:9001
       - 4001:4000
@@ -169,7 +173,7 @@ services:
     environment:
       - KUBECONFIG=/.kube/config
     env_file:
-      - ./developer/env/executor-pulsar.env
+      - ./developer/env/docker/executor-pulsar.env
     working_dir: /app
     command: ./executor
 
@@ -188,7 +192,7 @@ services:
     environment:
       - KUBECONFIG=/.kube/config
     env_file:
-      - ./developer/env/binoculars.env
+      - ./developer/env/docker/binoculars.env
     working_dir: /app
     command: ./binoculars
 
@@ -220,9 +224,24 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
-      - ./developer/env/lookoutv2.env
-    working_dir: /app
-    entrypoint: sh -c "./lookoutv2 --migrateDatabase && ./lookoutv2"
+      - ./developer/env/docker/lookoutv2.env
+    working_dir: "/app"
+    entrypoint: ./lookoutv2
+
+  lookoutv2-migration:
+    container_name: lookoutv2-migration
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - postgres
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    env_file:
+      - ./developer/env/docker/lookoutv2.env
+    working_dir: "/app"
+    entrypoint: ./lookoutv2 --migrateDatabase
 
   lookoutingesterv2:
     container_name: lookoutingesterv2
@@ -235,7 +254,7 @@ services:
     networks:
       - kind
     env_file:
-      - ./developer/env/lookoutv2.env
+      - ./developer/env/docker/lookoutv2.env
     working_dir: /app
     command: ./lookoutingesterv2
 
@@ -253,7 +272,7 @@ services:
     depends_on:
       - server-legacy
     env_file:
-      - ./developer/env/jobservice.env
+      - ./developer/env/docker/jobservice.env
     working_dir: /app
     command: ./jobservice run
 

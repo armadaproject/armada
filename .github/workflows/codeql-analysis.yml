@@ -32,7 +32,6 @@ jobs:
       fail-fast: false
       matrix:
         language: [ 'csharp', 'go', 'javascript' ]
-        go: [ '1.20' ]
         # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python' ]
         # Learn more:
         # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
@@ -46,7 +45,13 @@ jobs:
       with:
         version: '23.3'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-    - uses: ./.github/workflows/go-setup
+
+    - name: Setup Go
+      uses: ./.github/actions/setup-go-cache
+      with:
+        cache-prefix: analyze
+        cache-tools: true
+
     - name: Mage Proto
       run: go run github.com/magefile/mage@v1.14.0 -v proto
 

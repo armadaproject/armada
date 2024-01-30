@@ -3,6 +3,7 @@ package metrics
 import (
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -45,6 +46,10 @@ type Metrics struct {
 	// For disabling metrics at runtime, e.g., if not leader.
 	disabled bool
 
+	// Reset metrics periodically.
+	resetInterval         time.Duration
+	timeOfMostRecentReset time.Time
+
 	// Labels of tracked errors. Stored here to ensure consistent ordering.
 	trackedErrorLabels  []string
 	trackedErrorRegexes []*regexp.Regexp
@@ -86,6 +91,9 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 
 		trackedErrorLabels:  trackedErrorLabels,
 		trackedErrorRegexes: trackedErrorRegexes,
+
+		resetInterval:         config.ResetInterval,
+		timeOfMostRecentReset: time.Now(),
 
 		buffer: make([]string, 0, len(failedJobLabels)),
 
@@ -178,15 +186,22 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	}
 	// TODO(albin): Only these metrics are expected to work for now.
 	m.queued.Collect(ch)
-	m.queued.Reset()
 	m.scheduled.Collect(ch)
-	m.scheduled.Reset()
 	m.preempted.Collect(ch)
-	m.preempted.Reset()
 	m.failed.Collect(ch)
-	m.failed.Reset()
 	m.succeeded.Collect(ch)
-	m.succeeded.Reset()
+
+	// Reset metrics periodically.
+	t := time.Now()
+	if t.Sub(m.timeOfMostRecentReset) > m.resetInterval {
+		m.queued.Reset()
+		m.scheduled.Reset()
+		m.preempted.Reset()
+		m.failed.Reset()
+		m.succeeded.Reset()
+
+		m.timeOfMostRecentReset = t
+	}
 }
 
 func (m *Metrics) UpdateMany(

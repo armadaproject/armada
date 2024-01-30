@@ -213,7 +213,7 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 	podSpec.PodSpec.PriorityClassName = priorityClassName
 }
 
-// ReportEvents publishes all events to Pulsar. The events are compacted for more efficient publishing.
+// ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)

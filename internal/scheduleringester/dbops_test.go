@@ -3,6 +3,7 @@ package scheduleringester
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -116,11 +117,11 @@ func TestDbOperationOptimisation(t *testing.T) {
 		}},
 		"InsertJobs, InsertRuns": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
-			InsertRuns{runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
+			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 2
-			InsertRuns{runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 2
+			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 2
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 2
-			InsertRuns{runIds[2]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}}}, // 2
+			InsertRuns{runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}}}, // 2
 		}},
 		"UpdateJobSetPriorities": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
@@ -171,37 +172,37 @@ func TestDbOperationOptimisation(t *testing.T) {
 		}},
 		"MarkJobsCancelled": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsCancelled{jobIds[0]: true},                        // 2
+			MarkJobsCancelled{jobIds[0]: time.Time{}},                 // 2
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsCancelled{jobIds[1]: true},                        // 2
+			MarkJobsCancelled{jobIds[1]: time.Time{}},                 // 2
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
 		}},
 		"MarkRunsSucceeded": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
-			InsertRuns{runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
-			MarkRunsSucceeded{runIds[0]: true},                                                                                       // 3
+			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
+			MarkRunsSucceeded{runIds[0]: time.Time{}},                                                                                // 3
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
-			InsertRuns{runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
-			MarkRunsSucceeded{runIds[1]: true},                                                                                       // 3
+			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
+			MarkRunsSucceeded{runIds[1]: time.Time{}},                                                                                // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
 		}},
 		"MarkRunsFailed": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
-			InsertRuns{runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
-			MarkRunsFailed{runIds[0]: &JobRunFailed{true, true}},                                                                     // 3
+			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
+			MarkRunsFailed{runIds[0]: &JobRunFailed{true, true, time.Time{}}},                                                        // 3
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
-			InsertRuns{runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
-			MarkRunsFailed{runIds[1]: &JobRunFailed{true, true}},                                                                     // 3
+			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
+			MarkRunsFailed{runIds[1]: &JobRunFailed{true, true, time.Time{}}},                                                        // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
 		}},
 		"MarkRunsRunning": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
-			InsertRuns{runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
-			MarkRunsRunning{runIds[0]: true},                          // 3
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 3
-			InsertRuns{runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
-			MarkRunsRunning{runIds[1]: true},                          // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 3
+			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
+			MarkRunsRunning{runIds[0]: time.Time{}},                                                                                  // 3
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
+			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
+			MarkRunsRunning{runIds[1]: time.Time{}},                                                                                  // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
 		}},
 		"InsertPartitionMarker": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
@@ -360,7 +361,7 @@ func (db *mockDb) apply(op DbOperation) error {
 	case InsertRuns:
 		n := len(db.Runs)
 		for _, run := range o {
-			run := *run.dbRun // Copy primitive types
+			run := *run.DbRun // Copy primitive types
 			db.Runs[run.RunID] = &run
 		}
 		if len(db.Runs) != n+len(o) {

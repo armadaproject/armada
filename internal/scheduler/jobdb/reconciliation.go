@@ -174,19 +174,19 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Running = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
-			jobRun = jobRun.WithSucceeded(true)
+			jobRun = jobRun.WithSucceeded(true).WithRunning(false)
 			rst.Succeeded = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithFailed(true)
+			jobRun = jobRun.WithFailed(true).WithRunning(false)
 			rst.Failed = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
-			jobRun = jobRun.WithCancelled(true)
+			jobRun = jobRun.WithCancelled(true).WithRunning(false)
 			rst.Cancelled = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
-			jobRun = jobRun.WithReturned(true)
+			jobRun = jobRun.WithReturned(true).WithRunning(false)
 			rst.Returned = true
 		}
 		if jobRepoRun.RunAttempted && !jobRun.RunAttempted() {
@@ -202,7 +202,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 	if err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo); err != nil {
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
-	return jobDb.NewJob(
+	job := jobDb.NewJob(
 		dbJob.JobID,
 		dbJob.JobSet,
 		dbJob.Queue,
@@ -214,7 +214,20 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.CancelByJobsetRequested,
 		dbJob.Cancelled,
 		dbJob.Submitted,
-	), nil
+	)
+	if dbJob.Failed {
+		// TODO(albin): Let's make this an argument to NewJob. Even better: have the state as an enum argument.
+		job = job.WithFailed(dbJob.Failed)
+	}
+	if dbJob.Succeeded {
+		// TODO(albin): Same comment as the above.
+		job = job.WithSucceeded(dbJob.Succeeded)
+	}
+	if uint32(dbJob.Priority) != job.RequestedPriority() {
+		// TODO(albin): Same comment as the above.
+		job = job.WithRequestedPriority(uint32(dbJob.Priority))
+	}
+	return job, nil
 }
 
 // schedulerRunFromDatabaseRun creates a new scheduler job run from a database job run
