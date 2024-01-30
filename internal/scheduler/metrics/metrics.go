@@ -261,6 +261,9 @@ func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) erro
 	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
 		return err
 	}
+	if err := m.updateWasteCounterVec(m.resourceWaste, preempted, job); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -272,6 +275,9 @@ func (m *Metrics) UpdatePreempted(jctx *schedulercontext.JobSchedulingContext) e
 	labels = append(labels, "") // No subCategory for preempted.
 	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
 	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+		return err
+	}
+	if err := m.updateWasteCounterVec(m.resourceWaste, cancelled, job); err != nil {
 		return err
 	}
 	return nil
@@ -395,6 +401,7 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 	} else {
 		c.Add(1)
 	}
+	job.LatestRun().RunAttempted()
 
 	// Total resource requests of jobs.
 	requests := job.GetResourceRequirements().Requests
@@ -410,4 +417,40 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 	}
 
 	return nil
+}
+
+func (m *Metrics) updateWasteCounterVec(vec *prometheus.CounterVec, reason string, job *jobdb.Job) error {
+	requests := job.GetResourceRequirements().Requests
+	labels := []string{reason, "resource"}
+	i := len(labels)
+	for _, resourceName := range m.config.TrackedResourceNames {
+		labels[i] = string(resourceName)
+		if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {
+			return err
+		} else {
+			runDuration := runDuation(job.LatestRun()).Seconds()
+			q := requests[resourceName]
+			v := float64(q.MilliValue()) / 1000
+			c.Add(v * runDuration)
+		}
+	}
+	return nil
+}
+
+func runDuation(run *jobdb.JobRun) time.Duration {
+	var start time.Time
+	var end time.Time
+	if run.RunningTime() == nil {
+		return 0
+	}
+	start = *run.RunningTime()
+
+	if run.PreemptedTime() != nil {
+		end = *run.PreemptedTime()
+	} else if run.TerminatedTime() != nil {
+		end = *run.TerminatedTime()
+	} else {
+		return 0
+	}
+	return end.Sub(start)
 }
