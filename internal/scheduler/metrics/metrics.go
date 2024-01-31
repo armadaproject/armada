@@ -51,7 +51,6 @@ type Metrics struct {
 
 	// Pre-compiled regexes for error categorisation.
 	errorRegexes []*regexp.Regexp
-
 	// Map from error message to the index of the first matching regex.
 	// Messages that match no regex map to -1.
 	matchedRegexIndexByErrorMessage *lru.Cache
@@ -87,6 +86,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 
 		buffer: make([]string, 0, 8),
 
+		errorRegexes:                    errorRegexes,
 		matchedRegexIndexByErrorMessage: matchedRegexIndexByError,
 
 		transitions: prometheus.NewCounterVec(
