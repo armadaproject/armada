@@ -1,0 +1,11 @@
+.commandsText {
+  width: 100%;
+  white-space: pre-wrap;
+  font-family: monospace;
+  word-wrap: break-word;
+  background: #1b1b1b none;
+  color: #fff;
+  padding: 5px;
+  border-radius: 5px;
+  position: relative;
+}

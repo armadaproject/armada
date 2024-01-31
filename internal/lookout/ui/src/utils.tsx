@@ -7,6 +7,10 @@ export interface OidcConfig {
   clientId: string
   scope: string
 }
+export interface CommandSpec {
+  name: string
+  template: string
+}
 
 interface UIConfig {
   armadaApiBaseUrl: string
@@ -19,6 +23,7 @@ interface UIConfig {
   customTitle: string
   oidcEnabled: boolean
   oidc?: OidcConfig
+  commandSpecs: CommandSpec[]
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -46,6 +51,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     customTitle: "",
     oidcEnabled: false,
     oidc: undefined,
+    commandSpecs: []
   }
 
   try {
@@ -63,6 +69,11 @@ export async function getUIConfig(): Promise<UIConfig> {
         authority: json.Oidc.Authority,
         clientId: json.Oidc.ClientId,
         scope: json.Oidc.Scope,
+      }
+      if (json.CommandSpecs) {
+        config.commandSpecs = json.CommandSpecs.map((c: { Name: string; Template: string }) => {
+          return {name: c.Name, template: c.Template}
+        })
       }
     }
   } catch (e) {
