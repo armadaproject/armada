@@ -236,7 +236,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateScheduled(jctx *schedulercontext.JobSchedulingContext) error {
+func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
 	labels := m.buffer[0:0]
 	job := jctx.Job.(*jobdb.Job)
 	labels = append(labels, leased)
