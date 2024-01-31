@@ -76,6 +76,9 @@ type MetricsConfig struct {
 	// Controls the cycle time metrics.
 	// TODO(albin): Not used yet.
 	CycleTimeConfig PrometheusSummaryConfig
+	// The first matching regex of each error message is cached in an LRU cache.
+	// This setting controls the cache size.
+	MatchedRegexIndexByErrorMessageCacheSize uint64
 	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
 	ResetInterval time.Duration
 }

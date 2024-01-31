@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -29,7 +30,7 @@ const (
 
 	queued    = "queued"
 	cancelled = "cancelled"
-	scheduled = "scheduled"
+	leased    = "leased"
 	preempted = "preempted"
 	failed    = "failed"
 	succeeded = "succeeded"
@@ -51,6 +52,10 @@ type Metrics struct {
 	// Pre-compiled regexes for error categorisation.
 	errorRegexes []*regexp.Regexp
 
+	// Map from error message to the index of the first matching regex.
+	// Messages that match no regex map to -1.
+	matchedRegexIndexByErrorMessage *lru.Cache
+
 	// Job metrics.
 	transitions *prometheus.CounterVec
 }
@@ -64,6 +69,16 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			errorRegexes[i] = r
 		}
 	}
+
+	var matchedRegexIndexByError *lru.Cache
+	if config.MatchedRegexIndexByErrorMessageCacheSize > 0 {
+		var err error
+		matchedRegexIndexByError, err = lru.New(int(config.MatchedRegexIndexByErrorMessageCacheSize))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
 	return &Metrics{
 		config: config,
 
@@ -71,6 +86,8 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 		timeOfMostRecentReset: time.Now(),
 
 		buffer: make([]string, 0, 8),
+
+		matchedRegexIndexByErrorMessage: matchedRegexIndexByError,
 
 		transitions: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -219,12 +236,12 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateScheduled(jctx *schedulercontext.JobSchedulingContext) error {
+func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
 	labels := m.buffer[0:0]
 	job := jctx.Job.(*jobdb.Job)
-	labels = append(labels, scheduled)
-	labels = append(labels, "") // No category for scheduled.
-	labels = append(labels, "") // No subCategory for scheduled.
+	labels = append(labels, leased)
+	labels = append(labels, "") // No category for leased.
+	labels = append(labels, "") // No subCategory for leased.
 	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
 	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
 		return err
@@ -250,14 +267,52 @@ func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context
 	if run == nil {
 		return
 	}
+
 	category, message := errorTypeAndMessageFromError(ctx, jobRunErrorsByRunId[run.Id()])
-	for i, r := range m.errorRegexes {
-		if r.MatchString(message) {
-			subCategory = m.config.TrackedErrorRegexes[i]
-			return
+	i, ok := m.regexIndexFromErrorMessage(message)
+	if ok {
+		subCategory = m.config.TrackedErrorRegexes[i]
+	}
+
+	return
+}
+
+func (m *Metrics) regexIndexFromErrorMessage(message string) (int, bool) {
+	i, ok := m.cachedRegexIndexFromErrorMessage(message)
+	if !ok {
+		i, ok = m.indexOfFirstMatchingRegexFromErrorMessage(message)
+		if !ok {
+			// Use -1 to indicate that no regex matches.
+			i = -1
+		}
+		if m.matchedRegexIndexByErrorMessage != nil {
+			m.matchedRegexIndexByErrorMessage.Add(message, i)
 		}
 	}
-	return
+	if i == -1 {
+		ok = false
+	}
+	return i, ok
+}
+
+func (m *Metrics) cachedRegexIndexFromErrorMessage(message string) (int, bool) {
+	if m.matchedRegexIndexByErrorMessage == nil {
+		return 0, false
+	}
+	i, ok := m.matchedRegexIndexByErrorMessage.Get(message)
+	if !ok {
+		return 0, false
+	}
+	return i.(int), true
+}
+
+func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int, bool) {
+	for i, r := range m.errorRegexes {
+		if r.MatchString(message) {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
