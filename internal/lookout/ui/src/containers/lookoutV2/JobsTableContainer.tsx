@@ -73,7 +73,7 @@ import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
-import { getErrorMessage, waitMillis } from "../../utils"
+import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -88,6 +88,7 @@ interface JobsTableContainerProps {
   cordonService: ICordonService
   debug: boolean
   autoRefreshMs: number | undefined
+  commandSpecs: CommandSpec[]
 }
 
 export type LookoutColumnFilter = {
@@ -132,6 +133,7 @@ export const JobsTableContainer = ({
   cordonService,
   debug,
   autoRefreshMs,
+  commandSpecs,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
@@ -846,6 +848,7 @@ export const JobsTableContainer = ({
           sidebarWidth={sidebarWidth}
           onClose={sideBarClose}
           onWidthChange={setSidebarWidth}
+          commandSpecs={commandSpecs}
         />
       )}
     </Box>
