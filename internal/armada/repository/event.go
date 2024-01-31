@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
 	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -26,7 +27,7 @@ const (
 
 type EventRepository interface {
 	CheckStreamExists(queue string, jobSetId string) (bool, error)
-	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
+	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, *sequence.ExternalSeqNo, error)
 	GetLastMessageId(queue, jobSetId string) (string, error)
 }
 
@@ -48,7 +49,7 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 		NumTestsPerEvictionRun:   10,
 	}
 
-	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
@@ -65,10 +66,10 @@ func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId strin
 	return exists, nil
 }
 
-func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {
+func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, *sequence.ExternalSeqNo, error) {
 	from, err := sequence.Parse(lastId)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	seqId := from.PrevRedisId()
 	cmd, err := repo.db.XRead(&redis.XReadArgs{
@@ -79,30 +80,37 @@ func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, last
 
 	// redis signals empty list by Nil
 	if err == redis.Nil {
-		return make([]*api.EventStreamMessage, 0), nil
+		return make([]*api.EventStreamMessage, 0), nil, nil
 	} else if err != nil {
-		return nil, errors.WithStack(fmt.Errorf("%s (fromId: %s, seqId: %s)", err, from, seqId))
+		return nil, nil, errors.WithStack(fmt.Errorf("%s (fromId: %s, seqId: %s)", err, from, seqId))
 	}
 
+	var lastMessageId *sequence.ExternalSeqNo = nil
 	messages := make([]*api.EventStreamMessage, 0, len(cmd[0].Messages))
 	for _, m := range cmd[0].Messages {
 		// TODO: here we decompress all the events we fetched from the db- it would be much better
 		// If we could decompress lazily, but the interface confines us somewhat here
 		apiEvents, err := repo.extractEvents(m, queue, jobSetId)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		// Set a default id for the message, if there are apiEvents produced by this message then they'll overwrite this value
+		lastMessageId, err = sequence.FromRedisId(m.ID, 0, true)
+		if err != nil {
+			return nil, nil, err
 		}
 		for i, msg := range apiEvents {
 			msgId, err := sequence.FromRedisId(m.ID, i, i == len(apiEvents)-1)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			lastMessageId = msgId
 			if msgId.IsAfter(from) {
 				messages = append(messages, &api.EventStreamMessage{Id: msgId.String(), Message: msg})
 			}
 		}
 	}
-	return messages, nil
+	return messages, lastMessageId, nil
 }
 
 func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
@@ -127,16 +135,16 @@ func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (stri
 func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSetId string) ([]*api.EventMessage, error) {
 	data := msg.Values[dataKey]
 	bytes := []byte(data.(string))
-	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
+	decompressor, err := repo.decompressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressor to pool")
 		}
-	}(repo.decompressorPool, context.Background(), decompressor)
+	}(repo.decompressorPool, armadacontext.Background(), decompressor)
 	decompressedData, err := decompressor.(compress.Decompressor).Decompress(bytes)
 	if err != nil {
 		return nil, errors.WithStack(err)

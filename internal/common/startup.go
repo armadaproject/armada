@@ -1,12 +1,17 @@
 package common
 
 import (
-	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
+	"path"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/certs"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -15,11 +20,15 @@ import (
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"
+
+// RFC3339Millis
+const logTimestampFormat = "2006-01-02T15:04:05.999Z07:00"
 
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
@@ -77,6 +86,7 @@ func ConfigureCommandLineLogging() {
 func ConfigureLogging() {
 	log.SetLevel(readEnvironmentLogLevel())
 	log.SetFormatter(readEnvironmentLogFormat())
+	log.SetReportCaller(true)
 	log.SetOutput(os.Stdout)
 }
 
@@ -96,16 +106,29 @@ func readEnvironmentLogFormat() log.Formatter {
 	if !ok {
 		formatStr = "colourful"
 	}
+
+	textFormatter := &log.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: logTimestampFormat,
+		CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
+			fileName := path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
+			return "", fileName
+		},
+	}
+
 	switch strings.ToLower(formatStr) {
 	case "json":
-		return &log.JSONFormatter{}
+		return &log.JSONFormatter{TimestampFormat: logTimestampFormat}
 	case "colourful":
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
+		return textFormatter
 	case "text":
-		return &log.TextFormatter{DisableColors: true, FullTimestamp: true}
+		textFormatter.ForceColors = false
+		textFormatter.DisableColors = true
+		return textFormatter
 	default:
 		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
+		return textFormatter
 	}
 }
 
@@ -123,24 +146,53 @@ func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()
 }
 
 // ServeHttp starts an HTTP server listening on the given port.
+// TODO: Make block until a context passed in is cancelled.
 func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
+	return serveHttp(port, mux, false, "", "")
+}
+
+func ServeHttps(port uint16, mux http.Handler, certFile, keyFile string) (shutdown func()) {
+	return serveHttp(port, mux, true, certFile, keyFile)
+}
+
+func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile string) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
 	}
 
+	scheme := "http"
+	if useTls {
+		scheme = "https"
+	}
+
 	go func() {
-		log.Printf("Starting http server listening on %d", port)
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		log.Printf("Starting %s server listening on %d", scheme, port)
+		var err error
+		if useTls {
+			certWatcher := certs.NewCachedCertificateService(certFile, keyFile, time.Minute)
+			go func() {
+				certWatcher.Run(armadacontext.Background())
+			}()
+			srv.TLSConfig = &tls.Config{
+				GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					return certWatcher.GetCertificate(), nil
+				},
+			}
+			err = srv.ListenAndServeTLS("", "")
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			panic(err) // TODO Don't panic, return an error
 		}
 	}()
 	// TODO There's no need for this function to panic, since the main goroutine will exit.
 	// Instead, just log an error.
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 		defer cancel()
-		log.Printf("Stopping http server listening on %d", port)
+		log.Printf("Stopping %s server listening on %d", scheme, port)
 		e := srv.Shutdown(ctx)
 		if e != nil {
 			panic(e)

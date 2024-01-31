@@ -16,8 +16,12 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars"
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	api "github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
@@ -41,6 +45,15 @@ func main() {
 	common.LoadConfig(&config, "./config/binoculars", userSpecifiedConfigs)
 
 	log.Info("Starting...")
+
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	go func() {
+		ctx := armadacontext.Background()
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+	}()
 
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)
@@ -80,7 +93,7 @@ func serveHttp(
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
 ) (shutdown func()) {
-	shutdownGateway := gateway.CreateGatewayHandler(grpcPort, mux, "/", corsAllowedOrigins, spec, handlers...)
+	shutdownGateway := gateway.CreateGatewayHandler(grpcPort, mux, "/", false, false, corsAllowedOrigins, spec, handlers...)
 	cancel := common.ServeHttp(port, mux)
 
 	return func() {

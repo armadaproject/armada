@@ -21,7 +21,7 @@ const (
 
 func getImages() []string {
 	images := []string{
-		"alpine:3.17",
+		"alpine:3.18.3",
 		"nginx:1.21.6",
 		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
 		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
@@ -70,14 +70,7 @@ func kindCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(KIND_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
-	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
-	}
-	return nil
+	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
 }
 
 // Images that need to be available in the Kind cluster,

@@ -18,6 +18,7 @@ nodeSelector: {}
 tolerations: []
 customServiceAccount: null
 serviceAccount: null
+priorityClassName: ""
 
 healthcheck:
   enabled: false
@@ -36,6 +37,7 @@ prometheus:
   enabled: false
   labels: {}
   scrapeInterval: 10s
+  scrapeTimeout: 10s
 
 applicationConfig:
   httpPort: 8080

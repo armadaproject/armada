@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/pkg/api"
@@ -21,6 +22,7 @@ type LeaseRequest struct {
 	AvailableResource   armadaresource.ComputeResources
 	Nodes               []*api.NodeInfo
 	UnassignedJobRunIds []armadaevents.Uuid
+	MaxJobsToLease      uint32
 }
 
 type LeaseResponse struct {
@@ -30,7 +32,7 @@ type LeaseResponse struct {
 }
 
 type LeaseRequester interface {
-	LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error)
+	LeaseJobRuns(ctx *armadacontext.Context, request *LeaseRequest) (*LeaseResponse, error)
 }
 
 type JobLeaseRequester struct {
@@ -51,7 +53,7 @@ func NewJobLeaseRequester(
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error) {
+func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, request *LeaseRequest) (*LeaseResponse, error) {
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, err
@@ -63,6 +65,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *L
 		Resources:           request.AvailableResource,
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
+		MaxJobsToLease:      request.MaxJobsToLease,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)

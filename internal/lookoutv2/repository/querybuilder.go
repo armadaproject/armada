@@ -80,62 +80,6 @@ func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 	}, tempTable
 }
 
-// JobCount Returns SQL Query that when executed will return the total number of jobs that match the list of filters
-func (qb *QueryBuilder) JobCount(filters []*model.Filter, activeJobSets bool) (*Query, error) {
-	err := qb.validateFilters(filters)
-	if err != nil {
-		return nil, errors.Wrap(err, "filters are invalid")
-	}
-	normalFilters, annotationFilters := splitFilters(filters)
-
-	allCols, err := qb.fieldsToCols(
-		util.Map(normalFilters, func(filter *model.Filter) string { return filter.Field }),
-	)
-	if err != nil {
-		return nil, err
-	}
-	tablesFromColumns, err := qb.tablesForCols(allCols)
-	if err != nil {
-		return nil, err
-	}
-	queryTables, err := qb.determineTablesForQuery(tablesFromColumns)
-	if err != nil {
-		return nil, err
-	}
-	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
-	if err != nil {
-		return nil, err
-	}
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
-	if err != nil {
-		return nil, err
-	}
-	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
-	if err != nil {
-		return nil, err
-	}
-	abbrev, err := qb.firstTableAbbrev(queryTables)
-	if err != nil {
-		return nil, err
-	}
-
-	countExpr := fmt.Sprintf("COUNT(DISTINCT %s.job_id)", abbrev)
-	// If we are only fetching from jobs, no need to count distinct, as it is a big performance hit
-	if _, ok := queryTables[jobTable]; ok && len(queryTables) == 1 && len(annotationFilters) == 0 {
-		countExpr = "COUNT(*)"
-	}
-	template := fmt.Sprintf(`
-		SELECT %s
-		%s
-		%s`,
-		countExpr, fromBuilder.Build(), whereSql)
-	templated, args := templateSql(template, qb.queryValues)
-	return &Query{
-		Sql:  templated,
-		Args: args,
-	}, nil
-}
-
 // InsertIntoTempTable returns Query that returns Job IDs according to filters, order, skip and take, and inserts them
 // in the temp table with name tempTableName
 func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*model.Filter, activeJobSets bool, order *model.Order, skip, take int) (*Query, error) {
@@ -195,85 +139,6 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 		%s
 		ON CONFLICT DO NOTHING`,
 		tempTableName, abbrev, fromBuilder.Build(), whereSql, orderSql, limitOffsetSql(skip, take))
-
-	templated, args := templateSql(template, qb.queryValues)
-	return &Query{
-		Sql:  templated,
-		Args: args,
-	}, nil
-}
-
-// CountGroups returns Query that counts the total number of groups created by grouping by groupedField and filtering
-// with filters
-func (qb *QueryBuilder) CountGroups(filters []*model.Filter, activeJobSets bool, groupedField *model.GroupedField) (*Query, error) {
-	err := qb.validateFilters(filters)
-	if err != nil {
-		return nil, errors.Wrap(err, "filters are invalid")
-	}
-	err = qb.validateGroupedField(groupedField)
-	if err != nil {
-		return nil, errors.Wrap(err, "group field is invalid")
-	}
-	normalFilters, annotationFilters := splitFilters(filters)
-
-	allCols, err := qb.fieldsToCols(
-		util.Map(normalFilters, func(filter *model.Filter) string { return filter.Field }),
-	)
-	if err != nil {
-		return nil, err
-	}
-	tablesFromColumns, err := qb.tablesForCols(allCols)
-	if err != nil {
-		return nil, err
-	}
-	if err != nil {
-		return nil, err
-	}
-	queryTables, err := qb.determineTablesForQuery(tablesFromColumns)
-	if err != nil {
-		return nil, err
-	}
-	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
-	if err != nil {
-		return nil, err
-	}
-
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
-	if err != nil {
-		return nil, err
-	}
-	var groupCol *queryColumn
-	if groupedField.IsAnnotation {
-		groupCol = &queryColumn{
-			name:   annotationValueCol,
-			table:  userAnnotationLookupTable,
-			abbrev: annotationGroupTableAbbrev,
-		}
-		annotationGroupTable, err := qb.annotationGroupTable(groupedField.Field, normalFilters)
-		if err != nil {
-			return nil, err
-		}
-		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, []string{jobIdCol})
-	} else {
-		groupCol, err = qb.getGroupByQueryCol(groupedField.Field, queryTables)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
-	if err != nil {
-		return nil, err
-	}
-	groupBySql := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
-	template := fmt.Sprintf(`
-		SELECT COUNT(*) FROM (
-			SELECT %s.%s
-			%s
-			%s
-			%s
-		) AS group_table`,
-		groupCol.abbrev, groupCol.name, fromBuilder.Build(), whereSql, groupBySql)
 
 	templated, args := templateSql(template, qb.queryValues)
 	return &Query{
@@ -989,6 +854,14 @@ func (qb *QueryBuilder) getQueryColumn(col string, queryTables map[string]bool) 
 }
 
 func limitOffsetSql(skip, take int) string {
+	// Asking for zero rows is not useful to us, so we take a value of zero to
+	// mean "no limit"; this is consistent with go-swagger, which uses zero as
+	// the default value for optional integers:
+	//
+	//     https://github.com/go-swagger/go-swagger/issues/1707
+	if take == 0 {
+		return fmt.Sprintf("OFFSET %d", skip)
+	}
 	return fmt.Sprintf("LIMIT %d OFFSET %d", take, skip)
 }
 

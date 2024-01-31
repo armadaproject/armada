@@ -4,7 +4,7 @@ Here, we give an overview of a development setup for Armada that gives users ful
 
 Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.20 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl), and, if you need to compile `.proto` files, [protoc](https://github.com/protocolbuffers/protobuf/releases).
 
-For a full lust of mage commands, run `mage -l`.
+For a full list of mage commands, run `mage -l`.
 
 ## Setup
 
@@ -28,7 +28,7 @@ mage BootstrapTools
 # Compile .pb.go files from .proto files
 # (only necessary after changing a .proto file).
 mage proto
-make dotnet
+mage dotnet
 
 # Build the Docker images containing all Armada components.
 # Only the main "bundle" is needed for quickly testing Armada.
@@ -46,7 +46,7 @@ mage StartDependencies && mage checkForPulsarRunning
 # Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for details.
-docker compose up -d server executor
+docker compose up -d server-legacy executor-legacy
 
 # Wait for Armada to come online
 mage checkForArmadaRunning

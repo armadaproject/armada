@@ -1,0 +1,1 @@
+ALTER TABLE job ADD COLUMN namespace VARCHAR(512);

@@ -1,13 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -83,13 +83,28 @@ func Tests() error {
 		"--format", "short-verbose",
 		"--junitfile", "test-reports/unit-tests.xml",
 		"--jsonfile", "test-reports/unit-tests.json",
+		"--no-color=false",
 		"--", "-coverprofile=test-reports/coverage.out",
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
 	cmd = append(cmd, internalPackages...)
 
-	if err = sh.Run(Gotestsum, cmd...); err != nil {
+	testCmd := exec.Command(Gotestsum, cmd...)
+
+	// If -verbose was set, we let os.Stdout handles the output.
+	// Otherwise, we need to capture the tests output and print it in the case of failures.
+	var buffer bytes.Buffer
+	if os.Getenv("MAGEFILE_VERBOSE") == "1" {
+		testCmd.Stdout = os.Stdout
+	} else {
+		testCmd.Stdout = &buffer
+	}
+
+	if err := testCmd.Run(); err != nil {
+		if os.Getenv("MAGEFILE_VERBOSE") == "0" {
+			fmt.Println(buffer.String())
+		}
 		return err
 	}
 
@@ -163,6 +178,7 @@ func Teste2eAirflow() error {
 // Teste2epython runs e2e tests for python client
 func Teste2epython() error {
 	mg.Deps(BuildPython)
+	mg.Deps(CheckForArmadaRunning)
 	args := []string{
 		"run",
 		"-v", "${PWD}/client/python:/code",
@@ -191,37 +207,6 @@ func TestsNoSetup() error {
 		return err
 	}
 	if err := runTest("./cmd...", "cmd.txt"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// PopulateLookoutTest populates the lookout test
-func PopulateLookoutTest() error {
-	dockerNet, err := dockerNet()
-	if err != nil {
-		return err
-	}
-	if err = dockerRun("ps", "-q", "-f", "name=postgres"); err == nil {
-
-		if err := dockerRun("stop", "postgres"); err != nil {
-			return err
-		}
-		if err := dockerRun("rm", "postgres"); err != nil {
-			return err
-		}
-	}
-
-	err = dockerRun("run", "-d", "--name=postgres", dockerNet, "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
-	if err != nil {
-		return err
-	}
-
-	time.Sleep(5 * time.Second)
-
-	err = goRun("test", "-v", "${PWD}/internal/lookout/db-gen/")
-	if err != nil {
 		return err
 	}
 

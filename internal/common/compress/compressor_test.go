@@ -3,7 +3,7 @@ package compress
 import (
 	"bytes"
 	"compress/zlib"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,7 +66,7 @@ func decompress(b []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p, err := ioutil.ReadAll(z)
+	p, err := io.ReadAll(z)
 	if err != nil {
 		return "", err
 	}

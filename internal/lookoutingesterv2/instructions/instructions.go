@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
@@ -29,6 +29,8 @@ const (
 	maxQueueLen         = 512
 	maxOwnerLen         = 512
 	maxJobSetLen        = 1024
+	maxAnnotationKeyLen = 1024
+	maxAnnotationValLen = 1024
 	maxPriorityClassLen = 63
 	maxClusterLen       = 512
 	maxNodeLen          = 512
@@ -65,7 +67,7 @@ func (c *InstructionConverter) IsLegacy() bool {
 	return c.useLegacyEventConversion
 }
 
-func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}
@@ -77,7 +79,7 @@ func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *in
 }
 
 func (c *InstructionConverter) convertSequence(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	sequence *armadaevents.EventSequence,
 	update *model.InstructionSet,
 ) {
@@ -126,13 +128,14 @@ func (c *InstructionConverter) convertSequence(
 				err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
 			}
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
+		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 		case *armadaevents.EventSequence_Event_PartitionMarker:
-			log.Debugf("Ignoring event type %T", event)
+			log.Debugf("Ignoring event type %T", event.GetEvent())
 		default:
-			log.Warnf("Ignoring unknown event type %T", event)
+			log.Warnf("Ignoring unknown event type %T", event.GetEvent())
 		}
 		if err != nil {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -190,6 +193,7 @@ func (c *InstructionConverter) handleSubmitJob(
 		JobId:                     jobId,
 		Queue:                     queue,
 		Owner:                     owner,
+		Namespace:                 apiJob.Namespace,
 		JobSet:                    jobSet,
 		Cpu:                       resources.Cpu,
 		Memory:                    resources.Memory,
@@ -225,8 +229,8 @@ func extractAnnotations(jobId string, queue string, jobset string, jobAnnotation
 			}
 			annotations = append(annotations, &model.CreateUserAnnotationInstruction{
 				JobId:  jobId,
-				Key:    k,
-				Value:  v,
+				Key:    util.Truncate(k, maxAnnotationKeyLen),
+				Value:  util.Truncate(v, maxAnnotationValLen),
 				Queue:  queue,
 				Jobset: jobset,
 			})

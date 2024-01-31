@@ -4,16 +4,16 @@ import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
 import { Job, JobState } from "models/lookoutV2Models"
 
-import { ICordonService } from "../../../services/lookoutV2/CordonService"
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
-import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
-import { ILogService } from "../../../services/lookoutV2/LogService"
 import styles from "./Sidebar.module.css"
 import { SidebarHeader } from "./SidebarHeader"
 import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
 import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
+import { ICordonService } from "../../../services/lookoutV2/CordonService"
+import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
+import { ILogService } from "../../../services/lookoutV2/LogService"
 
 enum SidebarTab {
   JobDetails = "JobDetails",

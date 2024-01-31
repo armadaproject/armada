@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -148,7 +148,7 @@ func requestToken(c *http.Client, config DeviceDetails, deviceCode string) (*oau
 }
 
 func makeErrorForHTTPResponse(resp *http.Response) error {
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

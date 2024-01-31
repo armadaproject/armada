@@ -7,20 +7,19 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
-	"github.com/armadaproject/armada/internal/common/requestid"
 	"github.com/armadaproject/armada/internal/common/schedulers"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -38,7 +37,7 @@ type SubmitFromLog struct {
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
-func (srv *SubmitFromLog) Run(ctx context.Context) error {
+func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 	// Get the configured logger, or the standard logger if none is provided.
 	log := srv.getLogger()
 	log.Info("service started")
@@ -95,7 +94,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+			ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			cancel()
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -112,8 +111,8 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
-			if !schedulers.ForLegacyScheduler(msg) {
-				srv.Consumer.Ack(msg)
+			if !schedulers.ForLegacyScheduler(msg) && !schedulers.ForPulsarScheduler(msg) {
+				srv.ack(ctx, msg)
 				break
 			}
 
@@ -121,43 +120,70 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			lastPublishTime = msg.PublishTime()
 			numReceived++
 
-			// Incoming gRPC requests are annotated with a unique id,
-			// which is included with the corresponding Pulsar message.
-			requestId := pulsarrequestid.FromMessageOrMissing(msg)
-
-			// Put the requestId into a message-specific context and logger,
-			// which are passed on to sub-functions.
-			messageCtx, ok := requestid.AddToIncomingContext(ctx, requestId)
-			if !ok {
-				messageCtx = ctx
-			}
-			messageLogger := log.WithFields(logrus.Fields{"messageId": msg.ID(), requestid.MetadataKey: requestId})
-			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
+			ctxWithLogger := armadacontext.WithLogField(ctx, "messageId", msg.ID())
 
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
-				srv.Consumer.Ack(msg)
-				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
+				srv.ack(ctx, msg)
+				logging.WithStacktrace(ctxWithLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				break
 			}
 
-			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+			ctxWithLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+
+			// This file exists primarily for the legacy scheduler - the pulsar scheduler only need to read from
+			//  pulsar to delete redis PulsarJob:jobId entries
+			if schedulers.ForPulsarScheduler(msg) {
+				if err := srv.handlePulsarSchedulerEventSequence(ctxWithLogger, sequence); err != nil {
+					logging.WithStacktrace(ctx, err).Warnf("could not expire PulsarJobDetails; ignoring")
+					numErrored++
+				}
+
+				srv.ack(ctx, msg)
+				break
+			}
+
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
-			srv.Consumer.Ack(msg)
+			srv.ack(ctx, msg)
 		}
 	}
+}
+
+func (srv *SubmitFromLog) handlePulsarSchedulerEventSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) error {
+	idsOfJobsToExpireMappingFor := make([]string, 0)
+	for _, event := range sequence.GetEvents() {
+		var jobId string
+		var err error
+		switch e := event.Event.(type) {
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
+		case *armadaevents.EventSequence_Event_JobErrors:
+			if ok := armadaslices.AnyFunc(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); ok {
+				jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
+			}
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
+		default:
+			// Non-terminal event
+			continue
+		}
+		if err != nil {
+			logging.WithStacktrace(ctx, err).Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
+			continue
+		}
+		idsOfJobsToExpireMappingFor = append(idsOfJobsToExpireMappingFor, jobId)
+	}
+	return srv.SubmitServer.jobRepository.ExpirePulsarSchedulerJobDetails(idsOfJobsToExpireMappingFor)
 }
 
 // ProcessSequence processes all events in a particular sequence.
 // For efficiency, we may process several events at a time.
 // To maintain ordering, we only do so for subsequences of consecutive events of equal type.
 // The returned bool indicates if the corresponding Pulsar message should be ack'd or not.
-func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadaevents.EventSequence) bool {
-	log := ctxlogrus.Extract(ctx)
-
+func (srv *SubmitFromLog) ProcessSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) bool {
 	// Sub-functions should always increment the events index unless they experience a transient error.
 	// However, if a permanent error is mis-categorised as transient, we may get stuck forever.
 	// To avoid that issue, we return immediately if timeout time has passed
@@ -170,11 +196,11 @@ func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadae
 	for i < len(sequence.Events) && time.Since(lastProgress) < timeout {
 		j, err := srv.ProcessSubSequence(ctx, i, sequence)
 		if err != nil {
-			logging.WithStacktrace(log, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
+			logging.WithStacktrace(ctx, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
 		}
 
 		if j == i {
-			log.WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Info("made no progress")
+			ctx.WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Info("made no progress")
 
 			// We should only get here if a transient error occurs.
 			// Sleep for a bit before retrying.
@@ -200,7 +226,7 @@ func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadae
 // Events are processed by calling into the embedded srv.SubmitServer.
 //
 // Not all events are handled by this processor since the legacy scheduler writes some transitions directly to the db.
-func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequence *armadaevents.EventSequence) (j int, err error) {
+func (srv *SubmitFromLog) ProcessSubSequence(ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) (j int, err error) {
 	j = i // Initially, the next event to be processed is i.
 	if i < 0 || i >= len(sequence.Events) {
 		err = &armadaerrors.ErrInvalidArgument{
@@ -272,7 +298,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 
 // collectJobSubmitEvents (and the corresponding functions for other types below)
 // return a slice of events starting at index i in the sequence with equal type.
-func collectJobSubmitEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.SubmitJob {
+func collectJobSubmitEvents(ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.SubmitJob {
 	result := make([]*armadaevents.SubmitJob, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_SubmitJob); ok {
@@ -284,7 +310,7 @@ func collectJobSubmitEvents(ctx context.Context, i int, sequence *armadaevents.E
 	return result
 }
 
-func collectCancelJobEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.CancelJob {
+func collectCancelJobEvents(ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.CancelJob {
 	result := make([]*armadaevents.CancelJob, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_CancelJob); ok {
@@ -296,7 +322,7 @@ func collectCancelJobEvents(ctx context.Context, i int, sequence *armadaevents.E
 	return result
 }
 
-func collectCancelJobSetEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.CancelJobSet {
+func collectCancelJobSetEvents(ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.CancelJobSet {
 	result := make([]*armadaevents.CancelJobSet, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_CancelJobSet); ok {
@@ -308,7 +334,7 @@ func collectCancelJobSetEvents(ctx context.Context, i int, sequence *armadaevent
 	return result
 }
 
-func collectReprioritiseJobEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.ReprioritiseJob {
+func collectReprioritiseJobEvents(ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.ReprioritiseJob {
 	result := make([]*armadaevents.ReprioritiseJob, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_ReprioritiseJob); ok {
@@ -320,7 +346,7 @@ func collectReprioritiseJobEvents(ctx context.Context, i int, sequence *armadaev
 	return result
 }
 
-func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.ReprioritiseJobSet {
+func collectReprioritiseJobSetEvents(ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.ReprioritiseJobSet {
 	result := make([]*armadaevents.ReprioritiseJobSet, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_ReprioritiseJobSet); ok {
@@ -332,7 +358,7 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
-func collectEvents[T any](ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+func collectEvents[T any](ctx *armadacontext.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if _, ok := sequence.Events[j].Event.(T); ok {
@@ -359,7 +385,7 @@ func (srv *SubmitFromLog) getLogger() *logrus.Entry {
 // Specifically, events are not processed if writing to the database results in a network-related error.
 // For any other error, the jobs are marked as failed and the events are considered to have been processed.
 func (srv *SubmitFromLog) SubmitJobs(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	userId string,
 	groups []string,
 	queueName string,
@@ -370,22 +396,25 @@ func (srv *SubmitFromLog) SubmitJobs(
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
+	es = armadaslices.Filter(es, func(e *armadaevents.SubmitJob) bool {
+		return !e.IsDuplicate
+	})
 	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err
 	}
 
 	log := srv.getLogger()
-	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(context.Background())
+	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
 		return false, err
 	}
-	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(compressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning compressor to pool")
 		}
-	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
+	}(srv.SubmitServer.compressorPool, armadacontext.Background(), compressor)
 
 	compressedOwnershipGroups, err := compress.CompressStringArray(groups, compressor.(compress.Compressor))
 	if err != nil {
@@ -455,7 +484,7 @@ type CancelJobPayload struct {
 }
 
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
-func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
+func (srv *SubmitFromLog) CancelJobs(ctx *armadacontext.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
 	cancelJobPayloads := make([]*CancelJobPayload, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
@@ -475,7 +504,7 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 // Because event sequences are specific to queue and job set, all CancelJobSet events in a sequence are equivalent,
 // and we only need to call CancelJobSet once.
 func (srv *SubmitFromLog) CancelJobSets(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	userId string,
 	queueName string,
 	jobSetName string,
@@ -489,7 +518,7 @@ func (srv *SubmitFromLog) CancelJobSets(
 	return srv.CancelJobSet(ctx, userId, queueName, jobSetName, reason)
 }
 
-func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queueName string, jobSetName string, reason string) (bool, error) {
+func (srv *SubmitFromLog) CancelJobSet(ctx *armadacontext.Context, userId string, queueName string, jobSetName string, reason string) (bool, error) {
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err
@@ -505,7 +534,7 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queue
 	return srv.BatchedCancelJobsById(ctx, userId, cancelJobPayloads)
 }
 
-func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, cancelJobPayloads []*CancelJobPayload) (bool, error) {
+func (srv *SubmitFromLog) BatchedCancelJobsById(ctx *armadacontext.Context, userId string, cancelJobPayloads []*CancelJobPayload) (bool, error) {
 	// Split IDs into batches and process one batch at a time.
 	// To reduce the number of jobs stored in memory.
 	//
@@ -538,7 +567,7 @@ type CancelledJobPayload struct {
 }
 
 // CancelJobsById cancels all jobs with the specified ids.
-func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, cancelJobPayloads []*CancelJobPayload) ([]string, error) {
+func (srv *SubmitFromLog) CancelJobsById(ctx *armadacontext.Context, userId string, cancelJobPayloads []*CancelJobPayload) ([]string, error) {
 	jobIdReasonMap := make(map[string]string)
 	jobIds := util.Map(cancelJobPayloads, func(payload *CancelJobPayload) string {
 		jobIdReasonMap[payload.JobId] = payload.Reason
@@ -588,7 +617,7 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, can
 }
 
 // ReprioritizeJobs updates the priority of one of more jobs.
-func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, es []*armadaevents.ReprioritiseJob) (bool, error) {
+func (srv *SubmitFromLog) ReprioritizeJobs(ctx *armadacontext.Context, userId string, es []*armadaevents.ReprioritiseJob) (bool, error) {
 	if len(es) == 0 {
 		return true, nil
 	}
@@ -635,7 +664,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	return true, nil
 }
 
-func (srv *SubmitFromLog) DeleteFailedJobs(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
+func (srv *SubmitFromLog) DeleteFailedJobs(ctx *armadacontext.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
 	jobIdsToDelete := make([]string, 0, len(es))
 	for _, event := range es {
 		jobErrors := event.GetJobErrors()
@@ -664,7 +693,7 @@ func (srv *SubmitFromLog) DeleteFailedJobs(ctx context.Context, es []*armadaeven
 }
 
 // UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
-func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
+func (srv *SubmitFromLog) UpdateJobStartTimes(ctx *armadacontext.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
 	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
 	for _, event := range es {
 		jobRun := event.GetJobRunRunning()
@@ -713,7 +742,7 @@ func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadae
 // Since repeating this operation is safe (setting the priority is idempotent),
 // the bool indicating if events were processed is set to false if any job set failed.
 func (srv *SubmitFromLog) ReprioritizeJobSets(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	userId string,
 	queueName string,
 	jobSetName string,
@@ -730,7 +759,7 @@ func (srv *SubmitFromLog) ReprioritizeJobSets(
 }
 
 func (srv *SubmitFromLog) ReprioritizeJobSet(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	userId string,
 	queueName string,
 	jobSetName string,
@@ -765,4 +794,17 @@ func (srv *SubmitFromLog) ReprioritizeJobSet(
 	}
 
 	return true, nil
+}
+
+func (srv *SubmitFromLog) ack(ctx *armadacontext.Context, msg pulsar.Message) {
+	util.RetryUntilSuccess(
+		ctx,
+		func() error {
+			return srv.Consumer.Ack(msg)
+		},
+		func(err error) {
+			logrus.WithError(err).Warnf("Error acking pulsar message")
+			time.Sleep(time.Second)
+		},
+	)
 }

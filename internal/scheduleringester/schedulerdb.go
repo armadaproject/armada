@@ -1,7 +1,7 @@
 package scheduleringester
 
 import (
-	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -32,7 +33,7 @@ func NewSchedulerDb(
 	initialBackOff time.Duration,
 	maxBackOff time.Duration,
 	lockTimeout time.Duration,
-) ingest.Sink[*DbOperationsWithMessageIds] {
+) *SchedulerDb {
 	return &SchedulerDb{
 		db:             db,
 		metrics:        metrics,
@@ -45,14 +46,14 @@ func NewSchedulerDb(
 // Store persists all operations in the database.
 // This function retires until it either succeeds or encounters a terminal error.
 // This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
-func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
+func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
 		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
 		}, func(tx pgx.Tx) error {
-			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+			lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
 			// The lock is released automatically on transaction rollback/commit.
 			if err := s.acquireLock(lockCtx, tx); err != nil {
@@ -78,7 +79,7 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 // rows with sequence numbers smaller than those already written.
 //
 // The scheduler relies on these sequence numbers to only fetch new or updated rows in each update cycle.
-func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) error {
+func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx) error {
 	const lockId = 8741339439634283896
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId); err != nil {
 		return errors.Wrapf(err, "could not obtain lock")
@@ -86,7 +87,7 @@ func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
-func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {
+func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOperation) error {
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
@@ -104,7 +105,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
-			records[i] = *v.dbRun
+			records[i] = *v.DbRun
 			i++
 		}
 		err := database.Upsert(ctx, tx, "runs", records)
@@ -180,12 +181,18 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 		}
 	case MarkJobsCancelled:
 		jobIds := maps.Keys(o)
-		err := queries.MarkJobsCancelledById(ctx, jobIds)
-		if err != nil {
+		if err := queries.MarkJobsCancelledById(ctx, jobIds); err != nil {
 			return errors.WithStack(err)
 		}
-		err = queries.MarkRunsCancelledByJobId(ctx, jobIds)
-		if err != nil {
+		cancelTimes := make([]interface{}, 0, len(jobIds))
+		canceled := make([]bool, 0, len(jobIds))
+		for _, jobId := range jobIds {
+			cancelTimes = append(cancelTimes, o[jobId])
+			canceled = append(canceled, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("job_id", "cancelled", "terminated_timestamp")
+		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
+		if _, err := tx.Exec(ctx, sqlStmt, jobIds, canceled, cancelTimes); err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkJobsSucceeded:
@@ -213,16 +220,29 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			}
 		}
 	case MarkRunsSucceeded:
-		runIds := maps.Keys(o)
-		err := queries.MarkJobRunsSucceededById(ctx, runIds)
-		if err != nil {
+		successTimes := make([]interface{}, 0, len(o))
+		succeeded := make([]bool, 0, len(o))
+		runIds := make([]uuid.UUID, 0, len(o))
+		for runId, successTime := range o {
+			successTimes = append(successTimes, successTime)
+			runIds = append(runIds, runId)
+			succeeded = append(succeeded, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "succeeded", "terminated_timestamp")
+		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, succeeded, successTimes); err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkRunsFailed:
-		runIds := maps.Keys(o)
-		returned := make([]uuid.UUID, 0, len(runIds))
-		runAttempted := make([]uuid.UUID, 0, len(runIds))
+		runIds := make([]uuid.UUID, 0, len(o))
+		failTimes := make([]interface{}, 0, len(o))
+		failed := make([]bool, 0, len(o))
+		returned := make([]uuid.UUID, 0)
+		runAttempted := make([]uuid.UUID, 0)
 		for k, v := range o {
+			runIds = append(runIds, k)
+			failTimes = append(failTimes, v.FailureTime)
+			failed = append(failed, true)
 			if v.LeaseReturned {
 				returned = append(returned, k)
 			}
@@ -230,22 +250,56 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 				runAttempted = append(runAttempted, k)
 			}
 		}
-		err := queries.MarkJobRunsFailedById(ctx, runIds)
-		if err != nil {
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "failed", "terminated_timestamp")
+		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, failed, failTimes); err != nil {
 			return errors.WithStack(err)
 		}
-		err = queries.MarkJobRunsReturnedById(ctx, returned)
-		if err != nil {
+
+		if err := queries.MarkJobRunsReturnedById(ctx, returned); err != nil {
 			return errors.WithStack(err)
 		}
-		err = queries.MarkJobRunsAttemptedById(ctx, runAttempted)
-		if err != nil {
+		if err := queries.MarkJobRunsAttemptedById(ctx, runAttempted); err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkRunsRunning:
-		runIds := maps.Keys(o)
-		err := queries.MarkJobRunsRunningById(ctx, runIds)
-		if err != nil {
+		runIds := make([]uuid.UUID, 0, len(o))
+		runningTimes := make([]interface{}, 0, len(runIds))
+		running := make([]bool, 0, len(runIds))
+		for runId, failTime := range o {
+			runIds = append(runIds, runId)
+			runningTimes = append(runningTimes, failTime)
+			running = append(running, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "running", "running_timestamp")
+		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, running, runningTimes); err != nil {
+			return errors.WithStack(err)
+		}
+	case MarkRunsPending:
+		runIds := make([]uuid.UUID, 0, len(o))
+		pendingTimes := make([]interface{}, 0, len(o))
+		pending := make([]bool, 0, len(o))
+		for runId, pendingTime := range o {
+			runIds = append(runIds, runId)
+			pendingTimes = append(pendingTimes, pendingTime)
+			pending = append(pending, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "pending", "pending_timestamp")
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, pending, pendingTimes); err != nil {
+			return errors.WithStack(err)
+		}
+	case MarkRunsPreempted:
+		runIds := make([]uuid.UUID, 0, len(o))
+		preemptedTimes := make([]interface{}, 0, len(o))
+		preempted := make([]bool, 0, len(o))
+		for runId, preemptedTime := range o {
+			runIds = append(runIds, runId)
+			preemptedTimes = append(preemptedTimes, preemptedTime)
+			preempted = append(preempted, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "preempted", "preempted_timestamp")
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, preempted, preemptedTimes); err != nil {
 			return errors.WithStack(err)
 		}
 	case InsertJobRunErrors:
@@ -274,7 +328,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 	return nil
 }
 
-func execBatch(ctx context.Context, tx pgx.Tx, batch *pgx.Batch) error {
+func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {
 	result := tx.SendBatch(ctx, batch)
 	for i := 0; i < batch.Len(); i++ {
 		_, err := result.Exec()
@@ -288,4 +342,18 @@ func execBatch(ctx context.Context, tx pgx.Tx, batch *pgx.Batch) error {
 		return err
 	}
 	return nil
+}
+
+func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
+	idPgType := "uuid"
+	if id == "job_id" {
+		idPgType = "text"
+	}
+	return fmt.Sprintf(`update runs set
+	%[2]v = runs_temp.%[2]v,
+	%[3]v = runs_temp.%[3]v
+	from (select * from unnest($1::%[4]v[], $2::boolean[] ,$3::timestamptz[])) 
+	as runs_temp(%[1]v, %[2]v, %[3]v) 
+	where runs.%[1]v = runs_temp.%[1]v;`,
+		id, phaseColumn, timeStampColumn, idPgType)
 }

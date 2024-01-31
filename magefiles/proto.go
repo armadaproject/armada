@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,15 +44,20 @@ func protoPrepareThirdPartyProtos() error {
 		},
 	}
 
-	goPath, err := goEnv("GOPATH")
+	goModPath, err := goEnv("GOMODCACHE")
 	if err != nil {
-		return errors.Errorf("error getting GOPATH: %v", err)
+		return errors.Errorf("error getting GOMODCACHE: %v", err)
 	}
-	if goPath == "" {
-		return errors.New("error GOPATH is not set")
+	if goModPath == "" {
+		return errors.New("error GOMODCACHE is not set")
 	}
-	goModPath := filepath.Join(goPath, "pkg", "mod")
+
 	for _, module := range modules {
+		err = goRun("mod", "download", module.name)
+		if err != nil {
+			return err
+		}
+
 		version, err := goModuleVersion(module.name)
 		if err != nil {
 			return err
@@ -92,7 +96,7 @@ func protoGenerate() error {
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
-		"pkg/api/lookout/*.proto",
+		"internal/scheduler/simulator/*.proto",
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
 		"pkg/executorapi/*.proto",
@@ -109,10 +113,6 @@ func protoGenerate() error {
 	}
 
 	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
-	if err != nil {
-		return err
-	}
-	err = protoProtocRun(false, true, "./pkg/api/lookout/api", "pkg/api/lookout/lookout.proto")
 	if err != nil {
 		return err
 	}
@@ -133,21 +133,14 @@ func protoGenerate() error {
 	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "api.swagger.json"); err != nil {
 		return err
 	} else {
-		if err := ioutil.WriteFile("pkg/api/api.swagger.json", []byte(s), 0o755); err != nil {
-			return err
-		}
-	}
-	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "lookout/api.swagger.json"); err != nil {
-		return err
-	} else {
-		if err := ioutil.WriteFile("pkg/api/lookout/api.swagger.json", []byte(s), 0o755); err != nil {
+		if err := os.WriteFile("pkg/api/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}
 	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "binoculars/api.swagger.json"); err != nil {
 		return err
 	} else {
-		if err := ioutil.WriteFile("pkg/api/binoculars/api.swagger.json", []byte(s), 0o755); err != nil {
+		if err := os.WriteFile("pkg/api/binoculars/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}
@@ -156,10 +149,6 @@ func protoGenerate() error {
 	}
 
 	err = sh.Run("templify", "-e", "-p=api", "-f=SwaggerJson", "pkg/api/api.swagger.json")
-	if err != nil {
-		return err
-	}
-	err = sh.Run("templify", "-e", "-p=lookout", "-f=SwaggerJson", "pkg/api/lookout/api.swagger.json")
 	if err != nil {
 		return err
 	}

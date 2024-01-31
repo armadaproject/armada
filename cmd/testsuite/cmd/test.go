@@ -31,6 +31,8 @@ func testCmd(app *testsuite.App) *cobra.Command {
 	cmd.Flags().String("tests", "", "Test file pattern, e.g., './testcases/*.yaml'.")
 	cmd.Flags().String("junit", "", "Write a JUnit test report to this path.")
 	cmd.Flags().String("benchmark", "", "Write a benchmark test report to this path.")
+	cmd.Flags().String("prometheusPushgatewayUrl", "", "Push metrics to Prometheus pushgateway at this url.")
+	cmd.Flags().String("prometheusPushgatewayJobName", "armada-testsuite", "Metrics are annotated with with job=prometheusPushGatewayJobName.")
 	return cmd
 }
 
@@ -51,6 +53,10 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.WithStack(err)
 		}
 
+		if testFilesPattern == "" {
+			return errors.New("You must specify \"--tests\" on the command line")
+		}
+
 		junitPath, err := cmd.Flags().GetString("junit")
 		if err != nil {
 			return errors.WithStack(err)
@@ -64,8 +70,20 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.New("benchmark report not currently supported")
 		}
 
+		prometheusPushgatewayUrl, err := cmd.Flags().GetString("prometheusPushgatewayUrl")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		app.Params.PrometheusPushGatewayUrl = prometheusPushgatewayUrl
+
+		prometheusPushgatewayJobName, err := cmd.Flags().GetString("prometheusPushgatewayJobName")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		app.Params.PrometheusPushGatewayJobName = prometheusPushgatewayJobName
+
 		// Create a context that is cancelled on SIGINT/SIGTERM.
-		// Ensures test jobs are cancelled on ctrl-C.
+		// Ensures test jobs are cancelled on ctrl-c.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		stopSignal := make(chan os.Signal, 1)
@@ -95,7 +113,7 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		numFailures := testSuiteReport.NumFailures()
 		fmt.Printf("\n======= SUMMARY =======\n")
 		w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
-		fmt.Fprint(w, "Test:\tResult:\tElapsed:\n")
+		fmt.Fprint(w, "Test:\tResult:\tElapsed:\tJobSet:\n")
 		for _, testCaseReport := range testSuiteReport.TestCaseReports {
 			var result string
 			if testCaseReport.FailureReason == "" {
@@ -104,11 +122,12 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 				result = "FAILURE"
 			}
 			elapsed := testCaseReport.Finish.Sub(testCaseReport.Start)
-			fmt.Fprintf(w, "%s\t%s\t%s\n", testCaseReport.TestSpec.Name, result, elapsed)
+
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", testCaseReport.TestSpec.Name, result, elapsed.Round(time.Second), testCaseReport.TestSpec.JobSetId)
 		}
 		_ = w.Flush()
 		fmt.Println()
-		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
+		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start).Round(time.Second))
 		fmt.Printf("Success: %d\n", numSuccesses)
 		fmt.Printf("Failure: %d\n", numFailures)
 		fmt.Println()

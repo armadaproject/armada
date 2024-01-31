@@ -54,11 +54,12 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
+			*armadaevents.EventSequence_Event_JobRequeued,
 			*armadaevents.EventSequence_Event_PartitionMarker:
 			// These events have no api analog right now, so we ignore
-			log.Debugf("Ignoring event")
+			log.Debugf("ignoring event type %T", esEvent)
 		default:
-			log.Warnf("Unknown event type: %T", esEvent)
+			log.Warnf("unknown event type: %T", esEvent)
 			convertedEvents = nil
 		}
 		if err != nil {
@@ -395,6 +396,19 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						Queue:    queueName,
 						Created:  time,
 						Reason:   reason.MaxRunsExceeded.Message,
+					},
+				},
+			}
+			events = append(events, event)
+		case *armadaevents.Error_GangJobUnschedulable:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+						Reason:   reason.GangJobUnschedulable.Message,
 					},
 				},
 			}

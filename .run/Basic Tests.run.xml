@@ -4,6 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="test --tests testsuite/testcases/basic/ingress.yaml" />
     <kind value="FILE" />
+    <package value="github.com/armadaproject/armada" />
     <directory value="$PROJECT_DIR$" />
     <filePath value="$PROJECT_DIR$/cmd/testsuite/main.go" />
     <method v="2" />

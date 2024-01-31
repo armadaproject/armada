@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -9,20 +8,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type GroupByResult struct {
-	// Total number of groups
-	Count  int
 	Groups []*model.JobGroup
 }
 
 type GroupJobsRepository interface {
 	GroupBy(
-		ctx context.Context,
+		ctx *armadacontext.Context,
 		filters []*model.Filter,
 		order *model.Order,
 		groupedField string,
@@ -47,7 +44,7 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 }
 
 func (r *SqlGroupJobsRepository) GroupBy(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	filters []*model.Filter,
 	activeJobSets bool,
 	order *model.Order,
@@ -57,26 +54,12 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	take int,
 ) (*GroupByResult, error) {
 	var groups []*model.JobGroup
-	var count int
 
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
-		if err != nil {
-			return err
-		}
-		logQuery(countQuery)
-		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-		if err != nil {
-			return err
-		}
-		count, err = database.ReadInt(rows)
-		if err != nil {
-			return err
-		}
 		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 		if err != nil {
 			return err
@@ -95,7 +78,6 @@ func (r *SqlGroupJobsRepository) GroupBy(
 
 	return &GroupByResult{
 		Groups: groups,
-		Count:  count,
 	}, nil
 }
 

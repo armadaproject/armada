@@ -57,7 +57,7 @@ This is an example of a Airflow dag that uses a BashOperator and an ArmadaOperat
 with DAG(
     dag_id="big_armada",
     start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
-    schedule_interval="@daily",
+    schedule="@daily",
     catchup=False,
     default_args={"retries": 2},
 ) as dag:

@@ -3,7 +3,7 @@ package pulsar_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -449,7 +449,7 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		httpResBytes, err := ioutil.ReadAll(httpRes.Body)
+		httpResBytes, err := io.ReadAll(httpRes.Body)
 		if err != nil {
 			return err
 		}
@@ -900,7 +900,11 @@ func receiveJobSetSequencesWithEventFilter(
 			fmt.Println("Pulsar receive error", err)
 			continue
 		}
-		consumer.Ack(msg)
+		err = consumer.Ack(msg)
+		if err != nil {
+			fmt.Println("Pulsar ack error", err)
+			continue
+		}
 
 		sequence := &armadaevents.EventSequence{}
 		err = proto.Unmarshal(msg.Payload(), sequence)
@@ -1012,7 +1016,7 @@ func createJobSubmitRequestWithClientId(numJobs int, clientId string) *api.JobSu
 				Containers: []v1.Container{
 					{
 						Name:  "container1",
-						Image: "alpine:3.17",
+						Image: "alpine:3.18.3",
 						Args:  []string{"sleep", "5s"},
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
@@ -1042,7 +1046,7 @@ func createWgetJobRequest(address string) *api.JobSubmitRequest {
 				Containers: []v1.Container{
 					{
 						Name:  "wget",
-						Image: "alpine:3.17",
+						Image: "alpine:3.18.3",
 						Args:  []string{"wget", address, "--timeout=5"}, // Queried from the k8s services API
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
@@ -1173,7 +1177,7 @@ func createJobSubmitRequestWithEverything(numJobs int) *api.JobSubmitRequest {
 				Containers: []v1.Container{
 					{
 						Name:  "container1",
-						Image: "alpine:3.17",
+						Image: "alpine:3.18.3",
 						Args:  []string{"sleep", "5s"},
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
@@ -1240,7 +1244,7 @@ func createJobSubmitRequestWithError(numJobs int) *api.JobSubmitRequest {
 				Containers: []v1.Container{
 					{
 						Name:  "container1",
-						Image: "alpine:3.17",
+						Image: "alpine:3.18.3",
 						Args:  []string{"sleep", "5s", "&&", "exit", "1"},
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},

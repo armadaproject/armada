@@ -1,12 +1,10 @@
 export interface IGetJobSpecService {
-  getJobSpec(jobId: string, abortSignal: AbortSignal | undefined): Promise<Record<string, any>>
+  getJobSpec(jobId: string, abortSignal?: AbortSignal): Promise<Record<string, any>>
 }
 
 export class GetJobSpecService implements IGetJobSpecService {
-  constructor(private apiBase: string) {}
-
-  async getJobSpec(jobId: string, abortSignal: AbortSignal | undefined): Promise<Record<string, any>> {
-    const response = await fetch(this.apiBase + "/api/v1/jobSpec", {
+  async getJobSpec(jobId: string, abortSignal?: AbortSignal): Promise<Record<string, any>> {
+    const response = await fetch("/api/v1/jobSpec", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

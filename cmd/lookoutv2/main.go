@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,9 +11,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookoutv2"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookoutv2/pruner"
 	"github.com/armadaproject/armada/internal/lookoutv2/schema"
 )
@@ -36,9 +40,9 @@ func init() {
 	pflag.Parse()
 }
 
-func makeContext() (context.Context, func()) {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+func makeContext() (*armadacontext.Context, func()) {
+	ctx := armadacontext.Background()
+	ctx, cancel := armadacontext.WithCancel(ctx)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -57,7 +61,7 @@ func makeContext() (context.Context, func()) {
 	}
 }
 
-func migrate(ctx context.Context, config configuration.LookoutV2Configuration) {
+func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -74,7 +78,7 @@ func migrate(ctx context.Context, config configuration.LookoutV2Configuration) {
 	}
 }
 
-func prune(ctx context.Context, config configuration.LookoutV2Configuration) {
+func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -92,7 +96,7 @@ func prune(ctx context.Context, config configuration.LookoutV2Configuration) {
 	log.Infof("expireAfter: %v, batchSize: %v, timeout: %v",
 		config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, config.PrunerConfig.Timeout)
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, config.PrunerConfig.Timeout)
+	ctxTimeout, cancel := armadacontext.WithTimeout(ctx, config.PrunerConfig.Timeout)
 	defer cancel()
 	err = pruner.PruneDb(ctxTimeout, db, config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, clock.RealClock{})
 	if err != nil {
@@ -104,9 +108,18 @@ func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
-	var config configuration.LookoutV2Configuration
+	var config configuration.LookoutV2Config
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookoutv2", userSpecifiedConfigs)
+
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	go func() {
+		ctx := armadacontext.Background()
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+	}()
 
 	log.SetLevel(log.DebugLevel)
 
@@ -125,8 +138,9 @@ func main() {
 		return
 	}
 
-	err := lookoutv2.Serve(config)
-	if err != nil {
+	restapi.UIConfig = config.UIConfig
+
+	if err := lookoutv2.Serve(config); err != nil {
 		log.Error(err)
 		os.Exit(1)
 	}

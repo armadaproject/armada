@@ -93,6 +93,21 @@ func (mr *MockClientMockRecorder) CreateTableView(arg0 interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTableView", reflect.TypeOf((*MockClient)(nil).CreateTableView), arg0)
 }
 
+// NewTransaction mocks base method.
+func (m *MockClient) NewTransaction(arg0 time.Duration) (pulsar.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewTransaction", arg0)
+	ret0, _ := ret[0].(pulsar.Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewTransaction indicates an expected call of NewTransaction.
+func (mr *MockClientMockRecorder) NewTransaction(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTransaction", reflect.TypeOf((*MockClient)(nil).NewTransaction), arg0)
+}
+
 // Subscribe mocks base method.
 func (m *MockClient) Subscribe(arg0 pulsar.ConsumerOptions) (pulsar.Consumer, error) {
 	m.ctrl.T.Helper()
@@ -472,6 +487,20 @@ func (m *MockMessage) RedeliveryCount() uint32 {
 func (mr *MockMessageMockRecorder) RedeliveryCount() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedeliveryCount", reflect.TypeOf((*MockMessage)(nil).RedeliveryCount))
+}
+
+// SchemaVersion mocks base method.
+func (m *MockMessage) SchemaVersion() []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaVersion")
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// SchemaVersion indicates an expected call of SchemaVersion.
+func (mr *MockMessageMockRecorder) SchemaVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaVersion", reflect.TypeOf((*MockMessage)(nil).SchemaVersion))
 }
 
 // Topic mocks base method.

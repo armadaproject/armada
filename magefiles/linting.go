@@ -35,14 +35,7 @@ func golangciLintCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(GOLANGCI_LINT_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
-	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constraint %v", version, constraint)
-	}
-	return nil
+	return constraintCheck(version, GOLANGCI_LINT_VERSION_CONSTRAINT, "golangci-lint")
 }
 
 // Fixing Linting
@@ -70,7 +63,7 @@ func LintFix() error {
 }
 
 // Linting Check
-func CheckLint() error {
+func LintCheck() error {
 	mg.Deps(golangciLintCheck)
 	cmd, err := go_TEST_CMD()
 	if err != nil {

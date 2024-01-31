@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -75,6 +76,20 @@ func (a *App) DescribeQueue(name string) error {
 		}
 	}
 
+	return nil
+}
+
+// GetQueue calls app.QueueAPI.Get with the provided parameters.
+func (a *App) GetQueue(name string) error {
+	queue, err := a.Params.QueueAPI.Get(name)
+	if err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error getting queue %s: %s", name, err)
+	}
+	b, err := yaml.Marshal(queue)
+	if err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queue %s: %s", name, err)
+	}
+	fmt.Fprintf(a.Out, string(b))
 	return nil
 }
 

@@ -1,7 +1,6 @@
 package job
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -10,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -149,7 +149,7 @@ func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[st
 		}
 	}
 
-	util.ProcessItemsWithThreadPool(context.Background(), c.updateThreadCount, podsToAnnotate,
+	util.ProcessItemsWithThreadPool(armadacontext.Background(), c.updateThreadCount, podsToAnnotate,
 		func(pod *v1.Pod) {
 			err := c.clusterContext.AddAnnotation(pod, annotations)
 			if err != nil {

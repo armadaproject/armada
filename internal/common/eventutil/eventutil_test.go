@@ -136,7 +136,7 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 	)
 
 	expectedIngressRules := make([]networking.IngressRule, 2)
-	pathType := networking.PathTypeImplementationSpecific
+	pathType := networking.PathTypePrefix
 	for i, container := range apiJob.PodSpec.Containers {
 		expectedIngressRules[i] = networking.IngressRule{
 			Host: fmt.Sprintf("%s-%d-armada-%s-0.%s.%s",
@@ -485,7 +485,7 @@ func testContainer(name string) v1.Container {
 	memory, _ := resource.ParseQuantity("50Mi")
 	return v1.Container{
 		Name:    name,
-		Image:   "alpine:3.17",
+		Image:   "alpine:3.18.3",
 		Command: []string{"cmd1", "cmd2"},
 		Args:    []string{"sleep", "5s"},
 		Resources: v1.ResourceRequirements{

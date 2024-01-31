@@ -28,13 +28,14 @@ type LookoutIngesterV2Configuration struct {
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
-	// Maximum number of attempts the ingester will try to store batches of data in the database
-	// It will give up after this number is reached
-	MaxAttempts int
 	// Between each attempt to store data in the database, there is an exponential backoff (starting out as 1s).
 	// MaxBackoff caps this backoff to whatever it is specified (in seconds)
 	MaxBackoff int
 	// If the ingester should process events using the legacy event conversion logic
 	// The two schedulers produce slightly different events - so need to be processed differently
 	UseLegacyEventConversion bool
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
+	// List of Regexes which will identify fatal errors when inserting into postgres
+	FatalInsertionErrors []string
 }

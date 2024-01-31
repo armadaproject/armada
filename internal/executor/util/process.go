@@ -1,13 +1,13 @@
 package util
 
 import (
-	"context"
 	"sync"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
 )
 
-func ProcessItemsWithThreadPool[K any](ctx context.Context, maxThreadCount int, itemsToProcess []K, processFunc func(K)) {
+func ProcessItemsWithThreadPool[K any](ctx *armadacontext.Context, maxThreadCount int, itemsToProcess []K, processFunc func(K)) {
 	wg := &sync.WaitGroup{}
 	processChannel := make(chan K)
 
@@ -24,7 +24,7 @@ func ProcessItemsWithThreadPool[K any](ctx context.Context, maxThreadCount int, 
 	wg.Wait()
 }
 
-func poolWorker[K any](ctx context.Context, wg *sync.WaitGroup, podsToProcess chan K, processFunc func(K)) {
+func poolWorker[K any](ctx *armadacontext.Context, wg *sync.WaitGroup, podsToProcess chan K, processFunc func(K)) {
 	defer wg.Done()
 
 	for pod := range podsToProcess {

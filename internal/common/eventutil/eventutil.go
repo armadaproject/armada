@@ -1,7 +1,6 @@
 package eventutil
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"time"
@@ -14,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -25,7 +25,7 @@ import (
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
 // after validating that the resulting EventSequence is valid.
-func UnmarshalEventSequence(ctx context.Context, payload []byte) (*armadaevents.EventSequence, error) {
+func UnmarshalEventSequence(ctx *armadacontext.Context, payload []byte) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	err := proto.Unmarshal(payload, sequence)
 	if err != nil {
@@ -190,6 +190,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Created:                  time,
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
+		QueueTtlSeconds:          e.QueueTtlSeconds,
 	}, nil
 }
 
@@ -224,9 +225,10 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Annotations: job.GetAnnotations(),
 			Labels:      job.GetLabels(),
 		},
-		MainObject: mainObject,
-		Objects:    objects,
-		Scheduler:  job.Scheduler,
+		MainObject:      mainObject,
+		Objects:         objects,
+		Scheduler:       job.Scheduler,
+		QueueTtlSeconds: job.QueueTtlSeconds,
 	}, nil
 }
 

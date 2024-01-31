@@ -11,7 +11,7 @@ export default class FakeGetJobsService implements IGetJobsService {
     order: JobOrder,
     skip: number,
     take: number,
-    signal: AbortSignal | undefined,
+    signal?: AbortSignal,
   ): Promise<GetJobsResponse> {
     if (this.simulateApiWait) {
       await simulateApiWait(signal)
@@ -23,7 +23,6 @@ export default class FakeGetJobsService implements IGetJobsService {
       filtered = filtered.filter((job) => job.queue in active && active[job.queue].includes(job.jobSet))
     }
     return {
-      count: filtered.length,
       jobs: filtered.slice(skip, skip + take),
     }
   }

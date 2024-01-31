@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -29,6 +29,7 @@ type JobSimulator struct {
 	queue            string
 	jobSet           string
 	owner            string
+	namespace        string
 	annotationPrefix string
 	jobId            *armadaevents.Uuid
 	apiJob           *api.Job
@@ -68,10 +69,11 @@ func NewJobSimulator(converter *instructions.InstructionConverter, store *lookou
 	}
 }
 
-func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time, opts *JobOptions) *JobSimulator {
+func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp time.Time, opts *JobOptions) *JobSimulator {
 	js.queue = queue
 	js.jobSet = jobSet
 	js.owner = owner
+	js.namespace = namespace
 	jobId := opts.JobId
 	if jobId == "" {
 		jobId = util.NewULID()
@@ -157,6 +159,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 		LastTransitionTime: ts,
 		Memory:             opts.Memory.Value(),
 		Owner:              owner,
+		Namespace:          &apiJob.Namespace,
 		Priority:           int64(opts.Priority),
 		PriorityClass:      &priorityClass,
 		Queue:              queue,
@@ -586,8 +589,8 @@ func (js *JobSimulator) Build() *JobSimulator {
 		EventSequences: []*armadaevents.EventSequence{eventSequence},
 		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
-	instructionSet := js.converter.Convert(context.TODO(), eventSequenceWithIds)
-	err := js.store.Store(context.TODO(), instructionSet)
+	instructionSet := js.converter.Convert(armadacontext.TODO(), eventSequenceWithIds)
+	err := js.store.Store(armadacontext.TODO(), instructionSet)
 	if err != nil {
 		log.WithError(err).Error("Simulator failed to store job in database")
 	}

@@ -1,12 +1,12 @@
 package service
 
 import (
-	"context"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/slices"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -27,6 +27,7 @@ type JobRequester struct {
 	clusterId          executorContext.ClusterIdentity
 	podDefaults        *configuration.PodDefaults
 	jobRunStateStore   job.RunStateStore
+	maxLeasedJobs      int
 }
 
 func NewJobRequester(
@@ -36,6 +37,7 @@ func NewJobRequester(
 	jobRunStateStore job.RunStateStore,
 	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults,
+	maxLeasedJobs int,
 ) *JobRequester {
 	return &JobRequester{
 		leaseRequester:     leaseRequester,
@@ -44,6 +46,7 @@ func NewJobRequester(
 		jobRunStateStore:   jobRunStateStore,
 		clusterId:          clusterId,
 		podDefaults:        podDefaults,
+		maxLeasedJobs:      maxLeasedJobs,
 	}
 }
 
@@ -53,14 +56,15 @@ func (r *JobRequester) RequestJobsRuns() {
 		log.Errorf("Failed to create lease request because %s", err)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 	leaseResponse, err := r.leaseRequester.LeaseJobRuns(ctx, leaseRequest)
 	if err != nil {
 		log.Errorf("Failed to request new jobs leases as because %s", err)
 		return
 	}
-	logAvailableResources(leaseRequest.AvailableResource, len(leaseResponse.LeasedRuns))
+	log.Infof("Reporting current free resource %s. Requesting %d new jobs. Received %d new jobs.",
+		formatResources(leaseRequest.AvailableResource), leaseRequest.MaxJobsToLease, len(leaseResponse.LeasedRuns))
 
 	jobs, failedJobCreations := r.createSubmitJobs(leaseResponse.LeasedRuns)
 	r.markJobRunsAsLeased(jobs)
@@ -85,10 +89,17 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 		nodes = append(nodes, &capacityReport.Nodes[i])
 	}
 
+	leasedJobs := r.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool { return state.Phase == job.Leased })
+	maxJobsToLease := r.maxLeasedJobs
+	if len(leasedJobs) > 0 {
+		maxJobsToLease = 0
+	}
+
 	return &LeaseRequest{
 		AvailableResource:   *capacityReport.AvailableCapacity,
 		Nodes:               nodes,
 		UnassignedJobRunIds: unassignedRunIds,
+		MaxJobsToLease:      uint32(maxJobsToLease),
 	}, nil
 }
 

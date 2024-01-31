@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -29,5 +32,8 @@ func main() {
 
 	common.LoadConfig(&config, "./config/scheduleringester", userSpecifiedConfigs)
 
-	scheduleringester.Run(config)
+	if err := scheduleringester.Run(config); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
 }

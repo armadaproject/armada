@@ -37,10 +37,10 @@ func NewGetJobs(ctx *middleware.Context, handler GetJobsHandler) *GetJobs {
 	return &GetJobs{Context: ctx, Handler: handler}
 }
 
-/* GetJobs swagger:route POST /api/v1/jobs getJobs
+/*
+	GetJobs swagger:route POST /api/v1/jobs getJobs
 
 GetJobs get jobs API
-
 */
 type GetJobs struct {
 	Context *middleware.Context
@@ -80,12 +80,10 @@ type GetJobsBody struct {
 	Order *models.Order `json:"order"`
 
 	// First elements to ignore from the full set of results. Used for pagination.
-	// Required: true
-	Skip *int64 `json:"skip"`
+	Skip int64 `json:"skip,omitempty"`
 
 	// Number of jobs to fetch.
-	// Required: true
-	Take int64 `json:"take"`
+	Take int64 `json:"take,omitempty"`
 }
 
 // Validate validates this get jobs body
@@ -97,14 +95,6 @@ func (o *GetJobsBody) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := o.validateOrder(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := o.validateSkip(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := o.validateTake(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -156,24 +146,6 @@ func (o *GetJobsBody) validateOrder(formats strfmt.Registry) error {
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (o *GetJobsBody) validateSkip(formats strfmt.Registry) error {
-
-	if err := validate.Required("getJobsRequest"+"."+"skip", "body", o.Skip); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (o *GetJobsBody) validateTake(formats strfmt.Registry) error {
-
-	if err := validate.Required("getJobsRequest"+"."+"take", "body", int64(o.Take)); err != nil {
-		return err
 	}
 
 	return nil
@@ -255,9 +227,6 @@ func (o *GetJobsBody) UnmarshalBinary(b []byte) error {
 //
 // swagger:model GetJobsOKBody
 type GetJobsOKBody struct {
-
-	// Total number of jobs
-	Count int64 `json:"count,omitempty"`
 
 	// List of jobs found
 	Jobs []*models.Job `json:"jobs"`

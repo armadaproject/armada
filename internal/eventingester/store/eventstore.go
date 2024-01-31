@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"regexp"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/model"
@@ -39,7 +39,7 @@ func NewRedisEventStore(db redis.UniversalClient, eventRetention configuration.E
 	}
 }
 
-func (repo *RedisEventStore) Store(ctx context.Context, update *model.BatchUpdate) error {
+func (repo *RedisEventStore) Store(ctx *armadacontext.Context, update *model.BatchUpdate) error {
 	if len(update.Events) == 0 {
 		return nil
 	}

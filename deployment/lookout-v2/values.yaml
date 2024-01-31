@@ -9,7 +9,7 @@ resources:
     memory: 512Mi
     cpu: 200m
 # -- Tolerations
-tolerations: []    
+tolerations: []
 additionalLabels: {}
 additionalVolumeMounts: []
 additionalVolumes: []
@@ -30,5 +30,10 @@ prometheus:
 customServiceAccount: null
 serviceAccount: null
 
+routableService:
+  enabled: false
+
 applicationConfig:
+  tls:
+    enabled: false
   apiPort: 10000

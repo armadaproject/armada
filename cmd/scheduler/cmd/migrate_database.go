@@ -1,13 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -21,7 +21,8 @@ func migrateDbCmd() *cobra.Command {
 	cmd.Flags().Duration(
 		"timeout",
 		5*time.Minute,
-		"Duration after which the migration will fail if it has not been created")
+		"Duration after which the migration will fail if it has not been created",
+	)
 
 	return cmd
 }
@@ -40,10 +41,10 @@ func migrateDatabase(cmd *cobra.Command, _ []string) error {
 	log.Info("Beginning scheduler database migration")
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
-		return errors.WithMessagef(err, "Failed to connect to database")
+		return errors.WithMessagef(err, "failed to connect to database")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), timeout)
 	defer cancel()
 	return schedulerdb.Migrate(ctx, db)
 }

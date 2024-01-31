@@ -76,17 +76,15 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 		txn := db.Txn(false)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
-		if !assert.NoError(t, err) {
-			continue
-		}
+		require.NoError(t, err)
 		pctx := jctx.PodSchedulingContext
-		require.NotNil(t, node)
-		assert.Equal(t, nodeId, node.Id)
-
-		require.NotNil(t, pctx)
-		assert.Equal(t, nodeId, pctx.NodeId)
-		assert.Equal(t, 0, len(pctx.NumExcludedNodesByReason))
-		assert.Empty(t, pctx.NumExcludedNodesByReason)
+		if assert.NotNil(t, node) {
+			assert.Equal(t, nodeId, node.Id)
+		}
+		if assert.NotNil(t, pctx) {
+			assert.Equal(t, nodeId, pctx.NodeId)
+			assert.Empty(t, pctx.NumExcludedNodesByReason, "got %v", pctx.NumExcludedNodesByReason)
+		}
 	}
 }
 
@@ -129,35 +127,35 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	request := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
 	jobId := job.GetId()
 
-	boundNode, err := bindJobToNode(testfixtures.TestPriorityClasses, job, entry)
+	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	unboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
+	unboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.NoError(t, err)
 
-	unboundMultipleNode, err := UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
+	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedJobs, evictedNode, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
+	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 	assert.Equal(t, []interfaces.LegacySchedulerJob{job}, evictedJobs)
 
-	evictedUnboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
+	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := bindJobToNode(testfixtures.TestPriorityClasses, job, evictedNode)
+	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, entry)
+	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, entry)
 	require.Error(t, err)
 
-	_, err = UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
+	_, err = nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
+	require.NoError(t, err)
+
+	_, err = nodeDb.bindJobToNode(boundNode, job, job.PodRequirements().Priority)
 	require.Error(t, err)
 
-	_, err = bindJobToNode(testfixtures.TestPriorityClasses, job, boundNode)
-	require.Error(t, err)
-
-	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
+	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, entry, unboundNode)
@@ -294,7 +292,7 @@ func TestEviction(t *testing.T) {
 			for i, job := range jobs {
 				existingJobs[i] = job
 			}
-			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
+			actualEvictions, _, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
 			require.NoError(t, err)
 			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
 			for _, i := range tc.expectedEvictions {
@@ -438,28 +436,28 @@ func TestScheduleIndividually(t *testing.T) {
 			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs)
 
 			for i, jctx := range jctxs {
-				ok, err := nodeDb.ScheduleMany([]*schedulercontext.JobSchedulingContext{jctx})
+				nodeDbTxn := nodeDb.Txn(true)
+				gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
+
+				require.Equal(t, tc.ExpectSuccess[i], ok)
+
 				pctx := jctx.PodSchedulingContext
 
-				if !tc.ExpectSuccess[i] {
-					assert.False(t, ok)
+				if !ok {
+					nodeDbTxn.Abort()
 					if pctx != nil {
 						assert.Equal(t, "", pctx.NodeId)
 					}
 					continue
 				}
 
-				assert.True(t, ok)
+				nodeDbTxn.Commit()
+
 				require.NotNil(t, pctx)
-
 				nodeId := pctx.NodeId
-				if !tc.ExpectSuccess[i] {
-					assert.Equal(t, "", nodeId)
-					continue
-				}
 				require.NotEqual(t, "", nodeId)
-
 				job := jctx.Job
 				node, err := nodeDb.GetNode(nodeId)
 				require.NoError(t, err)
@@ -474,6 +472,9 @@ func TestScheduleIndividually(t *testing.T) {
 }
 
 func TestScheduleMany(t *testing.T) {
+	gangSuccess := testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32))
+	gangFailure := testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33))
+
 	tests := map[string]struct {
 		// Nodes to schedule across.
 		Nodes []*schedulerobjects.Node
@@ -483,22 +484,30 @@ func TestScheduleMany(t *testing.T) {
 		// For each group, whether we expect scheduling to succeed.
 		ExpectSuccess []bool
 	}{
+		// Attempts to schedule 32 jobs with a minimum gang cardinality of 1 job. All jobs get scheduled.
 		"simple success": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)},
+			Jobs:          [][]*jobdb.Job{gangSuccess},
 			ExpectSuccess: []bool{true},
 		},
-		"simple failure": {
+		// Attempts to schedule 33 jobs with a minimum gang cardinality of 32 jobs. One fails, but the overall result is a success.
+		"simple success with min cardinality": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33)},
+			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(32, testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33))},
+			ExpectSuccess: []bool{true},
+		},
+		// Attempts to schedule 33 jobs with a minimum gang cardinality of 33. The overall result fails.
+		"simple failure with min cardinality": {
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          [][]*jobdb.Job{gangFailure},
 			ExpectSuccess: []bool{false},
 		},
 		"correct rollback": {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: [][]*jobdb.Job{
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+				gangSuccess,
+				gangFailure,
+				gangSuccess,
 			},
 			ExpectSuccess: []bool{true, false, true},
 		},
@@ -519,14 +528,26 @@ func TestScheduleMany(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 			for i, jobs := range tc.Jobs {
+				nodeDbTxn := nodeDb.Txn(true)
 				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
-				ok, err := nodeDb.ScheduleMany(jctxs)
+				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
-				assert.Equal(t, tc.ExpectSuccess[i], ok)
+				require.Equal(t, tc.ExpectSuccess[i], ok)
+				if ok {
+					nodeDbTxn.Commit()
+				} else {
+					nodeDbTxn.Abort()
+					// We make no assertions about pctx in this case; if some of
+					// the jobs in the gang were scheduled successfully and
+					// others were not, then pctx.NodeId will be inconsistent
+					// until the gang is returned back to the gang scheduler.
+					continue
+				}
 				for _, jctx := range jctxs {
 					pctx := jctx.PodSchedulingContext
 					require.NotNil(t, pctx)
-					if tc.ExpectSuccess[i] {
+					if !jctx.ShouldFail {
 						assert.NotEqual(t, "", pctx.NodeId)
 					}
 				}
@@ -542,6 +563,7 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -580,6 +602,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -592,8 +615,9 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 		txn := nodeDb.Txn(true)
-		_, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
+		_, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
 		txn.Abort()
 		require.NoError(b, err)
 	}
@@ -703,6 +727,7 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err
@@ -721,7 +746,7 @@ func BenchmarkNodeDbStringFromPodRequirementsNotMetReason(b *testing.B) {
 	nodeDb := &NodeDb{
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}
-	reason := &schedulerobjects.UntoleratedTaint{
+	reason := &UntoleratedTaint{
 		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
 	}
 	nodeDb.stringFromPodRequirementsNotMetReason(reason)

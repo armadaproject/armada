@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -19,6 +20,7 @@ import (
 	clientTesting "k8s.io/client-go/testing"
 
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
@@ -79,7 +81,7 @@ func TestCordonNode(t *testing.T) {
 			cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
 			ctx := authorization.WithPrincipal(context.Background(), principal)
-			err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
+			err := cordonService.CordonNode(armadacontext.New(ctx, logrus.NewEntry(logrus.New())), &binoculars.CordonRequest{
 				NodeName: defaultNode.Name,
 			})
 			assert.Nil(t, err)
@@ -96,7 +98,7 @@ func TestCordonNode(t *testing.T) {
 			assert.Equal(t, patch, tc.expectedPatch)
 
 			// Assert resulting node is in expected state
-			node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
+			node, err := client.CoreV1().Nodes().Get(armadacontext.Background(), defaultNode.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, node.Spec.Unschedulable, true)
 			assert.Equal(t, node.Labels, tc.expectedLabels)
@@ -107,7 +109,7 @@ func TestCordonNode(t *testing.T) {
 func TestCordonNode_InvalidNodeName(t *testing.T) {
 	cordonService, _ := setupTest(t, defaultCordonConfig, FakePermissionChecker{ReturnValue: true})
 
-	err := cordonService.CordonNode(context.Background(), &binoculars.CordonRequest{
+	err := cordonService.CordonNode(armadacontext.Background(), &binoculars.CordonRequest{
 		NodeName: "non-existent-node",
 	})
 
@@ -117,7 +119,7 @@ func TestCordonNode_InvalidNodeName(t *testing.T) {
 
 func TestCordonNode_Unauthenticated(t *testing.T) {
 	cordonService, _ := setupTest(t, defaultCordonConfig, FakePermissionChecker{ReturnValue: false})
-	err := cordonService.CordonNode(context.Background(), &binoculars.CordonRequest{
+	err := cordonService.CordonNode(armadacontext.Background(), &binoculars.CordonRequest{
 		NodeName: defaultNode.Name,
 	})
 
@@ -131,7 +133,7 @@ func setupTest(t *testing.T, config configuration.CordonConfiguration, permissio
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
 
-	_, err := client.CoreV1().Nodes().Create(context.Background(), defaultNode, metav1.CreateOptions{})
+	_, err := client.CoreV1().Nodes().Create(armadacontext.Background(), defaultNode, metav1.CreateOptions{})
 	require.NoError(t, err)
 	client.Fake.ClearActions()
 

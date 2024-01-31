@@ -78,9 +78,18 @@ class GrpcChannelArguments(object):
         self.options = options
         self.compression = compression
         self.credentials_callback = None
+        self.credentials_callback_args = credentials_callback_args
 
         if credentials_callback_args is not None:
             self.credentials_callback = CredentialsCallback(**credentials_callback_args)
+
+    def __eq__(self, o):
+        return (
+            self.target == o.target
+            and self.options == o.options
+            and self.compression == o.compression
+            and self.credentials_callback_args == o.credentials_callback_args
+        )
 
     def channel(self) -> grpc.Channel:
         """

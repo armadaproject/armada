@@ -3,87 +3,74 @@ package validation
 import (
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/scheduler"
-
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/util"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	if err := validateGangs(jobs); err != nil {
-		return err
+func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) ([]*api.JobSubmitResponseItem, error) {
+	if _, err := validateGangs(jobs); err != nil {
+		return nil, err
 	}
+
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(jobs))
 	for _, job := range jobs {
 		if err := ValidateApiJob(job, config); err != nil {
-			return err
+			response := &api.JobSubmitResponseItem{
+				JobId: job.Id,
+				Error: err.Error(),
+			}
+			responseItems = append(responseItems, response)
 		}
 	}
-	return nil
+
+	if len(responseItems) > 0 {
+		return responseItems, errors.New("[createJobs] Failed to validate jobs")
+	}
+	return nil, nil
 }
 
-func validateGangs(jobs []*api.Job) error {
-	gangDetailsByGangId := make(map[string]struct {
-		actualCardinality           int
-		expectedCardinality         int
-		expectedPriorityClassName   string
-		expectedNodeUniformityLabel string
-	})
+func validateGangs(jobs []*api.Job) (map[string]schedulercontext.GangInfo, error) {
+	gangDetailsByGangId := make(map[string]schedulercontext.GangInfo)
 	for i, job := range jobs {
-		annotations := job.Annotations
-		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations)
-		nodeUniformityLabel := annotations[configuration.GangNodeUniformityLabelAnnotation]
+		actual, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 		if err != nil {
-			return errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId)
+			return nil, errors.WithMessagef(err, "%d-th job with id %s", i, job.Id)
 		}
-		if !isGangJob {
+		if actual.Id == "" {
 			continue
 		}
-		if gangId == "" {
-			return errors.Errorf("empty gang id for %d-th job with id %s", i, job.Id)
-		}
-		podSpec := util.PodSpecFromJob(job)
-		if details, ok := gangDetailsByGangId[gangId]; ok {
-			if details.expectedCardinality != gangCardinality {
-				return errors.Errorf(
+		if expected, ok := gangDetailsByGangId[actual.Id]; ok {
+			if expected.Cardinality != actual.Cardinality {
+				return nil, errors.Errorf(
 					"inconsistent gang cardinality for %d-th job with id %s in gang %s: expected %d but got %d",
-					i, job.Id, gangId, details.expectedCardinality, gangCardinality,
+					i, job.Id, actual.Id, expected.Cardinality, actual.Cardinality,
 				)
 			}
-			if podSpec != nil && details.expectedPriorityClassName != podSpec.PriorityClassName {
-				return errors.Errorf(
+			if expected.MinimumCardinality != actual.MinimumCardinality {
+				return nil, errors.Errorf(
+					"inconsistent gang minimum cardinality for %d-th job with id %s in gang %s: expected %d but got %d",
+					i, job.Id, actual.Id, expected.MinimumCardinality, actual.MinimumCardinality,
+				)
+			}
+			if expected.PriorityClassName != actual.PriorityClassName {
+				return nil, errors.Errorf(
 					"inconsistent PriorityClassName for %d-th job with id %s in gang %s: expected %s but got %s",
-					i, job.Id, gangId, details.expectedPriorityClassName, podSpec.PriorityClassName,
+					i, job.Id, actual.Id, expected.PriorityClassName, actual.PriorityClassName,
 				)
 			}
-			if nodeUniformityLabel != details.expectedNodeUniformityLabel {
-				return errors.Errorf(
+			if actual.NodeUniformity != expected.NodeUniformity {
+				return nil, errors.Errorf(
 					"inconsistent nodeUniformityLabel for %d-th job with id %s in gang %s: expected %s but got %s",
-					i, job.Id, gangId, details.expectedNodeUniformityLabel, nodeUniformityLabel,
+					i, job.Id, actual.Id, expected.NodeUniformity, actual.NodeUniformity,
 				)
 			}
-			details.actualCardinality++
-			gangDetailsByGangId[gangId] = details
 		} else {
-			details.actualCardinality = 1
-			details.expectedCardinality = gangCardinality
-			if podSpec != nil {
-				details.expectedPriorityClassName = podSpec.PriorityClassName
-			}
-			details.expectedNodeUniformityLabel = nodeUniformityLabel
-			gangDetailsByGangId[gangId] = details
+			gangDetailsByGangId[actual.Id] = actual
 		}
 	}
-	for gangId, details := range gangDetailsByGangId {
-		if details.expectedCardinality != details.actualCardinality {
-			return errors.Errorf(
-				"unexpected number of jobs for gang %s: expected %d jobs but got %d",
-				gangId, details.expectedCardinality, details.actualCardinality,
-			)
-		}
-	}
-	return nil
+	return gangDetailsByGangId, nil
 }
 
 func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {

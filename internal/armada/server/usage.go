@@ -12,13 +12,13 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type UsageServer struct {
-	permissions      authorization.PermissionChecker
+	authorizer       ActionAuthorizer
 	priorityHalfTime time.Duration
 	schedulingConfig *configuration.SchedulingConfig
 	usageRepository  repository.UsageRepository
@@ -26,14 +26,14 @@ type UsageServer struct {
 }
 
 func NewUsageServer(
-	permissions authorization.PermissionChecker,
+	authorizer ActionAuthorizer,
 	priorityHalfTime time.Duration,
 	schedulingConfig *configuration.SchedulingConfig,
 	usageRepository repository.UsageRepository,
 	queueRepository repository.QueueRepository,
 ) *UsageServer {
 	return &UsageServer{
-		permissions:      permissions,
+		authorizer:       authorizer,
 		priorityHalfTime: priorityHalfTime,
 		schedulingConfig: schedulingConfig,
 		usageRepository:  usageRepository,
@@ -41,8 +41,9 @@ func NewUsageServer(
 	}
 }
 
-func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
-	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+func (s *UsageServer) ReportUsage(grpcCtx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	if err := s.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}
 

@@ -3,6 +3,9 @@ package configuration
 import (
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/config"
@@ -11,9 +14,6 @@ import (
 )
 
 const (
-	// IsEvictedAnnotation is set on evicted jobs; the scheduler uses it to differentiate between
-	// already-running and queued jobs.
-	IsEvictedAnnotation = "armadaproject.io/isEvicted"
 	// NodeIdLabel maps to a unique id associated with each node.
 	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
@@ -30,11 +30,16 @@ type Configuration struct {
 	Leader LeaderConfig
 	// Configuration controlling metrics
 	Metrics configuration.MetricsConfig
+	// Configuration for new scheduler metrics.
+	// Due to replace metrics configured via the above entry.
+	SchedulerMetrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	Http       HttpConfig
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
@@ -51,8 +56,44 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
-	// Maximum jobs to return from a single lease call
-	MaxJobsLeasedPerCall uint `validate:"required"`
+}
+
+func (c Configuration) Validate() error {
+	validate := validator.New()
+	validate.RegisterStructValidation(configuration.SchedulingConfigValidation, configuration.SchedulingConfig{})
+	return validate.Struct(c)
+}
+
+type MetricsConfig struct {
+	// If true, disable metric collection and publishing.
+	Disabled bool
+	// Regexes used for job error categorisation.
+	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
+	// If no regex matches, the subCategory label is the empty string.
+	TrackedErrorRegexes []string
+	// Metrics are exported for these resources.
+	TrackedResourceNames []v1.ResourceName
+	// Controls the cycle time metrics.
+	// TODO(albin): Not used yet.
+	CycleTimeConfig PrometheusSummaryConfig
+	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
+	ResetInterval time.Duration
+}
+
+// PrometheusSummaryConfig contains the relevant config for a prometheus.Summary.
+type PrometheusSummaryConfig struct {
+	// Objectives defines the quantile rank estimates with their respective
+	// absolute error. If Objectives[q] = e, then the value reported for q
+	// will be the φ-quantile value for some φ between q-e and q+e.  The
+	// default value is an empty map, resulting in a summary without
+	// quantiles.
+	Objectives map[float64]float64
+
+	// MaxAge defines the duration for which an observation stays relevant
+	// for the summary. Only applies to pre-calculated quantiles, does not
+	// apply to _sum and _count. Must be positive. The default value is
+	// DefMaxAge.
+	MaxAge time.Duration
 }
 
 type LeaderConfig struct {

@@ -5,9 +5,9 @@ import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Model
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
-import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
 import { AnnotationColumnId, DEFAULT_COLUMN_MATCHES, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
+import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
 
 export interface PendingData {
   parentRowId: RowId | "ROOT"

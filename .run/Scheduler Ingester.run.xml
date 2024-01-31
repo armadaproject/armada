@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Scheduler Ingester" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
+      <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
+    </envs>
+    <kind value="FILE" />
+    <package value="github.com/armadaproject/armada" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/scheduleringester/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

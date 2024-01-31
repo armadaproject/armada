@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -26,6 +26,7 @@ const (
 	UnableToSchedule podIssueType = iota
 	StuckStartingUp
 	StuckTerminating
+	ActiveDeadlineExceeded
 	ExternallyDeleted
 	ErrorDuringIssueHandling
 )
@@ -159,7 +160,7 @@ func (p *IssueHandler) HandlePodIssues() {
 	})
 	p.detectPodIssues(managedPods)
 	p.detectReconciliationIssues(managedPods)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Minute*2)
 	defer cancel()
 	p.handleKnownIssues(ctx, managedPods)
 }
@@ -177,6 +178,22 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				Message:          "pod stuck in terminating phase, this might be due to platform problems",
 				Retryable:        false,
 				Type:             StuckTerminating,
+			}
+
+			p.registerIssue(&runIssue{
+				JobId:    util.ExtractJobId(pod),
+				RunId:    util.ExtractJobRunId(pod),
+				PodIssue: issue,
+			})
+		} else if p.hasExceededActiveDeadline(pod) {
+			// Pod has past its active deadline seconds + some buffer.
+			// As the pod is still here it means the kubelet is unable to kill it for some reason.
+			// Start cleaning it up - which will eventually be force killed
+			issue := &podIssue{
+				OriginalPodState: pod.DeepCopy(),
+				Message:          "pod has exceeded active deadline seconds",
+				Retryable:        false,
+				Type:             ActiveDeadlineExceeded,
 			}
 
 			p.registerIssue(&runIssue{
@@ -225,7 +242,21 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 	}
 }
 
-func (p *IssueHandler) handleKnownIssues(ctx context.Context, allManagedPods []*v1.Pod) {
+// Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period
+func (p *IssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
+	if pod.Spec.ActiveDeadlineSeconds == nil {
+		return false
+	}
+	currentRunTimeSeconds := time.Now().Sub(pod.CreationTimestamp.Time).Seconds()
+	podTerminationGracePeriodSeconds := float64(0)
+	if pod.Spec.TerminationGracePeriodSeconds != nil {
+		podTerminationGracePeriodSeconds = float64(*pod.Spec.TerminationGracePeriodSeconds)
+	}
+	deadline := float64(*pod.Spec.ActiveDeadlineSeconds) + podTerminationGracePeriodSeconds + p.stuckTerminatingPodExpiry.Seconds()
+	return currentRunTimeSeconds > deadline
+}
+
+func (p *IssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
 	// Make issues from pods + issues
 	issues := createIssues(allManagedPods, p.knownPodIssues)
 	util.ProcessItemsWithThreadPool(ctx, 20, issues, p.handleRunIssue)

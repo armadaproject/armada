@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -10,9 +9,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -21,7 +23,7 @@ import (
 // PoolAssigner allows jobs to be assigned to a pool
 // Note that this is intended only for use with metrics calculation
 type PoolAssigner interface {
-	Refresh(ctx context.Context) error
+	Refresh(ctx *armadacontext.Context) error
 	AssignPool(j *jobdb.Job) (string, error)
 }
 
@@ -37,6 +39,7 @@ type DefaultPoolAssigner struct {
 	indexedResources       []configuration.IndexedResource
 	indexedTaints          []string
 	indexedNodeLabels      []string
+	wellKnownNodeTypes     []configuration.WellKnownNodeType
 	poolByExecutorId       map[string]string
 	executorsByPool        map[string][]*executor
 	executorRepository     database.ExecutorRepository
@@ -58,9 +61,10 @@ func NewPoolAssigner(executorTimeout time.Duration,
 		priorityClasses:        schedulingConfig.Preemption.PriorityClasses,
 		executorsByPool:        map[string][]*executor{},
 		poolByExecutorId:       map[string]string{},
-		priorities:             schedulingConfig.Preemption.AllowedPriorities(),
+		priorities:             types.AllowedPriorities(schedulingConfig.Preemption.PriorityClasses),
 		indexedResources:       schedulingConfig.IndexedResources,
 		indexedTaints:          schedulingConfig.IndexedTaints,
+		wellKnownNodeTypes:     schedulingConfig.WellKnownNodeTypes,
 		indexedNodeLabels:      schedulingConfig.IndexedNodeLabels,
 		executorRepository:     executorRepository,
 		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
@@ -70,7 +74,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 }
 
 // Refresh updates executor state
-func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
+func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
 	poolByExecutorId := map[string]string{}
@@ -105,17 +109,10 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	}
 
 	// See if we have this set of reqs cached.
-	var priority int32
-	if priorityClass, ok := p.priorityClasses[j.GetPriorityClassName()]; ok {
-		priority = priorityClass.Priority
+	schedulingKey, ok := j.GetSchedulingKey()
+	if !ok {
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(p.schedulingKeyGenerator, j)
 	}
-	schedulingKey := p.schedulingKeyGenerator.Key(
-		j.GetNodeSelector(),
-		j.GetAffinity(),
-		j.GetTolerations(),
-		j.GetResourceRequirements().Requests,
-		priority,
-	)
 	if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
 		return cachedPool.(string), nil
 	}
@@ -123,11 +120,12 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := j.PodRequirements()
 	req = p.clearAnnotations(req)
 
-	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
+	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on.
+	// TODO: We should use the real scheduler instead since this check may go out of sync with the scheduler.
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
 			requests := req.GetResourceRequirements().Requests
-			if ok, _ := requestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests), e.minimumJobSize); !ok {
+			if ok, _ := constraints.RequestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests), e.minimumJobSize); !ok {
 				continue
 			}
 			nodeDb := e.nodeDb
@@ -137,6 +135,7 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 				JobId:           j.GetId(),
 				Job:             j,
 				PodRequirements: j.GetPodRequirements(p.priorityClasses),
+				GangInfo:        schedulercontext.EmptyGangInfo(j),
 			}
 			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 			txn.Abort()
@@ -160,6 +159,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 		p.indexedResources,
 		p.indexedTaints,
 		p.indexedNodeLabels,
+		p.wellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

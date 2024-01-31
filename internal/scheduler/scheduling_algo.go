@@ -7,14 +7,15 @@ import (
 
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -22,6 +23,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -34,7 +36,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -43,7 +45,12 @@ type FairSchedulingAlgo struct {
 	executorRepository          database.ExecutorRepository
 	queueRepository             repository.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository
-	maxSchedulingDuration       time.Duration
+	// Global job scheduling rate-limiter.
+	limiter *rate.Limiter
+	// Per-queue job scheduling rate-limiters.
+	limiterByQueue map[string]*rate.Limiter
+	// Max amount of time each scheduling round is allowed to take.
+	maxSchedulingDuration time.Duration
 	// Order in which to schedule executor groups.
 	// Executors are grouped by either id (i.e., individually) or by pool.
 	executorGroupsToSchedule []string
@@ -69,6 +76,8 @@ func NewFairSchedulingAlgo(
 		executorRepository:          executorRepository,
 		queueRepository:             queueRepository,
 		schedulingContextRepository: schedulingContextRepository,
+		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		limiterByQueue:              make(map[string]*rate.Limiter),
 		maxSchedulingDuration:       maxSchedulingDuration,
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
@@ -81,26 +90,26 @@ func NewFairSchedulingAlgo(
 // It maintains state of which executors it has considered already and may take multiple Schedule() calls to consider all executors if scheduling is slow.
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
-	log := ctxlogrus.Extract(ctx)
-
+	var cancel context.CancelFunc
+	if l.maxSchedulingDuration != 0 {
+		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
+		defer cancel()
+	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId: make(map[string]string),
+		NodeIdByJobId:                make(map[string]string),
+		AdditionalAnnotationsByJobId: make(map[string]map[string]string),
 	}
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		log.Info("skipping scheduling - scheduling disabled")
+		ctx.Info("scheduling disabled; exiting")
 		return overallSchedulerResult, nil
 	}
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
-	defer cancel()
-
-	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn)
 	if err != nil {
 		return nil, err
 	}
@@ -113,9 +122,9 @@ func (l *FairSchedulingAlgo) Schedule(
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
 		select {
-		case <-ctxWithTimeout.Done():
+		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
-			log.Info("ending scheduling round early as we have hit the maximum scheduling duration")
+			ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
 			return overallSchedulerResult, nil
 		default:
 		}
@@ -134,9 +143,12 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Assume pool and minimumJobSize are consistent within the group.
 		pool := executorGroup[0].Pool
 		minimumJobSize := executorGroup[0].MinimumJobSize
-		log.Infof("scheduling on executor group %s", executorGroupLabel)
+		ctx.Infof(
+			"scheduling on executor group %s with capacity %s",
+			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
+		)
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
-			ctxWithTimeout,
+			ctx,
 			fsctx,
 			pool,
 			minimumJobSize,
@@ -147,30 +159,35 @@ func (l *FairSchedulingAlgo) Schedule(
 			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
 			// and exit gracefully.
 			l.executorGroupsToSchedule = append(l.executorGroupsToSchedule, executorGroupLabel)
-			log.Info("stopped scheduling early as we have hit the maximum scheduling duration")
+			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
 			return nil, err
 		}
 		if l.schedulingContextRepository != nil {
 			if err := l.schedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-				logging.WithStacktrace(log, err).Error("failed to add scheduling context")
+				logging.WithStacktrace(ctx, err).Error("failed to add scheduling context")
 			}
 		}
 
-		// Update jobDb.
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
 		}
-		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+		if err := txn.Upsert(scheduledJobs); err != nil {
+			return nil, err
+		}
+		if err := txn.Upsert(failedJobs); err != nil {
 			return nil, err
 		}
 
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
+		overallSchedulerResult.FailedJobs = append(overallSchedulerResult.FailedJobs, schedulerResult.FailedJobs...)
+		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 		// Update fsctx.
@@ -225,10 +242,9 @@ type fairSchedulingAlgoContext struct {
 	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	executors                                []*schedulerobjects.Executor
 	txn                                      *jobdb.Txn
-	jobDb                                    *jobdb.JobDb
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn) (*fairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
@@ -262,7 +278,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
-	for _, job := range jobDb.GetAll(txn) {
+	for _, job := range txn.GetAll() {
 		isActiveByQueueName[job.Queue()] = true
 		if job.Queued() {
 			continue
@@ -284,11 +300,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
+		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
-		if isGangJob {
+		if gangId := gangInfo.Id; gangId != "" {
 			jobIds := jobIdsByGangId[gangId]
 			if jobIds == nil {
 				jobIds = make(map[string]bool)
@@ -317,14 +333,13 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		gangIdByJobId:                            gangIdByJobId,
 		allocationByPoolAndQueueAndPriorityClass: totalAllocationByPoolAndQueue,
 		executors:                                executors,
-		jobDb:                                    jobDb,
 		txn:                                      txn,
 	}, nil
 }
 
 // scheduleOnExecutors schedules jobs on a specified set of executors.
 func (l *FairSchedulingAlgo) scheduleOnExecutors(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
 	minimumJobSize schedulerobjects.ResourceList,
@@ -336,6 +351,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
+		l.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -352,17 +368,31 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if len(executors) == 1 {
 		executorId = executors[0].Id
 	}
+	totalResources := fsctx.totalCapacityByPool[pool]
+	var fairnessCostProvider fairness.FairnessCostProvider
+	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+			totalResources,
+			l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		fairnessCostProvider, err = fairness.NewAssetFairness(l.schedulingConfig.ResourceScarcity)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	sctx := schedulercontext.NewSchedulingContext(
 		executorId,
 		pool,
 		l.schedulingConfig.Preemption.PriorityClasses,
 		l.schedulingConfig.Preemption.DefaultPriorityClass,
-		l.schedulingConfig.ResourceScarcity,
-		fsctx.totalCapacityByPool[pool],
+		fairnessCostProvider,
+		l.limiter,
+		totalResources,
 	)
-	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		sctx.EnableDominantResourceFairness(l.schedulingConfig.DominantResourceFairnessResourcesToConsider)
-	}
 	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
 		if !fsctx.isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
@@ -376,7 +406,16 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if priorityFactor > 0 {
 			weight = 1 / priorityFactor
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass); err != nil {
+		queueLimiter, ok := l.limiterByQueue[queue]
+		if !ok {
+			// Create per-queue limiters lazily.
+			queueLimiter = rate.NewLimiter(
+				rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate),
+				l.schedulingConfig.MaximumPerQueueSchedulingBurst,
+			)
+			l.limiterByQueue[queue] = queueLimiter
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueLimiter); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -393,10 +432,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.Preemption.NodeEvictionProbability,
 		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
-		&schedulerJobRepositoryAdapter{
-			txn: fsctx.txn,
-			db:  fsctx.jobDb,
-		},
+		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
@@ -408,46 +444,67 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if l.schedulingConfig.EnableAssertions {
 		scheduler.EnableAssertions()
 	}
+	if l.schedulingConfig.EnableNewPreemptionStrategy {
+		scheduler.EnableNewPreemptionStrategy()
+	}
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	for i, job := range result.PreemptedJobs {
-		jobDbJob := job.(*jobdb.Job)
+	for i, jctx := range result.PreemptedJobs {
+		jobDbJob := jctx.Job.(*jobdb.Job)
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
-		result.PreemptedJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
+		result.PreemptedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
-	for i, job := range result.ScheduledJobs {
-		jobDbJob := job.(*jobdb.Job)
-		nodeId := result.NodeIdByJobId[jobDbJob.GetId()]
+	for i, jctx := range result.ScheduledJobs {
+		jobDbJob := jctx.Job.(*jobdb.Job)
+		jobId := jobDbJob.GetId()
+		nodeId := result.NodeIdByJobId[jobId]
 		if nodeId == "" {
-			return nil, nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
+			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
 		}
-		if node, err := nodeDb.GetNode(nodeId); err != nil {
+		node, err := nodeDb.GetNode(nodeId)
+		if err != nil {
 			return nil, nil, err
-		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
+		priority, ok := nodeDb.GetScheduledAtPriority(jobId)
+		if !ok {
+			return nil, nil, errors.Errorf("job %s not mapped to a priority", jobId)
+		}
+		result.ScheduledJobs[i].Job = jobDbJob.
+			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
+			WithQueued(false).
+			WithNewRun(node.Executor, node.Id, node.Name, priority)
+	}
+	for i, jctx := range result.FailedJobs {
+		jobDbJob := jctx.Job.(*jobdb.Job)
+		result.FailedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	return result, sctx, nil
 }
 
 // Adapter to make jobDb implement the JobRepository interface.
-type schedulerJobRepositoryAdapter struct {
-	db  *jobdb.JobDb
+//
+// TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
+type SchedulerJobRepositoryAdapter struct {
 	txn *jobdb.Txn
+}
+
+func NewSchedulerJobRepositoryAdapter(txn *jobdb.Txn) *SchedulerJobRepositoryAdapter {
+	return &SchedulerJobRepositoryAdapter{
+		txn: txn,
+	}
 }
 
 // GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
 // to new scheduler.
-func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
-	it := repo.db.QueuedJobs(repo.txn, queue)
+	it := repo.txn.QueuedJobs(queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
 		rv = append(rv, v.Id())
 	}
@@ -456,10 +513,10 @@ func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
-		if job := repo.db.GetById(repo.txn, id); job != nil {
+		if job := repo.txn.GetById(id); job != nil {
 			rv = append(rv, job)
 		}
 	}
@@ -520,17 +577,18 @@ func (l *FairSchedulingAlgo) filterStaleExecutors(executors []*schedulerobjects.
 //
 // TODO: Let's also check that jobs are on the right nodes.
 func (l *FairSchedulingAlgo) filterLaggingExecutors(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	executors []*schedulerobjects.Executor,
 	leasedJobsByExecutor map[string][]*jobdb.Job,
 ) []*schedulerobjects.Executor {
-	log := ctxlogrus.Extract(ctx)
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
 	for _, executor := range executors {
 		leasedJobs := leasedJobsByExecutor[executor.Id]
 		executorRuns, err := executor.AllRuns()
 		if err != nil {
-			logging.WithStacktrace(log, err).Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
+			logging.
+				WithStacktrace(ctx, err).
+				Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
 			continue
 		}
 		executorRunIds := make(map[uuid.UUID]bool, len(executorRuns))
@@ -549,7 +607,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		if numUnacknowledgedJobs <= l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
-			log.Warnf(
+			ctx.Warnf(
 				"%d unacknowledged jobs on executor %s exceeds limit of %d; executor will not be considered for scheduling",
 				numUnacknowledgedJobs, executor.Id, l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor,
 			)

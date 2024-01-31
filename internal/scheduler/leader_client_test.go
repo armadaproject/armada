@@ -1,11 +1,11 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -91,7 +91,7 @@ func (f *FakeLeaderController) ValidateToken(tok LeaderToken) bool {
 	return f.IsCurrentlyLeader
 }
 
-func (f *FakeLeaderController) Run(ctx context.Context) error {
+func (f *FakeLeaderController) Run(_ *armadacontext.Context) error {
 	return nil
 }
 

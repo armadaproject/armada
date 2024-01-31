@@ -10,6 +10,7 @@ import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { v4 as uuidv4 } from "uuid"
 
+import { JobsTableContainer } from "./JobsTableContainer"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
 import { ILogService } from "../../services/lookoutV2/LogService"
@@ -17,7 +18,6 @@ import { FakeCordonService } from "../../services/lookoutV2/mocks/FakeCordonServ
 import FakeGetJobSpecService from "../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "../../services/lookoutV2/mocks/FakeLogService"
-import { JobsTableContainer } from "./JobsTableContainer"
 
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(30_000)
@@ -41,6 +41,7 @@ function makeTestJobs(
       lastTransitionTime: new Date().toISOString(),
       memory: 8192,
       owner: queue,
+      namespace: queue,
       priority: 1000,
       priorityClass: "armada-preemptible",
       queue: queue,
@@ -89,6 +90,7 @@ describe("JobsTableContainer", () => {
           logService={logService}
           cordonService={new FakeCordonService()}
           debug={false}
+          autoRefreshMs={30000}
         />
       </SnackbarProvider>
     )
@@ -129,6 +131,22 @@ describe("JobsTableContainer", () => {
 
     await findByText("There is no data to display")
     await findByText("0–0 of 0")
+  })
+
+  it("should show the correct total row count on the first page", async () => {
+    setUp(makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued))
+
+    const { findByText } = renderComponent(`?page=0&sort[id]=jobId&sort[desc]=false`)
+    await waitForFinishedLoading()
+    await findByText("1–50 of more than 50")
+  })
+
+  it("should show the correct total row count on the last page", async () => {
+    setUp(makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued))
+
+    const { findByText } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
+    await waitForFinishedLoading()
+    await findByText("51–60 of 60")
   })
 
   describe("Grouping", () => {
@@ -401,7 +419,7 @@ describe("JobsTableContainer", () => {
       await waitFor(() => {
         const rows = getAllByRole("row")
         // Order should be reversed now
-        expect(rows[rows.length - 2]).toHaveTextContent(sorted[0].jobId)
+        expect(rows[rows.length - 1]).toHaveTextContent(sorted[0].jobId)
       })
     })
   })
@@ -550,6 +568,23 @@ describe("JobsTableContainer", () => {
       // 1 jobset + jobs for expanded jobset
       await assertNumDataRowsShown(1 + 5)
     })
+
+    it("should populate page index from query params", async () => {
+      const jobs = makeTestJobs(51, "queue-1", "job-set-1", JobState.Queued)
+      for (let i = 0; i < 51; i++) {
+        jobs[i].jobId = "job-" + `${i}`.padStart(2, "0")
+      }
+      setUp(jobs)
+
+      const { getAllByRole } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
+      await waitForFinishedLoading()
+      await waitFor(() => {
+        const rows = getAllByRole("row")
+        // The header, plus one row for the last element of `jobs`.
+        expect(rows.length).toBe(2)
+        expect(rows[1]).toHaveTextContent(jobs[50].jobId)
+      })
+    })
   })
 
   async function waitForFinishedLoading() {
@@ -561,7 +596,7 @@ describe("JobsTableContainer", () => {
       async () => {
         const table = await screen.findByRole("table", { name: "Jobs table" })
         const rows = await within(table).findAllByRole("row")
-        expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
+        expect(rows.length).toBe(nDataRows + 1) // One row per data row, plus the header
       },
       { timeout: 3000 },
     )

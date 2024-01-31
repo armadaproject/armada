@@ -11,6 +11,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -28,6 +30,16 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
+
+type queuesStreamMock struct {
+	grpc.ServerStream
+	msgs []*api.StreamingQueueMessage
+}
+
+func (s *queuesStreamMock) Send(m *api.StreamingQueueMessage) error {
+	s.msgs = append(s.msgs, m)
+	return nil
+}
 
 func TestSubmitServer_HealthCheck(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
@@ -57,6 +69,21 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 		assert.NoError(t, err)
 
 		assert.Equal(t, q1, q2)
+	})
+}
+
+func TestSubmitServer_getQueues(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
+		mockStream := &queuesStreamMock{}
+
+		err := s.GetQueues(&api.StreamingQueueGetRequest{}, mockStream)
+		require.NoError(t, err)
+		expectedQueue := &api.Queue{Name: "test", PriorityFactor: 1.0, ResourceLimits: map[string]float64{}}
+
+		assert.Equal(t, mockStream.msgs, []*api.StreamingQueueMessage{
+			{Event: &api.StreamingQueueMessage_Queue{Queue: expectedQueue}},
+			{Event: &api.StreamingQueueMessage_End{End: &api.EndMarker{}}},
+		})
 	})
 }
 
@@ -179,7 +206,7 @@ func TestSubmitServer_CreateQueue_WhenPermissionsCheckFails_QueueIsNotCreated_An
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
 		const queueName = "myQueue"
 
-		s.permissions = &FakeDenyAllPermissionChecker{}
+		s.authorizer = &FakeDenyAllActionAuthorizer{}
 
 		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 1})
 		assert.Equal(t, codes.PermissionDenied, status.Code(err))
@@ -197,7 +224,7 @@ func TestSubmitServer_UpdateQueue_WhenPermissionsCheckFails_QueueIsNotUpdated_An
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		s.permissions = &FakeDenyAllPermissionChecker{}
+		s.authorizer = &FakeDenyAllActionAuthorizer{}
 
 		_, err = s.UpdateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: originalQueue.PriorityFactor + 100})
 		assert.Equal(t, codes.PermissionDenied, status.Code(err))
@@ -223,7 +250,7 @@ func TestSubmitServer_DeleteQueue_WhenPermissionsCheckFails_QueueIsNotDelete_And
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		s.permissions = &FakeDenyAllPermissionChecker{}
+		s.authorizer = &FakeDenyAllActionAuthorizer{}
 
 		_, err = s.DeleteQueue(context.Background(), &api.QueueDeleteRequest{Name: queueName})
 		assert.Equal(t, codes.PermissionDenied, status.Code(err))
@@ -466,38 +493,6 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 				assert.Equal(t, requestItem.PodSpecs, createdJob.PodSpecs)
 			}
 		}
-	})
-}
-
-func TestSubmitServer_SubmitJobs_HandlesDoubleSubmit(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-		jobSetId := util.NewULID()
-		jobRequest := createJobRequest(jobSetId, 1)
-
-		result, err := s.SubmitJobs(context.Background(), jobRequest)
-		assert.NoError(t, err)
-
-		result2, err := s.SubmitJobs(context.Background(), jobRequest)
-		assert.NoError(t, err)
-
-		assert.Equal(t, result.JobResponseItems[0].JobId, result2.JobResponseItems[0].JobId)
-
-		messages := events.ReceivedEvents
-		assert.NoError(t, err)
-		assert.Equal(t, len(messages), 4)
-
-		submitted := messages[0].GetSubmitted()
-		queued := messages[1].GetQueued()
-		submitted2 := messages[2].GetSubmitted()
-		duplicateFound := messages[3].GetDuplicateFound()
-
-		assert.NotNil(t, submitted)
-		assert.NotNil(t, queued)
-		assert.NotNil(t, submitted2)
-		assert.NotNil(t, duplicateFound)
-
-		assert.Equal(t, duplicateFound.OriginalJobId, submitted.JobId)
-		assert.Equal(t, duplicateFound.JobId, submitted2.JobId)
 	})
 }
 
@@ -773,7 +768,6 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
-		permissions.WatchEvents:    {watchEventsGroup},
 		permissions.WatchAllEvents: {watchAllEventsGroup},
 	}
 	q := queue.Queue{
@@ -792,7 +786,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -810,7 +804,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 
 	t.Run("global permission", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -826,27 +820,9 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 		})
 	})
 
-	t.Run("queue permission without specific global permission", func(t *testing.T) {
-		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
-			err := s.queueRepository.CreateQueue(q)
-			assert.NoError(t, err)
-
-			principal := authorization.NewStaticPrincipal("alice", []string{watchQueueGroup})
-			ctx := authorization.WithPrincipal(context.Background(), principal)
-
-			_, err = s.GetQueueInfo(ctx, &api.QueueInfoRequest{
-				Name: "test-queue",
-			})
-			e, ok := status.FromError(err)
-			assert.True(t, ok)
-			assert.Equal(t, codes.PermissionDenied, e.Code())
-		})
-	})
-
 	t.Run("queue permission", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -871,7 +847,7 @@ func TestSubmitServer_CreateQueue_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 
 			principal := authorization.NewStaticPrincipal("alice", []string{})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
@@ -888,7 +864,7 @@ func TestSubmitServer_CreateQueue_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 
 			principal := authorization.NewStaticPrincipal("alice", []string{"create-queue-group"})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
@@ -916,7 +892,7 @@ func TestSubmitServer_UpdateQueue_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -935,7 +911,7 @@ func TestSubmitServer_UpdateQueue_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -965,7 +941,7 @@ func TestSubmitServer_DeleteQueue_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -981,7 +957,7 @@ func TestSubmitServer_DeleteQueue_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -1005,7 +981,6 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 	const submitQueueGroup = "submit-queue-group"
 
 	perms := map[permission.Permission][]string{
-		permissions.SubmitJobs:    {submitJobsGroup},
 		permissions.SubmitAnyJobs: {submitAnyJobsGroup},
 	}
 	q := queue.Queue{
@@ -1024,7 +999,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 
 	t.Run("no permissions: can't submit", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -1044,7 +1019,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 
 	t.Run("lacks queue submit, but has global submit-any: can submit", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -1064,7 +1039,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 
 	t.Run("has global submit, but lacks queue submit: can't submit", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -1082,29 +1057,9 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 		})
 	})
 
-	t.Run("has queue submit, but lacks global submit or submit-any: can't submit", func(t *testing.T) {
-		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
-			err := s.queueRepository.CreateQueue(q)
-			assert.NoError(t, err)
-
-			principal := authorization.NewStaticPrincipal("alice", []string{submitQueueGroup})
-			ctx := authorization.WithPrincipal(context.Background(), principal)
-
-			_, err = s.SubmitJobs(ctx, &api.JobSubmitRequest{
-				Queue:           testQueue,
-				JobSetId:        testJobSet,
-				JobRequestItems: createJobRequestItems(1),
-			})
-			e, ok := status.FromError(err)
-			assert.True(t, ok)
-			assert.Equal(t, codes.PermissionDenied, e.Code())
-		})
-	})
-
 	t.Run("has queue submit & global submit-any: can submit", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -1124,7 +1079,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 
 	t.Run("has queue submit & global submit: can submit", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -1145,7 +1100,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 	t.Run("no existing queue, no perms: can't create", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
 			s.queueManagementConfig.AutoCreateQueues = true
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 
 			principal := authorization.NewStaticPrincipal("alice", []string{})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
@@ -1164,7 +1119,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 	t.Run("no existing queue, has global submit: can't create", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
 			s.queueManagementConfig.AutoCreateQueues = true
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 
 			principal := authorization.NewStaticPrincipal("alice", []string{submitJobsGroup})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
@@ -1183,7 +1138,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 	t.Run("no existing queue, has global submit-any: can create", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
 			s.queueManagementConfig.AutoCreateQueues = true
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 
 			principal := authorization.NewStaticPrincipal("alice", []string{submitAnyJobsGroup})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
@@ -1202,7 +1157,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 	t.Run("alice autocreates queue, rando bob cant submit to it", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
 			s.queueManagementConfig.AutoCreateQueues = true
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 
 			alice := authorization.NewStaticPrincipal("alice", []string{submitAnyJobsGroup})
 			bob := authorization.NewStaticPrincipal("bob", []string{submitJobsGroup})
@@ -1233,7 +1188,6 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
-		permissions.CancelJobs:    {"cancel-jobs-group"},
 		permissions.CancelAnyJobs: {"cancel-any-jobs-group"},
 	}
 	q := queue.Queue{
@@ -1259,7 +1213,7 @@ func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1280,7 +1234,7 @@ func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1299,30 +1253,9 @@ func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 		})
 	})
 
-	t.Run("queue permission without specific global permission", func(t *testing.T) {
-		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
-			err := s.queueRepository.CreateQueue(q)
-			assert.NoError(t, err)
-			_, err = s.jobRepository.AddJobs([]*api.Job{job})
-			assert.NoError(t, err)
-
-			principal := authorization.NewStaticPrincipal("alice", []string{"cancel-queue-group"})
-			ctx := authorization.WithPrincipal(context.Background(), principal)
-
-			_, err = s.CancelJobs(ctx, &api.JobCancelRequest{
-				Queue:    "test-queue",
-				JobSetId: "job-set-1",
-			})
-			e, ok := status.FromError(err)
-			assert.True(t, ok)
-			assert.Equal(t, codes.PermissionDenied, e.Code())
-		})
-	})
-
 	t.Run("queue permission", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1345,7 +1278,6 @@ func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 func TestSubmitServer_CancelJobSet_Permissions(t *testing.T) {
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
-		permissions.CancelJobs:    {"cancel-jobs-group"},
 		permissions.CancelAnyJobs: {"cancel-any-jobs-group"},
 	}
 	q := queue.Queue{
@@ -1371,7 +1303,7 @@ func TestSubmitServer_CancelJobSet_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1392,7 +1324,7 @@ func TestSubmitServer_CancelJobSet_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1411,30 +1343,9 @@ func TestSubmitServer_CancelJobSet_Permissions(t *testing.T) {
 		})
 	})
 
-	t.Run("queue permission without specific global permission", func(t *testing.T) {
-		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
-			err := s.queueRepository.CreateQueue(q)
-			assert.NoError(t, err)
-			_, err = s.jobRepository.AddJobs([]*api.Job{job})
-			assert.NoError(t, err)
-
-			principal := authorization.NewStaticPrincipal("alice", []string{"cancel-queue-group"})
-			ctx := authorization.WithPrincipal(context.Background(), principal)
-
-			_, err = s.CancelJobSet(ctx, &api.JobSetCancelRequest{
-				Queue:    "test-queue",
-				JobSetId: "job-set-1",
-			})
-			e, ok := status.FromError(err)
-			assert.True(t, ok)
-			assert.Equal(t, codes.PermissionDenied, e.Code())
-		})
-	})
-
 	t.Run("queue permission", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1457,7 +1368,6 @@ func TestSubmitServer_CancelJobSet_Permissions(t *testing.T) {
 func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
-		permissions.ReprioritizeJobs:    {"reprioritize-jobs-group"},
 		permissions.ReprioritizeAnyJobs: {"reprioritize-any-jobs-group"},
 	}
 	q := queue.Queue{
@@ -1483,7 +1393,7 @@ func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1504,7 +1414,7 @@ func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1523,30 +1433,9 @@ func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 		})
 	})
 
-	t.Run("queue permission without specific global permission", func(t *testing.T) {
-		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
-			err := s.queueRepository.CreateQueue(q)
-			assert.NoError(t, err)
-			_, err = s.jobRepository.AddJobs([]*api.Job{job})
-			assert.NoError(t, err)
-
-			principal := authorization.NewStaticPrincipal("alice", []string{"reprioritize-queue-group"})
-			ctx := authorization.WithPrincipal(context.Background(), principal)
-
-			_, err = s.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
-				Queue:    "test-queue",
-				JobSetId: "job-set-1",
-			})
-			e, ok := status.FromError(err)
-			assert.True(t, ok)
-			assert.Equal(t, codes.PermissionDenied, e.Code())
-		})
-	})
-
 	t.Run("queue permission", func(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
@@ -1638,14 +1527,14 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]schedulertypes.PriorityClass{"high": {0, false, nil, nil}},
+			PriorityClasses:      map[string]schedulertypes.PriorityClass{"high": {Priority: 0, Preemptible: false}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
 	}
 
 	server := NewSubmitServer(
-		&FakePermissionChecker{},
+		&FakeActionAuthorizer{},
 		jobRepo,
 		queueRepo,
 		eventStore,
@@ -1739,6 +1628,9 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 		},
 	}
 
+	// Empty - no response items expected as no jobs were submitted without errors
+	var expectedResponseItems []*api.JobSubmitResponseItem
+
 	request := &api.JobSubmitRequest{
 		Queue:    "test",
 		JobSetId: "test-jobsetid",
@@ -1778,8 +1670,90 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 	}
 	ownershipGroups := make([]string, 0)
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-		output, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
+		output, responseItems, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
 		assert.NoError(t, err)
+		assert.Equal(t, expectedResponseItems, responseItems)
 		assert.Equal(t, expected, output)
+	})
+}
+
+func TestSubmitServer_CreateJobs_WithDuplicatePodSpec(t *testing.T) {
+	timeNow := time.Now()
+	mockNow := func() time.Time {
+		return timeNow
+	}
+	mockNewULID := func() string {
+		return "test-ulid"
+	}
+
+	expectedResponseItems := []*api.JobSubmitResponseItem{
+		{
+			JobId: "test-ulid",
+			Error: "[createJobs] job 0 in job set test-jobsetid contains both podSpec and podSpecs, but may only contain either",
+		},
+	}
+	expectedError := "[createJobs] error creating jobs, check JobSubmitResponse for details"
+
+	request := &api.JobSubmitRequest{
+		Queue:    "test",
+		JobSetId: "test-jobsetid",
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				Priority:  1,
+				Namespace: "test",
+				ClientId:  "0",
+				Labels: map[string]string{
+					"a.label": "job-id-is-{JobId}",
+				},
+				Annotations: map[string]string{
+					"a.nnotation": "job-id-is-{JobId}",
+				},
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:  "app",
+								Image: "test:latest",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+									Requests: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+								},
+							},
+						},
+					},
+				},
+				PodSpec: &v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:  "app",
+							Image: "test:latest",
+							Resources: v1.ResourceRequirements{
+								Limits: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+								Requests: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ownershipGroups := make([]string, 0)
+	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
+		output, responseItems, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
+		assert.Equal(t, expectedError, err.Error())
+		assert.Equal(t, expectedResponseItems, responseItems)
+		assert.Nil(t, output)
 	})
 }

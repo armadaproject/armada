@@ -24,30 +24,59 @@ jobs:
           cache: yarn
           cache-dependency-path: ./internal/lookout/ui/yarn.lock
 
-      - name: Check TypeScript formatting
-        run: |
-          yarn install --frozen-lockfile && yarn run fmt || exit 1
-          exit $(git status -s -uno | wc -l)
+      - name: Install Dependencies
         working-directory: ./internal/lookout/ui
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Generating TypeScript lint results as summary
+        working-directory: ./internal/lookout/ui
+        run: |
+           yarn run lint &> lint_results.txt || true
+           lint_results=$(cat lint_results.txt)
+           echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
+           if [[ $lint_results =~ "problem" ]]; then
+              echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+              echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+              echo -e "${lint_results}"
+              exit 1
+           else
+              echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY
+              echo -e "No Lint issues found."
+              exit 0
+           fi
 
   go-lint:
     name: Lint Go
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: "1.20"
+          cache-prefix: go-lint
 
       - name: Lint using golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           skip-pkg-cache: true
           skip-build-cache: true
-          version: v1.52.2
+          version: v1.54
           only-new-issues: true
           args: --timeout=10m --issues-exit-code=1 --sort-results ./...
+
+      - name: Generating Golang lint results as summary
+        if: ${{ always() }}
+        run: |
+          golangci-lint run > lint_results.txt || true
+          lint_results=$(cat lint_results.txt)
+          echo -e "## 🪧 Go Lint Results\n" >> $GITHUB_STEP_SUMMARY
+          if [ -z "$lint_results" ]; then
+            echo -e "### No Lint Issues found.\n" >> $GITHUB_STEP_SUMMARY
+          else
+              echo -e "###  List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+              echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true

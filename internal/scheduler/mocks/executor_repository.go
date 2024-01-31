@@ -5,10 +5,10 @@
 package schedulermocks
 
 import (
-	context "context"
 	reflect "reflect"
 	time "time"
 
+	armadacontext "github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -37,7 +37,7 @@ func (m *MockExecutorRepository) EXPECT() *MockExecutorRepositoryMockRecorder {
 }
 
 // GetExecutors mocks base method.
-func (m *MockExecutorRepository) GetExecutors(arg0 context.Context) ([]*schedulerobjects.Executor, error) {
+func (m *MockExecutorRepository) GetExecutors(arg0 *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetExecutors", arg0)
 	ret0, _ := ret[0].([]*schedulerobjects.Executor)
@@ -52,7 +52,7 @@ func (mr *MockExecutorRepositoryMockRecorder) GetExecutors(arg0 interface{}) *go
 }
 
 // GetLastUpdateTimes mocks base method.
-func (m *MockExecutorRepository) GetLastUpdateTimes(arg0 context.Context) (map[string]time.Time, error) {
+func (m *MockExecutorRepository) GetLastUpdateTimes(arg0 *armadacontext.Context) (map[string]time.Time, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLastUpdateTimes", arg0)
 	ret0, _ := ret[0].(map[string]time.Time)
@@ -67,7 +67,7 @@ func (mr *MockExecutorRepositoryMockRecorder) GetLastUpdateTimes(arg0 interface{
 }
 
 // StoreExecutor mocks base method.
-func (m *MockExecutorRepository) StoreExecutor(arg0 context.Context, arg1 *schedulerobjects.Executor) error {
+func (m *MockExecutorRepository) StoreExecutor(arg0 *armadacontext.Context, arg1 *schedulerobjects.Executor) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StoreExecutor", arg0, arg1)
 	ret0, _ := ret[0].(error)

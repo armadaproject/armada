@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,46 +21,78 @@ func BootstrapTools() error {
 		Tools []string
 	}
 
-	tools := &ToolsList{}
-	err := readYaml("tools.yaml", tools)
-	if err != nil {
+	requiredTools := &ToolsList{}
+	if err := readYaml("tools.yaml", requiredTools); err != nil {
 		return err
 	}
 
-	for _, tool := range tools.Tools {
-		err := goRun("install", tool)
-		if err != nil {
-			return err
+	installedToolsFilePath, err := getArmadaToolsFilePath()
+	if err != nil {
+		return err
+	}
+	installedTools := &ToolsList{}
+	if err := readYaml(installedToolsFilePath, installedTools); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Create a map of existing tools for quick lookup
+	installedToolsMap := make(map[string]bool)
+	for _, installedTool := range installedTools.Tools {
+		installedToolsMap[installedTool] = true
+	}
+
+	if len(requiredTools.Tools) > 0 {
+		var envPaths map[string]string
+		if isGitHubActions() {
+			envPaths = make(map[string]string)
+			for _, cache := range []string{"GOMODCACHE", "GOCACHE"} {
+				path, err := os.MkdirTemp("", cache)
+				if err != nil {
+					return fmt.Errorf("error creating temporary %s directory: %w", cache, err)
+				}
+				envPaths[cache] = path
+			}
+
+			defer func() {
+				if err := goRunWith(envPaths, "clean", "-cache", "-modcache"); err != nil {
+					fmt.Printf("Error occurred while running 'go clean': %v\n", err)
+				}
+			}()
+		}
+
+		for _, requiredTool := range requiredTools.Tools {
+			if !installedToolsMap[requiredTool] {
+				if err := goRunWith(envPaths, "install", requiredTool); err != nil {
+					return err
+				}
+				installedTools.Tools = append(installedTools.Tools, requiredTool)
+				if err := writeYAML(installedToolsFilePath, installedTools); err != nil {
+					return err
+				}
+			}
 		}
 	}
+
 	return nil
 }
 
-// Download install the bootstap tools and download mod and make it tidy
-func Download() error {
-	mg.Deps(BootstrapTools)
-	go_test_cmd, err := go_TEST_CMD()
+func isGitHubActions() bool {
+	return strings.ToLower(os.Getenv("GITHUB_ACTIONS")) == "true"
+}
+
+func getArmadaToolsFilePath() (string, error) {
+	goBinDir, err := goEnv("GOBIN")
 	if err != nil {
-		return err
+		return "", err
 	}
-	if len(go_test_cmd) == 0 {
-		if err = sh.Run("go", "mod", "download"); err != nil {
-			return err
+	if goBinDir == "" {
+		goPathDir, err := goEnv("GOPATH")
+		if err != nil {
+			return "", err
 		}
-		if err = sh.Run("go", "mod", "tidy"); err != nil {
-			return err
-		}
-	} else {
-		cmd := append(go_test_cmd, "go", "mod", "download")
-		if err := dockerRun(cmd...); err != nil {
-			return err
-		}
-		cmd = append(go_test_cmd, "go", "mod", "tidy")
-		if err := dockerRun(cmd...); err != nil {
-			return err
-		}
+		goBinDir = filepath.Join(goPathDir, "bin")
 	}
-	return nil
+	return filepath.Join(goBinDir, ".armada-tools.yaml"), nil
 }
 
 // Check dependent tools are present and the correct version.
@@ -137,6 +170,7 @@ func HelmDocs() error {
 
 // Generate Protos.
 func Proto() {
+	mg.Deps(BootstrapTools)
 	mg.Deps(BootstrapProto)
 	mg.Deps(protoGenerate)
 }
@@ -171,9 +205,8 @@ func LocalDev(arg string) error {
 	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
 
 	switch arg {
-	case "minimal":
+	case "minimal-legacy":
 		timeTaken := time.Now()
-		os.Setenv("PULSAR_BACKED", "")
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "minimal-pulsar":
@@ -183,7 +216,7 @@ func LocalDev(arg string) error {
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
-		return errors.Errorf("invalid argument for Localdev: %s", arg)
+		return fmt.Errorf("invalid localdev mode: %s; valid modes are: minimal-legacy, minimal-pulsar, full, no-build, debug", arg)
 	}
 
 	mg.Deps(StartDependencies)
@@ -191,13 +224,11 @@ func LocalDev(arg string) error {
 	mg.Deps(CheckForPulsarRunning)
 
 	switch arg {
-	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+	case "minimal-legacy":
+		os.Setenv("ARMADA_COMPONENTS", "executor-legacy,server-legacy")
 		mg.Deps(StartComponents)
 	case "minimal-pulsar":
-		// This 20s sleep is to remedy an issue caused by pods coming up too fast after pulsar
-		// TODO: Deal with this internally somehow?
-		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler,scheduleringester")
+		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler")
 		mg.Deps(StartComponents)
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
@@ -240,6 +271,19 @@ func readYaml(filename string, out interface{}) error {
 	return err
 }
 
+// Helper function to write YAML data to a file
+func writeYAML(filename string, data interface{}) error {
+	bytes, err := yaml.Marshal(data)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filename, bytes, 0o644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // junitReport Output test results in Junit format, e.g., to display in Jenkins.
 func JunitReport() error {
 	if err := os.MkdirAll("test_reports", os.ModePerm); err != nil {
@@ -275,56 +319,13 @@ func JunitReport() error {
 	return nil
 }
 
-// Code generation tasks: statik, goimports, go generate.
 func Generate() error {
-	go_cmd, err := go_CMD()
-	if err != nil {
-		return err
-	}
-
-	// Commands to be run
-	cmd1 := []string{
-		"go", "run", "github.com/rakyll/statik",
-		"-dest=internal/lookout/repository/schema/",
-		"-src=internal/lookout/repository/schema/",
-		"-include=\\*.sql",
-		"-ns=lookout/sql",
-		"-Z",
-		"-f",
-		"-m",
-	}
-	cmd2 := []string{
-		"go", "run", "golang.org/x/tools/cmd/goimports",
-		"-w",
-		"-local", "github.com/armadaproject/armada",
-		"internal/lookout/repository/schema/statik",
-	}
-
-	if len(go_cmd) == 0 {
-		if err = goRun(cmd1[1:]...); err != nil {
-			return err
-		}
-		if err = goRun(cmd2[2:]...); err != nil {
-			return err
-		}
-	} else {
-		dockercmd := append(go_cmd, cmd1...)
-		dockercmd = append(dockercmd, "&&")
-		dockercmd = append(dockercmd, cmd2...)
-		fmt.Println(dockercmd)
-		if err := dockerRun(go_cmd...); err != nil {
-			return err
-		}
-	}
-	if err = goRun("generate", "./..."); err != nil {
-		return err
-	}
-	return nil
+	return goRun("generate", "./...")
 }
 
 // CI Image to build
 func BuildCI() error {
-	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars", "jobservice"}
+	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars", "jobservice"}
 	err := goreleaserMinimalRelease(ciImage...)
 	if err != nil {
 		return err

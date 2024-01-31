@@ -1,7 +1,6 @@
 package armada
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/cache"
@@ -22,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
 	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -39,7 +38,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
+func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
 	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
@@ -51,9 +50,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// Run all services within an errgroup to propagate errors between services.
 	// Defer cancelling the parent context to ensure the errgroup is cancelled on return.
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := armadacontext.WithCancel(ctx)
 	defer cancel()
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := armadacontext.ErrGroup(ctx)
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -114,10 +113,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	eventRepository := repository.NewEventRepository(eventDb)
 
-	permissions := authorization.NewPrincipalPermissionChecker(
-		config.Auth.PermissionGroupMapping,
-		config.Auth.PermissionScopeMapping,
-		config.Auth.PermissionClaimMapping,
+	authorizer := server.NewAuthorizer(
+		authorization.NewPrincipalPermissionChecker(
+			config.Auth.PermissionGroupMapping,
+			config.Auth.PermissionScopeMapping,
+			config.Auth.PermissionClaimMapping,
+		),
 	)
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
@@ -176,7 +177,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	eventStore := repository.NewEventStore(producer, config.Pulsar.MaxAllowedMessageSize)
 
 	submitServer := server.NewSubmitServer(
-		permissions,
+		authorizer,
 		jobRepository,
 		queueRepository,
 		eventStore,
@@ -189,7 +190,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	pulsarSubmitServer := &server.PulsarSubmitServer{
 		Producer:                          producer,
 		QueueRepository:                   queueRepository,
-		Permissions:                       permissions,
 		SubmitServer:                      submitServer,
 		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
 		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
@@ -209,7 +209,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
@@ -225,9 +225,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-		Type:             pulsar.KeyShared,
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -254,10 +255,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		})
 	}
 
-	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
+	usageServer := server.NewUsageServer(authorizer, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
-		permissions,
+		authorizer,
 		config.Scheduling,
 		jobRepository,
 		queueRepository,
@@ -288,7 +289,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	eventServer := server.NewEventServer(
-		permissions,
+		authorizer,
 		eventRepository,
 		eventStore,
 		queueRepository,

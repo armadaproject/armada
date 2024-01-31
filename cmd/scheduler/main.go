@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "net/http/pprof"
 	"os"
 
 	"github.com/armadaproject/armada/cmd/scheduler/cmd"
@@ -10,8 +11,7 @@ import (
 func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
-	err := cmd.RootCmd().Execute()
-	if err != nil {
+	if err := cmd.RootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }

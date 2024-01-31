@@ -84,7 +84,7 @@ type JobRepository interface {
 	GetNumberOfRetryAttempts(jobId string) (int, error)
 	StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
 	GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error)
-	DeletePulsarSchedulerJobDetails(jobId []string) error
+	ExpirePulsarSchedulerJobDetails(jobId []string) error
 }
 
 type RedisJobRepository struct {
@@ -1017,10 +1017,15 @@ func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*sch
 	return details, nil
 }
 
-func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string) error {
+func (repo *RedisJobRepository) ExpirePulsarSchedulerJobDetails(jobIds []string) error {
+	if len(jobIds) == 0 {
+		return nil
+	}
 	pipe := repo.db.Pipeline()
 	for _, jobId := range jobIds {
-		pipe.Del(pulsarJobPrefix + jobId)
+		key := fmt.Sprintf("%s%s", pulsarJobPrefix, jobId)
+		// Expire as opposed to delete so that we are permissive of race conditions.
+		pipe.Expire(key, 1*time.Hour)
 	}
 	if _, err := pipe.Exec(); err != nil {
 		return errors.Wrap(err, "failed to delete pulsar job details in Redis")
@@ -1076,10 +1081,9 @@ func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 			jobObjectPrefix + job.Id,
 			jobSetPrefix + job.JobSetId,
 			jobSetPrefix + job.Queue + keySeparator + job.JobSetId,
-			jobClientIdPrefix + job.Queue + keySeparator + job.ClientId,
 			jobExistsPrefix + job.Id,
 		},
-		job.Id, job.Priority, *jobData, job.ClientId)
+		job.Id, job.Priority, *jobData)
 }
 
 // This script will create the queue if it doesn't already exist.
@@ -1089,26 +1093,15 @@ local queueKey = KEYS[1]
 local jobKey = KEYS[2]
 local jobSetKey = KEYS[3]
 local jobSetQueueKey = KEYS[4]
-local jobClientIdKey = KEYS[5]
-local jobExistsKey = KEYS[6]
+local jobExistsKey = KEYS[5]
 
 local jobId = ARGV[1]
 local jobPriority = ARGV[2]
 local jobData = ARGV[3]
-local clientId = ARGV[4]
-
 
 local jobExists = redis.call('EXISTS', jobExistsKey)
 if jobExists == 1 then
 	return '-1'
-end
-
-if clientId ~= '' then
-	local existingJobId = redis.call('GET', jobClientIdKey)
-	if existingJobId then
-		return existingJobId
-	end
-	redis.call('SET', jobClientIdKey, jobId, 'EX', 14400)
 end
 
 redis.call('SET', jobExistsKey, '1', 'EX', 604800)

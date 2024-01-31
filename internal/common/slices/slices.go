@@ -157,3 +157,24 @@ func Filter[S ~[]E, E any](s S, predicate func(e E) bool) S {
 	}
 	return out
 }
+
+// Repeat returns a slice []T of length n*len(vs) consisting of n copies of vs.
+func Repeat[T any](n int, vs ...T) []T {
+	rv := make([]T, n*len(vs))
+	for i := 0; i < n; i++ {
+		for j, v := range vs {
+			rv[i*len(vs)+j] = v
+		}
+	}
+	return rv
+}
+
+// AnyFunc returns true if predicate(v) returns true for any value v in s.
+func AnyFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
+	for _, v := range s {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}

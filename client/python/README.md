@@ -26,5 +26,5 @@ Before beginning, ensure you have:
 - Network access to fetch docker images and go dependencies.
 
 To generate all needed code, and install the python client:
-1) From the root of the repository, run `make python`
+1) From the root of the repository, run `mage buildPython`
 2) Install the client using `pip install client/python`. It's strongly recommended you do this inside a virtualenv.

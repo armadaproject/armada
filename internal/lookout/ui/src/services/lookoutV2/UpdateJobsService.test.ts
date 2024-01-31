@@ -1,7 +1,7 @@
 import _ from "lodash"
 
-import { Job, JobId, JobState } from "../../models/lookoutV2Models"
 import { createJobBatches } from "./UpdateJobsService"
+import { Job, JobId, JobState } from "../../models/lookoutV2Models"
 
 describe("UpdateJobsService", () => {
   describe("createJobBatches", () => {
@@ -94,6 +94,7 @@ function createManyJobs(queue: string, jobSet: string, n: number): Job[] {
       lastTransitionTime: "",
       memory: 0,
       owner: "",
+      namespace: "",
       priority: 0,
       runs: [],
       state: JobState.Running,

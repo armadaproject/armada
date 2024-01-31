@@ -3,14 +3,16 @@ package service
 import (
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
-	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -23,11 +25,11 @@ type ClusterAllocator interface {
 }
 
 type ClusterAllocationService struct {
-	clusterId         executorContext.ClusterIdentity
-	jobRunStateStore  job.RunStateStore
-	submitter         job.Submitter
-	eventReporter     reporter.EventReporter
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
+	clusterId            executorContext.ClusterIdentity
+	jobRunStateStore     job.RunStateStore
+	submitter            job.Submitter
+	eventReporter        reporter.EventReporter
+	clusterHealthMonitor healthmonitor.HealthMonitor
 }
 
 func NewClusterAllocationService(
@@ -35,22 +37,28 @@ func NewClusterAllocationService(
 	eventReporter reporter.EventReporter,
 	jobRunStateManager job.RunStateStore,
 	submitter job.Submitter,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	clusterHealthMonitor healthmonitor.HealthMonitor,
 ) *ClusterAllocationService {
 	return &ClusterAllocationService{
-		eventReporter:     eventReporter,
-		clusterId:         clusterId,
-		submitter:         submitter,
-		jobRunStateStore:  jobRunStateManager,
-		etcdHealthMonitor: etcdHealthMonitor,
+		eventReporter:        eventReporter,
+		clusterId:            clusterId,
+		submitter:            submitter,
+		jobRunStateStore:     jobRunStateManager,
+		clusterHealthMonitor: clusterHealthMonitor,
 	}
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
-	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
-	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
-		log.Warnf("Skipping allocating spare cluster capacity as etcd is at its soft health limit")
-		return
+	// If a health monitor is provided, avoid leasing jobs when the cluster is unhealthy.
+	if allocationService.clusterHealthMonitor != nil {
+		log := logrus.NewEntry(logrus.New())
+		if ok, reason, err := allocationService.clusterHealthMonitor.IsHealthy(); err != nil {
+			logging.WithStacktrace(log, err).Error("failed to check cluster health")
+			return
+		} else if !ok {
+			log.Warnf("cluster is not healthy; will not request more jobs: %s", reason)
+			return
+		}
 	}
 
 	jobRuns := allocationService.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool {
@@ -117,12 +125,12 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 }
 
 type LegacyClusterAllocationService struct {
-	leaseService       LeaseService
-	eventReporter      reporter.EventReporter
-	utilisationService utilisation.UtilisationService
-	clusterContext     executorContext.ClusterContext
-	submitter          job.Submitter
-	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
+	leaseService         LeaseService
+	eventReporter        reporter.EventReporter
+	utilisationService   utilisation.UtilisationService
+	clusterContext       executorContext.ClusterContext
+	submitter            job.Submitter
+	clusterHealthMonitor healthmonitor.HealthMonitor
 }
 
 func NewLegacyClusterAllocationService(
@@ -131,23 +139,29 @@ func NewLegacyClusterAllocationService(
 	leaseService LeaseService,
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	clusterHealthMonitor healthmonitor.HealthMonitor,
 ) *LegacyClusterAllocationService {
 	return &LegacyClusterAllocationService{
-		leaseService:       leaseService,
-		eventReporter:      eventReporter,
-		utilisationService: utilisationService,
-		clusterContext:     clusterContext,
-		submitter:          submitter,
-		etcdHealthMonitor:  etcdHealthMonitor,
+		leaseService:         leaseService,
+		eventReporter:        eventReporter,
+		utilisationService:   utilisationService,
+		clusterContext:       clusterContext,
+		submitter:            submitter,
+		clusterHealthMonitor: clusterHealthMonitor,
 	}
 }
 
 func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCapacity() {
-	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
-	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
-		log.Warnf("Skipping allocating spare cluster capacity as etcd is at its soft health limit")
-		return
+	// If a health monitor is provided, avoid leasing jobs when the cluster is unhealthy.
+	if allocationService.clusterHealthMonitor != nil {
+		log := logrus.NewEntry(logrus.New())
+		if ok, reason, err := allocationService.clusterHealthMonitor.IsHealthy(); err != nil {
+			logging.WithStacktrace(log, err).Error("failed to check cluster health")
+			return
+		} else if !ok {
+			log.Warnf("cluster is not healthy; will not request more jobs: %s", reason)
+			return
+		}
 	}
 
 	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(true)
@@ -168,7 +182,7 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 		utilisation.GetAllocationByQueue(activePods),
 		utilisation.GetAllocationByQueueAndPriority(activePods),
 	)
-	logAvailableResources(*capacityReport.AvailableCapacity, len(newJobs))
+	log.Infof("Reporting current free resource %s. Received %d new jobs.", formatResources(*capacityReport.AvailableCapacity), len(newJobs))
 	if err != nil {
 		log.Errorf("failed to lease new jobs: %v", err)
 		return
@@ -180,7 +194,7 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 	}
 }
 
-func logAvailableResources(availableResource armadaresource.ComputeResources, jobCount int) {
+func formatResources(availableResource armadaresource.ComputeResources) string {
 	cpu := availableResource["cpu"]
 	memory := availableResource["memory"]
 	ephemeralStorage := availableResource["ephemeral-storage"]
@@ -198,8 +212,7 @@ func logAvailableResources(availableResource armadaresource.ComputeResources, jo
 	if amdGpu.Value() > 0 {
 		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
-
-	log.Infof("Reporting current free resource %s. Received %d new jobs. ", resources, jobCount)
+	return resources
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation

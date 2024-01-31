@@ -1,4 +1,4 @@
-FROM apache/airflow:2.6.0-python3.10
+FROM apache/airflow:2.7.0-python3.10
 
 RUN umask 0002; \
     mkdir -p /home/airflow/client

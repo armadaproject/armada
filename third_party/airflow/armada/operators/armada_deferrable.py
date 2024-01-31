@@ -73,6 +73,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
+    :param poll_interval: How often to poll jobservice to get status.
     :return: A deferrable armada operator instance.
     """
 
@@ -86,6 +87,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         armada_queue: str,
         job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
+        poll_interval: int = 30,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -99,6 +101,26 @@ class ArmadaDeferrableOperator(BaseOperator):
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
         self.lookout_url_template = lookout_url_template
+        self.poll_interval = poll_interval
+
+    def serialize(self) -> dict:
+        """
+        Get a serialized version of this object.
+
+        :return: A dict of keyword arguments used when instantiating
+        this object.
+        """
+
+        return {
+            "task_id": self.task_id,
+            "name": self.name,
+            "armada_channel_args": self.armada_channel_args.serialize(),
+            "job_service_channel_args": self.job_service_channel_args.serialize(),
+            "armada_queue": self.armada_queue,
+            "job_request_items": self.job_request_items,
+            "lookout_url_template": self.lookout_url_template,
+            "poll_interval": self.poll_interval,
+        }
 
     def execute(self, context) -> None:
         """
@@ -153,6 +175,7 @@ class ArmadaDeferrableOperator(BaseOperator):
                 armada_queue=self.armada_queue,
                 job_set_id=context["run_id"],
                 airflow_task_name=self.name,
+                poll_interval=self.poll_interval,
             ),
             method_name="resume_job_complete",
             kwargs={"job_id": job_id},
@@ -213,6 +236,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
     :param job_set_id: The ID of the job set.
     :param airflow_task_name: Name of the airflow task to which this trigger
       belongs.
+    :param poll_interval: How often to poll jobservice to get status.
     :return: An armada job complete trigger instance.
     """
 
@@ -223,6 +247,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
         armada_queue: str,
         job_set_id: str,
         airflow_task_name: str,
+        poll_interval: int = 30,
     ) -> None:
         super().__init__()
         self.job_id = job_id
@@ -230,6 +255,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
         self.armada_queue = armada_queue
         self.job_set_id = job_set_id
         self.airflow_task_name = airflow_task_name
+        self.poll_interval = poll_interval
 
     def serialize(self) -> tuple:
         return (
@@ -240,7 +266,19 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
                 "armada_queue": self.armada_queue,
                 "job_set_id": self.job_set_id,
                 "airflow_task_name": self.airflow_task_name,
+                "poll_interval": self.poll_interval,
             },
+        )
+
+    def __eq__(self, o):
+        return (
+            self.task_id == o.task_id
+            and self.job_id == o.job_id
+            and self.job_service_channel_args == o.job_service_channel_args
+            and self.armada_queue == o.armada_queue
+            and self.job_set_id == o.job_set_id
+            and self.airflow_task_name == o.airflow_task_name
+            and self.poll_interval == o.poll_interval
         )
 
     async def run(self):
@@ -252,11 +290,12 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
         )
 
         job_state, job_message = await search_for_job_complete_async(
-            job_service_client=job_service_client,
             armada_queue=self.armada_queue,
             job_set_id=self.job_set_id,
             airflow_task_name=self.airflow_task_name,
             job_id=self.job_id,
+            job_service_client=job_service_client,
             log=self.log,
+            poll_interval=self.poll_interval,
         )
         yield TriggerEvent({"job_state": job_state, "job_message": job_message})

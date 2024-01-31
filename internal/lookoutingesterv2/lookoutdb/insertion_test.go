@@ -1,8 +1,8 @@
 package lookoutdb
 
 import (
-	ctx "context"
 	"fmt"
+	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
@@ -47,6 +48,7 @@ var (
 	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
 	startTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
 	finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+	fatalErrors     = []*regexp.Regexp{regexp.MustCompile("SQLSTATE 22001")}
 )
 
 // An invalid job id that exceeds th varchar count
@@ -200,26 +202,26 @@ var expectedUserAnnotation = UserAnnotationRow{
 
 func TestCreateJobsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Insert
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and test that it's idempotent
-		err = ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should return an error and no updates should happen
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err = db.Exec(armadacontext.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
-		err = ldb.CreateJobsBatch(ctx.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
+		err = ldb.CreateJobsBatch(armadacontext.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
 		assert.Error(t, err)
 		assertNoRows(t, db, "job")
 		return nil
@@ -229,31 +231,31 @@ func TestCreateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Insert
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		err = ldb.UpdateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToUpdate)
+		err = ldb.UpdateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
 		assert.Nil(t, err)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
-		err = ldb.UpdateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToUpdate)
+		err = ldb.UpdateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
 		assert.Nil(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If an update is bad then we should return an error and no updates should happen
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err = db.Exec(armadacontext.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
-		err = ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		invalidUpdate := &model.UpdateJobInstruction{
 			JobId: invalidId,
 		}
-		err = ldb.UpdateJobsBatch(ctx.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
+		err = ldb.UpdateJobsBatch(armadacontext.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
 		assert.Error(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
@@ -264,30 +266,30 @@ func TestUpdateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Insert
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		ldb.UpdateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToUpdate)
+		ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// Insert again and test that it's idempotent
-		ldb.UpdateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToUpdate)
+		ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If a update is bad then we should return an error and no updates should happen
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err = db.Exec(armadacontext.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
-		err = ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		invalidUpdate := &model.UpdateJobInstruction{
 			JobId: invalidId,
 		}
-		ldb.UpdateJobsScalar(ctx.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
+		ldb.UpdateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		return nil
@@ -396,16 +398,16 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 			LatestRunId:               pointer.String(runIdString),
 		}}
 
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 
 		// Insert
-		ldb.CreateJobs(ctx.Background(), initial)
+		ldb.CreateJobs(armadacontext.Background(), initial)
 
 		// Mark the jobs terminal
-		ldb.UpdateJobs(ctx.Background(), update1)
+		ldb.UpdateJobs(armadacontext.Background(), update1)
 
 		// Update the jobs - these should be discarded
-		ldb.UpdateJobs(ctx.Background(), update2)
+		ldb.UpdateJobs(armadacontext.Background(), update2)
 
 		// Assert the states are still terminal
 		job := getJob(t, db, jobIdString)
@@ -425,24 +427,24 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 
 func TestCreateJobsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Simple create
-		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and check for idempotency
-		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should update only the good rows
-		_, err := ldb.db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err := ldb.db.Exec(armadacontext.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
-		ldb.CreateJobsScalar(ctx.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
+		ldb.CreateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 		return nil
@@ -452,30 +454,30 @@ func TestCreateJobsScalar(t *testing.T) {
 
 func TestCreateJobRunsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Need to make sure we have a job, so we can satisfy PK
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 		job := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
-		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we should return an error and no updates should happen
-		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM job_run")
+		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM job_run")
 		assert.NoError(t, err)
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
-		err = ldb.CreateJobRunsBatch(ctx.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
 		assert.Error(t, err)
 		assertNoRows(t, db, "job_run")
 		return nil
@@ -485,28 +487,28 @@ func TestCreateJobRunsBatch(t *testing.T) {
 
 func TestCreateJobRunsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Need to make sure we have a job, so we can satisfy PK
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		ldb.CreateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		job := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
-		ldb.CreateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we create rows that can be created
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job_run")
+		_, err = db.Exec(armadacontext.Background(), "DELETE FROM job_run")
 		assert.NoError(t, err)
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
-		ldb.CreateJobRunsScalar(ctx.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
+		ldb.CreateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 		return nil
@@ -516,35 +518,35 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 func TestUpdateJobRunsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Need to make sure we have a job and run
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
-		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		err = ldb.UpdateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
+		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
-		err = ldb.UpdateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
+		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// If a row is bad then we should return an error and no updates should happen
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job_run;")
+		_, err = db.Exec(armadacontext.Background(), "DELETE FROM job_run;")
 		assert.Nil(t, err)
 		invalidRun := &model.UpdateJobRunInstruction{
 			RunId: invalidId,
 		}
-		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		err = ldb.UpdateJobRunsBatch(ctx.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
+		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
 		assert.Error(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, run)
@@ -555,35 +557,35 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 
 func TestUpdateJobRunsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Need to make sure we have a job and run
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
-		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		ldb.UpdateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
+		ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
-		ldb.UpdateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
+		ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// If a row is bad then we should update the rows we can
-		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM job_run;")
+		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM job_run;")
 		assert.Nil(t, err)
 		invalidRun := &model.UpdateJobRunInstruction{
 			RunId: invalidId,
 		}
-		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		ldb.UpdateJobRunsScalar(ctx.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
+		ldb.UpdateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
 		run = getJobRun(t, ldb.db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 		return nil
@@ -593,30 +595,30 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Need to make sure we have a job
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		err = ldb.CreateUserAnnotationsBatch(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
+		err = ldb.CreateUserAnnotationsBatch(armadacontext.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		assert.Nil(t, err)
 		annotation := getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// Insert again and test that it's idempotent
-		err = ldb.CreateUserAnnotationsBatch(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
+		err = ldb.CreateUserAnnotationsBatch(armadacontext.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		assert.Nil(t, err)
 		annotation = getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// If a row is bad then we should return an error and no updates should happen
-		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM user_annotation_lookup")
 		assert.NoError(t, err)
 		invalidAnnotation := &model.CreateUserAnnotationInstruction{
 			JobId: invalidId,
 		}
-		err = ldb.CreateUserAnnotationsBatch(ctx.Background(), append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
+		err = ldb.CreateUserAnnotationsBatch(armadacontext.Background(), append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
 		assert.Error(t, err)
 		assertNoRows(t, ldb.db, "user_annotation_lookup")
 		return nil
@@ -626,8 +628,8 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 
 func TestStoreWithEmptyInstructionSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
-		err := ldb.Store(ctx.Background(), &model.InstructionSet{
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
+		err := ldb.Store(armadacontext.Background(), &model.InstructionSet{
 			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 		})
 		assert.NoError(t, err)
@@ -641,28 +643,28 @@ func TestStoreWithEmptyInstructionSet(t *testing.T) {
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Need to make sure we have a job
-		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		ldb.CreateUserAnnotationsScalar(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
+		ldb.CreateUserAnnotationsScalar(armadacontext.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		annotation := getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// Insert again and test that it's idempotent
-		ldb.CreateUserAnnotationsScalar(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
+		ldb.CreateUserAnnotationsScalar(armadacontext.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		annotation = getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// If a row is bad then we should update the rows we can
-		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM user_annotation_lookup")
 		assert.NoError(t, err)
 		invalidAnnotation := &model.CreateUserAnnotationInstruction{
 			JobId: invalidId,
 		}
-		ldb.CreateUserAnnotationsScalar(ctx.Background(), append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
+		ldb.CreateUserAnnotationsScalar(armadacontext.Background(), append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
 		annotation = getUserAnnotationLookup(t, ldb.db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 		return nil
@@ -672,9 +674,9 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 
 func TestStore(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Do the update
-		err := ldb.Store(ctx.Background(), defaultInstructionSet())
+		err := ldb.Store(armadacontext.Background(), defaultInstructionSet())
 		assert.NoError(t, err)
 
 		job := getJob(t, ldb.db, jobIdString)
@@ -841,9 +843,9 @@ func TestStoreNullValue(t *testing.T) {
 		instructions.JobsToCreate[0].JobProto = jobProto
 		instructions.JobRunsToUpdate[0].Error = errorMsg
 
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Do the update
-		err := ldb.Store(ctx.Background(), instructions)
+		err := ldb.Store(armadacontext.Background(), instructions)
 		assert.NoError(t, err)
 
 		job := getJob(t, ldb.db, jobIdString)
@@ -858,7 +860,7 @@ func TestStoreNullValue(t *testing.T) {
 
 func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, m, 2, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 
 		baseInstructions := &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{
@@ -875,7 +877,7 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 		}
 
 		// Create the jobs in the DB
-		err := ldb.Store(ctx.Background(), baseInstructions)
+		err := ldb.Store(armadacontext.Background(), baseInstructions)
 		assert.NoError(t, err)
 
 		mutateInstructions := &model.InstructionSet{
@@ -895,7 +897,7 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 		}
 
 		// Update the jobs in the DB
-		err = ldb.Store(ctx.Background(), mutateInstructions)
+		err = ldb.Store(armadacontext.Background(), mutateInstructions)
 		assert.NoError(t, err)
 
 		for _, jobId := range []string{"job-1", "job-2", "job-3"} {
@@ -941,7 +943,7 @@ func makeUpdateJobInstruction(jobId string, state int32) *model.UpdateJobInstruc
 func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	job := JobRow{}
 	r := db.QueryRow(
-		ctx.Background(),
+		armadacontext.Background(),
 		`SELECT
     		job_id,
     		queue,
@@ -992,7 +994,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 	run := JobRunRow{}
 	r := db.QueryRow(
-		ctx.Background(),
+		armadacontext.Background(),
 		`SELECT
 			run_id,
 			job_id,
@@ -1025,7 +1027,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 func getUserAnnotationLookup(t *testing.T, db *pgxpool.Pool, jobId string) UserAnnotationRow {
 	annotation := UserAnnotationRow{}
 	r := db.QueryRow(
-		ctx.Background(),
+		armadacontext.Background(),
 		`SELECT job_id, key, value, queue, jobset FROM user_annotation_lookup WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(&annotation.JobId, &annotation.Key, &annotation.Value, &annotation.Queue, &annotation.JobSet)
@@ -1037,7 +1039,7 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 	t.Helper()
 	var count int
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
-	r := db.QueryRow(ctx.Background(), query)
+	r := db.QueryRow(armadacontext.Background(), query)
 	err := r.Scan(&count)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, count)

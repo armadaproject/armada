@@ -1,12 +1,11 @@
 package convert
 
 import (
-	"context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -30,7 +29,7 @@ func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint,
 	}
 }
 
-func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
+func (ec *EventConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
 	// Remove all groups as they are potentially quite large
 	for _, es := range sequencesWithIds.EventSequences {
 		es.Groups = nil

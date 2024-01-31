@@ -74,54 +74,12 @@ func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing
 	assert.Error(t, validateConfig(config))
 }
 
-func TestValidateConfig_When_FractionStorageInUseSoftLimit_LessThan0(t *testing.T) {
-	config := createBasicValidExecutorConfiguration()
-
-	config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit = 0
-	assert.Error(t, validateConfig(config))
-	config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit = -1
-	assert.Error(t, validateConfig(config))
-}
-
-func TestValidateConfig_When_FractionStorageInUseSoftLimit_GreaterThan1(t *testing.T) {
-	config := createBasicValidExecutorConfiguration()
-
-	config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit = 1
-	assert.NoError(t, validateConfig(config))
-	config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit = 1.1
-	assert.Error(t, validateConfig(config))
-}
-
-func TestValidateConfig_When_FractionStorageInUseHardLimit_LessThan0(t *testing.T) {
-	config := createBasicValidExecutorConfiguration()
-
-	config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit = 0
-	assert.Error(t, validateConfig(config))
-	config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit = -1
-	assert.Error(t, validateConfig(config))
-}
-
-func TestValidateConfig_When_FractionStorageInUseHardLimit_GreaterThan1(t *testing.T) {
-	config := createBasicValidExecutorConfiguration()
-
-	config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit = 1
-	assert.NoError(t, validateConfig(config))
-	config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit = 1.1
-	assert.Error(t, validateConfig(config))
-}
-
 func createBasicValidExecutorConfiguration() configuration.ExecutorConfiguration {
 	return configuration.ExecutorConfiguration{
 		Application: configuration.ApplicationConfiguration{
 			SubmitConcurrencyLimit: 1,
 			UpdateConcurrencyLimit: 1,
 			DeleteConcurrencyLimit: 1,
-		},
-		Kubernetes: configuration.KubernetesConfiguration{
-			Etcd: configuration.EtcdConfiguration{
-				FractionOfStorageInUseSoftLimit: 0.8,
-				FractionOfStorageInUseHardLimit: 0.9,
-			},
 		},
 	}
 }

@@ -1,21 +1,20 @@
 package database
 
 import (
-	"context"
 	"embed"
 	_ "embed"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 )
 
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func Migrate(ctx context.Context, db database.Querier) error {
+func Migrate(ctx *armadacontext.Context, db database.Querier) error {
 	start := time.Now()
 	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {
@@ -25,7 +24,7 @@ func Migrate(ctx context.Context, db database.Querier) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Updated scheduler database in %s", time.Now().Sub(start))
+	ctx.Infof("Updated scheduler database in %s", time.Now().Sub(start))
 	return nil
 }
 

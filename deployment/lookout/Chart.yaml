@@ -1,5 +1,0 @@
-apiVersion: v1
-description: A helm chart for Armada Lookout component
-name: armada-lookout
-version: 0.0.0-latest
-appVersion: 0.0.0-latest

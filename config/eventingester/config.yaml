@@ -9,6 +9,7 @@ pulsar:
   jobsetEventsTopic: events
   receiveTimeout: 5s
   backoffTime: 1s
+  receiverQueueSize: 100
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
 batchSize: 1048576  #1MB

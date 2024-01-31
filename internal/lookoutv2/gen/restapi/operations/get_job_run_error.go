@@ -34,10 +34,10 @@ func NewGetJobRunError(ctx *middleware.Context, handler GetJobRunErrorHandler) *
 	return &GetJobRunError{Context: ctx, Handler: handler}
 }
 
-/* GetJobRunError swagger:route POST /api/v1/jobRunError getJobRunError
+/*
+	GetJobRunError swagger:route POST /api/v1/jobRunError getJobRunError
 
 GetJobRunError get job run error API
-
 */
 type GetJobRunError struct {
 	Context *middleware.Context

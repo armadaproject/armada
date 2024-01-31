@@ -9,6 +9,22 @@ internedStringsCacheSize: 100000
 metrics:
   port: 9000
   refreshInterval: 30s
+  metrics:
+    scheduleCycleTimeHistogramSettings:
+      start: 1.0
+      factor: 1.1
+      count: 110
+    reconcileCycleTimeHistogramSettings:
+      start: 1.0
+      factor: 1.1
+      count: 110
+schedulerMetrics:
+  trackedResourceNames:
+    - "cpu"
+    - "memory"
+    - "ephemeral-storage"
+    - "nvidia.com/gpu"
+  resetInterval: "1h"
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -69,6 +85,7 @@ scheduling:
     enabled: true
     nodeEvictionProbability: 1.0
     nodeOversubscriptionEvictionProbability: 1.0
+    protectedFractionOfFairShare: 1.0
     nodeIdLabel: kubernetes.io/hostname
     priorityClasses:
       armada-default:
@@ -87,7 +104,10 @@ scheduling:
   maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
-  maximumJobsToSchedule: 5000
+  maximumSchedulingRate: 100.0
+  maximumSchedulingBurst: 1000
+  maximumPerQueueSchedulingRate: 50.0
+  maximumPerQueueSchedulingBurst: 1000
   maxUnacknowledgedJobsPerExecutor: 2500
   maxJobSchedulingContextsPerExecutor: 10000
   defaultJobLimits:

@@ -1,24 +1,23 @@
 package pulsarutils
 
 import (
-	"context"
 	"sync/atomic"
-
-	"github.com/armadaproject/armada/internal/common/schedulers"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // CompactAndPublishSequences reduces the number of sequences to the smallest possible,
 // while respecting per-job set ordering and max Pulsar message size, and then publishes to Pulsar.
-func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes uint, scheduler schedulers.Scheduler) error {
+func CompactAndPublishSequences(ctx *armadacontext.Context, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes uint, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than maxMessageSizeInBytes.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -38,7 +37,7 @@ func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.E
 // and
 // eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
 // before passing to this function.
-func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
+func PublishSequences(ctx *armadacontext.Context, producer pulsar.Producer, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)

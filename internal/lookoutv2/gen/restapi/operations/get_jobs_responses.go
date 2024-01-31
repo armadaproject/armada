@@ -16,7 +16,8 @@ import (
 // GetJobsOKCode is the HTTP code returned for type GetJobsOK
 const GetJobsOKCode int = 200
 
-/*GetJobsOK Returns jobs from API
+/*
+GetJobsOK Returns jobs from API
 
 swagger:response getJobsOK
 */
@@ -60,7 +61,8 @@ func (o *GetJobsOK) WriteResponse(rw http.ResponseWriter, producer runtime.Produ
 // GetJobsBadRequestCode is the HTTP code returned for type GetJobsBadRequest
 const GetJobsBadRequestCode int = 400
 
-/*GetJobsBadRequest Error response
+/*
+GetJobsBadRequest Error response
 
 swagger:response getJobsBadRequest
 */
@@ -101,7 +103,8 @@ func (o *GetJobsBadRequest) WriteResponse(rw http.ResponseWriter, producer runti
 	}
 }
 
-/*GetJobsDefault Error response
+/*
+GetJobsDefault Error response
 
 swagger:response getJobsDefault
 */

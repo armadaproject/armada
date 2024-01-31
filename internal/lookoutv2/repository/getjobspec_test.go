@@ -1,12 +1,12 @@
 package repository
 
 import (
-	"context"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
@@ -18,10 +18,10 @@ import (
 func TestGetJobSpec(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,
 				PriorityClass:    "other-default",
@@ -42,7 +42,7 @@ func TestGetJobSpec(t *testing.T) {
 			ApiJob()
 
 		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
-		result, err := repo.GetJobSpec(context.TODO(), jobId)
+		result, err := repo.GetJobSpec(armadacontext.TODO(), jobId)
 		assert.NoError(t, err)
 		assertApiJobsEquivalent(t, job, result)
 		return nil
@@ -53,7 +53,7 @@ func TestGetJobSpec(t *testing.T) {
 func TestGetJobSpecError(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
-		_, err := repo.GetJobSpec(context.TODO(), jobId)
+		_, err := repo.GetJobSpec(armadacontext.TODO(), jobId)
 		assert.Error(t, err)
 		return nil
 	})

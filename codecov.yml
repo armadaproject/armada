@@ -1,8 +1,0 @@
-ignore:
-  - "**/*.pb.go"
-  - "**/*.sql.go"
-  - "**/*_moq.go"
-coverage:
-  status:
-    project: off
-    patch: off

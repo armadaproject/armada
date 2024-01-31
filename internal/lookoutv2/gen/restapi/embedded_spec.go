@@ -47,9 +47,7 @@ func init() {
                 "filters",
                 "order",
                 "groupedField",
-                "aggregates",
-                "skip",
-                "take"
+                "aggregates"
               ],
               "properties": {
                 "activeJobSets": {
@@ -101,8 +99,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -117,11 +114,6 @@ func init() {
                 "groups"
               ],
               "properties": {
-                "count": {
-                  "description": "Total number of groups",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "groups": {
                   "description": "List of Job groups",
                   "type": "array",
@@ -279,9 +271,7 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
-                "skip",
-                "take"
+                "order"
               ],
               "properties": {
                 "activeJobSets": {
@@ -307,8 +297,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -320,11 +309,6 @@ func init() {
             "schema": {
               "type": "object",
               "properties": {
-                "count": {
-                  "description": "Total number of jobs",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "jobs": {
                   "description": "List of jobs found",
                   "type": "array",
@@ -529,6 +513,10 @@ func init() {
           "format": "int64",
           "x-nullable": false
         },
+        "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
         "owner": {
           "type": "string",
           "minLength": 1,
@@ -699,9 +687,7 @@ func init() {
                 "filters",
                 "order",
                 "groupedField",
-                "aggregates",
-                "skip",
-                "take"
+                "aggregates"
               ],
               "properties": {
                 "activeJobSets": {
@@ -753,8 +739,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -769,11 +754,6 @@ func init() {
                 "groups"
               ],
               "properties": {
-                "count": {
-                  "description": "Total number of groups",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "groups": {
                   "description": "List of Job groups",
                   "type": "array",
@@ -931,9 +911,7 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
-                "skip",
-                "take"
+                "order"
               ],
               "properties": {
                 "activeJobSets": {
@@ -959,8 +937,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -972,11 +949,6 @@ func init() {
             "schema": {
               "type": "object",
               "properties": {
-                "count": {
-                  "description": "Total number of jobs",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "jobs": {
                   "description": "List of jobs found",
                   "type": "array",
@@ -1197,6 +1169,10 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "namespace": {
+          "type": "string",
+          "x-nullable": true
         },
         "owner": {
           "type": "string",
