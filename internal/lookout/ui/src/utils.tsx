@@ -51,7 +51,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     customTitle: "",
     oidcEnabled: false,
     oidc: undefined,
-    commandSpecs: []
+    commandSpecs: [],
   }
 
   try {
@@ -72,7 +72,7 @@ export async function getUIConfig(): Promise<UIConfig> {
       }
       if (json.CommandSpecs) {
         config.commandSpecs = json.CommandSpecs.map((c: { Name: string; Template: string }) => {
-          return {name: c.Name, template: c.Template}
+          return { name: c.Name, template: c.Template }
         })
       }
     }
