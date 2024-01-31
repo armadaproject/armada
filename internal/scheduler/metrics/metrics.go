@@ -30,7 +30,7 @@ const (
 
 	queued    = "queued"
 	cancelled = "cancelled"
-	scheduled = "scheduled"
+	leased    = "leased"
 	preempted = "preempted"
 	failed    = "failed"
 	succeeded = "succeeded"
@@ -239,9 +239,9 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 func (m *Metrics) UpdateScheduled(jctx *schedulercontext.JobSchedulingContext) error {
 	labels := m.buffer[0:0]
 	job := jctx.Job.(*jobdb.Job)
-	labels = append(labels, scheduled)
-	labels = append(labels, "") // No category for scheduled.
-	labels = append(labels, "") // No subCategory for scheduled.
+	labels = append(labels, leased)
+	labels = append(labels, "") // No category for leased.
+	labels = append(labels, "") // No subCategory for leased.
 	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
 	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
 		return err
