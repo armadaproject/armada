@@ -269,10 +269,18 @@ func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context
 	}
 
 	category, message := errorTypeAndMessageFromError(ctx, jobRunErrorsByRunId[run.Id()])
+	i, ok := m.regexIndexFromErrorMessage(message)
+	if ok {
+		subCategory = m.config.TrackedErrorRegexes[i]
+	}
 
+	return
+}
+
+func (m *Metrics) regexIndexFromErrorMessage(message string) (int, bool) {
 	i, ok := m.cachedRegexIndexFromErrorMessage(message)
 	if !ok {
-		i, ok = m.regexIndexFromErrorMessage(message)
+		i, ok = m.indexOfFirstMatchingRegexFromErrorMessage(message)
 		if !ok {
 			// Use -1 to indicate that no regex matches.
 			i = -1
@@ -281,10 +289,10 @@ func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context
 			m.matchedRegexIndexByErrorMessage.Add(message, i)
 		}
 	}
-	if i != -1 {
-		subCategory = m.config.TrackedErrorRegexes[i]
+	if i == -1 {
+		ok = false
 	}
-	return
+	return i, ok
 }
 
 func (m *Metrics) cachedRegexIndexFromErrorMessage(message string) (int, bool) {
@@ -298,7 +306,7 @@ func (m *Metrics) cachedRegexIndexFromErrorMessage(message string) (int, bool) {
 	return i.(int), true
 }
 
-func (m *Metrics) regexIndexFromErrorMessage(message string) (int, bool) {
+func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int, bool) {
 	for i, r := range m.errorRegexes {
 		if r.MatchString(message) {
 			return i, true
