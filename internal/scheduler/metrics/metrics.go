@@ -277,7 +277,9 @@ func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context
 			// Use -1 to indicate that no regex matches.
 			i = -1
 		}
-		m.matchedRegexIndexByErrorMessage.Add(message, i)
+		if m.matchedRegexIndexByErrorMessage != nil {
+			m.matchedRegexIndexByErrorMessage.Add(message, i)
+		}
 	}
 	if i != -1 {
 		subCategory = m.config.TrackedErrorRegexes[i]
