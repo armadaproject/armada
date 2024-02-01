@@ -32,7 +32,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
-	github.com/jackc/pgtype v1.13.0
+	github.com/jackc/pgtype v1.14.1
 	github.com/jackc/pgx/v4 v4.17.2 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
