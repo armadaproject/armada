@@ -1,9 +1,10 @@
 import React, { useCallback } from "react"
 
 import { ContentCopy } from "@mui/icons-material"
-import { IconButton } from "@mui/material"
+import { IconButton, Link } from "@mui/material"
 import { template, templateSettings } from "lodash"
 import { Job } from "models/lookoutV2Models"
+import validator from "validator"
 
 import styles from "./SidebarTabJobCommands.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
@@ -44,7 +45,13 @@ export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobComman
                   <ContentCopy />
                 </IconButton>
               </div>
-              <div className={styles.commandsText}>{getCommandText(job, c)}</div>
+              {validator.isURL(getCommandText(job, c)) ? (
+                <Link href={getCommandText(job, c)} target="_blank">
+                  <div>{getCommandText(job, c)}</div>
+                </Link>
+              ) : (
+                <div className={styles.commandsText}>{getCommandText(job, c)}</div>
+              )}
             </>
           ))}
         </div>
