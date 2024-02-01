@@ -33,6 +33,11 @@ type PrunerConfig struct {
 	BatchSize   int
 }
 
+type CommandSpec struct {
+	Name     string
+	Template string
+}
+
 type UIConfig struct {
 	CustomTitle string
 
@@ -51,4 +56,5 @@ type UIConfig struct {
 
 	JobSetsAutoRefreshMs int `json:",omitempty"`
 	JobsAutoRefreshMs    int `json:",omitempty"`
+	CommandSpecs         []CommandSpec
 }
