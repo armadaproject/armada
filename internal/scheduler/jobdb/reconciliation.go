@@ -19,7 +19,7 @@ type JobStateTransitions struct {
 	Job *Job
 
 	Queued    bool
-	Scheduled bool
+	Leased    bool
 	Pending   bool
 	Running   bool
 	Cancelled bool
@@ -31,7 +31,7 @@ type JobStateTransitions struct {
 // applyRunStateTransitions applies the state transitions of a run to that of the associated job.
 func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions) JobStateTransitions {
 	jst.Queued = jst.Queued || rst.Returned
-	jst.Scheduled = jst.Scheduled || rst.Scheduled
+	jst.Leased = jst.Leased || rst.Leased
 	jst.Pending = jst.Pending || rst.Pending
 	jst.Running = jst.Running || rst.Running
 	jst.Cancelled = jst.Cancelled || rst.Cancelled
@@ -46,7 +46,7 @@ func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions)
 type RunStateTransitions struct {
 	JobRun *JobRun
 
-	Scheduled bool
+	Leased    bool
 	Returned  bool
 	Pending   bool
 	Running   bool
@@ -160,7 +160,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 	} else if jobRun == nil && jobRepoRun != nil {
 		jobRun = jobDb.schedulerRunFromDatabaseRun(jobRepoRun)
 		rst.Returned = jobRepoRun.Returned
-		rst.Pending = jobRepoRun.PendingTimestamp != nil
+		rst.Pending = jobRepoRun.Pending
 		rst.Running = jobRepoRun.Running
 		rst.Preempted = jobRepoRun.Preempted
 		rst.Cancelled = jobRepoRun.Cancelled
@@ -169,6 +169,10 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 	} else if jobRun != nil && jobRepoRun == nil {
 		return
 	} else if jobRun != nil && jobRepoRun != nil {
+		if jobRepoRun.Pending && !jobRun.Pending() {
+			jobRun = jobRun.WithPending(true)
+			rst.Pending = true
+		}
 		if jobRepoRun.Running && !jobRun.Running() {
 			jobRun = jobRun.WithRunning(true)
 			rst.Running = true

@@ -32,17 +32,19 @@ type JobRun struct {
 	nodeName string
 	// Priority class priority that this job was scheduled at.
 	scheduledAtPriority *int32
-	// True if the job has been reported as pending
+	// True if the run has been reported as pending by the executor.
+	pending bool
+	// The time at which the run was reported as pending by the executor.
 	pendingTime *time.Time
-	// The time at which the job was reported as leased
+	// The time at which the run was leased to it's current executor.
 	leaseTime *time.Time
-	// True if the job has been reported as running by the executor.
+	// True if the run has been reported as running by the executor.
 	running bool
-	// The time at which the job was reported as running by the executor.
+	// The time at which the run was reported as running by the executor.
 	runningTime *time.Time
-	// True if the job has been reported as preempted by the executor.
+	// True if the run has been reported as preempted by the executor.
 	preempted bool
-	// The time at which the job was reported as preempted by the executor.
+	// The time at which the run was reported as preempted by the executor.
 	preemptedTime *time.Time
 	// True if the job has been reported as succeeded by the executor.
 	succeeded bool
@@ -292,6 +294,16 @@ func (run *JobRun) Cancelled() bool {
 func (run *JobRun) WithCancelled(cancelled bool) *JobRun {
 	run = run.DeepCopy()
 	run.cancelled = cancelled
+	return run
+}
+
+func (run *JobRun) Pending() bool {
+	return run.pending
+}
+
+func (run *JobRun) WithPending(pending bool) *JobRun {
+	run = run.DeepCopy()
+	run.pending = pending
 	return run
 }
 
