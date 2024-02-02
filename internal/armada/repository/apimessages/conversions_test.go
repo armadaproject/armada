@@ -11,6 +11,7 @@ import (
 	v11 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -278,6 +279,16 @@ func TestConvertLeased(t *testing.T) {
 			JobRunLeased: &armadaevents.JobRunLeased{
 				JobId:      jobIdProto,
 				ExecutorId: executorId,
+				PodRequirementsOverlay: &schedulerobjects.PodRequirements{
+					Tolerations: []v1.Toleration{
+						{
+							Key:    "whale",
+							Value:  "true",
+							Effect: v1.TaintEffectNoSchedule,
+						},
+					},
+					Priority: 1000,
+				},
 			},
 		},
 	}

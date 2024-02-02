@@ -9,6 +9,7 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -130,10 +131,20 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := unmarshalFromCompressedBytes(lease.SubmitMessage, decompressor, submitMsg); err != nil {
 			return err
 		}
+
 		if srv.priorityClassNameOverride != nil {
 			srv.setPriorityClassName(submitMsg, *srv.priorityClassNameOverride)
 		}
+
 		srv.addNodeIdSelector(submitMsg, lease.Node)
+
+		if len(lease.PodRequirementsOverlay) > 0 {
+			PodRequirementsOverlay := schedulerobjects.PodRequirements{}
+			if err := proto.Unmarshal(lease.PodRequirementsOverlay, &PodRequirementsOverlay); err != nil {
+				return err
+			}
+			addTolerations(submitMsg, PodRequirementsOverlay.Tolerations)
+		}
 
 		var groups []string
 		if len(lease.Groups) > 0 {
@@ -142,6 +153,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 				return err
 			}
 		}
+
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
@@ -183,6 +195,13 @@ func (srv *ExecutorApi) setPriorityClassName(job *armadaevents.SubmitJob, priori
 	}
 }
 
+func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityClassName string) {
+	if podSpec == nil || podSpec.PodSpec == nil {
+		return
+	}
+	podSpec.PodSpec.PriorityClassName = priorityClassName
+}
+
 func (srv *ExecutorApi) addNodeIdSelector(job *armadaevents.SubmitJob, nodeId string) {
 	if job == nil || nodeId == "" {
 		return
@@ -206,11 +225,18 @@ func addNodeSelector(podSpec *armadaevents.PodSpecWithAvoidList, key string, val
 	}
 }
 
-func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityClassName string) {
-	if podSpec == nil || podSpec.PodSpec == nil {
+func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
+	if job == nil || len(tolerations) == 0 {
 		return
 	}
-	podSpec.PodSpec.PriorityClassName = priorityClassName
+	if job.MainObject != nil {
+		switch typed := job.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			if typed.PodSpec != nil && typed.PodSpec.PodSpec != nil {
+				typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, tolerations...)
+			}
+		}
+	}
 }
 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.

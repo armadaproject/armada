@@ -6,6 +6,7 @@ import { Job, JobState } from "models/lookoutV2Models"
 
 import styles from "./Sidebar.module.css"
 import { SidebarHeader } from "./SidebarHeader"
+import { SidebarTabJobCommands } from "./SidebarTabJobCommands"
 import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
 import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
@@ -14,12 +15,14 @@ import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
 import { ILogService } from "../../../services/lookoutV2/LogService"
+import { CommandSpec } from "../../../utils"
 
 enum SidebarTab {
   JobDetails = "JobDetails",
   JobRuns = "JobRuns",
   Yaml = "Yaml",
   Logs = "Logs",
+  Commands = "Commands",
 }
 
 type ResizeState = {
@@ -35,6 +38,7 @@ export interface SidebarProps {
   logService: ILogService
   cordonService: ICordonService
   sidebarWidth: number
+  commandSpecs: CommandSpec[]
   onClose: () => void
   onWidthChange: (width: number) => void
 }
@@ -49,6 +53,7 @@ export const Sidebar = memo(
     sidebarWidth,
     onClose,
     onWidthChange,
+    commandSpecs,
   }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
 
@@ -168,6 +173,12 @@ export const Sidebar = memo(
                     sx={{ minWidth: "50px" }}
                     disabled={job.state === JobState.Queued}
                   ></Tab>
+                  <Tab
+                    label="Commands"
+                    value={SidebarTab.Commands}
+                    sx={{ minWidth: "50px" }}
+                    disabled={job.state === JobState.Queued}
+                  ></Tab>
                 </Tabs>
 
                 <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>
@@ -184,6 +195,10 @@ export const Sidebar = memo(
 
                 <TabPanel value={SidebarTab.Logs} className={styles.sidebarTabPanel}>
                   <SidebarTabJobLogs job={job} jobSpecService={jobSpecService} logService={logService} />
+                </TabPanel>
+
+                <TabPanel value={SidebarTab.Commands} className={styles.sidebarTabPanel}>
+                  <SidebarTabJobCommands job={job} commandSpecs={commandSpecs} />
                 </TabPanel>
               </TabContext>
             </div>
