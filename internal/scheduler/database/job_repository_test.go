@@ -11,12 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -404,6 +406,24 @@ func TestFetchJobRunLeases(t *testing.T) {
 		},
 		{
 			RunID:    uuid.New(),
+			JobID:    dbJobs[2].JobID,
+			JobSet:   "test-jobset",
+			Executor: executorName,
+			PodRequirementsOverlay: protoutil.MustMarshall(
+				&schedulerobjects.PodRequirements{
+					Tolerations: []v1.Toleration{
+						{
+							Key:    "whale",
+							Value:  "true",
+							Effect: v1.TaintEffectNoSchedule,
+						},
+					},
+					Priority: 1000,
+				},
+			),
+		},
+		{
+			RunID:    uuid.New(),
 			JobID:    dbJobs[0].JobID,
 			JobSet:   "test-jobset",
 			Executor: executorName,
@@ -424,15 +444,16 @@ func TestFetchJobRunLeases(t *testing.T) {
 			Succeeded: true, // should be ignored as terminal
 		},
 	}
-	expectedLeases := make([]*JobRunLease, 3)
+	expectedLeases := make([]*JobRunLease, 4)
 	for i := range expectedLeases {
 		expectedLeases[i] = &JobRunLease{
-			RunID:         dbRuns[i].RunID,
-			Queue:         dbJobs[i].Queue,
-			JobSet:        dbJobs[i].JobSet,
-			UserID:        dbJobs[i].UserID,
-			Groups:        dbJobs[i].Groups,
-			SubmitMessage: dbJobs[i].SubmitMessage,
+			RunID:                  dbRuns[i].RunID,
+			Queue:                  dbJobs[i].Queue,
+			JobSet:                 dbJobs[i].JobSet,
+			UserID:                 dbJobs[i].UserID,
+			Groups:                 dbJobs[i].Groups,
+			SubmitMessage:          dbJobs[i].SubmitMessage,
+			PodRequirementsOverlay: dbRuns[i].PodRequirementsOverlay,
 		}
 	}
 	tests := map[string]struct {
@@ -465,12 +486,12 @@ func TestFetchJobRunLeases(t *testing.T) {
 			excludedRuns:   []uuid.UUID{dbRuns[1].RunID},
 			maxRowsToFetch: 100,
 			executor:       executorName,
-			expectedLeases: []*JobRunLease{expectedLeases[0], expectedLeases[2]},
+			expectedLeases: []*JobRunLease{expectedLeases[0], expectedLeases[2], expectedLeases[3]},
 		},
 		"exclude everything": {
 			dbJobs:         dbJobs,
 			dbRuns:         dbRuns,
-			excludedRuns:   []uuid.UUID{dbRuns[0].RunID, dbRuns[1].RunID, dbRuns[2].RunID},
+			excludedRuns:   []uuid.UUID{dbRuns[0].RunID, dbRuns[1].RunID, dbRuns[2].RunID, dbRuns[3].RunID},
 			maxRowsToFetch: 100,
 			executor:       executorName,
 			expectedLeases: nil,

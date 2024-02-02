@@ -50,6 +50,7 @@ describe("Sidebar", () => {
           sidebarWidth={600}
           onClose={onClose}
           onWidthChange={() => undefined}
+          commandSpecs={[]}
         />
       </SnackbarProvider>,
     )
