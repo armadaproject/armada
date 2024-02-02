@@ -113,7 +113,6 @@ func TestDeepCopy(t *testing.T) {
 		RunAttempted:        true,
 	})
 	expected := jobDb.CreateRun("nodeId", &database.Run{
-
 		RunID:               run.id,
 		JobID:               "job id",
 		Created:             1,

@@ -198,20 +198,6 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	RunAttempted:        true,
 })).WithNewRun("testExecutor", "test-node", "node", 5)
 
-// uuid.New(),										id uuid.UUID,
-//
-//	"01h3w2wtdchtc80hgyp782shrv",					jobId string,
-//	0,												creationTime int64,
-//	"testExecutor",									executor string,
-//	"testNodeId",									nodeId string,
-//	"testNodeName",									nodeName string,
-//	&scheduledAtPriority,							scheduledAtPriority *int32,
-//	false,											running bool,
-//	false,											succeeded bool,
-//	true,											failed bool,
-//	false,											cancelled bool,
-//	true,											returned bool,
-//	true,											runAttempted bool,
 var defaultJobError = &armadaevents.Error{
 	Terminal: true,
 	Reason: &armadaevents.Error_PodError{

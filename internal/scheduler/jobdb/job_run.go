@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // JobRun is the scheduler-internal representation of a job run.
