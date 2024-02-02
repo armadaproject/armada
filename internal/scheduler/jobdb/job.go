@@ -13,6 +13,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -615,24 +616,14 @@ func (job *Job) HasRuns() bool {
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAtPriority int32) *Job {
-	return job.WithUpdatedRun(job.jobDb.CreateRun(
-		job.jobDb.uuidProvider.New(),
-		job.Id(),
-		job.jobDb.clock.Now().UnixNano(),
-		executor,
-		nodeId,
-		nodeName,
-		&scheduledAtPriority,
-		false,
-		nil,
-		false,
-		nil,
-		false,
-		false,
-		false,
-		nil,
-		false,
-		false,
+	return job.WithUpdatedRun(job.jobDb.CreateRun(nodeId, &database.Run{
+		RunID:               job.jobDb.uuidProvider.New(),
+		JobID:               job.Id(),
+		Created:             job.jobDb.clock.Now().UnixNano(),
+		Executor:            executor,
+		Node:                nodeName,
+		ScheduledAtPriority: &scheduledAtPriority,
+	},
 	))
 }
 
