@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -38,20 +37,29 @@ var (
 	scheduledAtPriority = int32(5)
 )
 
-var baseJobRun = jobDb.CreateRun("test-nodeId", &database.Run{
-	RunID:               uuid.New(),
-	JobID:               uuid.NewString(),
-	Created:             5,
-	Executor:            "test-executor",
-	Node:                "test-nodeName",
-	ScheduledAtPriority: &scheduledAtPriority,
-	Succeeded:           false,
-	Running:             false,
-	Failed:              false,
-	Cancelled:           false,
-	Returned:            false,
-	RunAttempted:        false,
-})
+var baseJobRun = jobDb.CreateRun(
+	uuid.New(),
+	uuid.NewString(),
+	5,
+	"test-executor",
+	"test-nodeId",
+	"test-nodeName",
+	&scheduledAtPriority,
+	false,
+	false,
+	false,
+	false,
+	false,
+	false,
+	false,
+	nil,
+	nil,
+	nil,
+	nil,
+	nil,
+	false,
+	false,
+)
 
 // Test methods that only have getters
 func TestJobRun_TestGetter(t *testing.T) {
@@ -98,34 +106,51 @@ func TestJobRun_TestRunAttempted(t *testing.T) {
 }
 
 func TestDeepCopy(t *testing.T) {
-	run := jobDb.CreateRun("nodeId", &database.Run{
-		RunID:               uuid.New(),
-		JobID:               "job id",
-		Created:             1,
-		Executor:            "executor",
-		Node:                "nodeName",
-		ScheduledAtPriority: &scheduledAtPriority,
-		Succeeded:           true,
-		Running:             true,
-		Failed:              true,
-		Cancelled:           true,
-		Returned:            true,
-		RunAttempted:        true,
-	})
-	expected := jobDb.CreateRun("nodeId", &database.Run{
-		RunID:               run.id,
-		JobID:               "job id",
-		Created:             1,
-		Executor:            "executor",
-		Node:                "nodeName",
-		ScheduledAtPriority: &scheduledAtPriority,
-		Succeeded:           true,
-		Running:             true,
-		Failed:              true,
-		Cancelled:           true,
-		Returned:            true,
-		RunAttempted:        true,
-	},
+	run := jobDb.CreateRun(
+		uuid.New(),
+		"job id",
+		1,
+		"executor",
+		"nodeName",
+		"nodeId",
+		&scheduledAtPriority,
+		true,
+		true,
+		true,
+		true,
+		true,
+		true,
+		true,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		true,
+		true,
+	)
+	expected := jobDb.CreateRun(
+		uuid.New(),
+		"job id",
+		1,
+		"executor",
+		"nodeName",
+		"nodeId",
+		&scheduledAtPriority,
+		true,
+		true,
+		true,
+		true,
+		true,
+		true,
+		true,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		true,
+		true,
 	)
 	actual := run.DeepCopy()
 	run.nodeId = "new nodeId"

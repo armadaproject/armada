@@ -7,8 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-
-	"github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // JobRun is the scheduler-internal representation of a job run.
@@ -210,28 +208,51 @@ func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
 }
 
 // CreateRun creates a new scheduler job run from a database job run
-func (jobDb *JobDb) CreateRun(nodeId string, dbRun *database.Run) *JobRun {
+func (jobDb *JobDb) CreateRun(
+	id uuid.UUID,
+	jobId string,
+	creationTime int64,
+	executor string,
+	nodeId string,
+	nodeName string,
+	scheduledAtPriority *int32,
+	leased bool,
+	pending bool,
+	running bool,
+	preempted bool,
+	succeeded bool,
+	failed bool,
+	cancelled bool,
+	leaseTime *time.Time,
+	pendingTime *time.Time,
+	runningTime *time.Time,
+	preemptedTime *time.Time,
+	terminatedTime *time.Time,
+	returned bool,
+	runAttempted bool,
+) *JobRun {
 	return &JobRun{
-		id:                  dbRun.RunID,
-		jobId:               dbRun.JobID,
-		created:             dbRun.Created,
-		executor:            jobDb.stringInterner.Intern(dbRun.Executor),
+		id:                  id,
+		jobId:               jobId,
+		created:             creationTime,
+		executor:            jobDb.stringInterner.Intern(executor),
 		nodeId:              jobDb.stringInterner.Intern(nodeId),
-		nodeName:            jobDb.stringInterner.Intern(dbRun.Node),
-		scheduledAtPriority: dbRun.ScheduledAtPriority,
-		leased:              dbRun.LeasedTimestamp != nil,
-		leaseTime:           dbRun.LeasedTimestamp,
-		pendingTime:         dbRun.PendingTimestamp,
-		running:             dbRun.Running,
-		runningTime:         dbRun.RunningTimestamp,
-		preempted:           dbRun.Preempted,
-		preemptedTime:       dbRun.PreemptedTimestamp,
-		succeeded:           dbRun.Succeeded,
-		failed:              dbRun.Failed,
-		cancelled:           dbRun.Cancelled,
-		terminatedTime:      dbRun.TerminatedTimestamp,
-		returned:            dbRun.Returned,
-		runAttempted:        dbRun.RunAttempted,
+		nodeName:            jobDb.stringInterner.Intern(nodeName),
+		scheduledAtPriority: scheduledAtPriority,
+		leased:              leased,
+		pending:             pending,
+		running:             running,
+		preempted:           preempted,
+		succeeded:           succeeded,
+		failed:              failed,
+		cancelled:           cancelled,
+		leaseTime:           leaseTime,
+		pendingTime:         pendingTime,
+		runningTime:         runningTime,
+		preemptedTime:       preemptedTime,
+		terminatedTime:      terminatedTime,
+		returned:            returned,
+		runAttempted:        runAttempted,
 	}
 }
 

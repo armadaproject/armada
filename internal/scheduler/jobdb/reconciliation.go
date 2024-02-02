@@ -246,5 +246,27 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 // schedulerRunFromDatabaseRun creates a new scheduler job run from a database job run
 func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
-	return jobDb.CreateRun(nodeId, dbRun)
+	return jobDb.CreateRun(
+		dbRun.RunID,
+		dbRun.JobID,
+		dbRun.Created,
+		dbRun.Executor,
+		nodeId,
+		dbRun.Node,
+		dbRun.ScheduledAtPriority,
+		dbRun.LeasedTimestamp != nil,
+		dbRun.Pending,
+		dbRun.Running,
+		dbRun.Preempted,
+		dbRun.Succeeded,
+		dbRun.Failed,
+		dbRun.Cancelled,
+		dbRun.LeasedTimestamp,
+		dbRun.PendingTimestamp,
+		dbRun.RunningTimestamp,
+		dbRun.PreemptedTimestamp,
+		dbRun.TerminatedTimestamp,
+		dbRun.Returned,
+		dbRun.RunAttempted,
+	)
 }
