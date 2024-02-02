@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
@@ -461,7 +462,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), result.AdditionalAnnotationsByJobId)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs, result.AdditionalAnnotationsByJobId)
 	if err != nil {
 		return nil, err
 	}
@@ -534,8 +535,9 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
-	for _, job := range jobs {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
+	for _, jctx := range jctxs {
+		job := jctx.Job.(*jobdb.Job)
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
@@ -568,6 +570,10 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
 							AdditionalAnnotations:  additionalAnnotations,
+							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
+								Tolerations: jctx.AdditionalTolerations,
+								Priority:    scheduledAtPriority,
+							},
 						},
 					},
 				},

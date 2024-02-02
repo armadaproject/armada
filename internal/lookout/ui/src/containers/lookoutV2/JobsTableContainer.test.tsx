@@ -91,6 +91,7 @@ describe("JobsTableContainer", () => {
           cordonService={new FakeCordonService()}
           debug={false}
           autoRefreshMs={30000}
+          commandSpecs={[]}
         />
       </SnackbarProvider>
     )

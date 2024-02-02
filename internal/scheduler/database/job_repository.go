@@ -23,13 +23,14 @@ type hasSerial interface {
 }
 
 type JobRunLease struct {
-	RunID         uuid.UUID
-	Queue         string
-	JobSet        string
-	UserID        string
-	Node          string
-	Groups        []byte
-	SubmitMessage []byte
+	RunID                  uuid.UUID
+	Queue                  string
+	JobSet                 string
+	UserID                 string
+	Node                   string
+	Groups                 []byte
+	SubmitMessage          []byte
+	PodRequirementsOverlay []byte
 }
 
 // JobRepository is an interface to be implemented by structs which provide job and run information
@@ -246,7 +247,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -267,7 +268,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
 			if err != nil {
 				return errors.WithStack(err)
 			}
