@@ -9,6 +9,9 @@ import (
 )
 
 // JobRun is the scheduler-internal representation of a job run.
+//
+// There are columns in the `runs` table that are not needed in the scheduler,
+// such as `pod_requirements_overlay`; these are not represented here.
 type JobRun struct {
 	// Unique identifier for the run.
 	id uuid.UUID

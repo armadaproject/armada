@@ -26,3 +26,8 @@ uiConfig:
   armadaApiBaseUrl: "http://armada-server:8080"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"
+  commandSpecs:
+  - name: Logs
+    template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} logs armada-{{ jobId }}-0"
+  - name: Exec
+    template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} exec -it armada-{{ jobId }}-0 /bin/sh"

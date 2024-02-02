@@ -208,6 +208,16 @@ var Leased = &armadaevents.EventSequence_Event{
 			HasScheduledAtPriority: true,
 			ScheduledAtPriority:    15,
 			UpdateSequenceNumber:   1,
+			PodRequirementsOverlay: &schedulerobjects.PodRequirements{
+				Tolerations: []v1.Toleration{
+					{
+						Key:    "whale",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+				Priority: 15,
+			},
 		},
 	},
 }
