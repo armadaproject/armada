@@ -186,7 +186,7 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 ).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 	uuid.New(),
 	"01h3w2wtdchtc80hgyp782shrv",
-	1,
+	0,
 	"testExecutor",
 	"testNodeId",
 	"testNodeName",
@@ -266,7 +266,7 @@ var (
 	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 		uuid.New(),
 		requeuedJobId,
-		1,
+		time.Now().Unix(),
 		"testExecutor",
 		"test-node",
 		"node",

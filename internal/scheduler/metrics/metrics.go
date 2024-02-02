@@ -223,7 +223,7 @@ func (m *Metrics) UpdateQueued(job *jobdb.Job) error {
 
 func (m *Metrics) UpdatePending(job *jobdb.Job) error {
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(latestRun, latestRun.PendingTime())
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PendingTime())
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, pending)
@@ -241,7 +241,7 @@ func (m *Metrics) UpdatePending(job *jobdb.Job) error {
 
 func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(latestRun, latestRun.TerminatedTime())
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, cancelled)
@@ -260,7 +260,7 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(latestRun, latestRun.TerminatedTime())
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, failed)
@@ -278,13 +278,14 @@ func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRu
 
 func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	labels := m.buffer[0:0]
-	labels = append(labels, running)
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
+	labels = append(labels, priorState)
 	labels = append(labels, succeeded)
 	labels = append(labels, "") // No category for succeeded.
 	labels = append(labels, "") // No subCategory for succeeded.
 	labels = appendLabelsFromJob(labels, job)
-	latestRun := job.LatestRun()
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), latestRun.RunningTime()); err != nil {
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
 		return err
 	}
 	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
@@ -296,7 +297,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
 	job := jctx.Job.(*jobdb.Job)
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(latestRun, latestRun.LeaseTime())
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, leased)
@@ -315,7 +316,7 @@ func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) erro
 func (m *Metrics) UpdatePreempted(jctx *schedulercontext.JobSchedulingContext) error {
 	job := jctx.Job.(*jobdb.Job)
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(latestRun, latestRun.PreemptedTime())
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PreemptedTime())
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, preempted)
@@ -469,7 +470,6 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 // updateResourceSecondsCounterVec is a helper method to increment vector counters by the number of seconds per resource a jobs has consumed in a given state.
 func (m *Metrics) updateResourceSecondsCounterVec(vec *prometheus.CounterVec, labels []string, job *jobdb.Job, stateTime, priorStateTime *time.Time) error {
 	i := len(labels)
-
 	// Number of jobs.
 	labels = append(labels, jobsResourceLabel)
 	stateDuration := stateDuration(stateTime, priorStateTime).Seconds()
@@ -499,30 +499,37 @@ func stateDuration(start *time.Time, end *time.Time) time.Duration {
 	return time.Duration(0)
 }
 
-func getPriorState(run *jobdb.JobRun, stateTime *time.Time) (prior string, priorTime *time.Time) {
+func getPriorState(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (prior string, priorTime *time.Time) {
 	if stateTime == nil {
 		return "", nil
 	}
-	stateToTime := map[string]*time.Time{
-		leased:    run.LeaseTime(),
-		pending:   run.PendingTime(),
-		running:   run.RunningTime(),
-		preempted: run.PreemptedTime(),
-		cancelled: run.TerminatedTime(),
-		succeeded: run.TerminatedTime(),
-		failed:    run.TerminatedTime(),
+	var diff float64
+	queuedTime := time.Unix(0, job.Created())
+	if sub := stateTime.Sub(queuedTime).Seconds(); sub < diff && sub > 0 {
+		prior = queued
+		priorTime = &queuedTime
+		diff = sub
 	}
-	diff := stateTime.Sub(time.Time{}).Seconds()
-	for s, t := range stateToTime {
-		if t == nil {
-			continue
-		}
-		if priorTime == nil || (stateTime.Sub(*t).Seconds() < diff && stateTime.Sub(*t).Seconds() > 0) {
-			priorTime = t
-			prior = s
-			diff = stateTime.Sub(*t).Seconds()
+	if run.LeaseTime() != nil {
+		if sub := stateTime.Sub(*run.LeaseTime()).Seconds(); sub < diff && sub > 0 {
+			prior = leased
+			priorTime = run.LeaseTime()
+			diff = sub
 		}
 	}
-
+	if run.PendingTime() != nil {
+		if sub := stateTime.Sub(*run.PendingTime()).Seconds(); sub < diff && sub > 0 {
+			prior = pending
+			priorTime = run.PendingTime()
+			diff = sub
+		}
+	}
+	if run.RunningTime() != nil {
+		if sub := stateTime.Sub(*run.RunningTime()).Seconds(); sub < diff && sub > 0 {
+			prior = running
+			priorTime = run.RunningTime()
+		}
+	}
+	// succeeded, failed, cancelled, preempted are not prior states
 	return prior, priorTime
 }
