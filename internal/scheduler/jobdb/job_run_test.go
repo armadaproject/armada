@@ -130,7 +130,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 	)
 	expected := jobDb.CreateRun(
-		uuid.New(),
+		run.id,
 		"job id",
 		1,
 		"executor",
