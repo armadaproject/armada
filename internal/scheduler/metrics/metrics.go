@@ -517,9 +517,10 @@ func getPriorState(run *jobdb.JobRun, stateTime *time.Time) (prior string, prior
 		if t == nil {
 			continue
 		}
-		if priorTime == nil || stateTime.Sub(*t).Seconds() < diff {
+		if priorTime == nil || (stateTime.Sub(*t).Seconds() < diff && stateTime.Sub(*t).Seconds() > 0) {
 			priorTime = t
 			prior = s
+			diff = stateTime.Sub(*t).Seconds()
 		}
 	}
 
