@@ -36,6 +36,8 @@ type JobRun struct {
 	pending bool
 	// The time at which the run was reported as pending by the executor.
 	pendingTime *time.Time
+	// True if the run has been leased to an executor.
+	leased bool
 	// The time at which the run was leased to it's current executor.
 	leaseTime *time.Time
 	// True if the run has been reported as running by the executor.
@@ -217,6 +219,7 @@ func (jobDb *JobDb) CreateRun(nodeId string, dbRun *database.Run) *JobRun {
 		nodeId:              jobDb.stringInterner.Intern(nodeId),
 		nodeName:            jobDb.stringInterner.Intern(dbRun.Node),
 		scheduledAtPriority: dbRun.ScheduledAtPriority,
+		leased:              dbRun.LeasedTimestamp != nil,
 		leaseTime:           dbRun.LeasedTimestamp,
 		pendingTime:         dbRun.PendingTimestamp,
 		running:             dbRun.Running,
@@ -311,8 +314,18 @@ func (run *JobRun) PendingTime() *time.Time {
 	return run.pendingTime
 }
 
+func (run *JobRun) Leased() bool {
+	return run.leased
+}
+
 func (run *JobRun) LeaseTime() *time.Time {
 	return run.leaseTime
+}
+
+func (run *JobRun) WithLeased(leased bool) *JobRun {
+	run = run.DeepCopy()
+	run.leased = leased
+	return run
 }
 
 // Running Returns true if the executor has reported the job run as running

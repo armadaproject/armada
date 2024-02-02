@@ -161,6 +161,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		jobRun = jobDb.schedulerRunFromDatabaseRun(jobRepoRun)
 		rst.Returned = jobRepoRun.Returned
 		rst.Pending = jobRepoRun.Pending
+		rst.Leased = jobRepoRun.LeasedTimestamp != nil
 		rst.Running = jobRepoRun.Running
 		rst.Preempted = jobRepoRun.Preempted
 		rst.Cancelled = jobRepoRun.Cancelled
@@ -169,6 +170,10 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 	} else if jobRun != nil && jobRepoRun == nil {
 		return
 	} else if jobRun != nil && jobRepoRun != nil {
+		if jobRepoRun.LeasedTimestamp != nil && !jobRun.Leased() {
+			jobRun = jobRun.WithLeased(true)
+			rst.Leased = true
+		}
 		if jobRepoRun.Pending && !jobRun.Pending() {
 			jobRun = jobRun.WithPending(true)
 			rst.Pending = true
