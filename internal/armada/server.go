@@ -120,7 +120,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var dbPool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
-		pool, err = database.OpenPgxPool(config.Postgres)
+		dbPool, err = database.OpenPgxPool(config.Postgres)
 		if err != nil {
 			return err
 		}
@@ -189,12 +189,12 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	// If postgres details were provided, enable deduplication.
 	if config.Pulsar.DedupTable != "" {
-		if pool == nil {
+		if dbPool == nil {
 			return errors.New("deduplication is enabled, but no postgres settings are provided")
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, dbPool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}

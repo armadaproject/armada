@@ -415,36 +415,6 @@
           }
         }
       }
-    },
-    "/v1/queue/{name}/info": {
-      "get": {
-        "tags": [
-          "Submit"
-        ],
-        "operationId": "GetQueueInfo",
-        "parameters": [
-          {
-            "type": "string",
-            "name": "name",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiQueueInfo"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
     }
   },
   "definitions": {
@@ -1278,22 +1248,6 @@
         }
       }
     },
-    "apiJobSetInfo": {
-      "type": "object",
-      "properties": {
-        "leasedJobs": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "name": {
-          "type": "string"
-        },
-        "queuedJobs": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
     "apiJobSetRequest": {
       "type": "object",
       "title": "swagger:model",
@@ -1692,21 +1646,6 @@
         },
         "queue": {
           "$ref": "#/definitions/apiQueue"
-        }
-      }
-    },
-    "apiQueueInfo": {
-      "type": "object",
-      "title": "swagger:model",
-      "properties": {
-        "activeJobSets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/apiJobSetInfo"
-          }
-        },
-        "name": {
-          "type": "string"
         }
       }
     },
