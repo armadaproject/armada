@@ -1,7 +1,10 @@
 package armada
 
 import (
+	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"math"
 	"net"
 	"time"
 
@@ -10,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -114,13 +118,13 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	)
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
-	var pool *pgxpool.Pool
+	var dbPool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
 		pool, err = database.OpenPgxPool(config.Postgres)
 		if err != nil {
 			return err
 		}
-		defer pool.Close()
+		defer dbPool.Close()
 	}
 
 	// Executor Repositories for pulsar scheduler
@@ -155,6 +159,22 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer producer.Close()
 
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	compressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibCompressor(512)
+		}), &poolConfig)
+
 	pulsarSubmitServer := &server.PulsarSubmitServer{
 		Producer:              producer,
 		QueueRepository:       queueRepository,
@@ -164,7 +184,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		GangIdAnnotation:      configuration.GangIdAnnotation,
 		SubmitChecker:         pulsarSchedulerSubmitChecker,
 		Authorizer:            authorizer,
-		CompressorPool:
+		CompressorPool:        compressorPool,
 	}
 
 	// If postgres details were provided, enable deduplication.

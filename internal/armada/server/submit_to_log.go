@@ -920,11 +920,11 @@ func (srv *PulsarSubmitServer) createJobsObjects(request *api.JobSubmitRequest, 
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"
-		}
+		}S
 		fillContainerRequestsAndLimits(podSpec.Containers)
-		applyDefaultsToAnnotations(item.Annotations, srv.schedulingConfig)
-		applyDefaultsToPodSpec(podSpec, srv.schedulingConfig)
-		if err := validation.ValidatePodSpec(podSpec, srv.schedulingConfig); err != nil {
+		applyDefaultsToAnnotations(item.Annotations, srv.SchedulingConfig)
+		applyDefaultsToPodSpec(podSpec, srv.SchedulingConfig)
+		if err := validation.ValidatePodSpec(podSpec, srv.SchedulingConfig); err != nil {
 			response := &api.JobSubmitResponseItem{
 				JobId: jobId,
 				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
