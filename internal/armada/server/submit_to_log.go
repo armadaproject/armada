@@ -749,6 +749,11 @@ func (srv *PulsarSubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stre
 	return nil
 }
 
+func (srv *PulsarSubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+	// For now, lets make the health check really simple.
+	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
 // PublishToPulsar sends pulsar messages async
 func (srv *PulsarSubmitServer) publishToPulsar(ctx *armadacontext.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,

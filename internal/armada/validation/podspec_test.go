@@ -14,7 +14,7 @@ import (
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -34,7 +34,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 	resources1 := v1.ResourceList{"cpu": cpu, "memory": memory}
 	resources2 := v1.ResourceList{"cpu": cpu2, "memory": memory}
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -59,7 +59,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		Preemption: configuration.PreemptionConfig{
 			DefaultPriorityClass: "high",
 			PriorityClasses:      map[string]types.PriorityClass{"high": {Priority: 0}},
@@ -86,7 +86,7 @@ func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -125,7 +125,7 @@ func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -156,7 +156,7 @@ func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -186,7 +186,7 @@ func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -219,7 +219,7 @@ func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
 	spec := minimalValidPodSpec()
 	specSize := uint(spec.Size())
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: specSize,
 	}
@@ -232,7 +232,7 @@ func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
 func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeeds(t *testing.T) {
 	spec := minimalValidPodSpec()
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MaxPodSpecSizeBytes: uint(spec.Size()),
 		MinJobResources: v1.ResourceList{
 			"memory": resource.MustParse("100Mi"),
@@ -258,7 +258,7 @@ func Test_ValidatePodSpec_WhenResourcesBelowMinimum_Fails(t *testing.T) {
 		},
 	}
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	schedulingConfig := configuration.SchedulingConfig{
 		MaxPodSpecSizeBytes: uint(spec.Size()),
 		MinJobResources: v1.ResourceList{
 			"memory": resource.MustParse("100Mi"),
