@@ -25,7 +25,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -157,18 +156,16 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	defer producer.Close()
 
 	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:                          producer,
-		QueueRepository:                   queueRepository,
-		SubmitServer:                      submitServer,
-		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
-		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
-		PulsarSchedulerEnabled:            config.PulsarSchedulerEnabled,
-		ProbabilityOfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
-		Rand:                              util.NewThreadsafeRand(time.Now().UnixNano()),
-		GangIdAnnotation:                  configuration.GangIdAnnotation,
-		IgnoreJobSubmitChecks:             config.IgnoreJobSubmitChecks,
+		Producer:              producer,
+		QueueRepository:       queueRepository,
+		JobRepository:         jobRepository,
+		SchedulingConfig:      config.Scheduling,
+		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
+		GangIdAnnotation:      configuration.GangIdAnnotation,
+		SubmitChecker:         pulsarSchedulerSubmitChecker,
+		Authorizer:            authorizer,
+		CompressorPool:
 	}
-	submitServerToRegister := pulsarSubmitServer
 
 	// If postgres details were provided, enable deduplication.
 	if config.Pulsar.DedupTable != "" {
@@ -217,7 +214,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		jobRepository,
 	)
 
-	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
+	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)

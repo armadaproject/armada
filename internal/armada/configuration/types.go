@@ -33,20 +33,14 @@ type ArmadaConfig struct {
 
 	SchedulerApiConnection client.ApiConnectionDetails
 
-	PriorityHalfTime                  time.Duration
-	CancelJobsBatchSize               int
-	Redis                             redis.UniversalOptions
-	EventsApiRedis                    redis.UniversalOptions
-	Scheduling                        SchedulingConfig
-	NewScheduler                      NewSchedulerConfig
-	QueueManagement                   QueueManagementConfig
-	Pulsar                            PulsarConfig
-	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi                          EventApiConfig
-	Metrics                           MetricsConfig
-	IgnoreJobSubmitChecks             bool // Temporary flag to stop us rejecting jobs on switch over
-	PulsarSchedulerEnabled            bool
-	ProbabilityOfUsingPulsarScheduler float64
+	CancelJobsBatchSize int
+	Redis               redis.UniversalOptions
+	EventsApiRedis      redis.UniversalOptions
+	Scheduling          SchedulingConfig
+	Pulsar              PulsarConfig
+	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
+	EventApi            EventApiConfig
+	Metrics             MetricsConfig
 }
 
 type PulsarConfig struct {
@@ -317,12 +311,6 @@ type WellKnownNodeType struct {
 	Taints []v1.Taint
 }
 
-// NewSchedulerConfig stores config for the new Pulsar-based scheduler.
-// This scheduler will eventually replace the current scheduler.
-type NewSchedulerConfig struct {
-	Enabled bool
-}
-
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
 	// If using PreemptToFairShare,
@@ -364,12 +352,6 @@ type PostgresConfig struct {
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	Connection      map[string]string
-}
-
-type QueueManagementConfig struct {
-	AutoCreateQueues       bool
-	DefaultPriorityFactor  float64
-	DefaultQueuedJobsLimit int
 }
 
 type MetricsConfig struct {
