@@ -143,7 +143,6 @@ func StartUpWithContext(
 		os.Exit(-1)
 	}
 
-	stopServerApiComponents := setupServerApiComponents(config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
 	stopExecutorApiComponents := setupExecutorApiComponents(config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
 
 	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
@@ -155,7 +154,6 @@ func StartUpWithContext(
 
 	return func() {
 		clusterContext.Stop()
-		stopServerApiComponents()
 		stopExecutorApiComponents()
 		if taskManager.StopAll(10 * time.Second) {
 			log.Warnf("Graceful shutdown timed out")

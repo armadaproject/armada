@@ -27,14 +27,6 @@ func (des *DummyEventServer) Health(ctx context.Context, cont_ *types.Empty) (*a
 	return new(api.HealthCheckResponse), nil
 }
 
-func (des *DummyEventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
-	return &types.Empty{}, nil
-}
-
-func (des *DummyEventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
-	return &types.Empty{}, nil
-}
-
 func (des *DummyEventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
 	return nil
 }

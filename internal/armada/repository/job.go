@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const (

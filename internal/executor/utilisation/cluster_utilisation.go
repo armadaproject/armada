@@ -2,6 +2,7 @@ package utilisation
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/pkg/executorapi"
 	"time"
 
 	"github.com/pkg/errors"
@@ -115,7 +116,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 
 type ClusterAvailableCapacityReport struct {
 	AvailableCapacity *armadaresource.ComputeResources
-	Nodes             []api.NodeInfo
+	Nodes             []executorapi.NodeInfo
 }
 
 func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (*ClusterAvailableCapacityReport, error) {
@@ -135,7 +136,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	runIdsByNode := cls.getRunIdsByNode(allNodes, allPods, legacy)
 
-	nodes := make([]api.NodeInfo, 0, len(allNodes))
+	nodes := make([]executorapi.NodeInfo, 0, len(allNodes))
 	totalAvailable := armadaresource.ComputeResources{}
 	for _, node := range allNodes {
 		isSchedulable := cls.nodeInfoService.IsAvailableProcessingNode(node)
@@ -162,20 +163,20 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 		)
 
 		usageByQueue := cls.getPodUtilisationByQueue(runningNodePodsArmada)
-		resourceUsageByQueue := make(map[string]*api.ComputeResource)
+		resourceUsageByQueue := make(map[string]*executorapi.ComputeResource)
 		for queueName, resourceUsage := range usageByQueue {
-			resourceUsageByQueue[queueName] = &api.ComputeResource{Resources: resourceUsage}
+			resourceUsageByQueue[queueName] = &executorapi.ComputeResource{Resources: resourceUsage}
 		}
 
-		nodeAllocatedResources := make(map[int32]api.ComputeResource)
+		nodeAllocatedResources := make(map[int32]executorapi.ComputeResource)
 		for p, rl := range allocatedByPriority {
-			nodeAllocatedResources[p] = api.ComputeResource{Resources: rl.Resources}
+			nodeAllocatedResources[p] = executorapi.ComputeResource{Resources: rl.Resources}
 		}
-		nodeNonArmadaAllocatedResources := make(map[int32]api.ComputeResource)
+		nodeNonArmadaAllocatedResources := make(map[int32]executorapi.ComputeResource)
 		for p, rl := range allocatedByPriorityNonArmada {
-			nodeNonArmadaAllocatedResources[p] = api.ComputeResource{Resources: rl.Resources}
+			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResource{Resources: rl.Resources}
 		}
-		nodes = append(nodes, api.NodeInfo{
+		nodes = append(nodes, executorapi.NodeInfo{
 			Name:                        node.Name,
 			Labels:                      cls.filterTrackedLabels(node.Labels),
 			Taints:                      node.Spec.Taints,

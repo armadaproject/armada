@@ -3,10 +3,13 @@ package armada
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/compress"
 	"math"
 	"net"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/compress"
+
+	"github.com/armadaproject/armada/internal/common/compress"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
