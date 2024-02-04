@@ -95,7 +95,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 		return nil, st.Err()
 	}
-	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, srv.schedulingConfig); err != nil {
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, srv.SchedulingConfig); err != nil {
 		details := &api.JobSubmitResponse{
 			JobResponseItems: responseItems,
 		}
@@ -920,7 +920,7 @@ func (srv *PulsarSubmitServer) createJobsObjects(request *api.JobSubmitRequest, 
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"
-		}S
+		}
 		fillContainerRequestsAndLimits(podSpec.Containers)
 		applyDefaultsToAnnotations(item.Annotations, srv.SchedulingConfig)
 		applyDefaultsToPodSpec(podSpec, srv.SchedulingConfig)
