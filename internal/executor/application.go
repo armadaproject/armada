@@ -249,8 +249,7 @@ func setupExecutorApiComponents(
 			clusterContext,
 			podUtilisationService,
 			eventReporter,
-			config.Task.UtilisationEventReportingInterval,
-			false)
+			config.Task.UtilisationEventReportingInterval)
 		taskManager.Register(
 			podUtilisationReporter.ReportUtilisationEvents,
 			config.Task.UtilisationEventProcessingInterval,

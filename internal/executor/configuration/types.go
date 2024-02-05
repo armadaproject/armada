@@ -162,7 +162,6 @@ type ExecutorConfiguration struct {
 	PprofPort             *uint16
 	Metric                MetricConfiguration
 	Application           ApplicationConfiguration
-	ApiConnection         client.ApiConnectionDetails
 	ExecutorApiConnection client.ApiConnectionDetails
 	Client                ClientConfiguration
 	GRPC                  keepalive.ClientParameters

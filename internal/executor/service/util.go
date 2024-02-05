@@ -8,18 +8,6 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func chunkJobs(jobs []*job.RunningJob, size int) [][]*job.RunningJob {
-	chunks := [][]*job.RunningJob{}
-	for start := 0; start < len(jobs); start += size {
-		end := start + size
-		if end > len(jobs) {
-			end = len(jobs)
-		}
-		chunks = append(chunks, jobs[start:end])
-	}
-	return chunks
-}
-
 func ExtractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta, error) {
 	if jobRun.Job == nil {
 		return nil, fmt.Errorf("job is invalid, job field is nil")

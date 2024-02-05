@@ -35,7 +35,7 @@ func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
 
 func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	addPod(t, fakeClusterContext, runningPod)
 
 	podIssueService.HandlePodIssues()
@@ -47,7 +47,7 @@ func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	unretryableStuckPod := makeUnretryableStuckPod(false)
+	unretryableStuckPod := makeUnretryableStuckPod()
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -66,7 +66,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	terminatingPod := makeTerminatingPod(false)
+	terminatingPod := makeTerminatingPod()
 	addPod(t, fakeClusterContext, terminatingPod)
 
 	podIssueService.HandlePodIssues()
@@ -90,12 +90,12 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 		"PodPastDeadline": {
 			expectIssueDetected: true,
 			// Created 10 mins ago, 5 min deadline
-			pod: makePodWithDeadline(false, startTime, 300, 0),
+			pod: makePodWithDeadline(startTime, 300, 0),
 		},
 		"PodPastDeadlineWithinTerminationGracePeriod": {
 			expectIssueDetected: false,
 			// Created 10 mins ago, 5 min deadline, 10 minute grace period
-			pod: makePodWithDeadline(false, startTime, 300, 600),
+			pod: makePodWithDeadline(startTime, 300, 600),
 		},
 	}
 
@@ -124,7 +124,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 
 func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	retryableStuckPod := makeRetryableStuckPod(false)
+	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -149,7 +149,7 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	retryableStuckPod := makeRetryableStuckPod(false)
+	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -180,7 +180,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
 	podIssueService.HandlePodIssues()
@@ -214,7 +214,7 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	runState := createRunState(util.ExtractJobId(runningPod), util.ExtractJobRunId(runningPod), job.Active)
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{runState})
 	podIssueService.clock = fakeClock
@@ -250,7 +250,7 @@ func TestPodIssueService_DeleteRunFromRunState_IfSubmittedPodNeverAppears(t *tes
 func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	runState := createRunState(util.ExtractJobId(runningPod), util.ExtractJobRunId(runningPod), job.SuccessfulSubmission)
 	podIssueService, runStateStore, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{runState})
 	podIssueService.clock = fakeClock
@@ -307,8 +307,8 @@ func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Po
 	return remainingActivePods
 }
 
-func makePodWithDeadline(legacy bool, createdTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
-	pod := makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
+func makePodWithDeadline(createdTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
 	activeDeadlineSeconds := int64(deadlineSeconds)
 	pod.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
 	terminationGracePeriodSeconds := int64(gracePeriodSeconds)
@@ -317,19 +317,19 @@ func makePodWithDeadline(legacy bool, createdTime time.Time, deadlineSeconds, gr
 	return pod
 }
 
-func makeRunningPod(legacy bool) *v1.Pod {
-	return makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
+func makeRunningPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
 }
 
-func makeTerminatingPod(legacy bool) *v1.Pod {
-	pod := makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
+func makeTerminatingPod() *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
 	t := metav1.NewTime(time.Now().Add(-time.Hour))
 	pod.DeletionTimestamp = &t
 	return pod
 }
 
-func makeUnretryableStuckPod(legacy bool) *v1.Pod {
-	return makeTestPod(legacy, v1.PodStatus{
+func makeUnretryableStuckPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{
 		Phase: "Pending",
 		ContainerStatuses: []v1.ContainerStatus{
 			{
@@ -344,8 +344,8 @@ func makeUnretryableStuckPod(legacy bool) *v1.Pod {
 	})
 }
 
-func makeRetryableStuckPod(legacy bool) *v1.Pod {
-	return makeTestPod(legacy, v1.PodStatus{
+func makeRetryableStuckPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{
 		Phase: "Pending",
 		ContainerStatuses: []v1.ContainerStatus{
 			{
@@ -360,12 +360,13 @@ func makeRetryableStuckPod(legacy bool) *v1.Pod {
 	})
 }
 
-func makeTestPod(legacy bool, status v1.PodStatus) *v1.Pod {
+func makeTestPod(status v1.PodStatus) *v1.Pod {
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				domain.JobId: "job-id-1",
-				domain.Queue: "queue-id-1",
+				domain.JobId:    "job-id-1",
+				domain.Queue:    "queue-id-1",
+				domain.JobRunId: "job-run-id-1",
 			},
 			Annotations: map[string]string{
 				domain.JobSetId: "job-set-id-1",
@@ -377,9 +378,6 @@ func makeTestPod(legacy bool, status v1.PodStatus) *v1.Pod {
 			NodeName: "node1",
 		},
 		Status: status,
-	}
-	if !legacy {
-		pod.ObjectMeta.Labels[domain.JobRunId] = "job-run-id-1"
 	}
 	return pod
 }
