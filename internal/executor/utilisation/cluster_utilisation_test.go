@@ -16,49 +16,6 @@ import (
 
 const nodeIdLabel = "node-id"
 
-func TestCreateReportsOfQueueUsages(t *testing.T) {
-	utilisationService := &ClusterUtilisationService{
-		queueUtilisationService: NewPodUtilisationService(nil, nil, nil, nil),
-	}
-
-	var priority int32
-	podResource := makeResourceList(2, 50)
-	queue1Pod1 := makePodWithResource("queue1", podResource, &priority)
-	queue1Pod2 := makePodWithResource("queue1", podResource, &priority)
-
-	reports := utilisationService.createReportsOfQueueUsages([]*v1.Pod{&queue1Pod1, &queue1Pod2})
-
-	expectedResource := map[string]resource.Quantity{
-		"cpu":    *resource.NewQuantity(4, resource.DecimalSI),
-		"memory": *resource.NewQuantity(100*1024*1024*1024, resource.DecimalSI),
-	}
-
-	assert.Equal(t, len(reports), 1)
-	assert.Equal(t, reports[0].Name, "queue1")
-	assert.Equal(t, reports[0].CountOfPodsByPhase, map[string]uint32{string(v1.PodRunning): 2})
-	assert.Equal(t, reports[0].Resources, expectedResource)
-	assert.Equal(t, reports[0].ResourcesUsed, map[string]resource.Quantity{})
-}
-
-func TestCreateReportsOfQueueUsages_WhenAllPending(t *testing.T) {
-	utilisationService := &ClusterUtilisationService{
-		queueUtilisationService: NewPodUtilisationService(nil, nil, nil, nil),
-	}
-
-	var priority int32
-	podResource := makeResourceList(2, 50)
-	queue1Pod1 := makePodWithResource("queue1", podResource, &priority)
-	queue1Pod1.Status.Phase = v1.PodPending
-
-	reports := utilisationService.createReportsOfQueueUsages([]*v1.Pod{&queue1Pod1})
-
-	assert.Equal(t, len(reports), 1)
-	assert.Equal(t, reports[0].Name, "queue1")
-	assert.Equal(t, reports[0].CountOfPodsByPhase, map[string]uint32{string(v1.PodPending): 1})
-	assert.Equal(t, reports[0].Resources, map[string]resource.Quantity{})
-	assert.Equal(t, reports[0].ResourcesUsed, map[string]resource.Quantity{})
-}
-
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
 	presentNodeName := "Node1"
 	podOnNode := v1.Pod{

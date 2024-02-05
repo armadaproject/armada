@@ -353,26 +353,6 @@ func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQ
 	return result
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	podsByQueue := util.GroupByQueue(pods)
-	queueReports := make([]*api.QueueReport, 0, len(podsByQueue))
-	for queueName, queuePods := range podsByQueue {
-		runningPods := util.FilterPodsWithPhase(queuePods, v1.PodRunning)
-		resourceAllocated := armadaresource.CalculateTotalResourceRequest(runningPods)
-		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
-		phaseSummary := util.CountPodsByPhase(queuePods)
-
-		queueReport := api.QueueReport{
-			Name:               queueName,
-			Resources:          resourceAllocated,
-			ResourcesUsed:      resourceUsed,
-			CountOfPodsByPhase: phaseSummary,
-		}
-		queueReports = append(queueReports, &queueReport)
-	}
-	return queueReports
-}
-
 func (clusterUtilisationService *ClusterUtilisationService) getTotalPodUtilisation(pods []*v1.Pod) armadaresource.ComputeResources {
 	totalUtilisation := armadaresource.ComputeResources{}
 
