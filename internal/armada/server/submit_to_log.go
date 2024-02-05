@@ -11,7 +11,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -113,6 +112,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 	if err != nil {
 		// Deduplication is best-effort, therefore this is not fatal
 		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
+	}
+
+	// Check if all jobs can be scheduled.
+	// This check uses the NodeDb of the new scheduler and
+	// can check if all jobs in a gang can go onto the same cluster.
+	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
+		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
 	pulsarJobDetails := make([]*schedulerobjects.PulsarSchedulerJobDetails, 0)
@@ -827,20 +833,6 @@ func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, a
 		return nil
 	}
 	return srv.KVStore.Store(ctx, kvs)
-}
-
-// groupJobsByGangId partitions the provided jobs by gang id.
-// Jobs with no gang id are treated as gangs of cardinality 1.
-func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) map[string][]*api.Job {
-	jobsByGangId := make(map[string][]*api.Job)
-	for _, job := range jobs {
-		gangId, ok := job.Annotations[srv.GangIdAnnotation]
-		if !ok {
-			gangId = uuid.NewString()
-		}
-		jobsByGangId[gangId] = append(jobsByGangId[gangId], job)
-	}
-	return jobsByGangId
 }
 
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
