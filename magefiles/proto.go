@@ -100,6 +100,7 @@ func protoGenerate() error {
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
 		"pkg/executorapi/*.proto",
+		"pkg/queryapi/*.proto",
 	}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)

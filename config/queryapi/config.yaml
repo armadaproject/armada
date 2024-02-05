@@ -1,0 +1,21 @@
+http:
+  port: 8080
+grpc:
+  port: 50052
+  keepaliveParams:
+    maxConnectionIdle: 5m
+    time: 120s
+    timeout: 20s
+  keepaliveEnforcementPolicy:
+    minTime: 10s
+    permitWithoutStream: true
+  tls:
+    enabled: false
+postgres:
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable
