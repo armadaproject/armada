@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -80,7 +81,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		UnassignedJobRuns: []string{runId3.String()},
 	}
 
-	submit, compressedSubmit := submitMsg(t, "node-id")
+	submit, compressedSubmit := submitMsg(
+		t,
+		&v1.PodSpec{
+			NodeSelector: map[string]string{nodeIdName: "node-id"},
+		},
+	)
 	defaultLease := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
@@ -91,7 +97,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		SubmitMessage: compressedSubmit,
 	}
 
-	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, "")
+	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, &v1.PodSpec{})
 	leaseWithoutNode := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
@@ -100,6 +106,39 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Groups:        compressedGroups,
 		SubmitMessage: compressedSubmitNoNodeSelector,
 	}
+
+	tolerations := []v1.Toleration{
+		{
+			Key:    "whale",
+			Value:  "true",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+	}
+	leaseWithTolerations := &database.JobRunLease{
+		RunID:  uuid.New(),
+		Queue:  "test-queue",
+		JobSet: "test-jobset",
+		UserID: "test-user",
+		Node:   "node-id",
+		Groups: compressedGroups,
+		// We use the submit message without tolerations here, because the
+		// run-level tolerations are stored in PodRequirementsOverlay.
+		SubmitMessage: compressedSubmit,
+		PodRequirementsOverlay: protoutil.MustMarshall(
+			&schedulerobjects.PodRequirements{
+				Tolerations: tolerations,
+				Priority:    1000,
+			},
+		),
+	}
+	submitWithTolerations, _ := submitMsg(
+		t,
+		&v1.PodSpec{
+			NodeSelector: map[string]string{nodeIdName: "node-id"},
+			Tolerations:  tolerations,
+		},
+	)
+	submitWithTolerations.JobId = submit.JobId
 
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
@@ -147,6 +186,26 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						User:     leaseWithoutNode.UserID,
 						Groups:   groups,
 						Job:      submitWithoutNodeSelector,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"run with PodRequirementsOverlay": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{leaseWithTolerations},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithTolerations.RunID),
+						Queue:    leaseWithTolerations.Queue,
+						Jobset:   leaseWithTolerations.JobSet,
+						User:     leaseWithTolerations.UserID,
+						Groups:   groups,
+						Job:      submitWithTolerations,
 					}},
 				},
 				{
@@ -347,12 +406,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 	}
 }
 
-func submitMsg(t *testing.T, nodeName string) (*armadaevents.SubmitJob, []byte) {
-	podSpec := &v1.PodSpec{}
-	if nodeName != "" {
-		podSpec.NodeSelector = map[string]string{}
-		podSpec.NodeSelector[nodeIdName] = nodeName
-	}
+func submitMsg(t *testing.T, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
 	submitMsg := &armadaevents.SubmitJob{
 		JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
 		MainObject: &armadaevents.KubernetesMainObject{

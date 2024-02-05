@@ -644,12 +644,18 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
 	awayNodeType types.AwayNodeType,
-) (*Node, error) {
+) (node *Node, err error) {
 	// Save the number of additional tolerations that the job originally had; we
 	// use this value to restore the slice of additional toleration at the end
 	// of each loop iteration.
 	numAdditionalTolerations := len(jctx.AdditionalTolerations)
 	defer func() {
+		// If we successfully scheduled the job on a node of this away node
+		// type, keep the additional tolerations; the scheduler will add them to
+		// the pod requirements overlay for the resulting run.
+		if node != nil {
+			return
+		}
 		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:numAdditionalTolerations]
 	}()
 
@@ -662,7 +668,8 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
 	}
 
-	return nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx, awayNodeType.Priority)
+	node, err = nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx, awayNodeType.Priority)
+	return
 }
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
