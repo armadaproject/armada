@@ -38,7 +38,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	defaultRequest := &executorapi.LeaseRequest{
 		ExecutorId: "test-executor",
 		Pool:       "test-pool",
-		Nodes: []*api.NodeInfo{
+		Nodes: []*executorapi.NodeInfo{
 			{
 				Name: "test-node",
 				RunIdsByState: map[string]api.JobState{

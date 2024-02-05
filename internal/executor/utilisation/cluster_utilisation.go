@@ -2,8 +2,9 @@ package utilisation
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/pkg/executorapi"
 	"time"
+
+	"github.com/armadaproject/armada/pkg/executorapi"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"

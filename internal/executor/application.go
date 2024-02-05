@@ -35,7 +35,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -260,110 +259,6 @@ func setupExecutorApiComponents(
 			config.Task.UtilisationEventProcessingInterval,
 			"pod_utilisation_event_reporting",
 		)
-	}
-
-	return func() {
-		stopReporter <- true
-		conn.Close()
-	}
-}
-
-func setupServerApiComponents(
-	config configuration.ExecutorConfiguration,
-	clusterContext executor_context.ClusterContext,
-	clusterHealthMonitor healthmonitor.HealthMonitor,
-	taskManager *task.BackgroundTaskManager,
-	pendingPodChecker *podchecks.PodChecks,
-	nodeInfoService node.NodeInfoService,
-	podUtilisationService utilisation.PodUtilisationService,
-) func() {
-	if !config.Application.UseLegacyApi {
-		return func() {}
-	}
-	conn, err := createConnectionToApi(config.ApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
-	if err != nil {
-		log.Errorf("Failed to connect to API because: %s", err)
-		os.Exit(-1)
-	}
-
-	usageClient := api.NewUsageClient(conn)
-	queueClient := api.NewAggregatedQueueClient(conn)
-	eventClient := api.NewEventClient(conn)
-	eventSender := reporter.NewLegacyApiEventSender(eventClient)
-
-	eventReporter, stopReporter := reporter.NewJobEventReporter(
-		clusterContext,
-		nil,
-		eventSender)
-
-	jobContext := job.NewClusterJobContext(
-		clusterContext,
-		pendingPodChecker,
-		config.Kubernetes.StuckTerminatingPodExpiry,
-		config.Application.UpdateConcurrencyLimit)
-
-	clusterUtilisationService := utilisation.NewClusterUtilisationService(
-		clusterContext,
-		podUtilisationService,
-		nodeInfoService,
-		usageClient,
-		config.Kubernetes.TrackedNodeLabels,
-		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
-		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
-	)
-
-	jobLeaseService := service.NewJobLeaseService(
-		clusterContext,
-		queueClient,
-		config.Kubernetes.MinimumJobSize,
-		config.Kubernetes.AvoidNodeLabelsOnRetry,
-		config.Application.JobLeaseRequestTimeout,
-	)
-
-	submitter := job.NewSubmitter(
-		clusterContext,
-		config.Kubernetes.PodDefaults,
-		config.Application.SubmitConcurrencyLimit,
-		config.Kubernetes.FatalPodSubmissionErrors,
-	)
-
-	clusterAllocationService := service.NewLegacyClusterAllocationService(
-		clusterContext,
-		eventReporter,
-		jobLeaseService,
-		clusterUtilisationService,
-		submitter,
-		clusterHealthMonitor,
-	)
-
-	jobManager := service.NewJobManager(
-		clusterContext,
-		jobContext,
-		eventReporter,
-		jobLeaseService)
-	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
-	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
-	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation_legacy")
-
-	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
-		podUtilisationReporter := utilisation.NewUtilisationEventReporter(
-			clusterContext,
-			podUtilisationService,
-			eventReporter,
-			config.Task.UtilisationEventReportingInterval,
-			true)
-		taskManager.Register(
-			podUtilisationReporter.ReportUtilisationEvents,
-			config.Task.UtilisationEventProcessingInterval,
-			"pod_utilisation_event_reporting",
-		)
-	}
-
-	if !config.Application.UseExecutorApi {
-		taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
-		pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
-
 	}
 
 	return func() {

@@ -34,7 +34,6 @@ The location of this file can be passed in using --config argument or picked fro
 		createCmd(armadactl.New()),
 		deleteCmd(),
 		updateCmd(),
-		describeCmd(),
 		getCmd(),
 		kubeCmd(),
 		reprioritizeCmd(),

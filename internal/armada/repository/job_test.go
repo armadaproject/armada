@@ -3,11 +3,12 @@ package repository
 import (
 	"testing"
 
-	"testing"
-
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestStoreAndGetPulsarSchedulerJobDetails(t *testing.T) {

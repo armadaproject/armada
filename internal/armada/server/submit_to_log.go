@@ -8,14 +8,11 @@ import (
 	"strings"
 	"time"
 
-	pool "github.com/jolestar/go-commons-pool"
-
-	pool "github.com/jolestar/go-commons-pool"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	"github.com/google/uuid"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
