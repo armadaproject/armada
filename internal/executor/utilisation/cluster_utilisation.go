@@ -2,7 +2,6 @@ package utilisation
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/armadaproject/armada/pkg/executorapi"
 
@@ -21,8 +20,8 @@ import (
 )
 
 type UtilisationService interface {
-	GetAvailableClusterCapacity(legacy bool) (*ClusterAvailableCapacityReport, error)
-	GetAllNodeGroupAllocationInfo(legacy bool) ([]*NodeGroupAllocationInfo, error)
+	GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error)
+	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
 }
 
 type ClusterUtilisationService struct {
@@ -66,61 +65,12 @@ type NodeGroupAllocationInfo struct {
 	NodeGroupCordonedCapacity    armadaresource.ComputeResources
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
-	allBatchPods, err := clusterUtilisationService.clusterContext.GetActiveBatchPods()
-	if err != nil {
-		log.Errorf("Failed to get required information to report cluster usage because %s", err)
-		return
-	}
-	// We only report cluster utilisation for legacy use cases
-	allBatchPods = util.FilterPods(allBatchPods, util.IsLegacyManagedPod)
-
-	nodeGroupInfos, err := clusterUtilisationService.GetAllNodeGroupAllocationInfo(true)
-	if err != nil {
-		log.Errorf("Failed to get required information to report cluster usage because %s", err)
-		return
-	}
-
-	nodeGroupReports := make([]api.NodeTypeUsageReport, 0, len(nodeGroupInfos))
-	for _, nodeGroup := range nodeGroupInfos {
-		managedPodsOnNodes := util.GetPodsOnNodes(allBatchPods, nodeGroup.Nodes)
-		queueReports := clusterUtilisationService.createReportsOfQueueUsages(managedPodsOnNodes)
-
-		unschedulableNodes := util.
-			FilterNodes(nodeGroup.Nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
-
-		nodeGroupReports = append(nodeGroupReports, api.NodeTypeUsageReport{
-			NodeType:          nodeGroup.NodeType,
-			Capacity:          nodeGroup.NodeGroupCapacity,
-			AvailableCapacity: nodeGroup.NodeGroupAllocatableCapacity,
-			Queues:            queueReports,
-			CordonedUsage:     nodeGroup.NodeGroupCordonedCapacity,
-			TotalNodes:        int32(len(nodeGroup.Nodes)),
-			SchedulableNodes:  int32(len(nodeGroup.Nodes) - len(unschedulableNodes)),
-		})
-	}
-
-	clusterUsage := api.ClusterUsageReport{
-		ClusterId:            clusterUtilisationService.clusterContext.GetClusterId(),
-		Pool:                 clusterUtilisationService.clusterContext.GetClusterPool(),
-		ReportTime:           time.Now(),
-		NodeTypeUsageReports: nodeGroupReports,
-	}
-
-	err = clusterUtilisationService.reportUsage(&clusterUsage)
-
-	if err != nil {
-		log.Errorf("Failed to report cluster usage because %s", err)
-		return
-	}
-}
-
 type ClusterAvailableCapacityReport struct {
 	AvailableCapacity *armadaresource.ComputeResources
 	Nodes             []executorapi.NodeInfo
 }
 
-func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (*ClusterAvailableCapacityReport, error) {
+func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
 	allNodes, err := cls.nodeInfoService.GetAllNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
@@ -135,7 +85,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
-	runIdsByNode := cls.getRunIdsByNode(allNodes, allPods, legacy)
+	runIdsByNode := cls.getRunIdsByNode(allNodes, allPods)
 
 	nodes := make([]executorapi.NodeInfo, 0, len(allNodes))
 	totalAvailable := armadaresource.ComputeResources{}
@@ -200,11 +150,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 }
 
 // This returns all the pods assigned the node or soon to be assigned (via node-selector)
-// The server api expects job ids, the executor api expects run ids - the legacy flag controls which this returns
-func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(nodes []*v1.Node, pods []*v1.Pod, legacy bool) map[string]map[string]api.JobState {
-	pods = util.FilterPods(pods, func(pod *v1.Pod) bool {
-		return legacy == util.IsLegacyManagedPod(pod)
-	})
+func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(nodes []*v1.Node, pods []*v1.Pod) map[string]map[string]api.JobState {
 	nodeIdToNodeName := make(map[string]string, len(nodes))
 	for _, n := range nodes {
 		if nodeId, nodeIdPresent := n.Labels[clusterUtilisationService.nodeIdLabel]; nodeIdPresent {
@@ -221,9 +167,6 @@ func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(node
 		}
 		nodeIdNodeSelector, nodeSelectorPresent := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]
 		runId := util.ExtractJobRunId(pod)
-		if legacy {
-			runId = util.ExtractJobId(pod)
-		}
 
 		nodeName := pod.Spec.NodeName
 		if nodeName == "" && nodeSelectorPresent {
@@ -301,7 +244,7 @@ func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) schedulerobjects
 // NodeGroupCapacity is the total capacity of a nodegroup (including cordoned nodes)
 // NodeGroupAllocatableCapacity is the capacity available to armada on schedulable nodes
 // NodeGroupCordonedCapacity is the resource in use by armada on unschedulable nodes
-func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo(legacy bool) ([]*NodeGroupAllocationInfo, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllNodes()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
@@ -315,9 +258,6 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 	batchPods, err := clusterUtilisationService.clusterContext.GetBatchPods()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
-	}
-	if legacy {
-		batchPods = util.FilterPods(batchPods, util.IsLegacyManagedPod)
 	}
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)

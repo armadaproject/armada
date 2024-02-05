@@ -316,7 +316,6 @@ func TestGetRunIdsByNode(t *testing.T) {
 
 	tests := map[string]struct {
 		inputPods      []*v1.Pod
-		legacyIds      bool
 		expectedOutput map[string]map[string]api.JobState
 	}{
 		"MatchesOnNodeName": {
@@ -329,17 +328,6 @@ func TestGetRunIdsByNode(t *testing.T) {
 				"node-1": {"run-1": api.JobState_RUNNING, "run-2": api.JobState_RUNNING},
 				"node-2": {"run-3": api.JobState_RUNNING},
 			},
-		},
-		"LegacyGivesJobIds": {
-			inputPods: []*v1.Pod{
-				createPodOnNode("job-1", "", v1.PodRunning, "node-1", ""),
-				createPodOnNode("job-2", "", v1.PodRunning, "node-2", ""),
-			},
-			expectedOutput: map[string]map[string]api.JobState{
-				"node-1": {"job-1": api.JobState_RUNNING},
-				"node-2": {"job-2": api.JobState_RUNNING},
-			},
-			legacyIds: true,
 		},
 		"HandlesAllPodPhases": {
 			inputPods: []*v1.Pod{
@@ -382,7 +370,7 @@ func TestGetRunIdsByNode(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := utilisationService.getRunIdsByNode([]*v1.Node{node1, node2}, tc.inputPods, tc.legacyIds)
+			result := utilisationService.getRunIdsByNode([]*v1.Node{node1, node2}, tc.inputPods)
 			assert.Equal(t, tc.expectedOutput, result)
 		})
 	}

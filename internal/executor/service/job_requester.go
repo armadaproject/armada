@@ -74,7 +74,7 @@ func (r *JobRequester) RequestJobsRuns() {
 }
 
 func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
-	capacityReport, err := r.utilisationService.GetAvailableClusterCapacity(false)
+	capacityReport, err := r.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		return nil, err
 	}
