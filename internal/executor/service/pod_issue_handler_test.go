@@ -1,16 +1,24 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	commonutil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
+	podchecksConfig "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/internal/executor/context"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -287,5 +295,118 @@ func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunStat
 			JobId: jobId,
 			RunId: runId,
 		},
+	}
+}
+
+func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Pod {
+	t.Helper()
+	remainingActivePods, err := clusterContext.GetActiveBatchPods()
+	if err != nil {
+		t.Error(err)
+	}
+	return remainingActivePods
+}
+
+func makePodWithDeadline(legacy bool, createdTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
+	pod := makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
+	activeDeadlineSeconds := int64(deadlineSeconds)
+	pod.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
+	terminationGracePeriodSeconds := int64(gracePeriodSeconds)
+	pod.Spec.TerminationGracePeriodSeconds = &terminationGracePeriodSeconds
+	pod.CreationTimestamp = metav1.NewTime(createdTime)
+	return pod
+}
+
+func makeRunningPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
+}
+
+func makeTerminatingPod(legacy bool) *v1.Pod {
+	pod := makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
+	t := metav1.NewTime(time.Now().Add(-time.Hour))
+	pod.DeletionTimestamp = &t
+	return pod
+}
+
+func makeUnretryableStuckPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{
+		Phase: "Pending",
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				State: v1.ContainerState{
+					Waiting: &v1.ContainerStateWaiting{
+						Reason:  "ImagePullBackOff",
+						Message: "Image pull has failed",
+					},
+				},
+			},
+		},
+	})
+}
+
+func makeRetryableStuckPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{
+		Phase: "Pending",
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				State: v1.ContainerState{
+					Waiting: &v1.ContainerStateWaiting{
+						Reason:  "Some reason",
+						Message: "Some other message",
+					},
+				},
+			},
+		},
+	})
+}
+
+func makeTestPod(legacy bool, status v1.PodStatus) *v1.Pod {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				domain.JobId: "job-id-1",
+				domain.Queue: "queue-id-1",
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: "job-set-id-1",
+			},
+			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+			UID:               types.UID(commonutil.NewULID()),
+		},
+		Spec: v1.PodSpec{
+			NodeName: "node1",
+		},
+		Status: status,
+	}
+	if !legacy {
+		pod.ObjectMeta.Labels[domain.JobRunId] = "job-run-id-1"
+	}
+	return pod
+}
+
+func makePodChecker() podchecks.PodChecker {
+	var cfg podchecksConfig.Checks
+	cfg.Events = []podchecksConfig.EventCheck{
+		{Regexp: "Image pull has failed", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{Regexp: "Some other message", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
+	}
+	cfg.ContainerStatuses = []podchecksConfig.ContainerStatusCheck{
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "ImagePullBackOff", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
+	}
+
+	checker, err := podchecks.NewPodChecks(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
+	}
+
+	return checker
+}
+
+func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod *v1.Pod) {
+	t.Helper()
+	_, err := fakeClusterContext.SubmitPod(runningPod, "owner-1", []string{})
+	if err != nil {
+		t.Error(err)
 	}
 }
