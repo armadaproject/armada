@@ -185,7 +185,6 @@ func setupExecutorApiComponents(
 		clusterContext,
 		podUtilisationService,
 		nodeInfoService,
-		nil,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,

@@ -9,7 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -28,7 +27,6 @@ type ClusterUtilisationService struct {
 	clusterContext                                                context.ClusterContext
 	queueUtilisationService                                       PodUtilisationService
 	nodeInfoService                                               node.NodeInfoService
-	usageClient                                                   api.UsageClient
 	trackedNodeLabels                                             []string
 	nodeIdLabel                                                   string
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
@@ -39,7 +37,6 @@ func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
-	usageClient api.UsageClient,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
@@ -49,7 +46,6 @@ func NewClusterUtilisationService(
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		nodeInfoService:         nodeInfoService,
-		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
 		nodeIdLabel:             nodeIdLabel,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -326,14 +322,6 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResour
 	}
 
 	return result, nil
-}
-
-func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	_, err := clusterUtilisationService.usageClient.ReportUsage(ctx, clusterUsage)
-
-	return err
 }
 
 func getAllPodsRequiringResourceOnNodes(allPods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
