@@ -217,7 +217,7 @@ class ArmadaClient:
             )
 
         else:
-            raise ValueError("Either job_ids or job_set_id and queue must be provided.")
+            raise ValueError("Either job_ids or job_set_id and queue must be provided")
 
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
