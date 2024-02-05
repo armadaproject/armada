@@ -1,6 +1,8 @@
 package queryapi
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -8,7 +10,6 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/queryapi/server"
 	"github.com/armadaproject/armada/pkg/queryapi"
-	"github.com/pkg/errors"
 )
 
 func Run(config Configuration) error {

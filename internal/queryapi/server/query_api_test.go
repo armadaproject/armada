@@ -2,17 +2,18 @@ package server
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/armadaproject/armada/pkg/queryapi"
+	"testing"
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
+
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/pkg/queryapi"
 )
 
 func TestGetJobStatus(t *testing.T) {
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -52,7 +53,6 @@ func TestGetJobStatus(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
-
 }
 
 func insertTestData(ctx context.Context, db *pgxpool.Pool) error {

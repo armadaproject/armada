@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -29,5 +32,8 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 
 	common.LoadConfig(&config, "./config/queryapi", userSpecifiedConfigs)
-	queryapi.Run(config)
+	if err := queryapi.Run(config); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
 }

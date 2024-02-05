@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/queryapi/database"
 	"github.com/armadaproject/armada/pkg/queryapi"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // JobStateMap is a mapping between database state and api states
@@ -34,7 +36,7 @@ func (q *QueryApi) GetJobStatus(ctx context.Context, req *queryapi.JobStatusRequ
 	if err != nil {
 		return nil, err
 	}
-	var status = int16(-1)
+	status := int16(-1)
 	if len(queryResult) > 0 {
 		status = queryResult[0]
 	}
