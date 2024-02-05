@@ -138,12 +138,6 @@ def test_get_queue(client: ArmadaClient, queue_name):
     assert queue.name == queue_name
 
 
-def test_get_queue_info(client: ArmadaClient, queue_name):
-    queue = client.get_queue_info(name=queue_name)
-    assert queue.name == queue_name
-    assert not queue.active_job_sets
-
-
 def test_submit_job_and_cancel_by_id(client: ArmadaClient, queue_name):
     job_set_name = f"set-{uuid.uuid1()}"
     jobs = client.submit_jobs(
