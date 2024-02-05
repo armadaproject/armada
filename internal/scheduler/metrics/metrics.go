@@ -472,7 +472,7 @@ func (m *Metrics) updateResourceSecondsCounterVec(vec *prometheus.CounterVec, la
 	i := len(labels)
 	// Number of jobs.
 	labels = append(labels, jobsResourceLabel)
-	stateDuration := stateDuration(stateTime, priorStateTime).Seconds()
+	stateDuration := stateDuration(priorStateTime, stateTime).Seconds()
 	if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {
 		return err
 	} else {
