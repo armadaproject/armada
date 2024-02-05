@@ -1,0 +1,70 @@
+.sidebarContainer {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.resizer {
+    flex: 0 0 5px;
+    height: 100%;
+    width: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+}
+
+.resizer.isResizing {
+    background: blue;
+    opacity: 1;
+}
+
+@media (hover: hover) {
+    .resizer {
+        opacity: 0;
+    }
+
+    *:hover > .resizer {
+        opacity: 1;
+    }
+}
+
+.sidebarContent {
+  flex: 1 0 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.5em;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.sidebarHeader {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+}
+
+.sidebarTabContext {
+  width: 100%;
+  flex: 1 0 1px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarTabs {
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.sidebarTabPanel {
+  width: 100%;
+  flex: 1 0 1px;
+  overflow: auto;
+  padding-bottom: 5px !important;
+}
+

@@ -1,0 +1,18 @@
+.job-set-table-header {
+    text-align: center;
+}
+
+.job-set-table-number-cell {
+    text-align: right;
+    padding-right: 1em;
+}
+
+.job-set-submission-time-header-cell {
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.job-set-table-job-set-name-cell {
+    white-space: normal !important;
+    word-break: break-word !important;
+}

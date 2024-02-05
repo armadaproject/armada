@@ -1,0 +1,20 @@
+.actionBar {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+.actionGroup {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5em;
+    overflow-x: hidden;
+}
+
+/* Pull the last action group to the right-hand side */
+.actionBar .actionGroup:last-child {
+    margin-left: auto;
+}

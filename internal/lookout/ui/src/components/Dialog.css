@@ -1,0 +1,32 @@
+.lookout-dialog {
+  display: flex;
+  flex-direction: column;
+  padding: 0 4em 1em 4em !important;
+  overflow-y: hidden !important;
+}
+
+.lookout-dialog-container {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.lookout-dialog-fixed {
+  flex: 0 0 auto;
+}
+
+.lookout-dialog-varying {
+  flex: 0 1 auto;
+  margin-bottom: 1em;
+  overflow-y: auto;
+}
+
+.lookout-dialog-centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.MuiDialog-scrollPaper {
+    align-items: baseline !important;
+}

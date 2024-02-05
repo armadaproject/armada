@@ -1,0 +1,29 @@
+.container {
+  padding: 10px 0 10px 0;
+}
+
+.centerContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.command {
+  width: 100%;
+  white-space: pre-wrap;
+  font-family: monospace;
+  word-wrap: break-word;
+  background: #1b1b1b none;
+  color: #fff;
+  padding: 5px;
+  border-radius: 5px;
+  position: relative;
+}
+
+.singleContainer {
+  padding: 0 10px 0 25px;
+}
+
+.commandContainer {
+  padding: 5px 0 5px 0;
+}

@@ -1,0 +1,31 @@
+.columnMenu {
+    display: flex;
+    flex-direction: row;
+}
+
+.columnSelect {
+    flex: 1 0 auto;
+    max-width: 500px;
+    overflow-y: auto;
+}
+
+.annotationSelectContainer {
+    flex: 0 0 250px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 8px;
+}
+
+.addColumnButton {
+    margin: 8px;
+}
+
+.addAnnotationButtons {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.addAnnotationAction {
+    margin: 8px;
+}

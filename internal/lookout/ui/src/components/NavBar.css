@@ -1,0 +1,29 @@
+.toolbar {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toolbar .title {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  text-decoration: none;
+  color: white;
+}
+
+.toolbar .title .logo {
+  max-width: 8em;
+  margin-right: 2em;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.toolbar .nav-items {
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+}
