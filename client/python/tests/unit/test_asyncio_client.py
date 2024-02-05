@@ -171,6 +171,7 @@ async def test_get_queue(aio_client):
 async def test_delete_queue(aio_client):
     await aio_client.delete_queue("test")
 
+
 @pytest.mark.asyncio
 async def test_cancel_jobs(aio_client):
     await test_create_queue(aio_client)

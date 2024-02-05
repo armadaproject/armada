@@ -160,6 +160,7 @@ def test_get_queue():
 def test_delete_queue():
     tester.delete_queue("test")
 
+
 def test_cancel_jobs():
     test_create_queue()
     test_submit_job()
