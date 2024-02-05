@@ -36,7 +36,6 @@ There are additional API methods defined in proto specifications, which are used
 
 - [event.proto](https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto) - methods for event reporting
 - [queue.proto](https://github.com/armadaproject/armada/blob/master/pkg/api/queue.proto) - methods related to job leasing by executor
-- [usage.proto](https://github.com/armadaproject/armada/blob/master/pkg/api/usage.proto) - methods for reporting of resources usage
 
 ## REST
 The REST API only exposes the public part of the gRPC API and it is implemented using [grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway).
