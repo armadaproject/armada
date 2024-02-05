@@ -54,7 +54,7 @@ func NewClusterUtilisationService(
 }
 
 type NodeGroupAllocationInfo struct {
-	NodeType                     *api.NodeTypeIdentifier
+	NodeType                     *node.NodeTypeIdentifier
 	Nodes                        []*v1.Node
 	NodeGroupCapacity            armadaresource.ComputeResources
 	NodeGroupAllocatableCapacity armadaresource.ComputeResources
