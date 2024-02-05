@@ -55,7 +55,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 
 	capacityReport := &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{
-			"cpu":    resource.MustParse("100s"),
+			"cpu":    resource.MustParse("100"),
 			"memory": resource.MustParse("1000Gi"),
 		},
 		Nodes: []executorapi.NodeInfo{
