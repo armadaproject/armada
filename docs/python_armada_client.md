@@ -317,30 +317,6 @@ Uses the GetQueue RPC to get the queue.
 
 
 
-#### get_queue_info(name)
-Get the queue info by name.
-
-Uses the GetQueueInfo RPC to get queue info.
-
-
-* **Parameters**
-
-    **name** (*str*) – The name of the queue
-
-
-
-* **Returns**
-
-    A queue info object.  See the api definition.
-
-
-
-* **Return type**
-
-    armada.submit_pb2.QueueInfo
-
-
-
 #### reprioritize_jobs(new_priority, job_ids=None, job_set_id=None, queue=None)
 Reprioritize jobs with new_priority value.
 

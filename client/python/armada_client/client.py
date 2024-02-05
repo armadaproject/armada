@@ -291,18 +291,6 @@ class ArmadaClient:
         response = self.submit_stub.GetQueue(request)
         return response
 
-    def get_queue_info(self, name: str) -> submit_pb2.QueueInfo:
-        """Get the queue info by name.
-
-        Uses the GetQueueInfo RPC to get queue info.
-
-        :param name: The name of the queue
-        :return: A queue info object.  See the api definition.
-        """
-        request = submit_pb2.QueueInfoRequest(name=name)
-        response = self.submit_stub.GetQueueInfo(request)
-        return response
-
     @staticmethod
     def unwatch_events(event_stream) -> None:
         """Closes gRPC event streams
