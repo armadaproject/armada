@@ -499,17 +499,16 @@ func stateDuration(start *time.Time, end *time.Time) time.Duration {
 	return time.Duration(0)
 }
 
-func getPriorState(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (prior string, priorTime *time.Time) {
+func getPriorState(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (string, *time.Time) {
 	if stateTime == nil {
 		return "", nil
 	}
-	var diff float64
+
 	queuedTime := time.Unix(0, job.Created())
-	if sub := stateTime.Sub(queuedTime).Seconds(); sub < diff && sub > 0 {
-		prior = queued
-		priorTime = &queuedTime
-		diff = sub
-	}
+	diff := stateTime.Sub(queuedTime).Seconds()
+	prior := queued
+	priorTime := &queuedTime
+
 	if run.LeaseTime() != nil {
 		if sub := stateTime.Sub(*run.LeaseTime()).Seconds(); sub < diff && sub > 0 {
 			prior = leased
