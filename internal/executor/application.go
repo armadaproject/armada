@@ -171,9 +171,6 @@ func setupExecutorApiComponents(
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
 ) func() {
-	if !config.Application.UseExecutorApi {
-		return func() {}
-	}
 	conn, err := createConnectionToApi(config.ExecutorApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
 		log.Errorf("Failed to connect to Executor API because: %s", err)
