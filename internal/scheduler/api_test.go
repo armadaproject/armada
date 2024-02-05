@@ -83,6 +83,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 	submit, compressedSubmit := submitMsg(
 		t,
+		nil,
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
 		},
@@ -97,7 +98,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		SubmitMessage: compressedSubmit,
 	}
 
-	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, &v1.PodSpec{})
+	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, nil, nil)
 	leaseWithoutNode := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
@@ -114,7 +115,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			Effect: v1.TaintEffectNoSchedule,
 		},
 	}
-	leaseWithTolerations := &database.JobRunLease{
+	leaseWithOverlay := &database.JobRunLease{
 		RunID:  uuid.New(),
 		Queue:  "test-queue",
 		JobSet: "test-jobset",
@@ -127,18 +128,22 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		PodRequirementsOverlay: protoutil.MustMarshall(
 			&schedulerobjects.PodRequirements{
 				Tolerations: tolerations,
+				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
 				Priority:    1000,
 			},
 		),
 	}
-	submitWithTolerations, _ := submitMsg(
+	submitWithOverlay, _ := submitMsg(
 		t,
+		&armadaevents.ObjectMeta{
+			Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
 			Tolerations:  tolerations,
 		},
 	)
-	submitWithTolerations.JobId = submit.JobId
+	submitWithOverlay.JobId = submit.JobId
 
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
@@ -195,17 +200,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 		"run with PodRequirementsOverlay": {
 			request:          defaultRequest,
-			leases:           []*database.JobRunLease{leaseWithTolerations},
+			leases:           []*database.JobRunLease{leaseWithOverlay},
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithTolerations.RunID),
-						Queue:    leaseWithTolerations.Queue,
-						Jobset:   leaseWithTolerations.JobSet,
-						User:     leaseWithTolerations.UserID,
+						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithOverlay.RunID),
+						Queue:    leaseWithOverlay.Queue,
+						Jobset:   leaseWithOverlay.JobSet,
+						User:     leaseWithOverlay.UserID,
 						Groups:   groups,
-						Job:      submitWithTolerations,
+						Job:      submitWithOverlay,
 					}},
 				},
 				{
@@ -406,9 +411,10 @@ func TestExecutorApi_Publish(t *testing.T) {
 	}
 }
 
-func submitMsg(t *testing.T, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
+func submitMsg(t *testing.T, objectMeta *armadaevents.ObjectMeta, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
 	submitMsg := &armadaevents.SubmitJob{
-		JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+		JobId:      armadaevents.ProtoUuidFromUuid(uuid.New()),
+		ObjectMeta: objectMeta,
 		MainObject: &armadaevents.KubernetesMainObject{
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{

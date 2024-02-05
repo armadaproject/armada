@@ -144,6 +144,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 				return err
 			}
 			addTolerations(submitMsg, PodRequirementsOverlay.Tolerations)
+			addAnnotations(submitMsg, PodRequirementsOverlay.Annotations)
 		}
 
 		var groups []string
@@ -236,6 +237,21 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
 				typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, tolerations...)
 			}
 		}
+	}
+}
+
+func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) {
+	if job == nil || len(annotations) == 0 {
+		return
+	}
+	if job.ObjectMeta == nil {
+		job.ObjectMeta = &armadaevents.ObjectMeta{}
+	}
+	if job.ObjectMeta.Annotations == nil {
+		job.ObjectMeta.Annotations = make(map[string]string, len(annotations))
+	}
+	for k, v := range annotations {
+		job.ObjectMeta.Annotations[k] = v
 	}
 }
 

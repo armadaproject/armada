@@ -494,7 +494,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 		Job: &armadaevents.SubmitJob{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Labels:      map[string]string{},
-				Annotations: map[string]string{},
+				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
 				Namespace:   "test-namespace",
 			},
 			JobId: jobId,
@@ -520,8 +520,9 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 				domain.PodCount:  "1",
 			},
 			Annotations: map[string]string{
-				domain.JobSetId: "job-set",
-				domain.Owner:    "user",
+				domain.JobSetId:            "job-set",
+				domain.Owner:               "user",
+				"runtime_gang_cardinality": "3",
 			},
 		},
 		Spec: v1.PodSpec{
