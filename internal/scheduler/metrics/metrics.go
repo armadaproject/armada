@@ -186,7 +186,7 @@ func (m *Metrics) Update(
 		}
 	}
 	if jst.Leased {
-		if err := m.UpdateLeased(jst.Job); err != nil {
+		if err := m.UpdateLeased(jst.Job, nil); err != nil {
 			return err
 		}
 	}
@@ -216,7 +216,7 @@ func (m *Metrics) Update(
 		}
 	}
 	if jst.Preempted {
-		if err := m.UpdatePreempted(jst.Job); err != nil {
+		if err := m.UpdatePreempted(jst.Job, nil); err != nil {
 			return err
 		}
 	}
@@ -309,7 +309,10 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateLeased(job *jobdb.Job) error {
+func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
+	if job == nil {
+		job = jctx.Job.(*jobdb.Job)
+	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
 	labels := m.buffer[0:0]
@@ -317,7 +320,11 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job) error {
 	labels = append(labels, leased)
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
-	labels = appendLabelsFromJob(labels, job)
+	if jctx != nil {
+		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	} else {
+		labels = appendLabelsFromJob(labels, job)
+	}
 	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
 		return err
 	}
@@ -327,7 +334,10 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdatePreempted(job *jobdb.Job) error {
+func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
+	if job == nil {
+		job = jctx.Job.(*jobdb.Job)
+	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PreemptedTime())
 	labels := m.buffer[0:0]
@@ -335,7 +345,11 @@ func (m *Metrics) UpdatePreempted(job *jobdb.Job) error {
 	labels = append(labels, preempted)
 	labels = append(labels, "") // No category for preempted.
 	labels = append(labels, "") // No subCategory for preempted.
-	labels = appendLabelsFromJob(labels, job)
+	if jctx != nil {
+		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	} else {
+		labels = appendLabelsFromJob(labels, job)
+	}
 	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PreemptedTime(), priorStateTime); err != nil {
 		return err
 	}
