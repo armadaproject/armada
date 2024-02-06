@@ -74,6 +74,8 @@ func GetAggregatorsForColumn(queryCol *queryColumn, aggregateType AggregateType,
 			aggregators[i] = NewStateCountAggregator(queryCol, state)
 		}
 		return aggregators, nil
+	case Min:
+		return []QueryAggregator{NewSqlFunctionAggregator(queryCol, "MIN")}, nil
 	default:
 		return nil, errors.Errorf("cannot determine aggregate type: %v", aggregateType)
 	}
