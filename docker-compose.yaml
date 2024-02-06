@@ -229,7 +229,7 @@ services:
       - 60003:60003
       - 4008:4000
     depends_on:
-      - server-legacy
+      - server
     env_file:
       - ./developer/env/docker/jobservice.env
     working_dir: /app

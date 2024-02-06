@@ -46,7 +46,7 @@ mage StartDependencies && mage checkForPulsarRunning
 # Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for details.
-docker compose up -d server-legacy executor-legacy
+docker compose up -d server executor-legacy
 
 # Wait for Armada to come online
 mage checkForArmadaRunning
