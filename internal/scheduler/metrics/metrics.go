@@ -329,7 +329,11 @@ func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontex
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
 	labels = append(labels, job.GetQueue())
 	labels = append(labels, executor)
-	labels = append(labels, jctx.PodSchedulingContext.WellKnownNodeTypeName)
+	wellKnownNodeType := ""
+	if pctx := jctx.PodSchedulingContext; pctx != nil {
+		wellKnownNodeType = pctx.WellKnownNodeTypeName
+	}
+	labels = append(labels, wellKnownNodeType)
 	labels = append(labels, nodeName)
 	return labels
 }
