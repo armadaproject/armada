@@ -5,8 +5,6 @@ application:
   submitConcurrencyLimit: 2
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
-  useExecutorApi: false
-  useLegacyApi: true
   jobLeaseRequestTimeout: "30s"
   maxLeasedJobs: 100
 task:

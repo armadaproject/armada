@@ -355,10 +355,9 @@ type PostgresConfig struct {
 }
 
 type MetricsConfig struct {
-	Port                    uint16
-	RefreshInterval         time.Duration
-	ExposeSchedulingMetrics bool
-	Metrics                 SchedulerMetricsConfig
+	Port            uint16
+	RefreshInterval time.Duration
+	Metrics         SchedulerMetricsConfig
 }
 
 type SchedulerMetricsConfig struct {
