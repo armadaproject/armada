@@ -84,7 +84,7 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.15.2
-	github.com/jackc/pgx/v5 v5.5.0
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
 	github.com/minio/highwayhash v1.0.2
