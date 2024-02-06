@@ -306,7 +306,7 @@ func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
-			SELECT j.jobset, COUNT(*) AS count, MAX(j.submitted) AS submitted
+			SELECT j.jobset, COUNT(*) AS count, MIN(j.submitted) AS submitted
 			FROM job AS j
 			INNER JOIN (
 				SELECT job_id
@@ -347,7 +347,7 @@ func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
-			SELECT j.jobset, COUNT(*) AS count, AVG(j.last_transition_time_seconds) AS last_transition_time_seconds, MAX(j.submitted) AS submitted
+			SELECT j.jobset, COUNT(*) AS count, AVG(j.last_transition_time_seconds) AS last_transition_time_seconds, MIN(j.submitted) AS submitted
 			FROM job AS j
 			INNER JOIN (
 				SELECT job_id
@@ -402,7 +402,7 @@ func TestQueryBuilder_GroupByStateAggregates(t *testing.T) {
 			SELECT j.jobset,
 			       COUNT(*) AS count,
 			       AVG(j.last_transition_time_seconds) AS last_transition_time_seconds,
-			       MAX(j.submitted) AS submitted,
+			       MIN(j.submitted) AS submitted,
 			       SUM(CASE WHEN j.state = 1 THEN 1 ELSE 0 END) AS state_QUEUED,
 			       SUM(CASE WHEN j.state = 8 THEN 1 ELSE 0 END) AS state_LEASED,
 			       SUM(CASE WHEN j.state = 2 THEN 1 ELSE 0 END) AS state_PENDING,
@@ -448,7 +448,7 @@ func TestQueryBuilder_GroupByAnnotationMultipleAggregates(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
-			SELECT ual_group.value, COUNT(*) AS count, AVG(j.last_transition_time_seconds) AS last_transition_time_seconds, MAX(j.submitted) AS submitted
+			SELECT ual_group.value, COUNT(*) AS count, AVG(j.last_transition_time_seconds) AS last_transition_time_seconds, MIN(j.submitted) AS submitted
 			FROM job AS j
 			INNER JOIN (
 				SELECT job_id
