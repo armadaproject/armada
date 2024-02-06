@@ -321,6 +321,12 @@ func (run *JobRun) WithCancelled(cancelled bool) *JobRun {
 	return run
 }
 
+func (run *JobRun) WithTerminatedTime(terminatedTime *time.Time) *JobRun {
+	run = run.DeepCopy()
+	run.terminatedTime = terminatedTime
+	return run
+}
+
 func (run *JobRun) Pending() bool {
 	return run.pending
 }
@@ -335,6 +341,12 @@ func (run *JobRun) PendingTime() *time.Time {
 	return run.pendingTime
 }
 
+func (run *JobRun) WithPendingTime(pendingTime *time.Time) *JobRun {
+	run = run.DeepCopy()
+	run.pendingTime = pendingTime
+	return run
+}
+
 func (run *JobRun) Leased() bool {
 	return run.leased
 }
@@ -346,6 +358,12 @@ func (run *JobRun) LeaseTime() *time.Time {
 func (run *JobRun) WithLeased(leased bool) *JobRun {
 	run = run.DeepCopy()
 	run.leased = leased
+	return run
+}
+
+func (run *JobRun) WithLeasedTime(leaseTime *time.Time) *JobRun {
+	run = run.DeepCopy()
+	run.leaseTime = leaseTime
 	return run
 }
 
@@ -365,6 +383,12 @@ func (run *JobRun) WithRunning(running bool) *JobRun {
 	return run
 }
 
+func (run *JobRun) WithRunningTime(runningTime *time.Time) *JobRun {
+	run = run.DeepCopy()
+	run.runningTime = runningTime
+	return run
+}
+
 // Preempted Returns true if the executor has reported the job run as preempted
 func (run *JobRun) Preempted() bool {
 	return run.preempted
@@ -378,6 +402,12 @@ func (run *JobRun) PreemptedTime() *time.Time {
 func (run *JobRun) WithPreempted(preempted bool) *JobRun {
 	run = run.DeepCopy()
 	run.preempted = preempted
+	return run
+}
+
+func (run *JobRun) WithPreemptedTime(preemptedTime *time.Time) *JobRun {
+	run = run.DeepCopy()
+	run.preemptedTime = preemptedTime
 	return run
 }
 

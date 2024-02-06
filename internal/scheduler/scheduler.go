@@ -345,12 +345,12 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		return nil
 	}
 	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
+		if err := s.schedulerMetrics.UpdateLeased(jctx.Job.(*jobdb.Job)); err != nil {
 			return err
 		}
 	}
 	for _, jctx := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.UpdatePreempted(jctx); err != nil {
+		if err := s.schedulerMetrics.UpdatePreempted(jctx.Job.(*jobdb.Job)); err != nil {
 			return err
 		}
 	}

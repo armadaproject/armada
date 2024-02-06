@@ -171,31 +171,31 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		return
 	} else if jobRun != nil && jobRepoRun != nil {
 		if jobRepoRun.LeasedTimestamp != nil && !jobRun.Leased() {
-			jobRun = jobRun.WithLeased(true)
+			jobRun = jobRun.WithLeased(true).WithLeasedTime(jobRepoRun.LeasedTimestamp)
 			rst.Leased = true
 		}
 		if jobRepoRun.Pending && !jobRun.Pending() {
-			jobRun = jobRun.WithPending(true)
+			jobRun = jobRun.WithPending(true).WithPendingTime(jobRepoRun.PendingTimestamp)
 			rst.Pending = true
 		}
 		if jobRepoRun.Running && !jobRun.Running() {
-			jobRun = jobRun.WithRunning(true)
+			jobRun = jobRun.WithRunning(true).WithRunningTime(jobRepoRun.RunningTimestamp)
 			rst.Running = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
-			jobRun = jobRun.WithSucceeded(true).WithRunning(false)
+			jobRun = jobRun.WithSucceeded(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Succeeded = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithFailed(true).WithRunning(false)
+			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Failed = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
-			jobRun = jobRun.WithCancelled(true).WithRunning(false)
+			jobRun = jobRun.WithCancelled(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Cancelled = true
 		}
 		if jobRepoRun.Preempted && !jobRun.Preempted() {
-			jobRun = jobRun.WithPreempted(true).WithRunning(false)
+			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Preempted = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {

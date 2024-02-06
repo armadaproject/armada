@@ -185,8 +185,18 @@ func (m *Metrics) Update(
 			return err
 		}
 	}
+	if jst.Leased {
+		if err := m.UpdateLeased(jst.Job); err != nil {
+			return err
+		}
+	}
 	if jst.Pending {
 		if err := m.UpdatePending(jst.Job); err != nil {
+			return err
+		}
+	}
+	if jst.Running {
+		if err := m.UpdateRunning(jst.Job); err != nil {
 			return err
 		}
 	}
@@ -202,6 +212,11 @@ func (m *Metrics) Update(
 	}
 	if jst.Succeeded {
 		if err := m.UpdateSucceeded(jst.Job); err != nil {
+			return err
+		}
+	}
+	if jst.Preempted {
+		if err := m.UpdatePreempted(jst.Job); err != nil {
 			return err
 		}
 	}
@@ -294,8 +309,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
-	job := jctx.Job.(*jobdb.Job)
+func (m *Metrics) UpdateLeased(job *jobdb.Job) error {
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
 	labels := m.buffer[0:0]
@@ -303,7 +317,7 @@ func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) erro
 	labels = append(labels, leased)
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
-	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	labels = appendLabelsFromJob(labels, job)
 	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
 		return err
 	}
@@ -313,8 +327,7 @@ func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) erro
 	return nil
 }
 
-func (m *Metrics) UpdatePreempted(jctx *schedulercontext.JobSchedulingContext) error {
-	job := jctx.Job.(*jobdb.Job)
+func (m *Metrics) UpdatePreempted(job *jobdb.Job) error {
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PreemptedTime())
 	labels := m.buffer[0:0]
@@ -322,8 +335,26 @@ func (m *Metrics) UpdatePreempted(jctx *schedulercontext.JobSchedulingContext) e
 	labels = append(labels, preempted)
 	labels = append(labels, "") // No category for preempted.
 	labels = append(labels, "") // No subCategory for preempted.
-	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	labels = appendLabelsFromJob(labels, job)
 	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PreemptedTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.RunningTime())
+	labels := m.buffer[0:0]
+	labels = append(labels, priorState)
+	labels = append(labels, running)
+	labels = append(labels, "") // No category for running.
+	labels = append(labels, "") // No subCategory for running.
+	labels = appendLabelsFromJob(labels, job)
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.RunningTime(), priorStateTime); err != nil {
 		return err
 	}
 	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
@@ -469,6 +500,9 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 
 // updateResourceSecondsCounterVec is a helper method to increment vector counters by the number of seconds per resource a jobs has consumed in a given state.
 func (m *Metrics) updateResourceSecondsCounterVec(vec *prometheus.CounterVec, labels []string, job *jobdb.Job, stateTime, priorStateTime *time.Time) error {
+	if stateTime == nil || priorStateTime == nil {
+		return nil
+	}
 	i := len(labels)
 	// Number of jobs.
 	labels = append(labels, jobsResourceLabel)
