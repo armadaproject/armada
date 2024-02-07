@@ -27,6 +27,7 @@ const (
 	podError         = "podError"
 	podLeaseReturned = "podLeaseReturned"
 	podTerminated    = "podTerminated"
+	jobRunPreempted  = "jobRunPreempted"
 
 	queued    = "queued"
 	running   = "running"
@@ -478,6 +479,8 @@ func errorTypeAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.
 		return podLeaseReturned, reason.PodLeaseReturned.Message
 	case *armadaevents.Error_PodTerminated:
 		return podTerminated, reason.PodTerminated.Message
+	case *armadaevents.Error_JobRunPreemptedError:
+		return jobRunPreempted, ""
 	default:
 		ctx.Warnf("omitting name and message for unknown error type %T", err.Reason)
 		return "", ""

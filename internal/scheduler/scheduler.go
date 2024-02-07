@@ -542,10 +542,6 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 		if err != nil {
 			return nil, err
 		}
-		additionalAnnotations, found := additionalAnnotationsByJobId[job.Id()]
-		if !found {
-			additionalAnnotations = make(map[string]string)
-		}
 		run := job.LatestRun()
 		if run == nil {
 			return nil, errors.Errorf("attempting to generate lease eventSequences for job %s with no associated runs", job.Id())
@@ -569,9 +565,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							UpdateSequenceNumber:   job.QueuedVersion(),
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
-							AdditionalAnnotations:  additionalAnnotations,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 								Tolerations: jctx.AdditionalTolerations,
+								Annotations: additionalAnnotationsByJobId[job.Id()],
 								Priority:    scheduledAtPriority,
 							},
 						},
