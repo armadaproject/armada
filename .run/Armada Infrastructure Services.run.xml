@@ -5,7 +5,7 @@
         <option name="envFilePath" value="" />
         <option name="services">
           <list>
-            <option value="lookoutv2-postgres-migration" />
+            <option value="lookoutv2-migration" />
             <option value="scheduler-migration" />
           </list>
         </option>
