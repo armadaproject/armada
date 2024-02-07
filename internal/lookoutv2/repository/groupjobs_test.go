@@ -469,21 +469,21 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 				Name:  "job-set-1",
 				Count: 15,
 				Aggregates: map[string]interface{}{
-					"submitted": baseTime.Format(time.RFC3339),
+					"submitted": baseTime.Add(-2 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "job-set-2",
 				Count: 12,
 				Aggregates: map[string]interface{}{
-					"submitted": baseTime.Add(-4 * time.Minute).Format(time.RFC3339),
+					"submitted": baseTime.Add(-6 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "job-set-3",
 				Count: 18,
 				Aggregates: map[string]interface{}{
-					"submitted": baseTime.Add(-7 * time.Minute).Format(time.RFC3339),
+					"submitted": baseTime.Add(-9 * time.Minute).Format(time.RFC3339),
 				},
 			},
 		}, result.Groups)
@@ -949,7 +949,7 @@ func TestGroupJobsComplex(t *testing.T) {
 				Name:  "job-set-1",
 				Count: 15,
 				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
+					"submitted":          baseTime.Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
 				},
 			},

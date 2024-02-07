@@ -16,9 +16,14 @@ export interface SidebarTabJobCommandsProps {
 }
 
 function getCommandText(job: Job, commandSpec: CommandSpec): string {
-  templateSettings.interpolate = /{{([\s\S]+?)}}/g
-  const compiledTemplate = template(commandSpec.template)
-  return compiledTemplate(job)
+  try {
+    templateSettings.interpolate = /{{([\s\S]+?)}}/g
+    const compiledTemplate = template(commandSpec.template)
+    return compiledTemplate(job)
+  } catch (error) {
+    console.error("Failed to generate command text:", error)
+    return "" // Return an empty string in case of failure
+  }
 }
 
 export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobCommandsProps) => {
