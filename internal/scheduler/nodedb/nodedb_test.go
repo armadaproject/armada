@@ -10,7 +10,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -554,6 +557,78 @@ func TestScheduleMany(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAwayNodeTypes(t *testing.T) {
+	priorityClasses := map[string]types.PriorityClass{
+		"armada-preemptible-away": {
+			Priority:    30000,
+			Preemptible: true,
+
+			AwayNodeTypes: []types.AwayNodeType{
+				{Priority: 29000, WellKnownNodeTypeName: "whale"},
+			},
+		},
+	}
+
+	nodeDb, err := NewNodeDb(
+		priorityClasses,
+		testfixtures.TestMaxExtraNodesToConsider,
+		testfixtures.TestResources,
+		testfixtures.TestIndexedTaints,
+		testfixtures.TestIndexedNodeLabels,
+		[]configuration.WellKnownNodeType{
+			{
+				Name: "whale",
+				Taints: []v1.Taint{
+					{
+						Key:    "whale",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	nodeDbTxn := nodeDb.Txn(true)
+	node := testfixtures.Test32CpuNode([]int32{29000, 30000})
+	node.Taints = append(
+		node.Taints,
+		v1.Taint{
+			Key:    "whale",
+			Value:  "true",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+	)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
+
+	jobId := util.ULID()
+	job := testfixtures.TestJob(
+		testfixtures.TestQueue,
+		jobId,
+		"armada-preemptible-away",
+		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
+	)
+	jctx := schedulercontext.JobSchedulingContextFromJob(priorityClasses, job)
+	require.Empty(t, jctx.AdditionalTolerations)
+	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+
+	ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(
+		t,
+		[]v1.Toleration{
+			{
+				Key:    "whale",
+				Value:  "true",
+				Effect: v1.TaintEffectNoSchedule,
+			},
+		},
+		jctx.AdditionalTolerations,
+	)
 }
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {

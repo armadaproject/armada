@@ -24,6 +24,7 @@ schedulerMetrics:
     - "memory"
     - "ephemeral-storage"
     - "nvidia.com/gpu"
+  matchedRegexIndexByErrorMessageCacheSize: 100
   resetInterval: "1h"
 pulsar:
   URL: "pulsar://pulsar:6650"

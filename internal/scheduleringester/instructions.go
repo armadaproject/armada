@@ -192,18 +192,23 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	if jobRunLeased.HasScheduledAtPriority {
 		scheduledAtPriority = &jobRunLeased.ScheduledAtPriority
 	}
+	PodRequirementsOverlay, err := proto.Marshal(jobRunLeased.GetPodRequirementsOverlay())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return []DbOperation{
 		InsertRuns{runId: &JobRunDetails{
 			Queue: meta.queue,
 			DbRun: &schedulerdb.Run{
-				RunID:               runId,
-				JobID:               jobId,
-				Created:             eventTime.UnixNano(),
-				JobSet:              meta.jobset,
-				Executor:            jobRunLeased.GetExecutorId(),
-				Node:                jobRunLeased.GetNodeId(),
-				ScheduledAtPriority: scheduledAtPriority,
-				LeasedTimestamp:     &eventTime,
+				RunID:                  runId,
+				JobID:                  jobId,
+				Created:                eventTime.UnixNano(),
+				JobSet:                 meta.jobset,
+				Executor:               jobRunLeased.GetExecutorId(),
+				Node:                   jobRunLeased.GetNodeId(),
+				ScheduledAtPriority:    scheduledAtPriority,
+				LeasedTimestamp:        &eventTime,
+				PodRequirementsOverlay: PodRequirementsOverlay,
 			},
 		}},
 		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{

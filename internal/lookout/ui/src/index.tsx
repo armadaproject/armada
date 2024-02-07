@@ -63,6 +63,7 @@ import "./index.css"
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
       jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
       debugEnabled={uiConfig.debugEnabled}
+      commandSpecs={uiConfig.commandSpecs}
     />,
     document.getElementById("root"),
   )
