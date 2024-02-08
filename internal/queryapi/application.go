@@ -1,7 +1,10 @@
 package queryapi
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"net"
 
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -26,5 +29,13 @@ func Run(config Configuration) error {
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 	defer grpcServer.GracefulStop()
 	queryapi.RegisterQueryApiServer(grpcServer, server.New(db))
+	log.Infof("QueryApi grpc server listening on %d", config.Grpc.Port)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	g.Go(func() error {
+		return grpcServer.Serve(lis)
+	})
 	return g.Wait()
 }
