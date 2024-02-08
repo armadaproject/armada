@@ -3,6 +3,10 @@ package armada
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	"math"
 	"net"
 	"time"
@@ -208,6 +212,20 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		log.Info("Pulsar submit API deduplication disabled")
 	}
 
+	// Consumer that's used for deleting pulsarJob details
+	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
+	// TODO: delete this when we finally remove redis
+	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer consumer.Close()
+
 	// Service that reads from Pulsar and logs events.
 	if config.Pulsar.EventsPrinter {
 		eventsPrinter := server.EventsPrinter{
@@ -293,3 +311,56 @@ func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.C
 		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
 	)
 }
+
+
+func expirePulsarJobDetails(ctx *armadacontext.Context, consumer pulsar.Consumer, jobRepository repository.JobRepository){
+
+	eventChan := consumer.Chan()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Infof("Context expired, stopping pulsar job detials expiration loop")
+			return
+		case msg, ok := <-eventChan:
+			if !ok {
+				fmt.Println("Channel closing, stopping pulsar job details expiration loop")
+				return
+			}
+
+			// Unmarshal and validate the message.
+			sequence, err := eventutil.UnmarshalEventSequence(ctx, msg.Payload())
+			if err != nil {
+				srv.ack(ctx, msg)
+				logging.WithStacktrace(ctx, err).Warnf("processing message failed; ignoring")
+				continue
+			}
+
+			jobIdsToExpire := make([]string, 0)
+			for _, event := range sequence.GetEvents() {
+				var jobId string
+				var err error
+				switch e := event.Event.(type) {
+				case *armadaevents.EventSequence_Event_JobSucceeded:
+					jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
+				case *armadaevents.EventSequence_Event_JobErrors:
+					if ok := armadaslices.AnyFunc(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); ok {
+						jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
+					}
+				case *armadaevents.EventSequence_Event_CancelledJob:
+					jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
+				default:
+					// Non-terminal event
+					continue
+				if err != nil {
+					logging.WithStacktrace(ctx, err).Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
+					continue
+				}
+				append(idsOfJobsToExpireMappingFor, jobId)
+			}
+			jobRepository.ExpirePulsarSchedulerJobDetails(jobIdsToExpire)
+
+			consumer.Ack()
+		}
+	}
+
