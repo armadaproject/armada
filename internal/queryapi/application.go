@@ -2,9 +2,10 @@ package queryapi
 
 import (
 	"fmt"
+	"net"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"net"
 
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
