@@ -19,7 +19,7 @@ type JobStateTransitions struct {
 	Job *Job
 
 	Queued    bool
-	Scheduled bool
+	Leased    bool
 	Pending   bool
 	Running   bool
 	Cancelled bool
@@ -31,7 +31,7 @@ type JobStateTransitions struct {
 // applyRunStateTransitions applies the state transitions of a run to that of the associated job.
 func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions) JobStateTransitions {
 	jst.Queued = jst.Queued || rst.Returned
-	jst.Scheduled = jst.Scheduled || rst.Scheduled
+	jst.Leased = jst.Leased || rst.Leased
 	jst.Pending = jst.Pending || rst.Pending
 	jst.Running = jst.Running || rst.Running
 	jst.Cancelled = jst.Cancelled || rst.Cancelled
@@ -46,7 +46,7 @@ func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions)
 type RunStateTransitions struct {
 	JobRun *JobRun
 
-	Scheduled bool
+	Leased    bool
 	Returned  bool
 	Pending   bool
 	Running   bool
@@ -153,7 +153,6 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 	return
 }
 
-// TODO(albin): Preempted is not supported.
 func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database.Run) (rst RunStateTransitions) {
 	defer func() { rst.JobRun = jobRun }()
 	if jobRun == nil && jobRepoRun == nil {
@@ -161,29 +160,43 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 	} else if jobRun == nil && jobRepoRun != nil {
 		jobRun = jobDb.schedulerRunFromDatabaseRun(jobRepoRun)
 		rst.Returned = jobRepoRun.Returned
-		rst.Pending = jobRepoRun.PendingTimestamp != nil
+		rst.Pending = jobRepoRun.Pending
+		rst.Leased = jobRepoRun.LeasedTimestamp != nil
 		rst.Running = jobRepoRun.Running
+		rst.Preempted = jobRepoRun.Preempted
 		rst.Cancelled = jobRepoRun.Cancelled
 		rst.Failed = jobRepoRun.Failed
 		rst.Succeeded = jobRepoRun.Succeeded
 	} else if jobRun != nil && jobRepoRun == nil {
 		return
 	} else if jobRun != nil && jobRepoRun != nil {
+		if jobRepoRun.LeasedTimestamp != nil && !jobRun.Leased() {
+			jobRun = jobRun.WithLeased(true).WithLeasedTime(jobRepoRun.LeasedTimestamp)
+			rst.Leased = true
+		}
+		if jobRepoRun.Pending && !jobRun.Pending() {
+			jobRun = jobRun.WithPending(true).WithPendingTime(jobRepoRun.PendingTimestamp)
+			rst.Pending = true
+		}
 		if jobRepoRun.Running && !jobRun.Running() {
-			jobRun = jobRun.WithRunning(true)
+			jobRun = jobRun.WithRunning(true).WithRunningTime(jobRepoRun.RunningTimestamp)
 			rst.Running = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
-			jobRun = jobRun.WithSucceeded(true).WithRunning(false)
+			jobRun = jobRun.WithSucceeded(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Succeeded = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithFailed(true).WithRunning(false)
+			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Failed = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
-			jobRun = jobRun.WithCancelled(true).WithRunning(false)
+			jobRun = jobRun.WithCancelled(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Cancelled = true
+		}
+		if jobRepoRun.Preempted && !jobRun.Preempted() {
+			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.TerminatedTimestamp)
+			rst.Preempted = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
 			jobRun = jobRun.WithReturned(true).WithRunning(false)
@@ -241,10 +254,18 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		nodeId,
 		dbRun.Node,
 		dbRun.ScheduledAtPriority,
+		dbRun.LeasedTimestamp != nil,
+		dbRun.Pending,
 		dbRun.Running,
+		dbRun.Preempted,
 		dbRun.Succeeded,
 		dbRun.Failed,
 		dbRun.Cancelled,
+		dbRun.LeasedTimestamp,
+		dbRun.PendingTimestamp,
+		dbRun.RunningTimestamp,
+		dbRun.PreemptedTimestamp,
+		dbRun.TerminatedTimestamp,
 		dbRun.Returned,
 		dbRun.RunAttempted,
 	)

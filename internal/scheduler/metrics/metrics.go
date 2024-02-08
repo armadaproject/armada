@@ -30,6 +30,8 @@ const (
 	jobRunPreempted  = "jobRunPreempted"
 
 	queued    = "queued"
+	running   = "running"
+	pending   = "pending"
 	cancelled = "cancelled"
 	leased    = "leased"
 	preempted = "preempted"
@@ -57,7 +59,8 @@ type Metrics struct {
 	matchedRegexIndexByErrorMessage *lru.Cache
 
 	// Job metrics.
-	transitions *prometheus.CounterVec
+	transitions     *prometheus.CounterVec
+	resourceSeconds *prometheus.CounterVec
 }
 
 func New(config configuration.MetricsConfig) (*Metrics, error) {
@@ -85,7 +88,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 		resetInterval:         config.ResetInterval,
 		timeOfMostRecentReset: time.Now(),
 
-		buffer: make([]string, 0, 8),
+		buffer: make([]string, 0, 9),
 
 		errorRegexes:                    errorRegexes,
 		matchedRegexIndexByErrorMessage: matchedRegexIndexByError,
@@ -98,6 +101,15 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 				Help:      "Job state transition resource counters.",
 			},
 			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node", "resource"},
+		),
+		resourceSeconds: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "resource_seconds_total",
+				Help:      "Job state transition resource-second counters.",
+			},
+			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node", "resource"},
 		),
 	}, nil
 }
@@ -129,6 +141,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 		return
 	}
 	m.transitions.Describe(ch)
+	m.resourceSeconds.Describe(ch)
 }
 
 // Collect and then reset all metrics.
@@ -138,11 +151,14 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 	m.transitions.Collect(ch)
+	m.resourceSeconds.Collect(ch)
 
 	// Reset metrics periodically.
 	t := time.Now()
 	if t.Sub(m.timeOfMostRecentReset) > m.resetInterval {
 		m.transitions.Reset()
+		m.resourceSeconds.Reset()
+
 		m.timeOfMostRecentReset = t
 	}
 }
@@ -170,6 +186,21 @@ func (m *Metrics) Update(
 			return err
 		}
 	}
+	if jst.Leased {
+		if err := m.UpdateLeased(jst.Job, nil); err != nil {
+			return err
+		}
+	}
+	if jst.Pending {
+		if err := m.UpdatePending(jst.Job); err != nil {
+			return err
+		}
+	}
+	if jst.Running {
+		if err := m.UpdateRunning(jst.Job); err != nil {
+			return err
+		}
+	}
 	if jst.Cancelled {
 		if err := m.UpdateCancelled(jst.Job); err != nil {
 			return err
@@ -185,41 +216,77 @@ func (m *Metrics) Update(
 			return err
 		}
 	}
+	if jst.Preempted {
+		if err := m.UpdatePreempted(jst.Job, nil); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (m *Metrics) UpdateQueued(job *jobdb.Job) error {
 	labels := m.buffer[0:0]
+	labels = append(labels, "") // No priorState for queued.
 	labels = append(labels, queued)
 	labels = append(labels, "") // No category for queued.
 	labels = append(labels, "") // No subCategory for queued.
 	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Metrics) UpdatePending(job *jobdb.Job) error {
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PendingTime())
+	labels := m.buffer[0:0]
+	labels = append(labels, priorState)
+	labels = append(labels, pending)
+	labels = append(labels, "") // No category for pending.
+	labels = append(labels, "") // No subCategory for pending.
+	labels = appendLabelsFromJob(labels, job)
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PendingTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
 	labels := m.buffer[0:0]
+	labels = append(labels, priorState)
 	labels = append(labels, cancelled)
 	labels = append(labels, "") // No category for cancelled.
 	labels = append(labels, "") // No subCategory for cancelled.
 	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
-	labels := m.buffer[0:0]
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
+	labels := m.buffer[0:0]
+	labels = append(labels, priorState)
 	labels = append(labels, failed)
 	labels = append(labels, category)
 	labels = append(labels, subCategory)
 	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
@@ -227,37 +294,85 @@ func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRu
 
 func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	labels := m.buffer[0:0]
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
+	labels = append(labels, priorState)
 	labels = append(labels, succeeded)
 	labels = append(labels, "") // No category for succeeded.
 	labels = append(labels, "") // No subCategory for succeeded.
 	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
+func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
+	if job == nil {
+		job = jctx.Job.(*jobdb.Job)
+	}
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
 	labels := m.buffer[0:0]
-	job := jctx.Job.(*jobdb.Job)
+	labels = append(labels, priorState)
 	labels = append(labels, leased)
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
-	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
-	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+	if jctx != nil {
+		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	} else {
+		labels = appendLabelsFromJob(labels, job)
+	}
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *Metrics) UpdatePreempted(jctx *schedulercontext.JobSchedulingContext) error {
+func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
+	if job == nil {
+		job = jctx.Job.(*jobdb.Job)
+	}
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PreemptedTime())
 	labels := m.buffer[0:0]
-	job := jctx.Job.(*jobdb.Job)
+	labels = append(labels, priorState)
 	labels = append(labels, preempted)
 	labels = append(labels, "") // No category for preempted.
 	labels = append(labels, "") // No subCategory for preempted.
-	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
-	if err := m.updateCounterVecFromJob(m.transitions, labels, job); err != nil {
+	if jctx != nil {
+		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	} else {
+		labels = appendLabelsFromJob(labels, job)
+	}
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PreemptedTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
+	latestRun := job.LatestRun()
+	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.RunningTime())
+	labels := m.buffer[0:0]
+	labels = append(labels, priorState)
+	labels = append(labels, running)
+	labels = append(labels, "") // No category for running.
+	labels = append(labels, "") // No subCategory for running.
+	labels = appendLabelsFromJob(labels, job)
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.RunningTime(), priorStateTime); err != nil {
+		return err
+	}
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
@@ -398,4 +513,73 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 	}
 
 	return nil
+}
+
+// updateResourceSecondsCounterVec is a helper method to increment vector counters by the number of seconds per resource a jobs has consumed in a given state.
+func (m *Metrics) updateResourceSecondsCounterVec(vec *prometheus.CounterVec, labels []string, job *jobdb.Job, stateTime, priorStateTime *time.Time) error {
+	if stateTime == nil || priorStateTime == nil {
+		return nil
+	}
+	i := len(labels)
+	// Number of jobs.
+	labels = append(labels, jobsResourceLabel)
+	stateDuration := stateDuration(priorStateTime, stateTime).Seconds()
+	if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {
+		return err
+	} else {
+		c.Add(stateDuration)
+	}
+	requests := job.GetResourceRequirements().Requests
+	for _, resourceName := range m.config.TrackedResourceNames {
+		labels[i] = string(resourceName)
+		if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {
+			return err
+		} else {
+			q := requests[resourceName]
+			v := float64(q.MilliValue()) / 1000
+			c.Add(v * stateDuration)
+		}
+	}
+	return nil
+}
+
+func stateDuration(start *time.Time, end *time.Time) time.Duration {
+	if start != nil && end != nil {
+		return end.Sub(*start)
+	}
+	return time.Duration(0)
+}
+
+func getPriorState(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (string, *time.Time) {
+	if stateTime == nil {
+		return "", nil
+	}
+
+	queuedTime := time.Unix(0, job.Created())
+	diff := stateTime.Sub(queuedTime).Seconds()
+	prior := queued
+	priorTime := &queuedTime
+
+	if run.LeaseTime() != nil {
+		if sub := stateTime.Sub(*run.LeaseTime()).Seconds(); sub < diff && sub > 0 {
+			prior = leased
+			priorTime = run.LeaseTime()
+			diff = sub
+		}
+	}
+	if run.PendingTime() != nil {
+		if sub := stateTime.Sub(*run.PendingTime()).Seconds(); sub < diff && sub > 0 {
+			prior = pending
+			priorTime = run.PendingTime()
+			diff = sub
+		}
+	}
+	if run.RunningTime() != nil {
+		if sub := stateTime.Sub(*run.RunningTime()).Seconds(); sub < diff && sub > 0 {
+			prior = running
+			priorTime = run.RunningTime()
+		}
+	}
+	// succeeded, failed, cancelled, preempted are not prior states
+	return prior, priorTime
 }
