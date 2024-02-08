@@ -6,6 +6,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"math"
 	"net"
@@ -225,6 +226,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return errors.WithStack(err)
 	}
 	defer consumer.Close()
+	services = append(services, func() error {
+		return expirePulsarJobDetails(ctx, consumer, jobRepository)
+	})
 
 	// Service that reads from Pulsar and logs events.
 	if config.Pulsar.EventsPrinter {
@@ -312,26 +316,37 @@ func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.C
 	)
 }
 
+func expirePulsarJobDetails(ctx *armadacontext.Context, consumer pulsar.Consumer, jobRepository repository.JobRepository) error {
 
-func expirePulsarJobDetails(ctx *armadacontext.Context, consumer pulsar.Consumer, jobRepository repository.JobRepository){
+	ack := func(ctx *armadacontext.Context, msg pulsar.Message) {
+		util.RetryUntilSuccess(
+			ctx,
+			func() error {
+				return consumer.Ack(msg)
+			},
+			func(err error) {
+				log.WithError(err).Warnf("Error acking pulsar message")
+				time.Sleep(time.Second)
+			},
+		)
+	}
 
 	eventChan := consumer.Chan()
-
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infof("Context expired, stopping pulsar job detials expiration loop")
-			return
+			return nil
 		case msg, ok := <-eventChan:
 			if !ok {
 				fmt.Println("Channel closing, stopping pulsar job details expiration loop")
-				return
+				return nil
 			}
 
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctx, msg.Payload())
 			if err != nil {
-				srv.ack(ctx, msg)
+				ack(ctx, msg)
 				logging.WithStacktrace(ctx, err).Warnf("processing message failed; ignoring")
 				continue
 			}
@@ -352,15 +367,17 @@ func expirePulsarJobDetails(ctx *armadacontext.Context, consumer pulsar.Consumer
 				default:
 					// Non-terminal event
 					continue
-				if err != nil {
-					logging.WithStacktrace(ctx, err).Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
-					continue
+					if err != nil {
+						logging.
+							WithStacktrace(ctx, err).
+							Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
+						continue
+					}
+					jobIdsToExpire = append(jobIdsToExpire, jobId)
 				}
-				append(idsOfJobsToExpireMappingFor, jobId)
+				jobRepository.ExpirePulsarSchedulerJobDetails(jobIdsToExpire)
+				ack(ctx, msg)
 			}
-			jobRepository.ExpirePulsarSchedulerJobDetails(jobIdsToExpire)
-
-			consumer.Ack()
 		}
 	}
-
+}
