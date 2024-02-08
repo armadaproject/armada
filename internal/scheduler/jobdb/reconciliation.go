@@ -183,22 +183,27 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Running = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
+			jobRun = jobRun.ResetTerminals()
 			jobRun = jobRun.WithSucceeded(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Succeeded = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
+			jobRun = jobRun.ResetTerminals()
 			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Failed = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
+			jobRun = jobRun.ResetTerminals()
 			jobRun = jobRun.WithCancelled(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Cancelled = true
 		}
 		if jobRepoRun.Preempted && !jobRun.Preempted() {
-			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.TerminatedTimestamp)
+			jobRun = jobRun.ResetTerminals()
+			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.PreemptedTimestamp)
 			rst.Preempted = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
+			jobRun = jobRun.ResetTerminals()
 			jobRun = jobRun.WithReturned(true).WithRunning(false)
 			rst.Returned = true
 		}

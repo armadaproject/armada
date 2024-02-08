@@ -443,6 +443,18 @@ func (run *JobRun) Created() int64 {
 	return run.created
 }
 
+// ResetTerminals returns a copy of the job run with the terminal states reset to prevent conflicts.
+// terminal states are {succeeded, failed, cancelled, preempted, returned}.
+func (run *JobRun) ResetTerminals() *JobRun {
+	run = run.DeepCopy()
+	run.succeeded = false
+	run.failed = false
+	run.cancelled = false
+	run.preempted = false
+	run.returned = false
+	return run
+}
+
 // InTerminalState returns true if the JobRun is in a terminal state
 func (run *JobRun) InTerminalState() bool {
 	return run.succeeded || run.failed || run.cancelled || run.returned
