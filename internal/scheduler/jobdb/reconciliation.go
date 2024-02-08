@@ -203,7 +203,6 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Preempted = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
-			jobRun = jobRun.ResetTerminals()
 			jobRun = jobRun.WithReturned(true).WithRunning(false)
 			rst.Returned = true
 		}

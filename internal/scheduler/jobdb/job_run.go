@@ -451,7 +451,6 @@ func (run *JobRun) ResetTerminals() *JobRun {
 	run.failed = false
 	run.cancelled = false
 	run.preempted = false
-	run.returned = false
 	return run
 }
 
