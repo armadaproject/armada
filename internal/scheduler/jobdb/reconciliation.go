@@ -182,21 +182,25 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			jobRun = jobRun.WithRunning(true).WithRunningTime(jobRepoRun.RunningTimestamp)
 			rst.Running = true
 		}
-		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
-			jobRun = jobRun.WithSucceeded(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
-			rst.Succeeded = true
-		}
-		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
-			rst.Failed = true
+		if jobRepoRun.Preempted && !jobRun.Preempted() {
+			jobRun = jobRun.WithoutTerminal()
+			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.PreemptedTimestamp)
+			rst.Preempted = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
+			jobRun = jobRun.WithoutTerminal()
 			jobRun = jobRun.WithCancelled(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Cancelled = true
 		}
-		if jobRepoRun.Preempted && !jobRun.Preempted() {
-			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.TerminatedTimestamp)
-			rst.Preempted = true
+		if jobRepoRun.Failed && !jobRun.Failed() {
+			jobRun = jobRun.WithoutTerminal()
+			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
+			rst.Failed = true
+		}
+		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
+			jobRun = jobRun.WithoutTerminal()
+			jobRun = jobRun.WithSucceeded(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
+			rst.Succeeded = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
 			jobRun = jobRun.WithReturned(true).WithRunning(false)

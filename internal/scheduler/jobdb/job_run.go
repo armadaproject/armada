@@ -443,6 +443,17 @@ func (run *JobRun) Created() int64 {
 	return run.created
 }
 
+// WithoutTerminal returns a copy of the job run with the terminal states set to false to prevent conflicts.
+// terminal states are {succeeded, failed, cancelled, preempted}.
+func (run *JobRun) WithoutTerminal() *JobRun {
+	run = run.DeepCopy()
+	run.succeeded = false
+	run.failed = false
+	run.cancelled = false
+	run.preempted = false
+	return run
+}
+
 // InTerminalState returns true if the JobRun is in a terminal state
 func (run *JobRun) InTerminalState() bool {
 	return run.succeeded || run.failed || run.cancelled || run.returned
