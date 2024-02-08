@@ -10,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const (
@@ -58,10 +59,20 @@ type SchedulingConstraints struct {
 	// Jobs leased to this executor must be at least this large.
 	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
 	MinimumJobSize schedulerobjects.ResourceList
-	// Scheduling constraints for specific priority classes.
+	// Scheduling constraints by priority class.
 	PriorityClassSchedulingConstraintsByPriorityClassName map[string]PriorityClassSchedulingConstraints
+	// Scheduling constraints for specific queues.
+	// If present for a particular queue, global limits (i.e., PriorityClassSchedulingConstraintsByPriorityClassName)
+	// do not apply for that queue.
+	QueueSchedulingConstraintsByQueueName map[string]QueueSchedulingConstraints
 	// Limits total resources scheduled per invocation.
 	MaximumResourcesToSchedule schedulerobjects.ResourceList
+}
+
+// QueueSchedulingConstraints contains per-queue scheduling constraints.
+type QueueSchedulingConstraints struct {
+	// Scheduling constraints by priority class.
+	PriorityClassSchedulingConstraintsByPriorityClassName map[string]PriorityClassSchedulingConstraints
 }
 
 // PriorityClassSchedulingConstraints contains scheduling constraints that apply to jobs of a specific priority class.
@@ -71,11 +82,12 @@ type PriorityClassSchedulingConstraints struct {
 	MaximumResourcesPerQueue schedulerobjects.ResourceList
 }
 
-func SchedulingConstraintsFromSchedulingConfig(
+func NewSchedulingConstraints(
 	pool string,
 	totalResources schedulerobjects.ResourceList,
 	minimumJobSize schedulerobjects.ResourceList,
 	config configuration.SchedulingConfig,
+	queues []queue.Queue,
 ) SchedulingConstraints {
 	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]PriorityClassSchedulingConstraints, len(config.Preemption.PriorityClasses))
 	for name, priorityClass := range config.Preemption.PriorityClasses {
@@ -89,6 +101,28 @@ func SchedulingConstraintsFromSchedulingConfig(
 			MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources, maximumResourceFractionPerQueue),
 		}
 	}
+
+	queueSchedulingConstraintsByQueueName := make(map[string]QueueSchedulingConstraints, len(queues))
+	for _, queue := range queues {
+		priorityClassSchedulingConstraintsByPriorityClassNameForQueue := make(map[string]PriorityClassSchedulingConstraints, len(queue.ResourceLimitsByPriorityClassName))
+		for name, priorityClassResourceLimits := range queue.ResourceLimitsByPriorityClassName {
+			maximumResourceFraction := priorityClassResourceLimits.MaximumResourceFraction
+			if m, ok := priorityClassResourceLimits.MaximumResourceFractionByPool[pool]; ok {
+				// Use pool-specific config is available.
+				maximumResourceFraction = m.MaximumResourceFraction
+			}
+			priorityClassSchedulingConstraintsByPriorityClassName[name] = PriorityClassSchedulingConstraints{
+				PriorityClassName:        name,
+				MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources, maximumResourceFraction),
+			}
+		}
+		if len(priorityClassSchedulingConstraintsByPriorityClassNameForQueue) > 0 {
+			queueSchedulingConstraintsByQueueName[queue.Name] = QueueSchedulingConstraints{
+				PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassNameForQueue,
+			}
+		}
+	}
+
 	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
 	if m, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
 		// Use pool-specific config is available.
@@ -99,6 +133,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 		MinimumJobSize:             minimumJobSize,
 		MaximumResourcesToSchedule: absoluteFromRelativeLimits(totalResources, maximumResourceFractionToSchedule),
 		PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassName,
+		QueueSchedulingConstraintsByQueueName:                 queueSchedulingConstraintsByQueueName,
 	}
 }
 
@@ -163,6 +198,17 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	if tokens < float64(gctx.Cardinality()) {
 		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
 	}
+	if queueConstraint, ok := constraints.QueueSchedulingConstraintsByQueueName[queue]; ok {
+		if priorityClassConstraint, ok := queueConstraint.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
+			if !qctx.AllocatedByPriorityClass[priorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
+				return false, UnschedulableReasonMaximumResourcesPerQueueExceeded, nil
+			}
+		}
+	} else {
+		if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
+			if !qctx.AllocatedByPriorityClass[priorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
+				return false, UnschedulableReasonMaximumResourcesPerQueueExceeded, nil
+			}
 
 	// PriorityClassSchedulingConstraintsByPriorityClassName check.
 	priorityClassName := gctx.GangInfo.PriorityClassName
