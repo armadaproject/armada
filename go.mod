@@ -9,7 +9,6 @@ replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (
 	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
-	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
@@ -104,7 +103,6 @@ require (
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
-	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
 	github.com/apache/thrift v0.14.2 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
@@ -136,7 +134,6 @@ require (
 	github.com/gogo/googleapis v0.0.0-20180223154316-0cd9801be74a // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/snappy v0.0.3 // indirect
-	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/goreleaser/fileglob v1.3.0 // indirect
@@ -195,7 +192,6 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xitongsys/parquet-go-source v0.0.0-20200817004010-026bad9b25d0 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
 	go.mongodb.org/mongo-driver v1.13.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.18.0 // indirect

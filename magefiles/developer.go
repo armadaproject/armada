@@ -17,11 +17,11 @@ var dependencies = []string{
 }
 
 var defaultComponents = []string{
-	"server-pulsar",
+	"server",
 	"scheduler",
 	"scheduler-migration",
 	"scheduleringester",
-	"executor-pulsar",
+	"executor",
 	"binoculars",
 	"eventingester",
 	"lookoutv2",
@@ -31,8 +31,6 @@ var defaultComponents = []string{
 
 var allComponents = append(
 	slices.Clone(defaultComponents),
-	"server-legacy",
-	"executor-legacy",
 	"jobservice",
 	"airflow",
 )

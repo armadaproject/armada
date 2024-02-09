@@ -47,9 +47,6 @@ func NewJobRunStateStore(clusterContext context.ClusterContext) *JobRunStateStor
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			if util.IsLegacyManagedPod(pod) {
-				return
-			}
 
 			if !util.IsPodFinishedAndReported(pod) {
 				stateStore.reportRunActive(pod)
@@ -82,9 +79,6 @@ func (stateStore *JobRunStateStore) initialiseStateFromKubernetes() error {
 	if err != nil {
 		return err
 	}
-	pods = util.FilterPods(pods, func(pod *v1.Pod) bool {
-		return !util.IsLegacyManagedPod(pod)
-	})
 	for _, pod := range pods {
 		if !util.IsPodFinishedAndReported(pod) {
 			stateStore.reportRunActive(pod)

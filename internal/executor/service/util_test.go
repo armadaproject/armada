@@ -13,12 +13,6 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func TestChunkPods(t *testing.T) {
-	j := &job.RunningJob{}
-	chunks := chunkJobs([]*job.RunningJob{j, j, j}, 2)
-	assert.Equal(t, [][]*job.RunningJob{{j, j}, {j}}, chunks)
-}
-
 func TestExtractEssentialJobMetadata(t *testing.T) {
 	jobId, runId, jobRunLease := createValidJobRunLease(t, "queue-1", "job-set-1")
 

@@ -95,7 +95,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 			"cpu":    resource.MustParse("2"),
 			"memory": resource.MustParse("2Gi"),
 		},
-		Nodes: []*api.NodeInfo{
+		Nodes: []*executorapi.NodeInfo{
 			{
 				Name:          "node-1",
 				RunIdsByState: map[string]api.JobState{"id1": api.JobState_RUNNING},

@@ -5,7 +5,7 @@ option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
-import "pkg/api/queue.proto";
+import "pkg/api/submit.proto";
 import "pkg/api/health.proto";
 import "google/protobuf/empty.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -278,10 +278,6 @@ message ContainerStatus {
     Cause cause = 5;
 }
 
-message EventList {
-    repeated EventMessage events = 1;
-}
-
 // swagger:model
 message EventStreamMessage {
     string id = 1;
@@ -308,8 +304,6 @@ message WatchRequest {
 }
 
 service Event {
-    rpc ReportMultiple (EventList) returns (google.protobuf.Empty);
-    rpc Report (EventMessage) returns (google.protobuf.Empty);
     rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
         option (google.api.http) = {
             post: "/v1/job-set/{queue}/{id}"

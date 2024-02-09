@@ -4,8 +4,6 @@
     <working_directory value="$PROJECT_DIR$" />
     <envs>
       <env name="ARMADA_APICONNECTION_FORCENOTLS" value="true" />
-      <env name="ARMADA_APPLICATION_USEEXECUTORAPI" value="true" />
-      <env name="ARMADA_APPLICATION_USELEGACYAPI" value="false" />
       <env name="ARMADA_EXECUTORAPICONNECTION_ARMADAURL" value="localhost:50052" />
       <env name="ARMADA_EXECUTORAPICONNECTION_FORCENOTLS" value="true" />
       <env name="ARMADA_HTTPPORT" value="8085" />

@@ -20,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -267,7 +266,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
-		if node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
+		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
 			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)

@@ -47,11 +47,10 @@ type Params struct {
 // However, they are user-replaceable to facilitate testing.
 // TODO Consider replacing with an interface
 type QueueAPI struct {
-	Create  queue.CreateAPI
-	Delete  queue.DeleteAPI
-	GetInfo queue.GetInfoAPI
-	Get     queue.GetAPI
-	Update  queue.UpdateAPI
+	Create queue.CreateAPI
+	Delete queue.DeleteAPI
+	Get    queue.GetAPI
+	Update queue.UpdateAPI
 }
 
 // New instantiates an App with default parameters, including standard output

@@ -5,7 +5,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
@@ -15,8 +14,6 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
-	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -124,76 +121,6 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 	}
 }
 
-type LegacyClusterAllocationService struct {
-	leaseService         LeaseService
-	eventReporter        reporter.EventReporter
-	utilisationService   utilisation.UtilisationService
-	clusterContext       executorContext.ClusterContext
-	submitter            job.Submitter
-	clusterHealthMonitor healthmonitor.HealthMonitor
-}
-
-func NewLegacyClusterAllocationService(
-	clusterContext executorContext.ClusterContext,
-	eventReporter reporter.EventReporter,
-	leaseService LeaseService,
-	utilisationService utilisation.UtilisationService,
-	submitter job.Submitter,
-	clusterHealthMonitor healthmonitor.HealthMonitor,
-) *LegacyClusterAllocationService {
-	return &LegacyClusterAllocationService{
-		leaseService:         leaseService,
-		eventReporter:        eventReporter,
-		utilisationService:   utilisationService,
-		clusterContext:       clusterContext,
-		submitter:            submitter,
-		clusterHealthMonitor: clusterHealthMonitor,
-	}
-}
-
-func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCapacity() {
-	// If a health monitor is provided, avoid leasing jobs when the cluster is unhealthy.
-	if allocationService.clusterHealthMonitor != nil {
-		log := logrus.NewEntry(logrus.New())
-		if ok, reason, err := allocationService.clusterHealthMonitor.IsHealthy(); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to check cluster health")
-			return
-		} else if !ok {
-			log.Warnf("cluster is not healthy; will not request more jobs: %s", reason)
-			return
-		}
-	}
-
-	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(true)
-	if err != nil {
-		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
-		return
-	}
-
-	leasePods, err := allocationService.clusterContext.GetBatchPods()
-	if err != nil {
-		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
-		return
-	}
-	activePods := util.FilterPods(leasePods, isActive)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(
-		capacityReport.AvailableCapacity,
-		capacityReport.Nodes,
-		utilisation.GetAllocationByQueue(activePods),
-		utilisation.GetAllocationByQueueAndPriority(activePods),
-	)
-	log.Infof("Reporting current free resource %s. Received %d new jobs.", formatResources(*capacityReport.AvailableCapacity), len(newJobs))
-	if err != nil {
-		log.Errorf("failed to lease new jobs: %v", err)
-		return
-	}
-
-	failedJobs := allocationService.submitter.SubmitApiJobs(newJobs)
-	if err := allocationService.processFailedJobs(failedJobs); err != nil {
-		log.Errorf("failed to process failed jobs: %v", err)
-	}
-}
-
 func formatResources(availableResource armadaresource.ComputeResources) string {
 	cpu := availableResource["cpu"]
 	memory := availableResource["memory"]
@@ -213,41 +140,4 @@ func formatResources(availableResource armadaresource.ComputeResources) string {
 		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
 	return resources
-}
-
-// Any pod not in a terminal state is considered active for the purposes of cluster allocation
-// As soon as a pod finishes (enters a terminal state) we should try to allocate another pod
-func isActive(pod *v1.Pod) bool {
-	return !util.IsInTerminalState(pod)
-}
-
-func (allocationService *LegacyClusterAllocationService) processFailedJobs(failedSubmissions []*job.FailedSubmissionDetails) error {
-	toBeReportedDone := make([]string, 0, 10)
-
-	for _, details := range failedSubmissions {
-		message := details.Error.Error()
-		if apiError, ok := details.Error.(errors.APIStatus); ok {
-			message = apiError.Status().Message
-		}
-
-		if details.Recoverable {
-			allocationService.returnLease(details.Pod, fmt.Sprintf("Failed to submit pod because %s", message))
-		} else {
-			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
-			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: util.ExtractJobRunId(details.Pod)}})
-
-			if err == nil {
-				toBeReportedDone = append(toBeReportedDone, details.JobRunMeta.JobId)
-			}
-		}
-	}
-
-	return allocationService.leaseService.ReportDone(toBeReportedDone)
-}
-
-func (allocationService *LegacyClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
-	err := allocationService.leaseService.ReturnLease(pod, reason, true)
-	if err != nil {
-		log.Errorf("Failed to return lease for job %s because %s", util.ExtractJobId(pod), err)
-	}
 }
