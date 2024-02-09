@@ -16,8 +16,6 @@ type ApplicationConfiguration struct {
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
-	UseExecutorApi         bool
-	UseLegacyApi           bool
 	JobLeaseRequestTimeout time.Duration
 	// MaxLeasedJobs is the maximum jobs the executor should have in Leased state ay any one time (i.e jobs not submitted to kubernetes)
 	// It is largely used to calculate how many new jobs to request from the scheduler
@@ -164,7 +162,6 @@ type ExecutorConfiguration struct {
 	PprofPort             *uint16
 	Metric                MetricConfiguration
 	Application           ApplicationConfiguration
-	ApiConnection         client.ApiConnectionDetails
 	ExecutorApiConnection client.ApiConnectionDetails
 	Client                ClientConfiguration
 	GRPC                  keepalive.ClientParameters

@@ -155,9 +155,6 @@ func (p *IssueHandler) HandlePodIssues() {
 	if err != nil {
 		log.WithError(err).Errorf("unable to handle pod issus as failed to load pods")
 	}
-	managedPods = util.FilterPods(managedPods, func(pod *v1.Pod) bool {
-		return !util.IsLegacyManagedPod(pod)
-	})
 	p.detectPodIssues(managedPods)
 	p.detectReconciliationIssues(managedPods)
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Minute*2)

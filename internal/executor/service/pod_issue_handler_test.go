@@ -1,16 +1,24 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	commonutil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
+	podchecksConfig "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/internal/executor/context"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -27,7 +35,7 @@ func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
 
 func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	addPod(t, fakeClusterContext, runningPod)
 
 	podIssueService.HandlePodIssues()
@@ -39,7 +47,7 @@ func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	unretryableStuckPod := makeUnretryableStuckPod(false)
+	unretryableStuckPod := makeUnretryableStuckPod()
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -58,7 +66,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	terminatingPod := makeTerminatingPod(false)
+	terminatingPod := makeTerminatingPod()
 	addPod(t, fakeClusterContext, terminatingPod)
 
 	podIssueService.HandlePodIssues()
@@ -82,17 +90,17 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 		"PodPastDeadline": {
 			expectIssueDetected: true,
 			// Created 10 mins ago, 5 min deadline
-			pod: makePodWithDeadline(false, startTime, 300, 0),
+			pod: makePodWithDeadline(startTime, 300, 0),
 		},
 		"PodPastDeadlineWithinTerminationGracePeriod": {
 			expectIssueDetected: false,
 			// Created 10 mins ago, 5 min deadline, 10 minute grace period
-			pod: makePodWithDeadline(false, startTime, 300, 600),
+			pod: makePodWithDeadline(startTime, 300, 600),
 		},
 		"PodWithNoStartTime": {
 			expectIssueDetected: false,
 			// Created 10 mins ago, 5 min deadline, no start time
-			pod: makePodWithDeadline(false, time.Time{}, 300, 0),
+			pod: makePodWithDeadline(time.Time{}, 300, 0),
 		},
 	}
 
@@ -121,7 +129,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 
 func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	retryableStuckPod := makeRetryableStuckPod(false)
+	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -146,7 +154,7 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	retryableStuckPod := makeRetryableStuckPod(false)
+	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -177,7 +185,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
 	podIssueService.HandlePodIssues()
@@ -211,7 +219,7 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	runState := createRunState(util.ExtractJobId(runningPod), util.ExtractJobRunId(runningPod), job.Active)
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{runState})
 	podIssueService.clock = fakeClock
@@ -247,7 +255,7 @@ func TestPodIssueService_DeleteRunFromRunState_IfSubmittedPodNeverAppears(t *tes
 func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
-	runningPod := makeRunningPod(false)
+	runningPod := makeRunningPod()
 	runState := createRunState(util.ExtractJobId(runningPod), util.ExtractJobRunId(runningPod), job.SuccessfulSubmission)
 	podIssueService, runStateStore, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{runState})
 	podIssueService.clock = fakeClock
@@ -292,5 +300,116 @@ func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunStat
 			JobId: jobId,
 			RunId: runId,
 		},
+	}
+}
+
+func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Pod {
+	t.Helper()
+	remainingActivePods, err := clusterContext.GetActiveBatchPods()
+	if err != nil {
+		t.Error(err)
+	}
+	return remainingActivePods
+}
+
+func makePodWithDeadline(createdTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	activeDeadlineSeconds := int64(deadlineSeconds)
+	pod.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
+	terminationGracePeriodSeconds := int64(gracePeriodSeconds)
+	pod.Spec.TerminationGracePeriodSeconds = &terminationGracePeriodSeconds
+	pod.CreationTimestamp = metav1.NewTime(createdTime)
+	return pod
+}
+
+func makeRunningPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+}
+
+func makeTerminatingPod() *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	t := metav1.NewTime(time.Now().Add(-time.Hour))
+	pod.DeletionTimestamp = &t
+	return pod
+}
+
+func makeUnretryableStuckPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{
+		Phase: "Pending",
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				State: v1.ContainerState{
+					Waiting: &v1.ContainerStateWaiting{
+						Reason:  "ImagePullBackOff",
+						Message: "Image pull has failed",
+					},
+				},
+			},
+		},
+	})
+}
+
+func makeRetryableStuckPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{
+		Phase: "Pending",
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				State: v1.ContainerState{
+					Waiting: &v1.ContainerStateWaiting{
+						Reason:  "Some reason",
+						Message: "Some other message",
+					},
+				},
+			},
+		},
+	})
+}
+
+func makeTestPod(status v1.PodStatus) *v1.Pod {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				domain.JobId:    "job-id-1",
+				domain.Queue:    "queue-id-1",
+				domain.JobRunId: "job-run-id-1",
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: "job-set-id-1",
+			},
+			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+			UID:               types.UID(commonutil.NewULID()),
+		},
+		Spec: v1.PodSpec{
+			NodeName: "node1",
+		},
+		Status: status,
+	}
+	return pod
+}
+
+func makePodChecker() podchecks.PodChecker {
+	var cfg podchecksConfig.Checks
+	cfg.Events = []podchecksConfig.EventCheck{
+		{Regexp: "Image pull has failed", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{Regexp: "Some other message", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
+	}
+	cfg.ContainerStatuses = []podchecksConfig.ContainerStatusCheck{
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "ImagePullBackOff", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
+	}
+
+	checker, err := podchecks.NewPodChecks(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
+	}
+
+	return checker
+}
+
+func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod *v1.Pod) {
+	t.Helper()
+	_, err := fakeClusterContext.SubmitPod(runningPod, "owner-1", []string{})
+	if err != nil {
+		t.Error(err)
 	}
 }

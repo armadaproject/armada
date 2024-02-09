@@ -7,40 +7,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
-
-func CreateSubmitJobsFromApiJobs(apiJobs []*api.Job, podDefaults *configuration.PodDefaults) []*SubmitJob {
-	result := make([]*SubmitJob, 0, len(apiJobs))
-	for _, apiJob := range apiJobs {
-		result = append(result, CreateSubmitJobFromApiJob(apiJob, podDefaults))
-	}
-	return result
-}
-
-func CreateSubmitJobFromApiJob(apiJob *api.Job, podDefaults *configuration.PodDefaults) *SubmitJob {
-	pod := util2.CreatePod(apiJob, podDefaults)
-
-	runMeta := &RunMeta{
-		JobId:  apiJob.Id,
-		RunId:  "",
-		JobSet: apiJob.JobSetId,
-		Queue:  apiJob.Queue,
-	}
-
-	return &SubmitJob{
-		Meta: SubmitJobMeta{
-			RunMeta:         runMeta,
-			Owner:           apiJob.Owner,
-			OwnershipGroups: apiJob.QueueOwnershipUserGroups,
-		},
-		Pod:       pod,
-		Ingresses: apiJob.K8SIngress,
-		Services:  apiJob.K8SService,
-	}
-}
 
 func CreateSubmitJobFromExecutorApiJobRunLease(
 	jobRunLease *executorapi.JobRunLease,

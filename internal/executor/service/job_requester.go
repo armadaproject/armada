@@ -74,7 +74,7 @@ func (r *JobRequester) RequestJobsRuns() {
 }
 
 func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
-	capacityReport, err := r.utilisationService.GetAvailableClusterCapacity(false)
+	capacityReport, err := r.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 		return nil, err
 	}
 
-	nodes := make([]*api.NodeInfo, 0, len(capacityReport.Nodes))
+	nodes := make([]*executorapi.NodeInfo, 0, len(capacityReport.Nodes))
 	for i := range capacityReport.Nodes {
 		nodes = append(nodes, &capacityReport.Nodes[i])
 	}
