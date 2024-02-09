@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
@@ -266,8 +267,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// Update metrics.
-	if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
-		return overallSchedulerResult, err
+	if !s.schedulerMetrics.IsDisabled() {
+		if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
+			return overallSchedulerResult, err
+		}
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
@@ -336,25 +339,21 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 }
 
 func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context, overallSchedulerResult SchedulerResult) error {
+	if s.schedulerMetrics.IsDisabled() {
+		return nil
+	}
 	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateScheduled(jctx); err != nil {
+		if err := s.schedulerMetrics.UpdateLeased(nil, jctx); err != nil {
 			return err
 		}
 	}
 	for _, jctx := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.UpdatePreempted(jctx); err != nil {
+		if err := s.schedulerMetrics.UpdatePreempted(nil, jctx); err != nil {
 			return err
 		}
 	}
 	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.Update(
-			ctx,
-			jobdb.JobStateTransitions{
-				Job:    jctx.Job.(*jobdb.Job),
-				Failed: true,
-			},
-			nil,
-		); err != nil {
+		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
 			return err
 		}
 	}
@@ -461,7 +460,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), result.AdditionalAnnotationsByJobId)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs, result.AdditionalAnnotationsByJobId)
 	if err != nil {
 		return nil, err
 	}
@@ -534,15 +533,12 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
-	for _, job := range jobs {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
+	for _, jctx := range jctxs {
+		job := jctx.Job.(*jobdb.Job)
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
-		}
-		additionalAnnotations, found := additionalAnnotationsByJobId[job.Id()]
-		if !found {
-			additionalAnnotations = make(map[string]string)
 		}
 		run := job.LatestRun()
 		if run == nil {
@@ -567,7 +563,11 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							UpdateSequenceNumber:   job.QueuedVersion(),
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
-							AdditionalAnnotations:  additionalAnnotations,
+							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
+								Tolerations: jctx.AdditionalTolerations,
+								Annotations: additionalAnnotationsByJobId[job.Id()],
+								Priority:    scheduledAtPriority,
+							},
 						},
 					},
 				},

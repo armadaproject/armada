@@ -9,17 +9,16 @@ replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (
 	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
-	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/go-ldap/ldap/v3 v3.4.4
-	github.com/go-openapi/analysis v0.22.0
+	github.com/go-openapi/analysis v0.22.2
 	github.com/go-openapi/jsonreference v0.20.4
 	github.com/go-openapi/loads v0.21.5
 	github.com/go-openapi/runtime v0.26.0
-	github.com/go-openapi/spec v0.20.13
+	github.com/go-openapi/spec v0.20.14
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
@@ -32,7 +31,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
-	github.com/jackc/pgtype v1.13.0
+	github.com/jackc/pgtype v1.14.1
 	github.com/jackc/pgx/v4 v4.17.2 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
@@ -54,8 +53,8 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/weaveworks/promrus v1.2.0
 	golang.org/x/exp v0.0.0-20221031165847-c99f073a8326
-	golang.org/x/net v0.19.0
-	golang.org/x/oauth2 v0.12.0
+	golang.org/x/net v0.20.0
+	golang.org/x/oauth2 v0.16.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20230526161137-0005af68ea54 // indirect
@@ -84,7 +83,7 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.15.2
-	github.com/jackc/pgx/v5 v5.5.0
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
 	github.com/minio/highwayhash v1.0.2
@@ -104,7 +103,6 @@ require (
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
-	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
 	github.com/apache/thrift v0.14.2 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
@@ -136,7 +134,6 @@ require (
 	github.com/gogo/googleapis v0.0.0-20180223154316-0cd9801be74a // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/snappy v0.0.3 // indirect
-	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/goreleaser/fileglob v1.3.0 // indirect
@@ -195,13 +192,12 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xitongsys/parquet-go-source v0.0.0-20200817004010-026bad9b25d0 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
 	go.mongodb.org/mongo-driver v1.13.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/mod v0.9.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/term v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

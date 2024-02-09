@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -38,7 +39,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	defaultRequest := &executorapi.LeaseRequest{
 		ExecutorId: "test-executor",
 		Pool:       "test-pool",
-		Nodes: []*api.NodeInfo{
+		Nodes: []*executorapi.NodeInfo{
 			{
 				Name: "test-node",
 				RunIdsByState: map[string]api.JobState{
@@ -80,7 +81,13 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		UnassignedJobRuns: []string{runId3.String()},
 	}
 
-	submit, compressedSubmit := submitMsg(t, "node-id")
+	submit, compressedSubmit := submitMsg(
+		t,
+		nil,
+		&v1.PodSpec{
+			NodeSelector: map[string]string{nodeIdName: "node-id"},
+		},
+	)
 	defaultLease := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
@@ -91,7 +98,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		SubmitMessage: compressedSubmit,
 	}
 
-	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, "")
+	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, nil, nil)
 	leaseWithoutNode := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
@@ -100,6 +107,43 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Groups:        compressedGroups,
 		SubmitMessage: compressedSubmitNoNodeSelector,
 	}
+
+	tolerations := []v1.Toleration{
+		{
+			Key:    "whale",
+			Value:  "true",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+	}
+	leaseWithOverlay := &database.JobRunLease{
+		RunID:  uuid.New(),
+		Queue:  "test-queue",
+		JobSet: "test-jobset",
+		UserID: "test-user",
+		Node:   "node-id",
+		Groups: compressedGroups,
+		// We use the submit message without tolerations here, because the
+		// run-level tolerations are stored in PodRequirementsOverlay.
+		SubmitMessage: compressedSubmit,
+		PodRequirementsOverlay: protoutil.MustMarshall(
+			&schedulerobjects.PodRequirements{
+				Tolerations: tolerations,
+				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+				Priority:    1000,
+			},
+		),
+	}
+	submitWithOverlay, _ := submitMsg(
+		t,
+		&armadaevents.ObjectMeta{
+			Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+		},
+		&v1.PodSpec{
+			NodeSelector: map[string]string{nodeIdName: "node-id"},
+			Tolerations:  tolerations,
+		},
+	)
+	submitWithOverlay.JobId = submit.JobId
 
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
@@ -147,6 +191,26 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						User:     leaseWithoutNode.UserID,
 						Groups:   groups,
 						Job:      submitWithoutNodeSelector,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"run with PodRequirementsOverlay": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{leaseWithOverlay},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithOverlay.RunID),
+						Queue:    leaseWithOverlay.Queue,
+						Jobset:   leaseWithOverlay.JobSet,
+						User:     leaseWithOverlay.UserID,
+						Groups:   groups,
+						Job:      submitWithOverlay,
 					}},
 				},
 				{
@@ -347,14 +411,10 @@ func TestExecutorApi_Publish(t *testing.T) {
 	}
 }
 
-func submitMsg(t *testing.T, nodeName string) (*armadaevents.SubmitJob, []byte) {
-	podSpec := &v1.PodSpec{}
-	if nodeName != "" {
-		podSpec.NodeSelector = map[string]string{}
-		podSpec.NodeSelector[nodeIdName] = nodeName
-	}
+func submitMsg(t *testing.T, objectMeta *armadaevents.ObjectMeta, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
 	submitMsg := &armadaevents.SubmitJob{
-		JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+		JobId:      armadaevents.ProtoUuidFromUuid(uuid.New()),
+		ObjectMeta: objectMeta,
 		MainObject: &armadaevents.KubernetesMainObject{
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{

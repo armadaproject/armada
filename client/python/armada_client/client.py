@@ -14,7 +14,6 @@ from armada_client.armada import (
     event_pb2_grpc,
     submit_pb2,
     submit_pb2_grpc,
-    usage_pb2_grpc,
     health_pb2,
 )
 from armada_client.event import Event
@@ -36,7 +35,6 @@ class ArmadaClient:
     def __init__(self, channel):
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
-        self.usage_stub = usage_pb2_grpc.UsageStub(channel)
 
     def get_job_events_stream(
         self,
@@ -289,18 +287,6 @@ class ArmadaClient:
         """
         request = submit_pb2.QueueGetRequest(name=name)
         response = self.submit_stub.GetQueue(request)
-        return response
-
-    def get_queue_info(self, name: str) -> submit_pb2.QueueInfo:
-        """Get the queue info by name.
-
-        Uses the GetQueueInfo RPC to get queue info.
-
-        :param name: The name of the queue
-        :return: A queue info object.  See the api definition.
-        """
-        request = submit_pb2.QueueInfoRequest(name=name)
-        response = self.submit_stub.GetQueueInfo(request)
         return response
 
     @staticmethod

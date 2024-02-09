@@ -13,14 +13,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 type LeaseRequest struct {
 	AvailableResource   armadaresource.ComputeResources
-	Nodes               []*api.NodeInfo
+	Nodes               []*executorapi.NodeInfo
 	UnassignedJobRunIds []armadaevents.Uuid
 	MaxJobsToLease      uint32
 }

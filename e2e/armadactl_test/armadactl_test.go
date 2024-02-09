@@ -57,7 +57,6 @@ func TestQueue(t *testing.T) {
 	}
 	app.Params.QueueAPI.Create = cq.Create(f)
 	app.Params.QueueAPI.Delete = cq.Delete(f)
-	app.Params.QueueAPI.GetInfo = cq.GetInfo(f)
 	app.Params.QueueAPI.Update = cq.Update(f)
 
 	// queue parameters
@@ -90,7 +89,6 @@ func TestQueue(t *testing.T) {
 	}
 
 	// describe
-	err = app.DescribeQueue(name)
 	require.NoError(t, err)
 
 	out = buf.String()
@@ -153,7 +151,6 @@ func TestJob(t *testing.T) {
 	}
 	app.Params.QueueAPI.Create = cq.Create(f)
 	app.Params.QueueAPI.Delete = cq.Delete(f)
-	app.Params.QueueAPI.GetInfo = cq.GetInfo(f)
 	app.Params.QueueAPI.Update = cq.Update(f)
 
 	// queue parameters

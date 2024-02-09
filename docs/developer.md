@@ -9,7 +9,7 @@ This document is intended for developers who want to contribute to the project. 
 Want to quickly get Armada running and test it? Install the [Pre-requisites](#pre-requisites) and then run:
 
 ```bash
-mage localdev minimal-pulsar testsuite
+mage localdev minimal testsuite
 ```
 
 To get the UI running, run:
@@ -76,10 +76,10 @@ LocalDev provides a reliable and extendable way to install Armada as a developer
 It has the following options to customize further steps:
 
 * `mage localdev full` - Runs all components of Armada, including the Lookout UI.
-* `mage localdev minimal-pulsar` - Runs only the core components of Armada (such as the API server and an executor).
+* `mage localdev minimal` - Runs only the core components of Armada (such as the API server and an executor).
 * `mage localdev no-build` - Skips the build step; set `ARMADA_IMAGE` and `ARMADA_TAG` to choose the Docker image to use.
 
-`mage localdev minimal-pulsar` is what is used to test the CI pipeline, and is the recommended way to test changes to the core components of Armada.
+`mage localdev minimal` is what is used to test the CI pipeline, and is the recommended way to test changes to the core components of Armada.
 
 ## Debug error saying that the (port 6443 is already in use) after running mage localdev full
 
@@ -137,7 +137,7 @@ For more information see the [UI Developer Guide](./developer/ui.md).
 You can set the `ARMADA_COMPONENTS` environment variable to choose which components to run. It is a comma separated list of components to run. For example, to run only the server and executor, you can run:
 
 ```bash
-export ARMADA_COMPONENTS="server-legacy,executor-legacy"
+export ARMADA_COMPONENTS="server,executor"
 ```
 
 ### Running Pulsar backed scheduler with LocalDev
@@ -150,7 +150,7 @@ mage LocalDevStop
 And then run
 
 ```bash
-mage LocalDev minimal-pulsar
+mage LocalDev minimal
 ```
 
 Ensure your local dev environment is completely torn down when switching between pulsar backed and legacy

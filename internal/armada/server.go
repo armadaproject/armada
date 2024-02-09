@@ -1,7 +1,9 @@
 package armada
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"net"
 	"time"
 
@@ -10,27 +12,23 @@ import (
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/armadaproject/armada/internal/armada/cache"
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/metrics"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/armada/scheduling"
 	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/task"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -106,9 +104,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}()
 
 	jobRepository := repository.NewRedisJobRepository(db)
-	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
-	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
 	healthChecks.Add(repository.NewRedisHealth(db))
 
 	eventRepository := repository.NewEventRepository(eventDb)
@@ -122,19 +118,17 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	)
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
-	var pool *pgxpool.Pool
+	var dbPool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
-		pool, err = database.OpenPgxPool(config.Postgres)
+		dbPool, err = database.OpenPgxPool(config.Postgres)
 		if err != nil {
 			return err
 		}
-		defer pool.Close()
+		defer dbPool.Close()
 	}
 
-	// Executor Repositories for pulsar and legacy schedulers respectively
+	// Executor Repositories for pulsar scheduler
 	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
-	legacyExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "legacy")
-
 	pulsarSchedulerSubmitChecker := scheduler.NewSubmitChecker(
 		30*time.Minute,
 		config.Scheduling,
@@ -143,15 +137,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	services = append(services, func() error {
 		return pulsarSchedulerSubmitChecker.Run(ctx)
 	})
-	legacySchedulerSubmitChecker := scheduler.NewSubmitChecker(
-		30*time.Minute,
-		config.Scheduling,
-		legacyExecutorRepo,
-	)
-	services = append(services, func() error {
-		return legacySchedulerSubmitChecker.Run(ctx)
-	})
-
 	serverId := uuid.New()
 	var pulsarClient pulsar.Client
 	// API endpoints that generate Pulsar messages.
@@ -174,42 +159,42 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer producer.Close()
 
-	eventStore := repository.NewEventStore(producer, config.Pulsar.MaxAllowedMessageSize)
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
 
-	submitServer := server.NewSubmitServer(
-		authorizer,
-		jobRepository,
-		queueRepository,
-		eventStore,
-		schedulingInfoRepository,
-		config.CancelJobsBatchSize,
-		&config.QueueManagement,
-		&config.Scheduling,
-	)
+	compressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibCompressor(512)
+		}), &poolConfig)
 
 	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:                          producer,
-		QueueRepository:                   queueRepository,
-		SubmitServer:                      submitServer,
-		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
-		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
-		LegacySchedulerSubmitChecker:      legacySchedulerSubmitChecker,
-		PulsarSchedulerEnabled:            config.PulsarSchedulerEnabled,
-		ProbabilityOfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
-		Rand:                              util.NewThreadsafeRand(time.Now().UnixNano()),
-		GangIdAnnotation:                  configuration.GangIdAnnotation,
-		IgnoreJobSubmitChecks:             config.IgnoreJobSubmitChecks,
+		Producer:              producer,
+		QueueRepository:       queueRepository,
+		JobRepository:         jobRepository,
+		SchedulingConfig:      config.Scheduling,
+		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
+		GangIdAnnotation:      configuration.GangIdAnnotation,
+		SubmitChecker:         pulsarSchedulerSubmitChecker,
+		Authorizer:            authorizer,
+		CompressorPool:        compressorPool,
 	}
-	submitServerToRegister := pulsarSubmitServer
 
 	// If postgres details were provided, enable deduplication.
 	if config.Pulsar.DedupTable != "" {
-		if pool == nil {
+		if dbPool == nil {
 			return errors.New("deduplication is enabled, but no postgres settings are provided")
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, dbPool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
@@ -223,26 +208,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		log.Info("Pulsar submit API deduplication disabled")
 	}
 
-	// Service that consumes Pulsar messages and writes to Redis
-	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:             config.Pulsar.JobsetEventsTopic,
-		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
-		Type:              pulsar.KeyShared,
-		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
-	})
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer consumer.Close()
-
-	submitFromLog := server.SubmitFromLog{
-		Consumer:     consumer,
-		SubmitServer: submitServer,
-	}
-	services = append(services, func() error {
-		return submitFromLog.Run(ctx)
-	})
-
 	// Service that reads from Pulsar and logs events.
 	if config.Pulsar.EventsPrinter {
 		eventsPrinter := server.EventsPrinter{
@@ -255,65 +220,23 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		})
 	}
 
-	usageServer := server.NewUsageServer(authorizer, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-
-	aggregatedQueueServer := server.NewAggregatedQueueServer(
-		authorizer,
-		config.Scheduling,
-		jobRepository,
-		queueRepository,
-		usageRepository,
-		eventStore,
-		schedulingInfoRepository,
-		producer,
-		config.Pulsar.MaxAllowedMessageSize,
-		legacyExecutorRepo,
-	)
-
-	schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "error creating connection to scheduler api")
 	}
-	aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
-
-	var schedulingReportsServer schedulerobjects.SchedulerReportingServer
-	if config.PulsarSchedulerEnabled {
-		schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
-		if err != nil {
-			return errors.Wrapf(err, "error creating connection to scheduler api")
-		}
-		schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
-		schedulingReportsServer = scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
-	} else {
-		schedulingReportsServer = schedulingContextRepository
-	}
+	schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
+	schedulingReportsServer := scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 
 	eventServer := server.NewEventServer(
 		authorizer,
 		eventRepository,
-		eventStore,
 		queueRepository,
 		jobRepository,
 	)
-	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
-	// Allows for registering functions to be run periodically in the background.
-	taskManager := task.NewBackgroundTaskManager(commonmetrics.MetricPrefix)
-	defer taskManager.StopAll(time.Second * 2)
-	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
-
-	if config.Metrics.ExposeSchedulingMetrics {
-		queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
-		taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
-		metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
-	}
-
-	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
-	api.RegisterUsageServer(grpcServer, usageServer)
+	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
-
-	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	grpc_prometheus.Register(grpcServer)
 
 	// Cancel the errgroup if grpcServer.Serve returns an error.

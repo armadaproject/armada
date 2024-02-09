@@ -16,6 +16,7 @@ export image_names=(
     "armada-scheduler"
     "armada-scheduler-ingester"
     "armada-binoculars"
+    "armada-queryapi"
     "armada-jobservice"
     "armadactl"
 )

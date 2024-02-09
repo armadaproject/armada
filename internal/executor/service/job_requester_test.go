@@ -55,10 +55,10 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 
 	capacityReport := &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{
-			"cpu":    resource.MustParse("1000"),
+			"cpu":    resource.MustParse("100"),
 			"memory": resource.MustParse("1000Gi"),
 		},
-		Nodes: []api.NodeInfo{
+		Nodes: []executorapi.NodeInfo{
 			{
 				Name:          "node-1",
 				RunIdsByState: map[string]api.JobState{activeRunId.String(): api.JobState_RUNNING},
@@ -74,7 +74,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 			hasExistingLeasedRun: false,
 			expectedRequest: &LeaseRequest{
 				AvailableResource: *capacityReport.AvailableCapacity,
-				Nodes:             []*api.NodeInfo{&capacityReport.Nodes[0]},
+				Nodes:             []*executorapi.NodeInfo{&capacityReport.Nodes[0]},
 				// Should add any ids in the state but not in the capacity report into unassigned job run ids
 				UnassignedJobRunIds: []armadaevents.Uuid{},
 				MaxJobsToLease:      uint32(defaultMaxLeasedJobs),
@@ -84,7 +84,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 			hasExistingLeasedRun: true,
 			expectedRequest: &LeaseRequest{
 				AvailableResource: *capacityReport.AvailableCapacity,
-				Nodes:             []*api.NodeInfo{&capacityReport.Nodes[0]},
+				Nodes:             []*executorapi.NodeInfo{&capacityReport.Nodes[0]},
 				// Should add any ids in the state but not in the capacity report into unassigned job run ids
 				UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(leasedRunId)},
 				MaxJobsToLease:      0,

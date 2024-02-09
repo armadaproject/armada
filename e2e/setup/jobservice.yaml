@@ -11,7 +11,7 @@ postgresConfig:
     port: 5432
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: jobservice
     sslmode: disable
 grpcPool:
   initialConnections: 5

@@ -12,7 +12,6 @@ regular queue API of armadactl with a version that compares against hard-coded c
 */
 
 import (
-	"fmt"
 	"io"
 	"reflect"
 	"testing"
@@ -21,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/armadactl"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
@@ -120,29 +118,6 @@ func TestDelete(t *testing.T) {
 	cmd.SetArgs([]string{"arbitrary"})
 
 	require.NoError(t, cmd.Execute())
-}
-
-func TestDescribe(t *testing.T) {
-	// Create app object, cobra command, and hijack the app setup process to insert a
-	// function that does validation
-	a := armadactl.New()
-	cmd := queueDescribeCmdWithApp(a)
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		a.Params.QueueAPI.GetInfo = func(name string) (*api.QueueInfo, error) {
-			a.Out = io.Discard
-
-			// Check that the arguments passed into the API are equal to those provided via CLI flags
-			require.Equal(t, name, "arbitrary")
-			return nil, fmt.Errorf("expected test error to force armadactl.DescribeQueue to return")
-		}
-		return nil
-	}
-
-	// Arbitrary queue name
-	cmd.SetArgs([]string{"arbitrary"})
-
-	// Execute the command and check any error
-	require.ErrorContains(t, cmd.Execute(), "expected test error")
 }
 
 func TestUpdate(t *testing.T) {

@@ -13,8 +13,6 @@ snapshot:
 env:
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
   - GOSUMDB={{ if index .Env "GOSUMDB"  }}{{ .Env.GOSUMDB }}{{ else }}sum.golang.org{{ end }}
-  # If set, BASE_IMAGE determines the base image used for all containers.
-  - BASE_IMAGE_ARG={{ if index .Env "BASE_IMAGE"  }}BASE_IMAGE={{ .Env.BASE_IMAGE }}{{ else }}{{ end }}
   - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}gresearch/{{ end }}
   # Goreleaser always uses the docker buildx builder with name "default"; see
   # https://github.com/goreleaser/goreleaser/pull/3199
@@ -146,6 +144,15 @@ builds:
       - linux
     goarch:
       - amd64
+  - env: [ CGO_ENABLED=0 ]
+    id: queryapi
+    binary: queryapi
+    main: ./cmd/queryapi/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
   - env: [CGO_ENABLED=0]
     id: armadactl
     binary: armadactl
@@ -206,7 +213,6 @@ dockers:
       - "{{ .Env.DOCKER_REPO }}armada-bundle:latest"
       - "{{ .Env.DOCKER_REPO }}armada-bundle:{{ .Version }}"
     build_flag_templates: &BUILD_FLAG_TEMPLATES
-      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
       - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
@@ -441,6 +447,20 @@ dockers:
     extra_files:
       - config/binoculars/config.yaml
     dockerfile: ./build_goreleaser/binoculars/Dockerfile
+
+  - id: queryapi
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-queryapi:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-queryapi:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - queryapi
+    extra_files:
+      - config/queryapi/config.yaml
+    dockerfile: ./build_goreleaser/queryapi/Dockerfile
 
   - id: jobservice
     use: buildx
