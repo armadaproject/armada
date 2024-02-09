@@ -3,7 +3,6 @@
 package lookoutv2
 
 import (
-	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
@@ -41,7 +40,9 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
-	logger := logrus.NewEntry(logrus.New())
+	logger := logrus.NewEntry(logrus.StandardLogger())
+
+	api.Logger = logger.Debugf
 
 	api.GetHealthHandler = operations.GetHealthHandlerFunc(
 		func(params operations.GetHealthParams) middleware.Responder {
@@ -123,7 +124,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	defer func() {
 		shutdownErr := server.Shutdown()
 		if shutdownErr != nil {
-			log.WithError(shutdownErr).Error("Failed to shut down server")
+			logger.WithError(shutdownErr).Error("Failed to shut down server")
 		}
 	}()
 
