@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/slices"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -51,12 +52,25 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 		return ActionRetry, NoNodeAssigned, fmt.Sprintf("Pod could not been scheduled in within %s deadline. Retrying", pc.deadlineForNodeAssignment)
 	}
 
+	// Remove scheduling events as we handle the pod not getting scheduled above
+	podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
+		return e.Reason != EventReasonScheduled && e.Reason != EventReasonFailedScheduling
+	})
+
 	isNodeBad := pc.hasNoEventsOrStatus(pod, podEvents)
 	if timeInState > pc.deadlineForUpdates && isNodeBad {
-		return ActionRetry, NoStatusUpdates, "Pod status and pod events are both empty. Retrying"
+		return ActionRetry, NoStatusUpdates, fmt.Sprintf("Pod has received no updates within %s deadline - likely the node is bad. Retrying", pc.deadlineForUpdates)
 	} else if isNodeBad {
-		return ActionWait, NoStatusUpdates, "Pod status and pod events are both empty but we are under timelimit. Waiting"
+		return ActionWait, NoStatusUpdates, "Pod status and pod events are both empty but we are under time limit. Waiting"
 	}
+
+	// Remove mounting events if mounting is complete - so we avoid killing a pod for a transient mount issue that is now resolved
+	if pc.isVolumeMountingComplete(pod, podEvents) {
+		podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
+			return e.Reason != EventReasonFailedMount
+		})
+	}
+
 	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents, timeInState)
 	if eventAction != ActionWait {
 		messages = append(messages, message)
@@ -82,4 +96,27 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 func (pc *PodChecks) hasNoEventsOrStatus(pod *v1.Pod, podEvents []*v1.Event) bool {
 	containerStatus := util.GetPodContainerStatuses(pod)
 	return len(containerStatus) == 0 && len(podEvents) == 0
+}
+
+// Will return true if volumes have been mounted
+// There is no specific status that says when this happens so we determine it via:
+// - Kubernetes will mount volumes before pulling, so if there are any pulling events it means mounting has completed
+// - Kubernetes will mount volumes before starting any container, so if any container is started it means mounting has completed
+func (pc *PodChecks) isVolumeMountingComplete(pod *v1.Pod, podEvents []*v1.Event) bool {
+	podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
+		return e.Reason == EventReasonPulling || e.Reason == EventReasonPulled
+	})
+
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+
+	anyContainerStarted := false
+	for _, container := range containerStatuses {
+		if container.State.Running != nil || container.State.Terminated != nil {
+			anyContainerStarted = true
+			break
+		}
+	}
+
+	return len(podEvents) > 0 || anyContainerStarted
 }
