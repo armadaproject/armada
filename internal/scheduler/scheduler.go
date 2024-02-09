@@ -345,12 +345,12 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		return nil
 	}
 	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
+		if err := s.schedulerMetrics.UpdateLeased(nil, jctx); err != nil {
 			return err
 		}
 	}
 	for _, jctx := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.UpdatePreempted(jctx); err != nil {
+		if err := s.schedulerMetrics.UpdatePreempted(nil, jctx); err != nil {
 			return err
 		}
 	}
@@ -542,10 +542,6 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 		if err != nil {
 			return nil, err
 		}
-		additionalAnnotations, found := additionalAnnotationsByJobId[job.Id()]
-		if !found {
-			additionalAnnotations = make(map[string]string)
-		}
 		run := job.LatestRun()
 		if run == nil {
 			return nil, errors.Errorf("attempting to generate lease eventSequences for job %s with no associated runs", job.Id())
@@ -569,9 +565,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							UpdateSequenceNumber:   job.QueuedVersion(),
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
-							AdditionalAnnotations:  additionalAnnotations,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 								Tolerations: jctx.AdditionalTolerations,
+								Annotations: additionalAnnotationsByJobId[job.Id()],
 								Priority:    scheduledAtPriority,
 							},
 						},
