@@ -8,9 +8,7 @@
       <env name="ARMADA_EVENTSAPIREDIS_ADDRS" value="localhost:6379" />
       <env name="ARMADA_METRICSPORT" value="9005" />
       <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
-      <env name="ARMADA_PROBABILITYOFUSINGPULSARSCHEDULER" value="1" />
       <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
-      <env name="ARMADA_PULSARSCHEDULERENABLED" value="true" />
       <env name="ARMADA_REDIS_ADDRS" value="localhost:6379" />
       <env name="EXECUTOR_UPDATE_INTERVAL" value="&quot;1s&quot;" />
     </envs>

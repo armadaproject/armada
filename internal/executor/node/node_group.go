@@ -9,7 +9,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/context"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 type NodeInfoService interface {
@@ -17,7 +16,7 @@ type NodeInfoService interface {
 	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
 	GetAllNodes() ([]*v1.Node, error)
 	GroupNodesByType(nodes []*v1.Node) []*NodeGroup
-	GetType(node *v1.Node) *api.NodeTypeIdentifier
+	GetType(node *v1.Node) *NodeTypeIdentifier
 }
 
 type KubernetesNodeInfoService struct {
@@ -32,8 +31,13 @@ func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, tolerat
 	}
 }
 
+type NodeTypeIdentifier struct {
+	Id     string
+	Taints []v1.Taint
+}
+
 type NodeGroup struct {
-	NodeType *api.NodeTypeIdentifier
+	NodeType *NodeTypeIdentifier
 	Nodes    []*v1.Node
 }
 
@@ -59,14 +63,14 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 	return nodeGroups
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) *api.NodeTypeIdentifier {
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) *NodeTypeIdentifier {
 	groupId := kubernetesNodeInfoService.clusterContext.GetClusterPool()
 	relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
 	if len(relevantTaints) > 0 {
 		groupId = nodeGroupId(relevantTaints)
 	}
 
-	return &api.NodeTypeIdentifier{
+	return &NodeTypeIdentifier{
 		Id:     groupId,
 		Taints: relevantTaints,
 	}

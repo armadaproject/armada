@@ -47,15 +47,6 @@ func updateCmd() *cobra.Command {
 	return cmd
 }
 
-func describeCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "describe",
-		Short: "Retrieve information about armada resource. Supported: queue",
-	}
-	cmd.AddCommand(queueDescribeCmd())
-	return cmd
-}
-
 func getCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",

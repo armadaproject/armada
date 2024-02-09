@@ -5,7 +5,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/pkg/api"
@@ -152,30 +151,4 @@ func populateRunId(eventSequence *armadaevents.EventSequence, jobRunId *armadaev
 			log.Warnf("unexpected event type %T- failed to populate run id", runEvent)
 		}
 	}
-}
-
-type LegacyApiEventSender struct {
-	eventClient api.EventClient
-}
-
-func NewLegacyApiEventSender(eventClient api.EventClient) *LegacyApiEventSender {
-	return &LegacyApiEventSender{
-		eventClient: eventClient,
-	}
-}
-
-func (eventSender *LegacyApiEventSender) SendEvents(events []EventMessage) error {
-	var eventMessages []*api.EventMessage
-	for _, e := range events {
-		m, err := api.Wrap(e.Event)
-		eventMessages = append(eventMessages, m)
-		if err != nil {
-			return err
-		}
-		log.Debugf("Reporting event %+v", m)
-	}
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	_, err := eventSender.eventClient.ReportMultiple(ctx, &api.EventList{eventMessages})
-	return err
 }

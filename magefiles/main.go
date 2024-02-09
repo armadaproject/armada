@@ -205,18 +205,14 @@ func LocalDev(arg string) error {
 	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
 
 	switch arg {
-	case "minimal-legacy":
-		timeTaken := time.Now()
-		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
-		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
-	case "minimal-pulsar":
+	case "minimal":
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 	case "full":
 		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
-		return fmt.Errorf("invalid localdev mode: %s; valid modes are: minimal-legacy, minimal-pulsar, full, no-build, debug", arg)
+		return fmt.Errorf("invalid localdev mode: %s; valid modes are: minimal, full, no-build, debug", arg)
 	}
 
 	mg.Deps(StartDependencies)
@@ -224,11 +220,8 @@ func LocalDev(arg string) error {
 	mg.Deps(CheckForPulsarRunning)
 
 	switch arg {
-	case "minimal-legacy":
-		os.Setenv("ARMADA_COMPONENTS", "executor-legacy,server-legacy")
-		mg.Deps(StartComponents)
-	case "minimal-pulsar":
-		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler")
+	case "minimal":
+		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
 		mg.Deps(StartComponents)
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")

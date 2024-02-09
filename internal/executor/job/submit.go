@@ -17,11 +17,9 @@ import (
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 type Submitter interface {
-	SubmitApiJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails
 	SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails
 }
 
@@ -51,11 +49,6 @@ type FailedSubmissionDetails struct {
 	Pod         *v1.Pod
 	Error       error
 	Recoverable bool
-}
-
-func (submitService *SubmitService) SubmitApiJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails {
-	submitJobs := CreateSubmitJobsFromApiJobs(jobsToSubmit, submitService.podDefaults)
-	return submitService.submitJobs(submitJobs)
 }
 
 func (submitService *SubmitService) SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {

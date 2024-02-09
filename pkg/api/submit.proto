@@ -5,15 +5,15 @@ option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/networking/v1/generated.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/health.proto";
 
-
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
-
 
 message JobSubmitRequestItem {
     double priority = 1;
@@ -96,6 +96,50 @@ enum JobState {
     UNKNOWN = 5;
 }
 
+message Job {
+  string id = 1;
+  string client_id = 13;
+  string job_set_id = 2;
+  string queue = 3;
+  string namespace = 7;
+  map<string, string> labels = 9;
+  map<string, string> annotations = 10;
+  map<string, string> required_node_labels = 11 [deprecated = true];
+  string owner = 8;
+  repeated string queue_ownership_user_groups = 15;
+  bytes compressed_queue_ownership_user_groups = 19;
+  double priority = 4;
+  k8s.io.api.core.v1.PodSpec pod_spec = 5 [deprecated = true]; // Use PodSpecs instead
+  repeated k8s.io.api.core.v1.PodSpec pod_specs = 12;
+  // Resource requests and limits necessary for scheduling the main pod of this job.
+  // The requests and limits herein are set to:
+  //
+  // max(
+  //
+  //	sum across all containers,
+  //	max over all init containers,
+  //
+  // )
+  //
+  // This is because containers run in parallel, whereas initContainers run serially.
+  // This field is populated automatically at submission.
+  // Submitting a job with this field already populated results in an error.
+  k8s.io.api.core.v1.ResourceRequirements scheduling_resource_requirements = 21 [(gogoproto.nullable) = false];
+  google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  // Services can be provided either as Armada-specific config objects or as proper k8s objects.
+  // These options are exclusive, i.e., if either ingress or services is provided,
+  // then neither of k8s_ingress or k8s_service can be provided, and vice versa.
+  repeated IngressConfig ingress = 14;
+  repeated ServiceConfig services = 16;
+  repeated k8s.io.api.networking.v1.Ingress k8s_ingress = 17;
+  repeated k8s.io.api.core.v1.Service k8s_service = 18;
+  // Indicates which scheduler should manage this job.
+  // If empty, the default scheduler is used.
+  string scheduler = 20;
+  // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
+  int64 queue_ttl_seconds = 22;
+}
+
 // swagger:model
 message JobReprioritizeRequest {
     repeated string job_ids = 1;
@@ -160,19 +204,8 @@ message StreamingQueueGetRequest {
 }
 
 //swagger:model
-message QueueInfoRequest {
-    string name = 1;
-}
-
-//swagger:model
 message QueueDeleteRequest {
     string name = 1;
-}
-
-//swagger:model
-message QueueInfo {
-    string name = 1;
-    repeated JobSetInfo active_job_sets = 2;
 }
 
 message JobSetInfo {
@@ -273,11 +306,5 @@ service Submit {
         get: "/v1/batched/queues"
       };
     }
-    rpc GetQueueInfo (QueueInfoRequest) returns (QueueInfo) {
-        option (google.api.http) = {
-            get: "/v1/queue/{name}/info"
-        };
-    }
     rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
-
 }

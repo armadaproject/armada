@@ -153,7 +153,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	nodeGroupAllocationInfos, err := m.utilisationService.GetAllNodeGroupAllocationInfo(false)
+	nodeGroupAllocationInfos, err := m.utilisationService.GetAllNodeGroupAllocationInfo()
 	if err != nil {
 		log.Errorf("Failed to get required information to calculate node metrics because %s", err)
 		recordInvalidMetrics(metrics, e)

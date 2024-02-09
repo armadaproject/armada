@@ -5,9 +5,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/armadaproject/armada/pkg/api"
 )
+
+type KeyValuePair struct {
+	Key   string
+	Value string
+}
 
 func TestAddNodeAntiAffinity_WhenAffinityNil_ReturnsError(t *testing.T) {
 	var affinity *v1.Affinity = nil
@@ -47,7 +50,7 @@ func TestAddNodeAntiAffinity_WhenSameLabelDifferentValueAlreadyThere_IncludesBot
 
 func TestAddNodeAntiAffinity_WhenDifferentLabelAlreadyThere_IncludesBothLabels(t *testing.T) {
 	affinity := &v1.Affinity{}
-	expected := vanillaAvoidLabelAffinites([]*api.StringKeyValuePair{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
+	expected := vanillaAvoidLabelAffinites([]*KeyValuePair{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
 
 	err := AddNodeAntiAffinity(affinity, "a", "b")
 	assert.NoError(t, err)
@@ -58,10 +61,10 @@ func TestAddNodeAntiAffinity_WhenDifferentLabelAlreadyThere_IncludesBothLabels(t
 }
 
 func vanillaAvoidLabelAffinity(key string, val string) *v1.Affinity {
-	return vanillaAvoidLabelAffinites([]*api.StringKeyValuePair{{Key: key, Value: val}})
+	return vanillaAvoidLabelAffinites([]*KeyValuePair{{Key: key, Value: val}})
 }
 
-func vanillaAvoidLabelAffinites(labels []*api.StringKeyValuePair) *v1.Affinity {
+func vanillaAvoidLabelAffinites(labels []*KeyValuePair) *v1.Affinity {
 	mexprs := []v1.NodeSelectorRequirement{}
 
 	for _, kv := range labels {
