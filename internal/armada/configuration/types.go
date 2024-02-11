@@ -39,8 +39,6 @@ type ArmadaConfig struct {
 	Scheduling          SchedulingConfig
 	Pulsar              PulsarConfig
 	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi            EventApiConfig
-	Metrics             MetricsConfig
 }
 
 type PulsarConfig struct {
@@ -58,7 +56,7 @@ type PulsarConfig struct {
 	AuthenticationEnabled bool
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
-	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
+	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath                string
 	JobsetEventsTopic           string
 	RedisFromPulsarSubscription string
@@ -66,11 +64,6 @@ type PulsarConfig struct {
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
 	CompressionLevel pulsar.CompressionLevel
-	// Used to construct an executorconfig.IngressConfiguration,
-	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
-	HostnameSuffix string
-	CertNameSuffix string
-	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
 	// Log all pulsar events
@@ -84,24 +77,6 @@ type PulsarConfig struct {
 	BackoffTime time.Duration
 	// Number of pulsar messages that will be queued by the pulsar consumer.
 	ReceiverQueueSize int
-}
-
-// DatabaseConfig represents the configuration of the database connection.
-type DatabaseConfig struct {
-	// MaxOpenConns represents the maximum number of open connections to the database.
-	MaxOpenConns int
-
-	// MaxIdleConns represents the maximum number of connections in the idle connection pool.
-	MaxIdleConns int
-
-	// ConnMaxLifetime represents the maximum amount of time a connection may be reused.
-	ConnMaxLifetime time.Duration
-
-	// Connection represents the database connection details in a key/value pairs format.
-	Connection map[string]string
-
-	// Dialect represents the dialect of the configured database.
-	Dialect string
 }
 
 type SchedulingConfig struct {
@@ -151,7 +126,6 @@ type SchedulingConfig struct {
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
 	MaxJobSchedulingContextsPerExecutor uint
-	Lease                               LeaseSettings
 	DefaultJobLimits                    armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
@@ -168,11 +142,9 @@ type SchedulingConfig struct {
 	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
-	ResourceScarcity map[string]float64
-	// Applies only to the old scheduler.
-	PoolResourceScarcity map[string]map[string]float64
-	MaxPodSpecSizeBytes  uint
-	MinJobResources      v1.ResourceList
+	ResourceScarcity    map[string]float64
+	MaxPodSpecSizeBytes uint
+	MinJobResources     v1.ResourceList
 	// Once a node has been found on which a pod can be scheduled,
 	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
 	// The scheduler selects the node with the best score out of the considered nodes.
@@ -342,39 +314,7 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
-type LeaseSettings struct {
-	ExpireAfter        time.Duration
-	ExpiryLoopInterval time.Duration
-}
-
+// TODO: we can probably just typedef this to map[string]string
 type PostgresConfig struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	Connection      map[string]string
-}
-
-type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
-	Metrics         SchedulerMetricsConfig
-}
-
-type SchedulerMetricsConfig struct {
-	ScheduleCycleTimeHistogramSettings  HistogramConfig
-	ReconcileCycleTimeHistogramSettings HistogramConfig
-}
-
-type HistogramConfig struct {
-	Start  float64
-	Factor float64
-	Count  int
-}
-
-type EventApiConfig struct {
-	Enabled          bool
-	QueryConcurrency int
-	JobsetCacheSize  int
-	UpdateTopic      string
-	Postgres         PostgresConfig
+	Connection map[string]string
 }
