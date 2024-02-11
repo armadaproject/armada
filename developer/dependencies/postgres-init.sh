@@ -5,4 +5,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     CREATE USER docker;
     CREATE DATABASE postgresv2;
     GRANT ALL PRIVILEGES ON DATABASE postgresv2 TO docker;
+    CREATE DATABASE jobservice;
+    GRANT ALL PRIVILEGES ON DATABASE jobservice TO docker;
 EOSQL

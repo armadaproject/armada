@@ -14,11 +14,11 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/go-ldap/ldap/v3 v3.4.4
-	github.com/go-openapi/analysis v0.22.0
+	github.com/go-openapi/analysis v0.22.2
 	github.com/go-openapi/jsonreference v0.20.4
 	github.com/go-openapi/loads v0.21.5
 	github.com/go-openapi/runtime v0.26.0
-	github.com/go-openapi/spec v0.20.13
+	github.com/go-openapi/spec v0.20.14
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
@@ -74,7 +74,6 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/benbjohnson/immutable v0.4.3
-	github.com/caarlos0/log v0.4.4
 	github.com/go-openapi/errors v0.21.0
 	github.com/go-openapi/strfmt v0.21.10
 	github.com/go-openapi/swag v0.22.6
@@ -83,7 +82,7 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.15.2
-	github.com/jackc/pgx/v5 v5.5.0
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
 	github.com/minio/highwayhash v1.0.2
@@ -111,6 +110,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/caarlos0/log v0.4.4 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/charmbracelet/lipgloss v0.9.1 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect

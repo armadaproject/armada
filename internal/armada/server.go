@@ -3,11 +3,6 @@ package armada
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/logging"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"math"
 	"net"
 	"time"

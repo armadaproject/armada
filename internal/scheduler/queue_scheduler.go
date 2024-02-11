@@ -60,10 +60,10 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 }
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
-	nodeIdByJobId := make(map[string]string)
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 	var failedJobs []*schedulercontext.JobSchedulingContext
-	additionalAnnotationsByJobId := map[string]map[string]string{}
+	nodeIdByJobId := make(map[string]string)
+	additionalAnnotationsByJobId := make(map[string]map[string]string)
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -92,21 +92,13 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
-			// We scheduled the minimum number of gang jobs required.
 			numScheduled := gctx.Fit().NumScheduled
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
-
-					// Add additional annotations for runtime gang cardinality
 					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.RuntimeGangCardinality: strconv.Itoa(numScheduled)}
-				}
-			}
-
-			// Report any excess gang jobs that failed
-			for _, jctx := range gctx.JobSchedulingContexts {
-				if jctx.ShouldFail {
+				} else if jctx.ShouldFail {
 					failedJobs = append(failedJobs, jctx)
 				}
 			}

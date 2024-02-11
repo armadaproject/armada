@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caarlos0/log"
 	"github.com/go-playground/validator/v10"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -142,7 +141,7 @@ func StartUpWithContext(
 		os.Exit(-1)
 	}
 
-	stopExecutorApiComponents := setupExecutorApiComponents(config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
+	stopExecutorApiComponents := setupExecutorApiComponents(log, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
 
 	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
@@ -163,6 +162,7 @@ func StartUpWithContext(
 }
 
 func setupExecutorApiComponents(
+	log *logrus.Entry,
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
 	clusterHealthMonitor healthmonitor.HealthMonitor,

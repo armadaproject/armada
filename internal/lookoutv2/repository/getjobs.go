@@ -88,7 +88,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
-		logQuery(createTempTableQuery)
+		logQuery(createTempTableQuery, "CreateTempTable")
 		_, err := tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
 		if err != nil {
 			return err
@@ -98,7 +98,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 		if err != nil {
 			return err
 		}
-		logQuery(insertQuery)
+		logQuery(insertQuery, "InsertIntoTempTable")
 		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
 		if err != nil {
 			return err
