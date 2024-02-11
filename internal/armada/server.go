@@ -25,19 +25,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
@@ -226,8 +221,13 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return errors.WithStack(err)
 	}
 	defer consumer.Close()
+
+	jobExpirer := &server.PulsarJobExpirer{
+		Consumer:      consumer,
+		JobRepository: jobRepository,
+	}
 	services = append(services, func() error {
-		return expirePulsarJobDetails(ctx, consumer, jobRepository)
+		return jobExpirer.Run(ctx)
 	})
 
 	// Service that reads from Pulsar and logs events.
@@ -314,70 +314,4 @@ func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.C
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
 	)
-}
-
-func expirePulsarJobDetails(ctx *armadacontext.Context, consumer pulsar.Consumer, jobRepository repository.JobRepository) error {
-
-	ack := func(ctx *armadacontext.Context, msg pulsar.Message) {
-		util.RetryUntilSuccess(
-			ctx,
-			func() error {
-				return consumer.Ack(msg)
-			},
-			func(err error) {
-				log.WithError(err).Warnf("Error acking pulsar message")
-				time.Sleep(time.Second)
-			},
-		)
-	}
-
-	eventChan := consumer.Chan()
-	for {
-		select {
-		case <-ctx.Done():
-			log.Infof("Context expired, stopping pulsar job detials expiration loop")
-			return nil
-		case msg, ok := <-eventChan:
-			if !ok {
-				fmt.Println("Channel closing, stopping pulsar job details expiration loop")
-				return nil
-			}
-
-			// Unmarshal and validate the message.
-			sequence, err := eventutil.UnmarshalEventSequence(ctx, msg.Payload())
-			if err != nil {
-				ack(ctx, msg)
-				logging.WithStacktrace(ctx, err).Warnf("processing message failed; ignoring")
-				continue
-			}
-
-			jobIdsToExpire := make([]string, 0)
-			for _, event := range sequence.GetEvents() {
-				var jobId string
-				var err error
-				switch e := event.Event.(type) {
-				case *armadaevents.EventSequence_Event_JobSucceeded:
-					jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
-				case *armadaevents.EventSequence_Event_JobErrors:
-					if ok := armadaslices.AnyFunc(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); ok {
-						jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
-					}
-				case *armadaevents.EventSequence_Event_CancelledJob:
-					jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
-				default:
-					// Non-terminal event
-					continue
-					if err != nil {
-						logging.
-							WithStacktrace(ctx, err).
-							Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
-						continue
-					}
-					jobIdsToExpire = append(jobIdsToExpire, jobId)
-				}
-				jobRepository.ExpirePulsarSchedulerJobDetails(jobIdsToExpire)
-				ack(ctx, msg)
-			}
-		}
-	}
 }
