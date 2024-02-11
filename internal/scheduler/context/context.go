@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -21,7 +22,6 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -240,9 +240,9 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) (bool, error) {
-	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.GetQueue()]
+	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.Queue()]
 	if !ok {
-		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.GetQueue())
+		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.Queue())
 	}
 	evictedInThisRound, err := qctx.AddJobSchedulingContext(jctx)
 	if err != nil {
@@ -262,7 +262,7 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	return evictedInThisRound, nil
 }
 
-func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) (bool, error) {
+func (sctx *SchedulingContext) EvictGang(jobs []*jobdb.Job) (bool, error) {
 	allJobsScheduledInThisRound := true
 	for _, job := range jobs {
 		scheduledInThisRound, err := sctx.EvictJob(job)
@@ -277,10 +277,10 @@ func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) (
 	return allJobsScheduledInThisRound, nil
 }
 
-func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool, error) {
-	qctx, ok := sctx.QueueSchedulingContexts[job.GetQueue()]
+func (sctx *SchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
+	qctx, ok := sctx.QueueSchedulingContexts[job.Queue()]
 	if !ok {
-		return false, errors.Errorf("failed evicting job %s from scheduling context: no context for queue %s", job.GetId(), job.GetQueue())
+		return false, errors.Errorf("failed evicting job %s from scheduling context: no context for queue %s", job.GetId(), job.Queue())
 	}
 	scheduledInThisRound, err := qctx.EvictJob(job)
 	if err != nil {
@@ -490,7 +490,7 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	return evictedInThisRound, nil
 }
 
-func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool, error) {
+func (qctx *QueueSchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
 	jobId := job.GetId()
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked unsuccessful", jobId)
@@ -543,7 +543,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	representative := jctxs[0]
 	return &GangSchedulingContext{
 		Created:               time.Now(),
-		Queue:                 representative.Job.GetQueue(),
+		Queue:                 representative.Job.Queue(),
 		GangInfo:              representative.GangInfo,
 		JobSchedulingContexts: jctxs,
 		TotalResourceRequests: totalResourceRequests,
@@ -596,7 +596,7 @@ type JobSchedulingContext struct {
 	// Indicates whether this context is for re-scheduling an evicted job.
 	IsEvicted bool
 	// Job spec.
-	Job interfaces.LegacySchedulerJob
+	Job *jobdb.Job
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	PodRequirements *schedulerobjects.PodRequirements
@@ -648,7 +648,7 @@ func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKe
 	}
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(defaultSchedulingKeyGenerator, jctx.Job)
+		schedulingKey = jobdb.SchedulingKeyFromJob(defaultSchedulingKeyGenerator, jctx.Job)
 	}
 	return schedulingKey, true
 }
@@ -690,7 +690,7 @@ type GangInfo struct {
 }
 
 // EmptyGangInfo returns a GangInfo for a job that is not in a gang.
-func EmptyGangInfo(job interfaces.LegacySchedulerJob) GangInfo {
+func EmptyGangInfo(job *jobdb.Job) GangInfo {
 	return GangInfo{
 		// An Id of "" indicates that this job is not in a gang; we set
 		// Cardinality and MinimumCardinality (as well as the other fields,
@@ -703,7 +703,7 @@ func EmptyGangInfo(job interfaces.LegacySchedulerJob) GangInfo {
 	}
 }
 
-func GangInfoFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (GangInfo, error) {
+func GangInfoFromLegacySchedulerJob(job *jobdb.Job) (GangInfo, error) {
 	gangInfo := EmptyGangInfo(job)
 
 	annotations := job.GetAnnotations()
@@ -750,7 +750,7 @@ func GangInfoFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (GangInfo
 	return gangInfo, nil
 }
 
-func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J *jobdb.Job](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
 		jctxs[i] = JobSchedulingContextFromJob(priorityClasses, job)
@@ -758,7 +758,7 @@ func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClas
 	return jctxs
 }
 
-func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob) *JobSchedulingContext {
+func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job *jobdb.Job) *JobSchedulingContext {
 	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
 		logrus.Errorf("failed to extract gang info from job %s: %s", job.GetId(), err)

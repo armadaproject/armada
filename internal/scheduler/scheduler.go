@@ -355,7 +355,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
+		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job, nil); err != nil {
 			return err
 		}
 	}
@@ -537,7 +537,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
 	for _, jctx := range jctxs {
-		job := jctx.Job.(*jobdb.Job)
+		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
@@ -590,8 +590,8 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 			Reason:   &armadaevents.Error_GangJobUnschedulable{GangJobUnschedulable: &armadaevents.GangJobUnschedulable{Message: "Job did not meet the minimum gang cardinality"}},
 		}
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
-			Queue:      job.GetQueue(),
-			JobSetName: job.GetJobSet(),
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
 				{
 					Created: &time,

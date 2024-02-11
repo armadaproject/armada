@@ -13,7 +13,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -149,7 +148,7 @@ func (jobDb *JobDb) NewJob(
 		runsById:                map[uuid.UUID]*JobRun{},
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
-	job.schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(jobDb.schedulingKeyGenerator, job)
+	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
 	return job
 }
 

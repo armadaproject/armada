@@ -546,7 +546,7 @@ func TestGangScheduler(t *testing.T) {
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
 				for _, job := range jobs {
-					priorityFactorByQueue[job.GetQueue()] = 1
+					priorityFactorByQueue[job.Queue()] = 1
 				}
 			}
 

@@ -516,7 +516,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			slices.SortFunc(preemptedJobs, lessJob)
 			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) bool {
-				return lessJob(a.Job.(*jobdb.Job), b.Job.(*jobdb.Job))
+				return lessJob(a.Job, b.Job)
 			})
 			slices.SortFunc(failedJobs, lessJob)
 			for i, job := range preemptedJobs {
@@ -528,7 +528,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				preemptedJobs[i] = job.WithQueued(false).WithFailed(true)
 			}
 			for i, jctx := range scheduledJobs {
-				job := jctx.Job.(*jobdb.Job)
+				job := jctx.Job
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				if nodeId == "" {
 					return errors.Errorf("job %s not mapped to a node", job.GetId())
@@ -552,7 +552,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job.(*jobdb.Job) })); err != nil {
+			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
 				return err
 			}
 			if err := txn.Upsert(failedJobs); err != nil {

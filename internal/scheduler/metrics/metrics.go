@@ -312,7 +312,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 
 func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
 	if job == nil {
-		job = jctx.Job.(*jobdb.Job)
+		job = jctx.Job
 	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
@@ -337,7 +337,7 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 
 func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
 	if job == nil {
-		job = jctx.Job.(*jobdb.Job)
+		job = jctx.Job
 	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PreemptedTime())
@@ -433,7 +433,7 @@ func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int
 
 func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
-	labels = append(labels, job.GetQueue())
+	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	labels = append(labels, "") // No nodeType.
 	labels = append(labels, nodeName)
@@ -441,9 +441,9 @@ func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 }
 
 func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontext.JobSchedulingContext) []string {
-	job := jctx.Job.(*jobdb.Job)
+	job := jctx.Job
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
-	labels = append(labels, job.GetQueue())
+	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	wellKnownNodeType := ""
 	if pctx := jctx.PodSchedulingContext; pctx != nil {

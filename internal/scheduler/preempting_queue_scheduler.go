@@ -128,7 +128,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.nodeDb,
 			sch.schedulingContext.PriorityClasses,
 			sch.nodeEvictionProbability,
-			func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
+			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
 				if job.GetAnnotations() == nil {
 					ctx.Errorf("can't evict job %s: annotations not initialised", job.GetId())
 					return false
@@ -579,7 +579,7 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jctxs []*schedulercontext.JobSch
 		func(jctx *schedulercontext.JobSchedulingContext) string {
 			return sch.nodeIdByJobId[jctx.JobId]
 		},
-		func(jcxt *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob {
+		func(jcxt *schedulercontext.JobSchedulingContext) *jobdb.Job {
 			return jcxt.Job
 		},
 	) {
@@ -696,7 +696,7 @@ type Evictor struct {
 	nodeDb          *nodedb.NodeDb
 	priorityClasses map[string]types.PriorityClass
 	nodeFilter      func(*armadacontext.Context, *nodedb.Node) bool
-	jobFilter       func(*armadacontext.Context, interfaces.LegacySchedulerJob) bool
+	jobFilter       func(*armadacontext.Context, *jobdb.Job) bool
 }
 
 type EvictorResult struct {
@@ -713,7 +713,7 @@ func NewNodeEvictor(
 	nodeDb *nodedb.NodeDb,
 	priorityClasses map[string]types.PriorityClass,
 	perNodeEvictionProbability float64,
-	jobFilter func(*armadacontext.Context, interfaces.LegacySchedulerJob) bool,
+	jobFilter func(*armadacontext.Context, *jobdb.Job) bool,
 	random *rand.Rand,
 ) *Evictor {
 	if perNodeEvictionProbability <= 0 {
@@ -753,7 +753,7 @@ func NewFilteredEvictor(
 			shouldEvict := nodeIdsToEvict[node.Id]
 			return shouldEvict
 		},
-		jobFilter: func(_ *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
+		jobFilter: func(_ *armadacontext.Context, job *jobdb.Job) bool {
 			shouldEvict := jobIdsToEvict[job.GetId()]
 			return shouldEvict
 		},
@@ -801,7 +801,7 @@ func NewOversubscribedEvictor(
 			}
 			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability
 		},
-		jobFilter: func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
+		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) bool {
 			priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(priorityClasses, defaultPriorityClassName, job)
 			if !priorityClass.Preemptible {
 				return false
@@ -821,9 +821,9 @@ func NewOversubscribedEvictor(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*EvictorResult, error) {
-	var jobFilter func(job interfaces.LegacySchedulerJob) bool
+	var jobFilter func(job *jobdb.Job) bool
 	if evi.jobFilter != nil {
-		jobFilter = func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
+		jobFilter = func(job *jobdb.Job) bool { return evi.jobFilter(ctx, job) }
 	}
 	evictedJctxsByJobId := make(map[string]*schedulercontext.JobSchedulingContext)
 	affectedNodesById := make(map[string]*nodedb.Node)

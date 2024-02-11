@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
 // SchedulerResult is returned by Rescheduler.Schedule().
@@ -26,29 +26,29 @@ type SchedulerResult struct {
 	AdditionalAnnotationsByJobId map[string]map[string]string
 }
 
-// PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result cast to type T.
-func PreemptedJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
-	rv := make([]T, len(sr.PreemptedJobs))
+// PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result.
+func PreemptedJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
+	rv := make([]*jobdb.Job, len(sr.PreemptedJobs))
 	for i, jctx := range sr.PreemptedJobs {
-		rv[i] = jctx.Job.(T)
+		rv[i] = jctx.Job
 	}
 	return rv
 }
 
-// ScheduledJobsFromSchedulerResult returns the slice of scheduled jobs in the result cast to type T.
-func ScheduledJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
-	rv := make([]T, len(sr.ScheduledJobs))
+// ScheduledJobsFromSchedulerResult returns the slice of scheduled jobs in the result.
+func ScheduledJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
+	rv := make([]*jobdb.Job, len(sr.ScheduledJobs))
 	for i, jctx := range sr.ScheduledJobs {
-		rv[i] = jctx.Job.(T)
+		rv[i] = jctx.Job
 	}
 	return rv
 }
 
 // FailedJobsFromSchedulerResult returns the slice of scheduled jobs in the result cast to type T.
-func FailedJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
-	rv := make([]T, len(sr.FailedJobs))
+func FailedJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
+	rv := make([]*jobdb.Job, len(sr.FailedJobs))
 	for i, jctx := range sr.FailedJobs {
-		rv[i] = jctx.Job.(T)
+		rv[i] = jctx.Job
 	}
 	return rv
 }

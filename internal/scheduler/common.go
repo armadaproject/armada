@@ -2,13 +2,13 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 
 	"golang.org/x/exp/maps"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -21,15 +21,15 @@ func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) string {
 	jobsByQueue := armadaslices.MapAndGroupByFuncs(
 		jctxs,
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return jctx.Job.GetQueue()
+			return jctx.Job.Queue()
 		},
-		func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob {
+		func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job {
 			return jctx.Job
 		},
 	)
 	resourcesByQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []interfaces.LegacySchedulerJob) schedulerobjects.ResourceList {
+		func(jobs []*jobdb.Job) schedulerobjects.ResourceList {
 			rv := schedulerobjects.NewResourceListWithDefaultSize()
 			for _, job := range jobs {
 				rv.AddV1ResourceList(job.GetResourceRequirements().Requests)
@@ -39,7 +39,7 @@ func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) string {
 	)
 	jobIdsByQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []interfaces.LegacySchedulerJob) []string {
+		func(jobs []*jobdb.Job) []string {
 			rv := make([]string, len(jobs))
 			for i, job := range jobs {
 				rv[i] = job.GetId()

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"testing"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
@@ -20,46 +20,47 @@ import (
 
 func TestInMemoryJobRepository(t *testing.T) {
 	T := time.Now()
-	jobs := []*api.Job{
-		{
-			Queue:    "A",
-			Id:       "3",
-			Priority: 1,
-			Created:  T.Add(3 * time.Second),
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "1",
-			Priority: 1,
-			Created:  T.Add(1 * time.Second),
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "2",
-			Priority: 1,
-			Created:  T.Add(2 * time.Second),
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "5",
-			Priority: 3,
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "0",
-			Priority: 0,
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "4",
-			Priority: 2,
-			PodSpec:  &v1.PodSpec{},
-		},
+	jobs := []*jobdb.Job{
+		jobdb.
+		//{
+		//	Queue:    "A",
+		//	Id:       "3",
+		//	Priority: 1,
+		//	Created:  T.Add(3 * time.Second),
+		//	PodSpec:  &v1.PodSpec{},
+		//},
+		//{
+		//	Queue:    "A",
+		//	Id:       "1",
+		//	Priority: 1,
+		//	Created:  T.Add(1 * time.Second),
+		//	PodSpec:  &v1.PodSpec{},
+		//},
+		//{
+		//	Queue:    "A",
+		//	Id:       "2",
+		//	Priority: 1,
+		//	Created:  T.Add(2 * time.Second),
+		//	PodSpec:  &v1.PodSpec{},
+		//},
+		//{
+		//	Queue:    "A",
+		//	Id:       "5",
+		//	Priority: 3,
+		//	PodSpec:  &v1.PodSpec{},
+		//},
+		//{
+		//	Queue:    "A",
+		//	Id:       "0",
+		//	Priority: 0,
+		//	PodSpec:  &v1.PodSpec{},
+		//},
+		//{
+		//	Queue:    "A",
+		//	Id:       "4",
+		//	Priority: 2,
+		//	PodSpec:  &v1.PodSpec{},
+		//},
 	}
 	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
@@ -330,8 +331,8 @@ func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {
 	}
 }
 
-func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
-	rv := make([]interfaces.LegacySchedulerJob, len(jobIds))
+func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]*jobdb.Job, error) {
+	rv := make([]*jobdb.Job, len(jobIds))
 	for i, jobId := range jobIds {
 		if job, ok := repo.jobsById[jobId]; ok {
 			rv[i] = job

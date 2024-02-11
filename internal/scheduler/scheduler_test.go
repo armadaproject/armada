@@ -23,7 +23,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -1366,7 +1365,7 @@ func (t *testSchedulingAlgo) Persist() {
 	return
 }
 
-func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
+func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
 	failedJobs S,

@@ -23,7 +23,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -221,7 +220,7 @@ type JobQueueIteratorAdapter struct {
 	it *immutable.SortedSetIterator[*jobdb.Job]
 }
 
-func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error) {
+func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 	if it.it.Done() {
 		return nil, nil
 	}
@@ -505,8 +504,8 @@ func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
-	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]*jobdb.Job, error) {
+	rv := make([]*jobdb.Job, 0, len(ids))
 	for _, id := range ids {
 		if job := repo.txn.GetById(id); job != nil {
 			rv = append(rv, job)

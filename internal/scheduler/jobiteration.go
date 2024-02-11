@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"sync"
 
 	"golang.org/x/exp/slices"
@@ -9,7 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
 type JobIterator interface {
@@ -18,7 +18,7 @@ type JobIterator interface {
 
 type JobRepository interface {
 	GetQueueJobIds(queueName string) ([]string, error)
-	GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error)
+	GetExistingJobsByIds(ids []string) ([]*jobdb.Job, error)
 }
 
 type InMemoryJobIterator struct {
@@ -60,7 +60,7 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 	defer repo.mu.Unlock()
 	updatedQueues := make(map[string]bool)
 	for _, jctx := range jctxs {
-		queue := jctx.Job.GetQueue()
+		queue := jctx.Job.Queue()
 		repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
 		repo.jctxsById[jctx.Job.GetId()] = jctx
 		updatedQueues[queue] = true
@@ -88,10 +88,10 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error
 }
 
 // Should only be used in testing.
-func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
+func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]*jobdb.Job, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	rv := make([]interfaces.LegacySchedulerJob, 0, len(jobIds))
+	rv := make([]*jobdb.Job, 0, len(jobIds))
 	for _, jobId := range jobIds {
 		if jctx, ok := repo.jctxsById[jobId]; ok {
 			rv = append(rv, jctx.Job)
@@ -112,7 +112,7 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
 type QueuedJobsIterator struct {
 	ctx             *armadacontext.Context
 	err             error
-	c               chan interfaces.LegacySchedulerJob
+	c               chan *jobdb.Job
 	priorityClasses map[string]types.PriorityClass
 }
 
@@ -121,7 +121,7 @@ func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRep
 	g, ctx := armadacontext.ErrGroup(ctx)
 	it := &QueuedJobsIterator{
 		ctx:             ctx,
-		c:               make(chan interfaces.LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
+		c:               make(chan *jobdb.Job, 2*batchSize), // 2x batchSize to load one batch async.
 		priorityClasses: priorityClasses,
 	}
 
@@ -160,7 +160,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 func queuedJobsIteratorLoader(
 	ctx *armadacontext.Context,
 	jobIds []string,
-	ch chan interfaces.LegacySchedulerJob,
+	ch chan *jobdb.Job,
 	batchSize int,
 	repo JobRepository,
 ) error {
