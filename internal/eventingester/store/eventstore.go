@@ -98,10 +98,8 @@ func (repo *RedisEventStore) doStore(update []*model.Event) error {
 			})
 		}
 
-		if repo.eventRetention.ExpiryEnabled {
-			for key := range uniqueJobSets {
-				pipe.Expire(key, repo.eventRetention.RetentionDuration)
-			}
+		for key := range uniqueJobSets {
+			pipe.Expire(key, repo.eventRetention.RetentionDuration)
 		}
 
 		_, err := pipe.Exec()

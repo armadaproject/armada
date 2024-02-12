@@ -291,7 +291,7 @@ func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simp
 		pulsarBatchSize:        batchSize,
 		converter:              converter,
 		sink:                   sink,
-		metricsConfig:          configuration.MetricsConfig{},
+		metricsPort:            8080,
 		metrics:                testMetrics,
 		consumer:               consumer,
 		msgFilter:              func(msg pulsar.Message) bool { return true },
