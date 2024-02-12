@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/slices"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/slices"
 	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
