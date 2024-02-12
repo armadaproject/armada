@@ -8,12 +8,10 @@ go 1.20
 replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (
-	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/go-ldap/ldap/v3 v3.4.4
 	github.com/go-openapi/analysis v0.22.2
 	github.com/go-openapi/jsonreference v0.20.4
 	github.com/go-openapi/loads v0.21.5

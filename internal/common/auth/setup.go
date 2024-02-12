@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/auth/authorization/groups"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
@@ -33,20 +32,6 @@ func ConfigureAuth(config configuration.AuthConfig) ([]authorization.AuthService
 
 	if config.AnonymousAuth {
 		authServices = append(authServices, &authorization.AnonymousAuthService{})
-	}
-
-	// Kerberos should be the last service as it is adding WWW-Authenticate header for unauthenticated response
-	if config.Kerberos.KeytabLocation != "" {
-		var groupLookup groups.GroupLookup
-		if config.Kerberos.LDAP.Username != "" {
-			groupLookup = groups.NewLDAPGroupLookup(config.Kerberos.LDAP)
-		}
-
-		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos, groupLookup)
-		if err != nil {
-			return nil, errors.WithMessage(err, "error initialising kerberos auth")
-		}
-		authServices = append(authServices, kerberosAuthService)
 	}
 
 	if len(authServices) == 0 {
