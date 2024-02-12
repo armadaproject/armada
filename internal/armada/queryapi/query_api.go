@@ -1,12 +1,12 @@
-package server
+package queryapi
 
 import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/armadaproject/armada/internal/armada/queryapi/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/armadaproject/armada/internal/queryapi/database"
 	"github.com/armadaproject/armada/pkg/queryapi"
 )
 
