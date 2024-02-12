@@ -208,6 +208,28 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		log.Info("Pulsar submit API deduplication disabled")
 	}
 
+	// Consumer that's used for deleting pulsarJob details
+	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
+	// TODO: delete this when we finally remove redis
+	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer consumer.Close()
+
+	jobExpirer := &server.PulsarJobExpirer{
+		Consumer:      consumer,
+		JobRepository: jobRepository,
+	}
+	services = append(services, func() error {
+		return jobExpirer.Run(ctx)
+	})
+
 	// Service that reads from Pulsar and logs events.
 	if config.Pulsar.EventsPrinter {
 		eventsPrinter := server.EventsPrinter{

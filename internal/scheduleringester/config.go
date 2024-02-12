@@ -10,8 +10,8 @@ import (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Metrics configuration
-	Metrics configuration.MetricsConfig
+	// Metrics Port
+	MetricsPort uint16
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Map of allowed priority classes by name
