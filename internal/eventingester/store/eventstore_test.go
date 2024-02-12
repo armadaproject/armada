@@ -51,7 +51,7 @@ func withRedisEventStore(action func(es *RedisEventStore)) {
 	repo := &RedisEventStore{
 		db: client,
 		eventRetention: configuration.EventRetentionPolicy{
-			ExpiryEnabled: true, RetentionDuration: time.Hour,
+			RetentionDuration: time.Hour,
 		},
 	}
 	action(repo)
