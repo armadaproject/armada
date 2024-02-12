@@ -29,7 +29,7 @@ type Configuration struct {
 	// Configuration controlling leader election
 	Leader LeaderConfig
 	// Configuration controlling metrics
-	Metrics configuration.MetricsConfig
+	Metrics LegacyMetricsConfig
 	// Configuration for new scheduler metrics.
 	// Due to replace metrics configured via the above entry.
 	SchedulerMetrics MetricsConfig
@@ -121,4 +121,22 @@ type LeaderConfig struct {
 
 type HttpConfig struct {
 	Port int `validate:"required"`
+}
+
+// TODO: ALl this needs to be unified with MetricsConfig
+type LegacyMetricsConfig struct {
+	Port            uint16
+	RefreshInterval time.Duration
+	Metrics         SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }
