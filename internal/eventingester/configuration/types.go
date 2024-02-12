@@ -12,7 +12,7 @@ type EventIngesterConfiguration struct {
 	// Database configuration
 	Redis redis.UniversalOptions
 	// Metrics configuration
-	Metrics configuration.MetricsConfig
+	MetricsPort uint16
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name
@@ -33,7 +33,7 @@ type EventIngesterConfiguration struct {
 	PprofPort *uint16
 }
 
+// TODO: unpack this into just EventExpirtation
 type EventRetentionPolicy struct {
-	ExpiryEnabled     bool
 	RetentionDuration time.Duration
 }
