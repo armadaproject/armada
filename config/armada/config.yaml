@@ -125,9 +125,6 @@ pulsar:
   maxAllowedMessageSize: 4194304 # 4MB
   receiverQueueSize: 100
 postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
   connection:
     host: postgres
     port: 5432

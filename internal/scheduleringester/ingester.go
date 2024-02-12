@@ -53,7 +53,7 @@ func Run(config Configuration) error {
 		schedulers.ForPulsarScheduler,
 		converter,
 		schedulerDb,
-		config.Metrics,
+		config.MetricsPort,
 		svcMetrics,
 	)
 	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {

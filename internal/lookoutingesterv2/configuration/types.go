@@ -10,7 +10,7 @@ type LookoutIngesterV2Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
 	// Metrics configuration
-	Metrics configuration.MetricsConfig
+	MetricsPort uint16
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name
