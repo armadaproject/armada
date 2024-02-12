@@ -28,13 +28,13 @@ spec:
             * 100
 
         - record: armada:queue:resource:queued
-          expr: max(armada_queue_resource_queued) by (pool, queueName, resourceType)
+          expr: max(sum(armada_queue_resource_queued) by (pod, pool, queueName, resourceType)) by (pool, queueName, resourceType)
 
         - record: armada:queue:resource:allocated
-          expr: max(armada_queue_resource_allocated) by (pool, cluster, queueName, resourceType, nodeType)
+          expr: max(sum(armada_queue_resource_allocated) by (pod, pool, cluster, queueName, resourceType, nodeType)) by (pool, cluster, queueName, resourceType, nodeType)
 
         - record: armada:queue:resource:used
-          expr: max(armada_queue_resource_used) by (pool, cluster, queueName, resourceType, nodeType)
+          expr: max(sum(armada_queue_resource_used) by (pod, pool, cluster, queueName, resourceType, nodeType)) by (pool, cluster, queueName, resourceType, nodeType)
 
         - record: armada:grpc:server:histogram95
           expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
