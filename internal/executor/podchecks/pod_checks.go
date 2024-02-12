@@ -52,23 +52,11 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 		return ActionRetry, NoNodeAssigned, fmt.Sprintf("Pod could not been scheduled in within %s deadline. Retrying", pc.deadlineForNodeAssignment)
 	}
 
-	// Remove scheduling events as we handle the pod not getting scheduled above
-	podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
-		return e.Reason != EventReasonScheduled && e.Reason != EventReasonFailedScheduling
-	})
-
-	isNodeBad := pc.hasNoEventsOrStatus(pod, podEvents)
+	isNodeBad := pc.isBadNode(pod, podEvents)
 	if timeInState > pc.deadlineForUpdates && isNodeBad {
 		return ActionRetry, NoStatusUpdates, fmt.Sprintf("Pod has received no updates within %s deadline - likely the node is bad. Retrying", pc.deadlineForUpdates)
 	} else if isNodeBad {
 		return ActionWait, NoStatusUpdates, "Pod status and pod events are both empty but we are under time limit. Waiting"
-	}
-
-	// Remove mounting events if mounting is complete - so we avoid killing a pod for a transient mount issue that is now resolved
-	if pc.isVolumeMountingComplete(pod, podEvents) {
-		podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
-			return e.Reason != EventReasonFailedMount
-		})
 	}
 
 	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents, timeInState)
@@ -91,32 +79,13 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 	return resultAction, cause, resultMessage
 }
 
-// If a node is bad, we can have no pod status and no pod events.
-// We should retry the pod rather than wait
-func (pc *PodChecks) hasNoEventsOrStatus(pod *v1.Pod, podEvents []*v1.Event) bool {
-	containerStatus := util.GetPodContainerStatuses(pod)
-	return len(containerStatus) == 0 && len(podEvents) == 0
-}
-
-// Will return true if volumes have been mounted
-// There is no specific status that says when this happens so we determine it via:
-// - Kubernetes will mount volumes before pulling, so if there are any pulling events it means mounting has completed
-// - Kubernetes will mount volumes before starting any container, so if any container is started it means mounting has completed
-func (pc *PodChecks) isVolumeMountingComplete(pod *v1.Pod, podEvents []*v1.Event) bool {
+// This func is trying to determine if the node is bad based on the kubelet not updating the pod at all
+func (pc *PodChecks) isBadNode(pod *v1.Pod, podEvents []*v1.Event) bool {
+	// Ignore the Scheduled event as this comes from the kube-scheduler
 	podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
-		return e.Reason == EventReasonPulling || e.Reason == EventReasonPulled
+		return e.Reason != EventReasonScheduled
 	})
 
-	containerStatuses := pod.Status.ContainerStatuses
-	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
-
-	anyContainerStarted := false
-	for _, container := range containerStatuses {
-		if container.State.Running != nil || container.State.Terminated != nil {
-			anyContainerStarted = true
-			break
-		}
-	}
-
-	return len(podEvents) > 0 || anyContainerStarted
+	containerStatus := util.GetPodContainerStatuses(pod)
+	return len(containerStatus) == 0 && len(podEvents) == 0
 }
