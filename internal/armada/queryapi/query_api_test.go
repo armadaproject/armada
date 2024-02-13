@@ -1,4 +1,4 @@
-package server
+package queryapi
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/armadaproject/armada/pkg/queryapi"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestGetJobStatus(t *testing.T) {
@@ -20,23 +20,23 @@ func TestGetJobStatus(t *testing.T) {
 	// setup job db
 	tests := map[string]struct {
 		jobId            string
-		expectedResponse *queryapi.JobStatusResponse
+		expectedResponse *api.JobStatusResponse
 	}{
 		"leased job": {
 			jobId:            "leasedJob",
-			expectedResponse: &queryapi.JobStatusResponse{JobId: "leasedJob", JobStatus: queryapi.JobStatus_LEASED},
+			expectedResponse: &api.JobStatusResponse{JobId: "leasedJob", JobStatus: api.JobStatus_LEASED},
 		},
 		"running job": {
 			jobId:            "runningJob",
-			expectedResponse: &queryapi.JobStatusResponse{JobId: "runningJob", JobStatus: queryapi.JobStatus_RUNNING},
+			expectedResponse: &api.JobStatusResponse{JobId: "runningJob", JobStatus: api.JobStatus_RUNNING},
 		},
 		"completed job": {
 			jobId:            "completedJob",
-			expectedResponse: &queryapi.JobStatusResponse{JobId: "completedJob", JobStatus: queryapi.JobStatus_SUCCEEDED},
+			expectedResponse: &api.JobStatusResponse{JobId: "completedJob", JobStatus: api.JobStatus_SUCCEEDED},
 		},
 		"missing job": {
 			jobId:            "missingJob",
-			expectedResponse: &queryapi.JobStatusResponse{JobId: "missingJob", JobStatus: queryapi.JobStatus_UNKNOWN},
+			expectedResponse: &api.JobStatusResponse{JobId: "missingJob", JobStatus: api.JobStatus_UNKNOWN},
 		},
 	}
 	for name, tc := range tests {
@@ -45,7 +45,7 @@ func TestGetJobStatus(t *testing.T) {
 				queryApi := New(db)
 				err := insertTestData(ctx, db)
 				require.NoError(t, err)
-				resp, err := queryApi.GetJobStatus(context.Background(), &queryapi.JobStatusRequest{JobId: tc.jobId})
+				resp, err := queryApi.GetJobStatus(context.Background(), &api.JobStatusRequest{JobId: tc.jobId})
 				require.NoError(t, err)
 				assert.Equal(t, resp, tc.expectedResponse)
 				return nil

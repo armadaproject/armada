@@ -3,7 +3,7 @@
 
 # make the python package armada.client, not pkg.api
 mkdir -p proto/armada
-cp pkg/api/event.proto pkg/api/submit.proto pkg/api/health.proto pkg/queryapi/queryapi.proto proto/armada
+cp pkg/api/event.proto pkg/api/submit.proto pkg/api/health.proto pkg/api/queryapi.proto proto/armada
 sed -i 's/\([^\/]\)pkg\/api/\1armada/g' proto/armada/*.proto
 
 # generate python stubs
