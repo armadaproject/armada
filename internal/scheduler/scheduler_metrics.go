@@ -1,11 +1,11 @@
 package scheduler
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 )
@@ -20,17 +20,54 @@ type SchedulerMetrics struct {
 	scheduleCycleTime prometheus.Histogram
 	// Cycle time when reconciling, as leader or follower.
 	reconcileCycleTime prometheus.Histogram
-	// Number of jobs scheduled per queue.
-	scheduledJobsPerQueue prometheus.CounterVec
-	// Number of jobs preempted per queue.
-	preemptedJobsPerQueue prometheus.CounterVec
-	// Number of jobs considered per queue/pool.
-	consideredJobs prometheus.CounterVec
-	// Fair share of each queue.
-	fairSharePerQueue prometheus.GaugeVec
-	// Actual share of each queue.
-	actualSharePerQueue prometheus.GaugeVec
+
+	mostRecentSchedulingRoundData schedulingRoundData
 }
+
+var scheduledJobsDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "scheduled_jobs"),
+	"Number of jobs scheduled each round.",
+	[]string{
+		"queue",
+		"priority_class",
+	}, nil,
+)
+
+var preemptedJobsDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "preempted_jobs"),
+	"Number of jobs preempted each round.",
+	[]string{
+		"queue",
+		"priority_class",
+	}, nil,
+)
+
+var consideredJobsDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "considered_jobs"),
+	"Number of jobs considered in the most recent round per queue and pool.",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
+var fairSharePerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "fair_share"),
+	"Fair share of each queue and pool.",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
+var actualSharePerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "actual_share"),
+	"Actual share of each queue and pool.",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
 
 func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *SchedulerMetrics {
 	scheduleCycleTime := prometheus.NewHistogram(
@@ -59,205 +96,132 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 		},
 	)
 
-	scheduledJobs := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: NAMESPACE,
-			Subsystem: SUBSYSTEM,
-			Name:      "scheduled_jobs",
-			Help:      "Number of jobs scheduled each round.",
-		},
-		[]string{
-			"queue",
-			"priority_class",
-		},
-	)
-
-	preemptedJobs := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: NAMESPACE,
-			Subsystem: SUBSYSTEM,
-			Name:      "preempted_jobs",
-			Help:      "Number of jobs preempted each round.",
-		},
-		[]string{
-			"queue",
-			"priority_class",
-		},
-	)
-
-	consideredJobs := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: NAMESPACE,
-			Subsystem: SUBSYSTEM,
-			Name:      "considered_jobs",
-			Help:      "Number of jobs considered each round per queue and pool.",
-		},
-		[]string{
-			"queue",
-			"pool",
-		},
-	)
-
-	fairSharePerQueue := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: NAMESPACE,
-			Subsystem: SUBSYSTEM,
-			Name:      "fair_share",
-			Help:      "Fair share of each queue and pool.",
-		},
-		[]string{
-			"queue",
-			"pool",
-		},
-	)
-
-	actualSharePerQueue := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: NAMESPACE,
-			Subsystem: SUBSYSTEM,
-			Name:      "actual_share",
-			Help:      "Actual share of each queue and pool.",
-		},
-		[]string{
-			"queue",
-			"pool",
-		},
-	)
-
 	prometheus.MustRegister(scheduleCycleTime)
 	prometheus.MustRegister(reconcileCycleTime)
-	prometheus.MustRegister(scheduledJobs)
-	prometheus.MustRegister(preemptedJobs)
-	prometheus.MustRegister(consideredJobs)
-	prometheus.MustRegister(fairSharePerQueue)
-	prometheus.MustRegister(actualSharePerQueue)
 
 	return &SchedulerMetrics{
-		scheduleCycleTime:     scheduleCycleTime,
-		reconcileCycleTime:    reconcileCycleTime,
-		scheduledJobsPerQueue: *scheduledJobs,
-		preemptedJobsPerQueue: *preemptedJobs,
-		consideredJobs:        *consideredJobs,
-		fairSharePerQueue:     *fairSharePerQueue,
-		actualSharePerQueue:   *actualSharePerQueue,
+		scheduleCycleTime:  scheduleCycleTime,
+		reconcileCycleTime: reconcileCycleTime,
 	}
 }
 
-func (metrics *SchedulerMetrics) ResetGaugeMetrics() {
-	metrics.fairSharePerQueue.Reset()
-	metrics.actualSharePerQueue.Reset()
+func (m *SchedulerMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
+	m.scheduleCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
-	metrics.scheduleCycleTime.Observe(float64(cycleTime.Milliseconds()))
+func (m *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
+	m.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
-	metrics.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
-}
-
-func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result SchedulerResult) {
-	// Report the total scheduled jobs (possibly we can get these out of contexts?)
-	metrics.reportScheduledJobs(ctx, result.ScheduledJobs)
-	metrics.reportPreemptedJobs(ctx, result.PreemptedJobs)
-
-	// TODO: When more metrics are added, consider consolidating into a single loop over the data.
-	// Report the number of considered jobs.
-	metrics.reportNumberOfJobsConsidered(ctx, result.SchedulingContexts)
-	metrics.reportQueueShares(ctx, result.SchedulingContexts)
-}
-
-func (metrics *SchedulerMetrics) reportScheduledJobs(ctx *armadacontext.Context, scheduledJobs []*schedulercontext.JobSchedulingContext) {
-	if len(scheduledJobs) == 0 {
-		return
+func (m *SchedulerMetrics) ReportSchedulerResult(result SchedulerResult) {
+	currentSchedulingMetrics := schedulingRoundData{
+		queuePoolData:    m.calculateQueuePoolMetrics(result.SchedulingContexts),
+		scheduledJobData: aggregateJobContexts(m.mostRecentSchedulingRoundData.scheduledJobData, result.ScheduledJobs),
+		preemptedJobData: aggregateJobContexts(m.mostRecentSchedulingRoundData.preemptedJobData, result.PreemptedJobs),
 	}
-	jobAggregates := aggregateJobContexts(scheduledJobs)
-	observeJobAggregates(ctx, metrics.scheduledJobsPerQueue, jobAggregates)
+
+	m.mostRecentSchedulingRoundData = currentSchedulingMetrics
 }
 
-func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx *armadacontext.Context, preemptedJobs []*schedulercontext.JobSchedulingContext) {
-	if len(preemptedJobs) == 0 {
-		return
+func (m *SchedulerMetrics) Describe(desc chan<- *prometheus.Desc) {
+	desc <- scheduledJobsDesc
+	desc <- preemptedJobsDesc
+	desc <- consideredJobsDesc
+	desc <- fairSharePerQueueDesc
+	desc <- actualSharePerQueueDesc
+}
+
+func (m *SchedulerMetrics) Collect(metrics chan<- prometheus.Metric) {
+	schedulingRoundData := m.mostRecentSchedulingRoundData
+
+	schedulingRoundMetrics := generateSchedulerMetrics(schedulingRoundData)
+
+	for _, m := range schedulingRoundMetrics {
+		metrics <- m
 	}
-	jobAggregates := aggregateJobContexts(preemptedJobs)
-	observeJobAggregates(ctx, metrics.preemptedJobsPerQueue, jobAggregates)
 }
 
-type collectionKey struct {
-	queue         string
-	priorityClass string
+func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometheus.Metric {
+	result := []prometheus.Metric{}
+
+	for key, value := range schedulingRoundData.queuePoolData {
+		result = append(result, prometheus.MustNewConstMetric(consideredJobsDesc, prometheus.GaugeValue, float64(value.numberOfJobsConsidered), key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, float64(value.fairShare), key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, float64(value.actualShare), key.queue, key.pool))
+	}
+	for key, value := range schedulingRoundData.scheduledJobData {
+		result = append(result, prometheus.MustNewConstMetric(scheduledJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
+	}
+	for key, value := range schedulingRoundData.preemptedJobData {
+		result = append(result, prometheus.MustNewConstMetric(preemptedJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
+	}
+
+	return result
 }
 
 // aggregateJobContexts takes a list of jobs and counts how many there are of each queue, priorityClass pair.
-func aggregateJobContexts(jctxs []*schedulercontext.JobSchedulingContext) map[collectionKey]int {
-	groups := make(map[collectionKey]int)
+func aggregateJobContexts(previousSchedulingRoundData map[queuePriorityClassKey]int, jctxs []*schedulercontext.JobSchedulingContext) map[queuePriorityClassKey]int {
+	result := make(map[queuePriorityClassKey]int)
 
 	for _, jctx := range jctxs {
 		job := jctx.Job
-		key := collectionKey{queue: job.GetQueue(), priorityClass: job.GetPriorityClassName()}
-		groups[key] += 1
+		key := queuePriorityClassKey{queue: job.GetQueue(), priorityClass: job.GetPriorityClassName()}
+		result[key] += 1
 	}
 
-	return groups
-}
-
-// observeJobAggregates reports a set of job aggregates to a given CounterVec by queue and priorityClass.
-func observeJobAggregates(ctx *armadacontext.Context, metric prometheus.CounterVec, jobAggregates map[collectionKey]int) {
-	for key, count := range jobAggregates {
-		queue := key.queue
-		priorityClassName := key.priorityClass
-
-		observer, err := metric.GetMetricWithLabelValues(queue, priorityClassName)
-
-		if err != nil {
-			// A metric failure isn't reason to kill the programme.
-			ctx.Errorf("error reteriving considered jobs observer for queue %s, priorityClass %s", queue, priorityClassName)
+	for key, value := range previousSchedulingRoundData {
+		_, present := result[key]
+		if present {
+			result[key] += value
 		} else {
-			observer.Add(float64(count))
+			result[key] = value
 		}
 	}
+
+	return result
 }
 
-func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(ctx *armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
-	for _, schedContext := range schedulingContexts {
-		pool := schedContext.Pool
-		for queue, queueContext := range schedContext.QueueSchedulingContexts {
-			count := len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts)
-
-			observer, err := metrics.consideredJobs.GetMetricWithLabelValues(queue, pool)
-			if err != nil {
-				ctx.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
-			} else {
-				observer.Add(float64(count))
-			}
-		}
-	}
-}
-
-func (metrics *SchedulerMetrics) reportQueueShares(ctx *armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
+func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []*schedulercontext.SchedulingContext) map[queuePoolKey]queuePoolData {
+	result := make(map[queuePoolKey]queuePoolData)
 	for _, schedContext := range schedulingContexts {
 		totalCost := schedContext.TotalCost()
 		totalWeight := schedContext.WeightSum
 		pool := schedContext.Pool
 
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
+			key := queuePoolKey{queue: queue, pool: pool}
 			fairShare := queueContext.Weight / totalWeight
-
-			observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(queue, pool)
-			if err != nil {
-				ctx.Errorf("error retrieving considered jobs observer for queue %s, pool %s", queue, pool)
-			} else {
-				observer.Set(fairShare)
-			}
-
 			actualShare := schedContext.FairnessCostProvider.CostFromQueue(queueContext) / totalCost
 
-			observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(queue, pool)
-			if err != nil {
-				ctx.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
-			} else {
-				observer.Set(actualShare)
+			result[key] = queuePoolData{
+				numberOfJobsConsidered: len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
+				fairShare:              fairShare,
+				actualShare:            actualShare,
 			}
 		}
 	}
+
+	return result
+}
+
+type schedulingRoundData struct {
+	queuePoolData    map[queuePoolKey]queuePoolData
+	scheduledJobData map[queuePriorityClassKey]int
+	preemptedJobData map[queuePriorityClassKey]int
+}
+
+type queuePriorityClassKey struct {
+	queue         string
+	priorityClass string
+}
+
+type queuePoolKey struct {
+	queue string
+	pool  string
+}
+
+type queuePoolData struct {
+	numberOfJobsConsidered int
+	actualShare            float64
+	fairShare              float64
 }
