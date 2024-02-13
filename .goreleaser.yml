@@ -144,15 +144,6 @@ builds:
       - linux
     goarch:
       - amd64
-  - env: [ CGO_ENABLED=0 ]
-    id: queryapi
-    binary: queryapi
-    main: ./cmd/queryapi/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
-    goos:
-      - linux
-    goarch:
-      - amd64
   - env: [CGO_ENABLED=0]
     id: armadactl
     binary: armadactl
@@ -447,20 +438,6 @@ dockers:
     extra_files:
       - config/binoculars/config.yaml
     dockerfile: ./build_goreleaser/binoculars/Dockerfile
-
-  - id: queryapi
-    use: buildx
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-queryapi:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-queryapi:{{ .Version }}"
-    build_flag_templates: *BUILD_FLAG_TEMPLATES
-    ids:
-      - queryapi
-    extra_files:
-      - config/queryapi/config.yaml
-    dockerfile: ./build_goreleaser/queryapi/Dockerfile
 
   - id: jobservice
     use: buildx
