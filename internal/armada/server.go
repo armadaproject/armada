@@ -3,7 +3,6 @@ package armada
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"math"
 	"net"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/common/armadacontext"

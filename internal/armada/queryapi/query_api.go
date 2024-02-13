@@ -2,6 +2,7 @@ package queryapi
 
 import (
 	"context"
+
 	"github.com/armadaproject/armada/pkg/api"
 
 	"github.com/jackc/pgx/v5/pgxpool"
