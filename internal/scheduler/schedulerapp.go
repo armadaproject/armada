@@ -204,6 +204,10 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.Preemption.DefaultPriorityClass,
 		config.InternedStringsCacheSize,
 	)
+	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
+	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
+		return errors.WithStack(err)
+	}
 	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
 	if err != nil {
 		return err
@@ -224,7 +228,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
-		NewSchedulerMetrics(config.Metrics.Metrics),
+		schedulingRoundMetrics,
 		schedulerMetrics,
 	)
 	if err != nil {
