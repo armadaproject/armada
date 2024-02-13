@@ -116,7 +116,7 @@ var JobRunDurationDesc = prometheus.NewDesc(
 var QueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
-	[]string{"cluster", "pool", "queueName", "resourceType", "nodeType"},
+	[]string{"cluster", "pool", "priorityClass", "queueName", "resourceType", "nodeType"},
 	nil,
 )
 
@@ -339,8 +339,8 @@ func NewClusterTotalCapacity(value float64, cluster string, pool string, resourc
 	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
 
-func NewQueueAllocated(value float64, queue string, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(QueueAllocatedDesc, prometheus.GaugeValue, value, cluster, pool, queue, resource, nodeType)
+func NewQueueAllocated(value float64, queue string, cluster string, pool string, priorityClass string, resource string, nodeType string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueAllocatedDesc, prometheus.GaugeValue, value, cluster, pool, priorityClass, queue, resource, nodeType)
 }
 
 func NewQueueUsed(value float64, queue string, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
