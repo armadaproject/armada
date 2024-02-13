@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/jcmturner/gokrb5/v8/spnego"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -40,9 +39,6 @@ func CreateGatewayHandler(
 	gw := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, m),
 		runtime.WithOutgoingHeaderMatcher(func(key string) (string, bool) {
-			if key == strings.ToLower(spnego.HTTPHeaderAuthResponse) {
-				return spnego.HTTPHeaderAuthResponse, true
-			}
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
