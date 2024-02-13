@@ -257,15 +257,18 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		jobRepository,
 	)
 
-	queryDb, err := database.OpenPgxPool(config.Postgres)
-	if err != nil {
-		return errors.WithMessage(err, "error creating postgres pool")
+	if config.QueryApi.Enabled {
+		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+		if err != nil {
+			return errors.WithMessage(err, "error creating QueryApi postgres pool")
+		}
+		queryapiServer := queryapi.New(queryDb)
+		api.RegisterQueryApiServer(grpcServer, queryapiServer)
 	}
-	queryapiServer := queryapi.New(queryDb)
 
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
-	api.RegisterQueryApiServer(grpcServer, queryapiServer)
+
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)
 

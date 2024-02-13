@@ -39,6 +39,7 @@ type ArmadaConfig struct {
 	Scheduling          SchedulingConfig
 	Pulsar              PulsarConfig
 	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
+	QueryApi            QueryApiConfig
 }
 
 type PulsarConfig struct {
@@ -317,4 +318,9 @@ type PreemptionConfig struct {
 // TODO: we can probably just typedef this to map[string]string
 type PostgresConfig struct {
 	Connection map[string]string
+}
+
+type QueryApiConfig struct {
+	Enabled  bool
+	Postgres PostgresConfig
 }
