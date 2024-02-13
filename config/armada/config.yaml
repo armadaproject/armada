@@ -132,3 +132,14 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
+queryapi:
+  enabled: false
+  postgres:
+    connection:
+      host: postgres
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+      sslmode: disable
+
