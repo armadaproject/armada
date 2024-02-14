@@ -9,38 +9,56 @@ import (
 )
 
 func TestReadMigrations(t *testing.T) {
-	mockFiles := []string{
-		"migration1.sql",
-	}
-	mockFS := createMockFileSystem(mockFiles)
-	migrations, err := ReadMigrations(mockFS, "path")
+    basePathScheduler := "internal/scheduler/database/migrations"
+	basePathLookoutV2 := "internal/lookoutv2/schema/migrations"
 
-	// Checks the suffix of files and handles file naming format
+	mockFS := createMockFileSystem([]string{
+        "001_initial_schema.sql",
+        "002_cancel_reason.sql",
+        "003_run_leased_column.sql",
+        "004_job_namespace.sql",
+        "001_initialize_schema.up.sql",
+        "002_add_runs_timestamps.up.sql",
+        "003_add_runs_scheduled_at_priority.up.sql",
+        "004_add_preempted_pending.up.sql",
+        "005_add_runs_timestamps.up.sql",
+        "006_add_run_pod_requirements.up.sql",
+        "007_add_queue_jobset_index.sql",
+    })
+
+	migrations, err := ReadMigrations(mockFS, basePath)
+
 	for _, migration := range migrations {
-		assert.True(t, strings.HasSuffix(migration.name, "migration.sql"), "Invalid file format for %v", migration.name)
+		assert.True(t, strings.HasSuffix(migration.name, ".sql"), "Invalid file format for %v", migration.name)
 	}
-	
-	// Checks slice format
-	expectedMigrations := []Migration{
-		{id: 0, name: "", sql: ""},
+    
+	for i := 1; i < len(migrations); i++ {
+		assert.True(t, migrations[i-1].name <= migrations[i].name, "Not sorted correctly")
 	}
-	assert.Len(t, migrations, 1, "Unexpected slice length")
-
-	// Slice first value should be int
-	assert.IsType(t, expectedMigrations[0].id, migrations[0].id, "Should be of type int")
-	// Slice second value should be string
-	assert.IsType(t, expectedMigrations[0].name, migrations[0].name, "Should be of type string")
-	// Slice third value should be string
-	assert.IsType(t, expectedMigrations[0].sql, migrations[0].sql, "Should be of type string")
-
-	// Checks ID length
+    
+	assert.Equal(t, migrations[0].id, 1, "Incorrect ID for 001_initial_schema.sql")
+	assert.Equal(t, migrations[1].id, 2, "Incorrect ID for 002_cancel_reason.sql")
+	assert.Equal(t, migrations[2].id, 3, "Incorrect ID for 003_run_leased_column.sql")
+	assert.Equal(t, migrations[3].id, 4, "Incorrect ID for 004_job_namespace.sqlz")
+	assert.Equal(t, migrations[4].id, 1, "Incorrect ID for 001_initialize_schema.up.sql")
+	assert.Equal(t, migrations[5].id, 2, "Incorrect ID for 002_add_runs_timestamps.up.sql")
+	assert.Equal(t, migrations[6].id, 3, "Incorrect ID for 003_add_runs_scheduled_at_priority.up.sql")
+	assert.Equal(t, migrations[7].id, 4, "Incorrect ID for 004_add_preempted_pending.up.sql")
+	assert.Equal(t, migrations[8].id, 5, "Incorrect ID for 005_add_runs_timestamps.up.sql")
+	assert.Equal(t, migrations[9].id, 6, "Incorrect ID for 006_add_run_pod_requirements.up.sql")
+	assert.Equal(t, migrations[10].id, 7, "Incorrect ID for 007_add_queue_jobset_index.sql")
+    
 	for _, migration := range migrations {
-		assert.True(t, len(strconv.Itoa(migration.id)) <= 5, "Invalid ID length for %v", migration.name)
+		assert.True(t, len(strconv.Itoa(migration.id)) <= 2, "Invalid ID length for %v", migration.name)
 	}
-	assert.NoError(t, err, "Unexpected error in ReadMigrations")
+
+	for _, migration := range migrations {
+		assert.IsType(t, 0, migration.id, "Should be of type int")
+		assert.IsType(t, "", migration.name, "Should be of type string")
+		assert.IsType(t, "", migration.sql, "Should be of type string")
+	}
+
+	for _, migration := range migrations {
+		assert.NotEmpty(t, migration.sql, "Content should not be empty for %v", migration.sql)
+	}
 }
-
-/*
-func createMockFileSystem(files []string) fs.FS {
-	return nil
-} */

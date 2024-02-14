@@ -98,7 +98,7 @@ func ReadMigrations(fsys fs.FS, basePath string) ([]Migration, error) {
 
 	var migrations []Migration
 	for _, f := range files {
-
+		
 		if f.IsDir() {
 			continue
 		}
