@@ -219,6 +219,8 @@ type SchedulingConfig struct {
 	ExecutorUpdateFrequency time.Duration
 	// Enable new preemption strategy.
 	EnableNewPreemptionStrategy bool
+	// Controls estimating node and queue failure estimation.
+	FailureEstimatorConfig FailureEstimatorConfig
 }
 
 const (
@@ -313,6 +315,15 @@ type PreemptionConfig struct {
 	DefaultPriorityClass string
 	// If set, override the priority class name of pods with this value when sending to an executor.
 	PriorityClassNameOverride *string
+}
+
+type FailureEstimatorConfig struct {
+	NodeSuccessProbabilityCordonThreshold  float64
+	QueueSuccessProbabilityCordonThreshold float64
+	NodeCordonTimeout                      time.Duration
+	QueueCordonTimeout                     time.Duration
+	NodeEquilibriumFailureRate             float64
+	QueueEquilibriumFailureRate            float64
 }
 
 // TODO: we can probably just typedef this to map[string]string

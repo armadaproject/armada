@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
@@ -74,6 +75,8 @@ type Scheduler struct {
 	metrics *SchedulerMetrics
 	// New scheduler metrics due to replace the above.
 	schedulerMetrics *metrics.Metrics
+	// Used to estimate the probability of a job from a particular queue succeeding on a particular node.
+	failureEstimator *failureestimator.FailureEstimator
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
@@ -94,6 +97,7 @@ func NewScheduler(
 	nodeIdLabel string,
 	metrics *SchedulerMetrics,
 	schedulerMetrics *metrics.Metrics,
+	failureEstimator *failureestimator.FailureEstimator,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -114,6 +118,7 @@ func NewScheduler(
 		runsSerial:                 -1,
 		metrics:                    metrics,
 		schedulerMetrics:           schedulerMetrics,
+		failureEstimator:           failureEstimator,
 	}, nil
 }
 
@@ -270,6 +275,26 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if !s.schedulerMetrics.IsDisabled() {
 		if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
 			return overallSchedulerResult, err
+		}
+	}
+
+	// Update success probability estimates.
+	if s.failureEstimator != nil {
+		s.failureEstimator.Decay()
+		for _, jst := range jsts {
+			if jst.Job == nil {
+				continue
+			}
+			run := jst.Job.LatestRun()
+			if run == nil {
+				continue
+			}
+			if jst.Failed {
+				s.failureEstimator.Update(run.NodeName(), jst.Job.GetQueue(), false)
+			}
+			if jst.Succeeded {
+				s.failureEstimator.Update(run.NodeName(), jst.Job.GetQueue(), true)
+			}
 		}
 	}
 

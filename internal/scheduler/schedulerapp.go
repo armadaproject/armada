@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -215,6 +216,20 @@ func Run(config schedulerconfig.Configuration) error {
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
+	failureEstimator, err := failureestimator.New(
+		config.Scheduling.FailureEstimatorConfig.NodeSuccessProbabilityCordonThreshold,
+		config.Scheduling.FailureEstimatorConfig.QueueSuccessProbabilityCordonThreshold,
+		config.Scheduling.FailureEstimatorConfig.NodeCordonTimeout,
+		config.Scheduling.FailureEstimatorConfig.QueueCordonTimeout,
+		config.Scheduling.FailureEstimatorConfig.NodeEquilibriumFailureRate,
+		config.Scheduling.FailureEstimatorConfig.QueueEquilibriumFailureRate,
+	)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(failureEstimator); err != nil {
+		return errors.WithStack(err)
+	}
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -230,6 +245,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.Preemption.NodeIdLabel,
 		schedulingRoundMetrics,
 		schedulerMetrics,
+		failureEstimator,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
