@@ -60,14 +60,19 @@ type FailureEstimator struct {
 	nodeSuccessProbabilityCordonThreshold  float64
 	queueSuccessProbabilityCordonThreshold float64
 
-	// Controls how quickly estimated node (queue) success probability increase in absence of any evidence.
-	// Computed from {node, queue}SuccessProbabilityCordonThreshold and {node, queue}CordonTimeout.
+	// Exponential decay factor controlling how quickly estimated node (queue) success probability decays towards 1.
+	// Computed from:
+	// - {node, queue}SuccessProbabilityCordonThreshold
+	// - {node, queue}CordonTimeout
 	nodeFailureProbabilityDecayRate  float64
 	queueFailureProbabilityDecayRate float64
 	timeOfLastDecay                  time.Time
 
 	// Gradient descent step size. Controls the extent to which new data affects successProbabilityBy{Node, Queue}.
-	// Computed from {node, queue}SuccessProbabilityCordonThreshold, {node, queue}FailureProbabilityDecayRate, {node, queue}EquilibriumFailureRate.
+	// Computed from:
+	// - {node, queue}SuccessProbabilityCordonThreshold
+	// - {node, queue}FailureProbabilityDecayRate
+	// - {node, queue}EquilibriumFailureRate
 	nodeStepSize  float64
 	queueStepSize float64
 
@@ -78,6 +83,8 @@ type FailureEstimator struct {
 	// If true, this module is disabled.
 	disabled bool
 
+	// Mutex protecting the above fields.
+	// Prevents concurrent map modification issues when scraping metrics.
 	mu sync.Mutex
 }
 
@@ -189,7 +196,8 @@ func (fe *FailureEstimator) IsDisabled() bool {
 }
 
 // Decay moves the success probabilities of nodes (queues) closer to 1, depending on the configured cordon timeout.
-// Periodically calling Decay() ensures nodes (queues) considered unhealthy are eventually considered healthy again.
+// Periodically calling Decay() ensures nodes (queues) considered unhealthy are eventually considered healthy again,
+// even if we observe no successes for those nodes (queues).
 func (fe *FailureEstimator) Decay() {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
