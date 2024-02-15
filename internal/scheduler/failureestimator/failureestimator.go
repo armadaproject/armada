@@ -220,14 +220,15 @@ func (fe *FailureEstimator) Update(node, queue string, success bool) {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
 
-	// Assume that nodes (queues) we haven't seen previously are healthy.
+	// Assume that nodes (queues) we haven't seen before have a 50% success probability.
+	// Avoiding extreme values for new nodes (queues) helps avoid drastic changes to existing estimates.
 	nodeSuccessProbability, ok := fe.successProbabilityByNode[node]
 	if !ok {
-		nodeSuccessProbability = healthySuccessProbability
+		nodeSuccessProbability = 0.5
 	}
 	queueSuccessProbability, ok := fe.successProbabilityByQueue[queue]
 	if !ok {
-		queueSuccessProbability = healthySuccessProbability
+		queueSuccessProbability = 0.5
 	}
 
 	dNodeSuccessProbability, dQueueSuccessProbability := fe.negLogLikelihoodGradient(nodeSuccessProbability, queueSuccessProbability, success)
