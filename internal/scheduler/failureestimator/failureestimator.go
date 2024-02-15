@@ -22,8 +22,23 @@ const (
 	healthySuccessProbability = 0.95
 )
 
-// FailureEstimator estimates the success probability of nodes (queues) based on empirical data.
-// The estimate is based on log-likelihood maximisation computed using online gradient descent.
+// FailureEstimator is a system for answering the following question:
+// "What's the probability of a job from queue Q completing successfully when scheduled on node N?"
+// We assume the job may fail either because the job or node is faulty, and we assume these failures are independent.
+// Denote by
+// - P_q the probability of a job from queue q succeeding when running on a perfect node and
+// - P_n is the probability of a perfect job succeeding on node n.
+// The success probability of a job from queue q on node n is then Pr(p_q*p_n=1),
+// where p_q and p_n are drawn from Bernoulli distributions with parameter P_q and P_n, respectively.
+//
+// Now, the goal is to jointly estimate P_q and P_n for each queue and node using observed successes and failures.
+// The method used is statistical only relies on knowing which queue a job belongs to and on which node it ran.
+// Specifically, we maximise the log-likelihood function of P_q and P_n using observed successes and failures.
+// This maximisation is performed using online gradient descent, where for each success or failure,
+// we update the corresponding P_q and P_n by taking a gradient step.
+//
+// Finally, we exponentially decay P_q and P_N towards 1 over time,
+// such that nodes and queues for which we observe no failures appear to become healthier over time.
 type FailureEstimator struct {
 	// Map from node (queue) name to the estimated success probability of that node (queue). For example:
 	// - successProbabilityByNode["myNode"] = 0.85]: estimated failure probability of a perfect job run on "myNode" is 15%.
@@ -46,8 +61,12 @@ type FailureEstimator struct {
 	nodeStepSize  float64
 	queueStepSize float64
 
+	// Prometheus metrics.
 	failureProbabilityByNodeDesc  *prometheus.Desc
 	failureProbabilityByQueueDesc *prometheus.Desc
+
+	// If true, this module is disabled.
+	disabled bool
 
 	mu sync.Mutex
 }
@@ -141,6 +160,20 @@ func New(
 	}, nil
 }
 
+func (fe *FailureEstimator) Disable(v bool) {
+	if fe == nil {
+		return
+	}
+	fe.disabled = v
+}
+
+func (fe *FailureEstimator) IsDisabled() bool {
+	if fe == nil {
+		return true
+	}
+	return fe.disabled
+}
+
 // Decay moves the success probabilities of nodes (queues) closer to 1, depending on the configured cordon timeout.
 // Periodically calling Decay() ensures nodes (queues) considered unhealthy are eventually considered healthy again.
 func (fe *FailureEstimator) Decay() {
@@ -208,6 +241,7 @@ func applyBounds(v float64) float64 {
 	}
 }
 
+// negLogLikelihoodGradient returns the gradient of the negated log-likelihood function with respect to P_q and P_n.
 func (fe *FailureEstimator) negLogLikelihoodGradient(nodeSuccessProbability, queueSuccessProbability float64, success bool) (float64, float64) {
 	if success {
 		dNodeSuccessProbability := -1 / nodeSuccessProbability
@@ -221,9 +255,9 @@ func (fe *FailureEstimator) negLogLikelihoodGradient(nodeSuccessProbability, que
 }
 
 func (fe *FailureEstimator) Describe(ch chan<- *prometheus.Desc) {
-	// if m.IsDisabled() {
-	// 	return
-	// }
+	if fe.IsDisabled() {
+		return
+	}
 	ch <- fe.failureProbabilityByNodeDesc
 	ch <- fe.failureProbabilityByQueueDesc
 }
@@ -231,9 +265,9 @@ func (fe *FailureEstimator) Describe(ch chan<- *prometheus.Desc) {
 // Collect and then reset all metrics.
 // Resetting ensures we do not build up a large number of counters over time.
 func (fe *FailureEstimator) Collect(ch chan<- prometheus.Metric) {
-	// if m.IsDisabled() {
-	// 	return
-	// }
+	if fe.IsDisabled() {
+		return
+	}
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
 

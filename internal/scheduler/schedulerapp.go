@@ -216,6 +216,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
+
 	failureEstimator, err := failureestimator.New(
 		config.Scheduling.FailureEstimatorConfig.NodeSuccessProbabilityCordonThreshold,
 		config.Scheduling.FailureEstimatorConfig.QueueSuccessProbabilityCordonThreshold,
@@ -227,9 +228,11 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return err
 	}
+	failureEstimator.Disable(config.Scheduling.FailureEstimatorConfig.Disabled)
 	if err := prometheus.Register(failureEstimator); err != nil {
 		return errors.WithStack(err)
 	}
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,

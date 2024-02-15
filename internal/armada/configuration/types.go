@@ -318,6 +318,7 @@ type PreemptionConfig struct {
 }
 
 type FailureEstimatorConfig struct {
+	Disabled                               bool
 	NodeSuccessProbabilityCordonThreshold  float64
 	QueueSuccessProbabilityCordonThreshold float64
 	NodeCordonTimeout                      time.Duration

@@ -279,7 +279,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// Update success probability estimates.
-	if s.failureEstimator != nil {
+	if !s.failureEstimator.IsDisabled() {
 		s.failureEstimator.Decay()
 		for _, jst := range jsts {
 			if jst.Job == nil {
