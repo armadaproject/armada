@@ -262,8 +262,6 @@ func (fe *FailureEstimator) Describe(ch chan<- *prometheus.Desc) {
 	ch <- fe.failureProbabilityByQueueDesc
 }
 
-// Collect and then reset all metrics.
-// Resetting ensures we do not build up a large number of counters over time.
 func (fe *FailureEstimator) Collect(ch chan<- prometheus.Metric) {
 	if fe.IsDisabled() {
 		return

@@ -219,7 +219,7 @@ type SchedulingConfig struct {
 	ExecutorUpdateFrequency time.Duration
 	// Enable new preemption strategy.
 	EnableNewPreemptionStrategy bool
-	// Controls estimating node and queue failure estimation.
+	// Controls node and queue success probability estimation.
 	FailureEstimatorConfig FailureEstimatorConfig
 }
 
@@ -317,6 +317,8 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
+// FailureEstimatorConfig contains config controlling node and queue success probability estimation.
+// See the internal/scheduler/failureestimator package for details.
 type FailureEstimatorConfig struct {
 	Disabled                               bool
 	NodeSuccessProbabilityCordonThreshold  float64
