@@ -32,7 +32,12 @@ const (
 // where p_q and p_n are drawn from Bernoulli distributions with parameter P_q and P_n, respectively.
 //
 // Now, the goal is to jointly estimate P_q and P_n for each queue and node using observed successes and failures.
-// The method used is statistical only relies on knowing which queue a job belongs to and on which node it ran.
+// The method used is statistical and only relies on knowing which queue a job belongs to and on which node it ran.
+// The intuition of the method is that:
+// - A job from a queue with many failures doesn't say much about the node; likely it's the job that's the problem.
+// - A job failing on a node with many failures doesn't say much about the job; likely it's the node that's the problem.
+// And vice versa.
+//
 // Specifically, we maximise the log-likelihood function of P_q and P_n using observed successes and failures.
 // This maximisation is performed using online gradient descent, where for each success or failure,
 // we update the corresponding P_q and P_n by taking a gradient step.
