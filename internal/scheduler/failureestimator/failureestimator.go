@@ -129,12 +129,16 @@ func New(
 		})
 	}
 
+	// Compute decay rates such that a node (queue) with success probability 0 will over {node, queue}CordonTimeout time
+	// decay to a success probability of {node, queue}SuccessProbabilityCordonThreshold.
 	nodeFailureProbabilityDecayRate := math.Exp(math.Log(1-nodeSuccessProbabilityCordonThreshold) / nodeCordonTimeout.Seconds())
 	queueFailureProbabilityDecayRate := math.Exp(math.Log(1-queueSuccessProbabilityCordonThreshold) / queueCordonTimeout.Seconds())
 
+	// Compute step size such that a node (queue) with success probability {node, queue}SuccessProbabilityCordonThreshold
+	// for which we observe 0 successes and {node, queue}EquilibriumFailureRate failures per second from "good" nodes (queues)
+	// will remain at exactly {node, queue}SuccessProbabilityCordonThreshold success probability.
 	dNodeSuccessProbability := healthySuccessProbability / (1 - nodeSuccessProbabilityCordonThreshold*healthySuccessProbability)
 	dQueueSuccessProbability := healthySuccessProbability / (1 - queueSuccessProbabilityCordonThreshold*healthySuccessProbability)
-
 	nodeStepSize := (1 - nodeSuccessProbabilityCordonThreshold - (1-nodeSuccessProbabilityCordonThreshold)*nodeFailureProbabilityDecayRate) / dNodeSuccessProbability / nodeEquilibriumFailureRate
 	queueStepSize := (1 - queueSuccessProbabilityCordonThreshold - (1-queueSuccessProbabilityCordonThreshold)*queueFailureProbabilityDecayRate) / dQueueSuccessProbability / queueEquilibriumFailureRate
 
