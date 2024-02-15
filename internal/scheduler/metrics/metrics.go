@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -59,8 +60,9 @@ type Metrics struct {
 	matchedRegexIndexByErrorMessage *lru.Cache
 
 	// Job metrics.
-	transitions     *prometheus.CounterVec
-	resourceSeconds *prometheus.CounterVec
+	transitions                   *prometheus.CounterVec
+	resourceSeconds               *prometheus.CounterVec
+	unacknowledgedJobsPerExecutor *prometheus.GaugeVec
 }
 
 func New(config configuration.MetricsConfig) (*Metrics, error) {
@@ -110,6 +112,15 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 				Help:      "Job state transition resource-second counters.",
 			},
 			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node", "resource"},
+		),
+		unacknowledgedJobsPerExecutor: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "unacknowledged_jobs",
+				Help:      "Number of unacknowledged jobs per maximum number of jobs per executor. 0 means no jobs are unacknowledged. 1 means the executor is at capacity of unacknowledged jobs.",
+			},
+			[]string{"cluster"},
 		),
 	}, nil
 }
@@ -374,6 +385,23 @@ func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
 	}
 	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (m *Metrics) UpdateUnacknowledgedJobsPerExecutor(ctx *armadacontext.Context, executorRepo database.ExecutorRepository, maxUnacknowledgedJobsPerExecutor uint) error {
+	executors, err := executorRepo.GetExecutors(ctx)
+	if err != nil {
+		return err
+	}
+	for _, executor := range executors {
+		labels := m.buffer[0:0]
+		labels = append(labels, executor.Id)
+		g, err := m.unacknowledgedJobsPerExecutor.GetMetricWithLabelValues(labels...)
+		if err != nil {
+			continue
+		}
+		g.Set(float64(executor.NumUnacknowledgedJobs) / float64(maxUnacknowledgedJobsPerExecutor))
 	}
 	return nil
 }

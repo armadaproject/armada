@@ -35,6 +35,8 @@ type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
 	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
+	// Config returns the configuration used by the scheduling algorithm.
+	Config() *configuration.SchedulingConfig
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -197,6 +199,10 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 	}
 	return overallSchedulerResult, nil
+}
+
+func (l *FairSchedulingAlgo) Config() *configuration.SchedulingConfig {
+	return &l.schedulingConfig
 }
 
 func (l *FairSchedulingAlgo) groupExecutors(executors []*schedulerobjects.Executor) map[string][]*schedulerobjects.Executor {
@@ -596,6 +602,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 				}
 			}
 		}
+		executor.NumUnacknowledgedJobs = int64(numUnacknowledgedJobs)
 		if numUnacknowledgedJobs <= l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor {
 			activeExecutors = append(activeExecutors, executor)
 		} else {

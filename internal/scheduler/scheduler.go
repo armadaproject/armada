@@ -357,6 +357,9 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 			return err
 		}
 	}
+	if err := s.schedulerMetrics.UpdateUnacknowledgedJobsPerExecutor(ctx, s.executorRepository, s.schedulingAlgo.Config().MaxUnacknowledgedJobsPerExecutor); err != nil {
+		return err
+	}
 	return nil
 }
 
