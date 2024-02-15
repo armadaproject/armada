@@ -36,9 +36,11 @@ const (
 // Specifically, we maximise the log-likelihood function of P_q and P_n using observed successes and failures.
 // This maximisation is performed using online gradient descent, where for each success or failure,
 // we update the corresponding P_q and P_n by taking a gradient step.
+// See New(...) for more details regarding step size.
 //
 // Finally, we exponentially decay P_q and P_N towards 1 over time,
 // such that nodes and queues for which we observe no failures appear to become healthier over time.
+// See New(...) function for details regarding decay.
 //
 // This module internally only maintains success probability estimates, as this makes the maths cleaner.
 // When exporting these via API calls we convert to failure probabilities as these are more intuitive to reason about.
