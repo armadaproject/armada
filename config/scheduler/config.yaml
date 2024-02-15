@@ -143,7 +143,7 @@ scheduling:
     nodeSuccessProbabilityCordonThreshold: 0.1
     queueSuccessProbabilityCordonThreshold: 0.05
     nodeCordonTimeout: "10m"
-    queueCordonTimeout: "5m"
+    queueCordonTimeout: "1m"
     nodeEquilibriumFailureRate: 0.0167 # 1 per minute.
     queueEquilibriumFailureRate: 0.0167 # 1 per minute.
 
