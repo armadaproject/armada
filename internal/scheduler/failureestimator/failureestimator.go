@@ -39,6 +39,9 @@ const (
 //
 // Finally, we exponentially decay P_q and P_N towards 1 over time,
 // such that nodes and queues for which we observe no failures appear to become healthier over time.
+//
+// This module internally only maintains success probability estimates, as this makes the maths cleaner.
+// When exporting these via API calls we convert to failure probabilities as these are more intuitive to reason about.
 type FailureEstimator struct {
 	// Map from node (queue) name to the estimated success probability of that node (queue). For example:
 	// - successProbabilityByNode["myNode"] = 0.85]: estimated failure probability of a perfect job run on "myNode" is 15%.
