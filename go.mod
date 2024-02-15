@@ -87,6 +87,7 @@ require (
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
 	github.com/segmentio/fasthash v1.0.3
+	github.com/soheilhy/cmux v0.1.5
 	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/time v0.3.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9
@@ -173,7 +174,6 @@ require (
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.2 // indirect
-	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
