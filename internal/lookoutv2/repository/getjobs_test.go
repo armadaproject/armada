@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -84,12 +85,12 @@ func TestGetJobsSingle(t *testing.T) {
 			Job()
 
 		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
-		assert.NoError(t, err)
-		assert.Len(t, result.Jobs, 1)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
 		assert.Equal(t, job, result.Jobs[0])
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsMultipleRuns(t *testing.T) {
@@ -107,12 +108,12 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 
 		// Runs should be sorted from oldest -> newest
 		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
-		assert.NoError(t, err)
-		assert.Len(t, result.Jobs, 1)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
 		assert.Equal(t, job, result.Jobs[0])
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOrderByUnsupportedField(t *testing.T) {
@@ -128,11 +129,11 @@ func TestOrderByUnsupportedField(t *testing.T) {
 			0,
 			10,
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "column for field someField not found")
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOrderByUnsupportedDirection(t *testing.T) {
@@ -148,11 +149,11 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 			0,
 			10,
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "direction INTERLEAVED is not a valid sort direction")
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // Since job ids are ULIDs, it is comparable to sorting by submission time
@@ -195,8 +196,8 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, first, result.Jobs[0])
 			assert.Equal(t, second, result.Jobs[1])
 			assert.Equal(t, third, result.Jobs[2])
@@ -214,8 +215,8 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, third, result.Jobs[0])
 			assert.Equal(t, second, result.Jobs[1])
 			assert.Equal(t, first, result.Jobs[2])
@@ -223,7 +224,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsOrderBySubmissionTime(t *testing.T) {
@@ -255,8 +256,8 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, first, result.Jobs[0])
 			assert.Equal(t, second, result.Jobs[1])
 			assert.Equal(t, third, result.Jobs[2])
@@ -274,8 +275,8 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, third, result.Jobs[0])
 			assert.Equal(t, second, result.Jobs[1])
 			assert.Equal(t, first, result.Jobs[2])
@@ -283,7 +284,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
@@ -319,8 +320,8 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, first, result.Jobs[0])
 			assert.Equal(t, second, result.Jobs[1])
 			assert.Equal(t, third, result.Jobs[2])
@@ -338,8 +339,8 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, third, result.Jobs[0])
 			assert.Equal(t, second, result.Jobs[1])
 			assert.Equal(t, first, result.Jobs[2])
@@ -347,7 +348,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestFilterByUnsupportedField(t *testing.T) {
@@ -364,11 +365,11 @@ func TestFilterByUnsupportedField(t *testing.T) {
 			0,
 			10,
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "column for field someField not found")
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestFilterByUnsupportedMatch(t *testing.T) {
@@ -385,12 +386,12 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 			0,
 			10,
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), fmt.Sprintf("%s is not supported for field jobId", model.MatchLessThan))
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsById(t *testing.T) {
@@ -423,14 +424,14 @@ func TestGetJobsById(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job, result.Jobs[0])
 		})
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByQueue(t *testing.T) {
@@ -473,8 +474,8 @@ func TestGetJobsByQueue(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job, result.Jobs[0])
 		})
 
@@ -494,8 +495,8 @@ func TestGetJobsByQueue(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -517,8 +518,8 @@ func TestGetJobsByQueue(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 4)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 4)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -527,7 +528,7 @@ func TestGetJobsByQueue(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByJobSet(t *testing.T) {
@@ -570,8 +571,8 @@ func TestGetJobsByJobSet(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job, result.Jobs[0])
 		})
 
@@ -591,8 +592,8 @@ func TestGetJobsByJobSet(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -614,8 +615,8 @@ func TestGetJobsByJobSet(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 4)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 4)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -624,7 +625,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByOwner(t *testing.T) {
@@ -667,8 +668,8 @@ func TestGetJobsByOwner(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job, result.Jobs[0])
 		})
 
@@ -688,8 +689,8 @@ func TestGetJobsByOwner(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -711,8 +712,8 @@ func TestGetJobsByOwner(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 4)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 4)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -721,7 +722,7 @@ func TestGetJobsByOwner(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByState(t *testing.T) {
@@ -767,8 +768,8 @@ func TestGetJobsByState(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, running, result.Jobs[0])
 		})
 
@@ -792,8 +793,8 @@ func TestGetJobsByState(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, queued, result.Jobs[0])
 			assert.Equal(t, pending, result.Jobs[1])
 			assert.Equal(t, running, result.Jobs[2])
@@ -801,7 +802,7 @@ func TestGetJobsByState(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByAnnotation(t *testing.T) {
@@ -867,8 +868,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job1, result.Jobs[0])
 		})
 
@@ -894,8 +895,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job1, result.Jobs[0])
 		})
 
@@ -921,8 +922,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job5, result.Jobs[1])
 		})
@@ -949,8 +950,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job5, result.Jobs[1])
 		})
@@ -970,8 +971,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 4)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 4)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -980,7 +981,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByCpu(t *testing.T) {
@@ -1026,8 +1027,8 @@ func TestGetJobsByCpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job2, result.Jobs[0])
 		})
 
@@ -1047,8 +1048,8 @@ func TestGetJobsByCpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job3, result.Jobs[0])
 			assert.Equal(t, job4, result.Jobs[1])
 		})
@@ -1069,8 +1070,8 @@ func TestGetJobsByCpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 		})
@@ -1091,8 +1092,8 @@ func TestGetJobsByCpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job2, result.Jobs[0])
 			assert.Equal(t, job3, result.Jobs[1])
 			assert.Equal(t, job4, result.Jobs[2])
@@ -1114,8 +1115,8 @@ func TestGetJobsByCpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1123,7 +1124,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByMemory(t *testing.T) {
@@ -1169,8 +1170,8 @@ func TestGetJobsByMemory(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job2, result.Jobs[0])
 		})
 
@@ -1190,8 +1191,8 @@ func TestGetJobsByMemory(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job3, result.Jobs[0])
 			assert.Equal(t, job4, result.Jobs[1])
 		})
@@ -1212,8 +1213,8 @@ func TestGetJobsByMemory(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 		})
@@ -1234,8 +1235,8 @@ func TestGetJobsByMemory(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job2, result.Jobs[0])
 			assert.Equal(t, job3, result.Jobs[1])
 			assert.Equal(t, job4, result.Jobs[2])
@@ -1257,8 +1258,8 @@ func TestGetJobsByMemory(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1266,7 +1267,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByEphemeralStorage(t *testing.T) {
@@ -1312,8 +1313,8 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job2, result.Jobs[0])
 		})
 
@@ -1333,8 +1334,8 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job3, result.Jobs[0])
 			assert.Equal(t, job4, result.Jobs[1])
 		})
@@ -1355,8 +1356,8 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 		})
@@ -1377,8 +1378,8 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job2, result.Jobs[0])
 			assert.Equal(t, job3, result.Jobs[1])
 			assert.Equal(t, job4, result.Jobs[2])
@@ -1400,8 +1401,8 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1409,7 +1410,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByGpu(t *testing.T) {
@@ -1455,8 +1456,8 @@ func TestGetJobsByGpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job2, result.Jobs[0])
 		})
 
@@ -1476,8 +1477,8 @@ func TestGetJobsByGpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job3, result.Jobs[0])
 			assert.Equal(t, job4, result.Jobs[1])
 		})
@@ -1498,8 +1499,8 @@ func TestGetJobsByGpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 		})
@@ -1520,8 +1521,8 @@ func TestGetJobsByGpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job2, result.Jobs[0])
 			assert.Equal(t, job3, result.Jobs[1])
 			assert.Equal(t, job4, result.Jobs[2])
@@ -1543,8 +1544,8 @@ func TestGetJobsByGpu(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1552,7 +1553,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByPriority(t *testing.T) {
@@ -1598,8 +1599,8 @@ func TestGetJobsByPriority(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job2, result.Jobs[0])
 		})
 
@@ -1619,8 +1620,8 @@ func TestGetJobsByPriority(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job3, result.Jobs[0])
 			assert.Equal(t, job4, result.Jobs[1])
 		})
@@ -1641,8 +1642,8 @@ func TestGetJobsByPriority(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 		})
@@ -1663,8 +1664,8 @@ func TestGetJobsByPriority(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job2, result.Jobs[0])
 			assert.Equal(t, job3, result.Jobs[1])
 			assert.Equal(t, job4, result.Jobs[2])
@@ -1686,8 +1687,8 @@ func TestGetJobsByPriority(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1695,7 +1696,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsByPriorityClass(t *testing.T) {
@@ -1748,8 +1749,8 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 1)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
 			assert.Equal(t, job, result.Jobs[0])
 		})
 
@@ -1769,8 +1770,8 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 3)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1792,8 +1793,8 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 				0,
 				10,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 4)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 4)
 			assert.Equal(t, job, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
 			assert.Equal(t, job3, result.Jobs[2])
@@ -1802,7 +1803,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsSkip(t *testing.T) {
@@ -1831,8 +1832,8 @@ func TestGetJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, take)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, take)
 			assert.Equal(t, jobs[skip:skip+take], result.Jobs)
 		})
 
@@ -1850,8 +1851,8 @@ func TestGetJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, take)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, take)
 			assert.Equal(t, jobs[skip:skip+take], result.Jobs)
 		})
 
@@ -1869,14 +1870,14 @@ func TestGetJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Jobs, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
 			assert.Equal(t, jobs[skip:], result.Jobs)
 		})
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsComplex(t *testing.T) {
@@ -1941,13 +1942,13 @@ func TestGetJobsComplex(t *testing.T) {
 			skip,
 			take,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Jobs, take)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, take)
 		assert.Equal(t, jobs[skip:skip+take], result.Jobs)
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGetJobsActiveJobSet(t *testing.T) {
@@ -1980,8 +1981,8 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Jobs, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 2)
 		assert.Equal(t, []*model.Job{
 			activeJobSet1,
 			inactiveJobSet1,
@@ -1989,5 +1990,5 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

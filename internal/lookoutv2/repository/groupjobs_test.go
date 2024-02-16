@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -58,8 +59,8 @@ func TestGroupByQueue(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "queue-1",
@@ -79,7 +80,7 @@ func TestGroupByQueue(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByJobSet(t *testing.T) {
@@ -112,8 +113,8 @@ func TestGroupByJobSet(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-1",
@@ -133,7 +134,7 @@ func TestGroupByJobSet(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByState(t *testing.T) {
@@ -174,8 +175,8 @@ func TestGroupByState(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 4)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 4)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
@@ -200,7 +201,7 @@ func TestGroupByState(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByWithFilters(t *testing.T) {
@@ -357,8 +358,8 @@ func TestGroupByWithFilters(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 4)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 4)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
@@ -383,7 +384,7 @@ func TestGroupByWithFilters(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
@@ -451,8 +452,8 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -478,7 +479,7 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
@@ -546,8 +547,8 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "queue-3",
@@ -573,7 +574,7 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithAllStateCounts(t *testing.T) {
@@ -641,8 +642,8 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -695,7 +696,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
@@ -768,8 +769,8 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -796,7 +797,7 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsComplex(t *testing.T) {
@@ -907,8 +908,8 @@ func TestGroupJobsComplex(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:  "job-set-2",
@@ -929,7 +930,7 @@ func TestGroupJobsComplex(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByAnnotation(t *testing.T) {
@@ -972,8 +973,8 @@ func TestGroupByAnnotation(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "test-value-1",
@@ -993,7 +994,7 @@ func TestGroupByAnnotation(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
@@ -1097,8 +1098,8 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 4)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 4)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:  "4",
@@ -1135,7 +1136,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsSkip(t *testing.T) {
@@ -1175,8 +1176,8 @@ func TestGroupJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Groups, take)
+			require.NoError(t, err)
+			require.Len(t, result.Groups, take)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(4),
 				queueGroup(5),
@@ -1204,8 +1205,8 @@ func TestGroupJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Groups, take)
+			require.NoError(t, err)
+			require.Len(t, result.Groups, take)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(8),
 				queueGroup(9),
@@ -1233,8 +1234,8 @@ func TestGroupJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Groups, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Groups, 2)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(14),
 				queueGroup(15),
@@ -1243,7 +1244,7 @@ func TestGroupJobsSkip(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsValidation(t *testing.T) {
@@ -1264,7 +1265,7 @@ func TestGroupJobsValidation(t *testing.T) {
 				0,
 				100,
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		t.Run("invalid field", func(t *testing.T) {
@@ -1303,7 +1304,7 @@ func TestGroupJobsValidation(t *testing.T) {
 				0,
 				100,
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		t.Run("valid annotation with same name as column", func(t *testing.T) {
@@ -1323,12 +1324,12 @@ func TestGroupJobsValidation(t *testing.T) {
 				0,
 				100,
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByActiveJobSets(t *testing.T) {
@@ -1381,8 +1382,8 @@ func TestGroupByActiveJobSets(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-2",
@@ -1397,7 +1398,7 @@ func TestGroupByActiveJobSets(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 type createJobsOpts struct {
