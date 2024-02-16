@@ -51,11 +51,17 @@ var (
 	}
 )
 
-func TestGetJobsSingle(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository) error) error {
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		repo := NewSqlGetJobsRepository(db)
+		return f(converter, store, repo)
+	})
+}
 
+func TestGetJobsSingle(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId:            jobId,
@@ -77,7 +83,6 @@ func TestGetJobsSingle(t *testing.T) {
 			Build().
 			Job()
 
-		repo := NewSqlGetJobsRepository(db)
 		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
@@ -88,10 +93,7 @@ func TestGetJobsSingle(t *testing.T) {
 }
 
 func TestGetJobsMultipleRuns(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(uuid.NewString(), cluster, baseTime).
@@ -104,7 +106,6 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 			Job()
 
 		// Runs should be sorted from oldest -> newest
-		repo := NewSqlGetJobsRepository(db)
 		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
@@ -115,8 +116,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 }
 
 func TestOrderByUnsupportedField(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGetJobsRepository(db)
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -136,8 +136,7 @@ func TestOrderByUnsupportedField(t *testing.T) {
 }
 
 func TestOrderByUnsupportedDirection(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGetJobsRepository(db)
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -158,10 +157,7 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 
 // Since job ids are ULIDs, it is comparable to sorting by submission time
 func TestGetJobsOrderByJobId(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		firstId := "01f3j0g1md4qx7z5qb148qnh4d"
 		secondId := "01f3j0g1md4qx7z5qb148qnjjj"
 		thirdId := "01f3j0g1md4qx7z5qb148qnmmm"
@@ -186,8 +182,6 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -233,10 +227,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 }
 
 func TestGetJobsOrderBySubmissionTime(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		third := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime.Add(3*time.Second), basicJobOpts).
 			Build().
@@ -251,8 +242,6 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -298,10 +287,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 }
 
 func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		runId1 := uuid.NewString()
 		third := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
@@ -320,8 +306,6 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -367,8 +351,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 }
 
 func TestFilterByUnsupportedField(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGetJobsRepository(db)
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{{
@@ -389,9 +372,7 @@ func TestFilterByUnsupportedField(t *testing.T) {
 }
 
 func TestFilterByUnsupportedMatch(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGetJobsRepository(db)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{{
@@ -413,10 +394,7 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 }
 
 func TestGetJobsById(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
 			Build().
@@ -431,8 +409,6 @@ func TestGetJobsById(t *testing.T) {
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnbbb"}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -458,10 +434,7 @@ func TestGetJobsById(t *testing.T) {
 }
 
 func TestGetJobsByQueue(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
@@ -486,8 +459,6 @@ func TestGetJobsByQueue(t *testing.T) {
 			Submit("something-else", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -560,10 +531,7 @@ func TestGetJobsByQueue(t *testing.T) {
 }
 
 func TestGetJobsByJobSet(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, "job\\set\\1", owner, namespace, baseTime, basicJobOpts).
 			Build().
@@ -588,8 +556,6 @@ func TestGetJobsByJobSet(t *testing.T) {
 			Submit(queue, "something-else", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -662,10 +628,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 }
 
 func TestGetJobsByOwner(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
@@ -690,8 +653,6 @@ func TestGetJobsByOwner(t *testing.T) {
 			Submit(queue, jobSet, "something-else", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -764,10 +725,7 @@ func TestGetJobsByOwner(t *testing.T) {
 }
 
 func TestGetJobsByState(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		queued := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
@@ -795,8 +753,6 @@ func TestGetJobsByState(t *testing.T) {
 			Succeeded(baseTime).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -849,10 +805,7 @@ func TestGetJobsByState(t *testing.T) {
 }
 
 func TestGetJobsByAnnotation(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
@@ -899,8 +852,6 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1033,10 +984,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 }
 
 func TestGetJobsByCpu(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("1"),
@@ -1064,8 +1012,6 @@ func TestGetJobsByCpu(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1181,10 +1127,7 @@ func TestGetJobsByCpu(t *testing.T) {
 }
 
 func TestGetJobsByMemory(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("1000"),
@@ -1212,8 +1155,6 @@ func TestGetJobsByMemory(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1329,10 +1270,7 @@ func TestGetJobsByMemory(t *testing.T) {
 }
 
 func TestGetJobsByEphemeralStorage(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("1000"),
@@ -1360,8 +1298,6 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1477,10 +1413,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 }
 
 func TestGetJobsByGpu(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("1"),
@@ -1508,8 +1441,6 @@ func TestGetJobsByGpu(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1625,10 +1556,7 @@ func TestGetJobsByGpu(t *testing.T) {
 }
 
 func TestGetJobsByPriority(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 10,
@@ -1656,8 +1584,6 @@ func TestGetJobsByPriority(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1773,10 +1699,7 @@ func TestGetJobsByPriority(t *testing.T) {
 }
 
 func TestGetJobsByPriorityClass(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-1",
@@ -1811,8 +1734,6 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 			}).
 			Build().
 			Job()
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
@@ -1885,10 +1806,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 }
 
 func TestGetJobsSkip(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		nJobs := 15
 		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
@@ -1898,8 +1816,6 @@ func TestGetJobsSkip(t *testing.T) {
 				Build().
 				Job()
 		}
-
-		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("skip 3", func(t *testing.T) {
 			skip := 3
@@ -1964,10 +1880,7 @@ func TestGetJobsSkip(t *testing.T) {
 }
 
 func TestGetJobsComplex(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		nJobs := 15
 		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
@@ -1996,8 +1909,6 @@ func TestGetJobsComplex(t *testing.T) {
 				Build().
 				Job()
 		}
-
-		repo := NewSqlGetJobsRepository(db)
 
 		skip := 8
 		take := 5
@@ -2040,10 +1951,7 @@ func TestGetJobsComplex(t *testing.T) {
 }
 
 func TestGetJobsActiveJobSet(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		activeJobSet1 := NewJobSimulator(converter, store).
 			Submit("queue-1", "job-set-1", owner, namespace, baseTime, &JobOptions{}).
 			Build().
@@ -2060,9 +1968,6 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 			Cancelled(baseTime.Add(1 * time.Minute)).
 			Build().
 			Job()
-
-		fmt.Println(inactiveJobSet1)
-		repo := NewSqlGetJobsRepository(db)
 
 		result, err := repo.GetJobs(
 			armadacontext.TODO(),
