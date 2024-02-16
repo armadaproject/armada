@@ -338,6 +338,16 @@ func TestSchedule(t *testing.T) {
 			},
 			expectedScheduledIndices: []int{0},
 		},
+		"Schedule gang job over multiple executors": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues:                   []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass0, 4)),
+			expectedScheduledIndices: []int{0, 1, 2, 3},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
