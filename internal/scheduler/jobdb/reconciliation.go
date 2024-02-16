@@ -183,22 +183,18 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Running = true
 		}
 		if jobRepoRun.Preempted && !jobRun.Preempted() {
-			jobRun = jobRun.WithoutTerminal()
 			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.PreemptedTimestamp)
 			rst.Preempted = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
-			jobRun = jobRun.WithoutTerminal()
 			jobRun = jobRun.WithCancelled(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Cancelled = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithoutTerminal()
 			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Failed = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
-			jobRun = jobRun.WithoutTerminal()
 			jobRun = jobRun.WithSucceeded(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
 			rst.Succeeded = true
 		}
@@ -210,7 +206,30 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			jobRun = jobRun.WithAttempted(true)
 		}
 	}
+	jobRun = jobDb.enforceTerminalStateExclusivity(jobRun, &rst)
 	return
+}
+
+// enforceTerminalStateExclusivity ensures that a job run has a single terminal state regardless of what the database reports.
+// terminal states are: preempted, cancelled, failed, and succeeded.
+func (jobDb *JobDb) enforceTerminalStateExclusivity(jobRun *JobRun, rst *RunStateTransitions) *JobRun {
+	if jobRun.Preempted() {
+		jobRun = jobRun.WithoutTerminal().WithPreempted(true)
+		rst.Cancelled, rst.Failed, rst.Succeeded, rst.Preempted = false, false, false, true
+	}
+	if jobRun.Cancelled() {
+		jobRun = jobRun.WithoutTerminal().WithCancelled(true)
+		rst.Preempted, rst.Failed, rst.Succeeded, rst.Cancelled = false, false, false, true
+	}
+	if jobRun.Failed() {
+		jobRun = jobRun.WithoutTerminal().WithFailed(true)
+		rst.Preempted, rst.Cancelled, rst.Succeeded, rst.Failed = false, false, false, true
+	}
+	if jobRun.Succeeded() {
+		jobRun = jobRun.WithoutTerminal().WithSucceeded(true)
+		rst.Preempted, rst.Cancelled, rst.Failed, rst.Succeeded = false, false, false, true
+	}
+	return jobRun
 }
 
 // schedulerJobFromDatabaseJob creates a new scheduler job from a database job.
