@@ -213,21 +213,21 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 // enforceTerminalStateExclusivity ensures that a job run has a single terminal state regardless of what the database reports.
 // terminal states are: preempted, cancelled, failed, and succeeded.
 func (jobDb *JobDb) enforceTerminalStateExclusivity(jobRun *JobRun, rst *RunStateTransitions) *JobRun {
-	if jobRun.Preempted() {
-		jobRun = jobRun.WithoutTerminal().WithPreempted(true)
-		rst.Cancelled, rst.Failed, rst.Succeeded, rst.Preempted = false, false, false, true
-	}
-	if jobRun.Cancelled() {
-		jobRun = jobRun.WithoutTerminal().WithCancelled(true)
-		rst.Preempted, rst.Failed, rst.Succeeded, rst.Cancelled = false, false, false, true
+	if jobRun.Succeeded() {
+		rst.Preempted, rst.Cancelled, rst.Failed, rst.Succeeded = false, false, false, true
+		return jobRun.WithoutTerminal().WithSucceeded(true)
 	}
 	if jobRun.Failed() {
-		jobRun = jobRun.WithoutTerminal().WithFailed(true)
 		rst.Preempted, rst.Cancelled, rst.Succeeded, rst.Failed = false, false, false, true
+		return jobRun.WithoutTerminal().WithFailed(true)
 	}
-	if jobRun.Succeeded() {
-		jobRun = jobRun.WithoutTerminal().WithSucceeded(true)
-		rst.Preempted, rst.Cancelled, rst.Failed, rst.Succeeded = false, false, false, true
+	if jobRun.Cancelled() {
+		rst.Preempted, rst.Failed, rst.Succeeded, rst.Cancelled = false, false, false, true
+		return jobRun.WithoutTerminal().WithCancelled(true)
+	}
+	if jobRun.Preempted() {
+		rst.Cancelled, rst.Failed, rst.Succeeded, rst.Preempted = false, false, false, true
+		return jobRun.WithoutTerminal().WithPreempted(true)
 	}
 	return jobRun
 }
