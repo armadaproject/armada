@@ -19,11 +19,17 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
-func TestGroupByQueue(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		repo := NewSqlGroupJobsRepository(db)
+		return f(converter, store, repo)
+	})
+}
 
+func TestGroupByQueue(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: jobSet,
@@ -37,7 +43,6 @@ func TestGroupByQueue(t *testing.T) {
 			jobSet: jobSet,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -78,10 +83,7 @@ func TestGroupByQueue(t *testing.T) {
 }
 
 func TestGroupByJobSet(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
 			jobSet: "job-set-1",
@@ -95,7 +97,6 @@ func TestGroupByJobSet(t *testing.T) {
 			jobSet: "job-set-3",
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -136,10 +137,7 @@ func TestGroupByJobSet(t *testing.T) {
 }
 
 func TestGroupByState(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
 			jobSet: jobSet,
@@ -161,7 +159,6 @@ func TestGroupByState(t *testing.T) {
 			state:  lookout.JobFailed,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -207,10 +204,7 @@ func TestGroupByState(t *testing.T) {
 }
 
 func TestGroupByWithFilters(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		testAnnotations := map[string]string{
 			"key-1": "val-1",
 			"key-2": "val-2",
@@ -325,7 +319,6 @@ func TestGroupByWithFilters(t *testing.T) {
 			state:  lookout.JobFailed,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -394,10 +387,7 @@ func TestGroupByWithFilters(t *testing.T) {
 }
 
 func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:         queue,
 			jobSet:        "job-set-1",
@@ -446,7 +436,6 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 			submittedTime: pointer.Time(baseTime.Add(-7 * time.Minute)),
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -493,10 +482,7 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 }
 
 func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:         "queue-1",
 			jobSet:        "job-set-1",
@@ -545,7 +531,6 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 			submittedTime: pointer.Time(baseTime.Add(-7 * time.Minute)),
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -592,10 +577,7 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 }
 
 func TestGroupJobsWithAllStateCounts(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: "job-set-1",
@@ -644,7 +626,6 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 			state:  lookout.JobQueued,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -718,10 +699,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 }
 
 func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: "job-set-1",
@@ -765,7 +743,6 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 			state:  lookout.JobQueued,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -823,10 +800,7 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 }
 
 func TestGroupJobsComplex(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		testAnnotations := map[string]string{
 			"key-1": "val-1",
 			"key-2": "val-23",
@@ -888,7 +862,6 @@ func TestGroupJobsComplex(t *testing.T) {
 			state:  lookout.JobFailed,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -960,10 +933,7 @@ func TestGroupJobsComplex(t *testing.T) {
 }
 
 func TestGroupByAnnotation(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
 			jobSet: jobSet,
@@ -986,7 +956,6 @@ func TestGroupByAnnotation(t *testing.T) {
 			},
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -1028,10 +997,7 @@ func TestGroupByAnnotation(t *testing.T) {
 }
 
 func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:  queue,
 			jobSet: "job-set-1",
@@ -1100,7 +1066,6 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			lastTransitionTime: pointer.Time(baseTime.Add(50 * time.Minute)),
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -1174,10 +1139,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 }
 
 func TestGroupJobsSkip(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		nGroups := 15
 		for i := 0; i < nGroups; i++ {
 			manyJobs(i+1, &createJobsOpts{
@@ -1194,8 +1156,6 @@ func TestGroupJobsSkip(t *testing.T) {
 				Aggregates: map[string]interface{}{},
 			}
 		}
-
-		repo := NewSqlGroupJobsRepository(db)
 
 		t.Run("skip 3", func(t *testing.T) {
 			skip := 3
@@ -1287,9 +1247,7 @@ func TestGroupJobsSkip(t *testing.T) {
 }
 
 func TestGroupJobsValidation(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGroupJobsRepository(db)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		t.Run("valid field", func(t *testing.T) {
 			_, err := repo.GroupBy(
 				armadacontext.TODO(),
@@ -1374,10 +1332,7 @@ func TestGroupJobsValidation(t *testing.T) {
 }
 
 func TestGroupByActiveJobSets(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: "job-set-1",
@@ -1411,7 +1366,6 @@ func TestGroupByActiveJobSets(t *testing.T) {
 			state:  lookout.JobCancelled,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
