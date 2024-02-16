@@ -174,6 +174,10 @@ func TestConvert(t *testing.T) {
 		Requests: resources,
 	}
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = priorityClass
+	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
+		userAnnotationPrefix + "a": "0",
+		"b":                        "1",
+	}
 	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submit.GetSubmitJob())
 	assert.NoError(t, err)
 	jobProto, err := proto.Marshal(job)
@@ -195,6 +199,10 @@ func TestConvert(t *testing.T) {
 		LastTransitionTimeSeconds: testfixtures.BaseTime.Unix(),
 		JobProto:                  jobProto,
 		PriorityClass:             pointer.String(priorityClass),
+		Annotations: map[string]string{
+			"a": "0",
+			"b": "1",
+		},
 	}
 
 	otherJobIdUlid := util.ULID()
@@ -661,8 +669,13 @@ func TestAnnotations(t *testing.T) {
 			Jobset: testfixtures.JobSetName,
 		},
 	}
-	annotationInstructions := extractAnnotations(testfixtures.JobIdString, testfixtures.Queue, testfixtures.JobSetName, annotations, userAnnotationPrefix)
-	assert.Equal(t, expected, annotationInstructions)
+	instructions := createUserAnnotationInstructions(
+		testfixtures.JobIdString,
+		testfixtures.Queue,
+		testfixtures.JobSetName,
+		extractUserAnnotations(userAnnotationPrefix, annotations),
+	)
+	assert.Equal(t, expected, instructions)
 }
 
 func TestExtractNodeName(t *testing.T) {

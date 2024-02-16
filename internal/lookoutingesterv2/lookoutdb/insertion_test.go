@@ -43,6 +43,11 @@ const (
 
 var m = metrics.Get()
 
+var annotations = map[string]string{
+	"a": "0",
+	"b": "1",
+}
+
 var (
 	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
@@ -74,6 +79,7 @@ type JobRow struct {
 	PriorityClass             string
 	LatestRunId               *string
 	CancelReason              *string
+	Annotations               map[string]string
 }
 
 type JobRunRow struct {
@@ -151,6 +157,7 @@ var expectedJobAfterSubmit = JobRow{
 	JobProto:                  []byte(jobProto),
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
+	Annotations:               annotations,
 }
 
 var expectedJobAfterUpdate = JobRow{
@@ -170,6 +177,7 @@ var expectedJobAfterUpdate = JobRow{
 	JobProto:                  []byte(jobProto),
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
+	Annotations:               annotations,
 }
 
 var expectedJobRun = JobRunRow{
@@ -927,6 +935,7 @@ func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {
 		LastTransitionTimeSeconds: baseTime.Unix(),
 		JobProto:                  []byte(jobProto),
 		PriorityClass:             pointer.String(priorityClass),
+		Annotations:               annotations,
 	}
 }
 
@@ -963,7 +972,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
     		duplicate,
 			priority_class,
 			latest_run_id,
-			cancel_reason
+			cancel_reason,
+			annotations
 		FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
@@ -986,6 +996,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.PriorityClass,
 		&job.LatestRunId,
 		&job.CancelReason,
+		&job.Annotations,
 	)
 	assert.Nil(t, err)
 	return job
