@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
@@ -17,7 +18,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 	}
 	return &models.Job{
 		Annotations:        job.Annotations,
-		Cancelled:          toSwaggerTimePtr(job.Cancelled),
+		Cancelled:          ToSwaggerTime(job.Cancelled),
 		CPU:                job.Cpu,
 		Duplicate:          job.Duplicate,
 		EphemeralStorage:   job.EphemeralStorage,
@@ -43,13 +44,13 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 	return &models.Run{
 		Cluster:     run.Cluster,
 		ExitCode:    run.ExitCode,
-		Finished:    toSwaggerTimePtr(run.Finished),
-		JobRunState: run.JobRunState,
+		Finished:    PostgreSQLToSwaggerTime(run.Finished),
+		JobRunState: string(lookout.JobRunStateMap[run.JobRunState]),
 		Node:        run.Node,
-		Leased:      toSwaggerTimePtr(run.Leased),
-		Pending:     toSwaggerTimePtr(run.Pending),
+		Leased:      PostgreSQLToSwaggerTime(run.Leased),
+		Pending:     PostgreSQLToSwaggerTime(run.Pending),
 		RunID:       run.RunId,
-		Started:     toSwaggerTimePtr(run.Started),
+		Started:     PostgreSQLToSwaggerTime(run.Started),
 	}
 }
 
@@ -90,10 +91,18 @@ func FromSwaggerGroupedField(groupedField *operations.GroupJobsParamsBodyGrouped
 	}
 }
 
-func toSwaggerTimePtr(ts *time.Time) *strfmt.DateTime {
-	if ts == nil {
+func ToSwaggerTime(t *time.Time) *strfmt.DateTime {
+	if t == nil {
 		return nil
 	}
-	swaggerTs := strfmt.DateTime(*ts)
+	swaggerTs := strfmt.DateTime(*t)
 	return &swaggerTs
+}
+
+func PostgreSQLToSwaggerTime(t *model.PostgreSQLTime) *strfmt.DateTime {
+	if t == nil {
+		return nil
+	}
+	s := strfmt.DateTime(t.Time)
+	return &s
 }

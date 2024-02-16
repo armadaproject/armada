@@ -418,13 +418,13 @@ func TestQueryBuilder_GroupByStateAggregates(t *testing.T) {
 				FROM user_annotation_lookup
 				WHERE queue = $4 AND key = $5 AND value LIKE $6
 			) AS ual1 ON j.job_id = ual1.job_id
-			WHERE j.queue = $7 AND j.owner LIKE $8 AND j.state IN ($9, $10, $11, $12)
+			WHERE j.queue = $7 AND j.owner LIKE $8 AND j.state = ANY ($9)
 			GROUP BY j.jobset
 			ORDER BY last_transition_time_seconds DESC
 			LIMIT 100 OFFSET 20
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%", 1, 8, 2, 3}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%", []int{1, 8, 2, 3}}, query.Args)
 }
 
 func TestQueryBuilder_GroupByAnnotationMultipleAggregates(t *testing.T) {

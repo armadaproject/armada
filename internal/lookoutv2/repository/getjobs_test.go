@@ -53,12 +53,17 @@ var (
 )
 
 func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository) error) error {
-	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-		repo := NewSqlGetJobsRepository(db)
-		return f(converter, store, repo)
-	})
+	for _, useJsonbBackend := range []bool{false, true} {
+		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+			repo := NewSqlGetJobsRepository(db, useJsonbBackend)
+			return f(converter, store, repo)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestGetJobsSingle(t *testing.T) {
