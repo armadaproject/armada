@@ -200,21 +200,12 @@ func (l *FairSchedulingAlgo) Schedule(
 }
 
 func (l *FairSchedulingAlgo) groupExecutors(executors []*schedulerobjects.Executor) map[string][]*schedulerobjects.Executor {
-	if l.schedulingConfig.UnifiedSchedulingByPool {
-		return armadaslices.GroupByFunc(
-			executors,
-			func(executor *schedulerobjects.Executor) string {
-				return executor.Pool
-			},
-		)
-	} else {
-		return armadaslices.GroupByFunc(
-			executors,
-			func(executor *schedulerobjects.Executor) string {
-				return executor.Id
-			},
-		)
-	}
+	return armadaslices.GroupByFunc(
+		executors,
+		func(executor *schedulerobjects.Executor) string {
+			return executor.Pool
+		},
+	)
 }
 
 type JobQueueIteratorAdapter struct {
