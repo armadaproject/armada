@@ -31,8 +31,10 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		return err
 	}
 
-	getJobsRepo := repository.NewSqlGetJobsRepository(db)
-	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
+	getJobsRepo := repository.NewSqlGetJobsRepository(db, false)
+	getJobsJsonbRepo := repository.NewSqlGetJobsRepository(db, true)
+	groupJobsRepo := repository.NewSqlGroupJobsRepository(db, false)
+	groupJobsJsonbRepo := repository.NewSqlGroupJobsRepository(db, true)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
@@ -54,7 +56,11 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		func(params operations.GetJobsParams) middleware.Responder {
 			filters := util.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
-			result, err := getJobsRepo.GetJobs(
+			repo := getJobsRepo
+			if backend := params.Backend; backend != nil && *backend == "jsonb" {
+				repo = getJobsJsonbRepo
+			}
+			result, err := repo.GetJobs(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
@@ -75,7 +81,11 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		func(params operations.GroupJobsParams) middleware.Responder {
 			filters := util.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
-			result, err := groupJobsRepo.GroupBy(
+			repo := groupJobsRepo
+			if backend := params.Backend; backend != nil && *backend == "jsonb" {
+				repo = groupJobsJsonbRepo
+			}
+			result, err := repo.GroupBy(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GroupJobsRequest.ActiveJobSets,

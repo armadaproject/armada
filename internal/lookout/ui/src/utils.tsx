@@ -24,6 +24,7 @@ interface UIConfig {
   oidcEnabled: boolean
   oidc?: OidcConfig
   commandSpecs: CommandSpec[]
+  backend: string | undefined
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -52,6 +53,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     oidcEnabled: false,
     oidc: undefined,
     commandSpecs: [],
+    backend: undefined,
   }
 
   try {
@@ -76,6 +78,7 @@ export async function getUIConfig(): Promise<UIConfig> {
         })
       }
     }
+    if (json.Backend) config.backend = json.Backend
   } catch (e) {
     console.error(e)
   }
@@ -90,6 +93,9 @@ export async function getUIConfig(): Promise<UIConfig> {
   }
 
   if (window.location.pathname === "/oidc") config.oidcEnabled = true
+
+  const backend = searchParams.get("backend")
+  if (backend) config.backend = backend
 
   return config
 }
