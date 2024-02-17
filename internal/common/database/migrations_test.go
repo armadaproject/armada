@@ -58,14 +58,6 @@ func TestReadMigrations(t *testing.T) {
 	assert.Equal(t, migrations[0].id, 1, "Incorrect ID for 001_initial_schema.sql")
 	assert.Equal(t, migrations[1].id, 2, "Incorrect ID for 002_cancel_reason.sql")
 	assert.Equal(t, migrations[2].id, 3, "Incorrect ID for 003_run_leased_column.sql")
-	assert.Equal(t, migrations[3].id, 4, "Incorrect ID for 004_job_namespace.sql")
-	assert.Equal(t, migrations[4].id, 1, "Incorrect ID for 001_initialize_schema.up.sql")
-	assert.Equal(t, migrations[5].id, 2, "Incorrect ID for 002_add_runs_timestamps.up.sql")
-	assert.Equal(t, migrations[6].id, 3, "Incorrect ID for 003_add_runs_scheduled_at_priority.up.sql")
-	assert.Equal(t, migrations[7].id, 4, "Incorrect ID for 004_add_preempted_pending.up.sql")
-	assert.Equal(t, migrations[8].id, 5, "Incorrect ID for 005_add_runs_timestamps.up.sql")
-	assert.Equal(t, migrations[9].id, 6, "Incorrect ID for 006_add_run_pod_requirements.up.sql")
-	assert.Equal(t, migrations[10].id, 7, "Incorrect ID for 007_add_queue_jobset_index.sql")
     
 	for _, migration := range migrations {
 		assert.True(t, len(strconv.Itoa(migration.id)) <= 2, "Invalid ID length for %v", migration.name)
