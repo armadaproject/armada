@@ -55,7 +55,7 @@ kubernetes:
     deadlineForSubmittedPodConsideredMissing: 15m
     deadlineForActivePodConsideredMissing: 5m
   pendingPodChecks:
-    deadlineForUpdates: 10m
+    deadlineForUpdates: 5m
     deadlineForNodeAssignment: 5m
     events:
       - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
