@@ -379,8 +379,9 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 					JobId: issue.RunIssue.JobId,
 					RunId: issue.RunIssue.RunId,
 					PodIssue: &podIssue{
-						OriginalPodState:  issue.RunIssue.PodIssue.OriginalPodState,
-						Message:           "Pod unexpectedly started up after delete was called",
+						OriginalPodState: issue.RunIssue.PodIssue.OriginalPodState,
+						Message: fmt.Sprintf("Pod unexpectedly started up after delete was called.\n\nDelete was originally called to handle issue:\n%s",
+							issue.RunIssue.PodIssue.Message),
 						Retryable:         false,
 						DeletionRequested: false,
 						Type:              ErrorDuringIssueHandling,
