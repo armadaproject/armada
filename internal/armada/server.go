@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -256,8 +257,18 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		jobRepository,
 	)
 
+	if config.QueryApi.Enabled {
+		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+		if err != nil {
+			return errors.WithMessage(err, "error creating QueryApi postgres pool")
+		}
+		queryapiServer := queryapi.New(queryDb)
+		api.RegisterQueryApiServer(grpcServer, queryapiServer)
+	}
+
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)
 

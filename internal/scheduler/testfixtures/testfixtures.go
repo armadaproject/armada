@@ -147,11 +147,6 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 	}
 }
 
-func WithUnifiedSchedulingByPoolConfig(config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.UnifiedSchedulingByPool = true
-	return config
-}
-
 func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaxUnacknowledgedJobsPerExecutor = v
 	return config

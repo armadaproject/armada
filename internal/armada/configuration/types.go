@@ -39,6 +39,7 @@ type ArmadaConfig struct {
 	Scheduling          SchedulingConfig
 	Pulsar              PulsarConfig
 	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
+	QueryApi            QueryApiConfig
 }
 
 type PulsarConfig struct {
@@ -84,10 +85,7 @@ type SchedulingConfig struct {
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// If true, schedule jobs across all executors in the same pool in a unified manner.
-	// Otherwise, schedule each executor separately.
-	UnifiedSchedulingByPool bool
-	Preemption              PreemptionConfig
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -218,6 +216,8 @@ type SchedulingConfig struct {
 	ExecutorUpdateFrequency time.Duration
 	// Enable new preemption strategy.
 	EnableNewPreemptionStrategy bool
+	// Controls node and queue success probability estimation.
+	FailureEstimatorConfig FailureEstimatorConfig
 }
 
 const (
@@ -314,7 +314,24 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
+// FailureEstimatorConfig contains config controlling node and queue success probability estimation.
+// See the internal/scheduler/failureestimator package for details.
+type FailureEstimatorConfig struct {
+	Disabled                               bool
+	NodeSuccessProbabilityCordonThreshold  float64
+	QueueSuccessProbabilityCordonThreshold float64
+	NodeCordonTimeout                      time.Duration
+	QueueCordonTimeout                     time.Duration
+	NodeEquilibriumFailureRate             float64
+	QueueEquilibriumFailureRate            float64
+}
+
 // TODO: we can probably just typedef this to map[string]string
 type PostgresConfig struct {
 	Connection map[string]string
+}
+
+type QueryApiConfig struct {
+	Enabled  bool
+	Postgres PostgresConfig
 }
