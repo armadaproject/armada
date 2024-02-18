@@ -16,5 +16,4 @@ batchSize: 1048576  #1MB
 batchDuration: 100ms
 batchMessages: 10000
 eventRetentionPolicy:
-  expiryEnabled: true
   retentionDuration: 336h

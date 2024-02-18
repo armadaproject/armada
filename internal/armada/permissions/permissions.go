@@ -12,6 +12,5 @@ const (
 	WatchAllEvents                            = "watch_all_events"
 	CreateQueue                               = "create_queue"
 	DeleteQueue                               = "delete_queue"
-	ExecuteJobs                               = "execute_jobs"
 	CordonNodes                               = "cordon_nodes"
 )

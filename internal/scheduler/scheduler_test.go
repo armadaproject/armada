@@ -15,11 +15,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	apiconfig "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -46,7 +47,7 @@ var (
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{
 						Annotations: map[string]string{
-							configuration.FailFastAnnotation: "true",
+							apiconfig.FailFastAnnotation: "true",
 						},
 						Priority: int32(10),
 					},
@@ -777,6 +778,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				nodeIdLabel,
 				schedulerMetrics,
 				nil,
+				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -937,6 +939,7 @@ func TestRun(t *testing.T) {
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
+		nil,
 		nil,
 	)
 	require.NoError(t, err)
@@ -1161,6 +1164,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				nil,
 				nil,
 			)
 			require.NoError(t, err)
@@ -2310,6 +2314,7 @@ func TestCycleConsistency(t *testing.T) {
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,
+					nil,
 					nil,
 				)
 				require.NoError(t, err)

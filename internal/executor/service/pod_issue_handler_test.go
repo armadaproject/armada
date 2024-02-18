@@ -97,6 +97,11 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 			// Created 10 mins ago, 5 min deadline, 10 minute grace period
 			pod: makePodWithDeadline(startTime, 300, 600),
 		},
+		"PodWithNoStartTime": {
+			expectIssueDetected: false,
+			// Created 10 mins ago, 5 min deadline, no start time
+			pod: makePodWithDeadline(time.Time{}, 300, 0),
+		},
 	}
 
 	for name, tc := range tests {
@@ -307,13 +312,14 @@ func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Po
 	return remainingActivePods
 }
 
-func makePodWithDeadline(createdTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
+func makePodWithDeadline(startTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
 	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
 	activeDeadlineSeconds := int64(deadlineSeconds)
 	pod.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
 	terminationGracePeriodSeconds := int64(gracePeriodSeconds)
 	pod.Spec.TerminationGracePeriodSeconds = &terminationGracePeriodSeconds
-	pod.CreationTimestamp = metav1.NewTime(createdTime)
+	podStartTime := metav1.NewTime(startTime)
+	pod.Status.StartTime = &podStartTime
 	return pod
 }
 

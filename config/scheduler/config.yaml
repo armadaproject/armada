@@ -11,11 +11,11 @@ metrics:
   refreshInterval: 30s
   metrics:
     scheduleCycleTimeHistogramSettings:
-      start: 1.0
+      start: 10.0
       factor: 1.1
       count: 110
     reconcileCycleTimeHistogramSettings:
-      start: 1.0
+      start: 10.0
       factor: 1.1
       count: 110
 schedulerMetrics:
@@ -139,4 +139,11 @@ scheduling:
       resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
+  failureEstimatorConfig:
+    nodeSuccessProbabilityCordonThreshold: 0.1
+    queueSuccessProbabilityCordonThreshold: 0.05
+    nodeCordonTimeout: "10m"
+    queueCordonTimeout: "1m"
+    nodeEquilibriumFailureRate: 0.0167 # 1 per minute.
+    queueEquilibriumFailureRate: 0.0167 # 1 per minute.
 

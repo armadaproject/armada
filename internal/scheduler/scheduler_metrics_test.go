@@ -21,9 +21,9 @@ func TestAggregateJobs(t *testing.T) {
 		testfixtures.Test1Cpu4GiJob("queue_a", testfixtures.PriorityClass0),
 	}
 
-	actual := aggregateJobContexts(schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, testJobs))
+	actual := aggregateJobContexts(map[queuePriorityClassKey]int{}, schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, testJobs))
 
-	expected := map[collectionKey]int{
+	expected := map[queuePriorityClassKey]int{
 		{queue: "queue_a", priorityClass: testfixtures.PriorityClass0}: 4,
 		{queue: "queue_a", priorityClass: testfixtures.PriorityClass1}: 1,
 		{queue: "queue_b", priorityClass: testfixtures.PriorityClass0}: 1,

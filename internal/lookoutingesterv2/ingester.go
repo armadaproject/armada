@@ -68,7 +68,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		pulsar.KeyShared,
 		converter,
 		lookoutDb,
-		config.Metrics,
+		config.MetricsPort,
 		m,
 	)
 

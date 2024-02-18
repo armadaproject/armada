@@ -72,7 +72,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		pulsar.KeyShared,
 		converter,
 		eventDb,
-		config.Metrics,
+		config.MetricsPort,
 		metrics,
 	)
 	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {

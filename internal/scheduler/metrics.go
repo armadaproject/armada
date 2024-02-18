@@ -208,10 +208,11 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 }
 
 type queueMetricKey struct {
-	cluster   string
-	pool      string
-	queueName string
-	nodeType  string
+	cluster       string
+	pool          string
+	queueName     string
+	nodeType      string
+	priorityClass string
 }
 
 type queuePhaseMetricKey struct {
@@ -284,10 +285,11 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
 						queueKey := queueMetricKey{
-							cluster:   executor.Id,
-							pool:      executor.Pool,
-							queueName: job.Queue(),
-							nodeType:  node.ReportingNodeType,
+							cluster:       executor.Id,
+							pool:          executor.Pool,
+							queueName:     job.Queue(),
+							priorityClass: job.GetPriorityClassName(),
+							nodeType:      node.ReportingNodeType,
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
 					}
@@ -302,7 +304,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, r := range allocatedResourceByQueue {
 		for resourceKey, resourceValue := range r.Resources {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, k.priorityClass, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range usedResourceByQueue {
