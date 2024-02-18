@@ -427,9 +427,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if l.schedulingConfig.EnableAssertions {
 		scheduler.EnableAssertions()
 	}
-	if l.schedulingConfig.EnableNewPreemptionStrategy {
-		scheduler.EnableNewPreemptionStrategy()
-	}
+
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, nil, err

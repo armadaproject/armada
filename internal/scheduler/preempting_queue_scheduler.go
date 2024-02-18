@@ -47,8 +47,6 @@ type PreemptingQueueScheduler struct {
 	skipUnsuccessfulSchedulingKeyCheck bool
 	// If true, asserts that the nodeDb state is consistent with expected changes.
 	enableAssertions bool
-	// If true, a newer preemption strategy is used.
-	enableNewPreemptionStrategy bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -96,11 +94,6 @@ func (sch *PreemptingQueueScheduler) EnableAssertions() {
 
 func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
-}
-
-func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
-	sch.enableNewPreemptionStrategy = true
-	sch.nodeDb.EnableNewPreemptionStrategy()
 }
 
 // Schedule
@@ -318,13 +311,11 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	inMemoryJobRepo.EnqueueMany(evictedJctxs)
 	txn.Commit()
 
-	if sch.enableNewPreemptionStrategy {
-		if err := sch.nodeDb.Reset(); err != nil {
-			return nil, nil, err
-		}
-		if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
-			return nil, nil, err
-		}
+	if err := sch.nodeDb.Reset(); err != nil {
+		return nil, nil, err
+	}
+	if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
+		return nil, nil, err
 	}
 	return result, inMemoryJobRepo, nil
 }

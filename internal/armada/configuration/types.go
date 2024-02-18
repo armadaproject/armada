@@ -214,8 +214,6 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Enable new preemption strategy.
-	EnableNewPreemptionStrategy bool
 	// Controls node and queue success probability estimation.
 	FailureEstimatorConfig FailureEstimatorConfig
 }
@@ -259,9 +257,6 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 type FairnessModel string
 
 const (
-	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
-	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
-	AssetFairness FairnessModel = "AssetFairness"
 	// DominantResourceFairness set the cost associated with a queue to
 	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
 	DominantResourceFairness FairnessModel = "DominantResourceFairness"

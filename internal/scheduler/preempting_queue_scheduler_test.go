@@ -1887,9 +1887,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					gangIdByJobId,
 				)
 				sch.EnableAssertions()
-				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
-					sch.EnableNewPreemptionStrategy()
-				}
+
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
