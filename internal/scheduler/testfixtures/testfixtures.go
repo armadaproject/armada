@@ -124,7 +124,6 @@ func Repeat[T any](v T, n int) []T {
 
 func TestSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
-		ResourceScarcity: map[string]float64{"cpu": 1},
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses:                         maps.Clone(TestPriorityClasses),
 			DefaultPriorityClass:                    TestDefaultPriorityClass,
@@ -153,11 +152,6 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.Sch
 
 func WithProtectedFractionOfFairShareConfig(v float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.Preemption.ProtectedFractionOfFairShare = v
-	return config
-}
-
-func WithDominantResourceFairnessConfig(config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.FairnessModel = configuration.DominantResourceFairness
 	return config
 }
 

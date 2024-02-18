@@ -1353,10 +1353,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			},
 		},
 		"DominantResourceFairness": {
-			SchedulingConfig: testfixtures.WithDominantResourceFairnessConfig(
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{

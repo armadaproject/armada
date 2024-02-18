@@ -25,28 +25,6 @@ type FairnessCostProvider interface {
 	CostFromAllocationAndWeight(allocation schedulerobjects.ResourceList, weight float64) float64
 }
 
-type AssetFairness struct {
-	// Weights used when computing asset fairness.
-	resourceScarcity map[string]float64
-}
-
-func NewAssetFairness(resourceScarcity map[string]float64) (*AssetFairness, error) {
-	if len(resourceScarcity) == 0 {
-		return nil, errors.New("resourceScarcity is empty")
-	}
-	return &AssetFairness{
-		resourceScarcity: resourceScarcity,
-	}, nil
-}
-
-func (f *AssetFairness) CostFromQueue(queue Queue) float64 {
-	return f.CostFromAllocationAndWeight(queue.GetAllocation(), queue.GetWeight())
-}
-
-func (f *AssetFairness) CostFromAllocationAndWeight(allocation schedulerobjects.ResourceList, weight float64) float64 {
-	return float64(allocation.AsWeightedMillis(f.resourceScarcity)) / weight
-}
-
 type DominantResourceFairness struct {
 	// Total resources across all nodes.
 	totalResources schedulerobjects.ResourceList

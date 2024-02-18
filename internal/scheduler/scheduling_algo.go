@@ -354,19 +354,15 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	}
 	totalResources := fsctx.totalCapacityByPool[pool]
 	var fairnessCostProvider fairness.FairnessCostProvider
-	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
-			totalResources,
-			l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		fairnessCostProvider, err = fairness.NewAssetFairness(l.schedulingConfig.ResourceScarcity)
-		if err != nil {
-			return nil, nil, err
-		}
+
+	// Right now we only support DominantResourceFairness.
+	// If we want to support other fairness models it would need to be done here
+	fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+		totalResources,
+		l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 	sctx := schedulercontext.NewSchedulingContext(
 		executorId,
