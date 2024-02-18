@@ -517,3 +517,24 @@ func (txn *Txn) checkWritableTransaction() error {
 	}
 	return nil
 }
+
+func PriorityClassFromLegacySchedulerJob(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, job *Job) types.PriorityClass {
+	priorityClassName := job.GetPriorityClassName()
+	if priorityClass, ok := priorityClasses[priorityClassName]; ok {
+		return priorityClass
+	}
+	// We could return (types.PriorityClass{}, false) here, but then callers
+	// might handle this situation in different ways; return the default
+	// priority class in order to enforce uniformity.
+	return priorityClasses[defaultPriorityClassName]
+}
+
+func SchedulingKeyFromLegacySchedulerJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job) schedulerobjects.SchedulingKey {
+	return skg.Key(
+		job.GetNodeSelector(),
+		job.GetAffinity(),
+		job.GetTolerations(),
+		job.GetResourceRequirements().Requests,
+		job.GetPriorityClassName(),
+	)
+}

@@ -498,9 +498,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			// Update jobDb to reflect the decisions by the scheduler.
 			// Sort jobs to ensure deterministic event ordering.
-			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult[*jobdb.Job](result)
+			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult(result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
-			failedJobs := scheduler.FailedJobsFromSchedulerResult[*jobdb.Job](result)
+			failedJobs := scheduler.FailedJobsFromSchedulerResult(result)
 			lessJob := func(a, b *jobdb.Job) bool {
 				if a.Queue() < b.Queue() {
 					return true

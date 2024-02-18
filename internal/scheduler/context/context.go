@@ -2,7 +2,6 @@ package context
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -22,6 +21,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

@@ -18,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -136,8 +135,10 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	srv.jobSchedulingResultsCache.Purge()
 }
 
+// TODO: FIX THIS!!!!!!!!
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
+	return false, ""
+	//return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 
 func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
@@ -174,7 +175,7 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
 		srv.mu.Lock()
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		schedulingKey = jobdb.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
 		srv.mu.Unlock()
 	}
 

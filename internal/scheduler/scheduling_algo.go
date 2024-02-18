@@ -167,9 +167,9 @@ func (l *FairSchedulingAlgo) Schedule(
 			}
 		}
 
-		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+		failedJobs := FailedJobsFromSchedulerResult(schedulerResult)
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
 		}
@@ -434,7 +434,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		return nil, nil, err
 	}
 	for i, jctx := range result.PreemptedJobs {
-		jobDbJob := jctx.Job.(*jobdb.Job)
+		jobDbJob := jctx.Job
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
@@ -443,7 +443,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		result.PreemptedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	for i, jctx := range result.ScheduledJobs {
-		jobDbJob := jctx.Job.(*jobdb.Job)
+		jobDbJob := jctx.Job
 		jobId := jobDbJob.GetId()
 		nodeId := result.NodeIdByJobId[jobId]
 		if nodeId == "" {
@@ -463,8 +463,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			WithNewRun(node.Executor, node.Id, node.Name, priority)
 	}
 	for i, jctx := range result.FailedJobs {
-		jobDbJob := jctx.Job.(*jobdb.Job)
-		result.FailedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
+		result.FailedJobs[i].Job = jctx.Job.WithQueued(false).WithFailed(true)
 	}
 	return result, sctx, nil
 }

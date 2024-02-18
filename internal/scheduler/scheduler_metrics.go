@@ -165,7 +165,7 @@ func aggregateJobContexts(previousSchedulingRoundData map[queuePriorityClassKey]
 
 	for _, jctx := range jctxs {
 		job := jctx.Job
-		key := queuePriorityClassKey{queue: job.GetQueue(), priorityClass: job.GetPriorityClassName()}
+		key := queuePriorityClassKey{queue: job.Queue(), priorityClass: job.GetPriorityClassName()}
 		result[key] += 1
 	}
 

@@ -58,10 +58,8 @@ func (JobPriorityComparer) Compare(job, other *Job) int {
 }
 
 // SchedulingOrderCompare defines the order in which jobs in a particular queue should be scheduled,
-func (job *Job) SchedulingOrderCompare(other *jobdb.Job) int {
-	// We need this cast for now to expose this method via an interface.
-	// This is safe since we only ever compare jobs of the same type.
-	return SchedulingOrderCompare(job, other.(*Job))
+func (job *Job) SchedulingOrderCompare(other *Job) int {
+	return SchedulingOrderCompare(job, other)
 }
 
 // SchedulingOrderCompare defines the order in which jobs in a queue should be scheduled
