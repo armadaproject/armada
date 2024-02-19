@@ -330,7 +330,6 @@ func (qb *QueryBuilder) GroupBy(
 		}
 	}
 
-	groupBySql := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
 	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
 	if err != nil {
 		return nil, err
@@ -344,6 +343,10 @@ func (qb *QueryBuilder) GroupBy(
 		return nil, err
 	}
 	orderSql, err := qb.groupByOrderSql(order)
+	if err != nil {
+		return nil, err
+	}
+	groupBySql, err := qb.createGroupBySQL(order, groupCol, aggregates)
 	if err != nil {
 		return nil, err
 	}
@@ -438,6 +441,31 @@ GROUP BY %s.%s
 
 	query, args := templateSql(query, qb.queryValues)
 	return &Query{Sql: query, Args: args}, nil
+}
+
+func (qb *QueryBuilder) createGroupBySQL(order *model.Order, groupCol *queryColumn, aggregates []string) (string, error) {
+	expr := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
+	isInAggregators := len(aggregates) > 0 && func(sl []string, t string) bool {
+		for _, s := range sl {
+			if s == t {
+				return true
+			}
+		}
+		return false
+	}(aggregates, order.Field)
+	if orderIsNull(order) || order.Field == countCol || isInAggregators {
+		return expr, nil
+	}
+	col, err := qb.lookoutTables.ColumnFromField(order.Field)
+	if err != nil {
+		return expr, err
+	}
+
+	if groupCol.name == col {
+		return expr, nil
+	}
+	// If order is not already grouped by or aggregated by, include it in GROUP BY statement
+	return expr + fmt.Sprintf(", %s.%s", groupCol.abbrev, col), nil
 }
 
 func (qb *QueryBuilder) fieldsToCols(fields []string) ([]string, error) {
@@ -1207,8 +1235,10 @@ func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
 	if err != nil {
 		return errors.Errorf("unsupported field for order: %s", order.Field)
 	}
+
 	_, err = qb.lookoutTables.GroupAggregateForCol(col)
-	if err != nil {
+	// If it is not an aggregate and not groupable, it can't be ordered by
+	if err != nil && !qb.lookoutTables.IsGroupable(col) {
 		return errors.Errorf("unsupported field for order: %s, cannot sort by column %s", order.Field, col)
 	}
 	return nil
