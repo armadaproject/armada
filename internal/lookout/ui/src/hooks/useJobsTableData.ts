@@ -84,7 +84,12 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
 ])
 
 // Return ordering to request to API based on column
-function getOrder(lookoutOrder: LookoutColumnOrder, lookoutFilters: JobFilter[], groupedColumns: ColumnId[], isJobFetch: boolean): JobOrder {
+function getOrder(
+  lookoutOrder: LookoutColumnOrder,
+  lookoutFilters: JobFilter[],
+  groupedColumns: ColumnId[],
+  isJobFetch: boolean,
+  ): JobOrder {
   const defaultJobOrder: JobOrder = {
     field: "jobId",
     direction: "DESC",
