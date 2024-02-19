@@ -81,71 +81,14 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGetJobs
 }
 
 func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+	getJobs := r.getJobs
 	if r.useJsonbBackend {
-		query, err := NewQueryBuilder(r.lookoutTables).GetJobsJsonb(filters, activeJobSets, order, skip, take)
-		if err != nil {
-			return nil, err
-		}
-		logQuery(query, "GetJobs")
-		var jobs []*model.Job
-		if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
-			IsoLevel:       pgx.RepeatableRead,
-			AccessMode:     pgx.ReadWrite,
-			DeferrableMode: pgx.Deferrable,
-		}, func(tx pgx.Tx) error {
-			rows, err := tx.Query(ctx, query.Sql, query.Args...)
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
-			for rows.Next() {
-				var row jobRow
-				var annotations sql.NullString
-				var runs sql.NullString
-				if err := rows.Scan(
-					&row.jobId,
-					&row.queue,
-					&row.owner,
-					&row.namespace,
-					&row.jobSet,
-					&row.cpu,
-					&row.memory,
-					&row.ephemeralStorage,
-					&row.gpu,
-					&row.priority,
-					&row.submitted,
-					&row.cancelled,
-					&row.state,
-					&row.lastTransitionTime,
-					&row.duplicate,
-					&row.priorityClass,
-					&row.latestRunId,
-					&row.cancelReason,
-					&annotations,
-					&runs,
-				); err != nil {
-					return err
-				}
-				job := jobRowToModel(&row)
-				if annotations.Valid {
-					if err := json.Unmarshal([]byte(annotations.String), &job.Annotations); err != nil {
-						return err
-					}
-				}
-				if runs.Valid {
-					if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
-						return err
-					}
-				}
-				jobs = append(jobs, job)
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-		return &GetJobsResult{Jobs: jobs}, nil
+		getJobs = r.getJobsJsonb
 	}
+	return getJobs(ctx, filters, activeJobSets, order, skip, take)
+}
 
+func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
 	var jobRows []*jobRow
 	var runRows []*runRow
 	var annotationRows []*annotationRow
@@ -200,6 +143,71 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 	return &GetJobsResult{
 		Jobs: jobs,
 	}, nil
+}
+
+func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+	query, err := NewQueryBuilder(r.lookoutTables).GetJobsJsonb(filters, activeJobSets, order, skip, take)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(query, "GetJobs")
+	var jobs []*model.Job
+	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
+		IsoLevel:       pgx.RepeatableRead,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query.Sql, query.Args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var row jobRow
+			var annotations sql.NullString
+			var runs sql.NullString
+			if err := rows.Scan(
+				&row.jobId,
+				&row.queue,
+				&row.owner,
+				&row.namespace,
+				&row.jobSet,
+				&row.cpu,
+				&row.memory,
+				&row.ephemeralStorage,
+				&row.gpu,
+				&row.priority,
+				&row.submitted,
+				&row.cancelled,
+				&row.state,
+				&row.lastTransitionTime,
+				&row.duplicate,
+				&row.priorityClass,
+				&row.latestRunId,
+				&row.cancelReason,
+				&annotations,
+				&runs,
+			); err != nil {
+				return err
+			}
+			job := jobRowToModel(&row)
+			if annotations.Valid {
+				if err := json.Unmarshal([]byte(annotations.String), &job.Annotations); err != nil {
+					return err
+				}
+			}
+			if runs.Valid {
+				if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
+					return err
+				}
+			}
+			jobs = append(jobs, job)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return &GetJobsResult{Jobs: jobs}, nil
 }
 
 func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow) ([]*model.Job, error) {
