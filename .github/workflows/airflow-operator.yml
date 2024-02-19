@@ -79,8 +79,6 @@ jobs:
     env:
       # Cache Docker layers in the Github actions cache.
       # These variables are picked up by the goreleaser config.
-      DOCKER_BUILDX_CACHE_FROM: "type=gha"
-      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@v3.3.0
