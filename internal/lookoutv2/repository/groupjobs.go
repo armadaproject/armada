@@ -56,13 +56,11 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	take int,
 ) (*GroupByResult, error) {
 	qb := NewQueryBuilder(r.lookoutTables)
-	var query *Query
-	var err error
+	groupBy := qb.GroupBy
 	if r.useJsonbBackend {
-		query, err = qb.GroupByJsonb(filters, activeJobSets, order, groupedField, aggregates, skip, take)
-	} else {
-		query, err = qb.GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
+		groupBy = qb.GroupByJsonb
 	}
+	query, err := groupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 	if err != nil {
 		return nil, err
 	}
