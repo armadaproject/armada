@@ -80,10 +80,16 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
   [StandardColumnId.TimeInState, "lastTransitionTime"],
+  [StandardColumnId.JobSet, "jobSet"],
 ])
 
 // Return ordering to request to API based on column
-function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrder {
+function getOrder(
+  lookoutOrder: LookoutColumnOrder,
+  lookoutFilters: JobFilter[],
+  groupedColumns: ColumnId[],
+  isJobFetch: boolean,
+): JobOrder {
   const defaultJobOrder: JobOrder = {
     field: "jobId",
     direction: "DESC",
@@ -101,9 +107,13 @@ function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrd
     }
     field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
-    if (!columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
+    if (
+      !canOrderByField(lookoutFilters, groupedColumns, lookoutOrder.id) ||
+      !columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)
+    ) {
       return defaultGroupOrder
     }
+
     field = columnToGroupSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   }
 
@@ -111,6 +121,30 @@ function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrd
     field: field,
     direction: lookoutOrder.direction,
   }
+}
+
+function canOrderByField(lookoutFilters: JobFilter[], groupedColumns: string[], id: string): boolean {
+  // A function that determines whether we can see the field in the UI, therefore allowing us to sort by it
+  // Extract 'field' values from lookoutFilters, excluding 'jobSet'
+  const filterFields = lookoutFilters.map((filter) => filter.field).filter((field) => field !== id)
+
+  // Exclude 'jobSet' from groupedColumns for direct comparison
+  const filteredGroupedColumns = groupedColumns.filter((col) => col !== id)
+
+  // Check if the lengths are different
+  if (filterFields.length !== filteredGroupedColumns.length) {
+    return false
+  }
+
+  // Check each element for an exact match
+  for (let i = 0; i < filterFields.length; i++) {
+    if (filterFields[i] !== filteredGroupedColumns[i]) {
+      return false
+    }
+  }
+
+  // If all checks pass, return true
+  return true
 }
 
 export const useFetchJobsTableData = ({
@@ -149,9 +183,10 @@ export const useFetchJobsTableData = ({
       const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
       const isJobFetch = expandedLevel === groupingLevel
 
-      const order = getOrder(lookoutOrder, isJobFetch)
+      const filterValues = getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? [])
+      const order = getOrder(lookoutOrder, filterValues, groupedColumns, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: filterValues,
         activeJobSets: activeJobSets,
         skip: nextRequest.skip ?? paginationState.pageIndex * paginationState.pageSize,
         take: nextRequest.take ?? paginationState.pageSize,
