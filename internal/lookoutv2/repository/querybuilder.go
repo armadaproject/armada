@@ -258,7 +258,7 @@ func (qb *QueryBuilder) GroupBy(
 }
 
 func (qb *QueryBuilder) createGroupBySQL(order *model.Order, groupCol *queryColumn, aggregates []string) (string, error) {
-	var expr = fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
+	expr := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
 	isInAggregators := len(aggregates) > 0 && func(sl []string, t string) bool {
 		for _, s := range sl {
 			if s == t {
