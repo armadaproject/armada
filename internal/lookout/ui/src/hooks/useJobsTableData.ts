@@ -89,7 +89,7 @@ function getOrder(
   lookoutFilters: JobFilter[],
   groupedColumns: ColumnId[],
   isJobFetch: boolean,
-  ): JobOrder {
+): JobOrder {
   const defaultJobOrder: JobOrder = {
     field: "jobId",
     direction: "DESC",
@@ -107,8 +107,10 @@ function getOrder(
     }
     field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
-
-    if (!canOrderByField(lookoutFilters, groupedColumns, lookoutOrder.id) || !columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
+    if (
+      !canOrderByField(lookoutFilters, groupedColumns, lookoutOrder.id) ||
+      !columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)
+    ) {
       return defaultGroupOrder
     }
 
@@ -121,19 +123,13 @@ function getOrder(
   }
 }
 
-function canOrderByField(
-  lookoutFilters: JobFilter[],
-  groupedColumns: string[],
-  id: string
-): boolean {
+function canOrderByField(lookoutFilters: JobFilter[], groupedColumns: string[], id: string): boolean {
   // A function that determines whether we can see the field in the UI, therefore allowing us to sort by it
   // Extract 'field' values from lookoutFilters, excluding 'jobSet'
-  const filterFields = lookoutFilters
-    .map(filter => filter.field)
-    .filter(field => field !== id)
+  const filterFields = lookoutFilters.map((filter) => filter.field).filter((field) => field !== id)
 
   // Exclude 'jobSet' from groupedColumns for direct comparison
-  const filteredGroupedColumns = groupedColumns.filter(col => col !== id)
+  const filteredGroupedColumns = groupedColumns.filter((col) => col !== id)
 
   // Check if the lengths are different
   if (filterFields.length !== filteredGroupedColumns.length) {
