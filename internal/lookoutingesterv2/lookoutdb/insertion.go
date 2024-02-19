@@ -152,7 +152,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					last_transition_time         timestamp,
 					last_transition_time_seconds bigint,
 					job_spec                     bytea,
-					priority_class               varchar(63)
+					priority_class               varchar(63),
+					annotations                  jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -180,6 +181,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"last_transition_time_seconds",
 					"job_spec",
 					"priority_class",
+					"annotations",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -199,6 +201,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].LastTransitionTimeSeconds,
 						instructions[i].JobProto,
 						instructions[i].PriorityClass,
+						instructions[i].Annotations,
 					}, nil
 				}),
 			)
@@ -225,7 +228,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						last_transition_time,
 						last_transition_time_seconds,
 						job_spec,
-						priority_class
+						priority_class,
+						annotations
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
@@ -257,8 +261,10 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			last_transition_time,
 			last_transition_time_seconds,
 			job_spec,
-			priority_class)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			priority_class,
+			annotations
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -278,7 +284,9 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.LastTransitionTime,
 				i.LastTransitionTimeSeconds,
 				i.JobProto,
-				i.PriorityClass)
+				i.PriorityClass,
+				i.Annotations,
+			)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}

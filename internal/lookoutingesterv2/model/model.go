@@ -24,6 +24,7 @@ type CreateJobInstruction struct {
 	LastTransitionTimeSeconds int64
 	JobProto                  []byte
 	PriorityClass             *string
+	Annotations               map[string]string
 }
 
 // UpdateJobInstruction is an instruction to update an existing row in the jobs table

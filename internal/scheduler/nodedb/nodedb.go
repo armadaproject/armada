@@ -294,9 +294,6 @@ type NodeDb struct {
 	// Used to avoid allocs.
 	podRequirementsNotMetReasonStringCache map[uint64]string
 
-	// If true, use experimental preemption strategy.
-	enableNewPreemptionStrategy bool
-
 	// Map from job ID to the priority class priority at which the job was scheduled.
 	//
 	// As of 30/11/2023, we never remove anything from this map: entries need to
@@ -400,10 +397,6 @@ func (nodeDb *NodeDb) Reset() error {
 	}
 	txn.Commit()
 	return nil
-}
-
-func (nodeDb *NodeDb) EnableNewPreemptionStrategy() {
-	nodeDb.enableNewPreemptionStrategy = true
 }
 
 func (nodeDb *NodeDb) GetScheduledAtPriority(jobId string) (int32, bool) {
@@ -543,10 +536,8 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *schedulercontext
 		}
 
 		// Once a job is scheduled, it should no longer be considered for preemption.
-		if nodeDb.enableNewPreemptionStrategy {
-			if err := deleteEvictedJobSchedulingContextIfExistsWithTxn(txn, jctx.JobId); err != nil {
-				return false, err
-			}
+		if err := deleteEvictedJobSchedulingContextIfExistsWithTxn(txn, jctx.JobId); err != nil {
+			return false, err
 		}
 
 		numScheduled++
@@ -712,15 +703,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Schedule by preventing evicted jobs from being re-scheduled.
 	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
-	if nodeDb.enableNewPreemptionStrategy {
-		if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
-			return nil, err
-		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-			return nil, err
-		} else if node != nil {
-			return node, nil
-		}
+	if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+		return nil, err
+	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+		return nil, err
+	} else if node != nil {
+		return node, nil
 	}
+
 	pctx.NodeId = ""
 	pctx.PreemptedAtPriority = MinPriority
 
