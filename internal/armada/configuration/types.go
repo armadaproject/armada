@@ -133,16 +133,10 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
-	FairnessModel FairnessModel
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
 	DominantResourceFairnessResourcesToConsider []string
-	// Weights used to compute fair share when using AssetFairness.
-	// Overrides dynamic scarcity calculation if provided.
-	// Applies to both the new and old scheduler.
-	ResourceScarcity    map[string]float64
-	MaxPodSpecSizeBytes uint
-	MinJobResources     v1.ResourceList
+	MaxPodSpecSizeBytes                         uint
+	MinJobResources                             v1.ResourceList
 	// Once a node has been found on which a pod can be scheduled,
 	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
 	// The scheduler selects the node with the best score out of the considered nodes.
@@ -214,8 +208,6 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Enable new preemption strategy.
-	EnableNewPreemptionStrategy bool
 	// Controls node and queue success probability estimation.
 	FailureEstimatorConfig FailureEstimatorConfig
 }
@@ -252,20 +244,6 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		}
 	}
 }
-
-// FairnessModel controls how fairness is computed.
-// More specifically, each queue has a cost associated with it and the next job to schedule
-// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
-type FairnessModel string
-
-const (
-	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
-	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
-	AssetFairness FairnessModel = "AssetFairness"
-	// DominantResourceFairness set the cost associated with a queue to
-	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
-	DominantResourceFairness FairnessModel = "DominantResourceFairness"
-)
 
 type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".

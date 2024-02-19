@@ -1353,10 +1353,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			},
 		},
 		"DominantResourceFairness": {
-			SchedulingConfig: testfixtures.WithDominantResourceFairnessConfig(
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1887,9 +1885,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					gangIdByJobId,
 				)
 				sch.EnableAssertions()
-				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
-					sch.EnableNewPreemptionStrategy()
-				}
+
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId

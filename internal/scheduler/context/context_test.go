@@ -35,7 +35,7 @@ func TestNewGangSchedulingContext(t *testing.T) {
 
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
-	fairnessCostProvider, err := fairness.NewAssetFairness(map[string]float64{"cpu": 1})
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, []string{"cpu"})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
 		"executor",

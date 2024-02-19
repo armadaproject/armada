@@ -62,7 +62,6 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 			"memory": 0.025,
 			"cpu":    0.025,
 		},
-		FairnessModel: configuration.DominantResourceFairness,
 		DominantResourceFairnessResourcesToConsider: []string{"cpu", "memory", "nvidia.com/gpu", "ephemeral-storage"},
 		IndexedResources: []configuration.IndexedResource{
 			{
