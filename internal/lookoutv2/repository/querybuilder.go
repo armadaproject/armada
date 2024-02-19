@@ -391,16 +391,16 @@ func (qb *QueryBuilder) GroupByJsonb(
 		return nil, errors.Wrap(err, "group field is invalid")
 	}
 
-	var groupByColumn string
-	if groupedField.IsAnnotation {
-		groupByColumn = qb.annotationColumnJsonb(groupedField.Field)
-	} else {
-		groupByColumn = groupedField.Field
-	}
-
 	activeJobSetsFilter := ""
 	if activeJobSets {
 		activeJobSetsFilter = joinWithActiveJobSetsTable
+	}
+
+	groupByColumn := queryColumn{table: jobTable, abbrev: jobTableAbbrev}
+	if groupedField.IsAnnotation {
+		groupByColumn.name = qb.annotationColumnJsonb(groupedField.Field)
+	} else {
+		groupByColumn.name = groupedField.Field
 	}
 
 	queryAggregators, err := qb.getQueryAggregators(aggregates, filters, map[string]bool{jobTable: true})
@@ -417,6 +417,11 @@ func (qb *QueryBuilder) GroupByJsonb(
 		return nil, err
 	}
 
+	groupBy, err := qb.createGroupBySQL(order, &groupByColumn, aggregates)
+	if err != nil {
+		return nil, err
+	}
+
 	orderBy, err := qb.groupByOrderSql(order)
 	if err != nil {
 		return nil, err
@@ -427,14 +432,14 @@ func (qb *QueryBuilder) GroupByJsonb(
 FROM %s as %s
 %s
 %s
-GROUP BY %s.%s
+%s
 %s
 %s`,
-		jobTableAbbrev, groupByColumn, selectList,
+		groupByColumn.abbrev, groupByColumn.name, selectList,
 		jobTable, jobTableAbbrev,
 		activeJobSetsFilter,
 		where,
-		jobTableAbbrev, groupByColumn,
+		groupBy,
 		orderBy,
 		limitOffsetSql(skip, take),
 	)
