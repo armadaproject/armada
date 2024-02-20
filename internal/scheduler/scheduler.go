@@ -378,7 +378,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
+		if err := s.schedulerMetrics.UpdateFailed(ctx, nil, jctx, nil); err != nil {
 			return err
 		}
 	}

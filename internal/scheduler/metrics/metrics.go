@@ -207,7 +207,7 @@ func (m *Metrics) Update(
 		}
 	}
 	if jst.Failed {
-		if err := m.UpdateFailed(ctx, jst.Job, jobRunErrorsByRunId); err != nil {
+		if err := m.UpdateFailed(ctx, jst.Job, nil, jobRunErrorsByRunId); err != nil {
 			return err
 		}
 	}
@@ -273,8 +273,16 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+// For post-scheduling cycle, jctx is expected to be NOT nil and only the transitions metric is updated.
+// For pre-scheduling cycle, job is expected to be updated through JobDb reconcilation and only the resourceSeconds metric is updated.
+func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+	if job == nil {
+		job = jctx.Job.(*jobdb.Job)
+	}
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
+	if category == jobRunPreempted {
+		return nil // Preemption metric is handled separately.
+	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
 	labels := m.buffer[0:0]
@@ -282,12 +290,16 @@ func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRu
 	labels = append(labels, failed)
 	labels = append(labels, category)
 	labels = append(labels, subCategory)
-	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
-		return err
-	}
-	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
-		return err
+	if jctx != nil {
+		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+		if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+			return err
+		}
+	} else {
+		labels = appendLabelsFromJob(labels, job)
+		if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -310,6 +322,8 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
+// For post-scheduling cycle, jctx is expected to be NOT nil and only the transitions metric is updated.
+// For pre-scheduling cycle, job is expected to be updated through JobDb reconcilation and only the resourceSeconds metric is updated.
 func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
 	if job == nil {
 		job = jctx.Job.(*jobdb.Job)
@@ -323,18 +337,20 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 	labels = append(labels, "") // No subCategory for leased.
 	if jctx != nil {
 		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+		if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+			return err
+		}
 	} else {
 		labels = appendLabelsFromJob(labels, job)
-	}
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
-		return err
-	}
-	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
-		return err
+		if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
+// For post-scheduling cycle, jctx is expected to be NOT nil and only the transitions metric is updated.
+// For pre-scheduling cycle, job is expected to be updated through JobDb reconcilation and only the resourceSeconds metric is updated.
 func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
 	if job == nil {
 		job = jctx.Job.(*jobdb.Job)
@@ -348,14 +364,14 @@ func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSche
 	labels = append(labels, "") // No subCategory for preempted.
 	if jctx != nil {
 		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+		if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+			return err
+		}
 	} else {
 		labels = appendLabelsFromJob(labels, job)
-	}
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PreemptedTime(), priorStateTime); err != nil {
-		return err
-	}
-	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
-		return err
+		if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PreemptedTime(), priorStateTime); err != nil {
+			return err
+		}
 	}
 	return nil
 }
