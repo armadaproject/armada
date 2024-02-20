@@ -274,7 +274,7 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 }
 
 // For post-scheduling cycle, jctx is expected to be NOT nil and only the transitions metric is updated.
-// For pre-scheduling cycle, job is expected to be updated through JobDb reconcilation and only the resourceSeconds metric is updated.
+// For pre-scheduling cycle, job is expected to be updated through JobDb reconciliation and only the resourceSeconds metric is updated.
 func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
 	if job == nil {
 		job = jctx.Job.(*jobdb.Job)
@@ -323,7 +323,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 }
 
 // For post-scheduling cycle, jctx is expected to be NOT nil and only the transitions metric is updated.
-// For pre-scheduling cycle, job is expected to be updated through JobDb reconcilation and only the resourceSeconds metric is updated.
+// For pre-scheduling cycle, job is expected to be updated through JobDb reconciliation and only the resourceSeconds metric is updated.
 func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
 	if job == nil {
 		job = jctx.Job.(*jobdb.Job)
@@ -350,7 +350,7 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 }
 
 // For post-scheduling cycle, jctx is expected to be NOT nil and only the transitions metric is updated.
-// For pre-scheduling cycle, job is expected to be updated through JobDb reconcilation and only the resourceSeconds metric is updated.
+// For pre-scheduling cycle, job is expected to be updated through JobDb reconciliation and only the resourceSeconds metric is updated.
 func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
 	if job == nil {
 		job = jctx.Job.(*jobdb.Job)
