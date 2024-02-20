@@ -77,6 +77,7 @@ jobs:
     # due to longer queue times.
     runs-on: ubuntu-22.04
     env:
+      # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@v3.3.0
