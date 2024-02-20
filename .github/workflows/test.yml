@@ -90,8 +90,6 @@ jobs:
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
       ARMADA_EXECUTOR_INGRESS_PORT: 5001
-      # Cache Docker layers in the GitHub actions cache.
-      # These variables are picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
 
     steps:
