@@ -281,7 +281,7 @@ func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jctx 
 	}
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
 	if category == jobRunPreempted {
-		return nil // Preemption metric is handled separately.
+		return m.UpdatePreempted(job, jctx)
 	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
