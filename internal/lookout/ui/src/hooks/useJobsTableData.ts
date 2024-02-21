@@ -125,11 +125,12 @@ function getOrder(
 
 function canOrderByField(lookoutFilters: JobFilter[], groupedColumns: string[], id: string): boolean {
   // A function that determines whether we can see the field in the UI, therefore allowing us to sort by it
-  // Extract 'field' values from lookoutFilters, excluding 'jobSet'
+  // Extract 'field' values from lookoutFilters, excluding the column
   const filterFields = lookoutFilters.map((filter) => filter.field).filter((field) => field !== id)
 
-  // Exclude 'jobSet' from groupedColumns for direct comparison
-  const filteredGroupedColumns = groupedColumns.filter((col) => col !== id)
+  // Exclude column and everything after from groupedColumns for direct comparison
+  const index = groupedColumns.findIndex((col) => col === id)
+  const filteredGroupedColumns = groupedColumns.slice(0, index)
 
   // Check if the lengths are different
   if (filterFields.length !== filteredGroupedColumns.length) {
