@@ -316,7 +316,11 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 		job = jctx.Job.(*jobdb.Job)
 	}
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
+	leaseTime := time.Now()
+	if latestRun.LeaseTime() != nil {
+		leaseTime = *latestRun.LeaseTime()
+	}
+	priorState, priorStateTime := getPriorState(job, latestRun, &leaseTime)
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, leased)
@@ -327,7 +331,7 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 	} else {
 		labels = appendLabelsFromJob(labels, job)
 	}
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, &leaseTime, priorStateTime); err != nil {
 		return err
 	}
 	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
