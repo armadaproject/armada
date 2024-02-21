@@ -284,10 +284,10 @@ func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jctx 
 	labels = append(labels, category)
 	labels = append(labels, subCategory)
 	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
 		return err
 	}
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.TerminatedTime(), priorStateTime); err != nil {
+	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
 		return err
 	}
 	return nil
