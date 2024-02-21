@@ -12,15 +12,15 @@ import (
 )
 
 // JobStateMap is a mapping between database state and api states
-var JobStateMap = map[int16]api.JobStatus{
-	lookout.JobLeasedOrdinal:    api.JobStatus_LEASED,
-	lookout.JobQueuedOrdinal:    api.JobStatus_QUEUED,
-	lookout.JobPendingOrdinal:   api.JobStatus_PENDING,
-	lookout.JobRunningOrdinal:   api.JobStatus_RUNNING,
-	lookout.JobSucceededOrdinal: api.JobStatus_SUCCEEDED,
-	lookout.JobFailedOrdinal:    api.JobStatus_FAILED,
-	lookout.JobCancelledOrdinal: api.JobStatus_CANCELLED,
-	lookout.JobPreemptedOrdinal: api.JobStatus_PREEMPTED,
+var JobStateMap = map[int16]api.JobState{
+	lookout.JobLeasedOrdinal:    api.JobState_LEASED,
+	lookout.JobQueuedOrdinal:    api.JobState_QUEUED,
+	lookout.JobPendingOrdinal:   api.JobState_PENDING,
+	lookout.JobRunningOrdinal:   api.JobState_RUNNING,
+	lookout.JobSucceededOrdinal: api.JobState_SUCCEEDED,
+	lookout.JobFailedOrdinal:    api.JobState_FAILED,
+	lookout.JobCancelledOrdinal: api.JobState_CANCELLED,
+	lookout.JobPreemptedOrdinal: api.JobState_PREEMPTED,
 }
 
 type QueryApi struct {
@@ -43,10 +43,15 @@ func (q *QueryApi) GetJobStatus(ctx context.Context, req *api.JobStatusRequest) 
 	}
 	apiStatus, ok := JobStateMap[status]
 	if !ok {
-		apiStatus = api.JobStatus_UNKNOWN
+		apiStatus = api.JobState_UNKNOWN
 	}
 	return &api.JobStatusResponse{
-		JobId:     req.JobId,
-		JobStatus: apiStatus,
+		JobId:    req.JobId,
+		JobState: apiStatus,
 	}, nil
+}
+
+func (q *QueryApi) GetJob(ctx context.Context, request *api.JobRequest) (*api.JobResponse, error) {
+	// TODO implement me
+	panic("implement me")
 }

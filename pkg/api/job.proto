@@ -1,23 +1,19 @@
 syntax = 'proto3';
-
-package queryapi;
+package api;
 option go_package = "github.com/armadaproject/armada/pkg/api";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "pkg/api/submit.proto";
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
-enum JobStatus {
-  UNKNOWN = 0;
-  SUBMITTED = 1;
-  QUEUED = 2;
-  LEASED = 3;
-  PENDING = 4;
-  RUNNING = 5;
-  SUCCEEDED = 6;
-  FAILED = 7;
-  PREEMPTED = 8;
-  CANCELLED = 9;
+
+message JobRequest {
+  string job_id = 1;
+}
+
+message JobResponse{
+  Job job = 1;
 }
 
 message JobStatusRequest{
@@ -26,9 +22,10 @@ message JobStatusRequest{
 
 message JobStatusResponse{
   string job_id = 1;
-  JobStatus job_status = 2;
+  JobState job_state = 2;
 }
 
-service QueryApi {
+service Jobs {
   rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse);
+  rpc GetJob (JobRequest) returns (JobResponse);
 }

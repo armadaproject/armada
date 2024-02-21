@@ -24,19 +24,19 @@ func TestGetJobStatus(t *testing.T) {
 	}{
 		"leased job": {
 			jobId:            "leasedJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "leasedJob", JobStatus: api.JobStatus_LEASED},
+			expectedResponse: &api.JobStatusResponse{JobId: "leasedJob", JobState: api.JobState_LEASED},
 		},
 		"running job": {
 			jobId:            "runningJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "runningJob", JobStatus: api.JobStatus_RUNNING},
+			expectedResponse: &api.JobStatusResponse{JobId: "runningJob", JobState: api.JobState_RUNNING},
 		},
 		"completed job": {
 			jobId:            "completedJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "completedJob", JobStatus: api.JobStatus_SUCCEEDED},
+			expectedResponse: &api.JobStatusResponse{JobId: "completedJob", JobState: api.JobState_SUCCEEDED},
 		},
 		"missing job": {
 			jobId:            "missingJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "missingJob", JobStatus: api.JobStatus_UNKNOWN},
+			expectedResponse: &api.JobStatusResponse{JobId: "missingJob", JobState: api.JobState_UNKNOWN},
 		},
 	}
 	for name, tc := range tests {

@@ -263,7 +263,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			return errors.WithMessage(err, "error creating QueryApi postgres pool")
 		}
 		queryapiServer := queryapi.New(queryDb)
-		api.RegisterQueryApiServer(grpcServer, queryapiServer)
+		api.RegisterJobsServer(grpcServer, queryapiServer)
 	}
 
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
