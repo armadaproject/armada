@@ -5,9 +5,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-type PodSpecFieldValidator struct{}
+type podSpecFieldValidator struct{}
 
-func (p PodSpecFieldValidator) Validate(j *api.JobSubmitRequestItem) error {
+func (p podSpecFieldValidator) Validate(j *api.JobSubmitRequestItem) error {
 
 	if j.PodSpec == nil && len(j.PodSpecs) == 0 {
 		return errors.Errorf("Job does not contain at least one PodSpec")

@@ -6,9 +6,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-type NumContainersValidator struct{}
+type numContainersValidator struct{}
 
-func (p NumContainersValidator) Validate(j *api.JobSubmitRequestItem) error {
+func (p numContainersValidator) Validate(j *api.JobSubmitRequestItem) error {
 	return validatePodSpecs(j, func(spec *v1.PodSpec) error {
 		if len(spec.Containers) == 0 {
 			return fmt.Errorf("pod spec has no containers")

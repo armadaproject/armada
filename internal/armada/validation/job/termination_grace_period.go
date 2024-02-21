@@ -6,12 +6,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-type TerminationGracePeriodValidator struct {
+type terminationGracePeriodValidator struct {
 	minTerminationGracePeriodSeconds int64
 	maxTerminationGracePeriodSeconds int64
 }
 
-func (p *TerminationGracePeriodValidator) Validate(j *api.JobSubmitRequestItem) error {
+func (p terminationGracePeriodValidator) Validate(j *api.JobSubmitRequestItem) error {
 
 	return validatePodSpecs(j, func(spec *v1.PodSpec) error {
 		if spec.TerminationGracePeriodSeconds != nil {

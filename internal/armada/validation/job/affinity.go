@@ -7,9 +7,9 @@ import (
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
-type AffinityValidator struct{}
+type affinityValidator struct{}
 
-func (p AffinityValidator) Validate(j *api.JobSubmitRequestItem) error {
+func (p affinityValidator) Validate(j *api.JobSubmitRequestItem) error {
 
 	return validatePodSpecs(j, func(spec *v1.PodSpec) error {
 		affinity := extractNodeAffinity(spec)

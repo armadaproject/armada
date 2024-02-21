@@ -1,9 +1,33 @@
 package job
 
 import (
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/validation"
 	"github.com/armadaproject/armada/pkg/api"
 	v1 "k8s.io/api/core/v1"
 )
+
+func NewJobValidator(config configuration.SchedulingConfig) validation.Validator[*api.JobSubmitRequestItem] {
+	return validation.NewCompundValidator([]validation.Validator[*api.JobSubmitRequestItem]{
+		affinityValidator{},
+		containerValidator{minJobResources: config.MinJobResources},
+		ingressValidator{},
+		numContainersValidator{},
+		podSpecFieldValidator{},
+		portsValidator{},
+		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},
+		terminationGracePeriodValidator{
+			minTerminationGracePeriodSeconds: int64(config.MinTerminationGracePeriod),
+			maxTerminationGracePeriodSeconds: int64(config.MaxTerminationGracePeriod)
+		},
+	})
+}
+
+func NewJobRequestValidator(config configuration.SchedulingConfig) validation.Validator[*api.JobSubmitRequest]{
+	return validation.NewCompundValidator([]validation.Validator[*api.JobSubmitRequest]{
+		gangValidator{},
+	})
+}
 
 func validatePodSpecs(j *api.JobSubmitRequestItem, f func(spec *v1.PodSpec) error) error {
 	podSpecs := []*v1.PodSpec{j.PodSpec}
