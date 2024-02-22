@@ -262,7 +262,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		if err != nil {
 			return errors.WithMessage(err, "error creating QueryApi postgres pool")
 		}
-		queryapiServer := queryapi.New(queryDb)
+		queryapiServer := queryapi.New(
+			queryDb,
+			config.QueryApi.MaxQueryItems,
+			func() compress.Decompressor { return compress.NewZlibDecompressor() })
 		api.RegisterJobsServer(grpcServer, queryapiServer)
 	}
 
