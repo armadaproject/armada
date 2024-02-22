@@ -62,7 +62,7 @@ func (q *Queries) GetJobDetails(ctx context.Context, jobIds []string) ([]GetJobD
 }
 
 const getJobRunsByJobIds = `-- name: GetJobRunsByJobIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased FROM job_run WHERE job_id = ANY($1::text[])
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased FROM job_run WHERE job_id = ANY($1::text[]) order by leased
 `
 
 func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]JobRun, error) {

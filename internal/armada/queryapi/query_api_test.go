@@ -27,13 +27,13 @@ func TestGetJobDetails(t *testing.T) {
 	defer cancel()
 
 	testJobs := []database.Job{
-		newJob("job1", lookout.JobLeasedOrdinal),
+		newJob("job1", lookout.JobQueuedOrdinal),
 		newJob("job2", lookout.JobRunningOrdinal),
 	}
 
-	testJobDetails := []*api.JobDetails{
-		newJobDetails("job1", lookout.JobQueuedOrdinal),
-		newJobDetails("job1", lookout.JobRunningOrdinal),
+	testJobRuns := []database.JobRun{
+		newJobRun("job2", "run1", lookout.JobRunRunningOrdinal, baseTime),
+		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute)),
 	}
 
 	// setup job db
@@ -47,7 +47,60 @@ func TestGetJobDetails(t *testing.T) {
 			},
 			expectedResponse: &api.JobDetailsResponse{
 				Details: map[string]*api.JobDetails{
-					"job1": testJobDetails[0],
+					"job1": newJobDetails("job1", api.JobState_QUEUED),
+				},
+			},
+		},
+		"multiple jobs": {
+			request: &api.JobDetailsRequest{
+				JobIds: []string{"job1", "job2"},
+			},
+			expectedResponse: &api.JobDetailsResponse{
+				Details: map[string]*api.JobDetails{
+					"job1": newJobDetails("job1", api.JobState_QUEUED),
+					"job2": newJobDetails("job1", api.JobState_RUNNING),
+				},
+			},
+		},
+		"no jobs": {
+			request: &api.JobDetailsRequest{
+				JobIds: []string{},
+			},
+			expectedResponse: &api.JobDetailsResponse{
+				Details: map[string]*api.JobDetails{},
+			},
+		},
+		"non existent job": {
+			request: &api.JobDetailsRequest{
+				JobIds: []string{"this job doesn't exist!"},
+			},
+			expectedResponse: &api.JobDetailsResponse{
+				Details: map[string]*api.JobDetails{},
+			},
+		},
+		"ask for run but no run available": {
+			request: &api.JobDetailsRequest{
+				JobIds:       []string{"job1"},
+				ExpandJobRun: true,
+			},
+			expectedResponse: &api.JobDetailsResponse{
+				Details: map[string]*api.JobDetails{
+					"job1": newJobDetails("job1", api.JobState_QUEUED),
+				},
+			},
+		},
+		"ask for runs": {
+			request: &api.JobDetailsRequest{
+				JobIds:       []string{"job2"},
+				ExpandJobRun: true,
+			},
+			expectedResponse: &api.JobDetailsResponse{
+				Details: map[string]*api.JobDetails{
+					"job2": newJobDetails(
+						"job2",
+						api.JobState_QUEUED,
+						newJobRunDetails("job2", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
+						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute))),
 				},
 			},
 		},
@@ -57,8 +110,84 @@ func TestGetJobDetails(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
 				require.NoError(t, err)
+				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				require.NoError(t, err)
 				queryApi := New(db, testDecompressor)
 				resp, err := queryApi.GetJobDetails(ctx, tc.request)
+				require.NoError(t, err)
+				assert.Equal(t, resp, tc.expectedResponse)
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestGetJobRunDetails(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+
+	testJobs := []database.Job{
+		newJob("job1", lookout.JobRunningOrdinal),
+	}
+
+	testJobRuns := []database.JobRun{
+		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime),
+		newJobRun("job1", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute)),
+	}
+
+	// setup job db
+	tests := map[string]struct {
+		request          *api.JobRunDetailsRequest
+		expectedResponse *api.JobRunDetailsResponse
+	}{
+		"single run": {
+			request: &api.JobRunDetailsRequest{
+				RunIds: []string{"run1"},
+			},
+			expectedResponse: &api.JobRunDetailsResponse{
+				JobRunDetails: map[string]*api.JobRunDetails{
+					"run1": newJobRunDetails("job1", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
+				},
+			},
+		},
+		"multiple runs": {
+			request: &api.JobRunDetailsRequest{
+				RunIds: []string{"run1", "run2"},
+			},
+			expectedResponse: &api.JobRunDetailsResponse{
+				JobRunDetails: map[string]*api.JobRunDetails{
+					"run1": newJobRunDetails("job1", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
+					"run2": newJobRunDetails("job1", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute)),
+				},
+			},
+		},
+		"no runs": {
+			request: &api.JobRunDetailsRequest{
+				RunIds: []string{"not a valid run"},
+			},
+			expectedResponse: &api.JobRunDetailsResponse{
+				JobRunDetails: map[string]*api.JobRunDetails{},
+			},
+		},
+		"empty runs": {
+			request: &api.JobRunDetailsRequest{
+				RunIds: []string{},
+			},
+			expectedResponse: &api.JobRunDetailsResponse{
+				JobRunDetails: map[string]*api.JobRunDetails{},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				require.NoError(t, err)
+				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				require.NoError(t, err)
+				queryApi := New(db, testDecompressor)
+				resp, err := queryApi.GetJobRunDetails(ctx, tc.request)
 				require.NoError(t, err)
 				assert.Equal(t, resp, tc.expectedResponse)
 				return nil
@@ -178,7 +307,32 @@ func newJob(jobId string, state int16) database.Job {
 	}
 }
 
-func newJobDetails(jobId string, state api.JobState) *api.JobDetails {
+func newJobRun(jobId, runId string, state int16, leased time.Time) database.JobRun {
+	return database.JobRun{
+		RunID:   runId,
+		JobID:   jobId,
+		Cluster: "testCluster",
+		Node:    pointer.String("testNode"),
+		Pending: pgtype.Timestamp{
+			Time:  baseTime,
+			Valid: true,
+		},
+		Started: pgtype.Timestamp{
+			Time:  baseTime,
+			Valid: true,
+		},
+		Finished:    pgtype.Timestamp{},
+		JobRunState: state,
+		Error:       nil,
+		ExitCode:    nil,
+		Leased: pgtype.Timestamp{
+			Time:  leased,
+			Valid: true,
+		},
+	}
+}
+
+func newJobDetails(jobId string, state api.JobState, runs ...*api.JobRunDetails) *api.JobDetails {
 	return &api.JobDetails{
 		JobId:            jobId,
 		Queue:            "testQueue",
@@ -188,14 +342,23 @@ func newJobDetails(jobId string, state api.JobState) *api.JobDetails {
 		SubmittedTs:      &baseTime,
 		CancelTs:         nil,
 		CancelReason:     "",
-		LastTransitionTs: nil,
+		LastTransitionTs: &baseTime,
 		LatestRunId:      "",
 		JobSpec:          nil,
-		JobRuns:          nil,
+		JobRuns:          runs,
 	}
 }
 
-func withJobState(job database.Job, state int16) database.Job {
-	job.State = state
-	return job
+func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased time.Time) *api.JobRunDetails {
+	return &api.JobRunDetails{
+		RunId:      runId,
+		JobId:      jobId,
+		State:      state,
+		Cluster:    "testCluster",
+		Node:       "testNode",
+		LeasedTs:   &leased,
+		PendingTs:  &baseTime,
+		StartedTs:  &baseTime,
+		FinishedTs: nil,
+	}
 }

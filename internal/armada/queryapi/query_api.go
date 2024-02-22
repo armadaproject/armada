@@ -102,10 +102,14 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 			if !ok {
 				jobRuns = []*api.JobRunDetails{}
 			}
+			runState, ok := JobRunStateMap[row.JobRunState]
+			if !ok {
+				runState = api.JobRunState_RUN_STATE_UNKNOWN
+			}
 			jobRuns = append(jobRuns, &api.JobRunDetails{
 				RunId:      row.RunID,
 				JobId:      row.JobID,
-				State:      0,
+				State:      runState,
 				Cluster:    row.Cluster,
 				Node:       NilStringToString(row.Node),
 				LeasedTs:   DbTimeToGoTime(row.Leased),
@@ -137,10 +141,14 @@ func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsR
 	}
 	detailsById := make(map[string]*api.JobRunDetails, len(resultRows))
 	for _, row := range resultRows {
+		runState, ok := JobRunStateMap[row.JobRunState]
+		if !ok {
+			runState = api.JobRunState_RUN_STATE_UNKNOWN
+		}
 		detailsById[row.RunID] = &api.JobRunDetails{
 			RunId:      row.RunID,
 			JobId:      row.JobID,
-			State:      0,
+			State:      runState,
 			Cluster:    row.Cluster,
 			Node:       NilStringToString(row.Node),
 			LeasedTs:   DbTimeToGoTime(row.Leased),
@@ -182,15 +190,4 @@ func (q *QueryApi) GetJobStatus(ctx context.Context, req *api.JobStatusRequest) 
 	return &api.JobStatusResponse{
 		JobStates: apiStatusById,
 	}, nil
-}
-
-func decompress(b []byte, decompressor compress.Decompressor) (string, error) {
-	if len(b) == 0 {
-		return "", nil
-	}
-	decompressed, err := decompressor.Decompress(b)
-	if err != nil {
-		return "", err
-	}
-	return string(decompressed), nil
 }
