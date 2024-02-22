@@ -1,4 +1,4 @@
-package jobrequest
+package job
 
 import (
 	"fmt"

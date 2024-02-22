@@ -9,6 +9,7 @@ import (
 
 func NewJobValidator(config configuration.SchedulingConfig) validation.Validator[*api.JobSubmitRequestItem] {
 	return validation.NewCompundValidator([]validation.Validator[*api.JobSubmitRequestItem]{
+		namespaceValidator{},
 		affinityValidator{},
 		containerValidator{minJobResources: config.MinJobResources},
 		ingressValidator{},
@@ -23,8 +24,9 @@ func NewJobValidator(config configuration.SchedulingConfig) validation.Validator
 	})
 }
 
-func NewJobRequestValidator(config configuration.SchedulingConfig) validation.Validator[*api.JobSubmitRequest]{
+func NewJobRequestValidator() validation.Validator[*api.JobSubmitRequest] {
 	return validation.NewCompundValidator([]validation.Validator[*api.JobSubmitRequest]{
+		queueValidator{},
 		gangValidator{},
 	})
 }

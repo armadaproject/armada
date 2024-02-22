@@ -481,9 +481,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				nil,
 				nil,
 			)
-			if s.schedulingConfig.EnableNewPreemptionStrategy {
-				sch.EnableNewPreemptionStrategy()
-			}
+
 			schedulerCtx := ctx
 			if s.SuppressSchedulerLogs {
 				schedulerCtx = &armadacontext.Context{
