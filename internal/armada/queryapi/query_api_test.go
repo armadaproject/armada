@@ -17,6 +17,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+const (
+	defaultMaxQueryItems = 100
+)
+
 var (
 	baseTime         = time.Now().UTC()
 	testDecompressor = func() compress.Decompressor { return &compress.NoOpDecompressor{} }
@@ -114,7 +118,7 @@ func TestGetJobDetails(t *testing.T) {
 				require.NoError(t, err)
 				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
 				require.NoError(t, err)
-				queryApi := New(db, testDecompressor)
+				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobDetails(ctx, tc.request)
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedResponse, resp)
@@ -188,7 +192,7 @@ func TestGetJobRunDetails(t *testing.T) {
 				require.NoError(t, err)
 				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
 				require.NoError(t, err)
-				queryApi := New(db, testDecompressor)
+				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobRunDetails(ctx, tc.request)
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedResponse, resp)
@@ -266,7 +270,7 @@ func TestGetJobStatus(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
 				require.NoError(t, err)
-				queryApi := New(db, testDecompressor)
+				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobStatus(ctx, &api.JobStatusRequest{JobIds: tc.jobIds})
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedResponse, resp)

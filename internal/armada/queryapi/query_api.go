@@ -2,6 +2,7 @@ package queryapi
 
 import (
 	"context"
+	"fmt"
 	"github.com/armadaproject/armada/internal/armada/queryapi/database"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
@@ -39,17 +40,24 @@ var JobRunStateMap = map[int16]api.JobRunState{
 
 type QueryApi struct {
 	db                  *pgxpool.Pool
-	deCompressorFactory func() compress.Decompressor
+	decompressorFactory func() compress.Decompressor
+	maxQueryItems       int
 }
 
-func New(db *pgxpool.Pool, deCompressorFactory func() compress.Decompressor) *QueryApi {
+func New(db *pgxpool.Pool, maxQueryItems int, decompressorFactory func() compress.Decompressor) *QueryApi {
 	return &QueryApi{
 		db:                  db,
-		deCompressorFactory: deCompressorFactory,
+		maxQueryItems:       maxQueryItems,
+		decompressorFactory: decompressorFactory,
 	}
 }
 
 func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest) (*api.JobDetailsResponse, error) {
+
+	if len(req.JobIds) > q.maxQueryItems {
+		return nil, fmt.Errorf("request contained more than %d jobIds", q.maxQueryItems)
+	}
+
 	queries := database.New(q.db)
 
 	// Fetch the Job Rows
@@ -59,7 +67,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 	}
 	detailsById := make(map[string]*api.JobDetails, len(resultRows))
 	jobsWithRuns := make([]string, 0, len(resultRows))
-	decompressor := q.deCompressorFactory()
+	decompressor := q.decompressorFactory()
 	for _, row := range resultRows {
 		var jobSpec *api.Job = nil
 		if req.ExpandJobSpec {
@@ -103,21 +111,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 			if !ok {
 				jobRuns = []*api.JobRunDetails{}
 			}
-			runState, ok := JobRunStateMap[row.JobRunState]
-			if !ok {
-				runState = api.JobRunState_RUN_STATE_UNKNOWN
-			}
-			jobRuns = append(jobRuns, &api.JobRunDetails{
-				RunId:      row.RunID,
-				JobId:      row.JobID,
-				State:      runState,
-				Cluster:    row.Cluster,
-				Node:       NilStringToString(row.Node),
-				LeasedTs:   DbTimeToGoTime(row.Leased),
-				PendingTs:  DbTimeToGoTime(row.Pending),
-				StartedTs:  DbTimeToGoTime(row.Started),
-				FinishedTs: DbTimeToGoTime(row.Finished),
-			})
+			jobRuns = append(jobRuns, parseJobDetails(row))
 			runsByJob[row.JobID] = jobRuns
 		}
 
@@ -135,6 +129,10 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 }
 
 func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsRequest) (*api.JobRunDetailsResponse, error) {
+	if len(req.RunIds) > q.maxQueryItems {
+		return nil, fmt.Errorf("request contained more than %d RunIds", q.maxQueryItems)
+	}
+
 	queries := database.New(q.db)
 	resultRows, err := queries.GetJobRunsByRunIds(ctx, req.RunIds)
 	if err != nil {
@@ -142,21 +140,7 @@ func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsR
 	}
 	detailsById := make(map[string]*api.JobRunDetails, len(resultRows))
 	for _, row := range resultRows {
-		runState, ok := JobRunStateMap[row.JobRunState]
-		if !ok {
-			runState = api.JobRunState_RUN_STATE_UNKNOWN
-		}
-		detailsById[row.RunID] = &api.JobRunDetails{
-			RunId:      row.RunID,
-			JobId:      row.JobID,
-			State:      runState,
-			Cluster:    row.Cluster,
-			Node:       NilStringToString(row.Node),
-			LeasedTs:   DbTimeToGoTime(row.Leased),
-			PendingTs:  DbTimeToGoTime(row.Pending),
-			StartedTs:  DbTimeToGoTime(row.Started),
-			FinishedTs: DbTimeToGoTime(row.Finished),
-		}
+		detailsById[row.RunID] = parseJobDetails(row)
 	}
 	return &api.JobRunDetailsResponse{
 		JobRunDetails: detailsById,
@@ -164,6 +148,10 @@ func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsR
 }
 
 func (q *QueryApi) GetJobStatus(ctx context.Context, req *api.JobStatusRequest) (*api.JobStatusResponse, error) {
+	if len(req.JobIds) > q.maxQueryItems {
+		return nil, fmt.Errorf("request contained more than %d jobIds", q.maxQueryItems)
+	}
+
 	queries := database.New(q.db)
 	queryResult, err := queries.GetJobStates(ctx, req.JobIds)
 	if err != nil {
@@ -191,4 +179,22 @@ func (q *QueryApi) GetJobStatus(ctx context.Context, req *api.JobStatusRequest) 
 	return &api.JobStatusResponse{
 		JobStates: apiStatusById,
 	}, nil
+}
+
+func parseJobDetails(row database.JobRun) *api.JobRunDetails {
+	runState, ok := JobRunStateMap[row.JobRunState]
+	if !ok {
+		runState = api.JobRunState_RUN_STATE_UNKNOWN
+	}
+	return &api.JobRunDetails{
+		RunId:      row.RunID,
+		JobId:      row.JobID,
+		State:      runState,
+		Cluster:    row.Cluster,
+		Node:       NilStringToString(row.Node),
+		LeasedTs:   DbTimeToGoTime(row.Leased),
+		PendingTs:  DbTimeToGoTime(row.Pending),
+		StartedTs:  DbTimeToGoTime(row.Started),
+		FinishedTs: DbTimeToGoTime(row.Finished),
+	}
 }
