@@ -26,10 +26,11 @@ func TestGetJobDetails(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
-	testJobs := []database.Job{
-		newJob("job1", lookout.JobQueuedOrdinal),
-		newJob("job2", lookout.JobRunningOrdinal),
-	}
+	job1 := newJob("job1", lookout.JobQueuedOrdinal)
+	job2 := newJob("job2", lookout.JobRunningOrdinal)
+	job2.LatestRunID = pointer.String("run1")
+
+	testJobs := []database.Job{job1, job2}
 
 	testJobRuns := []database.JobRun{
 		newJobRun("job2", "run1", lookout.JobRunRunningOrdinal, baseTime),
@@ -47,7 +48,7 @@ func TestGetJobDetails(t *testing.T) {
 			},
 			expectedResponse: &api.JobDetailsResponse{
 				Details: map[string]*api.JobDetails{
-					"job1": newJobDetails("job1", api.JobState_QUEUED),
+					"job1": newJobDetails("job1", api.JobState_QUEUED, ""),
 				},
 			},
 		},
@@ -57,8 +58,8 @@ func TestGetJobDetails(t *testing.T) {
 			},
 			expectedResponse: &api.JobDetailsResponse{
 				Details: map[string]*api.JobDetails{
-					"job1": newJobDetails("job1", api.JobState_QUEUED),
-					"job2": newJobDetails("job1", api.JobState_RUNNING),
+					"job1": newJobDetails("job1", api.JobState_QUEUED, ""),
+					"job2": newJobDetails("job2", api.JobState_RUNNING, "run1"),
 				},
 			},
 		},
@@ -85,7 +86,7 @@ func TestGetJobDetails(t *testing.T) {
 			},
 			expectedResponse: &api.JobDetailsResponse{
 				Details: map[string]*api.JobDetails{
-					"job1": newJobDetails("job1", api.JobState_QUEUED),
+					"job1": newJobDetails("job1", api.JobState_QUEUED, ""),
 				},
 			},
 		},
@@ -98,7 +99,8 @@ func TestGetJobDetails(t *testing.T) {
 				Details: map[string]*api.JobDetails{
 					"job2": newJobDetails(
 						"job2",
-						api.JobState_QUEUED,
+						api.JobState_RUNNING,
+						"run1",
 						newJobRunDetails("job2", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
 						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute))),
 				},
@@ -115,7 +117,7 @@ func TestGetJobDetails(t *testing.T) {
 				queryApi := New(db, testDecompressor)
 				resp, err := queryApi.GetJobDetails(ctx, tc.request)
 				require.NoError(t, err)
-				assert.Equal(t, resp, tc.expectedResponse)
+				assert.Equal(t, tc.expectedResponse, resp)
 				return nil
 			})
 			assert.NoError(t, err)
@@ -189,7 +191,7 @@ func TestGetJobRunDetails(t *testing.T) {
 				queryApi := New(db, testDecompressor)
 				resp, err := queryApi.GetJobRunDetails(ctx, tc.request)
 				require.NoError(t, err)
-				assert.Equal(t, resp, tc.expectedResponse)
+				assert.Equal(t, tc.expectedResponse, resp)
 				return nil
 			})
 			assert.NoError(t, err)
@@ -267,7 +269,7 @@ func TestGetJobStatus(t *testing.T) {
 				queryApi := New(db, testDecompressor)
 				resp, err := queryApi.GetJobStatus(ctx, &api.JobStatusRequest{JobIds: tc.jobIds})
 				require.NoError(t, err)
-				assert.Equal(t, resp, tc.expectedResponse)
+				assert.Equal(t, tc.expectedResponse, resp)
 				return nil
 			})
 			assert.NoError(t, err)
@@ -332,7 +334,7 @@ func newJobRun(jobId, runId string, state int16, leased time.Time) database.JobR
 	}
 }
 
-func newJobDetails(jobId string, state api.JobState, runs ...*api.JobRunDetails) *api.JobDetails {
+func newJobDetails(jobId string, state api.JobState, latestRunId string, runs ...*api.JobRunDetails) *api.JobDetails {
 	return &api.JobDetails{
 		JobId:            jobId,
 		Queue:            "testQueue",
@@ -343,7 +345,7 @@ func newJobDetails(jobId string, state api.JobState, runs ...*api.JobRunDetails)
 		CancelTs:         nil,
 		CancelReason:     "",
 		LastTransitionTs: &baseTime,
-		LatestRunId:      "",
+		LatestRunId:      latestRunId,
 		JobSpec:          nil,
 		JobRuns:          runs,
 	}

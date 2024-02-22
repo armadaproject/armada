@@ -8,5 +8,5 @@ SELECT job_id, queue, jobset, namespace, state, submitted, cancelled, cancel_rea
 SELECT * FROM job_run WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: GetJobRunsByJobIds :many
-SELECT * FROM job_run WHERE job_id = ANY(sqlc.arg(job_ids)::text[]) order by leased;
+SELECT * FROM job_run WHERE job_id = ANY(sqlc.arg(job_ids)::text[]) order by leased  desc;
 

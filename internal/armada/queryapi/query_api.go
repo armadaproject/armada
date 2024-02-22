@@ -8,6 +8,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/jackc/pgx/v5/pgxpool"
+	log "github.com/sirupsen/logrus"
 )
 
 // JobStateMap is a mapping between database state and api Job states
@@ -88,7 +89,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 			jobsWithRuns = append(jobsWithRuns, row.JobID)
 		}
 	}
-
+	log.Errorf("%d  jobs have runs", len(jobsWithRuns))
 	// Fetch the Job run details in a separate query.
 	// We do this because each job can have many runs and so we don;t want to duplicate the job data for each run
 	if len(jobsWithRuns) > 0 {
@@ -117,7 +118,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				StartedTs:  DbTimeToGoTime(row.Started),
 				FinishedTs: DbTimeToGoTime(row.Finished),
 			})
-			runsByJob[row.RunID] = jobRuns
+			runsByJob[row.JobID] = jobRuns
 		}
 
 		for jobId, jobDetails := range detailsById {
