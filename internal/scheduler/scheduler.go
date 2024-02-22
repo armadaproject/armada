@@ -373,10 +373,12 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, nil, jctx, nil); err != nil {
+		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
 			return err
 		}
 	}
+	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
+	// This is to make sure that preempttion is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
 }
 
