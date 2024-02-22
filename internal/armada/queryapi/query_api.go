@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/armadaproject/armada/internal/armada/queryapi/database"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // JobStateMap is a mapping between database state and api Job states
