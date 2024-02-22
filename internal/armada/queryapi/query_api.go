@@ -3,6 +3,7 @@ package queryapi
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -58,73 +59,83 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 		return nil, fmt.Errorf("request contained more than %d jobIds", q.maxQueryItems)
 	}
 
-	queries := database.New(q.db)
+	detailsById := make(map[string]*api.JobDetails)
 
-	// Fetch the Job Rows
-	resultRows, err := queries.GetJobDetails(ctx, req.JobIds)
-	if err != nil {
-		return nil, err
-	}
-	detailsById := make(map[string]*api.JobDetails, len(resultRows))
-	jobsWithRuns := make([]string, 0, len(resultRows))
-	decompressor := q.decompressorFactory()
-	for _, row := range resultRows {
-		var jobSpec *api.Job = nil
-		if req.ExpandJobSpec {
-			jobSpec, err = protoutil.DecompressAndUnmarshall[*api.Job](row.JobSpec, &api.Job{}, decompressor)
-			if err != nil {
-				return nil, err
-			}
-		}
-		apiJobState, ok := JobStateMap[row.State]
-		if !ok {
-			apiJobState = api.JobState_UNKNOWN
-		}
-		detailsById[row.JobID] = &api.JobDetails{
-			JobId:            row.JobID,
-			Queue:            row.Queue,
-			Jobset:           row.Jobset,
-			Namespace:        NilStringToString(row.Namespace),
-			State:            apiJobState,
-			SubmittedTs:      DbTimeToGoTime(row.Submitted),
-			CancelTs:         DbTimeToGoTime(row.Cancelled),
-			CancelReason:     NilStringToString(row.CancelReason),
-			LastTransitionTs: DbTimeToGoTime(row.LastTransitionTime),
-			LatestRunId:      NilStringToString(row.LatestRunID),
-			JobSpec:          jobSpec,
-		}
-		if req.GetExpandJobRun() && row.LatestRunID != nil {
-			jobsWithRuns = append(jobsWithRuns, row.JobID)
-		}
-	}
-	// Fetch the Job run details in a separate query.
-	// We do this because each job can have many runs and so we don;t want to duplicate the job data for each run
-	if len(jobsWithRuns) > 0 {
-		runResultRows, err := queries.GetJobRunsByJobIds(ctx, jobsWithRuns)
+	err := pgx.BeginTxFunc(ctx, q.db, pgx.TxOptions{
+		IsoLevel:       pgx.RepeatableRead,
+		AccessMode:     pgx.ReadOnly,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		queries := database.New(tx)
+
+		// Fetch the Job Rows
+		resultRows, err := queries.GetJobDetails(ctx, req.JobIds)
 		if err != nil {
-			return nil, err
-		}
-		runsByJob := make(map[string][]*api.JobRunDetails, len(resultRows))
-		for _, row := range runResultRows {
-			jobRuns, ok := runsByJob[row.JobID]
-			if !ok {
-				jobRuns = []*api.JobRunDetails{}
-			}
-			jobRuns = append(jobRuns, parseJobDetails(row))
-			runsByJob[row.JobID] = jobRuns
+			return err
 		}
 
-		for jobId, jobDetails := range detailsById {
-			runs, ok := runsByJob[jobId]
-			if ok {
-				jobDetails.JobRuns = runs
+		jobsWithRuns := make([]string, 0, len(resultRows))
+		decompressor := q.decompressorFactory()
+		for _, row := range resultRows {
+			var jobSpec *api.Job = nil
+			if req.ExpandJobSpec {
+				jobSpec, err = protoutil.DecompressAndUnmarshall[*api.Job](row.JobSpec, &api.Job{}, decompressor)
+				if err != nil {
+					return err
+				}
+			}
+			apiJobState, ok := JobStateMap[row.State]
+			if !ok {
+				apiJobState = api.JobState_UNKNOWN
+			}
+			detailsById[row.JobID] = &api.JobDetails{
+				JobId:            row.JobID,
+				Queue:            row.Queue,
+				Jobset:           row.Jobset,
+				Namespace:        NilStringToString(row.Namespace),
+				State:            apiJobState,
+				SubmittedTs:      DbTimeToGoTime(row.Submitted),
+				CancelTs:         DbTimeToGoTime(row.Cancelled),
+				CancelReason:     NilStringToString(row.CancelReason),
+				LastTransitionTs: DbTimeToGoTime(row.LastTransitionTime),
+				LatestRunId:      NilStringToString(row.LatestRunID),
+				JobSpec:          jobSpec,
+			}
+			if req.GetExpandJobRun() && row.LatestRunID != nil {
+				jobsWithRuns = append(jobsWithRuns, row.JobID)
 			}
 		}
-	}
+		// Fetch the Job run details in a separate query.
+		// We do this because each job can have many runs and so we don;t want to duplicate the job data for each run
+		if len(jobsWithRuns) > 0 {
+			runResultRows, err := queries.GetJobRunsByJobIds(ctx, jobsWithRuns)
+			if err != nil {
+				return err
+			}
+			runsByJob := make(map[string][]*api.JobRunDetails, len(resultRows))
+			for _, row := range runResultRows {
+				jobRuns, ok := runsByJob[row.JobID]
+				if !ok {
+					jobRuns = []*api.JobRunDetails{}
+				}
+				jobRuns = append(jobRuns, parseJobDetails(row))
+				runsByJob[row.JobID] = jobRuns
+			}
+
+			for jobId, jobDetails := range detailsById {
+				runs, ok := runsByJob[jobId]
+				if ok {
+					jobDetails.JobRuns = runs
+				}
+			}
+		}
+		return nil
+	})
 
 	return &api.JobDetailsResponse{
 		JobDetails: detailsById,
-	}, nil
+	}, err
+
 }
 
 func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsRequest) (*api.JobRunDetailsResponse, error) {
