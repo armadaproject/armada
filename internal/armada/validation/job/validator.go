@@ -19,7 +19,7 @@ func NewJobValidator(config configuration.SchedulingConfig) validation.Validator
 		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},
 		terminationGracePeriodValidator{
 			minTerminationGracePeriodSeconds: int64(config.MinTerminationGracePeriod),
-			maxTerminationGracePeriodSeconds: int64(config.MaxTerminationGracePeriod)
+			maxTerminationGracePeriodSeconds: int64(config.MaxTerminationGracePeriod),
 		},
 	})
 }
