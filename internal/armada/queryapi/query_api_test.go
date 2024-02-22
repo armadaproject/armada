@@ -1,19 +1,20 @@
 package queryapi
 
 import (
-	"github.com/armadaproject/armada/internal/armada/queryapi/database"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"testing"
+	"time"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
-	"testing"
-	"time"
 
+	"github.com/armadaproject/armada/internal/armada/queryapi/database"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/compress"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/pkg/api"
 )
 

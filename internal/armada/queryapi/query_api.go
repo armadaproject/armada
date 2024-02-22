@@ -3,13 +3,13 @@ package queryapi
 import (
 	"context"
 	"fmt"
+
 	"github.com/armadaproject/armada/internal/armada/queryapi/database"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/jackc/pgx/v5/pgxpool"
-	log "github.com/sirupsen/logrus"
 )
 
 // JobStateMap is a mapping between database state and api Job states
@@ -53,7 +53,6 @@ func New(db *pgxpool.Pool, maxQueryItems int, decompressorFactory func() compres
 }
 
 func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest) (*api.JobDetailsResponse, error) {
-
 	if len(req.JobIds) > q.maxQueryItems {
 		return nil, fmt.Errorf("request contained more than %d jobIds", q.maxQueryItems)
 	}
@@ -97,7 +96,6 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 			jobsWithRuns = append(jobsWithRuns, row.JobID)
 		}
 	}
-	log.Errorf("%d  jobs have runs", len(jobsWithRuns))
 	// Fetch the Job run details in a separate query.
 	// We do this because each job can have many runs and so we don;t want to duplicate the job data for each run
 	if len(jobsWithRuns) > 0 {
