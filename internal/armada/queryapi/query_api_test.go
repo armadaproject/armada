@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	baseTime         = time.Now().UTC()
+	baseTime, _      = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	testDecompressor = func() compress.Decompressor { return &compress.NoOpDecompressor{} }
 )
 
