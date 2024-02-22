@@ -3,8 +3,8 @@ package queryapi
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/armadaproject/armada/internal/armada/queryapi/database"
@@ -135,7 +135,6 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 	return &api.JobDetailsResponse{
 		JobDetails: detailsById,
 	}, err
-
 }
 
 func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsRequest) (*api.JobRunDetailsResponse, error) {
