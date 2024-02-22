@@ -57,7 +57,7 @@ message JobDetailsRequest {
 }
 
 message JobDetailsResponse {
-  map<string, JobDetails> details = 1;
+  map<string, JobDetails> job_details = 1;
 }
 
 message JobRunDetailsResponse {

@@ -124,7 +124,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 	}
 
 	return &api.JobDetailsResponse{
-		Details: detailsById,
+		JobDetails: detailsById,
 	}, nil
 }
 

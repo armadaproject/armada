@@ -51,7 +51,7 @@ func TestGetJobDetails(t *testing.T) {
 				JobIds: []string{"job1"},
 			},
 			expectedResponse: &api.JobDetailsResponse{
-				Details: map[string]*api.JobDetails{
+				JobDetails: map[string]*api.JobDetails{
 					"job1": newJobDetails("job1", api.JobState_QUEUED, ""),
 				},
 			},
@@ -61,7 +61,7 @@ func TestGetJobDetails(t *testing.T) {
 				JobIds: []string{"job1", "job2"},
 			},
 			expectedResponse: &api.JobDetailsResponse{
-				Details: map[string]*api.JobDetails{
+				JobDetails: map[string]*api.JobDetails{
 					"job1": newJobDetails("job1", api.JobState_QUEUED, ""),
 					"job2": newJobDetails("job2", api.JobState_RUNNING, "run1"),
 				},
@@ -72,7 +72,7 @@ func TestGetJobDetails(t *testing.T) {
 				JobIds: []string{},
 			},
 			expectedResponse: &api.JobDetailsResponse{
-				Details: map[string]*api.JobDetails{},
+				JobDetails: map[string]*api.JobDetails{},
 			},
 		},
 		"non existent job": {
@@ -80,7 +80,7 @@ func TestGetJobDetails(t *testing.T) {
 				JobIds: []string{"this job doesn't exist!"},
 			},
 			expectedResponse: &api.JobDetailsResponse{
-				Details: map[string]*api.JobDetails{},
+				JobDetails: map[string]*api.JobDetails{},
 			},
 		},
 		"ask for run but no run available": {
@@ -89,7 +89,7 @@ func TestGetJobDetails(t *testing.T) {
 				ExpandJobRun: true,
 			},
 			expectedResponse: &api.JobDetailsResponse{
-				Details: map[string]*api.JobDetails{
+				JobDetails: map[string]*api.JobDetails{
 					"job1": newJobDetails("job1", api.JobState_QUEUED, ""),
 				},
 			},
@@ -100,7 +100,7 @@ func TestGetJobDetails(t *testing.T) {
 				ExpandJobRun: true,
 			},
 			expectedResponse: &api.JobDetailsResponse{
-				Details: map[string]*api.JobDetails{
+				JobDetails: map[string]*api.JobDetails{
 					"job2": newJobDetails(
 						"job2",
 						api.JobState_RUNNING,
