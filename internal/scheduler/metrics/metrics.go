@@ -313,10 +313,8 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
-	if job == nil {
-		job = jctx.Job.(*jobdb.Job)
-	}
+func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
+	job := jctx.Job.(*jobdb.Job)
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, &jctx.Created)
 	labels := m.buffer[0:0]
@@ -324,11 +322,7 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 	labels = append(labels, leased)
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
-	if jctx != nil {
-		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
-	} else {
-		labels = appendLabelsFromJob(labels, job)
-	}
+	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
 	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, &jctx.Created, priorStateTime); err != nil {
 		return err
 	}

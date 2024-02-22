@@ -368,7 +368,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		return nil
 	}
 	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(nil, jctx); err != nil {
+		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
 			return err
 		}
 	}
