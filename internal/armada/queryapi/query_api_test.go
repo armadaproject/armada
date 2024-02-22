@@ -1,51 +1,64 @@
 package queryapi
 
 import (
-	"context"
-	"testing"
-	"time"
-
+	"github.com/armadaproject/armada/internal/armada/queryapi/database"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/pointer"
+	"testing"
+	"time"
 
-	"github.com/armadaproject/armada/internal/common/database/lookout"
+	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func TestGetJobStatus(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+var (
+	baseTime         = time.Now().UTC()
+	testDecompressor = func() compress.Decompressor { return &compress.NoOpDecompressor{} }
+)
+
+func TestGetJobDetails(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
+
+	testJobs := []database.Job{
+		newJob("job1", lookout.JobLeasedOrdinal),
+		newJob("job2", lookout.JobRunningOrdinal),
+	}
+
+	testJobDetails := []*api.JobDetails{
+		newJobDetails("job1", lookout.JobQueuedOrdinal),
+		newJobDetails("job1", lookout.JobRunningOrdinal),
+	}
 
 	// setup job db
 	tests := map[string]struct {
-		jobId            string
-		expectedResponse *api.JobStatusResponse
+		request          *api.JobDetailsRequest
+		expectedResponse *api.JobDetailsResponse
 	}{
-		"leased job": {
-			jobId:            "leasedJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "leasedJob", JobState: api.JobState_LEASED},
-		},
-		"running job": {
-			jobId:            "runningJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "runningJob", JobState: api.JobState_RUNNING},
-		},
-		"completed job": {
-			jobId:            "completedJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "completedJob", JobState: api.JobState_SUCCEEDED},
-		},
-		"missing job": {
-			jobId:            "missingJob",
-			expectedResponse: &api.JobStatusResponse{JobId: "missingJob", JobState: api.JobState_UNKNOWN},
+		"single job": {
+			request: &api.JobDetailsRequest{
+				JobIds: []string{"job1"},
+			},
+			expectedResponse: &api.JobDetailsResponse{
+				Details: map[string]*api.JobDetails{
+					"job1": testJobDetails[0],
+				},
+			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				queryApi := New(db)
-				err := insertTestData(ctx, db)
+				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
 				require.NoError(t, err)
-				resp, err := queryApi.GetJobStatus(context.Background(), &api.JobStatusRequest{JobId: tc.jobId})
+				queryApi := New(db, testDecompressor)
+				resp, err := queryApi.GetJobDetails(ctx, tc.request)
 				require.NoError(t, err)
 				assert.Equal(t, resp, tc.expectedResponse)
 				return nil
@@ -55,62 +68,134 @@ func TestGetJobStatus(t *testing.T) {
 	}
 }
 
-func insertTestData(ctx context.Context, db *pgxpool.Pool) error {
-	err := insertJob(ctx, db, "leasedJob", lookout.JobLeasedOrdinal)
-	if err != nil {
-		return err
+func TestGetJobStatus(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+
+	testdata := []database.Job{
+		newJob("leasedJob", lookout.JobLeasedOrdinal),
+		newJob("runningJob", lookout.JobRunningOrdinal),
+		newJob("succeededJob", lookout.JobSucceededOrdinal),
 	}
-	err = insertJob(ctx, db, "runningJob", lookout.JobRunningOrdinal)
-	if err != nil {
-		return err
+	// setup job db
+	tests := map[string]struct {
+		jobIds           []string
+		expectedResponse *api.JobStatusResponse
+	}{
+		"leased job": {
+			jobIds: []string{"leasedJob"},
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{
+					"leasedJob": api.JobState_LEASED,
+				},
+			},
+		},
+		"running job": {
+			jobIds: []string{"runningJob"},
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{
+					"runningJob": api.JobState_RUNNING,
+				},
+			},
+		},
+		"succeeded job": {
+			jobIds: []string{"succeededJob"},
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{
+					"succeededJob": api.JobState_SUCCEEDED,
+				},
+			},
+		},
+		"multiple jobs": {
+			jobIds: []string{"succeededJob", "runningJob"},
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{
+					"succeededJob": api.JobState_SUCCEEDED,
+					"runningJob":   api.JobState_RUNNING,
+				},
+			},
+		},
+		"missing job": {
+			jobIds: []string{"missingJob"},
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{
+					"missingJob": api.JobState_UNKNOWN,
+				},
+			},
+		},
+		"no jobs": {
+			jobIds: []string{},
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{},
+			},
+		},
 	}
-	err = insertJob(ctx, db, "completedJob", lookout.JobSucceededOrdinal)
-	if err != nil {
-		return err
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
+				require.NoError(t, err)
+				queryApi := New(db, testDecompressor)
+				resp, err := queryApi.GetJobStatus(ctx, &api.JobStatusRequest{JobIds: tc.jobIds})
+				require.NoError(t, err)
+				assert.Equal(t, resp, tc.expectedResponse)
+				return nil
+			})
+			assert.NoError(t, err)
+		})
 	}
-	return nil
 }
 
-func insertJob(ctx context.Context, db *pgxpool.Pool, jobId string, state int16) error {
-	// Prepare the SQL query
-	sql := `INSERT INTO job(job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu, priority, submitted, state, last_transition_time, last_transition_time_seconds, job_spec, duplicate)
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
+func newJob(jobId string, state int16) database.Job {
+	return database.Job{
+		JobID:            jobId,
+		Queue:            "testQueue",
+		Owner:            "testOwner",
+		Jobset:           "testJobset",
+		Cpu:              0,
+		Memory:           0,
+		EphemeralStorage: 0,
+		Gpu:              0,
+		Priority:         0,
+		Submitted: pgtype.Timestamp{
+			Time:  baseTime,
+			Valid: true,
+		},
+		Cancelled: pgtype.Timestamp{},
+		State:     state,
+		LastTransitionTime: pgtype.Timestamp{
+			Time:  baseTime,
+			Valid: true,
+		},
+		LastTransitionTimeSeconds: 0,
+		JobSpec:                   []byte{},
+		Duplicate:                 false,
+		PriorityClass:             nil,
+		LatestRunID:               nil,
+		CancelReason:              nil,
+		Namespace:                 pointer.String("testNamespace"),
+		Annotations:               nil,
+	}
+}
 
-	// Prepare dummy values
-	queue := " "
-	owner := " "
-	jobset := " "
-	cpu := int64(0)
-	memory := int64(0)
-	ephemeralStorage := int64(0)
-	gpu := int64(0)
-	priority := int64(0)
-	submitted := time.Now()
-	lastTransitionTime := time.Now()
-	lastTransitionTimeSeconds := int64(0)
-	jobSpec := []byte{}
-	duplicate := false
+func newJobDetails(jobId string, state api.JobState) *api.JobDetails {
+	return &api.JobDetails{
+		JobId:            jobId,
+		Queue:            "testQueue",
+		Jobset:           "testJobset",
+		Namespace:        "testNamespace",
+		State:            state,
+		SubmittedTs:      &baseTime,
+		CancelTs:         nil,
+		CancelReason:     "",
+		LastTransitionTs: nil,
+		LatestRunId:      "",
+		JobSpec:          nil,
+		JobRuns:          nil,
+	}
+}
 
-	// Execute the query with the prepared dummy values
-	_, err := db.Exec(
-		ctx,
-		sql,
-		jobId,
-		queue,
-		owner,
-		jobset,
-		cpu,
-		memory,
-		ephemeralStorage,
-		gpu,
-		priority,
-		submitted,
-		state,
-		lastTransitionTime,
-		lastTransitionTimeSeconds,
-		jobSpec,
-		duplicate)
-
-	// Return any error that might have occurred during the execution
-	return err
+func withJobState(job database.Job, state int16) database.Job {
+	job.State = state
+	return job
 }

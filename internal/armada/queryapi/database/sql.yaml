@@ -1,7 +1,7 @@
-# Compile with "sqlc generate -f internal/queryapi/database/sql.yaml" from the project root directory.
+# Compile with "sqlc generate -f internal/armada/queryapi/database/sql.yaml" from the project root directory.
 version: 2
 sql:
-  - schema: "../../lookoutv2/schema/migrations"
+  - schema: "../../../lookoutv2/schema/migrations"
     queries: "query.sql"
     engine: "postgresql"
     gen:
