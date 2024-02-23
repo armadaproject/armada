@@ -130,7 +130,7 @@ function canOrderByField(lookoutFilters: JobFilter[], groupedColumns: string[], 
 
   // Exclude column and everything after from groupedColumns for direct comparison
   const index = groupedColumns.findIndex((col) => col === id)
-  const filteredGroupedColumns = groupedColumns.slice(0, index)
+  const filteredGroupedColumns = index >= 0 ? groupedColumns.slice(0, index) : groupedColumns
 
   // Check if the lengths are different
   if (filterFields.length !== filteredGroupedColumns.length) {

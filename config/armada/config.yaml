@@ -134,6 +134,7 @@ postgres:
     sslmode: disable
 queryapi:
   enabled: false
+  maxQueryItems: 500
   postgres:
     connection:
       host: postgres

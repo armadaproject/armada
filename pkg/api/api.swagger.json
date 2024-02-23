@@ -1285,7 +1285,11 @@
         "RUNNING",
         "SUCCEEDED",
         "FAILED",
-        "UNKNOWN"
+        "UNKNOWN",
+        "SUBMITTED",
+        "LEASED",
+        "PREEMPTED",
+        "CANCELLED"
       ]
     },
     "apiJobSubmitRequest": {

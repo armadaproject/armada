@@ -1296,7 +1296,11 @@ func SwaggerJsonTemplate() string {
 		"        \"RUNNING\",\n" +
 		"        \"SUCCEEDED\",\n" +
 		"        \"FAILED\",\n" +
-		"        \"UNKNOWN\"\n" +
+		"        \"UNKNOWN\",\n" +
+		"        \"SUBMITTED\",\n" +
+		"        \"LEASED\",\n" +
+		"        \"PREEMPTED\",\n" +
+		"        \"CANCELLED\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +
