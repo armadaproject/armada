@@ -29,6 +29,7 @@ type Job struct {
 	LatestRunID               *string          `db:"latest_run_id"`
 	CancelReason              *string          `db:"cancel_reason"`
 	Namespace                 *string          `db:"namespace"`
+	Annotations               []byte           `db:"annotations"`
 }
 
 type JobRun struct {

@@ -1786,6 +1786,18 @@ namespace GResearch.Armada.Client
         [System.Runtime.Serialization.EnumMember(Value = @"UNKNOWN")]
         UNKNOWN = 5,
     
+        [System.Runtime.Serialization.EnumMember(Value = @"SUBMITTED")]
+        SUBMITTED = 6,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"LEASED")]
+        LEASED = 7,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"PREEMPTED")]
+        PREEMPTED = 8,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"CANCELLED")]
+        CANCELLED = 9,
+    
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]

@@ -94,6 +94,10 @@ enum JobState {
     SUCCEEDED = 3;
     FAILED = 4;
     UNKNOWN = 5;
+    SUBMITTED = 6;
+    LEASED = 7;
+    PREEMPTED = 8;
+    CANCELLED = 9;
 }
 
 message Job {
