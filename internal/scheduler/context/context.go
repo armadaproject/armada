@@ -690,7 +690,7 @@ type GangInfo struct {
 }
 
 // EmptyGangInfo returns a GangInfo for a job that is not in a gang.
-func EmptyGangInfo(job interfaces.LegacySchedulerJob) GangInfo {
+func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
 	return GangInfo{
 		// An Id of "" indicates that this job is not in a gang; we set
 		// Cardinality and MinimumCardinality (as well as the other fields,
@@ -703,7 +703,7 @@ func EmptyGangInfo(job interfaces.LegacySchedulerJob) GangInfo {
 	}
 }
 
-func GangInfoFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (GangInfo, error) {
+func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error) {
 	gangInfo := EmptyGangInfo(job)
 
 	annotations := job.GetAnnotations()

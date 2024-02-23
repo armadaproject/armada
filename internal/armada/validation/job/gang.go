@@ -7,12 +7,25 @@ import (
 	"github.com/pkg/errors"
 )
 
+type jobAdpter struct {
+	*api.JobSubmitRequestItem
+}
+
+func (j jobAdpter) GetPriorityClassName() string {
+	if j.PodSpec != nil {
+		return j.PodSpec.PriorityClassName
+	} else if len(j.PodSpecs) > 0 {
+		return j.PodSpecs[0].PriorityClassName
+	}
+	return ""
+}
+
 type gangValidator struct{}
 
 func (p gangValidator) Validate(request *api.JobSubmitRequest) error {
 	gangDetailsByGangId := make(map[string]schedulercontext.GangInfo)
 	for _, job := range request.JobRequestItems {
-		actual, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
+		actual, err := schedulercontext.GangInfoFromLegacySchedulerJob(jobAdpter{job})
 		if err != nil {
 			return fmt.Errorf("invalid gang annotations: %s", err.Error())
 		}
@@ -23,11 +36,11 @@ func (p gangValidator) Validate(request *api.JobSubmitRequest) error {
 			if expected.Cardinality != actual.Cardinality {
 				return errors.Errorf(
 					"inconsistent gang cardinality in gang %s: expected %d but got %d",
-					actual.Id, expected.Cardinality, actual.Cardinality
+					actual.Id, expected.Cardinality, actual.Cardinality,
 				)
 			}
 			if expected.MinimumCardinality != actual.MinimumCardinality {
-				return  errors.Errorf(
+				return errors.Errorf(
 					"inconsistent gang minimum cardinality in gang %s: expected %d but got %d",
 					actual.Id, expected.MinimumCardinality, actual.MinimumCardinality,
 				)

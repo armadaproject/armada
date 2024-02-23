@@ -9,6 +9,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+type MinimalJob interface {
+	GetAnnotations() map[string]string
+	GetPriorityClassName() string
+}
+
 // LegacySchedulerJob is the job interface used throughout the scheduler.
 type LegacySchedulerJob interface {
 	GetId() string
