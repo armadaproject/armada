@@ -84,26 +84,6 @@ func ShortSequenceString(sequence *armadaevents.EventSequence) string {
 	return s
 }
 
-// ApiJobsFromLogSubmitJobs converts a slice of log jobs to API jobs.
-func ApiJobsFromLogSubmitJobs(
-	userId string,
-	groups []string,
-	queueName string,
-	jobSetName string,
-	time time.Time,
-	es []*armadaevents.SubmitJob,
-) ([]*api.Job, error) {
-	jobs := make([]*api.Job, len(es))
-	for i, e := range es {
-		job, err := ApiJobFromLogSubmitJob(userId, groups, queueName, jobSetName, time, e)
-		if err != nil {
-			return nil, err
-		}
-		jobs[i] = job
-	}
-	return jobs, nil
-}
-
 // ApiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
@@ -194,19 +174,8 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	}, nil
 }
 
-// LogSubmitJobFromApiJob converts an API job to a log job.
-// Note that PopulateK8sServicesIngresses must be called first if job.Services and job.Ingress
-// is to be included in the resulting log job, since the log job can only include k8s objects
-// (i.e., not the API-specific job.Services or job.Ingress).
-func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
-	if job.PodSpec != nil && len(job.PodSpecs) != 0 {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "PodSpecs",
-			Value:   job.PodSpecs,
-			Message: "Both PodSpec and PodSpecs are set",
-		})
-	}
-	jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
+func LogSubmitJobFromApiJob(jobIdStr string, job *api.JobSubmitRequestItem) (*armadaevents.SubmitJob, error) {
+	jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +205,7 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 //
 // To extract services and ingresses, PopulateK8sServicesIngresses must be called on the job first
 // to convert API-specific job objects to proper K8s objects.
-func LogSubmitObjectsFromApiJob(job *api.Job) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject, error) {
+func LogSubmitObjectsFromApiJob(job *api.JobSubmitRequestItem) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject, error) {
 	// Objects part of the job in addition to the main object.
 	objects := make([]*armadaevents.KubernetesObject, 0, len(job.Services)+len(job.Ingress)+len(job.PodSpecs))
 
