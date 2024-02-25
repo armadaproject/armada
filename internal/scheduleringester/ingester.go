@@ -1,6 +1,10 @@
 package scheduleringester
 
 import (
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -8,14 +12,10 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/app"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/schedulers"
-	"github.com/armadaproject/armada/internal/common/serve"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the schedulerDb.
@@ -36,13 +36,15 @@ func Run(config Configuration) error {
 	}
 
 	// Expose profiling endpoints if enabled.
-	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
-	go func() {
-		ctx := armadacontext.Background()
-		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-			logging.WithStacktrace(ctx, err).Error("pprof server failure")
-		}
-	}()
+	if config.PprofPort != nil {
+		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
+		go func() {
+			ctx := armadacontext.Background()
+			if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+				logging.WithStacktrace(ctx, err).Error("pprof server failure")
+			}
+		}()
+	}
 
 	ingester := ingest.NewFilteredMsgIngestionPipeline[*DbOperationsWithMessageIds](
 		config.Pulsar,
