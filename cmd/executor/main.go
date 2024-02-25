@@ -1,9 +1,6 @@
 package main
 
 import (
-	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +14,9 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/metrics"

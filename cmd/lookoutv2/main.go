@@ -1,9 +1,6 @@
 package main
 
 import (
-	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +13,9 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookoutv2"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"

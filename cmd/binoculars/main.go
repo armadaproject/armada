@@ -2,10 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,8 +16,12 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars"
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	api "github.com/armadaproject/armada/pkg/api/binoculars"
 )
 

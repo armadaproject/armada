@@ -1,11 +1,12 @@
 package scheduleringester
 
 import (
+	"time"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/serve"
-	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
