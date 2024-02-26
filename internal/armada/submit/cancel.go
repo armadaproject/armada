@@ -22,7 +22,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+func (srv *SubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	if req.JobSetId == "" || req.Queue == "" {
@@ -117,7 +117,7 @@ func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobC
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+func (srv *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	if req.JobSetId == "" || req.Queue == "" {
@@ -239,7 +239,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *ap
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+func (srv *SubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if req.Queue == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
@@ -304,7 +304,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(grpcCtx context.Context, req *api.Jo
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
+func (srv *SubmitServer) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
@@ -369,7 +369,7 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
 // If no job can be retrieved then an error is returned.
-func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
+func (srv *SubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
 	jobDetails, err := srv.JobRepository.GetPulsarSchedulerJobDetails(jobId)
 	if err != nil {
 		return "", "", err

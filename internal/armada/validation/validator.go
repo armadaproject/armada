@@ -8,7 +8,7 @@ type CompoundValidator[T any] struct {
 	validators []Validator[T]
 }
 
-func NewCompundValidator[T any](validators []Validator[T]) CompoundValidator[T]{
+func NewCompoundValidator[T any](validators []Validator[T]) CompoundValidator[T]{
 	return CompoundValidator[T]{
 		validators:  validators
 	}

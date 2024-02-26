@@ -98,13 +98,24 @@ func GroupByFunc[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]S {
 }
 
 // GroupByFuncUnique returns a map keyFunc(e) to e for each element e in s.
-func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]E {
+func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(S) K) map[K]E {
 	rv := make(map[K]E, len(s))
 	for _, e := range s {
 		k := keyFunc(e)
 		rv[k] = e
 	}
 	return rv
+}
+
+func Map[S ~[]E, E any, V any](s S, f func(E) V) []V {
+	if s == nil {
+		return nil
+	}
+	out := make([]V, 0, len(s))
+	for i, s := range s {
+		out[i] = f(s)
+	}
+	return out
 }
 
 // MapAndGroupByFuncs groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e)

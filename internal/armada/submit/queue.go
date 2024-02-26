@@ -18,7 +18,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-func (srv *PulsarSubmitServer) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
+func (srv *SubmitServer) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := srv.Authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
@@ -49,7 +49,7 @@ func (srv *PulsarSubmitServer) CreateQueue(grpcCtx context.Context, req *api.Que
 	return &types.Empty{}, nil
 }
 
-func (srv *PulsarSubmitServer) CreateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+func (srv *SubmitServer) CreateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	var failedQueues []*api.QueueCreateResponse
 	// Create a queue for each element of the request body and return the failures.
@@ -68,7 +68,7 @@ func (srv *PulsarSubmitServer) CreateQueues(grpcCtx context.Context, req *api.Qu
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
+func (srv *SubmitServer) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := srv.Authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
@@ -94,7 +94,7 @@ func (srv *PulsarSubmitServer) UpdateQueue(grpcCtx context.Context, req *api.Que
 	return &types.Empty{}, nil
 }
 
-func (srv *PulsarSubmitServer) UpdateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+func (srv *SubmitServer) UpdateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	var failedQueues []*api.QueueUpdateResponse
 
@@ -114,7 +114,7 @@ func (srv *PulsarSubmitServer) UpdateQueues(grpcCtx context.Context, req *api.Qu
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
+func (srv *SubmitServer) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := srv.Authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
 	var ep *armadaerrors.ErrUnauthorized
@@ -130,7 +130,7 @@ func (srv *PulsarSubmitServer) DeleteQueue(grpcCtx context.Context, req *api.Que
 	return &types.Empty{}, nil
 }
 
-func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+func (srv *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
 	queue, err := srv.QueueRepository.GetQueue(req.Name)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
@@ -141,7 +141,7 @@ func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRe
 	return queue.ToAPI(), nil
 }
 
-func (srv *PulsarSubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_GetQueuesServer) error {
+func (srv *SubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_GetQueuesServer) error {
 	// Receive once to get information about the number of queues to return
 	numToReturn := req.GetNum()
 	if numToReturn < 1 {

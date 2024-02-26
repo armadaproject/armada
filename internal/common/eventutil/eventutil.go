@@ -174,22 +174,15 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	}, nil
 }
 
-func LogSubmitJobFromApiJob(jobIdStr string, job *api.JobSubmitRequestItem) (*armadaevents.SubmitJob, error) {
-	jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
-	if err != nil {
-		return nil, err
-	}
+func LogSubmitJobFromApiJob(job *api.JobSubmitRequestItem) *armadaevents.SubmitJob {
+	jobId := armadaevents.MustProtoUuidFromUlidString(util.NewULID())
 	priority := LogSubmitPriorityFromApiPriority(job.GetPriority())
-	mainObject, objects, err := LogSubmitObjectsFromApiJob(job)
-	if err != nil {
-		return nil, err
-	}
+	mainObject, objects := LogSubmitObjectsFromApiJob(job)
 	return &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: job.GetClientId(),
 		Priority:        priority,
 		ObjectMeta: &armadaevents.ObjectMeta{
-			ExecutorId:  "", // Not set by the job
 			Namespace:   job.GetNamespace(),
 			Annotations: job.GetAnnotations(),
 			Labels:      job.GetLabels(),
@@ -198,14 +191,14 @@ func LogSubmitJobFromApiJob(jobIdStr string, job *api.JobSubmitRequestItem) (*ar
 		Objects:         objects,
 		Scheduler:       job.Scheduler,
 		QueueTtlSeconds: job.QueueTtlSeconds,
-	}, nil
+	}
 }
 
 // LogSubmitObjectsFromApiJob extracts all objects from an API job for inclusion in a log job.
 //
 // To extract services and ingresses, PopulateK8sServicesIngresses must be called on the job first
 // to convert API-specific job objects to proper K8s objects.
-func LogSubmitObjectsFromApiJob(job *api.JobSubmitRequestItem) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject, error) {
+func LogSubmitObjectsFromApiJob(job *api.JobSubmitRequestItem) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject) {
 	// Objects part of the job in addition to the main object.
 	objects := make([]*armadaevents.KubernetesObject, 0, len(job.Services)+len(job.Ingress)+len(job.PodSpecs))
 
@@ -219,16 +212,6 @@ func LogSubmitObjectsFromApiJob(job *api.JobSubmitRequestItem) (*armadaevents.Ku
 	if mainPodSpec == nil && len(additionalPodSpecs) > 0 {
 		mainPodSpec = additionalPodSpecs[0]
 		additionalPodSpecs = additionalPodSpecs[1:]
-	}
-
-	// Job must contain at least one podspec.
-	if mainPodSpec == nil {
-		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "PodSpec",
-			Value:   nil,
-			Message: "job doesn't contain any podspecs",
-		})
-		return nil, nil, err
 	}
 
 	mainObject := &armadaevents.KubernetesMainObject{
@@ -266,7 +249,7 @@ func LogSubmitObjectsFromApiJob(job *api.JobSubmitRequestItem) (*armadaevents.Ku
 		})
 	}
 
-	return mainObject, objects, nil
+	return mainObject, objects
 }
 
 // PopulateK8sServicesIngresses converts the API-specific service and ingress object into K8s objects

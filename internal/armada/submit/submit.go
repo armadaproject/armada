@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"strings"
 	"time"
 
@@ -12,7 +12,6 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	pool "github.com/jolestar/go-commons-pool"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
@@ -20,29 +19,25 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/armada/validation"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
-	"github.com/armadaproject/armada/internal/armada/server"
-	"github.com/armadaproject/armada/internal/common/util"
 )
 
-// PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
+// SubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
-// TODO: Consider returning a list of message ids of the messages generated
-// TODO: Include job set as the message key for each message
-type PulsarSubmitServer struct {
+type SubmitServer struct {
 	Producer         pulsar.Producer
 	QueueRepository  repository.QueueRepository
 	JobRepository    repository.JobRepository
@@ -51,14 +46,14 @@ type PulsarSubmitServer struct {
 	MaxAllowedMessageSize uint
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
-	// Used to check at job submit time if the job could ever be scheduled on either legacy or pulsar schedulers
-	SubmitChecker  *scheduler.SubmitChecker
-	Authorizer     server.ActionAuthorizer
-	CompressorPool *pool.ObjectPool
+	// Used to check at job submit time if the job could ever be scheduled
+	SubmitChecker    *scheduler.SubmitChecker
+	Authorizer       server.ActionAuthorizer
+	CompressorPool   *pool.ObjectPool
 	RequestValidator validation.Validator[*api.JobSubmitRequest]
 }
 
-func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+func (srv *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	// Check that the user is actually allowed to submit jobs
@@ -67,50 +62,64 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		return nil, status.Error(codes.PermissionDenied, err.Error())
 	}
 
-	// Validate the request is well formed
+	// Validate the request is well-formed
 	err = srv.RequestValidator.Validate(req)
-	if err != nil{
+	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	// Get a mapping between req.ClientId and existing jobId.  If such a mapping exists, it means that
-	// This job has already been submitted and we don't need to resubmit it
+	// this job has already been submitted and we don't need to resubmit it
 	originalIds, err := srv.getOriginalJobIds(ctx, req.Queue, req.JobRequestItems)
 	if err != nil {
 		// Deduplication is best-effort, therefore this is not fatal
 		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
 	}
 
-	// Check if all jobs can be scheduled. This check uses the NodeDb of the new scheduler and can check
-	// if all jobs in a gang can go onto the same cluster.
-	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
-	}
+	submitMsgs := make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems))
+	jobResponses := make([]*api.JobSubmitResponseItem, 0, len(req.JobRequestItems))
 
-	responses := make([]*api.JobSubmitResponseItem, 0, len(req.JobRequestItems))
-
-	for i, jobRequest := range req.JobRequestItems {
+	for _, jobRequest := range req.JobRequestItems {
 
 		// Check if this job has already been submitted. If so we can simply return the previously submitted id
 		originalId, isDuplicate := originalIds[jobRequest.ClientId]
 		if isDuplicate {
-			responses[i]= &api.JobSubmitResponseItem{JobId: originalId}
+			ctx.Infof("Job with client id %s is a duplicate of %s", jobRequest.ClientId, originalId)
+			jobResponses = append(jobResponses, &api.JobSubmitResponseItem{JobId: originalId})
 			continue
 		}
 
-		eventTime := time.Now()
-		var jobId = util.NewULID()
+		// If we get to here then it isn't a duplicate. Create a Job submission
+		submitMsg := eventutil.LogSubmitJobFromApiJob(jobRequest)
+		eventTime := time.Now().UTC()
+		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
+			Created: &eventTime,
+			Event: &armadaevents.EventSequence_Event_SubmitJob{
+				SubmitJob: submitMsg,
+			},
+		})
 
-
-
-		j, err := eventutil.LogSubmitJobFromApiJob(jobId, jobRequest)
-		if err != nil{
-			ctx.WithError(err).Errorf("Error in job conversion")
-			return nil, status.Error(codes.Internal, "Error in job conversion")
-		}
+		jobResponses = append(jobResponses, &api.JobSubmitResponseItem{
+			JobId: armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId),
+		})
 	}
 
-	if len(pulsarJobDetails) > 0 {
+	// Check if all jobs can be scheduled.
+	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(req.JobRequestItems); !canSchedule {
+		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
+	}
+
+	if len(jobResponses) > 0 {
+		pulsarJobDetails := armadaslices.Map[](
+			jobResponses,
+			func(r *api.JobSubmitResponseItem) *schedulerobjects.PulsarSchedulerJobDetails {
+				return &schedulerobjects.PulsarSchedulerJobDetails{
+					JobId:  r.JobId,
+					Queue:  req.Queue,
+					JobSet: req.JobSetId,
+				}
+			})
+
 		err = srv.JobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails)
 		if err != nil {
 			log.WithError(err).Error("failed store pulsar job details")
@@ -118,8 +127,17 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		}
 	}
 
-	if len(es.Events) > 0 {
-		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{es}, schedulers.Pulsar)
+	if len(submitMsgs) > 0 {
+		es := []*armadaevents.EventSequence{
+			{
+				Queue:      req.Queue,
+				JobSetName: req.JobSetId,
+				UserId:     userId,
+				Groups:     groups,
+				Events:     submitMsgs,
+			},
+		}
+		err = pulsarutils.CompactAndPublishSequences(ctx, es, srv.Producer, srv.MaxAllowedMessageSize, schedulers.Pulsar)
 		if err != nil {
 			log.WithError(err).Error("failed send pulsar scheduler events to Pulsar")
 			return nil, status.Error(codes.Internal, "Failed to send message")
@@ -134,14 +152,14 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 	if err != nil {
 		log.WithError(err).Warn("failed to store deduplication ids")
 	}
-	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
+	return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 }
 
 // Authorize authorises a user request to submit a state transition message to the log.
 // User information used for authorization is extracted from the provided context.
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
-func (srv *PulsarSubmitServer) Authorize(
+func (srv *SubmitServer) Authorize(
 	ctx *armadacontext.Context,
 	queueName string,
 	anyPerm permission.Permission,
@@ -158,26 +176,14 @@ func (srv *PulsarSubmitServer) Authorize(
 	return userId, groups, err
 }
 
-func (srv *PulsarSubmitServer) GetUser(ctx *armadacontext.Context) string {
+func (srv *SubmitServer) GetUser(ctx *armadacontext.Context) string {
 	principal := authorization.GetPrincipal(ctx)
 	return principal.GetName()
 }
 
-func (srv *PulsarSubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+func (srv *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
-}
-
-// PublishToPulsar sends pulsar messages async
-func (srv *PulsarSubmitServer) publishToPulsar(ctx *armadacontext.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
-	// Reduce the number of sequences to send to the minimum possible,
-	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
-	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, srv.MaxAllowedMessageSize, true)
-	if err != nil {
-		return err
-	}
-	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences, scheduler)
 }
 
 func jobKey(queue, clientId string) string {
@@ -186,7 +192,7 @@ func jobKey(queue, clientId string) string {
 	return fmt.Sprintf("%x", h)
 }
 
-func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, queue string, jobRequests []*api.JobSubmitRequestItem) (map[string]string, error) {
+func (srv *SubmitServer) getOriginalJobIds(ctx *armadacontext.Context, queue string, jobRequests []*api.JobSubmitRequestItem) (map[string]string, error) {
 
 	// If we don't have a KV store, then just return empty map
 	if srv.KVStore == nil {
@@ -203,7 +209,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, que
 		}
 	}
 
-	duplicates := make(map[string]string, 0)
+	duplicates := make(map[string]string)
 	// If we have any client Ids, retrieve their job ids
 	if len(kvs) > 0 {
 		keys := maps.Keys(kvs)
@@ -213,7 +219,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, que
 		}
 		for k, v := range kvs {
 			originalJobId, ok := existingKvs[k]
-			if ok{
+			if ok {
 				duplicates[string(v)] = string(originalJobId)
 			}
 		}
@@ -221,7 +227,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, que
 	return duplicates, nil
 }
 
-func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) error {
+func (srv *SubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) error {
 	if srv.KVStore == nil {
 		return nil
 	}
@@ -235,124 +241,4 @@ func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, a
 		return nil
 	}
 	return srv.KVStore.Store(ctx, kvs)
-}
-
-func (srv *PulsarSubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
-	compressor, err := srv.CompressorPool.BorrowObject(armadacontext.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer func(compressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
-		err := compressorPool.ReturnObject(ctx, object)
-		if err != nil {
-			log.WithError(err).Errorf("Error returning compressor to pool")
-		}
-	}(srv.CompressorPool, armadacontext.Background(), compressor)
-	compressedOwnershipGroups, err := compress.CompressStringArray(ownershipGroups, compressor.(compress.Compressor))
-	if err != nil {
-		return nil, err
-	}
-
-	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
-
-	if request.JobSetId == "" {
-		return nil, nil, errors.Errorf("[createJobs] job set not specified")
-	}
-
-	if request.Queue == "" {
-		return nil, nil, errors.Errorf("[createJobs] queue not specified")
-	}
-
-	responseItems := make([]*api.JobSubmitResponseItem, 0, len(request.JobRequestItems))
-	for i, item := range request.JobRequestItems {
-		jobId := getUlid()
-
-		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			response := &api.JobSubmitResponseItem{
-				JobId: jobId,
-				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId),
-			}
-			responseItems = append(responseItems, response)
-		}
-		podSpec := item.GetMainPodSpec()
-		if podSpec == nil {
-			response := &api.JobSubmitResponseItem{
-				JobId: jobId,
-				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId),
-			}
-			responseItems = append(responseItems, response)
-			continue // Safety check, to avoid possible nil pointer dereference below
-		}
-		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
-			response := &api.JobSubmitResponseItem{
-				JobId: jobId,
-				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
-			}
-			responseItems = append(responseItems, response)
-		}
-		namespace := item.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-		fillContainerRequestsAndLimits(podSpec.Containers)
-		applyDefaultsToAnnotations(item.Annotations, srv.SchedulingConfig)
-		applyDefaultsToPodSpec(podSpec, srv.SchedulingConfig)
-		if err := validation.ValidatePodSpec(podSpec, srv.SchedulingConfig); err != nil {
-			response := &api.JobSubmitResponseItem{
-				JobId: jobId,
-				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
-			}
-			responseItems = append(responseItems, response)
-		}
-
-		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-		for k, v := range item.RequiredNodeLabels {
-			if podSpec.NodeSelector == nil {
-				podSpec.NodeSelector = map[string]string{}
-			}
-			podSpec.NodeSelector[k] = v
-		}
-
-		enrichText(item.Labels, jobId)
-		enrichText(item.Annotations, jobId)
-		j := &api.Job{
-			Id:       jobId,
-			ClientId: item.ClientId,
-			Queue:    request.Queue,
-			JobSetId: request.JobSetId,
-
-			Namespace:   namespace,
-			Labels:      item.Labels,
-			Annotations: item.Annotations,
-
-			RequiredNodeLabels: item.RequiredNodeLabels,
-			Ingress:            item.Ingress,
-			Services:           item.Services,
-
-			Priority: item.Priority,
-
-			Scheduler:                          item.Scheduler,
-			PodSpec:                            item.PodSpec,
-			PodSpecs:                           item.PodSpecs,
-			Created:                            getTime(), // Replaced with now for mocking unit test
-			Owner:                              owner,
-			QueueOwnershipUserGroups:           nil,
-			CompressedQueueOwnershipUserGroups: compressedOwnershipGroups,
-			QueueTtlSeconds:                    item.QueueTtlSeconds,
-		}
-		jobs = append(jobs, j)
-	}
-
-	if len(responseItems) > 0 {
-		return nil, responseItems, errors.New("[createJobs] error creating jobs, check JobSubmitResponse for details")
-	}
-	return jobs, nil, nil
-}
-
-func enrichText(labels map[string]string, jobId string) {
-	for key, value := range labels {
-		value := strings.ReplaceAll(value, "{{JobId}}", ` \z`) // \z cannot be entered manually, hence its use
-		value = strings.ReplaceAll(value, "{JobId}", jobId)
-		labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
-	}
 }
