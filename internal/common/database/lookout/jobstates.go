@@ -25,7 +25,6 @@ const (
 	JobPreemptedOrdinal = 7
 	JobLeasedOrdinal    = 8
 
-	JobRunLeased           JobRunState = "RUN_LEASED"
 	JobRunPending          JobRunState = "RUN_PENDING"
 	JobRunRunning          JobRunState = "RUN_RUNNING"
 	JobRunSucceeded        JobRunState = "RUN_SUCCEEDED"
@@ -36,6 +35,7 @@ const (
 	JobRunLeaseReturned    JobRunState = "RUN_LEASE_RETURNED"
 	JobRunLeaseExpired     JobRunState = "RUN_LEASE_EXPIRED"
 	JobRunMaxRunsExceeded  JobRunState = "RUN_MAX_RUNS_EXCEEDED"
+	JobRunLeased           JobRunState = "RUN_LEASED"
 
 	JobRunPendingOrdinal          = 1
 	JobRunRunningOrdinal          = 2
@@ -89,4 +89,6 @@ var (
 		JobRunLeaseExpiredOrdinal:     JobRunLeaseExpired,
 		JobRunMaxRunsExceededOrdinal:  JobRunMaxRunsExceeded,
 	}
+
+	JobRunStateOrdinalMap = util.InverseMap(JobRunStateMap)
 )

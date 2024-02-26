@@ -42,16 +42,52 @@ type Job struct {
 	CancelReason       *string
 }
 
+// PostgreSQLTime is a wrapper around time.Time that converts to UTC when
+// deserializing from JSON.
+//
+// It exists to work around the following issue:
+//
+//  1. PostgreSQL serializes UTC timestamps within a JSON object in the format
+//     "2023-11-03T09:10:42.201577+00:00"; in particular, this format uses a
+//     timezone offset instead of "Z" to indicate UTC.
+//  2. When deserializing this UTC timestamp, Go sets the location of the
+//     resulting time.Time value to "local".
+//  3. Tests compare timestamps with == instead of Equal, which means that two
+//     time.Time values with different locations are not considered equal
+//     (even if they represent the same instants in time).
+type PostgreSQLTime struct {
+	Time time.Time
+}
+
+func NewPostgreSQLTime(t *time.Time) *PostgreSQLTime {
+	if t == nil {
+		return nil
+	}
+	return &PostgreSQLTime{Time: *t}
+}
+
+func (t PostgreSQLTime) MarshalJSON() ([]byte, error) {
+	return t.Time.MarshalJSON()
+}
+
+func (t *PostgreSQLTime) UnmarshalJSON(b []byte) error {
+	if err := t.Time.UnmarshalJSON(b); err != nil {
+		return err
+	}
+	t.Time = t.Time.UTC()
+	return nil
+}
+
 type Run struct {
 	Cluster     string
 	ExitCode    *int32
-	Finished    *time.Time
-	JobRunState string
+	Finished    *PostgreSQLTime
+	JobRunState int
 	Node        *string
-	Leased      *time.Time
-	Pending     *time.Time
+	Leased      *PostgreSQLTime
+	Pending     *PostgreSQLTime
 	RunId       string
-	Started     *time.Time
+	Started     *PostgreSQLTime
 }
 
 type JobGroup struct {

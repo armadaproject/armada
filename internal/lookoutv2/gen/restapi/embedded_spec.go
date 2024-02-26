@@ -103,6 +103,9 @@ func init() {
                 }
               }
             }
+          },
+          {
+            "$ref": "#/parameters/backend"
           }
         ],
         "responses": {
@@ -301,6 +304,9 @@ func init() {
                 }
               }
             }
+          },
+          {
+            "$ref": "#/parameters/backend"
           }
         ],
         "responses": {
@@ -655,6 +661,17 @@ func init() {
         }
       }
     }
+  },
+  "parameters": {
+    "backend": {
+      "enum": [
+        "jsonb"
+      ],
+      "type": "string",
+      "description": "The backend to use for this request.",
+      "name": "backend",
+      "in": "query"
+    }
   }
 }`))
 	FlatSwaggerJSON = json.RawMessage([]byte(`{
@@ -743,6 +760,15 @@ func init() {
                 }
               }
             }
+          },
+          {
+            "enum": [
+              "jsonb"
+            ],
+            "type": "string",
+            "description": "The backend to use for this request.",
+            "name": "backend",
+            "in": "query"
           }
         ],
         "responses": {
@@ -941,6 +967,15 @@ func init() {
                 }
               }
             }
+          },
+          {
+            "enum": [
+              "jsonb"
+            ],
+            "type": "string",
+            "description": "The backend to use for this request.",
+            "name": "backend",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1311,6 +1346,17 @@ func init() {
           "x-nullable": true
         }
       }
+    }
+  },
+  "parameters": {
+    "backend": {
+      "enum": [
+        "jsonb"
+      ],
+      "type": "string",
+      "description": "The backend to use for this request.",
+      "name": "backend",
+      "in": "query"
     }
   }
 }`))
