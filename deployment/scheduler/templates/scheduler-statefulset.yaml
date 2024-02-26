@@ -76,8 +76,8 @@ spec:
             - containerPort: {{ .Values.scheduler.applicationConfig.metrics.port }}
               protocol: TCP
               name: metrics
-            {{- if .Values.applicationConfig.pprofPort }}
-            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+            {{- if .Values.scheduler.applicationConfig.pprofPort }}
+            - containerPort: {{ .Values.scheduler.applicationConfig.pprofPort }}
               protocol: TCP
               name: pprof
             {{- end }}
