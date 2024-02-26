@@ -57,4 +57,6 @@ type UIConfig struct {
 	JobSetsAutoRefreshMs int `json:",omitempty"`
 	JobsAutoRefreshMs    int `json:",omitempty"`
 	CommandSpecs         []CommandSpec
+
+	Backend string `json:",omitempty"`
 }
