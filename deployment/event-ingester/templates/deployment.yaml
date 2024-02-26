@@ -44,6 +44,12 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          ports:
+            {{- if .Values.applicationConfig.pprofPort }}
+            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+              protocol: TCP
+              name: pprof
+            {{- end }}
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml

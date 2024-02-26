@@ -45,10 +45,12 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Profiling
 	// ////////////////////////////////////////////////////////////////////////
-	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
-	g.Go(func() error {
-		return serve.ListenAndServe(ctx, pprofServer)
-	})
+	if config.PprofPort != nil {
+		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
+		g.Go(func() error {
+			return serve.ListenAndServe(ctx, pprofServer)
+		})
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Health Checks
