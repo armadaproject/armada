@@ -9,12 +9,11 @@ import (
 
 func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SchedulingConfig) error {
 
-	requestValidator := validation.NewCompoundValidator([]validation.Validator[*api.JobSubmitRequest]{
+	requestValidator := validation.NewCompoundValidator[*api.JobSubmitRequest](
 		queueValidator{},
-		gangValidator{},
-	})
+		gangValidator{})
 
-	itemValidator := validation.NewCompoundValidator([]validation.Validator[*api.JobSubmitRequestItem]{
+	itemValidator := validation.NewCompoundValidator[*api.JobSubmitRequestItem](
 		namespaceValidator{},
 		affinityValidator{},
 		containerValidator{minJobResources: config.MinJobResources},
@@ -22,12 +21,11 @@ func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.Sched
 		numContainersValidator{},
 		podSpecFieldValidator{},
 		portsValidator{},
-		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},
 		terminationGracePeriodValidator{
 			minTerminationGracePeriodSeconds: int64(config.MinTerminationGracePeriod),
 			maxTerminationGracePeriodSeconds: int64(config.MaxTerminationGracePeriod),
 		},
-	})
+		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses})
 
 	// First apply a validators that need access to the entire job request
 	if err := requestValidator.Validate(req); err != nil {

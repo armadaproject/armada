@@ -3,27 +3,12 @@ package processor
 import (
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type Processor interface {
 	Apply(msg *armadaevents.SubmitJob)
-}
-
-type CompoundProcessor struct {
-	processors []Processor
-}
-
-func NewCompoundProcessor(processors ...Processor) CompoundProcessor {
-	return CompoundProcessor{
-		processors: processors,
-	}
-}
-
-func (c CompoundProcessor) Apply(msg *armadaevents.SubmitJob) {
-	for _, p := range c.processors {
-		p.Apply(msg)
-	}
 }
 
 type podSpecProcessor struct{}
@@ -38,3 +23,27 @@ func (p podSpecProcessor) Apply(msg *armadaevents.SubmitJob) {
 }
 
 func (p podSpecProcessor) processPodSpec(spec *v1.PodSpec) {}
+
+func ApplyDefaults(msg *armadaevents.SubmitJob, config configuration.SchedulingConfig) {
+
+	processors := []Processor{
+		activeDeadlineSecondsProcessor{
+			defaultActiveDeadline:                  config.DefaultActiveDeadline,
+			defaultActiveDeadlineByResourceRequest: config.DefaultActiveDeadlineByResourceRequest,
+		},
+		gangAnnotationProcessor{defaultGangNodeUniformityLabel: config.DefaultGangNodeUniformityLabel},
+		priorityClassProcessor{defaultPriorityClass: config.Preemption.DefaultPriorityClass},
+		resourceProcessor{defaultJobLimits: nil},
+		jobIdTemplateProcessor{},
+		terminationGracePeriodProcessor{minTerminationGracePeriod: config.MinTerminationGracePeriod},
+		tolerationsProcessor{
+			defaultJobTolerations:                  config.DefaultJobTolerations,
+			defaultJobTolerationsByPriorityClass:   config.DefaultJobTolerationsByPriorityClass,
+			defaultJobTolerationsByResourceRequest: config.DefaultJobTolerationsByResourceRequest,
+		},
+	}
+
+	for _, p := range processors {
+		p.Apply(msg)
+	}
+}

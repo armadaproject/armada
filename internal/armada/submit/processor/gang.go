@@ -22,5 +22,4 @@ func (p gangAnnotationProcessor) Apply(msg *armadaevents.SubmitJob) {
 			annotations[configuration.GangNodeUniformityLabelAnnotation] = p.defaultGangNodeUniformityLabel
 		}
 	}
-
 }

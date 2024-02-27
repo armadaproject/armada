@@ -322,22 +322,6 @@ func K8sObjectMetaFromLogObjectMeta(meta *armadaevents.ObjectMeta) *metav1.Objec
 	}
 }
 
-func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.EventSequence, error) {
-	// Each sequence may only contain events for a specific combination of (queue, jobSet, userId).
-	// Because each API event may contain different (queue, jobSet, userId), we map each event to separate sequences.
-	sequences := make([]*armadaevents.EventSequence, 0, len(msgs))
-	for _, msg := range msgs {
-		sequence, err := EventSequenceFromApiEvent(msg)
-		if err != nil {
-			return nil, err
-		}
-		sequences = append(sequences, sequence)
-	}
-
-	// Reduce the sequences to the smallest number possible.
-	return CompactEventSequences(sequences), nil
-}
-
 // CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
 // In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence
 // when doing so is possible without changing the order of events within job sets.
