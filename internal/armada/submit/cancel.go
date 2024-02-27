@@ -22,25 +22,25 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-func (srv *SubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	if req.JobSetId == "" || req.Queue == "" {
 		ctx.
 			WithField("apidatamissing", "true").
-			Warnf("Cancel jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobId, req.JobSetId, req.Queue, srv.GetUser(ctx))
+			Warnf("Cancel jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobId, req.JobSetId, req.Queue, s.GetUser(ctx))
 	}
 
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
-		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
+		return s.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
 	}
 
 	// Another separate code path for cancelling an entire job set
 	// TODO: We should deprecate this and move people over to CancelJobSet()
 	if req.JobId == "" {
 		log.Warnf("CancelJobs called for queue=%s and jobset=%s but with empty job id. Redirecting to CancelJobSet()", req.Queue, req.JobSetId)
-		_, err := srv.CancelJobSet(ctx, &api.JobSetCancelRequest{
+		_, err := s.CancelJobSet(ctx, &api.JobSetCancelRequest{
 			Queue:    req.Queue,
 			JobSetId: req.JobSetId,
 			Reason:   req.Reason,
@@ -54,7 +54,7 @@ func (srv *SubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelR
 	}
 
 	// resolve the queue and jobset of the job: we can't trust what the user has given us
-	resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(req.JobId)
+	resolvedQueue, resolvedJobset, err := s.resolveQueueAndJobsetForJob(req.JobId)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (srv *SubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelR
 		}
 	}
 
-	userId, groups, err := srv.Authorize(ctx, resolvedQueue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	userId, groups, err := s.Authorize(ctx, resolvedQueue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (srv *SubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelR
 	}
 
 	// we can send the message to cancel to both schedulers. If the scheduler it doesn't belong to it'll be a no-op
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
+	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -117,13 +117,13 @@ func (srv *SubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelR
 	}, nil
 }
 
-func (srv *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	if req.JobSetId == "" || req.Queue == "" {
 		ctx.
 			WithField("apidatamissing", "true").
-			Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, srv.GetUser(ctx))
+			Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, s.GetUser(ctx))
 	}
 
 	// If either queue or jobSetId is missing, we get the job set and queue associated
@@ -133,7 +133,7 @@ func (srv *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobR
 	if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
 		firstJobId := req.JobIds[0]
 
-		resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(firstJobId)
+		resolvedQueue, resolvedJobset, err := s.resolveQueueAndJobsetForJob(firstJobId)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func (srv *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobR
 	}
 
 	// TODO: this is incorrect we only validate the permissions on the first job but the other jobs may belong to different queues
-	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
+	userId, groups, err := s.Authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (srv *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobR
 		results[jobIdString] = "" // empty string indicates no error
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.Pulsar)
+	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.Pulsar)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -239,7 +239,7 @@ func (srv *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobR
 	}, nil
 }
 
-func (srv *SubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if req.Queue == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
@@ -261,7 +261,7 @@ func (srv *SubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCa
 		return nil, err
 	}
 
-	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	userId, groups, err := s.Authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (srv *SubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCa
 			},
 		},
 	}
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, schedulers.Pulsar)
+	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, schedulers.Pulsar)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
@@ -304,7 +304,7 @@ func (srv *SubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCa
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *SubmitServer) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
+func (s *Server) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
@@ -320,14 +320,14 @@ func (srv *SubmitServer) cancelJobsByIdsQueueJobset(grpcCtx context.Context, job
 			Message: "Jobset cannot be empty when cancelling multiple jobs",
 		}
 	}
-	userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	userId, groups, err := s.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
 	}
 	var cancelledIds []string
 	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups, reason)
 	// send the message to both schedulers because jobs may be on either
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
+	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
@@ -369,8 +369,8 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
 // If no job can be retrieved then an error is returned.
-func (srv *SubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
-	jobDetails, err := srv.JobRepository.GetPulsarSchedulerJobDetails(jobId)
+func (s *Server) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
+	jobDetails, err := s.JobRepository.GetPulsarSchedulerJobDetails(jobId)
 	if err != nil {
 		return "", "", err
 	}

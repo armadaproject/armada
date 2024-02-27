@@ -7,8 +7,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func NewJobValidator(config configuration.SchedulingConfig) validation.Validator[*api.JobSubmitRequestItem] {
-	return validation.NewCompundValidator([]validation.Validator[*api.JobSubmitRequestItem]{
+func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SchedulingConfig) error {
+
+	requestValidator := validation.NewCompoundValidator([]validation.Validator[*api.JobSubmitRequest]{
+		queueValidator{},
+		gangValidator{},
+	})
+
+	itemValidator := validation.NewCompoundValidator([]validation.Validator[*api.JobSubmitRequestItem]{
 		namespaceValidator{},
 		affinityValidator{},
 		containerValidator{minJobResources: config.MinJobResources},
@@ -22,21 +28,32 @@ func NewJobValidator(config configuration.SchedulingConfig) validation.Validator
 			maxTerminationGracePeriodSeconds: int64(config.MaxTerminationGracePeriod),
 		},
 	})
+
+	// First apply a validators that need access to the entire job request
+	if err := requestValidator.Validate(req); err != nil {
+		return err
+	}
+
+	// Next apply validators that act on individual job items
+	for _, reqItem := range req.JobRequestItems {
+		if err := itemValidator.Validate(reqItem); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func NewJobRequestValidator() validation.Validator[*api.JobSubmitRequest] {
-	return validation.NewCompundValidator([]validation.Validator[*api.JobSubmitRequest]{
-		queueValidator{},
-		gangValidator{},
-	})
-}
+type podSpecValidator struct{}
 
-func validatePodSpecs(j *api.JobSubmitRequestItem, f func(spec *v1.PodSpec) error) error {
+func (v podSpecValidator) Validate(j *api.JobSubmitRequestItem) error {
 	podSpecs := []*v1.PodSpec{j.PodSpec}
 	for _, spec := range podSpecs {
-		if err := f(spec); err != nil {
+		if err := v.validatePodSpec(spec); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+func (v podSpecValidator) validatePodSpec(_ *v1.PodSpec) error { return nil }

@@ -1,12 +1,12 @@
 package scheduleringester
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -15,7 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -385,48 +384,5 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 
 // schedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
 func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
-	return SchedulingInfoFromSubmitJob(submitJob, submitTime, c.priorityClasses)
-}
-
-// SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
-func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time, priorityClasses map[string]types.PriorityClass) (*schedulerobjects.JobSchedulingInfo, error) {
-	// Component common to all jobs.
-	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		Lifetime:        submitJob.Lifetime,
-		AtMostOnce:      submitJob.AtMostOnce,
-		Preemptible:     submitJob.Preemptible,
-		ConcurrencySafe: submitJob.ConcurrencySafe,
-		SubmitTime:      submitTime,
-		Priority:        submitJob.Priority,
-		Version:         0,
-		QueueTtlSeconds: submitJob.QueueTtlSeconds,
-	}
-
-	// Scheduling requirements specific to the objects that make up this job.
-	switch object := submitJob.MainObject.Object.(type) {
-	case *armadaevents.KubernetesMainObject_PodSpec:
-		podSpec := object.PodSpec.PodSpec
-		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
-		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, priorityClasses)
-		if submitJob.ObjectMeta != nil {
-			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
-		}
-		if submitJob.MainObject.ObjectMeta != nil {
-			if podRequirements.Annotations == nil {
-				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
-			}
-			maps.Copy(podRequirements.Annotations, submitJob.MainObject.ObjectMeta.Annotations)
-		}
-		schedulingInfo.ObjectRequirements = append(
-			schedulingInfo.ObjectRequirements,
-			&schedulerobjects.ObjectRequirements{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: podRequirements,
-				},
-			},
-		)
-	default:
-		return nil, errors.Errorf("unsupported object type %T", object)
-	}
-	return schedulingInfo, nil
+	return adapters.SchedulingInfoFromSubmitJob(submitJob, submitTime, c.priorityClasses)
 }
