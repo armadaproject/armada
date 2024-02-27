@@ -76,6 +76,11 @@ spec:
             - containerPort: {{ .Values.scheduler.applicationConfig.metrics.port }}
               protocol: TCP
               name: metrics
+            {{- if .Values.scheduler.applicationConfig.pprofPort }}
+            - containerPort: {{ .Values.scheduler.applicationConfig.pprofPort }}
+              protocol: TCP
+              name: pprof
+            {{- end }}
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
