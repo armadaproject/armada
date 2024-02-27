@@ -368,11 +368,7 @@ func (m *Metrics) UpdateQueued(job *jobdb.Job) error {
 	labels = append(labels, "") // No subCategory for queued.
 	labels = appendLabelsFromJob(labels, job)
 
-	if err := m.updateMetrics(labels, job, 0); err != nil {
-		return err
-	}
-
-	return nil
+	return m.updateMetrics(labels, job, 0)
 }
 
 func (m *Metrics) UpdatePending(job *jobdb.Job) error {
@@ -385,11 +381,7 @@ func (m *Metrics) UpdatePending(job *jobdb.Job) error {
 	labels = append(labels, "") // No subCategory for pending.
 	labels = appendLabelsFromJob(labels, job)
 
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
-
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
@@ -402,11 +394,7 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 	labels = append(labels, "") // No subCategory for cancelled.
 	labels = appendLabelsFromJob(labels, job)
 
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
-
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
@@ -426,11 +414,7 @@ func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRu
 	labels = append(labels, subCategory)
 	labels = appendLabelsFromJob(labels, job)
 
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
-
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
@@ -443,11 +427,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	labels = append(labels, "") // No subCategory for succeeded.
 	labels = appendLabelsFromJob(labels, job)
 
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
-
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
@@ -460,11 +440,8 @@ func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) erro
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
 	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
 
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) UpdatePreempted(job *jobdb.Job) error {
@@ -476,11 +453,8 @@ func (m *Metrics) UpdatePreempted(job *jobdb.Job) error {
 	labels = append(labels, "") // No category for preempted.
 	labels = append(labels, "") // No subCategory for preempted.
 	labels = appendLabelsFromJob(labels, job)
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
 
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
@@ -493,11 +467,7 @@ func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
 	labels = append(labels, "") // No subCategory for running.
 	labels = appendLabelsFromJob(labels, job)
 
-	if err := m.updateMetrics(labels, job, duration); err != nil {
-		return err
-	}
-
-	return nil
+	return m.updateMetrics(labels, job, duration)
 }
 
 func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) (category, subCategory string) {
