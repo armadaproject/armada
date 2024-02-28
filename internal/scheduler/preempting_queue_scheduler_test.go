@@ -2022,8 +2022,14 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// which jobs are preempted).
 				slices.SortFunc(
 					result.ScheduledJobs,
-					func(a, b *schedulercontext.JobSchedulingContext) bool {
-						return a.Job.GetSubmitTime().Before(b.Job.GetSubmitTime())
+					func(a, b *schedulercontext.JobSchedulingContext) int {
+						if a.Job.GetSubmitTime().Before(b.Job.GetSubmitTime()) {
+							return -1
+						} else if b.Job.GetSubmitTime().Before(a.Job.GetSubmitTime()) {
+							return 1
+						} else {
+							return 0
+						}
 					},
 				)
 				var scheduledJobs []*jobdb.Job

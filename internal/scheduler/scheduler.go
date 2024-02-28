@@ -280,7 +280,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Update success probability estimates.
 	if !s.failureEstimator.IsDisabled() {
-		s.failureEstimator.Decay()
 		for _, jst := range jsts {
 			if jst.Job == nil {
 				continue
@@ -290,12 +289,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 				continue
 			}
 			if jst.Failed {
-				s.failureEstimator.Update(run.NodeName(), jst.Job.GetQueue(), false)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), false)
 			}
 			if jst.Succeeded {
-				s.failureEstimator.Update(run.NodeName(), jst.Job.GetQueue(), true)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), true)
 			}
 		}
+		s.failureEstimator.Update()
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.

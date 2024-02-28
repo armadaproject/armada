@@ -45,7 +45,15 @@ func TestNodesIterator(t *testing.T) {
 			}
 
 			sortedNodes := slices.Clone(tc.Nodes)
-			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) int {
+				if a.Id < b.Id {
+					return -1
+				} else if a.Id > b.Id {
+					return 1
+				} else {
+					return 0
+				}
+			})
 			expected := make([]int, len(sortedNodes))
 			for i, node := range sortedNodes {
 				expected[i] = indexById[node.Id]

@@ -25,6 +25,8 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/optimisation/descent"
+	"github.com/armadaproject/armada/internal/common/optimisation/nesterov"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
@@ -220,12 +222,14 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 
 	failureEstimator, err := failureestimator.New(
-		config.Scheduling.FailureEstimatorConfig.NodeSuccessProbabilityCordonThreshold,
-		config.Scheduling.FailureEstimatorConfig.QueueSuccessProbabilityCordonThreshold,
-		config.Scheduling.FailureEstimatorConfig.NodeCordonTimeout,
-		config.Scheduling.FailureEstimatorConfig.QueueCordonTimeout,
-		config.Scheduling.FailureEstimatorConfig.NodeEquilibriumFailureRate,
-		config.Scheduling.FailureEstimatorConfig.QueueEquilibriumFailureRate,
+		config.Scheduling.FailureEstimatorConfig.NumInnerIterations,
+		// Invalid config will have failed validation.
+		descent.MustNew(config.Scheduling.FailureEstimatorConfig.InnerOptimiserStepSize),
+		// Invalid config will have failed validation.
+		nesterov.MustNew(
+			config.Scheduling.FailureEstimatorConfig.OuterOptimiserStepSize,
+			config.Scheduling.FailureEstimatorConfig.OuterOptimiserNesterovAcceleration,
+		),
 	)
 	if err != nil {
 		return err

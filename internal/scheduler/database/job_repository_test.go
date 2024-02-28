@@ -367,7 +367,15 @@ func TestFindInactiveRuns(t *testing.T) {
 
 				inactive, err := repo.FindInactiveRuns(ctx, tc.runsToCheck)
 				require.NoError(t, err)
-				uuidSort := func(a uuid.UUID, b uuid.UUID) bool { return a.String() > b.String() }
+				uuidSort := func(a uuid.UUID, b uuid.UUID) int {
+					if a.String() > b.String() {
+						return -1
+					} else if a.String() < b.String() {
+						return 1
+					} else {
+						return 0
+					}
+				}
 				slices.SortFunc(inactive, uuidSort)
 				slices.SortFunc(tc.expectedInactive, uuidSort)
 				assert.Equal(t, tc.expectedInactive, inactive)
@@ -518,7 +526,15 @@ func TestFetchJobRunLeases(t *testing.T) {
 
 				leases, err := repo.FetchJobRunLeases(ctx, tc.executor, tc.maxRowsToFetch, tc.excludedRuns)
 				require.NoError(t, err)
-				leaseSort := func(a *JobRunLease, b *JobRunLease) bool { return a.RunID.String() > b.RunID.String() }
+				leaseSort := func(a *JobRunLease, b *JobRunLease) int {
+					if a.RunID.String() > b.RunID.String() {
+						return -1
+					} else if a.RunID.String() < b.RunID.String() {
+						return 1
+					} else {
+						return 0
+					}
+				}
 				slices.SortFunc(leases, leaseSort)
 				slices.SortFunc(tc.expectedLeases, leaseSort)
 				assert.Equal(t, tc.expectedLeases, leases)

@@ -440,7 +440,15 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				},
 			)
 			reasons := maps.Keys(jobIdsByReason)
-			slices.SortFunc(reasons, func(a, b string) bool { return len(jobIdsByReason[a]) < len(jobIdsByReason[b]) })
+			slices.SortFunc(reasons, func(a, b string) int {
+				if len(jobIdsByReason[a]) < len(jobIdsByReason[b]) {
+					return -1
+				} else if len(jobIdsByReason[a]) > len(jobIdsByReason[b]) {
+					return 1
+				} else {
+					return 0
+				}
+			})
 			for i := len(reasons) - 1; i >= 0; i-- {
 				reason := reasons[i]
 				jobIds := jobIdsByReason[reason]

@@ -170,11 +170,23 @@ func TestJobDb_TestGetAll(t *testing.T) {
 	require.NoError(t, err)
 	actual := txn.GetAll()
 	expected := []*Job{job1, job2}
-	slices.SortFunc(expected, func(a, b *Job) bool {
-		return a.id > b.id
+	slices.SortFunc(expected, func(a, b *Job) int {
+		if a.id > b.id {
+			return -1
+		} else if a.id < b.id {
+			return 1
+		} else {
+			return 0
+		}
 	})
-	slices.SortFunc(actual, func(a, b *Job) bool {
-		return a.id > b.id
+	slices.SortFunc(actual, func(a, b *Job) int {
+		if a.id > b.id {
+			return -1
+		} else if a.id < b.id {
+			return 1
+		} else {
+			return 0
+		}
 	})
 	assert.Equal(t, expected, actual)
 }
