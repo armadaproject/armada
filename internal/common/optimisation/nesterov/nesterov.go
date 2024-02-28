@@ -11,6 +11,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/linalg"
 )
 
+// Nesterov accelerated gradient descent optimiser; see the following link for details:
+// https://fluxml.ai/Flux.jl/stable/training/optimisers/
 type Nesterov struct {
 	eta float64
 	rho float64

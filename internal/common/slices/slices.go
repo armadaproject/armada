@@ -181,11 +181,13 @@ func AnyFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
 	return false
 }
 
+// Zeros returns a slice T[] of length n with all elements equal to zero.
 func Zeros[T any](n int) []T {
 	return make([]T, n)
 }
 
-func Fill[T interfaces.Number](v T, n int) []T {
+// Fill returns a slice T[] of length n with all elements equal to v.
+func Fill[T any](v T, n int) []T {
 	rv := make([]T, n)
 	for i := range rv {
 		rv[i] = v
@@ -193,6 +195,7 @@ func Fill[T interfaces.Number](v T, n int) []T {
 	return rv
 }
 
+// Ones returns a slice T[] of length n with all elements equal to 1.
 func Ones[T interfaces.Number](n int) []T {
 	return Fill[T](1, n)
 }

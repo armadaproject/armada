@@ -59,8 +59,8 @@ type FailureEstimator struct {
 	parameterIndexByNode  map[string]int
 	parameterIndexByQueue map[string]int
 
-	// Model updates that have not been applied yet.
-	pendingUpdates []Update
+	// Samples that have not been processed yet.
+	samples []Sample
 
 	// Optimisation settings.
 	numInnerIterations int
@@ -79,7 +79,7 @@ type FailureEstimator struct {
 	mu sync.Mutex
 }
 
-type Update struct {
+type Sample struct {
 	i int
 	j int
 	c bool
@@ -139,6 +139,8 @@ func (fe *FailureEstimator) IsDisabled() bool {
 	return fe.disabled
 }
 
+// Push adds a sample to the internal buffer of the failure estimator.
+// Samples added via Push are processed on the next call to Update.
 func (fe *FailureEstimator) Push(node, queue string, success bool) {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
@@ -154,7 +156,7 @@ func (fe *FailureEstimator) Push(node, queue string, success bool) {
 		fe.parameterIndexByQueue[queue] = j
 	}
 	fe.extendParameters(armadamath.Max(i, j) + 1)
-	fe.pendingUpdates = append(fe.pendingUpdates, Update{
+	fe.samples = append(fe.samples, Sample{
 		i: i,
 		j: j,
 		c: success,
@@ -174,31 +176,31 @@ func (fe *FailureEstimator) extendParameters(n int) {
 	fe.gradient = linalg.ExtendVecDense(fe.gradient, n)
 }
 
-// Update success estimates based on pendingUpdates.
+// Update success probability estimates based on pushed samples.
 func (fe *FailureEstimator) Update() {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
-	if len(fe.pendingUpdates) == 0 {
+	if len(fe.samples) == 0 {
 		// Nothing to do.
 		return
 	}
 
-	// Inner loop to compute intermediateParameters from pendingUpdates.
-	// Passing over pendingUpdates multiple times in random order helps improve convergence.
+	// Inner loop to compute intermediateParameters from samples.
+	// Passing over samples multiple times in random order helps improve convergence.
 	fe.intermediateParameters.CopyVec(fe.parameters)
 	for k := 0; k < fe.numInnerIterations; k++ {
 
 		// Compute gradient with respect to updates.
 		fe.gradient.Zero()
-		slices.Shuffle(fe.pendingUpdates)
-		for _, update := range fe.pendingUpdates {
+		slices.Shuffle(fe.samples)
+		for _, sample := range fe.samples {
 			gi, gj := fe.negLogLikelihoodGradient(
-				fe.intermediateParameters.AtVec(update.i),
-				fe.intermediateParameters.AtVec(update.j),
-				update.c,
+				fe.intermediateParameters.AtVec(sample.i),
+				fe.intermediateParameters.AtVec(sample.j),
+				sample.c,
 			)
-			fe.gradient.SetVec(update.i, fe.gradient.AtVec(update.i)+gi)
-			fe.gradient.SetVec(update.j, fe.gradient.AtVec(update.j)+gj)
+			fe.gradient.SetVec(sample.i, fe.gradient.AtVec(sample.i)+gi)
+			fe.gradient.SetVec(sample.j, fe.gradient.AtVec(sample.j)+gj)
 		}
 
 		// Update intermediateParameters using this gradient.
@@ -216,8 +218,8 @@ func (fe *FailureEstimator) Update() {
 	fe.parameters = fe.outerOptimiser.Update(fe.parameters, fe.parameters, fe.gradient)
 	applyBoundsVec(fe.parameters)
 
-	// Empty the pending updates.
-	fe.pendingUpdates = fe.pendingUpdates[0:0]
+	// Empty the buffer.
+	fe.samples = fe.samples[0:0]
 }
 
 func applyBoundsVec(vec *mat.VecDense) {

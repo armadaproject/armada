@@ -9,6 +9,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
+// Gradient descent optimiser; see the following link for details:
+// https://fluxml.ai/Flux.jl/stable/training/optimisers/
 type Descent struct {
 	eta float64
 }
