@@ -1,9 +1,7 @@
 package armada
 
 import (
-	"context"
 	"fmt"
-	"math"
 	"net"
 	"time"
 
@@ -12,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
-	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -21,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
@@ -160,32 +158,14 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer producer.Close()
 
-	poolConfig := pool.ObjectPoolConfig{
-		MaxTotal:                 100,
-		MaxIdle:                  50,
-		MinIdle:                  10,
-		BlockWhenExhausted:       true,
-		MinEvictableIdleTime:     30 * time.Minute,
-		SoftMinEvictableIdleTime: math.MaxInt64,
-		TimeBetweenEvictionRuns:  0,
-		NumTestsPerEvictionRun:   10,
-	}
-
-	compressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
-			return compress.NewZlibCompressor(512)
-		}), &poolConfig)
-
-	pulsarSubmitServer := &server.PulsarSubmitServer{
+	pulsarSubmitServer := &submit.Server{
 		Producer:              producer,
 		QueueRepository:       queueRepository,
 		JobRepository:         jobRepository,
 		SchedulingConfig:      config.Scheduling,
 		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
-		GangIdAnnotation:      configuration.GangIdAnnotation,
 		SubmitChecker:         pulsarSchedulerSubmitChecker,
 		Authorizer:            authorizer,
-		CompressorPool:        compressorPool,
 	}
 
 	// If postgres details were provided, enable deduplication.

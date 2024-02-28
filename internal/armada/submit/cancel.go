@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/armadaproject/armada/internal/armada/validation"
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 
@@ -105,7 +106,11 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	}
 
 	// we can send the message to cancel to both schedulers. If the scheduler it doesn't belong to it'll be a no-op
-	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
+	err = pulsarutils.CompactAndPublishSequences(
+		ctx,
+		[]*armadaevents.EventSequence{sequence},
+		s.Producer, s.MaxAllowedMessageSize,
+		schedulers.Pulsar)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -227,7 +232,11 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 		results[jobIdString] = "" // empty string indicates no error
 	}
 
-	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.Pulsar)
+	err = pulsarutils.CompactAndPublishSequences(
+		ctx,
+		[]*armadaevents.EventSequence{sequence},
+		s.Producer, s.MaxAllowedMessageSize,
+		schedulers.Pulsar)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -294,7 +303,11 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 			},
 		},
 	}
-	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, schedulers.Pulsar)
+	err = pulsarutils.CompactAndPublishSequences(
+		ctx,
+		[]*armadaevents.EventSequence{pulsarSchedulerSequence},
+		s.Producer, s.MaxAllowedMessageSize,
+		schedulers.Pulsar)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
@@ -325,9 +338,12 @@ func (s *Server) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []st
 		return nil, err
 	}
 	var cancelledIds []string
-	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups, reason)
-	// send the message to both schedulers because jobs may be on either
-	err = s.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
+	es, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups, reason)
+	err = pulsarutils.CompactAndPublishSequences(
+		ctx,
+		[]*armadaevents.EventSequence{es},
+		s.Producer, s.MaxAllowedMessageSize,
+		schedulers.Pulsar)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")

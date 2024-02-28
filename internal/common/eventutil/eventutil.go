@@ -265,7 +265,7 @@ func PopulateK8sServicesIngresses(job *api.Job, ingressConfig *configuration.Ing
 }
 
 // K8sServicesIngressesFromApiJob converts job.Services and job.Ingress to k8s services and ingresses.
-func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress, error) {
+func K8sServicesIngressesFromApiJob(job *api.JobSubmitRequestItem, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress, error) {
 	// GenerateIngresses (below) looks into the pod to set names for the services/ingresses.
 	// Hence, we use the same code as is later used by the executor to create the pod to be submitted.
 	// Note that we only create the pod here to pass it to GenerateIngresses.

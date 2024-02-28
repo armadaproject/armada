@@ -26,7 +26,7 @@ func (c containerValidator) validatePodSpec(spec *v1.PodSpec) error {
 			serverRsc, nonEmpty := c.minJobResources[rc]
 			if nonEmpty && containerRsc.Value() < serverRsc.Value() {
 				return fmt.Errorf(
-					"[validateContainerResource] container %q %s %s (%s) below server minimum (%s)",
+					"container %q %s %s (%s) below server minimum (%s)",
 					container.Name,
 					rc,
 					containerRsc,
