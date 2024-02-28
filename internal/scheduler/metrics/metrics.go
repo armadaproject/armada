@@ -22,8 +22,6 @@ const (
 	namespace = "armada"
 	subsystem = "scheduler"
 
-	jobsResourceLabel = "jobs"
-
 	podUnschedulable = "podUnschedulable"
 	leaseExpired     = "leaseExpired"
 	podError         = "podError"
@@ -617,19 +615,6 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 	}
 
 	return nil
-}
-
-func (m *Metrics) resourceNamesRefined() []v1.ResourceName {
-	resourceNames := make([]v1.ResourceName, 0, len(m.config.TrackedResourceNames))
-	for _, resource := range m.config.TrackedResourceNames {
-		renamedResource, ok := m.config.ResourceRenaming[resource]
-		if ok {
-			resourceNames = append(resourceNames, v1.ResourceName(renamedResource))
-		} else {
-			resourceNames = append(resourceNames, resource)
-		}
-	}
-	return resourceNames
 }
 
 // maps resource names to their respective counter vectors
