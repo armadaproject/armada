@@ -11,7 +11,7 @@ type jobIdTemplateProcessor struct{}
 func (p jobIdTemplateProcessor) Apply(msg *armadaevents.SubmitJob) {
 	jobId := armadaevents.MustUlidStringFromProtoUuid(msg.JobId)
 	template(msg.MainObject.GetObjectMeta().GetAnnotations(), jobId)
-	template(msg.MainObject.GetObjectMeta().GetAnnotations(), jobId)
+	template(msg.MainObject.GetObjectMeta().GetLabels(), jobId)
 }
 
 func template(labels map[string]string, jobId string) {

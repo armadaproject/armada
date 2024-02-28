@@ -10,5 +10,7 @@ type priorityClassProcessor struct {
 }
 
 func (p priorityClassProcessor) processPodSpec(spec *v1.PodSpec) {
-	spec.PriorityClassName = p.defaultPriorityClass
+	if spec.PriorityClassName == "" {
+		spec.PriorityClassName = p.defaultPriorityClass
+	}
 }

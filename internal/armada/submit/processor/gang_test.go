@@ -17,14 +17,14 @@ func TestGangAnnotationProcessor(t *testing.T) {
 			annotations: make(map[string]string),
 			expected:    make(map[string]string),
 		},
-		"DefaultNodeUniformityLabelAnnotation no change for non-gang jobs": {
+		"No change for non-gang jobs": {
 			config: configuration.SchedulingConfig{
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			annotations: make(map[string]string),
 			expected:    make(map[string]string),
 		},
-		"DefaultNodeUniformityLabelAnnotation empty default": {
+		"Empty default": {
 			annotations: map[string]string{
 				configuration.GangIdAnnotation: "bar",
 			},
@@ -33,7 +33,7 @@ func TestGangAnnotationProcessor(t *testing.T) {
 				configuration.GangNodeUniformityLabelAnnotation: "",
 			},
 		},
-		"DefaultNodeUniformityLabelAnnotation": {
+		"Add when missing": {
 			config: configuration.SchedulingConfig{
 				DefaultGangNodeUniformityLabel: "foo",
 			},
