@@ -595,6 +595,9 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 
 	requests := job.GetResourceRequirements().Requests
 	for _, resourceName := range m.config.TrackedResourceNames {
+		if r, ok := m.config.ResourceRenaming[resourceName]; ok {
+			resourceName = v1.ResourceName(r)
+		}
 		metric, metricSeconds := m.resourceToMetrics(resourceName)
 		if metric == nil || metricSeconds == nil {
 			continue
@@ -616,6 +619,19 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 	return nil
 }
 
+func (m *Metrics) resourceNamesRefined() []v1.ResourceName {
+	resourceNames := make([]v1.ResourceName, 0, len(m.config.TrackedResourceNames))
+	for _, resource := range m.config.TrackedResourceNames {
+		renamedResource, ok := m.config.ResourceRenaming[resource]
+		if ok {
+			resourceNames = append(resourceNames, v1.ResourceName(renamedResource))
+		} else {
+			resourceNames = append(resourceNames, resource)
+		}
+	}
+	return resourceNames
+}
+
 // maps resource names to their respective counter vectors
 // e.g. cpu -> m.cpu, m.cpuSeconds
 func (m *Metrics) resourceToMetrics(resourceName v1.ResourceName) (*prometheus.CounterVec, *prometheus.CounterVec) {
@@ -628,7 +644,7 @@ func (m *Metrics) resourceToMetrics(resourceName v1.ResourceName) (*prometheus.C
 		return m.ephemeralStorage, m.ephemeralStorageSeconds
 	case v1.ResourceStorage:
 		return m.storage, m.storageSeconds
-	case "nvidia.com/gpu":
+	case "gpu":
 		return m.gpu, m.gpuSeconds
 	default:
 		logrus.Warnf("Unknown resource name: %s", resourceName)

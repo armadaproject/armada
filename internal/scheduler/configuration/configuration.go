@@ -73,6 +73,10 @@ type MetricsConfig struct {
 	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
+	// Some resource names aren't generic and can be attached to a specific vendor.
+	// e.g. "nvidia.com/gpu" is a vendor specific resource name.
+	// ResourceRenaming maps these vendor specific resource names to a generic name to be used in the exported metrics.
+	ResourceRenaming map[v1.ResourceName]string
 	// Controls the cycle time metrics.
 	// TODO(albin): Not used yet.
 	CycleTimeConfig PrometheusSummaryConfig
