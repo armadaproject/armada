@@ -227,45 +227,45 @@ func (skg *PodRequirementsSerialiser) AppendResourceList(out []byte, resourceLis
 	return out
 }
 
-func lessToleration(a, b v1.Toleration) bool {
+func lessToleration(a, b v1.Toleration) int {
 	if a.Key < b.Key {
-		return true
+		return -1
 	} else if a.Key > b.Key {
-		return false
+		return 1
 	}
 	if a.Value < b.Value {
-		return true
+		return -1
 	} else if a.Value > b.Value {
-		return false
+		return 1
 	}
 	if string(a.Operator) < string(b.Operator) {
-		return true
+		return -1
 	} else if string(a.Operator) > string(b.Operator) {
-		return false
+		return 1
 	}
 	if string(a.Effect) < string(b.Effect) {
-		return true
+		return -1
 	} else if string(a.Effect) > string(b.Effect) {
-		return false
+		return 1
 	}
-	return true
+	return 0
 }
 
-func lessNodeSelectorRequirement(a, b v1.NodeSelectorRequirement) bool {
+func lessNodeSelectorRequirement(a, b v1.NodeSelectorRequirement) int {
 	if a.Key < b.Key {
-		return true
+		return -1
 	} else if a.Key > b.Key {
-		return false
+		return 1
 	}
 	if string(a.Operator) < string(b.Operator) {
-		return true
+		return -1
 	} else if string(a.Operator) > string(b.Operator) {
-		return false
+		return 1
 	}
 	if len(a.Values) < len(b.Values) {
-		return true
+		return -1
 	} else if len(a.Values) > len(b.Values) {
-		return false
+		return 1
 	}
-	return true
+	return 0
 }
