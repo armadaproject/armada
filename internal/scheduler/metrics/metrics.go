@@ -186,11 +186,6 @@ func (m *Metrics) Update(
 			return err
 		}
 	}
-	if jst.Leased {
-		if err := m.UpdateLeased(jst.Job, nil); err != nil {
-			return err
-		}
-	}
 	if jst.Pending {
 		if err := m.UpdatePending(jst.Job); err != nil {
 			return err
@@ -217,10 +212,12 @@ func (m *Metrics) Update(
 		}
 	}
 	if jst.Preempted {
-		if err := m.UpdatePreempted(jst.Job, nil); err != nil {
+		if err := m.UpdatePreempted(jst.Job); err != nil {
 			return err
 		}
 	}
+	// UpdateLeased is called by the scheduler directly once a job is leased.
+	// It is not called here to avoid double counting.
 	return nil
 }
 
@@ -275,6 +272,12 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 
 func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
+	if category == jobRunPreempted {
+		// It is safer to UpdatePreempted from preemption errors and not from the scheduler cycle result.
+		// e.g. The scheduler might decide to preempt a job, but before the job is preempted, it happens to succeed,
+		// in which case it should be reported as a success, not a preemption.
+		return m.UpdatePreempted(job)
+	}
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.TerminatedTime())
 	labels := m.buffer[0:0]
@@ -310,23 +313,17 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
-	if job == nil {
-		job = jctx.Job.(*jobdb.Job)
-	}
+func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
+	job := jctx.Job.(*jobdb.Job)
 	latestRun := job.LatestRun()
-	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.LeaseTime())
+	priorState, priorStateTime := getPriorState(job, latestRun, &jctx.Created)
 	labels := m.buffer[0:0]
 	labels = append(labels, priorState)
 	labels = append(labels, leased)
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
-	if jctx != nil {
-		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
-	} else {
-		labels = appendLabelsFromJob(labels, job)
-	}
-	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.LeaseTime(), priorStateTime); err != nil {
+	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, &jctx.Created, priorStateTime); err != nil {
 		return err
 	}
 	if err := m.updateCounterVecFromJob(m.transitions, labels[1:], job); err != nil {
@@ -335,10 +332,7 @@ func (m *Metrics) UpdateLeased(job *jobdb.Job, jctx *schedulercontext.JobSchedul
 	return nil
 }
 
-func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) error {
-	if job == nil {
-		job = jctx.Job.(*jobdb.Job)
-	}
+func (m *Metrics) UpdatePreempted(job *jobdb.Job) error {
 	latestRun := job.LatestRun()
 	priorState, priorStateTime := getPriorState(job, latestRun, latestRun.PreemptedTime())
 	labels := m.buffer[0:0]
@@ -346,11 +340,7 @@ func (m *Metrics) UpdatePreempted(job *jobdb.Job, jctx *schedulercontext.JobSche
 	labels = append(labels, preempted)
 	labels = append(labels, "") // No category for preempted.
 	labels = append(labels, "") // No subCategory for preempted.
-	if jctx != nil {
-		labels = appendLabelsFromJobSchedulingContext(labels, jctx)
-	} else {
-		labels = appendLabelsFromJob(labels, job)
-	}
+	labels = appendLabelsFromJob(labels, job)
 	if err := m.updateResourceSecondsCounterVec(m.resourceSeconds, labels, job, latestRun.PreemptedTime(), priorStateTime); err != nil {
 		return err
 	}
