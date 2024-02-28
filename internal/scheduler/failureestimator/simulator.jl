@@ -6,6 +6,8 @@ using OptimizationBBO
 using ForwardDiff
 using Plots
 
+# Julia script to simulate failure estimation and optimise parameters.
+
 function neg_log_likelihood(As, Bs, Is, cs)
     llsum = 0
     for k = 1:length(cs)
@@ -71,64 +73,6 @@ function global_optimization_solution(n, k, Is, cs)
     return solve(prob, NelderMead())
 end
 
-function sgd(Is, Js, cs, ts, n, k, step_size::Real; failure_probability_decay_rate::Real=1, failure_probability_decay_interval::Integer=0, normalize_step_size::Bool=true)
-    nsamples = length(cs)
-    As = zeros(n, nsamples)
-    Bs = zeros(k, nsamples)
-    As[:, 1] .= fill(0.5, n)
-    Bs[:, 1] .= fill(0.5, k)
-    Ags = fill(step_size, n)
-    Bgs = fill(step_size, k)
-
-    # Normalise step sizes.
-    if normalize_step_size
-        Isc = countmap(Is)
-        Jsc = countmap(Js)
-        total = sum(values(Isc)) + sum(values(Jsc))
-        Ags .= 0
-        for (i, c) in Isc
-            Ags[i] = total/c
-        end
-        Bgs .= 0
-        for (j, c) in Jsc
-            Bgs[j] = total/c
-        end
-        total_step_size = sum(Ags) + sum(Bgs)
-        x = step_size * (n+k) / total_step_size
-        Ags .*= x
-        Bgs .*= x
-    end
-
-    for k = 1:nsamples
-        if k > 1
-            As[:, k] .= As[:, k-1]
-            Bs[:, k] .= Bs[:, k-1]
-        end
-        Ask = view(As, :, k)
-        Bsk = view(Bs, :, k)
-
-        # Periodically decay success probability towards 1.
-        if failure_probability_decay_interval != 0 && k % failure_probability_decay_interval == 0
-            Ask .= 1 .- Ask
-            Ask .*= failure_probability_decay_rate
-            Ask .= 1 .- Ask
-
-            Bsk .= 1 .- Bsk
-            Bsk .* failure_probability_decay_rate
-            Bsk .= 1 .- Bsk
-        end
-
-        i = Is[k]
-        j = Js[k]
-        dA, dB = neg_log_likelihood_gradient_inner(Ask[i], Bsk[j], cs[k])
-        Ask[i] -= Ags[i] * dA
-        Bsk[j] -= Bgs[j] * dB
-        Ask[i] = min(max(Ask[i], 0), 1)
-        Bsk[j] = min(max(Bsk[j], 0), 1)
-    end
-    return As, Bs
-end
-
 function gd(Is, Js, cs, ts, n, k; inner_opt, outer_opt, update_interval::Float64=60.0, num_sub_iterations::Integer=1)
     nsamples = length(cs)
     x = fill(0.5, n+k)
@@ -181,36 +125,6 @@ function gd(Is, Js, cs, ts, n, k; inner_opt, outer_opt, update_interval::Float64
 
         As[:, sample_index] .= Ak
         Bs[:, sample_index] .= Bk
-    end
-    return As, Bs
-end
-
-function sag(Is, Js, cs, ts, n, k, step_size::Real)
-    nsamples = length(cs)
-    As = zeros(n, nsamples)
-    Bs = zeros(k, nsamples)
-    As[:, 1] .= fill(0.5, n)
-    Bs[:, 1] .= fill(0.5, k)
-    dAs = zeros(n)
-    dBs = zeros(k)
-
-    for k = 1:nsamples
-        if k > 1
-            As[:, k] .= As[:, k-1]
-            Bs[:, k] .= Bs[:, k-1]
-        end
-        Ask = view(As, :, k)
-        Bsk = view(Bs, :, k)
-
-        i = Is[k]
-        j = Js[k]
-        dAs[i], dBs[j] = neg_log_likelihood_gradient_inner(Ask[i], Bsk[j], cs[k])
-        Ask .-= step_size .* dAs
-        Bsk .-= step_size .* dBs
-        Ask .= min.(Ask, 1.0-1e-6)
-        Ask .= max.(Ask, 1e-6)
-        Bsk .= min.(Bsk, 1.0-1e-6)
-        Bsk .= max.(Bsk, 1e-6)
     end
     return As, Bs
 end
@@ -361,13 +275,6 @@ function rate_by_index(Is, as)
     return rate_by_index
 end
 
-function compute_step_size(success_probability_cordon_threshold, queue_success_probability, max_cordon_timeout_seconds, equilibrium_job_failure_rate)
-    dA = queue_success_probability / (1 - success_probability_cordon_threshold*queue_success_probability)
-    failure_probability_decay_rate = exp(log(1-success_probability_cordon_threshold) / max_cordon_timeout_seconds)
-    step_size = (1 - success_probability_cordon_threshold - (1-success_probability_cordon_threshold)*failure_probability_decay_rate) / dA / equilibrium_job_failure_rate
-    return failure_probability_decay_rate, step_size
-end
-
 function squared_error(p::Parameters, As, Bs)
     Ase = copy(As)
     Bse = copy(Bs)
@@ -396,16 +303,13 @@ function grid_search(p::Parameters; num_simulations=10)
 
     it = Base.Iterators.product(
         # Inner step-size.
-        # range(1e-5, 1e-2, length=10),
-        # range(1e-3, 1e-1, length=10),
-        range(1e-1/2, 1e-1*2, length=10),
+        range(1e-5, 1e-2, length=10),
         # Number of sub-iterations.
-        # range(1, 10),
-        range(10, 10),
+        range(1, 10),
         # Outer step-size.
         range(1e-2, 0.25, length=10),
         # Outer Nesterov acceleration.
-        range(0.1, 0.2, length=10)
+        range(0.0, 0.99, length=10)
     )
     mses = zeros(length(it))
     for _ = num_simulations
@@ -429,15 +333,6 @@ function main()
 
     plots = Vector{Plots.Plot}()
 
-    As, Bs = sgd(Is, Js, cs, ts, n, k, 1e-3, normalize_step_size=false)
-    Ase, Bse = squared_error(p, As, Bs)
-    push!(plots, plot!(plot(ts, As', legend=false), ts, mean(Ase, dims=1)', color="black", legend=false))
-    push!(plots, plot!(plot(ts, Bs', legend=false), ts, mean(Bse, dims=1)', color="black", legend=false))
-
-#=     As, Bs = sgd(Is, Js, cs, ts, n, k, 1e-3, normalize_step_size=true)
-    push!(plots, plot(ts, As'))
-    push!(plots, plot(ts, Bs')) =#
-
     As, Bs = gd(Is, Js, cs, ts, n, k, inner_opt=Descent(0.05), outer_opt=Nesterov(0.05, 0.2), update_interval=60.0, num_sub_iterations=10)
     Ase, Bse = squared_error(p, As, Bs)
     push!(plots, plot!(plot(ts, As', legend=false), ts, mean(Ase, dims=1)', color="black", legend=false))
@@ -453,5 +348,5 @@ function main()
     push!(plots, plot!(plot(ts, As', legend=false), ts, mean(Ase, dims=1)', color="black", legend=false))
     push!(plots, plot!(plot(ts, Bs', legend=false), ts, mean(Bse, dims=1)', color="black", legend=false))
 
-    plot(plots..., layout=(4, 2))
+    plot(plots..., layout=(3, 2))
 end
