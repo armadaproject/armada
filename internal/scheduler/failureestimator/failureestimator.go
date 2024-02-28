@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"math"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"gonum.org/v1/gonum/mat"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/linalg"
+	armadamath "github.com/armadaproject/armada/internal/common/math"
+	"github.com/armadaproject/armada/internal/common/optimisation"
+	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 )
 
 const (
@@ -18,8 +23,6 @@ const (
 
 	// Floating point tolerance. Also used when applying limits to avoid divide-by-zero issues.
 	eps = 1e-15
-	// Assumed success probability of "good" nodes (queues) used when calculating step size.
-	healthySuccessProbability = 0.95
 )
 
 // FailureEstimator is a system for answering the following question:
@@ -28,53 +31,41 @@ const (
 // Denote by
 // - P_q the probability of a job from queue q succeeding when running on a perfect node and
 // - P_n is the probability of a perfect job succeeding on node n.
-// The success probability of a job from queue q on node n is then Pr(p_q*p_n=1),
+// The success probability of a job from queue q on node n is then Pr(p_q*p_n = 1),
 // where p_q and p_n are drawn from Bernoulli distributions with parameter P_q and P_n, respectively.
 //
-// Now, the goal is to jointly estimate P_q and P_n for each queue and node using observed successes and failures.
-// The method used is statistical and only relies on knowing which queue a job belongs to and on which node it ran.
-// The intuition of the method is that:
-// - A job from a queue with many failures doesn't say much about the node; likely it's the job that's the problem.
-// - A job failing on a node with many failures doesn't say much about the job; likely it's the node that's the problem.
+// Now, the goal is to jointly estimate P_q and P_n for each queue and node from observed successes and failures.
+// We do so here with a statistical method. The intuition of the method is that:
+// - A job from a queue with many failures failing doesn't say much about the node; likely the problem is with the job.
+// - A job failing on a node with many failures doesn't say much about the job; likely the problem is with the node.
 // And vice versa.
 //
-// Specifically, we maximise the log-likelihood function of P_q and P_n using observed successes and failures.
+// Specifically, we maximise the log-likelihood function of P_q and P_n over observed successes and failures.
 // This maximisation is performed using online gradient descent, where for each success or failure,
-// we update the corresponding P_q and P_n by taking a gradient step.
-// See New(...) for more details regarding step size.
-//
-// Finally, we exponentially decay P_q and P_N towards 1 over time,
-// such that nodes and queues for which we observe no failures appear to become healthier over time.
-// See New(...) function for details regarding decay.
+// we update the corresponding P_q and P_n by taking a gradient step. See the Update() function for details.
 //
 // This module internally only maintains success probability estimates, as this makes the maths cleaner.
-// When exporting these via API calls we convert to failure probabilities as these are more intuitive to reason about.
+// We convert these to failure probabilities when exporting these via API calls.
 type FailureEstimator struct {
-	// Map from node (queue) name to the estimated success probability of that node (queue). For example:
-	// - successProbabilityByNode["myNode"] = 0.85]: estimated failure probability of a perfect job run on "myNode" is 15%.
-	// - successProbabilityByQueue["myQueue"] = 0.60]: estimated failure probability of a job from "myQueue" run on a perfect node is 40%.
-	successProbabilityByNode  map[string]float64
-	successProbabilityByQueue map[string]float64
+	// Success probability estimates for all nodes and queues.
+	parameters             *mat.VecDense
+	intermediateParameters *mat.VecDense
 
-	// Success probability below which to consider nodes (jobs) unhealthy.
-	nodeSuccessProbabilityCordonThreshold  float64
-	queueSuccessProbabilityCordonThreshold float64
+	// Gradient buffer.
+	gradient *mat.VecDense
 
-	// Exponential decay factor controlling how quickly estimated node (queue) success probability decays towards 1.
-	// Computed from:
-	// - {node, queue}SuccessProbabilityCordonThreshold
-	// - {node, queue}CordonTimeout
-	nodeFailureProbabilityDecayRate  float64
-	queueFailureProbabilityDecayRate float64
-	timeOfLastDecay                  time.Time
+	// Maps node (queue) names to the corresponding index of parameters.
+	// E.g., if parameterIndexByNode["myNode"] = 10, then parameters[10] is the estimated success probability of myNode.
+	parameterIndexByNode  map[string]int
+	parameterIndexByQueue map[string]int
 
-	// Gradient descent step size. Controls the extent to which new data affects successProbabilityBy{Node, Queue}.
-	// Computed from:
-	// - {node, queue}SuccessProbabilityCordonThreshold
-	// - {node, queue}FailureProbabilityDecayRate
-	// - {node, queue}EquilibriumFailureRate
-	nodeStepSize  float64
-	queueStepSize float64
+	// Model updates that have not been applied yet.
+	pendingUpdates []Update
+
+	// Optimisation settings.
+	numInnerIterations int
+	innerOptimiser     optimisation.Optimiser
+	outerOptimiser     optimisation.Optimiser
 
 	// Prometheus metrics.
 	failureProbabilityByNodeDesc  *prometheus.Desc
@@ -84,88 +75,41 @@ type FailureEstimator struct {
 	disabled bool
 
 	// Mutex protecting the above fields.
-	// Prevents concurrent map modification issues when scraping metrics.
+	// Prevents concurrent map modification when scraping metrics.
 	mu sync.Mutex
 }
 
-// New returns a new FailureEstimator. Parameters have the following meaning:
-// - {node, queue}SuccessProbabilityCordonThreshold: Success probability below which nodes (queues) are considered unhealthy.
-// - {node, queue}CordonTimeout: Amount of time for which nodes (queues) remain unhealthy in the absence of any job successes or failures for that node (queue).
-// - {node, queue}EquilibriumFailureRate: Job failures per second necessary for a node (queue) to remain unhealthy in the absence of any successes for that node (queue).
+type Update struct {
+	i int
+	j int
+	c bool
+}
+
+// New returns a new FailureEstimator.
 func New(
-	nodeSuccessProbabilityCordonThreshold float64,
-	queueSuccessProbabilityCordonThreshold float64,
-	nodeCordonTimeout time.Duration,
-	queueCordonTimeout time.Duration,
-	nodeEquilibriumFailureRate float64,
-	queueEquilibriumFailureRate float64,
+	numInnerIterations int,
+	innerOptimiser optimisation.Optimiser,
+	outerOptimiser optimisation.Optimiser,
 ) (*FailureEstimator, error) {
-	if nodeSuccessProbabilityCordonThreshold < 0 || nodeSuccessProbabilityCordonThreshold > 1 {
+	if numInnerIterations < 1 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "nodeSuccessProbabilityCordonThreshold",
-			Value:   nodeSuccessProbabilityCordonThreshold,
-			Message: fmt.Sprintf("outside allowed range [0, 1]"),
+			Name:    "numInnerIterations",
+			Value:   numInnerIterations,
+			Message: fmt.Sprintf("outside allowed range [1, Inf)"),
 		})
 	}
-	if queueSuccessProbabilityCordonThreshold < 0 || queueSuccessProbabilityCordonThreshold > 1 {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "queueSuccessProbabilityCordonThreshold",
-			Value:   queueSuccessProbabilityCordonThreshold,
-			Message: fmt.Sprintf("outside allowed range [0, 1]"),
-		})
-	}
-	if nodeCordonTimeout < 0 {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "nodeCordonTimeout",
-			Value:   nodeCordonTimeout,
-			Message: fmt.Sprintf("outside allowed range [0, Inf)"),
-		})
-	}
-	if queueCordonTimeout < 0 {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "queueCordonTimeout",
-			Value:   queueCordonTimeout,
-			Message: fmt.Sprintf("outside allowed range [0, Inf)"),
-		})
-	}
-	if nodeEquilibriumFailureRate <= 0 {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "nodeEquilibriumFailureRate",
-			Value:   nodeEquilibriumFailureRate,
-			Message: fmt.Sprintf("outside allowed range (0, Inf)"),
-		})
-	}
-	if queueEquilibriumFailureRate <= 0 {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "queueEquilibriumFailureRate",
-			Value:   queueEquilibriumFailureRate,
-			Message: fmt.Sprintf("outside allowed range (0, Inf)"),
-		})
-	}
-
-	// Compute decay rates such that a node (queue) with success probability 0 will over {node, queue}CordonTimeout time
-	// decay to a success probability of {node, queue}SuccessProbabilityCordonThreshold.
-	nodeFailureProbabilityDecayRate := math.Exp(math.Log(1-nodeSuccessProbabilityCordonThreshold) / nodeCordonTimeout.Seconds())
-	queueFailureProbabilityDecayRate := math.Exp(math.Log(1-queueSuccessProbabilityCordonThreshold) / queueCordonTimeout.Seconds())
-
-	// Compute step size such that a node (queue) with success probability {node, queue}SuccessProbabilityCordonThreshold
-	// for which we observe 0 successes and {node, queue}EquilibriumFailureRate failures per second from "good" nodes (queues)
-	// will remain at exactly {node, queue}SuccessProbabilityCordonThreshold success probability.
-	dNodeSuccessProbability := healthySuccessProbability / (1 - nodeSuccessProbabilityCordonThreshold*healthySuccessProbability)
-	dQueueSuccessProbability := healthySuccessProbability / (1 - queueSuccessProbabilityCordonThreshold*healthySuccessProbability)
-	nodeStepSize := (1 - nodeSuccessProbabilityCordonThreshold - (1-nodeSuccessProbabilityCordonThreshold)*nodeFailureProbabilityDecayRate) / dNodeSuccessProbability / nodeEquilibriumFailureRate
-	queueStepSize := (1 - queueSuccessProbabilityCordonThreshold - (1-queueSuccessProbabilityCordonThreshold)*queueFailureProbabilityDecayRate) / dQueueSuccessProbability / queueEquilibriumFailureRate
-
 	return &FailureEstimator{
-		successProbabilityByNode:               make(map[string]float64, 1024),
-		successProbabilityByQueue:              make(map[string]float64, 128),
-		nodeSuccessProbabilityCordonThreshold:  nodeSuccessProbabilityCordonThreshold,
-		queueSuccessProbabilityCordonThreshold: queueSuccessProbabilityCordonThreshold,
-		nodeFailureProbabilityDecayRate:        nodeFailureProbabilityDecayRate,
-		queueFailureProbabilityDecayRate:       queueFailureProbabilityDecayRate,
-		timeOfLastDecay:                        time.Now(),
-		nodeStepSize:                           nodeStepSize,
-		queueStepSize:                          queueStepSize,
+		parameters:             mat.NewVecDense(32, armadaslices.Fill[float64](0.5, 32)),
+		intermediateParameters: mat.NewVecDense(32, armadaslices.Zeros[float64](32)),
+		gradient:               mat.NewVecDense(32, armadaslices.Zeros[float64](32)),
+
+		parameterIndexByNode:  make(map[string]int, 16),
+		parameterIndexByQueue: make(map[string]int, 16),
+
+		numInnerIterations: numInnerIterations,
+		innerOptimiser:     innerOptimiser,
+		outerOptimiser:     outerOptimiser,
+
 		failureProbabilityByNodeDesc: prometheus.NewDesc(
 			fmt.Sprintf("%s_%s_node_failure_probability", namespace, subsystem),
 			"Estimated per-node failure probability.",
@@ -195,61 +139,91 @@ func (fe *FailureEstimator) IsDisabled() bool {
 	return fe.disabled
 }
 
-// Decay moves the success probabilities of nodes (queues) closer to 1, depending on the configured cordon timeout.
-// Periodically calling Decay() ensures nodes (queues) considered unhealthy are eventually considered healthy again,
-// even if we observe no successes for those nodes (queues).
-func (fe *FailureEstimator) Decay() {
-	fe.mu.Lock()
-	defer fe.mu.Unlock()
-	t := time.Now()
-	fe.decay(t.Sub(fe.timeOfLastDecay).Seconds())
-	fe.timeOfLastDecay = t
-	return
-}
-
-func (fe *FailureEstimator) decay(secondsSinceLastDecay float64) {
-	nodeFailureProbabilityDecay := math.Pow(fe.nodeFailureProbabilityDecayRate, secondsSinceLastDecay)
-	for k, v := range fe.successProbabilityByNode {
-		failureProbability := 1 - v
-		failureProbability *= nodeFailureProbabilityDecay
-		successProbability := 1 - failureProbability
-		fe.successProbabilityByNode[k] = applyBounds(successProbability)
-	}
-
-	queueFailureProbabilityDecay := math.Pow(fe.queueFailureProbabilityDecayRate, secondsSinceLastDecay)
-	for k, v := range fe.successProbabilityByQueue {
-		failureProbability := 1 - v
-		failureProbability *= queueFailureProbabilityDecay
-		successProbability := 1 - failureProbability
-		fe.successProbabilityByQueue[k] = applyBounds(successProbability)
-	}
-	return
-}
-
-// Update with success=false decreases the estimated success probability of the provided node and queue.
-// Calling with success=true increases the estimated success probability of the provided node and queue.
-// This update is performed by taking one gradient descent step.
-func (fe *FailureEstimator) Update(node, queue string, success bool) {
+func (fe *FailureEstimator) Push(node, queue string, success bool) {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
 
-	// Assume that nodes (queues) we haven't seen before have a 50% success probability.
-	// Avoiding extreme values for new nodes (queues) helps avoid drastic changes to existing estimates.
-	nodeSuccessProbability, ok := fe.successProbabilityByNode[node]
+	i, ok := fe.parameterIndexByNode[node]
 	if !ok {
-		nodeSuccessProbability = 0.5
+		i = len(fe.parameterIndexByNode) + len(fe.parameterIndexByQueue)
+		fe.parameterIndexByNode[node] = i
 	}
-	queueSuccessProbability, ok := fe.successProbabilityByQueue[queue]
+	j, ok := fe.parameterIndexByQueue[queue]
 	if !ok {
-		queueSuccessProbability = 0.5
+		j = len(fe.parameterIndexByNode) + len(fe.parameterIndexByQueue)
+		fe.parameterIndexByQueue[queue] = j
+	}
+	fe.extendParameters(armadamath.Max(i, j) + 1)
+	fe.pendingUpdates = append(fe.pendingUpdates, Update{
+		i: i,
+		j: j,
+		c: success,
+	})
+}
+
+func (fe *FailureEstimator) extendParameters(n int) {
+	oldN := fe.parameters.Len()
+	fe.parameters = linalg.ExtendVecDense(fe.parameters, n)
+	if oldN < n {
+		for i := oldN; i < n; i++ {
+			// Initialise new parameters with 50% success probability.
+			fe.parameters.SetVec(i, 0.5)
+		}
+	}
+	fe.intermediateParameters = linalg.ExtendVecDense(fe.intermediateParameters, n)
+	fe.gradient = linalg.ExtendVecDense(fe.gradient, n)
+}
+
+// Update success estimates based on pendingUpdates.
+func (fe *FailureEstimator) Update() {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+	if len(fe.pendingUpdates) == 0 {
+		// Nothing to do.
+		return
 	}
 
-	dNodeSuccessProbability, dQueueSuccessProbability := fe.negLogLikelihoodGradient(nodeSuccessProbability, queueSuccessProbability, success)
-	nodeSuccessProbability -= fe.nodeStepSize * dNodeSuccessProbability
-	queueSuccessProbability -= fe.queueStepSize * dQueueSuccessProbability
+	// Inner loop to compute intermediateParameters from pendingUpdates.
+	// Passing over pendingUpdates multiple times in random order helps improve convergence.
+	fe.intermediateParameters.CopyVec(fe.parameters)
+	for k := 0; k < fe.numInnerIterations; k++ {
 
-	fe.successProbabilityByNode[node] = applyBounds(nodeSuccessProbability)
-	fe.successProbabilityByQueue[queue] = applyBounds(queueSuccessProbability)
+		// Compute gradient with respect to updates.
+		fe.gradient.Zero()
+		slices.Shuffle(fe.pendingUpdates)
+		for _, update := range fe.pendingUpdates {
+			gi, gj := fe.negLogLikelihoodGradient(
+				fe.intermediateParameters.AtVec(update.i),
+				fe.intermediateParameters.AtVec(update.j),
+				update.c,
+			)
+			fe.gradient.SetVec(update.i, fe.gradient.AtVec(update.i)+gi)
+			fe.gradient.SetVec(update.j, fe.gradient.AtVec(update.j)+gj)
+		}
+
+		// Update intermediateParameters using this gradient.
+		fe.innerOptimiser.Extend(fe.intermediateParameters.Len())
+		fe.intermediateParameters = fe.innerOptimiser.Update(fe.intermediateParameters, fe.intermediateParameters, fe.gradient)
+		applyBoundsVec(fe.intermediateParameters)
+	}
+
+	// Let the gradient be the difference between parameters and intermediateParameters,
+	// i.e., we use the inner loop as a method to estimate the gradient,
+	// and then update parameters using this gradient and the outer optimiser.
+	fe.gradient.CopyVec(fe.parameters)
+	fe.gradient.SubVec(fe.gradient, fe.intermediateParameters)
+	fe.outerOptimiser.Extend(fe.parameters.Len())
+	fe.parameters = fe.outerOptimiser.Update(fe.parameters, fe.parameters, fe.gradient)
+	applyBoundsVec(fe.parameters)
+
+	// Empty the pending updates.
+	fe.pendingUpdates = fe.pendingUpdates[0:0]
+}
+
+func applyBoundsVec(vec *mat.VecDense) {
+	for i := 0; i < vec.Len(); i++ {
+		vec.SetVec(i, applyBounds(vec.AtVec(i)))
+	}
 }
 
 // applyBounds ensures values stay in the range [eps, 1-eps].
@@ -264,7 +238,7 @@ func applyBounds(v float64) float64 {
 	}
 }
 
-// negLogLikelihoodGradient returns the gradient of the negated log-likelihood function with respect to P_q and P_n.
+// negLogLikelihoodGradient returns the gradient of the negated log-likelihood function.
 func (fe *FailureEstimator) negLogLikelihoodGradient(nodeSuccessProbability, queueSuccessProbability float64, success bool) (float64, float64) {
 	if success {
 		dNodeSuccessProbability := -1 / nodeSuccessProbability
@@ -294,13 +268,13 @@ func (fe *FailureEstimator) Collect(ch chan<- prometheus.Metric) {
 
 	// Report failure probability rounded to nearest multiple of 0.01.
 	// (As it's unlikely the estimate is accurate to within less than this.)
-	for k, v := range fe.successProbabilityByNode {
-		failureProbability := 1 - v
+	for k, i := range fe.parameterIndexByNode {
+		failureProbability := 1 - fe.parameters.AtVec(i)
 		failureProbability = math.Round(failureProbability*100) / 100
 		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByNodeDesc, prometheus.GaugeValue, failureProbability, k)
 	}
-	for k, v := range fe.successProbabilityByQueue {
-		failureProbability := 1 - v
+	for k, j := range fe.parameterIndexByQueue {
+		failureProbability := 1 - fe.parameters.AtVec(j)
 		failureProbability = math.Round(failureProbability*100) / 100
 		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByQueueDesc, prometheus.GaugeValue, failureProbability, k)
 	}
