@@ -121,11 +121,10 @@ func TestUpdate(t *testing.T) {
 		Owners         []string
 		GroupOwners    []string
 	}{
-		"default flags":         {nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil},
+		"default flags":      {nil, nil, nil, nil},
+		"valid priority":     {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
+		"valid owners":       {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil},
+		"valid group owners": {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
 	}
 
 	for name, test := range tests {
