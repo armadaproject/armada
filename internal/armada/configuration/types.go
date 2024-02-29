@@ -1,11 +1,12 @@
 package configuration
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -32,20 +33,13 @@ type ArmadaConfig struct {
 
 	SchedulerApiConnection client.ApiConnectionDetails
 
-	PriorityHalfTime                  time.Duration
-	CancelJobsBatchSize               int
-	Redis                             redis.UniversalOptions
-	EventsApiRedis                    redis.UniversalOptions
-	Scheduling                        SchedulingConfig
-	NewScheduler                      NewSchedulerConfig
-	QueueManagement                   QueueManagementConfig
-	Pulsar                            PulsarConfig
-	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi                          EventApiConfig
-	Metrics                           MetricsConfig
-	IgnoreJobSubmitChecks             bool // Temporary flag to stop us rejecting jobs on switch over
-	PulsarSchedulerEnabled            bool
-	ProbabilityOfUsingPulsarScheduler float64
+	CancelJobsBatchSize int
+	Redis               redis.UniversalOptions
+	EventsApiRedis      redis.UniversalOptions
+	Scheduling          SchedulingConfig
+	Pulsar              PulsarConfig
+	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
+	QueryApi            QueryApiConfig
 }
 
 type PulsarConfig struct {
@@ -63,7 +57,7 @@ type PulsarConfig struct {
 	AuthenticationEnabled bool
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
-	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
+	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath                string
 	JobsetEventsTopic           string
 	RedisFromPulsarSubscription string
@@ -71,11 +65,6 @@ type PulsarConfig struct {
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
 	CompressionLevel pulsar.CompressionLevel
-	// Used to construct an executorconfig.IngressConfiguration,
-	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
-	HostnameSuffix string
-	CertNameSuffix string
-	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
 	// Log all pulsar events
@@ -91,33 +80,12 @@ type PulsarConfig struct {
 	ReceiverQueueSize int
 }
 
-// DatabaseConfig represents the configuration of the database connection.
-type DatabaseConfig struct {
-	// MaxOpenConns represents the maximum number of open connections to the database.
-	MaxOpenConns int
-
-	// MaxIdleConns represents the maximum number of connections in the idle connection pool.
-	MaxIdleConns int
-
-	// ConnMaxLifetime represents the maximum amount of time a connection may be reused.
-	ConnMaxLifetime time.Duration
-
-	// Connection represents the database connection details in a key/value pairs format.
-	Connection map[string]string
-
-	// Dialect represents the dialect of the configured database.
-	Dialect string
-}
-
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// If true, schedule jobs across all executors in the same pool in a unified manner.
-	// Otherwise, schedule each executor separately.
-	UnifiedSchedulingByPool bool
-	Preemption              PreemptionConfig
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -156,7 +124,6 @@ type SchedulingConfig struct {
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
 	MaxJobSchedulingContextsPerExecutor uint
-	Lease                               LeaseSettings
 	DefaultJobLimits                    armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
@@ -166,18 +133,10 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
-	FairnessModel FairnessModel
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
 	DominantResourceFairnessResourcesToConsider []string
-	// Weights used to compute fair share when using AssetFairness.
-	// Overrides dynamic scarcity calculation if provided.
-	// Applies to both the new and old scheduler.
-	ResourceScarcity map[string]float64
-	// Applies only to the old scheduler.
-	PoolResourceScarcity map[string]map[string]float64
-	MaxPodSpecSizeBytes  uint
-	MinJobResources      v1.ResourceList
+	MaxPodSpecSizeBytes                         uint
+	MinJobResources                             v1.ResourceList
 	// Once a node has been found on which a pod can be scheduled,
 	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
 	// The scheduler selects the node with the best score out of the considered nodes.
@@ -206,6 +165,9 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// WellKnownNodeTypes defines a set of well-known node types; these are used
+	// to define "home" and "away" nodes for a given priority class.
+	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
 	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
 	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
@@ -246,23 +208,42 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Enable new preemption strategy.
-	EnableNewPreemptionStrategy bool
+	// Controls node and queue success probability estimation.
+	FailureEstimatorConfig FailureEstimatorConfig
 }
 
-// FairnessModel controls how fairness is computed.
-// More specifically, each queue has a cost associated with it and the next job to schedule
-// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
-type FairnessModel string
-
 const (
-	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
-	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
-	AssetFairness FairnessModel = "AssetFairness"
-	// DominantResourceFairness set the cost associated with a queue to
-	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
-	DominantResourceFairness FairnessModel = "DominantResourceFairness"
+	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
 )
+
+func SchedulingConfigValidation(sl validator.StructLevel) {
+	c := sl.Current().Interface().(SchedulingConfig)
+
+	wellKnownNodeTypes := make(map[string]bool)
+	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
+		if wellKnownNodeTypes[wellKnownNodeType.Name] {
+			fieldName := fmt.Sprintf("WellKnownNodeTypes[%d].Name", i)
+			sl.ReportError(wellKnownNodeType.Name, fieldName, "", DuplicateWellKnownNodeTypeErrorMessage, "")
+		}
+		wellKnownNodeTypes[wellKnownNodeType.Name] = true
+	}
+
+	for priorityClassName, priorityClass := range c.Preemption.PriorityClasses {
+		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
+			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
+			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
+		}
+
+		for i, awayNodeType := range priorityClass.AwayNodeTypes {
+			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
+				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
+				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
+			}
+		}
+	}
+}
 
 type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
@@ -271,10 +252,13 @@ type IndexedResource struct {
 	Resolution resource.Quantity
 }
 
-// NewSchedulerConfig stores config for the new Pulsar-based scheduler.
-// This scheduler will eventually replace the current scheduler.
-type NewSchedulerConfig struct {
-	Enabled bool
+// A WellKnownNodeType defines a set of nodes; see AwayNodeType.
+type WellKnownNodeType struct {
+	// Name is the unique identifier for this node type.
+	Name string `validate:"required"`
+	// Taints is the set of taints that characterizes this node type; a node is
+	// part of this node type if and only if it has all of these taints.
+	Taints []v1.Taint
 }
 
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
@@ -300,7 +284,7 @@ type PreemptionConfig struct {
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]types.PriorityClass
+	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
@@ -308,71 +292,23 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
-func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
-	return PriorityByPriorityClassName(p.PriorityClasses)
+// FailureEstimatorConfig contains config controlling node and queue success probability estimation.
+// See the internal/scheduler/failureestimator package for details.
+type FailureEstimatorConfig struct {
+	Disabled                           bool
+	NumInnerIterations                 int     `validate:"gt=0"`
+	InnerOptimiserStepSize             float64 `validate:"gt=0"`
+	OuterOptimiserStepSize             float64 `validate:"gt=0"`
+	OuterOptimiserNesterovAcceleration float64 `validate:"gte=0"`
 }
 
-func PriorityByPriorityClassName(priorityClasses map[string]types.PriorityClass) map[string]int32 {
-	rv := make(map[string]int32, len(priorityClasses))
-	for name, pc := range priorityClasses {
-		rv[name] = pc.Priority
-	}
-	return rv
-}
-
-func (p PreemptionConfig) AllowedPriorities() []int32 {
-	return AllowedPriorities(p.PriorityClasses)
-}
-
-func AllowedPriorities(priorityClasses map[string]types.PriorityClass) []int32 {
-	rv := make([]int32, 0, len(priorityClasses))
-	for _, v := range priorityClasses {
-		rv = append(rv, v.Priority)
-	}
-	slices.Sort(rv)
-	return slices.Compact(rv)
-}
-
-type LeaseSettings struct {
-	ExpireAfter        time.Duration
-	ExpiryLoopInterval time.Duration
-}
-
+// TODO: we can probably just typedef this to map[string]string
 type PostgresConfig struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	Connection      map[string]string
+	Connection map[string]string
 }
 
-type QueueManagementConfig struct {
-	AutoCreateQueues       bool
-	DefaultPriorityFactor  float64
-	DefaultQueuedJobsLimit int
-}
-
-type MetricsConfig struct {
-	Port                    uint16
-	RefreshInterval         time.Duration
-	ExposeSchedulingMetrics bool
-	Metrics                 SchedulerMetricsConfig
-}
-
-type SchedulerMetricsConfig struct {
-	ScheduleCycleTimeHistogramSettings  HistogramConfig
-	ReconcileCycleTimeHistogramSettings HistogramConfig
-}
-
-type HistogramConfig struct {
-	Start  float64
-	Factor float64
-	Count  int
-}
-
-type EventApiConfig struct {
-	Enabled          bool
-	QueryConcurrency int
-	JobsetCacheSize  int
-	UpdateTopic      string
-	Postgres         PostgresConfig
+type QueryApiConfig struct {
+	Enabled       bool
+	Postgres      PostgresConfig
+	MaxQueryItems int
 }

@@ -9,14 +9,11 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type GroupByResult struct {
-	// Total number of groups
-	Count  int
 	Groups []*model.JobGroup
 }
 
@@ -33,16 +30,18 @@ type GroupJobsRepository interface {
 }
 
 type SqlGroupJobsRepository struct {
-	db            *pgxpool.Pool
-	lookoutTables *LookoutTables
+	db              *pgxpool.Pool
+	lookoutTables   *LookoutTables
+	useJsonbBackend bool
 }
 
 const stateAggregatePrefix = "state_"
 
-func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
+func NewSqlGroupJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
-		db:            db,
-		lookoutTables: NewTables(),
+		db:              db,
+		lookoutTables:   NewTables(),
+		useJsonbBackend: useJsonbBackend,
 	}
 }
 
@@ -56,46 +55,36 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	skip int,
 	take int,
 ) (*GroupByResult, error) {
-	var groups []*model.JobGroup
-	var count int
+	qb := NewQueryBuilder(r.lookoutTables)
+	groupBy := qb.GroupBy
+	if r.useJsonbBackend {
+		groupBy = qb.GroupByJsonb
+	}
+	query, err := groupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(query, "GroupBy")
 
-	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
+	var groups []*model.JobGroup
+
+	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
-		if err != nil {
-			return err
-		}
-		logQuery(countQuery)
-		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-		if err != nil {
-			return err
-		}
-		count, err = database.ReadInt(rows)
-		if err != nil {
-			return err
-		}
-		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
-		if err != nil {
-			return err
-		}
-		logQuery(groupByQuery)
-		groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
+		groupRows, err := tx.Query(ctx, query.Sql, query.Args...)
 		if err != nil {
 			return err
 		}
 		groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 		return err
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
 	return &GroupByResult{
 		Groups: groups,
-		Count:  count,
 	}, nil
 }
 

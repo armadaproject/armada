@@ -66,8 +66,7 @@ type SchedulingConstraints struct {
 
 // PriorityClassSchedulingConstraints contains scheduling constraints that apply to jobs of a specific priority class.
 type PriorityClassSchedulingConstraints struct {
-	PriorityClassName     string
-	PriorityClassPriority int32
+	PriorityClassName string
 	// Limits total resources allocated to jobs of this priority class per queue.
 	MaximumResourcesPerQueue schedulerobjects.ResourceList
 }
@@ -87,7 +86,6 @@ func SchedulingConstraintsFromSchedulingConfig(
 		}
 		priorityClassSchedulingConstraintsByPriorityClassName[name] = PriorityClassSchedulingConstraints{
 			PriorityClassName:        name,
-			PriorityClassPriority:    priorityClass.Priority,
 			MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources, maximumResourceFractionPerQueue),
 		}
 	}
@@ -167,8 +165,9 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	}
 
 	// PriorityClassSchedulingConstraintsByPriorityClassName check.
-	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
-		if !qctx.AllocatedByPriorityClass[gctx.PriorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
+	priorityClassName := gctx.GangInfo.PriorityClassName
+	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
+		if !qctx.AllocatedByPriorityClass[priorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
 			return false, MaximumResourcesPerQueueExceededUnschedulableReason, nil
 		}
 	}

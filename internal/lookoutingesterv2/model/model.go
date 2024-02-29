@@ -11,6 +11,7 @@ type CreateJobInstruction struct {
 	JobId                     string
 	Queue                     string
 	Owner                     string
+	Namespace                 string
 	JobSet                    string
 	Cpu                       int64
 	Memory                    int64
@@ -23,6 +24,7 @@ type CreateJobInstruction struct {
 	LastTransitionTimeSeconds int64
 	JobProto                  []byte
 	PriorityClass             *string
+	Annotations               map[string]string
 }
 
 // UpdateJobInstruction is an instruction to update an existing row in the jobs table

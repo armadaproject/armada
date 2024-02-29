@@ -22,6 +22,10 @@ func goRun(args ...string) error {
 	return sh.Run(goBinary(), args...)
 }
 
+func goRunWith(env map[string]string, args ...string) error {
+	return sh.RunWith(env, goBinary(), args...)
+}
+
 func goVersion() (*semver.Version, error) {
 	output, err := goOutput("version")
 	if err != nil {

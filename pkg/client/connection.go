@@ -16,7 +16,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/pkg/client/auth/exec"
-	"github.com/armadaproject/armada/pkg/client/auth/kerberos"
 	"github.com/armadaproject/armada/pkg/client/auth/kubernetes"
 	"github.com/armadaproject/armada/pkg/client/auth/oidc"
 )
@@ -44,7 +43,6 @@ type ApiConnectionDetails struct {
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
 	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
 	OpenIdKubernetesAuth        oidc.KubernetesDetails
-	KerberosAuth                kerberos.ClientConfig
 	ForceNoTls                  bool
 	ExecAuth                    exec.CommandDetails
 }
@@ -112,8 +110,6 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 		return oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
 	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {
 		return oidc.AuthenticateKubernetes(config.OpenIdKubernetesAuth)
-	} else if config.KerberosAuth.Enabled {
-		return kerberos.NewSPNEGOCredentials(config.ArmadaUrl, config.KerberosAuth)
 	} else if config.ExecAuth.Cmd != "" {
 		return exec.NewAuthenticator(config.ExecAuth), nil
 	}

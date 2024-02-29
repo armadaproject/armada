@@ -338,18 +338,8 @@ func TestSchedule(t *testing.T) {
 			},
 			expectedScheduledIndices: []int{0},
 		},
-		"UnifiedSchedulingByPool": {
-			schedulingConfig: testfixtures.WithUnifiedSchedulingByPoolConfig(testfixtures.TestSchedulingConfig()),
-			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
-			},
-			queues:                   []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-			expectedScheduledIndices: []int{0, 1, 2, 3},
-		},
-		"UnifiedSchedulingByPool schedule gang job over multiple executors": {
-			schedulingConfig: testfixtures.WithUnifiedSchedulingByPoolConfig(testfixtures.TestSchedulingConfig()),
+		"Schedule gang job over multiple executors": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
@@ -401,7 +391,7 @@ func TestSchedule(t *testing.T) {
 				for nodeIndex, existingJobs := range existingJobsByExecutorNodeIndex {
 					node := executor.Nodes[nodeIndex]
 					for jobIndex, job := range existingJobs.jobs {
-						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name)
+						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, job.PodRequirements().Priority)
 						if existingJobs.acknowledged {
 							run := job.LatestRun()
 							node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
@@ -461,6 +451,10 @@ func TestSchedule(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
 			}
+			// Sanity check: we've set `RuntimeGangCardinality` for all scheduled jobs.
+			for _, job := range scheduledJobs {
+				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], configuration.RuntimeGangCardinality)
+			}
 
 			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality
 			failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
@@ -517,7 +511,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name)
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, jobs[j].PodRequirements().Priority)
 				}
 			}
 			armadaslices.Shuffle(jobs)
@@ -541,6 +535,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
+					schedulingConfig.WellKnownNodeTypes,
 				)
 				require.NoError(b, err)
 				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)

@@ -38,6 +38,9 @@ definitions:
         type: string
         minLength: 1
         x-nullable: false
+      namespace:
+        type: string
+        x-nullable: true
       jobSet:
         type: string
         minLength: 1
@@ -239,6 +242,16 @@ definitions:
         minLength: 1
         x-nullable: false
 
+parameters:
+  backend:
+    name: backend
+    in: query
+    description: The backend to use for this request.
+    required: false
+    type: string
+    enum:
+      - jsonb
+
 paths:
   /health:
     get:
@@ -288,7 +301,7 @@ paths:
               take:
                 type: integer
                 description: "Number of jobs to fetch."
-
+        - $ref: "#/parameters/backend"
       produces:
         - application/json
       responses:
@@ -297,10 +310,6 @@ paths:
           schema:
             type: object
             properties:
-              count:
-                type: integer
-                description: Total number of jobs
-                x-nullable: false
               jobs:
                 type: array
                 description: "List of jobs found"
@@ -446,7 +455,7 @@ paths:
               take:
                 type: integer
                 description: "Number of job groups to fetch."
-
+        - $ref: "#/parameters/backend"
       produces:
         - application/json
       responses:
@@ -457,10 +466,6 @@ paths:
             required:
               - groups
             properties:
-              count:
-                type: integer
-                description: Total number of groups
-                x-nullable: false
               groups:
                 type: array
                 description: List of Job groups

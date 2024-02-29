@@ -90,7 +90,7 @@ func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport
 func TestSpecsFromPattern(pattern string) ([]*api.TestSpec, error) {
 	filePaths, err := zglob.Glob(pattern)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Wrapf(err, "failed to glob test specs with pattern %s", pattern)
 	}
 	return TestSpecsFromFilePaths(filePaths)
 }

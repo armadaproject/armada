@@ -58,22 +58,12 @@ func NewSchedulingKeyGeneratorWithKey(key []byte) *SchedulingKeyGenerator {
 	}
 }
 
-func (skg *SchedulingKeyGenerator) KeyFromPodRequirements(preq *PodRequirements) SchedulingKey {
-	return skg.Key(
-		preq.NodeSelector,
-		preq.Affinity,
-		preq.Tolerations,
-		preq.ResourceRequirements.Requests,
-		preq.Priority,
-	)
-}
-
 func (skg *SchedulingKeyGenerator) Key(
 	nodeSelector map[string]string,
 	affinity *v1.Affinity,
 	tolerations []v1.Toleration,
 	requests v1.ResourceList,
-	priority int32,
+	priorityClassName string,
 ) SchedulingKey {
 	skg.Mutex.Lock()
 	defer skg.Mutex.Unlock()
@@ -84,7 +74,7 @@ func (skg *SchedulingKeyGenerator) Key(
 		affinity,
 		tolerations,
 		requests,
-		priority,
+		priorityClassName,
 	)
 	return highwayhash.Sum(skg.buffer, skg.key)
 }
@@ -120,19 +110,19 @@ func (skg *PodRequirementsSerialiser) AppendRequirements(
 	affinity *v1.Affinity,
 	tolerations []v1.Toleration,
 	requests v1.ResourceList,
-	priority int32,
+	priorityClassName string,
 ) []byte {
 	out = skg.AppendNodeSelector(out, nodeSelector)
 	out = skg.AppendAffinity(out, affinity)
 	out = skg.AppendTolerations(out, tolerations)
 	out = skg.AppendResourceList(out, requests)
-	out = binary.LittleEndian.AppendUint32(out, uint32(priority))
+	out = append(out, []byte(priorityClassName)...)
 	return out
 }
 
 func (skg *PodRequirementsSerialiser) AppendNodeSelector(out []byte, nodeSelector map[string]string) []byte {
 	skg.stringBuffer = skg.stringBuffer[0:0]
-	for _, key := range nodeSelector {
+	for key := range nodeSelector {
 		skg.stringBuffer = append(skg.stringBuffer, key)
 	}
 	slices.Sort(skg.stringBuffer)
@@ -237,45 +227,45 @@ func (skg *PodRequirementsSerialiser) AppendResourceList(out []byte, resourceLis
 	return out
 }
 
-func lessToleration(a, b v1.Toleration) bool {
+func lessToleration(a, b v1.Toleration) int {
 	if a.Key < b.Key {
-		return true
+		return -1
 	} else if a.Key > b.Key {
-		return false
+		return 1
 	}
 	if a.Value < b.Value {
-		return true
+		return -1
 	} else if a.Value > b.Value {
-		return false
+		return 1
 	}
 	if string(a.Operator) < string(b.Operator) {
-		return true
+		return -1
 	} else if string(a.Operator) > string(b.Operator) {
-		return false
+		return 1
 	}
 	if string(a.Effect) < string(b.Effect) {
-		return true
+		return -1
 	} else if string(a.Effect) > string(b.Effect) {
-		return false
+		return 1
 	}
-	return true
+	return 0
 }
 
-func lessNodeSelectorRequirement(a, b v1.NodeSelectorRequirement) bool {
+func lessNodeSelectorRequirement(a, b v1.NodeSelectorRequirement) int {
 	if a.Key < b.Key {
-		return true
+		return -1
 	} else if a.Key > b.Key {
-		return false
+		return 1
 	}
 	if string(a.Operator) < string(b.Operator) {
-		return true
+		return -1
 	} else if string(a.Operator) > string(b.Operator) {
-		return false
+		return 1
 	}
 	if len(a.Values) < len(b.Values) {
-		return true
+		return -1
 	} else if len(a.Values) > len(b.Values) {
-		return false
+		return 1
 	}
-	return true
+	return 0
 }

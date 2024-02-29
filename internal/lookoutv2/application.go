@@ -3,7 +3,6 @@
 package lookoutv2
 
 import (
-	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
@@ -32,8 +31,10 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		return err
 	}
 
-	getJobsRepo := repository.NewSqlGetJobsRepository(db)
-	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
+	getJobsRepo := repository.NewSqlGetJobsRepository(db, false)
+	getJobsJsonbRepo := repository.NewSqlGetJobsRepository(db, true)
+	groupJobsRepo := repository.NewSqlGroupJobsRepository(db, false)
+	groupJobsJsonbRepo := repository.NewSqlGroupJobsRepository(db, true)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
@@ -41,7 +42,9 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
-	logger := logrus.NewEntry(logrus.New())
+	logger := logrus.NewEntry(logrus.StandardLogger())
+
+	api.Logger = logger.Debugf
 
 	api.GetHealthHandler = operations.GetHealthHandlerFunc(
 		func(params operations.GetHealthParams) middleware.Responder {
@@ -53,7 +56,11 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		func(params operations.GetJobsParams) middleware.Responder {
 			filters := util.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
-			result, err := getJobsRepo.GetJobs(
+			repo := getJobsRepo
+			if backend := params.Backend; backend != nil && *backend == "jsonb" {
+				repo = getJobsJsonbRepo
+			}
+			result, err := repo.GetJobs(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
@@ -65,8 +72,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGetJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobsOK().WithPayload(&operations.GetJobsOKBody{
-				Count: int64(result.Count),
-				Jobs:  util.Map(result.Jobs, conversions.ToSwaggerJob),
+				Jobs: util.Map(result.Jobs, conversions.ToSwaggerJob),
 			})
 		},
 	)
@@ -75,7 +81,11 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		func(params operations.GroupJobsParams) middleware.Responder {
 			filters := util.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
-			result, err := groupJobsRepo.GroupBy(
+			repo := groupJobsRepo
+			if backend := params.Backend; backend != nil && *backend == "jsonb" {
+				repo = groupJobsJsonbRepo
+			}
+			result, err := repo.GroupBy(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GroupJobsRequest.ActiveJobSets,
@@ -89,7 +99,6 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGroupJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGroupJobsOK().WithPayload(&operations.GroupJobsOKBody{
-				Count:  int64(result.Count),
 				Groups: util.Map(result.Groups, conversions.ToSwaggerGroup),
 			})
 		},
@@ -125,7 +134,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	defer func() {
 		shutdownErr := server.Shutdown()
 		if shutdownErr != nil {
-			log.WithError(shutdownErr).Error("Failed to shut down server")
+			logger.WithError(shutdownErr).Error("Failed to shut down server")
 		}
 	}()
 

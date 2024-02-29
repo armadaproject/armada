@@ -16,14 +16,6 @@ func NewPerformanceTestEventServer() *PerformanceTestEventServer {
 	return &PerformanceTestEventServer{}
 }
 
-func (s *PerformanceTestEventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
-	return &types.Empty{}, nil
-}
-
-func (s *PerformanceTestEventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
-	return &types.Empty{}, nil
-}
-
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *PerformanceTestEventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	// FIXME: Handle case where watch is not True.

@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -50,6 +51,7 @@ type SubmitChecker struct {
 	indexedResources          []configuration.IndexedResource
 	indexedTaints             []string
 	indexedNodeLabels         []string
+	wellKnownNodeTypes        []configuration.WellKnownNodeType
 	executorRepository        database.ExecutorRepository
 	clock                     clock.Clock
 	mu                        sync.Mutex
@@ -72,10 +74,11 @@ func NewSubmitChecker(
 		priorityClasses:           schedulingConfig.Preemption.PriorityClasses,
 		gangIdAnnotation:          configuration.GangIdAnnotation,
 		executorById:              map[string]minimalExecutor{},
-		priorities:                schedulingConfig.Preemption.AllowedPriorities(),
+		priorities:                types.AllowedPriorities(schedulingConfig.Preemption.PriorityClasses),
 		indexedResources:          schedulingConfig.IndexedResources,
 		indexedTaints:             schedulingConfig.IndexedTaints,
 		indexedNodeLabels:         schedulingConfig.IndexedNodeLabels,
+		wellKnownNodeTypes:        schedulingConfig.WellKnownNodeTypes,
 		executorRepository:        executorRepository,
 		clock:                     clock.RealClock{},
 		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
@@ -134,36 +137,33 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs, GangIdAndCardinalityFromAnnotations))
+	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 
 func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs, GangIdAndCardinalityFromAnnotations))
+	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 
 func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) (bool, string) {
 	// First, check if all jobs can be scheduled individually.
 	for i, jctx := range jctxs {
-		// Override min cardinality to enable individual job scheduling checks, but reset after
-		originalGangMinCardinality := jctx.GangMinCardinality
-		jctx.GangMinCardinality = 1
 		schedulingResult := srv.getIndividualSchedulingResult(jctx)
-		jctx.GangMinCardinality = originalGangMinCardinality
 		if !schedulingResult.isSchedulable {
 			return schedulingResult.isSchedulable, fmt.Sprintf("%d-th job unschedulable:\n%s", i, schedulingResult.reason)
 		}
 	}
 	// Then, check if all gangs can be scheduled.
-	for gangId, jctxsInGang := range armadaslices.GroupByFunc(
+	for gangId, jctxs := range armadaslices.GroupByFunc(
 		jctxs,
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return jctx.Job.GetAnnotations()[srv.gangIdAnnotation]
+			return jctx.GangInfo.Id
 		},
 	) {
 		if gangId == "" {
 			continue
 		}
-		if schedulingResult := srv.getSchedulingResult(jctxsInGang); !schedulingResult.isSchedulable {
+		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+		if schedulingResult := srv.getSchedulingResult(gctx); !schedulingResult.isSchedulable {
 			return schedulingResult.isSchedulable, fmt.Sprintf("gang %s is unschedulable:\n%s", gangId, schedulingResult.reason)
 		}
 	}
@@ -171,41 +171,40 @@ func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) 
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext) schedulingResult {
-	req := jctx.PodRequirements
-	srv.mu.Lock()
-	schedulingKey := srv.schedulingKeyGenerator.Key(
-		req.NodeSelector,
-		req.Affinity,
-		req.Tolerations,
-		req.ResourceRequirements.Requests,
-		req.Priority,
-	)
-	srv.mu.Unlock()
-	var result schedulingResult
+	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	if !ok {
+		srv.mu.Lock()
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		srv.mu.Unlock()
+	}
+
 	if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
-		result = obj.(schedulingResult)
-	} else {
-		result = srv.getSchedulingResult([]*schedulercontext.JobSchedulingContext{jctx})
-		srv.jobSchedulingResultsCache.Add(schedulingKey, result)
+		return obj.(schedulingResult)
 	}
-	if !result.isSchedulable {
-		return result
-	}
-	return schedulingResult{isSchedulable: true}
+
+	gangInfo := jctx.GangInfo
+	// Mark this job context as "not in a gang" for the individual scheduling check.
+	jctx.GangInfo = schedulercontext.EmptyGangInfo(jctx.Job)
+	defer func() {
+		jctx.GangInfo = gangInfo
+	}()
+
+	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+	result := srv.getSchedulingResult(gctx)
+
+	srv.jobSchedulingResultsCache.Add(schedulingKey, result)
+
+	return result
 }
 
 // Check if a set of jobs can be scheduled onto some cluster.
-func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSchedulingContext) schedulingResult {
-	if len(jctxs) == 0 {
-		return schedulingResult{isSchedulable: true, reason: ""}
-	}
-
+func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext) schedulingResult {
 	// Skip submit checks if this batch contains less than the min cardinality jobs.
 	// Reason:
 	//  - We need to support submitting gang jobs across batches and allow for gang jobs to queue until min cardinality is satisfied.
 	//  - We cannot verify if min cardinality jobs are schedulable unless we are given at least that many in a single batch.
 	//  - A side effect of this is that users can submit jobs in gangs that skip this check and are never schedulable, which will be handled via queue-ttl.
-	if len(jctxs) < jctxs[0].GangMinCardinality {
+	if len(gctx.JobSchedulingContexts) < gctx.GangInfo.MinimumCardinality {
 		return schedulingResult{isSchedulable: true, reason: ""}
 	}
 
@@ -226,7 +225,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 		txn := nodeDb.Txn(true)
 		// TODO: This doesn't account for per-queue limits or the NodeUniformityLabel.
 		// We should create a GangScheduler for this instead.
-		ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
+		ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
 		txn.Abort()
 
 		isSchedulable = isSchedulable || ok
@@ -239,27 +238,29 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 		}
 
 		numSuccessfullyScheduled := 0
-		for _, jctx := range jctxs {
+		for _, jctx := range gctx.JobSchedulingContexts {
 			if jctx.PodSchedulingContext.IsSuccessful() {
 				numSuccessfullyScheduled++
 			}
 		}
 
-		if len(jctxs) == 1 {
+		if len(gctx.JobSchedulingContexts) == 1 {
 			sb.WriteString(":\n")
-			for _, jctx := range jctxs {
-				pctx := jctx.PodSchedulingContext
-				if pctx == nil {
-					continue
-				}
-				sb.WriteString(pctx.String())
-				sb.WriteString("\n")
+			pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
+			if pctx == nil {
+				continue
 			}
+			sb.WriteString(pctx.String())
+			sb.WriteString("\n")
 			sb.WriteString("---")
 			sb.WriteString("\n")
 		} else {
-			sb.WriteString(":")
-			sb.WriteString(fmt.Sprintf(" %d out of %d pods schedulable (minCardinality %d)\n", numSuccessfullyScheduled, len(jctxs), jctxs[0].GangMinCardinality))
+			sb.WriteString(
+				fmt.Sprintf(
+					": %d out of %d pods schedulable (minCardinality %d)\n",
+					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
+				),
+			)
 		}
 	}
 	return schedulingResult{isSchedulable: isSchedulable, reason: sb.String()}
@@ -276,16 +277,13 @@ func (srv *SubmitChecker) filterStaleExecutors(executorsById map[string]minimalE
 }
 
 func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	// Nodes to be considered by the scheduler.
-	// We just need to know if scheduling is possible;
-	// no need to try to find a good fit.
-	var maxExtraNodesToConsider uint = 0
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.priorityClasses,
-		maxExtraNodesToConsider,
+		0,
 		srv.indexedResources,
 		srv.indexedTaints,
 		srv.indexedNodeLabels,
+		srv.wellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

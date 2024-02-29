@@ -1,4 +1,4 @@
-import React, { RefObject, useCallback, useEffect, useMemo, useState } from "react"
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   Box,
@@ -41,7 +41,6 @@ import _ from "lodash"
 import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import IntervalService from "services/IntervalService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -74,7 +73,7 @@ import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
-import { getErrorMessage, waitMillis } from "../../utils"
+import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -88,7 +87,8 @@ interface JobsTableContainerProps {
   logService: ILogService
   cordonService: ICordonService
   debug: boolean
-  autoRefreshMs: number
+  autoRefreshMs: number | undefined
+  commandSpecs: CommandSpec[]
 }
 
 export type LookoutColumnFilter = {
@@ -133,6 +133,7 @@ export const JobsTableContainer = ({
   cordonService,
   debug,
   autoRefreshMs,
+  commandSpecs,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
@@ -183,15 +184,8 @@ export const JobsTableContainer = ({
     initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
   )
 
-  const autoRefreshService = useMemo(() => new IntervalService(autoRefreshMs), [autoRefreshMs])
-
   const onAutoRefreshChange = (autoRefresh: boolean) => {
     setAutoRefresh(autoRefresh)
-    if (autoRefresh) {
-      autoRefreshService.start()
-    } else {
-      autoRefreshService.stop()
-    }
   }
 
   // Filtering
@@ -209,7 +203,7 @@ export const JobsTableContainer = ({
   const [sorting, setSorting] = useState<SortingState>(fromLookoutOrder(lookoutOrder))
 
   // Data
-  const { data, jobInfoMap, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+  const { data, jobInfoMap, rowsToFetch, setRowsToFetch } = useFetchJobsTableData({
     groupedColumns: grouping,
     visibleColumns: visibleColumnIds,
     expandedState: expanded,
@@ -242,7 +236,7 @@ export const JobsTableContainer = ({
   // Retrieve data for any expanded rows from intial query param state
   useEffect(() => {
     const rowsToFetch: PendingData[] = [
-      { parentRowId: "ROOT", skip: 0 },
+      { parentRowId: "ROOT", skip: pagination.pageIndex * pagination.pageSize },
       ...Object.keys(initialPrefs.expandedState).map((rowId) => ({ parentRowId: rowId as RowId, skip: 0 })),
     ]
     setRowsToFetch(rowsToFetch)
@@ -287,11 +281,18 @@ export const JobsTableContainer = ({
     }
   }
 
+  const setToFirstPage = () => {
+    setPagination({
+      pageIndex: 0,
+      pageSize: pageSize,
+    })
+  }
+
   const loadPrefs = (prefs: JobsTablePreferences) => {
     setGrouping(prefs.groupedColumns)
     setExpanded(prefs.expandedState)
     setPagination({
-      pageIndex: prefs.pageIndex,
+      pageIndex: 0,
       pageSize: prefs.pageSize,
     })
     setLookoutOrder(prefs.order)
@@ -317,9 +318,7 @@ export const JobsTableContainer = ({
     setTextFields(prefs.filters)
 
     // Load data
-    setRowsToFetch(
-      pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize, prefs.pageIndex * prefs.pageSize),
-    )
+    setRowsToFetch(pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize))
   }
 
   // Update query params with table state
@@ -357,6 +356,7 @@ export const JobsTableContainer = ({
   const loadCustomView = (name: string) => {
     try {
       const prefs = customViewsService.getView(name)
+      setToFirstPage()
       loadPrefs(prefs)
     } catch (e) {
       console.error(getErrorMessage(e))
@@ -369,13 +369,37 @@ export const JobsTableContainer = ({
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
 
+  const savedOnRefreshCallback = useRef<() => void>()
+
+  const [autoRefreshIntervalTimer, setAutoRefreshIntervalTimer] = useState<NodeJS.Timeout | undefined>(undefined)
+
   useEffect(() => {
-    autoRefreshService.registerCallback(onRefresh)
-    if (autoRefresh) {
-      autoRefreshService.start()
+    savedOnRefreshCallback.current = onRefresh
+  })
+
+  useEffect(() => {
+    function clearTimer() {
+      if (autoRefreshIntervalTimer) {
+        clearInterval(autoRefreshIntervalTimer)
+        setAutoRefreshIntervalTimer(undefined)
+      }
     }
-    return () => autoRefreshService.stop()
-  }, [])
+
+    if (autoRefreshMs === undefined || !autoRefresh) {
+      clearTimer()
+      return () => {
+        return
+      }
+    } else {
+      const tmr = setInterval(() => {
+        if (savedOnRefreshCallback.current) {
+          savedOnRefreshCallback.current()
+        }
+      }, autoRefreshMs)
+      setAutoRefreshIntervalTimer(tmr)
+      return clearTimer
+    }
+  }, [autoRefresh, autoRefreshMs])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -446,6 +470,7 @@ export const JobsTableContainer = ({
 
   const onGroupingChange = useCallback(
     (newGroups: ColumnId[]) => {
+      setToFirstPage()
       // Reset currently expanded/selected when grouping changes
       setSelectedRows({})
       setSidebarJobId(undefined)
@@ -562,6 +587,7 @@ export const JobsTableContainer = ({
   }
 
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
+    setToFirstPage()
     const newFilterState = updaterToValue(updater, columnFilterState)
     setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
@@ -580,11 +606,12 @@ export const JobsTableContainer = ({
   }
 
   const onSortingChange = (updater: Updater<SortingState>) => {
+    setToFirstPage()
     const newSortingState = updaterToValue(updater, sorting)
     setLookoutOrder(toLookoutOrder(newSortingState))
     setSorting(newSortingState)
     // Refetch any expanded subgroups, and root data with updated sorting params
-    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
   }
 
   const onColumnSizingChange = useCallback(
@@ -647,7 +674,6 @@ export const JobsTableContainer = ({
 
     // Pagination
     manualPagination: true,
-    pageCount: pageCount,
     paginateExpandedRows: true,
     onPaginationChange: onRootPaginationChange,
     getPaginationRowModel: getPaginationRowModel(),
@@ -726,11 +752,13 @@ export const JobsTableContainer = ({
             activeJobSets={activeJobSets}
             onActiveJobSetsChanged={(newVal) => {
               setActiveJobSets(newVal)
-              onRefresh()
+              setToFirstPage()
+              setSelectedRows({})
+              setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
-            onAutoRefreshChange={onAutoRefreshChange}
+            onAutoRefreshChange={autoRefreshMs === undefined ? undefined : onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}
@@ -792,7 +820,11 @@ export const JobsTableContainer = ({
           <TablePagination
             component="div"
             rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-            count={totalRowCount}
+            // If the total number rows in the database for the current filter
+            // is exactly equal to `pageSize`, then this is going to produce a
+            // misleading description (e.g., "1-50 of more than 50", even though
+            // there are exactly 50 rows).
+            count={data.length < pageSize ? pageIndex * pageSize + data.length : -1}
             rowsPerPage={pageSize}
             page={pageIndex}
             onPageChange={(_, page) => table.setPageIndex(page)}
@@ -816,6 +848,7 @@ export const JobsTableContainer = ({
           sidebarWidth={sidebarWidth}
           onClose={sideBarClose}
           onWidthChange={setSidebarWidth}
+          commandSpecs={commandSpecs}
         />
       )}
     </Box>

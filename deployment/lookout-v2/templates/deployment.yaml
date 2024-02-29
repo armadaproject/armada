@@ -48,6 +48,11 @@ spec:
             - containerPort: {{ .Values.applicationConfig.apiPort }}
               protocol: TCP
               name: web
+            {{- if .Values.applicationConfig.pprofPort }}
+            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+              protocol: TCP
+              name: pprof
+            {{- end }}
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml

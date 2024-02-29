@@ -47,13 +47,15 @@ func main() {
 	log.Info("Starting...")
 
 	// Expose profiling endpoints if enabled.
-	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
-	go func() {
-		ctx := armadacontext.Background()
-		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-			logging.WithStacktrace(ctx, err).Error("pprof server failure")
-		}
-	}()
+	if config.PprofPort != nil {
+		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
+		go func() {
+			ctx := armadacontext.Background()
+			if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+				logging.WithStacktrace(ctx, err).Error("pprof server failure")
+			}
+		}()
+	}
 
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)

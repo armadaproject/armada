@@ -109,14 +109,14 @@ func TestPruneDb(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{}, true)
-				store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+				store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 				defer cancel()
 				for _, tj := range tc.jobs {
 					runId := uuid.NewString()
 					repository.NewJobSimulator(converter, store).
-						Submit("queue", "jobSet", "owner", tj.ts, &repository.JobOptions{
+						Submit("queue", "jobSet", "owner", "namespace", tj.ts, &repository.JobOptions{
 							JobId: tj.jobId,
 							Annotations: map[string]string{
 								"armadaproject.io/test-1": "one",

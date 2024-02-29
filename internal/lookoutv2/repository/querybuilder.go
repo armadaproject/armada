@@ -22,6 +22,20 @@ const (
 	activeJobSetsTableAbbrev   = "active_job_sets"
 )
 
+var (
+	activeJobSetsTable = fmt.Sprintf(
+		`(
+	SELECT DISTINCT %s, %s
+	FROM %s
+	WHERE state IN (%d, %d, %d, %d)
+)`,
+		queueCol, jobSetCol,
+		jobTable,
+		lookout.JobQueuedOrdinal, lookout.JobPendingOrdinal, lookout.JobRunningOrdinal, lookout.JobLeasedOrdinal,
+	)
+	joinWithActiveJobSetsTable = fmt.Sprintf("INNER JOIN %s AS %s USING (%s, %s)", activeJobSetsTable, activeJobSetsTableAbbrev, queueCol, jobSetCol)
+)
+
 type Query struct {
 	Sql  string
 	Args []interface{}
@@ -78,62 +92,6 @@ func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 		Sql:  sql,
 		Args: []interface{}{},
 	}, tempTable
-}
-
-// JobCount Returns SQL Query that when executed will return the total number of jobs that match the list of filters
-func (qb *QueryBuilder) JobCount(filters []*model.Filter, activeJobSets bool) (*Query, error) {
-	err := qb.validateFilters(filters)
-	if err != nil {
-		return nil, errors.Wrap(err, "filters are invalid")
-	}
-	normalFilters, annotationFilters := splitFilters(filters)
-
-	allCols, err := qb.fieldsToCols(
-		util.Map(normalFilters, func(filter *model.Filter) string { return filter.Field }),
-	)
-	if err != nil {
-		return nil, err
-	}
-	tablesFromColumns, err := qb.tablesForCols(allCols)
-	if err != nil {
-		return nil, err
-	}
-	queryTables, err := qb.determineTablesForQuery(tablesFromColumns)
-	if err != nil {
-		return nil, err
-	}
-	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
-	if err != nil {
-		return nil, err
-	}
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
-	if err != nil {
-		return nil, err
-	}
-	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
-	if err != nil {
-		return nil, err
-	}
-	abbrev, err := qb.firstTableAbbrev(queryTables)
-	if err != nil {
-		return nil, err
-	}
-
-	countExpr := fmt.Sprintf("COUNT(DISTINCT %s.job_id)", abbrev)
-	// If we are only fetching from jobs, no need to count distinct, as it is a big performance hit
-	if _, ok := queryTables[jobTable]; ok && len(queryTables) == 1 && len(annotationFilters) == 0 {
-		countExpr = "COUNT(*)"
-	}
-	template := fmt.Sprintf(`
-		SELECT %s
-		%s
-		%s`,
-		countExpr, fromBuilder.Build(), whereSql)
-	templated, args := templateSql(template, qb.queryValues)
-	return &Query{
-		Sql:  templated,
-		Args: args,
-	}, nil
 }
 
 // InsertIntoTempTable returns Query that returns Job IDs according to filters, order, skip and take, and inserts them
@@ -203,86 +161,101 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	}, nil
 }
 
-// CountGroups returns Query that counts the total number of groups created by grouping by groupedField and filtering
-// with filters
-func (qb *QueryBuilder) CountGroups(filters []*model.Filter, activeJobSets bool, groupedField *model.GroupedField) (*Query, error) {
-	err := qb.validateFilters(filters)
-	if err != nil {
+func (qb *QueryBuilder) GetJobsJsonb(
+	filters []*model.Filter,
+	activeJobSets bool,
+	order *model.Order,
+	skip int,
+	take int,
+) (*Query, error) {
+	if err := qb.validateFilters(filters); err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
 	}
-	err = qb.validateGroupedField(groupedField)
-	if err != nil {
-		return nil, errors.Wrap(err, "group field is invalid")
+	if err := qb.validateOrder(order); err != nil {
+		return nil, errors.Wrap(err, "order is invalid")
 	}
-	normalFilters, annotationFilters := splitFilters(filters)
 
-	allCols, err := qb.fieldsToCols(
-		util.Map(normalFilters, func(filter *model.Filter) string { return filter.Field }),
+	activeJobSetsFilter := ""
+	if activeJobSets {
+		activeJobSetsFilter = joinWithActiveJobSetsTable
+	}
+
+	where, err := qb.makeWhereJsonb(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	orderBy, err := qb.makeOrderByJsonb(order)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf(
+		`SELECT
+	selected_jobs.job_id,
+	selected_jobs.queue,
+	selected_jobs.owner,
+	selected_jobs.namespace,
+	selected_jobs.jobset,
+	selected_jobs.cpu,
+	selected_jobs.memory,
+	selected_jobs.ephemeral_storage,
+	selected_jobs.gpu,
+	selected_jobs.priority,
+	selected_jobs.submitted,
+	selected_jobs.cancelled,
+	selected_jobs.state,
+	selected_jobs.last_transition_time,
+	selected_jobs.duplicate,
+	selected_jobs.priority_class,
+	selected_jobs.latest_run_id,
+	selected_jobs.cancel_reason,
+	selected_jobs.annotations,
+	selected_runs.runs
+FROM (
+	SELECT *
+	FROM %s AS %s
+	%s
+	%s
+	%s
+	%s
+) AS selected_jobs
+CROSS JOIN LATERAL (
+	SELECT
+		COALESCE(
+			json_agg(
+				json_strip_nulls(
+					json_build_object(
+						'runId', run_id,
+						'cluster', cluster,
+						'node', node,
+						'leased', leased AT TIME ZONE 'UTC',
+						'pending', pending AT TIME ZONE 'UTC',
+						'started', started AT TIME ZONE 'UTC',
+						'finished', finished AT TIME ZONE 'UTC',
+						'jobRunState', job_run_state,
+						'exitCode', exit_code
+					)
+				)
+				ORDER BY COALESCE(leased, pending)
+			) FILTER (WHERE run_id IS NOT NULL),
+			'[]'
+		) AS runs
+	FROM %s
+	WHERE job_id = selected_jobs.job_id
+) AS selected_runs`,
+		jobTable, jobTableAbbrev,
+		activeJobSetsFilter,
+		where,
+		orderBy,
+		limitOffsetSql(skip, take),
+		jobRunTable,
 	)
-	if err != nil {
-		return nil, err
-	}
-	tablesFromColumns, err := qb.tablesForCols(allCols)
-	if err != nil {
-		return nil, err
-	}
-	if err != nil {
-		return nil, err
-	}
-	queryTables, err := qb.determineTablesForQuery(tablesFromColumns)
-	if err != nil {
-		return nil, err
-	}
-	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
-	if err != nil {
-		return nil, err
-	}
 
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
-	if err != nil {
-		return nil, err
-	}
-	var groupCol *queryColumn
-	if groupedField.IsAnnotation {
-		groupCol = &queryColumn{
-			name:   annotationValueCol,
-			table:  userAnnotationLookupTable,
-			abbrev: annotationGroupTableAbbrev,
-		}
-		annotationGroupTable, err := qb.annotationGroupTable(groupedField.Field, normalFilters)
-		if err != nil {
-			return nil, err
-		}
-		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, []string{jobIdCol})
-	} else {
-		groupCol, err = qb.getGroupByQueryCol(groupedField.Field, queryTables)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
-	if err != nil {
-		return nil, err
-	}
-	groupBySql := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
-	template := fmt.Sprintf(`
-		SELECT COUNT(*) FROM (
-			SELECT %s.%s
-			%s
-			%s
-			%s
-		) AS group_table`,
-		groupCol.abbrev, groupCol.name, fromBuilder.Build(), whereSql, groupBySql)
-
-	templated, args := templateSql(template, qb.queryValues)
-	return &Query{
-		Sql:  templated,
-		Args: args,
-	}, nil
+	query, args := templateSql(query, qb.queryValues)
+	return &Query{Sql: query, Args: args}, nil
 }
 
-// GroupBy returns Query that performs a group by on filters
 func (qb *QueryBuilder) GroupBy(
 	filters []*model.Filter,
 	activeJobSets bool,
@@ -357,7 +330,6 @@ func (qb *QueryBuilder) GroupBy(
 		}
 	}
 
-	groupBySql := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
 	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
 	if err != nil {
 		return nil, err
@@ -374,6 +346,10 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
+	groupBySql, err := qb.createGroupBySQL(order, groupCol, aggregates)
+	if err != nil {
+		return nil, err
+	}
 	template := fmt.Sprintf(`
 		SELECT %[1]s.%[2]s, %[3]s
 		%[4]s
@@ -387,6 +363,114 @@ func (qb *QueryBuilder) GroupBy(
 		Sql:  templated,
 		Args: args,
 	}, nil
+}
+
+func (qb *QueryBuilder) GroupByJsonb(
+	filters []*model.Filter,
+	activeJobSets bool,
+	order *model.Order,
+	groupedField *model.GroupedField,
+	aggregates []string,
+	skip int,
+	take int,
+) (*Query, error) {
+	err := qb.validateFilters(filters)
+	if err != nil {
+		return nil, errors.Wrap(err, "filters are invalid")
+	}
+	err = qb.validateGroupOrder(order)
+	if err != nil {
+		return nil, errors.Wrap(err, "group order is invalid")
+	}
+	err = qb.validateAggregates(aggregates)
+	if err != nil {
+		return nil, errors.Wrap(err, "aggregates are invalid")
+	}
+	err = qb.validateGroupedField(groupedField)
+	if err != nil {
+		return nil, errors.Wrap(err, "group field is invalid")
+	}
+
+	activeJobSetsFilter := ""
+	if activeJobSets {
+		activeJobSetsFilter = joinWithActiveJobSetsTable
+	}
+
+	groupByColumn := queryColumn{table: jobTable, abbrev: jobTableAbbrev}
+	if groupedField.IsAnnotation {
+		groupByColumn.name = qb.annotationColumnJsonb(groupedField.Field)
+	} else {
+		groupByColumn.name = groupedField.Field
+	}
+
+	queryAggregators, err := qb.getQueryAggregators(aggregates, filters, map[string]bool{jobTable: true})
+	if err != nil {
+		return nil, err
+	}
+	selectList, err := qb.getAggregatesSql(queryAggregators)
+	if err != nil {
+		return nil, err
+	}
+
+	where, err := qb.makeWhereJsonb(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	groupBy, err := qb.createGroupBySQL(order, &groupByColumn, aggregates)
+	if err != nil {
+		return nil, err
+	}
+
+	orderBy, err := qb.groupByOrderSql(order)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf(
+		`SELECT %s.%s, %s
+FROM %s as %s
+%s
+%s
+%s
+%s
+%s`,
+		groupByColumn.abbrev, groupByColumn.name, selectList,
+		jobTable, jobTableAbbrev,
+		activeJobSetsFilter,
+		where,
+		groupBy,
+		orderBy,
+		limitOffsetSql(skip, take),
+	)
+
+	query, args := templateSql(query, qb.queryValues)
+	return &Query{Sql: query, Args: args}, nil
+}
+
+func (qb *QueryBuilder) createGroupBySQL(order *model.Order, groupCol *queryColumn, aggregates []string) (string, error) {
+	expr := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
+	isInAggregators := len(aggregates) > 0 && func(sl []string, t string) bool {
+		for _, s := range sl {
+			if s == t {
+				return true
+			}
+		}
+		return false
+	}(aggregates, order.Field)
+	if orderIsNull(order) || order.Field == countCol || isInAggregators {
+		return expr, nil
+	}
+	col, err := qb.lookoutTables.ColumnFromField(order.Field)
+	if err != nil {
+		return expr, err
+	}
+
+	if groupCol.name == col {
+		return expr, nil
+	}
+	// If order is not already grouped by or aggregated by, include it in GROUP BY statement
+	return expr + fmt.Sprintf(", %s.%s", groupCol.abbrev, col), nil
 }
 
 func (qb *QueryBuilder) fieldsToCols(fields []string) ([]string, error) {
@@ -564,16 +648,12 @@ func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, normalFilters [
 	}
 
 	if activeJobSets {
-		activeJobSetsTable := `
-			SELECT DISTINCT queue, jobset
-			FROM job
-			WHERE state IN (1, 2, 3, 8)
-		`
 		fromBuilder.Join(
 			Inner,
-			fmt.Sprintf("( %s )", activeJobSetsTable),
+			activeJobSetsTable,
 			activeJobSetsTableAbbrev,
-			[]string{queueCol, jobSetCol})
+			[]string{queueCol, jobSetCol},
+		)
 	}
 
 	return fromBuilder, nil
@@ -657,7 +737,7 @@ func (qb *QueryBuilder) annotationFilterCondition(annotationFilter *model.Filter
 	if annotationFilter.Match == model.MatchExists {
 		return fmt.Sprintf("%s = %s", annotationKeyCol, key), nil
 	}
-	comparator, err := qb.comparatorForMatch(annotationFilter.Match)
+	comparator, err := operatorForMatch(annotationFilter.Match)
 	if err != nil {
 		return "", err
 	}
@@ -701,7 +781,7 @@ func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables ma
 		}
 		value := filter.Value
 		if col == stateCol {
-			value, err = parseValueForState(filter)
+			value, err = parseValueForState(value)
 			if err != nil {
 				return nil, err
 			}
@@ -719,8 +799,8 @@ func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables ma
 	return result, nil
 }
 
-func parseValueForState(filter *model.Filter) (interface{}, error) {
-	switch v := filter.Value.(type) {
+func parseValueForState(value interface{}) (interface{}, error) {
+	switch v := value.(type) {
 	case string:
 		ordinal, err := stateToOrdinal(v)
 		if err != nil {
@@ -749,7 +829,7 @@ func parseValueForState(filter *model.Filter) (interface{}, error) {
 		}
 		return result, nil
 	default:
-		return nil, errors.Errorf("unsupported type for state: %v: %T", filter.Value, filter.Value)
+		return nil, errors.Errorf("unsupported type for state: %v: %T", value, value)
 	}
 }
 
@@ -773,7 +853,7 @@ func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter, useAbbrev bool
 // Given a value, a match, a table abbreviation and a column name, returns the corresponding comparison expression for
 // use in a WHERE clause
 func (qb *QueryBuilder) comparisonExpr(value interface{}, match, abbrev, colName string, useAbbrev bool) (string, error) {
-	comparator, err := qb.comparatorForMatch(match)
+	comparator, err := operatorForMatch(match)
 	if err != nil {
 		return "", err
 	}
@@ -791,8 +871,93 @@ func (qb *QueryBuilder) comparisonExpr(value interface{}, match, abbrev, colName
 		abbrev, colName, comparator, formattedValue), nil
 }
 
-// Given a match string, return the corresponding SQL compare operation
-func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
+func (qb *QueryBuilder) makeWhereJsonb(filters []*model.Filter) (string, error) {
+	if len(filters) == 0 {
+		return "", nil
+	}
+	var clauses []string
+	for _, filter := range filters {
+		clause, err := qb.makeWhereClauseJsonb(filter)
+		if err != nil {
+			return "", err
+		}
+		clauses = append(clauses, clause)
+	}
+	return fmt.Sprintf("WHERE %s", strings.Join(clauses, " AND ")), nil
+}
+
+func (qb *QueryBuilder) makeWhereClauseJsonb(filter *model.Filter) (string, error) {
+	var column string
+	if filter.IsAnnotation {
+		switch filter.Match {
+		case model.MatchExact:
+			placeholder := qb.recordValue(map[string]interface{}{filter.Field: filter.Value})
+			// GIN indexes are very particular about the kinds of predicates they
+			// support; for example, neither
+			//
+			//     annotations->>'host_instance_id' = '35170439'
+			//
+			// nor
+			//
+			//     annotations['host_instance_id'] = '35170439'
+			//
+			// can use the GIN index on the annotations column, as jsonb_path_ops
+			// GIN indexes only support the operators @>, @?, and @@:
+			//
+			//     https://www.postgresql.org/docs/current/datatype-json.html#JSON-INDEXING
+			return fmt.Sprintf("%s.annotations @> %s", jobTableAbbrev, placeholder), nil
+		case model.MatchExists:
+			placeholder := qb.recordValue(filter.Field)
+			return fmt.Sprintf("%s.annotations ? %s", jobTableAbbrev, placeholder), nil
+		default:
+			column = qb.annotationColumnJsonb(filter.Field)
+		}
+	} else {
+		var err error
+		column, err = qb.lookoutTables.ColumnFromField(filter.Field)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	operator, err := operatorForMatch(filter.Match)
+	if err != nil {
+		return "", err
+	}
+
+	value := filter.Value
+	if column == stateCol {
+		var err error
+		value, err = parseValueForState(value)
+		if err != nil {
+			return "", err
+		}
+	}
+	placeholder, err := qb.valueForMatch(value, filter.Match)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s.%s %s %s", jobTableAbbrev, column, operator, placeholder), nil
+}
+
+func (qb *QueryBuilder) annotationColumnJsonb(key string) string {
+	placeholder := qb.recordValue(key)
+	return fmt.Sprintf("annotations->>%s", placeholder)
+}
+
+func (qb *QueryBuilder) makeOrderByJsonb(order *model.Order) (string, error) {
+	if orderIsNull(order) {
+		return "", nil
+	}
+	column, err := qb.lookoutTables.ColumnFromField(order.Field)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("ORDER BY %s.%s %s", jobTableAbbrev, column, order.Direction), nil
+}
+
+func operatorForMatch(match string) (string, error) {
 	switch match {
 	case model.MatchExact:
 		return "=", nil
@@ -947,7 +1112,7 @@ func (qb *QueryBuilder) getQueryAggregators(aggregates []string, filters []*mode
 }
 
 func (qb *QueryBuilder) getAggregatesSql(aggregators []QueryAggregator) (string, error) {
-	selectList := []string{"COUNT(*) AS count"}
+	selectList := []string{fmt.Sprintf("COUNT(*) AS %s", countCol)}
 	for _, agg := range aggregators {
 		sql, err := agg.AggregateSql()
 		if err != nil {
@@ -1075,8 +1240,10 @@ func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
 	if err != nil {
 		return errors.Errorf("unsupported field for order: %s", order.Field)
 	}
+
 	_, err = qb.lookoutTables.GroupAggregateForCol(col)
-	if err != nil {
+	// If it is not an aggregate and not groupable, it can't be ordered by
+	if err != nil && !qb.lookoutTables.IsGroupable(col) {
 		return errors.Errorf("unsupported field for order: %s, cannot sort by column %s", order.Field, col)
 	}
 	return nil

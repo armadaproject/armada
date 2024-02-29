@@ -20,6 +20,7 @@ import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { ILogService } from "./services/lookoutV2/LogService"
+import { CommandSpec } from "./utils"
 import { OidcConfig } from "./utils"
 
 import "./App.css"
@@ -73,9 +74,10 @@ type AppProps = {
   v2UpdateJobsService: UpdateJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
   v2CordonService: ICordonService
-  jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number | undefined
+  jobsAutoRefreshMs: number | undefined
   debugEnabled: boolean
+  commandSpecs: CommandSpec[]
 }
 
 function OidcCallback(): JSX.Element {
@@ -130,6 +132,7 @@ export function App(props: AppProps): JSX.Element {
                           cordonService={props.v2CordonService}
                           debug={props.debugEnabled}
                           autoRefreshMs={props.jobsAutoRefreshMs}
+                          commandSpecs={props.commandSpecs}
                         />
                       }
                     />

@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -104,20 +105,6 @@ func NewSchedulingContext(
 		SchedulingKeyGenerator:            schedulerobjects.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys:          make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
-}
-
-func (sctx *SchedulingContext) SchedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) schedulerobjects.SchedulingKey {
-	var priority int32
-	if priorityClass, ok := sctx.PriorityClasses[job.GetPriorityClassName()]; ok {
-		priority = priorityClass.Priority
-	}
-	return sctx.SchedulingKeyGenerator.Key(
-		job.GetNodeSelector(),
-		job.GetAffinity(),
-		job.GetTolerations(),
-		job.GetResourceRequirements().Requests,
-		priority,
-	)
 }
 
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
@@ -244,7 +231,7 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 			numberOfSuccessfulJobs++
 		}
 	}
-	if numberOfSuccessfulJobs >= gctx.GangMinCardinality && !allJobsEvictedInThisRound {
+	if numberOfSuccessfulJobs >= gctx.GangInfo.MinimumCardinality && !allJobsEvictedInThisRound {
 		sctx.NumScheduledGangs++
 	}
 	return allJobsEvictedInThisRound, nil
@@ -453,7 +440,15 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				},
 			)
 			reasons := maps.Keys(jobIdsByReason)
-			slices.SortFunc(reasons, func(a, b string) bool { return len(jobIdsByReason[a]) < len(jobIdsByReason[b]) })
+			slices.SortFunc(reasons, func(a, b string) int {
+				if len(jobIdsByReason[a]) < len(jobIdsByReason[b]) {
+					return -1
+				} else if len(jobIdsByReason[a]) > len(jobIdsByReason[b]) {
+					return 1
+				} else {
+					return 0
+				}
+			})
 			for i := len(reasons) - 1; i >= 0; i-- {
 				reason := reasons[i]
 				jobIds := jobIdsByReason[reason]
@@ -536,46 +531,31 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 }
 
 type GangSchedulingContext struct {
-	Created               time.Time
-	Queue                 string
-	PriorityClassName     string
+	Created time.Time
+	Queue   string
+	GangInfo
 	JobSchedulingContexts []*JobSchedulingContext
 	TotalResourceRequests schedulerobjects.ResourceList
 	AllJobsEvicted        bool
-	NodeUniformityLabel   string
-	GangMinCardinality    int
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
-	// We assume that all jobs in a gang are in the same queue and have the same priority class
-	// (which we enforce at job submission).
-	queue := ""
-	priorityClassName := ""
-	nodeUniformityLabel := ""
-	gangMinCardinality := 1
-	if len(jctxs) > 0 {
-		queue = jctxs[0].Job.GetQueue()
-		priorityClassName = jctxs[0].Job.GetPriorityClassName()
-		if jctxs[0].PodRequirements != nil {
-			nodeUniformityLabel = jctxs[0].PodRequirements.Annotations[configuration.GangNodeUniformityLabelAnnotation]
-		}
-		gangMinCardinality = jctxs[0].GangMinCardinality
-	}
 	allJobsEvicted := true
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
 	for _, jctx := range jctxs {
 		allJobsEvicted = allJobsEvicted && jctx.IsEvicted
 		totalResourceRequests.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
 	}
+	// Uniformity of the values that we pick off the first job in the gang was
+	// checked when the jobs were submitted (e.g., in ValidateApiJobs).
+	representative := jctxs[0]
 	return &GangSchedulingContext{
 		Created:               time.Now(),
-		Queue:                 queue,
-		PriorityClassName:     priorityClassName,
+		Queue:                 representative.Job.GetQueue(),
+		GangInfo:              representative.GangInfo,
 		JobSchedulingContexts: jctxs,
 		TotalResourceRequests: totalResourceRequests,
 		AllJobsEvicted:        allJobsEvicted,
-		NodeUniformityLabel:   nodeUniformityLabel,
-		GangMinCardinality:    gangMinCardinality,
 	}
 }
 
@@ -637,20 +617,15 @@ type JobSchedulingContext struct {
 	AdditionalNodeSelectors map[string]string
 	// Tolerations to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to expand the set of nodes a job can be scheduled on.
-	//
-	// These are currently unused.
 	AdditionalTolerations []v1.Toleration
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string
 	// Pod scheduling contexts for the individual pods that make up the job.
 	PodSchedulingContext *PodSchedulingContext
-	// Id of the gang to which this job belongs.
-	GangId string
-	// The size of the gang associated with this job.
-	GangCardinality int
-	// The minimum size of the gang associated with this job.
-	GangMinCardinality int
+	// GangInfo holds all the information that is necessary to schedule a gang,
+	// such as the lower and upper bounds on its size.
+	GangInfo
 	// If set, indicates this job should be failed back to the client when the gang is scheduled.
 	ShouldFail bool
 }
@@ -668,7 +643,6 @@ func (jctx *JobSchedulingContext) String() string {
 	if jctx.PodSchedulingContext != nil {
 		fmt.Fprint(w, jctx.PodSchedulingContext.String())
 	}
-	fmt.Fprintf(w, "GangMinCardinality:\t%d\n", jctx.GangMinCardinality)
 	w.Flush()
 	return sb.String()
 }
@@ -682,7 +656,7 @@ func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKe
 	}
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
-		schedulingKey = defaultSchedulingKeyGenerator.KeyFromPodRequirements(jctx.PodRequirements)
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(defaultSchedulingKeyGenerator, jctx.Job)
 	}
 	return schedulingKey, true
 }
@@ -715,33 +689,95 @@ func (jctx *JobSchedulingContext) GetNodeSelector(key string) (string, bool) {
 	return "", false
 }
 
-func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J, extractGangInfo func(map[string]string) (string, int, int, bool, error)) []*JobSchedulingContext {
+type GangInfo struct {
+	Id                 string
+	Cardinality        int
+	MinimumCardinality int
+	PriorityClassName  string
+	NodeUniformity     string
+}
+
+// EmptyGangInfo returns a GangInfo for a job that is not in a gang.
+func EmptyGangInfo(job interfaces.LegacySchedulerJob) GangInfo {
+	return GangInfo{
+		// An Id of "" indicates that this job is not in a gang; we set
+		// Cardinality and MinimumCardinality (as well as the other fields,
+		// which all make sense in this context) accordingly.
+		Id:                 "",
+		Cardinality:        1,
+		MinimumCardinality: 1,
+		PriorityClassName:  job.GetPriorityClassName(),
+		NodeUniformity:     job.GetAnnotations()[configuration.GangNodeUniformityLabelAnnotation],
+	}
+}
+
+func GangInfoFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (GangInfo, error) {
+	gangInfo := EmptyGangInfo(job)
+
+	annotations := job.GetAnnotations()
+
+	gangId, ok := annotations[configuration.GangIdAnnotation]
+	if !ok {
+		return gangInfo, nil
+	}
+	if gangId == "" {
+		return gangInfo, errors.Errorf("gang id is empty")
+	}
+
+	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
+	if !ok {
+		return gangInfo, errors.Errorf("annotation %s is missing", configuration.GangCardinalityAnnotation)
+	}
+	gangCardinality, err := strconv.Atoi(gangCardinalityString)
+	if err != nil {
+		return gangInfo, errors.WithStack(err)
+	}
+	if gangCardinality <= 0 {
+		return gangInfo, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
+	}
+
+	gangMinimumCardinalityString, ok := annotations[configuration.GangMinimumCardinalityAnnotation]
+	if !ok {
+		// If it is not set, use gangCardinality as the minimum gang size.
+		gangMinimumCardinalityString = gangCardinalityString
+	}
+	gangMinimumCardinality, err := strconv.Atoi(gangMinimumCardinalityString)
+	if err != nil {
+		return gangInfo, errors.WithStack(err)
+	}
+	if gangMinimumCardinality <= 0 {
+		return gangInfo, errors.Errorf("gang minimum cardinality %d is non-positive", gangMinimumCardinality)
+	}
+	if gangMinimumCardinality > gangCardinality {
+		return gangInfo, errors.Errorf("gang minimum cardinality %d is greater than gang cardinality %d", gangMinimumCardinality, gangCardinality)
+	}
+
+	gangInfo.Id = gangId
+	gangInfo.Cardinality = gangCardinality
+	gangInfo.MinimumCardinality = gangMinimumCardinality
+	return gangInfo, nil
+}
+
+func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
-		jctxs[i] = JobSchedulingContextFromJob(priorityClasses, job, extractGangInfo)
+		jctxs[i] = JobSchedulingContextFromJob(priorityClasses, job)
 	}
 	return jctxs
 }
 
-func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, extractGangInfo func(map[string]string) (string, int, int, bool, error)) *JobSchedulingContext {
-	// TODO: Move cardinality to gang context only and remove from here.
-	// Requires re-phrasing nodedb in terms of gang context, as well as feeding the value extracted from the annotations downstream.
-	gangId, gangCardinality, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
+func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob) *JobSchedulingContext {
+	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
-		logrus.Errorf("failed to get cardinality from job %s: %s", job.GetId(), err)
-		gangId = job.GetId()
-		gangCardinality = 1
-		gangMinCardinality = 1
+		logrus.Errorf("failed to extract gang info from job %s: %s", job.GetId(), err)
 	}
 	return &JobSchedulingContext{
-		Created:            time.Now(),
-		JobId:              job.GetId(),
-		Job:                job,
-		PodRequirements:    job.GetPodRequirements(priorityClasses),
-		GangId:             gangId,
-		GangCardinality:    gangCardinality,
-		GangMinCardinality: gangMinCardinality,
-		ShouldFail:         false,
+		Created:         time.Now(),
+		JobId:           job.GetId(),
+		Job:             job,
+		PodRequirements: job.GetPodRequirements(priorityClasses),
+		GangInfo:        gangInfo,
+		ShouldFail:      false,
 	}
 }
 
@@ -752,12 +788,12 @@ type PodSchedulingContext struct {
 	Created time.Time
 	// ID of the node that the pod was assigned to, or empty.
 	NodeId string
-	// Score indicates how well the pod fits on the selected node.
-	Score int
+	// If set, indicates that the pod was scheduled on a specific node type.
+	WellKnownNodeTypeName string
+	// Priority at which this pod was scheduled.
+	ScheduledAtPriority int32
 	// Maximum priority that this pod preempted other pods at.
 	PreemptedAtPriority int32
-	// Node types on which this pod could be scheduled.
-	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Total number of nodes in the cluster when trying to schedule.
 	NumNodes int
 	// Number of nodes excluded by reason.

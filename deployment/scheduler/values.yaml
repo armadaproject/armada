@@ -43,6 +43,7 @@ scheduler:
     enabled: false
     labels: {}
     scrapeInterval: 15s
+    scrapeTimeout: 10s
 
 ingester:
   replicas: 1

@@ -2,12 +2,12 @@ package lookoutdb
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -21,12 +21,17 @@ import (
 type LookoutDb struct {
 	db          *pgxpool.Pool
 	metrics     *metrics.Metrics
-	maxAttempts int
 	maxBackoff  int
+	fatalErrors []*regexp.Regexp
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxAttempts int, maxBackoff int) *LookoutDb {
-	return &LookoutDb{db: db, metrics: metrics, maxAttempts: maxAttempts, maxBackoff: maxBackoff}
+func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics, maxBackoff int) *LookoutDb {
+	return &LookoutDb{
+		db:          db,
+		metrics:     metrics,
+		maxBackoff:  maxBackoff,
+		fatalErrors: fatalErrors,
+	}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
@@ -135,6 +140,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					job_id 	                     varchar(32),
 					queue                        varchar(512),
 					owner                        varchar(512),
+					namespace                    varchar(512),
 					jobset                       varchar(1024),
 					cpu                          bigint,
 					memory                       bigint,
@@ -146,7 +152,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					last_transition_time         timestamp,
 					last_transition_time_seconds bigint,
 					job_spec                     bytea,
-					priority_class               varchar(63)
+					priority_class               varchar(63),
+					annotations                  jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -161,6 +168,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"job_id",
 					"queue",
 					"owner",
+					"namespace",
 					"jobset",
 					"cpu",
 					"memory",
@@ -173,12 +181,14 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"last_transition_time_seconds",
 					"job_spec",
 					"priority_class",
+					"annotations",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
 						instructions[i].Queue,
 						instructions[i].Owner,
+						instructions[i].Namespace,
 						instructions[i].JobSet,
 						instructions[i].Cpu,
 						instructions[i].Memory,
@@ -191,6 +201,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].LastTransitionTimeSeconds,
 						instructions[i].JobProto,
 						instructions[i].PriorityClass,
+						instructions[i].Annotations,
 					}, nil
 				}),
 			)
@@ -205,6 +216,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						job_id,
 						queue,
 						owner,
+						namespace,
 						jobset,
 						cpu,
 						memory,
@@ -216,7 +228,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						last_transition_time,
 						last_transition_time_seconds,
 						job_spec,
-						priority_class
+						priority_class,
+						annotations
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
@@ -236,6 +249,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			job_id,
 			queue,
 			owner,
+			namespace,
 			jobset,
 			cpu,
 			memory,
@@ -247,8 +261,10 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			last_transition_time,
 			last_transition_time_seconds,
 			job_spec,
-			priority_class)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			priority_class,
+			annotations
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -256,6 +272,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.JobId,
 				i.Queue,
 				i.Owner,
+				i.Namespace,
 				i.JobSet,
 				i.Cpu,
 				i.Memory,
@@ -267,7 +284,9 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.LastTransitionTime,
 				i.LastTransitionTimeSeconds,
 				i.JobProto,
-				i.PriorityClass)
+				i.PriorityClass,
+				i.Annotations,
+			)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
@@ -916,18 +935,15 @@ func (l *LookoutDb) withDatabaseRetryInsert(executeDb func() error) error {
 func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
 	// TODO: arguably this should come from config
 	backOff := 1
-	numRetries := 0
-	var err error = nil
-	for attempt := 0; attempt < l.maxAttempts; attempt++ {
+	for {
 		res, err := executeDb()
 
 		if err == nil {
 			return res, nil
 		}
 
-		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
+		if armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
 			backOff = min(2*backOff, l.maxBackoff)
-			numRetries++
 			log.WithError(err).Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.", backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
 		} else {
@@ -935,12 +951,6 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 			return nil, err
 		}
 	}
-
-	// If we get to here then we've got an error we can't handle.  Panic
-	panic(errors.WithStack(&armadaerrors.ErrMaxRetriesExceeded{
-		Message:   fmt.Sprintf("Gave up running database query after %d retries", l.maxAttempts),
-		LastError: err,
-	}))
 }
 
 func min(a int, b int) int {

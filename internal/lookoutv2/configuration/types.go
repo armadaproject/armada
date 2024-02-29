@@ -33,6 +33,11 @@ type PrunerConfig struct {
 	BatchSize   int
 }
 
+type CommandSpec struct {
+	Name     string
+	Template string
+}
+
 type UIConfig struct {
 	CustomTitle string
 
@@ -49,6 +54,9 @@ type UIConfig struct {
 	UserAnnotationPrefix     string
 	BinocularsBaseUrlPattern string
 
-	JobSetsAutoRefreshMs int
-	JobsAutoRefreshMs    int
+	JobSetsAutoRefreshMs int `json:",omitempty"`
+	JobsAutoRefreshMs    int `json:",omitempty"`
+	CommandSpecs         []CommandSpec
+
+	Backend string `json:",omitempty"`
 }

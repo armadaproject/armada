@@ -25,13 +25,17 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/optimisation/descent"
+	"github.com/armadaproject/armada/internal/common/optimisation/nesterov"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -40,17 +44,19 @@ import (
 func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Profiling
-	//////////////////////////////////////////////////////////////////////////
-	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
-	g.Go(func() error {
-		return serve.ListenAndServe(ctx, pprofServer)
-	})
+	// ////////////////////////////////////////////////////////////////////////
+	if config.PprofPort != nil {
+		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
+		g.Go(func() error {
+			return serve.ListenAndServe(ctx, pprofServer)
+		})
+	}
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Health Checks
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	mux := http.NewServeMux()
 
 	startupCompleteCheck := health.NewStartupCompleteChecker()
@@ -64,9 +70,9 @@ func Run(config schedulerconfig.Configuration) error {
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Database setup (postgres and redis)
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
 	if err != nil {
@@ -88,9 +94,9 @@ func Run(config schedulerconfig.Configuration) error {
 	queueRepository := database.NewLegacyQueueRepository(redisClient)
 	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up Pulsar connectivity")
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 	if err != nil {
@@ -108,18 +114,18 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Leader Election
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	leaderController, err := createLeaderController(ctx, config.Leader)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
 	services = append(services, func() error { return leaderController.Run(ctx) })
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Executor Api
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
 	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
@@ -142,13 +148,12 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
-	allowedPcs := config.Scheduling.Preemption.AllowedPriorities()
 	executorServer, err := NewExecutorApi(
 		apiProducer,
 		jobRepository,
 		executorRepository,
 		legacyExecutorRepository,
-		allowedPcs,
+		types.AllowedPriorities(config.Scheduling.Preemption.PriorityClasses),
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
@@ -163,14 +168,10 @@ func Run(config schedulerconfig.Configuration) error {
 	})
 	services = append(services, grpcCommon.CreateShutdownHandler(ctx, 5*time.Second, grpcServer))
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Scheduling
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
-	stringInterner, err := stringinterner.New(config.InternedStringsCacheSize)
-	if err != nil {
-		return errors.WithMessage(err, "error creating string interner")
-	}
 
 	submitChecker := NewSubmitChecker(
 		30*time.Minute,
@@ -206,7 +207,38 @@ func Run(config schedulerconfig.Configuration) error {
 	jobDb := jobdb.NewJobDb(
 		config.Scheduling.Preemption.PriorityClasses,
 		config.Scheduling.Preemption.DefaultPriorityClass,
+		config.InternedStringsCacheSize,
 	)
+	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
+	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
+		return errors.WithStack(err)
+	}
+	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(schedulerMetrics); err != nil {
+		return errors.WithStack(err)
+	}
+
+	failureEstimator, err := failureestimator.New(
+		config.Scheduling.FailureEstimatorConfig.NumInnerIterations,
+		// Invalid config will have failed validation.
+		descent.MustNew(config.Scheduling.FailureEstimatorConfig.InnerOptimiserStepSize),
+		// Invalid config will have failed validation.
+		nesterov.MustNew(
+			config.Scheduling.FailureEstimatorConfig.OuterOptimiserStepSize,
+			config.Scheduling.FailureEstimatorConfig.OuterOptimiserNesterovAcceleration,
+		),
+	)
+	if err != nil {
+		return err
+	}
+	failureEstimator.Disable(config.Scheduling.FailureEstimatorConfig.Disabled)
+	if err := prometheus.Register(failureEstimator); err != nil {
+		return errors.WithStack(err)
+	}
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -214,23 +246,27 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingAlgo,
 		leaderController,
 		pulsarPublisher,
-		stringInterner,
 		submitChecker,
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
-		NewSchedulerMetrics(config.Metrics.Metrics),
+		schedulingRoundMetrics,
+		schedulerMetrics,
+		failureEstimator,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
 	}
+	if config.Scheduling.EnableAssertions {
+		scheduler.EnableAssertions()
+	}
 	services = append(services, func() error { return scheduler.Run(ctx) })
 
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
-	//////////////////////////////////////////////////////////////////////////
+	// ////////////////////////////////////////////////////////////////////////
 	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pool assigner")
@@ -240,8 +276,11 @@ func Run(config schedulerconfig.Configuration) error {
 		queueRepository,
 		executorRepository,
 		poolAssigner,
-		config.Metrics.RefreshInterval)
-	prometheus.MustRegister(metricsCollector)
+		config.Metrics.RefreshInterval,
+	)
+	if err := prometheus.Register(metricsCollector); err != nil {
+		return errors.WithStack(err)
+	}
 	services = append(services, func() error { return metricsCollector.Run(ctx) })
 	shutdownMetricServer := common.ServeMetrics(config.Metrics.Port)
 	defer shutdownMetricServer()

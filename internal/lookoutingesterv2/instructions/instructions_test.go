@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
@@ -19,10 +20,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -174,6 +177,10 @@ func TestConvert(t *testing.T) {
 		Requests: resources,
 	}
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = priorityClass
+	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
+		userAnnotationPrefix + "a": "0",
+		"b":                        "1",
+	}
 	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submit.GetSubmitJob())
 	assert.NoError(t, err)
 	jobProto, err := proto.Marshal(job)
@@ -182,6 +189,7 @@ func TestConvert(t *testing.T) {
 		JobId:                     testfixtures.JobIdString,
 		Queue:                     testfixtures.Queue,
 		Owner:                     testfixtures.UserId,
+		Namespace:                 testfixtures.Namespace,
 		JobSet:                    testfixtures.JobSetName,
 		Cpu:                       cpu,
 		Memory:                    memory,
@@ -194,6 +202,10 @@ func TestConvert(t *testing.T) {
 		LastTransitionTimeSeconds: testfixtures.BaseTime.Unix(),
 		JobProto:                  jobProto,
 		PriorityClass:             pointer.String(priorityClass),
+		Annotations: map[string]string{
+			"a": "0",
+			"b": "1",
+		},
 	}
 
 	otherJobIdUlid := util.ULID()
@@ -560,8 +572,29 @@ func TestConvert(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, tc.useLegacyEventConversion)
+			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
-			assert.Equal(t, tc.expected.JobsToCreate, instructionSet.JobsToCreate)
+			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
+			// The value of JobProto is not deterministic, because annotations
+			// are stored in a map[string]string; compare the deserialized
+			// versions of this field instead, and zero it out before calling
+			// assert.Equal.
+			for i, expected := range tc.expected.JobsToCreate {
+				expected := *expected
+				actual := *instructionSet.JobsToCreate[i]
+
+				var expectedApiJob api.Job
+				var actualApiJob api.Job
+				assert.Equal(
+					t,
+					protoutil.MustDecompressAndUnmarshall(expected.JobProto, &expectedApiJob, decompressor),
+					protoutil.MustDecompressAndUnmarshall(actual.JobProto, &actualApiJob, decompressor),
+				)
+
+				expected.JobProto = nil
+				actual.JobProto = nil
+				assert.Equal(t, expected, actual)
+			}
 			assert.Equal(t, tc.expected.JobsToUpdate, instructionSet.JobsToUpdate)
 			assert.Equal(t, tc.expected.JobRunsToCreate, instructionSet.JobRunsToCreate)
 			assert.Equal(t, tc.expected.JobRunsToUpdate, instructionSet.JobRunsToUpdate)
@@ -660,8 +693,13 @@ func TestAnnotations(t *testing.T) {
 			Jobset: testfixtures.JobSetName,
 		},
 	}
-	annotationInstructions := extractAnnotations(testfixtures.JobIdString, testfixtures.Queue, testfixtures.JobSetName, annotations, userAnnotationPrefix)
-	assert.Equal(t, expected, annotationInstructions)
+	instructions := createUserAnnotationInstructions(
+		testfixtures.JobIdString,
+		testfixtures.Queue,
+		testfixtures.JobSetName,
+		extractUserAnnotations(userAnnotationPrefix, annotations),
+	)
+	assert.Equal(t, expected, instructions)
 }
 
 func TestExtractNodeName(t *testing.T) {

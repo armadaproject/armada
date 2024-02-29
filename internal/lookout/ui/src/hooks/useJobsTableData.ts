@@ -49,10 +49,8 @@ export interface UseFetchJobsTableDataArgs {
 export interface UseFetchJobsTableDataResult {
   data: JobTableRow[]
   jobInfoMap: Map<JobId, Job>
-  pageCount: number
   rowsToFetch: PendingData[]
   setRowsToFetch: (toFetch: PendingData[]) => void
-  totalRowCount: number
 }
 
 const aggregatableFields = new Map<ColumnId, string>([
@@ -69,6 +67,7 @@ export function columnIsAggregatable(columnId: ColumnId): boolean {
 
 const columnToJobSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.JobID, "jobId"],
+  [StandardColumnId.JobSet, "jobSet"],
   [StandardColumnId.TimeSubmittedUtc, "submitted"],
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
@@ -81,20 +80,21 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
   [StandardColumnId.TimeInState, "lastTransitionTime"],
+  [StandardColumnId.JobSet, "jobSet"],
 ])
+
+const defaultJobOrder: JobOrder = {
+  field: "jobId",
+  direction: "DESC",
+}
+
+const defaultGroupOrder: JobOrder = {
+  field: "count",
+  direction: "DESC",
+}
 
 // Return ordering to request to API based on column
 function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrder {
-  const defaultJobOrder: JobOrder = {
-    field: "jobId",
-    direction: "DESC",
-  }
-
-  const defaultGroupOrder: JobOrder = {
-    field: "count",
-    direction: "DESC",
-  }
-
   let field = ""
   if (isJobFetch) {
     if (!columnToJobSortFieldMap.has(lookoutOrder.id as ColumnId)) {
@@ -102,6 +102,7 @@ function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrd
     }
     field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
+    // If it is JobGroups, always return the order value here which might be overridden later
     if (!columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultGroupOrder
     }
@@ -133,8 +134,6 @@ export const useFetchJobsTableData = ({
   const [data, setData] = useState<JobTableRow[]>([])
   const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
   const [pendingData, setPendingData] = useState<PendingData[]>([])
-  const [totalRowCount, setTotalRowCount] = useState(0)
-  const [pageCount, setPageCount] = useState<number>(-1)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -152,32 +151,37 @@ export const useFetchJobsTableData = ({
       const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
       const isJobFetch = expandedLevel === groupingLevel
 
+      const filterValues = getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? [])
       const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: filterValues,
         activeJobSets: activeJobSets,
-        skip: nextRequest.skip ?? 0,
+        skip: nextRequest.skip ?? paginationState.pageIndex * paginationState.pageSize,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
       }
 
-      let newData, totalCount
+      let newData
       try {
         if (isJobFetch) {
-          const { jobs, count: totalJobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
+          const { jobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
           newData = jobsToRows(jobs)
-          totalCount = totalJobs
 
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
           const groupedField = columnToGroupedField(groupedCol)
 
+          // Override the group order if needed
+          if (rowRequest.order.field !== groupedCol) {
+            rowRequest.order = defaultGroupOrder
+          }
+
           // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
           rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
 
           const colsToAggregate = getColsToAggregate(visibleColumns, rowRequest.filters)
-          const { groups, count: totalGroups } = await fetchJobGroups(
+          const { groups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
             groupedField,
@@ -185,7 +189,6 @@ export const useFetchJobsTableData = ({
             abortController.signal,
           )
           newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
-          totalCount = totalGroups
         }
       } catch (err) {
         if (abortController.signal.aborted) {
@@ -205,8 +208,6 @@ export const useFetchJobsTableData = ({
       )
 
       if (parentRow) {
-        parentRow.subRowCount = totalCount
-
         // Update any new children of selected rows
         if (parentRow.rowId in selectedRows) {
           const newSelectedRows = parentRow.subRows.reduce(
@@ -222,10 +223,6 @@ export const useFetchJobsTableData = ({
 
       setData([...rootData]) // ReactTable will only re-render if the array identity changes
       setPendingData(restOfRequests)
-      if (parentRowInfo === undefined) {
-        setPageCount(Math.ceil(totalCount / paginationState.pageSize))
-        setTotalRowCount(totalCount)
-      }
     }
 
     fetchData().catch(console.error)
@@ -240,10 +237,8 @@ export const useFetchJobsTableData = ({
   return {
     data,
     jobInfoMap,
-    pageCount,
     rowsToFetch: pendingData,
     setRowsToFetch: setPendingData,
-    totalRowCount,
   }
 }
 

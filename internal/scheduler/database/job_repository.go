@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,13 +23,14 @@ type hasSerial interface {
 }
 
 type JobRunLease struct {
-	RunID         uuid.UUID
-	Queue         string
-	JobSet        string
-	UserID        string
-	Node          string
-	Groups        []byte
-	SubmitMessage []byte
+	RunID                  uuid.UUID
+	Queue                  string
+	JobSet                 string
+	UserID                 string
+	Node                   string
+	Groups                 []byte
+	SubmitMessage          []byte
+	PodRequirementsOverlay []byte
 }
 
 // JobRepository is an interface to be implemented by structs which provide job and run information
@@ -37,8 +39,8 @@ type JobRepository interface {
 	// These updates are guaranteed to be consistent with each other
 	FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
 
-	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
-	// keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
+	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids. The returned map is
+	// keyed by job run id. Any dbRuns which don't have errors wil be absent from the map.
 	FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
 
 	// CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding
@@ -128,6 +130,14 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error) {
 	var updatedJobs []Job = nil
 	var updatedRuns []Run = nil
+
+	start := time.Now()
+	defer func() {
+		ctx.Infof(
+			"received %d updated jobs and %d updated job runs from postgres in %s",
+			len(updatedJobs), len(updatedRuns), time.Since(start),
+		)
+	}()
 
 	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
@@ -237,7 +247,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -258,7 +268,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
 			if err != nil {
 				return errors.WithStack(err)
 			}

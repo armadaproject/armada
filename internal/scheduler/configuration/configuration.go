@@ -3,6 +3,9 @@ package configuration
 import (
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/config"
@@ -26,7 +29,10 @@ type Configuration struct {
 	// Configuration controlling leader election
 	Leader LeaderConfig
 	// Configuration controlling metrics
-	Metrics configuration.MetricsConfig
+	Metrics LegacyMetricsConfig
+	// Configuration for new scheduler metrics.
+	// Due to replace metrics configured via the above entry.
+	SchedulerMetrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
@@ -52,6 +58,47 @@ type Configuration struct {
 	PulsarSendTimeout time.Duration `validate:"required"`
 }
 
+func (c Configuration) Validate() error {
+	validate := validator.New()
+	validate.RegisterStructValidation(configuration.SchedulingConfigValidation, configuration.SchedulingConfig{})
+	return validate.Struct(c)
+}
+
+type MetricsConfig struct {
+	// If true, disable metric collection and publishing.
+	Disabled bool
+	// Regexes used for job error categorisation.
+	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
+	// If no regex matches, the subCategory label is the empty string.
+	TrackedErrorRegexes []string
+	// Metrics are exported for these resources.
+	TrackedResourceNames []v1.ResourceName
+	// Controls the cycle time metrics.
+	// TODO(albin): Not used yet.
+	CycleTimeConfig PrometheusSummaryConfig
+	// The first matching regex of each error message is cached in an LRU cache.
+	// This setting controls the cache size.
+	MatchedRegexIndexByErrorMessageCacheSize uint64
+	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
+	ResetInterval time.Duration
+}
+
+// PrometheusSummaryConfig contains the relevant config for a prometheus.Summary.
+type PrometheusSummaryConfig struct {
+	// Objectives defines the quantile rank estimates with their respective
+	// absolute error. If Objectives[q] = e, then the value reported for q
+	// will be the φ-quantile value for some φ between q-e and q+e.  The
+	// default value is an empty map, resulting in a summary without
+	// quantiles.
+	Objectives map[float64]float64
+
+	// MaxAge defines the duration for which an observation stays relevant
+	// for the summary. Only applies to pre-calculated quantiles, does not
+	// apply to _sum and _count. Must be positive. The default value is
+	// DefMaxAge.
+	MaxAge time.Duration
+}
+
 type LeaderConfig struct {
 	// Valid modes are "standalone" or "kubernetes"
 	Mode string `validate:"required"`
@@ -74,4 +121,22 @@ type LeaderConfig struct {
 
 type HttpConfig struct {
 	Port int `validate:"required"`
+}
+
+// TODO: ALl this needs to be unified with MetricsConfig
+type LegacyMetricsConfig struct {
+	Port            uint16
+	RefreshInterval time.Duration
+	Metrics         SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }

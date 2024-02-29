@@ -56,7 +56,7 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 				FromMessageId: fromMessageId,
 			}
 		}
-		log.Infof("Subscribing %s-%s with messageId %s", opts.Queue, opts.JobSetId, fromMessageId)
+		log.Infof("Subscribing to queue %s jobset %s messageId %s", opts.Queue, opts.JobSetId, fromMessageId)
 	} else {
 		if err := s.jobRepository.UpdateJobSetDb(ctx, opts.Queue, opts.JobSetId, fromMessageId); err != nil {
 			log.WithFields(requestFields).Warn(err)

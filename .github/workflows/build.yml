@@ -12,11 +12,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go (no caching)
-        uses: actions/setup-go@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: '1.20'
-          cache: false
+          cache-prefix: prepare
 
       - name: Set up Docker Buildx
         id: buildx
@@ -65,11 +64,11 @@ jobs:
         with:
           dotnet-version: 7.0.x
 
-      - name: Set up Go (no caching)
-        uses: actions/setup-go@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: '1.20'
-          cache: false
+          cache-prefix: pack-nuget
+          cache-tools: true
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -84,7 +83,7 @@ jobs:
       - name: Pack dotnet clients
         env:
           RELEASE_TAG: ${{ steps.create-release-tag.outputs.release_tag }}
-        run: go run github.com/magefile/mage@v1.14.0 -v download packNuget
+        run: go run github.com/magefile/mage@v1.14.0 -v packNuget
 
       - name: Save nupkg artifacts
         uses: actions/upload-artifact@v3

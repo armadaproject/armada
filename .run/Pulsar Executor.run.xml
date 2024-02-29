@@ -1,0 +1,20 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Pulsar Executor" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="ARMADA_APICONNECTION_FORCENOTLS" value="true" />
+      <env name="ARMADA_EXECUTORAPICONNECTION_ARMADAURL" value="localhost:50052" />
+      <env name="ARMADA_EXECUTORAPICONNECTION_FORCENOTLS" value="true" />
+      <env name="ARMADA_HTTPPORT" value="8085" />
+      <env name="HOME" value="$USER_HOME$/" />
+      <env name="KUBECONFIG" value="$PROJECT_DIR$/.kube/internal/config" />
+    </envs>
+    <pass_parent_env value="false" />
+    <kind value="FILE" />
+    <package value="github.com/armadaproject/armada" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/executor/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

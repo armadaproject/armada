@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -20,9 +21,9 @@ func TestAggregateJobs(t *testing.T) {
 		testfixtures.Test1Cpu4GiJob("queue_a", testfixtures.PriorityClass0),
 	}
 
-	actual := aggregateJobs(testJobs)
+	actual := aggregateJobContexts(map[queuePriorityClassKey]int{}, schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, testJobs))
 
-	expected := map[collectionKey]int{
+	expected := map[queuePriorityClassKey]int{
 		{queue: "queue_a", priorityClass: testfixtures.PriorityClass0}: 4,
 		{queue: "queue_a", priorityClass: testfixtures.PriorityClass1}: 1,
 		{queue: "queue_b", priorityClass: testfixtures.PriorityClass0}: 1,

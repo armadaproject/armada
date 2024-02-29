@@ -30,10 +30,11 @@ interface JobSetsProps {
   onDeselectAllClick: () => void
   onSelectAllClick: () => void
   onCancelJobSetsClick: () => void
-  onToggleAutoRefresh: (autoRefresh: boolean) => void
+  onToggleAutoRefresh: ((autoRefresh: boolean) => void) | undefined
   onReprioritizeJobSetsClick: () => void
   onOrderChange: (newestFirst: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
+  onJobSetStateClick(rowIndex: number, state: string): void
 }
 
 export default function JobSets(props: JobSetsProps) {
@@ -50,6 +51,7 @@ export default function JobSets(props: JobSetsProps) {
       onDeselectAllClick={props.onDeselectAllClick}
       onSelectAllClick={props.onSelectAllClick}
       onOrderChange={props.onOrderChange}
+      onJobSetStateClick={props.onJobSetStateClick}
     />
   )
 
@@ -110,9 +112,11 @@ export default function JobSets(props: JobSetsProps) {
               Cancel
             </Button>
           </div>
-          <div className="auto-refresh">
-            <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
-          </div>
+          {props.onToggleAutoRefresh && (
+            <div className="auto-refresh">
+              <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
+            </div>
+          )}
           <div className="refresh-button">
             <RefreshButton isLoading={props.getJobSetsRequestStatus === "Loading"} onClick={props.onRefresh} />
           </div>

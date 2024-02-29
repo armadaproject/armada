@@ -6,6 +6,7 @@ option csharp_namespace = "ArmadaProject.Io.ArmadaEvents";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
@@ -283,6 +284,8 @@ message JobSucceeded {
 
 // Indicates that a job has been leased to a cluster by the Armada scheduler.
 message JobRunLeased {
+    reserved 8;
+
     Uuid run_id = 1;
     Uuid job_id = 2;
     // Each cluster is represented by an executor.
@@ -290,6 +293,21 @@ message JobRunLeased {
     string node_id = 4;
     // Used by the scheduler to maintain a consistent state
     int32 update_sequence_number = 5;
+    // This bool is here because it is the most ergonomic way of distinguishing
+    // the case where `scheduled_at_priority` was explicitly set to zero from
+    // the case where it was not set at all.
+    bool has_scheduled_at_priority = 6;
+    // Priority class priority that this job was scheduled at.
+    //
+    // This is usually equal to the priority of the job's priority class, except
+    // in the case where the job was scheduled as an away job; this field is
+    // used to distinguish this case from the case where the job was scheduled
+    // as a home job.
+    int32 scheduled_at_priority = 7;
+    // The scheduler uses this field to modify the pod requirements of a job;
+    // for example, it may add additional tolerations to runs that are scheduled
+    // as away jobs.
+    schedulerobjects.PodRequirements pod_requirements_overlay = 9;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

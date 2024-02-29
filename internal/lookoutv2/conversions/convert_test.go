@@ -16,6 +16,7 @@ import (
 var (
 	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	baseTimeSwagger = strfmt.DateTime(baseTime)
+	namespace       = "namespace"
 
 	swaggerJob = &models.Job{
 		Annotations: map[string]string{
@@ -32,6 +33,7 @@ var (
 		LastTransitionTime: baseTimeSwagger,
 		Memory:             3000,
 		Owner:              "user-id",
+		Namespace:          &namespace,
 		Priority:           10,
 		PriorityClass:      pointer.String("default"),
 		Queue:              "queue",
@@ -67,6 +69,7 @@ var (
 		LastTransitionTime: baseTime,
 		Memory:             3000,
 		Owner:              "user-id",
+		Namespace:          &namespace,
 		Priority:           10,
 		PriorityClass:      pointer.String("default"),
 		Queue:              "queue",
@@ -74,13 +77,13 @@ var (
 			{
 				Cluster:     "cluster",
 				ExitCode:    pointer.Int32(322),
-				Finished:    &baseTime,
-				JobRunState: string(lookout.JobRunLeaseReturned),
+				Finished:    model.NewPostgreSQLTime(&baseTime),
+				JobRunState: lookout.JobRunStateOrdinalMap[lookout.JobRunLeaseReturned],
 				Node:        pointer.String("node"),
-				Leased:      &baseTime,
-				Pending:     &baseTime,
+				Leased:      model.NewPostgreSQLTime(&baseTime),
+				Pending:     model.NewPostgreSQLTime(&baseTime),
 				RunId:       "run-id",
-				Started:     &baseTime,
+				Started:     model.NewPostgreSQLTime(&baseTime),
 			},
 		},
 		State:     string(lookout.JobFailed),

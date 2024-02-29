@@ -58,7 +58,15 @@ func TestLegacyQueueRepository_GetAllQueues(t *testing.T) {
 			}
 			retrievedQueues, err := repo.GetAllQueues()
 			require.NoError(t, err)
-			sortFunc := func(a, b *Queue) bool { return a.Name > b.Name }
+			sortFunc := func(a, b *Queue) int {
+				if a.Name > b.Name {
+					return -1
+				} else if a.Name > b.Name {
+					return 1
+				} else {
+					return 0
+				}
+			}
 			slices.SortFunc(tc.expectedQueues, sortFunc)
 			slices.SortFunc(retrievedQueues, sortFunc)
 			assert.Equal(t, tc.expectedQueues, retrievedQueues)

@@ -72,8 +72,8 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 
 // sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
-	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) bool {
-		return a.Job.SchedulingOrderCompare(b.Job) == -1
+	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) int {
+		return a.Job.SchedulingOrderCompare(b.Job)
 	})
 }
 
@@ -151,11 +151,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		if !ok {
 			return nil, nil
 		}
-		return schedulercontext.JobSchedulingContextFromJob(
-			it.priorityClasses,
-			job,
-			GangIdAndCardinalityFromAnnotations,
-		), nil
+		return schedulercontext.JobSchedulingContextFromJob(it.priorityClasses, job), nil
 	}
 }
 

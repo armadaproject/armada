@@ -3,6 +3,9 @@ package scheduler
 import (
 	"container/heap"
 	"reflect"
+	"strconv"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
 
 	"github.com/pkg/errors"
 
@@ -10,7 +13,6 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -58,9 +60,10 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 }
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+	var scheduledJobs []*schedulercontext.JobSchedulingContext
+	var failedJobs []*schedulercontext.JobSchedulingContext
 	nodeIdByJobId := make(map[string]string)
-	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
-	failedJobs := make([]interfaces.LegacySchedulerJob, 0)
+	additionalAnnotationsByJobId := make(map[string]map[string]string)
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -89,18 +92,14 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
-			// We scheduled the minimum number of gang jobs required.
+			numScheduled := gctx.Fit().NumScheduled
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
-					scheduledJobs = append(scheduledJobs, jctx.Job)
+					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
-				}
-			}
-
-			// Report any excess gang jobs that failed
-			for _, jctx := range gctx.JobSchedulingContexts {
-				if jctx.ShouldFail {
-					failedJobs = append(failedJobs, jctx.Job)
+					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.RuntimeGangCardinality: strconv.Itoa(numScheduled)}
+				} else if jctx.ShouldFail {
+					failedJobs = append(failedJobs, jctx)
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
@@ -126,11 +125,12 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
 	return &SchedulerResult{
-		PreemptedJobs:      nil,
-		ScheduledJobs:      scheduledJobs,
-		FailedJobs:         failedJobs,
-		NodeIdByJobId:      nodeIdByJobId,
-		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PreemptedJobs:                nil,
+		ScheduledJobs:                scheduledJobs,
+		FailedJobs:                   failedJobs,
+		NodeIdByJobId:                nodeIdByJobId,
+		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
+		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 
@@ -220,16 +220,19 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-		if jctx.GangCardinality > 1 {
-			gang := it.jctxsByGangId[jctx.GangId]
+		if gangId := jctx.GangInfo.Id; gangId != "" {
+			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)
-			it.jctxsByGangId[jctx.GangId] = gang
-			if len(gang) == jctx.GangCardinality {
-				delete(it.jctxsByGangId, jctx.GangId)
+			it.jctxsByGangId[gangId] = gang
+			if len(gang) == jctx.GangInfo.Cardinality {
+				delete(it.jctxsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
 			}
 		} else {
+			// It's not actually necessary to treat this case separately, but
+			// using the empty string as a key in it.jctxsByGangId sounds like
+			// it would get us in trouble later down the line.
 			it.next = schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
 			return it.next, nil
 		}

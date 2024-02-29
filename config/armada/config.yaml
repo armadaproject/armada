@@ -7,9 +7,6 @@ corsAllowedOrigins:
   - http://localhost:10000
 grpcGatewayPath: "/"
 cancelJobsBatchSize: 1000
-pulsarSchedulerEnabled: false
-probabilityOfUsingPulsarScheduler: 0
-ignoreJobSubmitChecks: false
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
 grpc:
@@ -108,16 +105,11 @@ scheduling:
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
   executorUpdateFrequency: 1m
-queueManagement:
-  defaultPriorityFactor: 1000
-  defaultQueuedJobsLimit: 0  # No Limit
-  autoCreateQueues: true
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h
 metrics:
   refreshInterval: 5m
-  exposeSchedulingMetrics: true
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -133,9 +125,6 @@ pulsar:
   maxAllowedMessageSize: 4194304 # 4MB
   receiverQueueSize: 100
 postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
   connection:
     host: postgres
     port: 5432
@@ -143,3 +132,15 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
+queryapi:
+  enabled: false
+  maxQueryItems: 500
+  postgres:
+    connection:
+      host: postgres
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+      sslmode: disable
+

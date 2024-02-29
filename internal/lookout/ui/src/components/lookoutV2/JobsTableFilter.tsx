@@ -2,10 +2,20 @@ import React, { RefObject, useEffect, useRef, useState } from "react"
 
 import MoreVert from "@material-ui/icons/MoreVert"
 import { Check } from "@mui/icons-material"
-import { Box, Checkbox, IconButton, InputAdornment, ListItemText, MenuItem, OutlinedInput, Select } from "@mui/material"
+import {
+  Box,
+  Checkbox,
+  IconButton,
+  InputAdornment,
+  ListItemText,
+  MenuItem,
+  OutlinedInput,
+  Select,
+  TextField,
+} from "@mui/material"
 import Menu from "@mui/material/Menu"
-import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
 import { Match, MATCH_DISPLAY_STRINGS } from "models/lookoutV2Models"
+import { useDebouncedCallback } from "use-debounce"
 import { ANNOTATION_COLUMN_PREFIX, FilterType, isStandardColId, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
 
 const ELLIPSIS = "\u2026"
@@ -161,38 +171,36 @@ const TextFilter = ({
   useEffect(() => {
     onSetTextFieldRef(ref)
   }, [ref])
+  const debouncedOnChange = useDebouncedCallback(onChange, 300)
   return (
-    <DebouncedTextField
-      debouncedOnChange={onChange}
-      debounceWaitMs={300}
-      textFieldProps={{
-        inputRef: ref,
-        type: "text",
-        size: "small",
-        defaultValue: defaultValue,
-        error: parseError !== undefined,
-        placeholder: label,
+    <TextField
+      onChange={(e) => debouncedOnChange(e.currentTarget.value)}
+      inputRef={ref}
+      type={"text"}
+      size={"small"}
+      defaultValue={defaultValue}
+      error={parseError !== undefined}
+      placeholder={label}
+      sx={{
+        width: "100%",
+      }}
+      inputProps={{
+        "aria-label": label,
         sx: {
+          padding: "3.5px 7px",
+          height: "1em",
           width: "100%",
         },
-        inputProps: {
-          "aria-label": label,
-          sx: {
-            padding: "3.5px 7px",
-            height: "1em",
-            width: "100%",
-          },
+      }}
+      InputProps={{
+        style: {
+          paddingRight: 0,
         },
-        InputProps: {
-          style: {
-            paddingRight: 0,
-          },
-          endAdornment: (
-            <InputAdornment position="end">
-              <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
-            </InputAdornment>
-          ),
-        },
+        endAdornment: (
+          <InputAdornment position="end">
+            <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
+          </InputAdornment>
+        ),
       }}
     />
   )

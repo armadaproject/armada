@@ -3,6 +3,7 @@ package scheduleringester
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,12 +53,16 @@ func TestConvertSequence(t *testing.T) {
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
-				InsertRuns{f.RunIdUuid: &JobRunDetails{queue: f.Queue, dbRun: &schedulerdb.Run{
-					RunID:    f.RunIdUuid,
-					JobID:    f.JobIdString,
-					JobSet:   f.JobSetName,
-					Executor: f.ExecutorId,
-					Node:     f.NodeName,
+				InsertRuns{f.RunIdUuid: &JobRunDetails{Queue: f.Queue, DbRun: &schedulerdb.Run{
+					RunID:                  f.RunIdUuid,
+					JobID:                  f.JobIdString,
+					JobSet:                 f.JobSetName,
+					Executor:               f.ExecutorId,
+					Node:                   f.NodeName,
+					ScheduledAtPriority:    &f.ScheduledAtPriority,
+					Created:                f.BaseTime.UnixNano(),
+					LeasedTimestamp:        &f.BaseTime,
+					PodRequirementsOverlay: protoutil.MustMarshall(f.Leased.GetJobRunLeased().GetPodRequirementsOverlay()),
 				}}},
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
 					Queued:             false,
@@ -67,11 +72,19 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
-			expected: []DbOperation{MarkRunsRunning{f.RunIdUuid: true}},
+			expected: []DbOperation{MarkRunsRunning{f.RunIdUuid: f.BaseTime}},
 		},
 		"job run succeeded": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
-			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: true}},
+			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: f.BaseTime}},
+		},
+		"job run pending": {
+			events:   []*armadaevents.EventSequence_Event{f.Assigned},
+			expected: []DbOperation{MarkRunsPending{f.RunIdUuid: f.BaseTime}},
+		},
+		"job run preempted": {
+			events:   []*armadaevents.EventSequence_Event{f.JobPreempted},
+			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
 		},
 		"lease returned": {
 			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
@@ -81,7 +94,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true, RunAttempted: true}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: f.BaseTime}},
 			},
 		},
 		"job failed": {
@@ -92,7 +105,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false, RunAttempted: true}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false, RunAttempted: true, FailureTime: f.BaseTime}},
 			},
 		},
 		"job errors terminal": {
@@ -152,7 +165,7 @@ func TestConvertSequence(t *testing.T) {
 		"JobCancelled": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelled},
 			expected: []DbOperation{
-				MarkJobsCancelled{f.JobIdString: true},
+				MarkJobsCancelled{f.JobIdString: f.BaseTime},
 			},
 		},
 		"JobRequeued": {
@@ -184,14 +197,24 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
-				MarkRunsRunning{f.RunIdUuid: true},
+				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
 				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
-		"ignored events": {
-			events: []*armadaevents.EventSequence_Event{f.Running, f.JobPreempted, f.JobSucceeded},
+		"multiple events - multiple timestamps": {
+			events: multipleEventsMultipleTimeStamps(),
 			expected: []DbOperation{
-				MarkRunsRunning{f.RunIdUuid: true},
+				MarkJobsCancelled{f.JobIdString: f.BaseTime},
+				MarkRunsSucceeded{f.RunIdUuid: f.BaseTime},
+				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
+				MarkJobsCancelled{f.JobIdString: f.BaseTime.Add(time.Hour)},
+				MarkRunsSucceeded{f.RunIdUuid: f.BaseTime.Add(time.Hour)},
+			},
+		},
+		"ignored events": {
+			events: []*armadaevents.EventSequence_Event{f.Running, f.SubmitDuplicate, f.JobSucceeded},
+			expected: []DbOperation{
+				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
 				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
@@ -304,4 +327,14 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 		},
 	}
 	return expectedSubmitSchedulingInfo
+}
+
+func multipleEventsMultipleTimeStamps() []*armadaevents.EventSequence_Event {
+	events := []*armadaevents.EventSequence_Event{f.JobCancelled, f.JobRunSucceeded, f.Running}
+	created := f.BaseTime.Add(time.Hour)
+	anotherCancelled, _ := f.DeepCopy(f.JobCancelled)
+	anotherSucceeded, _ := f.DeepCopy(f.JobRunSucceeded)
+	anotherCancelled.Created = &created
+	anotherSucceeded.Created = &created
+	return append(events, anotherCancelled, anotherSucceeded)
 }

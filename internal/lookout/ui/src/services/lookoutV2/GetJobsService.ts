@@ -12,11 +12,16 @@ export interface IGetJobsService {
 }
 
 export type GetJobsResponse = {
-  count: number // Total number of jobs matching the filter (beyond those returned)
   jobs: Job[]
 }
 
 export class GetJobsService implements IGetJobsService {
+  private backend: string | undefined
+
+  constructor(backend: string | undefined) {
+    this.backend = backend
+  }
+
   async getJobs(
     filters: JobFilter[],
     activeJobSets: boolean,
@@ -25,7 +30,11 @@ export class GetJobsService implements IGetJobsService {
     take: number,
     abortSignal?: AbortSignal,
   ): Promise<GetJobsResponse> {
-    const response = await fetch("/api/v1/jobs", {
+    let path = "/api/v1/jobs"
+    if (this.backend) {
+      path += "?" + new URLSearchParams({ backend: this.backend })
+    }
+    const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -37,10 +46,8 @@ export class GetJobsService implements IGetJobsService {
       }),
       signal: abortSignal,
     })
-
     const json = await response.json()
     return {
-      count: json.count ?? 0,
       jobs: json.jobs ?? [],
     }
   }

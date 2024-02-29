@@ -298,3 +298,46 @@ func TestRepeat(t *testing.T) {
 		})
 	}
 }
+
+func TestAny(t *testing.T) {
+	var nilSlice []int
+	assert.Equal(
+		t,
+		false,
+		AnyFunc(nilSlice, func(v int) bool { return true }),
+	)
+
+	emptySlice := make([]int, 0)
+	assert.Equal(
+		t,
+		false,
+		AnyFunc(emptySlice, func(v int) bool { return true }),
+	)
+
+	assert.Equal(
+		t,
+		true,
+		AnyFunc([]int{1, 2, 3}, func(v int) bool { return v > 2 }),
+	)
+
+	assert.Equal(
+		t,
+		false,
+		AnyFunc([]int{1, 2, 3}, func(v int) bool { return v > 3 }),
+	)
+}
+
+func TestZeros(t *testing.T) {
+	assert.Equal(t, make([]int, 3), Zeros[int](3))
+	assert.Equal(t, make([]string, 3), Zeros[string](3))
+}
+
+func TestOnes(t *testing.T) {
+	assert.Equal(t, []int{1, 1, 1}, Ones[int](3))
+	assert.Equal(t, []float64{1, 1, 1}, Ones[float64](3))
+}
+
+func TestFill(t *testing.T) {
+	assert.Equal(t, []int{2, 2, 2}, Fill[int](2, 3))
+	assert.Equal(t, []float64{0.5, 0.5, 0.5}, Fill[float64](0.5, 3))
+}

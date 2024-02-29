@@ -29,6 +29,7 @@ type JobSimulator struct {
 	queue            string
 	jobSet           string
 	owner            string
+	namespace        string
 	annotationPrefix string
 	jobId            *armadaevents.Uuid
 	apiJob           *api.Job
@@ -54,7 +55,7 @@ type runPatch struct {
 	cluster     *string
 	exitCode    *int32
 	finished    *time.Time
-	jobRunState *string
+	jobRunState lookout.JobRunState
 	node        *string
 	leased      *time.Time
 	pending     *time.Time
@@ -68,10 +69,11 @@ func NewJobSimulator(converter *instructions.InstructionConverter, store *lookou
 	}
 }
 
-func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time, opts *JobOptions) *JobSimulator {
+func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp time.Time, opts *JobOptions) *JobSimulator {
 	js.queue = queue
 	js.jobSet = jobSet
 	js.owner = owner
+	js.namespace = namespace
 	jobId := opts.JobId
 	if jobId == "" {
 		jobId = util.NewULID()
@@ -157,6 +159,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 		LastTransitionTime: ts,
 		Memory:             opts.Memory.Value(),
 		Owner:              owner,
+		Namespace:          &apiJob.Namespace,
 		Priority:           int64(opts.Priority),
 		PriorityClass:      &priorityClass,
 		Queue:              queue,
@@ -185,7 +188,7 @@ func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
 	js.job.State = string(lookout.JobLeased)
 	updateRun(js.job, &runPatch{
 		runId:       runId,
-		jobRunState: pointer.String(string(lookout.JobRunLeased)),
+		jobRunState: lookout.JobRunLeased,
 		leased:      &ts,
 	})
 	return js
@@ -225,7 +228,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 	rp := &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
-		jobRunState: pointer.String(string(lookout.JobRunPending)),
+		jobRunState: lookout.JobRunPending,
 		pending:     &ts,
 	}
 	if js.converter.IsLegacy() {
@@ -263,7 +266,7 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 	js.job.State = string(lookout.JobRunning)
 	updateRun(js.job, &runPatch{
 		runId:       runId,
-		jobRunState: pointer.String(string(lookout.JobRunRunning)),
+		jobRunState: lookout.JobRunRunning,
 		node:        &node,
 		started:     &ts,
 	})
@@ -288,7 +291,7 @@ func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimu
 		runId:       runId,
 		exitCode:    pointer.Int32(0),
 		finished:    &ts,
-		jobRunState: pointer.String(string(lookout.JobRunSucceeded)),
+		jobRunState: lookout.JobRunSucceeded,
 	})
 	return js
 }
@@ -336,7 +339,7 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 	updateRun(js.job, &runPatch{
 		runId:       runId,
 		finished:    &ts,
-		jobRunState: pointer.String(string(lookout.JobRunLeaseReturned)),
+		jobRunState: lookout.JobRunLeaseReturned,
 	})
 	return js
 }
@@ -410,7 +413,7 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 		runId:       runId,
 		exitCode:    &exitCode,
 		finished:    &ts,
-		jobRunState: pointer.String(string(lookout.JobRunFailed)),
+		jobRunState: lookout.JobRunFailed,
 		node:        &node,
 	})
 	return js
@@ -503,7 +506,7 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 		runId:       runId,
 		cluster:     &cluster,
 		finished:    &ts,
-		jobRunState: pointer.String(string(lookout.JobRunTerminated)),
+		jobRunState: lookout.JobRunTerminated,
 		node:        &node,
 	})
 	return js
@@ -540,7 +543,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 		runId:       runId,
 		cluster:     &cluster,
 		finished:    &ts,
-		jobRunState: pointer.String(string(lookout.JobRunUnableToSchedule)),
+		jobRunState: lookout.JobRunUnableToSchedule,
 		node:        &node,
 	})
 	return js
@@ -570,7 +573,7 @@ func (js *JobSimulator) LeaseExpired(timestamp time.Time) *JobSimulator {
 	updateRun(js.job, &runPatch{
 		runId:       eventutil.LEGACY_RUN_ID,
 		finished:    &ts,
-		jobRunState: pointer.String(string(lookout.JobRunLeaseExpired)),
+		jobRunState: lookout.JobRunLeaseExpired,
 	})
 	return js
 }
@@ -620,20 +623,16 @@ func updateRun(job *model.Job, patch *runPatch) {
 	if patch.cluster != nil {
 		cluster = *patch.cluster
 	}
-	state := ""
-	if patch.jobRunState != nil {
-		state = *patch.jobRunState
-	}
 	job.Runs = append(job.Runs, &model.Run{
 		Cluster:     cluster,
 		ExitCode:    patch.exitCode,
-		Finished:    patch.finished,
-		JobRunState: state,
+		Finished:    model.NewPostgreSQLTime(patch.finished),
+		JobRunState: lookout.JobRunStateOrdinalMap[patch.jobRunState],
 		Node:        patch.node,
-		Leased:      patch.leased,
-		Pending:     patch.pending,
+		Leased:      model.NewPostgreSQLTime(patch.leased),
+		Pending:     model.NewPostgreSQLTime(patch.pending),
 		RunId:       patch.runId,
-		Started:     patch.started,
+		Started:     model.NewPostgreSQLTime(patch.started),
 	})
 }
 
@@ -645,22 +644,20 @@ func patchRun(run *model.Run, patch *runPatch) {
 		run.ExitCode = patch.exitCode
 	}
 	if patch.finished != nil {
-		run.Finished = patch.finished
+		run.Finished = model.NewPostgreSQLTime(patch.finished)
 	}
-	if patch.jobRunState != nil {
-		run.JobRunState = *patch.jobRunState
-	}
+	run.JobRunState = lookout.JobRunStateOrdinalMap[patch.jobRunState]
 	if patch.node != nil {
 		run.Node = patch.node
 	}
 	if patch.leased != nil {
-		run.Leased = patch.leased
+		run.Leased = model.NewPostgreSQLTime(patch.leased)
 	}
 	if patch.pending != nil {
-		run.Pending = patch.pending
+		run.Pending = model.NewPostgreSQLTime(patch.pending)
 	}
 	if patch.started != nil {
-		run.Started = patch.started
+		run.Started = model.NewPostgreSQLTime(patch.started)
 	}
 }
 
@@ -672,9 +669,11 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 	return prefixed
 }
 
-func logQuery(query *Query) {
-	log.Debug(removeNewlinesAndTabs(query.Sql))
-	log.Debugf("%v", query.Args)
+func logQuery(query *Query, description string) {
+	log.
+		WithField("query", removeNewlinesAndTabs(query.Sql)).
+		WithField("values", query.Args).
+		Debug(description)
 }
 
 func removeNewlinesAndTabs(s string) string {

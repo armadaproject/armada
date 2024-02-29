@@ -26,6 +26,7 @@ const (
 	UnableToSchedule podIssueType = iota
 	StuckStartingUp
 	StuckTerminating
+	ActiveDeadlineExceeded
 	ExternallyDeleted
 	ErrorDuringIssueHandling
 )
@@ -154,9 +155,6 @@ func (p *IssueHandler) HandlePodIssues() {
 	if err != nil {
 		log.WithError(err).Errorf("unable to handle pod issus as failed to load pods")
 	}
-	managedPods = util.FilterPods(managedPods, func(pod *v1.Pod) bool {
-		return !util.IsLegacyManagedPod(pod)
-	})
 	p.detectPodIssues(managedPods)
 	p.detectReconciliationIssues(managedPods)
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Minute*2)
@@ -177,6 +175,22 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				Message:          "pod stuck in terminating phase, this might be due to platform problems",
 				Retryable:        false,
 				Type:             StuckTerminating,
+			}
+
+			p.registerIssue(&runIssue{
+				JobId:    util.ExtractJobId(pod),
+				RunId:    util.ExtractJobRunId(pod),
+				PodIssue: issue,
+			})
+		} else if p.hasExceededActiveDeadline(pod) {
+			// Pod has past its active deadline seconds + some buffer.
+			// As the pod is still here it means the kubelet is unable to kill it for some reason.
+			// Start cleaning it up - which will eventually be force killed
+			issue := &podIssue{
+				OriginalPodState: pod.DeepCopy(),
+				Message:          "pod has exceeded active deadline seconds",
+				Retryable:        false,
+				Type:             ActiveDeadlineExceeded,
 			}
 
 			p.registerIssue(&runIssue{
@@ -223,6 +237,27 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			}
 		}
 	}
+}
+
+// Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period
+func (p *IssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
+	if pod.Spec.ActiveDeadlineSeconds == nil {
+		return false
+	}
+
+	// Using StartTime here, as kubernetes bases its activeDeadlineSeconds check on the StartTime also
+	startTime := pod.Status.StartTime
+	if startTime == nil || startTime.Time.IsZero() {
+		return false
+	}
+	currentRunTimeSeconds := time.Now().Sub(startTime.Time).Seconds()
+
+	podTerminationGracePeriodSeconds := float64(0)
+	if pod.Spec.TerminationGracePeriodSeconds != nil {
+		podTerminationGracePeriodSeconds = float64(*pod.Spec.TerminationGracePeriodSeconds)
+	}
+	deadline := float64(*pod.Spec.ActiveDeadlineSeconds) + podTerminationGracePeriodSeconds + p.stuckTerminatingPodExpiry.Seconds()
+	return currentRunTimeSeconds > deadline
 }
 
 func (p *IssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
@@ -344,8 +379,9 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 					JobId: issue.RunIssue.JobId,
 					RunId: issue.RunIssue.RunId,
 					PodIssue: &podIssue{
-						OriginalPodState:  issue.RunIssue.PodIssue.OriginalPodState,
-						Message:           "Pod unexpectedly started up after delete was called",
+						OriginalPodState: issue.RunIssue.PodIssue.OriginalPodState,
+						Message: fmt.Sprintf("Pod unexpectedly started up after delete was called.\n\nDelete was originally called to handle issue:\n%s",
+							issue.RunIssue.PodIssue.Message),
 						Retryable:         false,
 						DeletionRequested: false,
 						Type:              ErrorDuringIssueHandling,

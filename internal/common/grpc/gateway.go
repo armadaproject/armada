@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/jcmturner/gokrb5/v8/spnego"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -39,9 +39,6 @@ func CreateGatewayHandler(
 	gw := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, m),
 		runtime.WithOutgoingHeaderMatcher(func(key string) (string, bool) {
-			if key == strings.ToLower(spnego.HTTPHeaderAuthResponse) {
-				return spnego.HTTPHeaderAuthResponse, true
-			}
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
@@ -65,9 +62,9 @@ func CreateGatewayHandler(
 
 	if stripPrefix {
 		prefixToStrip := strings.TrimSuffix(apiBasePath, "/")
-		mux.Handle(apiBasePath, http.StripPrefix(prefixToStrip, allowCORS(gw, corsAllowedOrigins)))
+		mux.Handle(apiBasePath, http.StripPrefix(prefixToStrip, logRestRequests(allowCORS(gw, corsAllowedOrigins))))
 	} else {
-		mux.Handle(apiBasePath, allowCORS(gw, corsAllowedOrigins))
+		mux.Handle(apiBasePath, logRestRequests(allowCORS(gw, corsAllowedOrigins)))
 	}
 	mux.Handle(path.Join(apiBasePath, "swagger.json"), middleware.Spec(apiBasePath, []byte(spec), nil))
 
@@ -75,6 +72,13 @@ func CreateGatewayHandler(
 		cancelConnectionCtx()
 		conn.Close()
 	}
+}
+
+func logRestRequests(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("Received REST request performing %s %s", r.Method, r.URL.Path)
+		h.ServeHTTP(w, r)
+	})
 }
 
 func allowCORS(h http.Handler, corsAllowedOrigins []string) http.Handler {

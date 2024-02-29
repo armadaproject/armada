@@ -2,8 +2,10 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -61,9 +63,15 @@ var (
 		TestResources,
 		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
 	)
-	TestIndexedTaints     = []string{"largeJobsOnly", "gpu"}
-	TestIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
-	jobTimestamp          atomic.Int64
+	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
+	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
+	TestWellKnownNodeTypes = []configuration.WellKnownNodeType{
+		{
+			Name:   "gpu",
+			Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+		},
+	}
+	jobTimestamp atomic.Int64
 	// SchedulingKeyGenerator to use in testing.
 	// Has to be consistent since creating one involves generating a random key.
 	// If this key isn't consistent, scheduling keys generated are not either.
@@ -73,13 +81,29 @@ var (
 	JobDb = NewJobDb()
 )
 
+func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
+	jobDb := NewJobDb()
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	if err := txn.Upsert(jobs); err != nil {
+		panic(err)
+	}
+	txn.Commit()
+	return jobDb
+}
+
 // NewJobDb returns a new default jobDb with defaults to use in tests.
 func NewJobDb() *jobdb.JobDb {
-	return jobdb.NewJobDbWithSchedulingKeyGenerator(
+	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
+		1024,
 	)
+	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
+	jobDb.SetClock(NewMockPassiveClock())
+	jobDb.SetUUIDProvider(NewMockUUIDProvider())
+	return jobDb
 }
 
 func IntRange(a, b int) []int {
@@ -100,7 +124,6 @@ func Repeat[T any](v T, n int) []T {
 
 func TestSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
-		ResourceScarcity: map[string]float64{"cpu": 1},
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses:                         maps.Clone(TestPriorityClasses),
 			DefaultPriorityClass:                    TestDefaultPriorityClass,
@@ -111,18 +134,15 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
 		MaximumPerQueueSchedulingBurst:              math.MaxInt,
+		MaxExtraNodesToConsider:                     TestMaxExtraNodesToConsider,
 		IndexedResources:                            TestResources,
 		IndexedNodeLabels:                           TestIndexedNodeLabels,
+		IndexedTaints:                               TestIndexedTaints,
+		WellKnownNodeTypes:                          TestWellKnownNodeTypes,
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
-		EnableNewPreemptionStrategy:                 true,
 	}
-}
-
-func WithUnifiedSchedulingByPoolConfig(config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.UnifiedSchedulingByPool = true
-	return config
 }
 
 func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
@@ -132,11 +152,6 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.Sch
 
 func WithProtectedFractionOfFairShareConfig(v float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.Preemption.ProtectedFractionOfFairShare = v
-	return config
-}
-
-func WithDominantResourceFairnessConfig(config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.FairnessModel = configuration.DominantResourceFairness
 	return config
 }
 
@@ -776,13 +791,12 @@ func TestDbQueue() *database.Queue {
 }
 
 func TestQueuedJobDbJob() *jobdb.Job {
-	return jobdb.
-		EmptyJob(util.NewULID()).
-		WithQueue(TestQueue).
-		WithJobset(TestJobset).
-		WithQueued(true).
-		WithCreated(BaseTime.UnixNano()).
-		WithJobSchedulingInfo(&schedulerobjects.JobSchedulingInfo{
+	return JobDb.NewJob(
+		util.NewULID(),
+		TestJobset,
+		TestQueue,
+		0,
+		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
 			SubmitTime:        BaseTime,
 			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -792,7 +806,14 @@ func TestQueuedJobDbJob() *jobdb.Job {
 					},
 				},
 			},
-		})
+		},
+		true,
+		0,
+		false,
+		false,
+		false,
+		BaseTime.UnixNano(),
+	)
 }
 
 func WithJobDbJobPodRequirements(job *jobdb.Job, reqs *schedulerobjects.PodRequirements) *jobdb.Job {
@@ -832,6 +853,7 @@ func Test1CoreCpuApiJob() *api.Job {
 					},
 				},
 			},
+			PriorityClassName: TestDefaultPriorityClass,
 		},
 	}
 }
@@ -889,4 +911,48 @@ func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 		LastUpdateTime: lastUpdateTime,
 		Nodes:          TestCluster(),
 	}
+}
+
+type MockUUIDProvider struct {
+	i  uint64
+	mu sync.Mutex
+}
+
+func NewMockUUIDProvider() *MockUUIDProvider {
+	return &MockUUIDProvider{}
+}
+
+func (p *MockUUIDProvider) New() uuid.UUID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.i += 1 // Increment before write to avoid using the all-zeros UUID.
+	return UUIDFromInt(p.i)
+}
+
+func UUIDFromInt(i uint64) uuid.UUID {
+	var rv uuid.UUID
+	binary.LittleEndian.PutUint64(rv[:], i)
+	return rv
+}
+
+type MockPassiveClock struct {
+	t  time.Time
+	d  time.Duration
+	mu sync.Mutex
+}
+
+func NewMockPassiveClock() *MockPassiveClock {
+	return &MockPassiveClock{t: time.Unix(0, 0), d: time.Second}
+}
+
+func (p *MockPassiveClock) Now() time.Time {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	rv := p.t
+	p.t = p.t.Add(p.d)
+	return rv
+}
+
+func (p *MockPassiveClock) Since(time.Time) time.Duration {
+	panic("Not implemented")
 }

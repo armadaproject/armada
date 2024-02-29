@@ -1,0 +1,83 @@
+syntax = 'proto3';
+package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "pkg/api/submit.proto";
+import "google/protobuf/timestamp.proto";
+
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) = true;
+
+enum JobRunState {
+  RUN_STATE_UNKNOWN = 0;
+  RUN_STATE_LEASED = 1;
+  RUN_STATE_PENDING = 2;
+  RUN_STATE_RUNNING = 3;
+  RUN_STATE_SUCCEEDED = 4;
+  RUN_STATE_FAILED = 5;
+  RUN_STATE_PREEMPTED = 6;
+  RUN_STATE_CANCELLED = 7;
+  RUN_STATE_LEASE_EXPIRED = 8;
+  RUNS_STATE_LEASE_RETURNED = 9;
+}
+
+message JobRunDetails {
+  string run_id = 1;
+  string job_id = 2;
+  JobRunState state = 3;
+  string cluster = 4;
+  string node = 5;
+  google.protobuf.Timestamp leased_ts = 7  [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp pending_ts = 8 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp started_ts = 9 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp finished_ts = 10 [(gogoproto.stdtime) = true];
+}
+
+
+message JobDetails {
+  string job_id = 1;
+  string queue = 2;
+  string jobset = 3;
+  string namespace = 4;
+  JobState state = 5;
+  google.protobuf.Timestamp submitted_ts = 6 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp cancel_ts = 7 [(gogoproto.stdtime) = true];
+  string cancel_reason = 8;
+  google.protobuf.Timestamp last_transition_ts = 9 [(gogoproto.stdtime) = true];
+  string latest_run_id = 10;
+  Job job_spec = 11; // Only filled in if expand_job_spec is true
+  repeated JobRunDetails job_runs = 12; // Only filled in if expand_job_run is true;
+}
+
+message JobDetailsRequest {
+  repeated string job_ids = 1;
+  bool expand_job_spec = 2;
+  bool expand_job_run = 3;
+}
+
+message JobDetailsResponse {
+  map<string, JobDetails> job_details = 1;
+}
+
+message JobRunDetailsResponse {
+  map<string, JobRunDetails> job_run_details = 1;
+}
+
+message JobRunDetailsRequest {
+  repeated string run_ids = 1;
+}
+
+message JobStatusRequest{
+  repeated string job_ids = 1;
+}
+
+message JobStatusResponse{
+  map<string, JobState> job_states = 1;
+}
+
+service Jobs {
+  rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse);
+  rpc GetJobDetails (JobDetailsRequest) returns (JobDetailsResponse);
+  rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse);
+}

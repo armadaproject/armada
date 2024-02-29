@@ -1,0 +1,21 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Pulsar Server" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <parameters value="--config ./developer/config/insecure-armada.yaml" />
+    <envs>
+      <env name="ARMADA_CORSALLOWEDORIGINS" value="&quot;http://localhost:3000,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089&quot;" />
+      <env name="ARMADA_EVENTSAPIREDIS_ADDRS" value="localhost:6379" />
+      <env name="ARMADA_METRICSPORT" value="9005" />
+      <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
+      <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
+      <env name="ARMADA_REDIS_ADDRS" value="localhost:6379" />
+      <env name="EXECUTOR_UPDATE_INTERVAL" value="&quot;1s&quot;" />
+    </envs>
+    <kind value="FILE" />
+    <package value="github.com/armadaproject/armada" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/armada/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

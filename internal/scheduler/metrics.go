@@ -174,16 +174,30 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 
 		var recorder *commonmetrics.JobMetricsRecorder
 		var timeInState time.Duration
-		if job.Queued() {
+		if job.InTerminalState() {
+			// Jobs in a terminal state should have been removed from the jobDb.
+			continue
+		} else if job.Queued() {
+			if run := job.LatestRun(); run != nil && !run.InTerminalState() {
+				ctx.Warnf("job %s is marked as queued but has active runs: %s", job.Id(), job)
+				continue
+			}
 			recorder = qs.queuedJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
 			queuedJobsCount[job.Queue()]++
-		} else if job.HasRuns() {
-			run := job.LatestRun()
-			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
-			recorder = qs.runningJobRecorder
 		} else {
-			ctx.Warnf("Job %s is marked as leased but has no runs", job.Id())
+			run := job.LatestRun()
+			if run == nil {
+				ctx.Warnf("job %s is active and not marked as queued, but has no runs associated with it: %s", job.Id(), job)
+				continue
+			} else if run.InTerminalState() {
+				// TODO(albin): Jobs are not always updated in the same transaction as runs,
+				//              so jobs will briefly be marked as inactive despite having a terminal run associated with it.
+				// ctx.Warnf("job %s is active and not marked as queued, but its most recent run is in a terminal state: %s", job.Id(), job)
+				continue
+			}
+			recorder = qs.runningJobRecorder
+			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 		}
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
@@ -194,10 +208,11 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 }
 
 type queueMetricKey struct {
-	cluster   string
-	pool      string
-	queueName string
-	nodeType  string
+	cluster       string
+	pool          string
+	queueName     string
+	nodeType      string
+	priorityClass string
 }
 
 type queuePhaseMetricKey struct {
@@ -270,10 +285,11 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
 						queueKey := queueMetricKey{
-							cluster:   executor.Id,
-							pool:      executor.Pool,
-							queueName: job.Queue(),
-							nodeType:  node.ReportingNodeType,
+							cluster:       executor.Id,
+							pool:          executor.Pool,
+							queueName:     job.Queue(),
+							priorityClass: job.GetPriorityClassName(),
+							nodeType:      node.ReportingNodeType,
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
 					}
@@ -288,7 +304,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, r := range allocatedResourceByQueue {
 		for resourceKey, resourceValue := range r.Resources {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, k.priorityClass, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range usedResourceByQueue {

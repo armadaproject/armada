@@ -53,18 +53,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      - name: Set up Go (no caching)
-        uses: actions/setup-go@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: '1.20'
-          cache: false
+          cache-prefix: go-lint
 
       - name: Lint using golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           skip-pkg-cache: true
           skip-build-cache: true
-          version: v1.52.2
+          version: v1.54
           only-new-issues: true
           args: --timeout=10m --issues-exit-code=1 --sort-results ./...
 

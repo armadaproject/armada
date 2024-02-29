@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -100,6 +101,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	jobDb := jobdb.NewJobDb(
 		schedulingConfig.Preemption.PriorityClasses,
 		schedulingConfig.Preemption.DefaultPriorityClass,
+		1024,
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
@@ -126,6 +128,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		limiterByQueue: make(map[string]*rate.Limiter),
 		rand:           rand.New(rand.NewSource(randomSeed)),
 	}
+	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
 	if err := s.setupClusters(); err != nil {
 		return nil, err
@@ -134,6 +137,14 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		return nil, err
 	}
 	return s, nil
+}
+
+func (s *Simulator) Now() time.Time {
+	return s.time
+}
+
+func (s *Simulator) Since(t time.Time) time.Duration {
+	return s.Now().Sub(t)
 }
 
 // Run runs the scheduler until all jobs have finished successfully.
@@ -217,6 +228,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
+				s.schedulingConfig.WellKnownNodeTypes,
 			)
 			if err != nil {
 				return err
@@ -227,18 +239,17 @@ func (s *Simulator) setupClusters() error {
 				for nodeTemplateIndex, nodeTemplate := range executor.NodeTemplates {
 					for i := 0; i < int(nodeTemplate.Number); i++ {
 						nodeId := fmt.Sprintf("%s-%d-%d-%d-%d", pool.Name, executorGroupIndex, executorIndex, nodeTemplateIndex, i)
-						allocatableByPriorityAndResource := make(map[int32]schedulerobjects.ResourceList)
-						for _, priorityClass := range s.schedulingConfig.Preemption.PriorityClasses {
-							allocatableByPriorityAndResource[priorityClass.Priority] = nodeTemplate.TotalResources.DeepCopy()
-						}
 						node := &schedulerobjects.Node{
-							Id:                               nodeId,
-							Name:                             nodeId,
-							Executor:                         executorName,
-							Taints:                           slices.Clone(nodeTemplate.Taints),
-							Labels:                           maps.Clone(nodeTemplate.Labels),
-							TotalResources:                   nodeTemplate.TotalResources.DeepCopy(),
-							AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
+							Id:             nodeId,
+							Name:           nodeId,
+							Executor:       executorName,
+							Taints:         slices.Clone(nodeTemplate.Taints),
+							Labels:         maps.Clone(nodeTemplate.Labels),
+							TotalResources: nodeTemplate.TotalResources.DeepCopy(),
+							AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+								types.AllowedPriorities(s.schedulingConfig.Preemption.PriorityClasses),
+								nodeTemplate.TotalResources,
+							),
 						}
 						txn := nodeDb.Txn(true)
 						if err := nodeDb.CreateAndInsertWithApiJobsWithTxn(txn, nil, node); err != nil {
@@ -470,9 +481,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				nil,
 				nil,
 			)
-			if s.schedulingConfig.EnableNewPreemptionStrategy {
-				sch.EnableNewPreemptionStrategy()
-			}
+
 			schedulerCtx := ctx
 			if s.SuppressSchedulerLogs {
 				schedulerCtx = &armadacontext.Context{
@@ -488,24 +497,26 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			// Update jobDb to reflect the decisions by the scheduler.
 			// Sort jobs to ensure deterministic event ordering.
 			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult[*jobdb.Job](result)
-			scheduledJobs := scheduler.ScheduledJobsFromSchedulerResult[*jobdb.Job](result)
+			scheduledJobs := slices.Clone(result.ScheduledJobs)
 			failedJobs := scheduler.FailedJobsFromSchedulerResult[*jobdb.Job](result)
-			less := func(a, b *jobdb.Job) bool {
+			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {
-					return true
+					return -1
 				} else if a.Queue() > b.Queue() {
-					return false
+					return 1
 				}
 				if a.Id() < b.Id() {
-					return true
+					return -1
 				} else if a.Id() > b.Id() {
-					return false
+					return 1
 				}
-				return false
+				return 0
 			}
-			slices.SortFunc(preemptedJobs, less)
-			slices.SortFunc(scheduledJobs, less)
-			slices.SortFunc(failedJobs, less)
+			slices.SortFunc(preemptedJobs, lessJob)
+			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
+				return lessJob(a.Job.(*jobdb.Job), b.Job.(*jobdb.Job))
+			})
+			slices.SortFunc(failedJobs, lessJob)
 			for i, job := range preemptedJobs {
 				if run := job.LatestRun(); run != nil {
 					job = job.WithUpdatedRun(run.WithFailed(true))
@@ -514,15 +525,20 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				}
 				preemptedJobs[i] = job.WithQueued(false).WithFailed(true)
 			}
-			for i, job := range scheduledJobs {
+			for i, jctx := range scheduledJobs {
+				job := jctx.Job.(*jobdb.Job)
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				if nodeId == "" {
-					return errors.Errorf("job %s not mapped to any node", job.GetId())
+					return errors.Errorf("job %s not mapped to a node", job.GetId())
 				}
 				if node, err := nodeDb.GetNode(nodeId); err != nil {
 					return err
 				} else {
-					scheduledJobs[i] = job.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
+					priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+					if !ok {
+						return errors.Errorf("job %s not mapped to a priority", job.Id())
+					}
+					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name, priority)
 				}
 			}
 			for i, job := range failedJobs {
@@ -534,7 +550,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := txn.Upsert(scheduledJobs); err != nil {
+			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job.(*jobdb.Job) })); err != nil {
 				return err
 			}
 			if err := txn.Upsert(failedJobs); err != nil {
@@ -550,13 +566,21 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err != nil {
 				return err
 			}
-			eventSequences, err = scheduler.AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs, s.time)
+			eventSequences, err = scheduler.AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs, make(map[string]map[string]string))
 			if err != nil {
 				return err
 			}
 			eventSequences, err = scheduler.AppendEventSequencesFromUnschedulableJobs(eventSequences, failedJobs, s.time)
 			if err != nil {
 				return err
+			}
+
+			// Update event timestamps to be consistent with simulated time.
+			t := s.time
+			for _, eventSequence := range eventSequences {
+				for _, event := range eventSequence.Events {
+					event.Created = &t
+				}
 			}
 
 			// If nothing changed, we're in steady state and can safely skip scheduling until something external has changed.
@@ -790,7 +814,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 	} else if node == nil {
 		return errors.Errorf("node %s not found", run.NodeId())
 	}
-	node, err = nodedb.UnbindJobFromNode(s.schedulingConfig.Preemption.PriorityClasses, job, node)
+	node, err = nodeDb.UnbindJobFromNode(s.schedulingConfig.Preemption.PriorityClasses, job, node)
 	if err != nil {
 		return err
 	}

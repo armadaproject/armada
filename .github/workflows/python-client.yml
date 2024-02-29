@@ -13,6 +13,8 @@ on:
       - 'scripts/build-python-client.sh'
       - 'makefile'
       - '.github/workflows/python-tests/*'
+      - './magefiles/tests.go'
+      - './magefiles/python.go'
 
   pull_request:
     branches-ignore:
@@ -32,7 +34,6 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        go: [ '1.20' ]
         python: [ '3.8', '3.9', '3.10' ]
         include:
           - tox-env: 'py38'
@@ -42,7 +43,10 @@ jobs:
             python: '3.10'
     steps:
       - uses: actions/checkout@v3.3.0
-      - uses: ./.github/workflows/go-setup
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: python-client-tox
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
@@ -52,31 +56,24 @@ jobs:
 
   python-client-integration-tests:
     if: github.repository_owner == 'armadaproject'
-    strategy:
-      fail-fast: false
-      matrix:
-        # WARN(JayF): If we begin attempting to support >1 golang version,
-        # we'll have to ensure that we don't use the same artifact name for
-        # both versions in the matrix -- this will lead to them overwriting
-        # each other.
-        go: [ '1.20' ]
     # As of December 2022, using 8vcpu runners is slower overall,
     # due to longer queue times.
     runs-on: ubuntu-22.04
     env:
-      # Cache Docker layers in the Github actions cache.
-      # These variables are picked up by the goreleaser config.
-      DOCKER_BUILDX_CACHE_FROM: "type=gha"
-      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+      # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@v3.3.0
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
-      - uses: actions/setup-go@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: ${{ matrix.go }}
-      - name: Setup and integration tests
+          cache-prefix: python-client-integration-tests
+          cache-tools: true
+
+      - name: Setup and run integration tests
         run: |
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal

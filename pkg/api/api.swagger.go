@@ -426,36 +426,6 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
-		"    },\n" +
-		"    \"/v1/queue/{name}/info\": {\n" +
-		"      \"get\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Submit\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"GetQueueInfo\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"name\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiQueueInfo\"\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
 		"    }\n" +
 		"  },\n" +
 		"  \"definitions\": {\n" +
@@ -1289,22 +1259,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobSetInfo\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"leasedJobs\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        },\n" +
-		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queuedJobs\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
 		"    \"apiJobSetRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
@@ -1342,7 +1296,11 @@ func SwaggerJsonTemplate() string {
 		"        \"RUNNING\",\n" +
 		"        \"SUCCEEDED\",\n" +
 		"        \"FAILED\",\n" +
-		"        \"UNKNOWN\"\n" +
+		"        \"UNKNOWN\",\n" +
+		"        \"SUBMITTED\",\n" +
+		"        \"LEASED\",\n" +
+		"        \"PREEMPTED\",\n" +
+		"        \"CANCELLED\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +
@@ -1703,21 +1661,6 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"$ref\": \"#/definitions/apiQueue\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiQueueInfo\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"activeJobSets\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/apiJobSetInfo\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

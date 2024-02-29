@@ -9,13 +9,20 @@ import { GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
 import { IGroupJobsService } from "../services/lookoutV2/GroupJobsService"
+import {
+  DEFAULT_PREFERENCES,
+  JobsTablePreferences,
+  stringifyQueryParams,
+  toQueryStringSafe,
+} from "../services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
 import { ApiResult, debounced, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
+import { StandardColumnId } from "../utils/jobsTableColumns"
 
 interface JobSetsContainerProps extends PropsWithRouter {
   v2GroupJobsService: IGroupJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
-  jobSetsAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number | undefined
 }
 
 type JobSetsContainerParams = {
@@ -35,14 +42,15 @@ export type JobSetsContainerState = {
 } & JobSetsContainerParams
 
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
-  autoRefreshService: IntervalService
+  autoRefreshService: IntervalService | undefined
   localStorageService: JobSetsLocalStorageService
   queryParamsService: JobSetsQueryParamsService
 
   constructor(props: JobSetsContainerProps) {
     super(props)
 
-    this.autoRefreshService = new IntervalService(props.jobSetsAutoRefreshMs)
+    this.autoRefreshService =
+      props.jobSetsAutoRefreshMs === undefined ? undefined : new IntervalService(props.jobSetsAutoRefreshMs)
     this.localStorageService = new JobSetsLocalStorageService()
     this.queryParamsService = new JobSetsQueryParamsService(this.props.router)
 
@@ -74,6 +82,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
     this.loadJobSets = this.loadJobSets.bind(this)
     this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
+    this.onJobSetStateClick = this.onJobSetStateClick.bind(this)
   }
 
   async componentDidMount() {
@@ -93,12 +102,12 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
     await this.loadJobSets()
 
-    this.autoRefreshService.registerCallback(this.loadJobSets)
+    this.autoRefreshService?.registerCallback(this.loadJobSets)
     this.tryStartAutoRefreshService()
   }
 
   componentWillUnmount() {
-    this.autoRefreshService.stop()
+    this.autoRefreshService?.stop()
   }
 
   async setQueue(queue: string) {
@@ -216,10 +225,37 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
   tryStartAutoRefreshService() {
     if (this.state.autoRefresh) {
-      this.autoRefreshService.start()
+      this.autoRefreshService?.start()
     } else {
-      this.autoRefreshService.stop()
+      this.autoRefreshService?.stop()
     }
+  }
+
+  private async onJobSetStateClick(rowIndex: number, state: string) {
+    const jobSet = this.state.jobSets[rowIndex]
+
+    const prefs: JobsTablePreferences = {
+      ...DEFAULT_PREFERENCES,
+      filters: [
+        {
+          id: StandardColumnId.Queue,
+          value: jobSet.queue,
+        },
+        {
+          id: StandardColumnId.State,
+          value: [state],
+        },
+        {
+          id: StandardColumnId.JobSet,
+          value: jobSet.jobSetId,
+        },
+      ],
+    }
+
+    this.props.router.navigate({
+      pathname: "/",
+      search: stringifyQueryParams(toQueryStringSafe(prefs)),
+    })
   }
 
   private async updateState(updatedState: JobSetsContainerState) {
@@ -327,8 +363,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onDeselectAllClick={this.deselectAll}
           onSelectAllClick={this.selectAll}
           onCancelJobSetsClick={() => this.openCancelJobSets(true)}
-          onToggleAutoRefresh={this.toggleAutoRefresh}
+          onToggleAutoRefresh={this.autoRefreshService && this.toggleAutoRefresh}
           onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
+          onJobSetStateClick={this.onJobSetStateClick}
         />
       </>
     )

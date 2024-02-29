@@ -27,6 +27,7 @@ prometheus:
   enabled: false
   labels: {}
   scrapeInterval: 10s
+  scrapeTimeout: 10s
 customServiceAccount: null
 serviceAccount: null
 

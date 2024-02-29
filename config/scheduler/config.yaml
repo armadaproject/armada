@@ -11,13 +11,21 @@ metrics:
   refreshInterval: 30s
   metrics:
     scheduleCycleTimeHistogramSettings:
-      start: 1.0
+      start: 10.0
       factor: 1.1
       count: 110
     reconcileCycleTimeHistogramSettings:
-      start: 1.0
+      start: 10.0
       factor: 1.1
       count: 110
+schedulerMetrics:
+  trackedResourceNames:
+    - "cpu"
+    - "memory"
+    - "ephemeral-storage"
+    - "nvidia.com/gpu"
+  matchedRegexIndexByErrorMessageCacheSize: 100
+  resetInterval: "1h"
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -131,4 +139,9 @@ scheduling:
       resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
-
+  failureEstimatorConfig:
+    # Optimised default parameters.
+    numInnerIterations: 10
+    innerOptimiserStepSize: 0.05
+    outerOptimiserStepSize: 0.05
+    outerOptimiserNesterovAcceleration: 0.2

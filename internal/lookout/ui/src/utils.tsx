@@ -7,18 +7,24 @@ export interface OidcConfig {
   clientId: string
   scope: string
 }
+export interface CommandSpec {
+  name: string
+  template: string
+}
 
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
   binocularsBaseUrlPattern: string
-  jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number | undefined
+  jobsAutoRefreshMs: number | undefined
   debugEnabled: boolean
   fakeDataEnabled: boolean
   customTitle: string
   oidcEnabled: boolean
   oidc?: OidcConfig
+  commandSpecs: CommandSpec[]
+  backend: string | undefined
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -39,13 +45,15 @@ export async function getUIConfig(): Promise<UIConfig> {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
     binocularsBaseUrlPattern: "",
-    jobSetsAutoRefreshMs: 15000,
-    jobsAutoRefreshMs: 30000,
+    jobSetsAutoRefreshMs: undefined,
+    jobsAutoRefreshMs: undefined,
     debugEnabled: searchParams.has("debug"),
     fakeDataEnabled: searchParams.has("fakeData"),
     customTitle: "",
     oidcEnabled: false,
     oidc: undefined,
+    commandSpecs: [],
+    backend: undefined,
   }
 
   try {
@@ -64,7 +72,13 @@ export async function getUIConfig(): Promise<UIConfig> {
         clientId: json.Oidc.ClientId,
         scope: json.Oidc.Scope,
       }
+      if (json.CommandSpecs) {
+        config.commandSpecs = json.CommandSpecs.map((c: { Name: string; Template: string }) => {
+          return { name: c.Name, template: c.Template }
+        })
+      }
     }
+    if (json.Backend) config.backend = json.Backend
   } catch (e) {
     console.error(e)
   }
@@ -79,6 +93,9 @@ export async function getUIConfig(): Promise<UIConfig> {
   }
 
   if (window.location.pathname === "/oidc") config.oidcEnabled = true
+
+  const backend = searchParams.get("backend")
+  if (backend) config.backend = backend
 
   return config
 }

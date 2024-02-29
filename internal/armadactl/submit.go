@@ -31,10 +31,19 @@ func (a *App) Submit(path string, dryRun bool) error {
 	}
 
 	requests := client.CreateChunkedSubmitRequests(submitFile.Queue, submitFile.JobSetId, submitFile.Jobs)
-	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
+	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(originalClient api.SubmitClient) error {
+		c := api.CustomSubmitClient{Inner: originalClient}
+
 		for _, request := range requests {
-			response, err := client.SubmitJobs(c, request)
+			response, err := client.CustomClientSubmitJobs(c, request)
 			if err != nil {
+				if response != nil {
+					fmt.Fprintln(a.Out, "[JobSubmitResponse]")
+					for _, jobResponseItem := range response.JobResponseItems {
+						fmt.Fprintf(a.Out, "Error submitting job with id %s, details: %s\n", jobResponseItem.JobId, jobResponseItem.Error)
+					}
+				}
+				fmt.Fprintln(a.Out, "[Error]")
 				return errors.WithMessagef(err, "error submitting request %#v", request)
 			}
 

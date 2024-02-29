@@ -19,7 +19,7 @@ func TestNewGangSchedulingContext(t *testing.T) {
 	gctx := NewGangSchedulingContext(jctxs)
 	assert.Equal(t, jctxs, gctx.JobSchedulingContexts)
 	assert.Equal(t, "A", gctx.Queue)
-	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.PriorityClassName)
+	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.GangInfo.PriorityClassName)
 	assert.True(
 		t,
 		schedulerobjects.ResourceList{
@@ -35,7 +35,7 @@ func TestNewGangSchedulingContext(t *testing.T) {
 
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
-	fairnessCostProvider, err := fairness.NewAssetFairness(map[string]float64{"cpu": 1})
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, []string{"cpu"})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
 		"executor",
@@ -89,9 +89,9 @@ func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) [
 func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
 	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
 	return &JobSchedulingContext{
-		JobId:              job.GetId(),
-		Job:                job,
-		PodRequirements:    job.GetPodRequirements(testfixtures.TestPriorityClasses),
-		GangMinCardinality: 1,
+		JobId:           job.GetId(),
+		Job:             job,
+		PodRequirements: job.GetPodRequirements(testfixtures.TestPriorityClasses),
+		GangInfo:        EmptyGangInfo(job),
 	}
 }
