@@ -203,9 +203,9 @@ func TestScaleQuantity(t *testing.T) {
 	}
 }
 
-func makeConstraintsTest(constaints SchedulingConstraints) *constraintTest {
+func makeConstraintsTest(constraints SchedulingConstraints) *constraintTest {
 	return &constraintTest{
-		constraints: constaints,
+		constraints: constraints,
 		sctx: &schedulercontext.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -160,24 +159,4 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("groupOwners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	return cmd
-}
-
-type flagGetStringToString func(string) (map[string]string, error)
-
-func (f flagGetStringToString) toFloat64(flagName string) (map[string]float64, error) {
-	limits, err := f(flagName)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]float64, len(limits))
-	for resourceName, limit := range limits {
-		limitFloat, err := strconv.ParseFloat(limit, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse %s as float64. %s", resourceName, err)
-		}
-		result[resourceName] = limitFloat
-	}
-
-	return result, nil
 }
