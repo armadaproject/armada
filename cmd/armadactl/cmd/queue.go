@@ -47,17 +47,11 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("error reading groupOwners: %s", err)
 			}
 
-			resourceLimits, err := flagGetStringToString(cmd.Flags().GetStringToString).toFloat64("resourceLimits")
-			if err != nil {
-				return fmt.Errorf("error reading resourceLimits: %s", err)
-			}
-
 			queue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
 				UserOwners:     owners,
 				GroupOwners:    groups,
-				ResourceLimits: resourceLimits,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -69,9 +63,6 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 	cmd.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("groupOwners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
-	cmd.Flags().StringToString("resourceLimits", map[string]string{},
-		"Command separated list of resource limits pairs, defaults to empty list.\nExample: --resourceLimits cpu=0.3,memory=0.2",
-	)
 	return cmd
 }
 
@@ -151,17 +142,11 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading groupOwners: %s", err)
 			}
 
-			resourceLimits, err := flagGetStringToString(cmd.Flags().GetStringToString).toFloat64("resourceLimits")
-			if err != nil {
-				return fmt.Errorf("error reading resourceLimits: %s", err)
-			}
-
 			queue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
 				UserOwners:     owners,
 				GroupOwners:    groups,
-				ResourceLimits: resourceLimits,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -174,9 +159,6 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("groupOwners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
-	cmd.Flags().StringToString("resourceLimits", map[string]string{},
-		"Command separated list of resource limits pairs, defaults to empty list. Example: --resourceLimits cpu=0.3,memory=0.2",
-	)
 	return cmd
 }
 
