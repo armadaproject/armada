@@ -5,9 +5,9 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-type namespaceValidator struct{}
+type hasNamespaceValidator struct{}
 
-func (p namespaceValidator) Validate(j *api.JobSubmitRequestItem) error {
+func (p hasNamespaceValidator) Validate(j *api.JobSubmitRequestItem) error {
 	if len(j.Namespace) == 0 {
 		return fmt.Errorf("namespace is a required field")
 	}

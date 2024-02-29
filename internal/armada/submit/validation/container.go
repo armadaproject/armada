@@ -2,15 +2,24 @@ package validation
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/pkg/api"
 	v1 "k8s.io/api/core/v1"
 )
 
 type containerValidator struct {
-	podSpecValidator
 	minJobResources v1.ResourceList
 }
 
-func (c containerValidator) validatePodSpec(spec *v1.PodSpec) error {
+func (c containerValidator) Validate(j *api.JobSubmitRequestItem) error {
+
+	spec := j.GetMainPodSpec()
+	if spec == nil {
+		return nil
+	}
+
+	if len(spec.Containers) == 0 {
+		return fmt.Errorf("pod spec has no containers")
+	}
 
 	for _, container := range spec.Containers {
 
@@ -26,10 +35,9 @@ func (c containerValidator) validatePodSpec(spec *v1.PodSpec) error {
 			serverRsc, nonEmpty := c.minJobResources[rc]
 			if nonEmpty && containerRsc.Value() < serverRsc.Value() {
 				return fmt.Errorf(
-					"container %q %s %s (%s) below server minimum (%s)",
+					"container %q %s requests (%s) below server minimum (%s)",
 					container.Name,
 					rc,
-					containerRsc,
 					&containerRsc,
 					&serverRsc,
 				)

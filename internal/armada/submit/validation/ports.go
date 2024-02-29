@@ -2,14 +2,18 @@ package validation
 
 import (
 	"fmt"
-	v1 "k8s.io/api/core/v1"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
-type portsValidator struct {
-	podSpecValidator
-}
+type portsValidator struct{}
 
-func (p portsValidator) validatePodSpec(spec *v1.PodSpec) error {
+func (p portsValidator) Validate(j *api.JobSubmitRequestItem) error {
+
+	spec := j.GetMainPodSpec()
+	if spec == nil {
+		return nil
+	}
+
 	existingPortSet := make(map[int32]int)
 	for index, container := range spec.Containers {
 		for _, port := range container.Ports {

@@ -2,16 +2,17 @@ package validation
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/pkg/api"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
-type affinityValidator struct {
-	podSpecValidator
-}
+type affinityValidator struct{}
 
-func (p affinityValidator) validatePodSpec(spec *v1.PodSpec) error {
-	affinity := extractNodeAffinity(spec)
+func (p affinityValidator) Validate(j *api.JobSubmitRequestItem) error {
+
+	affinity := extractNodeAffinity(j)
+
 	if affinity == nil {
 		return nil // No affinity to check
 	}
@@ -31,8 +32,12 @@ func (p affinityValidator) validatePodSpec(spec *v1.PodSpec) error {
 	return nil
 }
 
-func extractNodeAffinity(p *v1.PodSpec) *v1.NodeAffinity {
-	affinity := p.Affinity
+func extractNodeAffinity(j *api.JobSubmitRequestItem) *v1.NodeAffinity {
+	podSpec := j.GetMainPodSpec()
+	if podSpec == nil {
+		return nil
+	}
+	affinity := podSpec.Affinity
 	if affinity == nil {
 		return nil
 	}
