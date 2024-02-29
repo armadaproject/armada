@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
@@ -21,7 +22,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -711,6 +711,10 @@ func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
+func SingleQueuePriorityOne(name string) []queue.Queue {
+	return []queue.Queue{{Name: name, PriorityFactor: 1.0}}
+}
+
 func TestNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
@@ -783,10 +787,10 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	}
 }
 
-func TestDbQueue() *database.Queue {
-	return &database.Queue{
-		Name:   TestQueue,
-		Weight: 100,
+func MakeTestQueue() queue.Queue {
+	return queue.Queue{
+		Name:           TestQueue,
+		PriorityFactor: 0.01,
 	}
 }
 

@@ -1097,12 +1097,15 @@ func (m *JobSubmitResponse) GetJobResponseItems() []*JobSubmitResponseItem {
 
 // swagger:model
 type Queue struct {
-	Name           string               `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	PriorityFactor float64              `protobuf:"fixed64,2,opt,name=priority_factor,json=priorityFactor,proto3" json:"priorityFactor,omitempty"`
-	UserOwners     []string             `protobuf:"bytes,3,rep,name=user_owners,json=userOwners,proto3" json:"userOwners,omitempty"`
-	GroupOwners    []string             `protobuf:"bytes,4,rep,name=group_owners,json=groupOwners,proto3" json:"groupOwners,omitempty"`
-	ResourceLimits map[string]float64   `protobuf:"bytes,5,rep,name=resource_limits,json=resourceLimits,proto3" json:"resourceLimits,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
-	Permissions    []*Queue_Permissions `protobuf:"bytes,6,rep,name=permissions,proto3" json:"permissions,omitempty"`
+	Name           string             `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	PriorityFactor float64            `protobuf:"fixed64,2,opt,name=priority_factor,json=priorityFactor,proto3" json:"priorityFactor,omitempty"`
+	UserOwners     []string           `protobuf:"bytes,3,rep,name=user_owners,json=userOwners,proto3" json:"userOwners,omitempty"`
+	GroupOwners    []string           `protobuf:"bytes,4,rep,name=group_owners,json=groupOwners,proto3" json:"groupOwners,omitempty"`
+	ResourceLimits map[string]float64 `protobuf:"bytes,5,rep,name=resource_limits,json=resourceLimits,proto3" json:"resourceLimits,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"` // Deprecated: Do not use.
+	// Map from priority class name to resource limit overrides for this queue and priority class.
+	// If provided for a priority class, global limits for that priority class do not apply to this queue.
+	ResourceLimitsByPriorityClassName map[string]PriorityClassResourceLimits `protobuf:"bytes,7,rep,name=resource_limits_by_priority_class_name,json=resourceLimitsByPriorityClassName,proto3" json:"resourceLimitsByPriorityClassName" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Permissions                       []*Queue_Permissions                   `protobuf:"bytes,6,rep,name=permissions,proto3" json:"permissions,omitempty"`
 }
 
 func (m *Queue) Reset()      { *m = Queue{} }
@@ -1165,9 +1168,17 @@ func (m *Queue) GetGroupOwners() []string {
 	return nil
 }
 
+// Deprecated: Do not use.
 func (m *Queue) GetResourceLimits() map[string]float64 {
 	if m != nil {
 		return m.ResourceLimits
+	}
+	return nil
+}
+
+func (m *Queue) GetResourceLimitsByPriorityClassName() map[string]PriorityClassResourceLimits {
+	if m != nil {
+		return m.ResourceLimitsByPriorityClassName
 	}
 	return nil
 }
@@ -1281,6 +1292,104 @@ func (m *Queue_Permissions_Subject) GetName() string {
 	return ""
 }
 
+type PriorityClassResourceLimits struct {
+	// Limits resources assigned to jobs of this priority class.
+	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
+	MaximumResourceFraction map[string]float64 `protobuf:"bytes,1,rep,name=maximum_resource_fraction,json=maximumResourceFraction,proto3" json:"maximumResourceFraction" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	// Per-pool override of maximum_resource_fraction.
+	// If missing for a particular pool, maximum_resource_fraction is used instead for that pool.
+	MaximumResourceFractionByPool map[string]PriorityClassPoolResourceLimits `protobuf:"bytes,2,rep,name=maximum_resource_fraction_by_pool,json=maximumResourceFractionByPool,proto3" json:"maximumResourceFractionByPool" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (m *PriorityClassResourceLimits) Reset()      { *m = PriorityClassResourceLimits{} }
+func (*PriorityClassResourceLimits) ProtoMessage() {}
+func (*PriorityClassResourceLimits) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{12}
+}
+func (m *PriorityClassResourceLimits) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PriorityClassResourceLimits) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PriorityClassResourceLimits.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PriorityClassResourceLimits) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PriorityClassResourceLimits.Merge(m, src)
+}
+func (m *PriorityClassResourceLimits) XXX_Size() int {
+	return m.Size()
+}
+func (m *PriorityClassResourceLimits) XXX_DiscardUnknown() {
+	xxx_messageInfo_PriorityClassResourceLimits.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PriorityClassResourceLimits proto.InternalMessageInfo
+
+func (m *PriorityClassResourceLimits) GetMaximumResourceFraction() map[string]float64 {
+	if m != nil {
+		return m.MaximumResourceFraction
+	}
+	return nil
+}
+
+func (m *PriorityClassResourceLimits) GetMaximumResourceFractionByPool() map[string]PriorityClassPoolResourceLimits {
+	if m != nil {
+		return m.MaximumResourceFractionByPool
+	}
+	return nil
+}
+
+type PriorityClassPoolResourceLimits struct {
+	MaximumResourceFraction map[string]float64 `protobuf:"bytes,1,rep,name=maximum_resource_fraction,json=maximumResourceFraction,proto3" json:"maximumResourceFraction" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+}
+
+func (m *PriorityClassPoolResourceLimits) Reset()      { *m = PriorityClassPoolResourceLimits{} }
+func (*PriorityClassPoolResourceLimits) ProtoMessage() {}
+func (*PriorityClassPoolResourceLimits) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{13}
+}
+func (m *PriorityClassPoolResourceLimits) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PriorityClassPoolResourceLimits) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PriorityClassPoolResourceLimits.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PriorityClassPoolResourceLimits) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PriorityClassPoolResourceLimits.Merge(m, src)
+}
+func (m *PriorityClassPoolResourceLimits) XXX_Size() int {
+	return m.Size()
+}
+func (m *PriorityClassPoolResourceLimits) XXX_DiscardUnknown() {
+	xxx_messageInfo_PriorityClassPoolResourceLimits.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PriorityClassPoolResourceLimits proto.InternalMessageInfo
+
+func (m *PriorityClassPoolResourceLimits) GetMaximumResourceFraction() map[string]float64 {
+	if m != nil {
+		return m.MaximumResourceFraction
+	}
+	return nil
+}
+
 // swagger:model
 type QueueList struct {
 	Queues []*Queue `protobuf:"bytes,1,rep,name=queues,proto3" json:"queues,omitempty"`
@@ -1289,7 +1398,11 @@ type QueueList struct {
 func (m *QueueList) Reset()      { *m = QueueList{} }
 func (*QueueList) ProtoMessage() {}
 func (*QueueList) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{14}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{13}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *QueueList) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1333,7 +1446,11 @@ type CancellationResult struct {
 func (m *CancellationResult) Reset()      { *m = CancellationResult{} }
 func (*CancellationResult) ProtoMessage() {}
 func (*CancellationResult) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{15}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{14}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *CancellationResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1377,7 +1494,11 @@ type QueueGetRequest struct {
 func (m *QueueGetRequest) Reset()      { *m = QueueGetRequest{} }
 func (*QueueGetRequest) ProtoMessage() {}
 func (*QueueGetRequest) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{16}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{15}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *QueueGetRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1421,7 +1542,11 @@ type StreamingQueueGetRequest struct {
 func (m *StreamingQueueGetRequest) Reset()      { *m = StreamingQueueGetRequest{} }
 func (*StreamingQueueGetRequest) ProtoMessage() {}
 func (*StreamingQueueGetRequest) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{17}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{16}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *StreamingQueueGetRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1458,6 +1583,53 @@ func (m *StreamingQueueGetRequest) GetNum() uint32 {
 }
 
 //swagger:model
+<<<<<<< HEAD
+type QueueInfoRequest struct {
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+}
+
+func (m *QueueInfoRequest) Reset()      { *m = QueueInfoRequest{} }
+func (*QueueInfoRequest) ProtoMessage() {}
+func (*QueueInfoRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{18}
+}
+func (m *QueueInfoRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueInfoRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueInfoRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueInfoRequest.Merge(m, src)
+}
+func (m *QueueInfoRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueInfoRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueInfoRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueInfoRequest proto.InternalMessageInfo
+
+func (m *QueueInfoRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+//swagger:model
+=======
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 type QueueDeleteRequest struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 }
@@ -1465,7 +1637,7 @@ type QueueDeleteRequest struct {
 func (m *QueueDeleteRequest) Reset()      { *m = QueueDeleteRequest{} }
 func (*QueueDeleteRequest) ProtoMessage() {}
 func (*QueueDeleteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{17}
+	return fileDescriptor_e998bacb27df16c1, []int{19}
 }
 func (m *QueueDeleteRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1501,6 +1673,61 @@ func (m *QueueDeleteRequest) GetName() string {
 	return ""
 }
 
+<<<<<<< HEAD
+//swagger:model
+type QueueInfo struct {
+	Name          string        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ActiveJobSets []*JobSetInfo `protobuf:"bytes,2,rep,name=active_job_sets,json=activeJobSets,proto3" json:"activeJobSets,omitempty"`
+}
+
+func (m *QueueInfo) Reset()      { *m = QueueInfo{} }
+func (*QueueInfo) ProtoMessage() {}
+func (*QueueInfo) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{20}
+}
+func (m *QueueInfo) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueInfo.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueInfo) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueInfo.Merge(m, src)
+}
+func (m *QueueInfo) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueInfo) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueInfo.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueInfo proto.InternalMessageInfo
+
+func (m *QueueInfo) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *QueueInfo) GetActiveJobSets() []*JobSetInfo {
+	if m != nil {
+		return m.ActiveJobSets
+	}
+	return nil
+}
+
+=======
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 type JobSetInfo struct {
 	Name       string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	QueuedJobs int32  `protobuf:"varint,2,opt,name=queued_jobs,json=queuedJobs,proto3" json:"queuedJobs,omitempty"`
@@ -1510,7 +1737,11 @@ type JobSetInfo struct {
 func (m *JobSetInfo) Reset()      { *m = JobSetInfo{} }
 func (*JobSetInfo) ProtoMessage() {}
 func (*JobSetInfo) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{21}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{18}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *JobSetInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1568,7 +1799,11 @@ type QueueUpdateResponse struct {
 func (m *QueueUpdateResponse) Reset()      { *m = QueueUpdateResponse{} }
 func (*QueueUpdateResponse) ProtoMessage() {}
 func (*QueueUpdateResponse) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{22}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{19}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *QueueUpdateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1618,7 +1853,11 @@ type BatchQueueUpdateResponse struct {
 func (m *BatchQueueUpdateResponse) Reset()      { *m = BatchQueueUpdateResponse{} }
 func (*BatchQueueUpdateResponse) ProtoMessage() {}
 func (*BatchQueueUpdateResponse) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{23}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{20}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *BatchQueueUpdateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1662,7 +1901,11 @@ type QueueCreateResponse struct {
 func (m *QueueCreateResponse) Reset()      { *m = QueueCreateResponse{} }
 func (*QueueCreateResponse) ProtoMessage() {}
 func (*QueueCreateResponse) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{24}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{21}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *QueueCreateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1712,7 +1955,11 @@ type BatchQueueCreateResponse struct {
 func (m *BatchQueueCreateResponse) Reset()      { *m = BatchQueueCreateResponse{} }
 func (*BatchQueueCreateResponse) ProtoMessage() {}
 func (*BatchQueueCreateResponse) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{25}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{22}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *BatchQueueCreateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1755,7 +2002,11 @@ type EndMarker struct {
 func (m *EndMarker) Reset()      { *m = EndMarker{} }
 func (*EndMarker) ProtoMessage() {}
 func (*EndMarker) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{26}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{23}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *EndMarker) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1794,7 +2045,11 @@ type StreamingQueueMessage struct {
 func (m *StreamingQueueMessage) Reset()      { *m = StreamingQueueMessage{} }
 func (*StreamingQueueMessage) ProtoMessage() {}
 func (*StreamingQueueMessage) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
+	return fileDescriptor_e998bacb27df16c1, []int{27}
+=======
 	return fileDescriptor_e998bacb27df16c1, []int{24}
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 func (m *StreamingQueueMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1893,9 +2148,15 @@ func init() {
 	proto.RegisterType((*JobSubmitResponseItem)(nil), "api.JobSubmitResponseItem")
 	proto.RegisterType((*JobSubmitResponse)(nil), "api.JobSubmitResponse")
 	proto.RegisterType((*Queue)(nil), "api.Queue")
+	proto.RegisterMapType((map[string]PriorityClassResourceLimits)(nil), "api.Queue.ResourceLimitsByPriorityClassNameEntry")
 	proto.RegisterMapType((map[string]float64)(nil), "api.Queue.ResourceLimitsEntry")
 	proto.RegisterType((*Queue_Permissions)(nil), "api.Queue.Permissions")
 	proto.RegisterType((*Queue_Permissions_Subject)(nil), "api.Queue.Permissions.Subject")
+	proto.RegisterType((*PriorityClassResourceLimits)(nil), "api.PriorityClassResourceLimits")
+	proto.RegisterMapType((map[string]PriorityClassPoolResourceLimits)(nil), "api.PriorityClassResourceLimits.MaximumResourceFractionByPoolEntry")
+	proto.RegisterMapType((map[string]float64)(nil), "api.PriorityClassResourceLimits.MaximumResourceFractionEntry")
+	proto.RegisterType((*PriorityClassPoolResourceLimits)(nil), "api.PriorityClassPoolResourceLimits")
+	proto.RegisterMapType((map[string]float64)(nil), "api.PriorityClassPoolResourceLimits.MaximumResourceFractionEntry")
 	proto.RegisterType((*QueueList)(nil), "api.QueueList")
 	proto.RegisterType((*CancellationResult)(nil), "api.CancellationResult")
 	proto.RegisterType((*QueueGetRequest)(nil), "api.QueueGetRequest")
@@ -1913,6 +2174,169 @@ func init() {
 func init() { proto.RegisterFile("pkg/api/submit.proto", fileDescriptor_e998bacb27df16c1) }
 
 var fileDescriptor_e998bacb27df16c1 = []byte{
+<<<<<<< HEAD
+	// 2549 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x5a, 0x4b, 0x6f, 0x1b, 0xc9,
+	0x11, 0xd6, 0x88, 0x12, 0x25, 0x16, 0xf5, 0xa0, 0x5a, 0xaf, 0x11, 0x25, 0x93, 0xda, 0xf1, 0xae,
+	0x23, 0x0b, 0xbb, 0x64, 0xac, 0x8d, 0x11, 0xdb, 0xd9, 0xc0, 0x30, 0x25, 0xca, 0x96, 0x1f, 0xb2,
+	0x4c, 0x59, 0xd9, 0xdd, 0x1c, 0xc2, 0x1d, 0x72, 0x5a, 0xd4, 0x48, 0xc3, 0x19, 0x7a, 0x1e, 0x72,
+	0x94, 0x60, 0x81, 0x20, 0x87, 0x0d, 0x72, 0x5b, 0x20, 0xb7, 0x04, 0xd8, 0x1f, 0xb0, 0x39, 0xe4,
+	0x12, 0xe4, 0x37, 0xec, 0x71, 0x81, 0x20, 0xc0, 0xe6, 0x42, 0x24, 0x76, 0x1e, 0x00, 0x6f, 0xb9,
+	0xe7, 0x10, 0x74, 0xf5, 0x0c, 0xa7, 0x87, 0x0f, 0x3d, 0x0c, 0x28, 0x7b, 0x53, 0x7f, 0x5d, 0xf5,
+	0x55, 0x55, 0x77, 0x55, 0x75, 0xf7, 0x50, 0x30, 0xd3, 0x38, 0xaa, 0xe5, 0xd5, 0x86, 0x9e, 0x77,
+	0xbc, 0x4a, 0x5d, 0x77, 0x73, 0x0d, 0xdb, 0x72, 0x2d, 0x12, 0x53, 0x1b, 0x7a, 0x7a, 0xb1, 0x66,
+	0x59, 0x35, 0x83, 0xe6, 0x11, 0xaa, 0x78, 0xfb, 0x79, 0x5a, 0x6f, 0xb8, 0x27, 0x5c, 0x22, 0xad,
+	0x1c, 0xdd, 0x72, 0x72, 0xba, 0x85, 0xaa, 0x55, 0xcb, 0xa6, 0xf9, 0xe3, 0x1b, 0xf9, 0x1a, 0x35,
+	0xa9, 0xad, 0xba, 0x54, 0xf3, 0x65, 0x96, 0x7c, 0x02, 0x26, 0xa3, 0x9a, 0xa6, 0xe5, 0xaa, 0xae,
+	0x6e, 0x99, 0x8e, 0x3f, 0xfb, 0x5e, 0x4d, 0x77, 0x0f, 0xbc, 0x4a, 0xae, 0x6a, 0xd5, 0xf3, 0x35,
+	0xab, 0x66, 0x85, 0x76, 0xd8, 0x08, 0x07, 0xf8, 0x97, 0x2f, 0xde, 0x76, 0xf4, 0x80, 0xaa, 0x86,
+	0x7b, 0xc0, 0x51, 0xa5, 0x95, 0x80, 0x99, 0x87, 0x56, 0x65, 0x17, 0x9d, 0x2f, 0xd1, 0x17, 0x1e,
+	0x75, 0xdc, 0x2d, 0x97, 0xd6, 0xc9, 0x1a, 0x8c, 0x36, 0x6c, 0xdd, 0xb2, 0x75, 0xf7, 0x44, 0x96,
+	0x96, 0xa5, 0x15, 0xa9, 0x30, 0xd7, 0x6a, 0x66, 0x49, 0x80, 0xbd, 0x6b, 0xd5, 0x75, 0x17, 0xe3,
+	0x29, 0xb5, 0xe5, 0xc8, 0x4d, 0x48, 0x98, 0x6a, 0x9d, 0x3a, 0x0d, 0xb5, 0x4a, 0xe5, 0xd8, 0xb2,
+	0xb4, 0x92, 0x28, 0xcc, 0xb7, 0x9a, 0xd9, 0xe9, 0x36, 0x28, 0x68, 0x85, 0x92, 0xe4, 0x7d, 0x48,
+	0x54, 0x0d, 0x9d, 0x9a, 0x6e, 0x59, 0xd7, 0xe4, 0x51, 0x54, 0x43, 0x5b, 0x1c, 0xdc, 0xd2, 0x44,
+	0x5b, 0x01, 0x46, 0x76, 0x21, 0x6e, 0xa8, 0x15, 0x6a, 0x38, 0xf2, 0xd0, 0x72, 0x6c, 0x25, 0xb9,
+	0xf6, 0x4e, 0x4e, 0x6d, 0xe8, 0xb9, 0x5e, 0xa1, 0xe4, 0x1e, 0xa3, 0x5c, 0xd1, 0x74, 0xed, 0x93,
+	0xc2, 0x4c, 0xab, 0x99, 0x4d, 0x71, 0x45, 0x81, 0xd6, 0xa7, 0x22, 0x35, 0x48, 0x0a, 0xeb, 0x2c,
+	0x0f, 0x23, 0xf3, 0x6a, 0x7f, 0xe6, 0x7b, 0xa1, 0x30, 0xa7, 0x5f, 0x68, 0x35, 0xb3, 0xb3, 0x02,
+	0x85, 0x60, 0x43, 0x64, 0x26, 0xbf, 0x92, 0x60, 0xc6, 0xa6, 0x2f, 0x3c, 0xdd, 0xa6, 0x5a, 0xd9,
+	0xb4, 0x34, 0x5a, 0xf6, 0x83, 0x89, 0xa3, 0xc9, 0x1b, 0xfd, 0x4d, 0x96, 0x7c, 0xad, 0x6d, 0x4b,
+	0xa3, 0x62, 0x60, 0x4a, 0xab, 0x99, 0x5d, 0xb2, 0xbb, 0x26, 0x43, 0x07, 0x64, 0xa9, 0x44, 0xba,
+	0xe7, 0xc9, 0x53, 0x18, 0x6d, 0x58, 0x5a, 0xd9, 0x69, 0xd0, 0xaa, 0x3c, 0xb8, 0x2c, 0xad, 0x24,
+	0xd7, 0x16, 0x73, 0x3c, 0x35, 0xd1, 0x07, 0x96, 0x9a, 0xb9, 0xe3, 0x1b, 0xb9, 0x1d, 0x4b, 0xdb,
+	0x6d, 0xd0, 0x2a, 0xee, 0xe7, 0x54, 0x83, 0x0f, 0x22, 0xdc, 0x23, 0x3e, 0x48, 0x76, 0x20, 0x11,
+	0x10, 0x3a, 0xf2, 0x08, 0x86, 0x73, 0x2a, 0x23, 0x4f, 0x2b, 0x3e, 0x70, 0x22, 0x69, 0xe5, 0x63,
+	0x64, 0x1d, 0x46, 0x74, 0xb3, 0x66, 0x53, 0xc7, 0x91, 0x13, 0xc8, 0x47, 0x90, 0x68, 0x8b, 0x63,
+	0xeb, 0x96, 0xb9, 0xaf, 0xd7, 0x0a, 0xb3, 0xcc, 0x31, 0x5f, 0x4c, 0x60, 0x09, 0x34, 0xc9, 0x26,
+	0x8c, 0x3a, 0xd4, 0x3e, 0xd6, 0xab, 0xd4, 0x91, 0x41, 0x60, 0xd9, 0xe5, 0xa0, 0xcf, 0x82, 0xce,
+	0x04, 0x72, 0xa2, 0x33, 0x01, 0xc6, 0x72, 0xdc, 0xa9, 0x1e, 0x50, 0xcd, 0x33, 0xa8, 0x2d, 0x27,
+	0xc3, 0x1c, 0x6f, 0x83, 0x62, 0x8e, 0xb7, 0x41, 0xb2, 0x05, 0x53, 0x2f, 0x3c, 0xea, 0xd1, 0xb2,
+	0xeb, 0x1a, 0x65, 0x87, 0x56, 0x2d, 0x53, 0x73, 0xe4, 0xb1, 0x65, 0x69, 0x25, 0x56, 0xb8, 0xd2,
+	0x6a, 0x66, 0x17, 0x70, 0xf2, 0xb9, 0x6b, 0xec, 0xf2, 0x29, 0x81, 0x64, 0xb2, 0x63, 0x2a, 0xad,
+	0x42, 0x52, 0xd8, 0x78, 0x72, 0x15, 0x62, 0x47, 0x94, 0xd7, 0x68, 0xa2, 0x30, 0xd5, 0x6a, 0x66,
+	0xc7, 0x8f, 0xa8, 0x58, 0x9e, 0x6c, 0x96, 0x5c, 0x87, 0xe1, 0x63, 0xd5, 0xf0, 0x28, 0x6e, 0x71,
+	0xa2, 0x30, 0xdd, 0x6a, 0x66, 0x27, 0x11, 0x10, 0x04, 0xb9, 0xc4, 0x9d, 0xc1, 0x5b, 0x52, 0x7a,
+	0x1f, 0x52, 0x9d, 0xa9, 0x7d, 0x29, 0x76, 0xea, 0x30, 0xdf, 0x27, 0x9f, 0x2f, 0xc3, 0x9c, 0xf2,
+	0x9f, 0x18, 0x8c, 0x47, 0xb2, 0x86, 0xdc, 0x81, 0x21, 0xf7, 0xa4, 0x41, 0xd1, 0xcc, 0xc4, 0x5a,
+	0x4a, 0xcc, 0xab, 0xe7, 0x27, 0x0d, 0x8a, 0xed, 0x62, 0x82, 0x49, 0x44, 0x72, 0x1d, 0x75, 0x98,
+	0xf1, 0x86, 0x65, 0xbb, 0x8e, 0x3c, 0xb8, 0x1c, 0x5b, 0x19, 0xe7, 0xc6, 0x11, 0x10, 0x8d, 0x23,
+	0x40, 0x3e, 0x89, 0xf6, 0x95, 0x18, 0xe6, 0xdf, 0xd5, 0xee, 0x2c, 0x7e, 0xf3, 0x86, 0x72, 0x1b,
+	0x92, 0xae, 0xe1, 0x94, 0xa9, 0xa9, 0x56, 0x0c, 0xaa, 0xc9, 0x43, 0xcb, 0xd2, 0xca, 0x68, 0x41,
+	0x6e, 0x35, 0xb3, 0x33, 0x2e, 0x5b, 0x51, 0x44, 0x05, 0x5d, 0x08, 0x51, 0x6c, 0xbf, 0xd4, 0x76,
+	0xcb, 0xac, 0x21, 0xcb, 0xc3, 0x42, 0xfb, 0xa5, 0xb6, 0xbb, 0xad, 0xd6, 0x69, 0xa4, 0xfd, 0xfa,
+	0x18, 0xb9, 0x0b, 0xe3, 0x9e, 0x43, 0xcb, 0x55, 0xc3, 0x73, 0x5c, 0x6a, 0x6f, 0xed, 0xc8, 0x71,
+	0xb4, 0x98, 0x6e, 0x35, 0xb3, 0x73, 0x9e, 0x43, 0xd7, 0x03, 0x5c, 0x50, 0x1e, 0x13, 0xf1, 0xff,
+	0x57, 0x8a, 0x29, 0x2e, 0x8c, 0x47, 0x4a, 0x9c, 0xdc, 0xea, 0xb1, 0xe5, 0xbe, 0x04, 0x6e, 0x39,
+	0xe9, 0xde, 0xf2, 0x0b, 0x6f, 0xb8, 0xf2, 0x57, 0x09, 0x52, 0x9d, 0xed, 0x9b, 0xe9, 0x63, 0x2d,
+	0xfb, 0x01, 0xa2, 0x3e, 0x02, 0xa2, 0x3e, 0x02, 0xe4, 0x7b, 0x00, 0x87, 0x56, 0xa5, 0xec, 0x50,
+	0x3c, 0x13, 0x07, 0xc3, 0x4d, 0x39, 0xb4, 0x2a, 0xbb, 0xb4, 0xe3, 0x4c, 0x0c, 0x30, 0xa2, 0xc1,
+	0x14, 0xd3, 0xb2, 0xb9, 0xbd, 0x32, 0x13, 0x08, 0x92, 0x6d, 0xa1, 0xef, 0x89, 0xc2, 0xfb, 0xcf,
+	0xa1, 0x55, 0x11, 0xb0, 0x48, 0xff, 0xe9, 0x98, 0x52, 0xfe, 0xcb, 0x63, 0x5b, 0x57, 0xcd, 0x2a,
+	0x35, 0x82, 0xd8, 0x56, 0x21, 0xce, 0x4c, 0xeb, 0x9a, 0x18, 0xdc, 0xa1, 0x55, 0x89, 0x78, 0x3a,
+	0x8c, 0xc0, 0x1b, 0x06, 0xd7, 0x5e, 0xbd, 0xd8, 0x99, 0xab, 0xf7, 0x1e, 0x8c, 0x70, 0x67, 0xf8,
+	0xe5, 0x20, 0xc1, 0x4f, 0x7d, 0x34, 0x1e, 0x39, 0xf5, 0x39, 0x42, 0xde, 0x85, 0xb8, 0x4d, 0x55,
+	0xc7, 0x32, 0xfd, 0xec, 0x47, 0x69, 0x8e, 0x88, 0xd2, 0x1c, 0x51, 0xfe, 0x29, 0xc1, 0xf4, 0x43,
+	0x74, 0x2a, 0xba, 0x02, 0xd1, 0xa8, 0xa4, 0x8b, 0x46, 0x35, 0x78, 0x66, 0x54, 0x77, 0x21, 0xbe,
+	0xaf, 0x1b, 0x2e, 0xb5, 0x71, 0x05, 0x92, 0x6b, 0x53, 0xed, 0x2d, 0xa5, 0xee, 0x26, 0x4e, 0x70,
+	0xcf, 0xb9, 0x90, 0xe8, 0x39, 0x47, 0x84, 0x38, 0x87, 0xce, 0x11, 0xe7, 0x23, 0x18, 0x13, 0xb9,
+	0xc9, 0x0f, 0x20, 0xee, 0xb8, 0xaa, 0x4b, 0x1d, 0x59, 0x5a, 0x8e, 0xad, 0x4c, 0xac, 0x8d, 0xb7,
+	0xcd, 0x33, 0x94, 0x93, 0x71, 0x01, 0x91, 0x8c, 0x23, 0xca, 0xbf, 0x24, 0x98, 0x7b, 0xc8, 0xf2,
+	0xc8, 0xbf, 0x2b, 0xea, 0x3f, 0xa3, 0xc1, 0xba, 0x09, 0x9b, 0x25, 0x9d, 0x63, 0xb3, 0x2e, 0x3d,
+	0x79, 0x3e, 0x80, 0x31, 0x93, 0xbe, 0x2c, 0xb7, 0x2f, 0xbf, 0x43, 0x78, 0xf9, 0xc5, 0x3e, 0x6c,
+	0xd2, 0x97, 0x3b, 0xdd, 0xf7, 0xdf, 0xa4, 0x00, 0x2b, 0xbf, 0x1f, 0x84, 0xf9, 0xae, 0x40, 0x9d,
+	0x86, 0x65, 0x3a, 0x94, 0xfc, 0x4e, 0x02, 0xd9, 0x0e, 0x27, 0xb0, 0xf3, 0x95, 0x6d, 0xea, 0x78,
+	0x86, 0xcb, 0x63, 0x4f, 0xae, 0xdd, 0x0e, 0x16, 0xb5, 0x17, 0x41, 0xae, 0xd4, 0xa1, 0x5c, 0xe2,
+	0xba, 0xfc, 0xa4, 0x78, 0xa7, 0xd5, 0xcc, 0xbe, 0x65, 0xf7, 0x96, 0x10, 0xbc, 0x9d, 0xef, 0x23,
+	0x92, 0xb6, 0x61, 0xe9, 0x34, 0xfe, 0x4b, 0x69, 0xce, 0x26, 0xcc, 0x0a, 0x2d, 0x89, 0x47, 0x89,
+	0xaf, 0x8f, 0x8b, 0xb4, 0x93, 0xeb, 0x30, 0x4c, 0x6d, 0xdb, 0xb2, 0x45, 0x9b, 0x08, 0x88, 0xa2,
+	0x08, 0x28, 0x9f, 0xc2, 0x54, 0x97, 0x3d, 0x72, 0x00, 0x84, 0x77, 0x4d, 0x3e, 0xf6, 0xdb, 0x26,
+	0xdf, 0x8f, 0x74, 0x67, 0xdb, 0x0c, 0x7d, 0x2c, 0x64, 0x5a, 0xcd, 0x6c, 0x1a, 0x9b, 0x63, 0x08,
+	0x8a, 0x2b, 0x9d, 0xea, 0x9c, 0x53, 0xfe, 0x32, 0x0a, 0xc3, 0xcf, 0x30, 0xc9, 0xae, 0xc1, 0x10,
+	0x1e, 0xb7, 0x3c, 0x3a, 0x3c, 0x72, 0xcc, 0xe8, 0x51, 0x8b, 0xf3, 0xa4, 0x08, 0x93, 0x41, 0x22,
+	0x96, 0xf7, 0xd5, 0xaa, 0xeb, 0x47, 0x29, 0x15, 0x96, 0x5a, 0xcd, 0xac, 0x1c, 0x4c, 0x6d, 0xe2,
+	0x8c, 0xa0, 0x3c, 0x11, 0x9d, 0x61, 0xb7, 0x03, 0xcf, 0xa1, 0x76, 0xd9, 0x7a, 0x69, 0x52, 0x9b,
+	0x1f, 0x09, 0x09, 0x7e, 0x3b, 0x60, 0xf0, 0x53, 0x44, 0xc5, 0xdb, 0x41, 0x88, 0xb2, 0x72, 0xa8,
+	0xd9, 0x96, 0xd7, 0x08, 0x74, 0x79, 0x43, 0xc5, 0x72, 0x40, 0xbc, 0x4b, 0x39, 0x29, 0xc0, 0xa4,
+	0x06, 0x93, 0x36, 0x75, 0x2c, 0xcf, 0xae, 0xd2, 0xb2, 0xa1, 0xd7, 0x75, 0x37, 0x78, 0x54, 0x65,
+	0x70, 0x61, 0x71, 0x31, 0x72, 0x25, 0x5f, 0xe2, 0x31, 0x0a, 0xf0, 0x6c, 0x66, 0x8b, 0x2b, 0xdb,
+	0x91, 0x89, 0xc8, 0x15, 0x6c, 0x22, 0x3a, 0x47, 0xfe, 0x20, 0xc1, 0xb5, 0x0e, 0x4b, 0xe5, 0xca,
+	0x49, 0xbb, 0x8a, 0xcb, 0x55, 0x43, 0x75, 0x1c, 0x7e, 0xc5, 0x19, 0x11, 0x9e, 0x58, 0xbd, 0x1c,
+	0x28, 0x9c, 0x04, 0xd5, 0xbc, 0xce, 0x94, 0xd8, 0x75, 0x87, 0xfb, 0x74, 0xfd, 0xab, 0x66, 0x76,
+	0x80, 0x57, 0xd9, 0x19, 0xf2, 0xa5, 0xb3, 0x45, 0xc8, 0x2e, 0x24, 0x1b, 0xd4, 0xae, 0xeb, 0x8e,
+	0x83, 0x77, 0x42, 0xfe, 0xf0, 0x9b, 0x13, 0xbc, 0xda, 0x09, 0x67, 0xf9, 0x7a, 0x0b, 0xe2, 0xe2,
+	0x7a, 0x0b, 0x70, 0xfa, 0xdf, 0x12, 0x24, 0x05, 0x3d, 0x52, 0x82, 0x51, 0xc7, 0xab, 0x1c, 0xd2,
+	0x6a, 0xbb, 0xc3, 0x64, 0x7a, 0x5b, 0xc8, 0xed, 0x72, 0x31, 0xff, 0x05, 0xe4, 0xeb, 0x44, 0x5e,
+	0x40, 0x3e, 0x86, 0x35, 0x4e, 0xed, 0x0a, 0xbf, 0x06, 0x05, 0x35, 0xce, 0x80, 0x48, 0x8d, 0x33,
+	0x20, 0xfd, 0x31, 0x8c, 0xf8, 0xbc, 0x2c, 0xe3, 0x8f, 0x74, 0x53, 0x13, 0x33, 0x9e, 0x8d, 0xc5,
+	0x8c, 0x67, 0xe3, 0x76, 0x65, 0x0c, 0x9e, 0x5e, 0x19, 0x69, 0x1d, 0xa6, 0x7b, 0xe4, 0xcd, 0x1b,
+	0x74, 0x29, 0xe9, 0xcc, 0x57, 0xca, 0x17, 0x12, 0x5c, 0x3b, 0x5f, 0x8a, 0x9c, 0xcf, 0xfc, 0x23,
+	0xd1, 0x7c, 0x72, 0x6d, 0x19, 0x77, 0x24, 0x42, 0xd8, 0x61, 0xed, 0xac, 0x36, 0xfa, 0xd9, 0x30,
+	0x2c, 0x9e, 0xa2, 0x4f, 0x7e, 0x2b, 0xc1, 0x42, 0x5d, 0xfd, 0xa9, 0x5e, 0xf7, 0xea, 0xe5, 0x76,
+	0x91, 0xec, 0xdb, 0x6a, 0x95, 0x35, 0x79, 0x3f, 0x2f, 0x7e, 0x78, 0x96, 0x17, 0xb9, 0x27, 0x9c,
+	0x21, 0x40, 0x37, 0x7d, 0x7d, 0x5e, 0x1b, 0x59, 0xbf, 0x36, 0xe6, 0xeb, 0xbd, 0xa5, 0x4a, 0xfd,
+	0x26, 0xc8, 0x1f, 0x25, 0x78, 0xab, 0xaf, 0x73, 0x58, 0xc3, 0x96, 0x65, 0x60, 0xae, 0x25, 0xd7,
+	0xd6, 0xdf, 0xd4, 0xc9, 0xc2, 0xc9, 0x8e, 0x65, 0x19, 0xfe, 0x41, 0xe9, 0xbb, 0x7a, 0xa5, 0x7e,
+	0x9a, 0x6c, 0xe9, 0xf4, 0x69, 0x76, 0x5c, 0x9e, 0xb6, 0x20, 0x97, 0x95, 0x88, 0xca, 0xd9, 0x01,
+	0x9e, 0xcf, 0xf4, 0xd3, 0x68, 0x12, 0xbe, 0xdd, 0xbd, 0xb2, 0xb8, 0x0a, 0x17, 0x4b, 0xc4, 0x3f,
+	0x0d, 0x42, 0xf6, 0x0c, 0x0e, 0xf2, 0xc5, 0x39, 0x92, 0xf1, 0xde, 0x79, 0xbc, 0xb9, 0xa4, 0x84,
+	0xfc, 0x36, 0x76, 0x56, 0x29, 0x42, 0x02, 0x5b, 0xf2, 0x63, 0xdd, 0x71, 0xc9, 0x2d, 0x88, 0xe3,
+	0x55, 0x34, 0x68, 0xd9, 0x10, 0xb6, 0x6c, 0x7e, 0x39, 0xe6, 0xb3, 0xe2, 0xe5, 0x98, 0x23, 0xca,
+	0x1e, 0x10, 0xfe, 0x28, 0x31, 0x84, 0xfb, 0x1b, 0x7b, 0xab, 0x57, 0x39, 0x4a, 0x35, 0xe1, 0x9e,
+	0x8d, 0x6f, 0xf5, 0xf6, 0x44, 0xf4, 0xb6, 0x3d, 0x26, 0xe2, 0xca, 0x6d, 0x98, 0x44, 0xeb, 0xf7,
+	0x69, 0xfb, 0x2d, 0x7b, 0xce, 0x0b, 0x8c, 0x72, 0x17, 0xe4, 0x5d, 0xd7, 0xa6, 0x6a, 0x5d, 0x37,
+	0x6b, 0x9d, 0x1c, 0x57, 0x21, 0x66, 0x7a, 0x75, 0xa4, 0x18, 0xe7, 0x0b, 0x69, 0x7a, 0x75, 0x71,
+	0x21, 0x4d, 0xaf, 0xae, 0xdc, 0x81, 0x14, 0xea, 0x6d, 0x99, 0xfb, 0xd6, 0x45, 0x8d, 0x7f, 0x00,
+	0x04, 0x75, 0x37, 0xa8, 0x41, 0x5d, 0x7a, 0x51, 0xed, 0x5f, 0x4b, 0xfe, 0xa6, 0x30, 0xd3, 0xe7,
+	0xbe, 0xb1, 0x3d, 0x87, 0x49, 0x96, 0x2c, 0xc7, 0xb4, 0xec, 0x3f, 0x53, 0x1c, 0xbf, 0x77, 0x4d,
+	0x0a, 0xcf, 0x35, 0xc6, 0x58, 0x58, 0x64, 0xd9, 0xc9, 0x65, 0x39, 0x2a, 0x6e, 0xc0, 0x78, 0x64,
+	0x42, 0xf9, 0x52, 0x02, 0x08, 0x55, 0xcf, 0xed, 0xcc, 0x6d, 0x48, 0x62, 0x66, 0x68, 0xcc, 0x19,
+	0x07, 0x73, 0x71, 0x98, 0xdf, 0xfb, 0x38, 0xfc, 0xd0, 0x8a, 0x9c, 0xda, 0x10, 0xa2, 0x4c, 0xd5,
+	0xa0, 0xaa, 0x13, 0xa8, 0xc6, 0x42, 0x55, 0x0e, 0x77, 0xaa, 0x86, 0xa8, 0xf2, 0x12, 0xa6, 0x71,
+	0xdd, 0xf6, 0x1a, 0x9a, 0xea, 0x86, 0xcf, 0x9f, 0x9b, 0xe2, 0xe7, 0x8f, 0x68, 0x56, 0x9f, 0xf6,
+	0x1e, 0xbb, 0xc0, 0xf5, 0xde, 0x03, 0xb9, 0xa0, 0xba, 0xd5, 0x83, 0x5e, 0xd6, 0x3f, 0x86, 0xf1,
+	0x7d, 0x55, 0x67, 0x15, 0x10, 0xa9, 0x2d, 0x39, 0xf4, 0x22, 0xaa, 0xc0, 0xcb, 0x83, 0xab, 0x3c,
+	0xeb, 0xac, 0xb7, 0x31, 0x11, 0x6f, 0xc7, 0xbb, 0x6e, 0xd3, 0x6f, 0x31, 0xde, 0x0e, 0xeb, 0x67,
+	0xc7, 0x1b, 0x55, 0xb8, 0x40, 0xbc, 0x49, 0x48, 0x14, 0x4d, 0xed, 0x89, 0x6a, 0x1f, 0x51, 0x5b,
+	0xf9, 0x5c, 0x82, 0xd9, 0x68, 0x85, 0x3f, 0xa1, 0x8e, 0xa3, 0xd6, 0x28, 0xf9, 0xfe, 0xc5, 0xe2,
+	0x7f, 0x30, 0x10, 0xac, 0xc0, 0x4d, 0x88, 0x51, 0x53, 0xf3, 0x0f, 0xa6, 0x09, 0x54, 0x6b, 0xdb,
+	0xe3, 0x7d, 0x82, 0x8a, 0x17, 0xc7, 0x07, 0x03, 0x25, 0x26, 0x5f, 0x18, 0x81, 0x61, 0x7a, 0x4c,
+	0x4d, 0x77, 0x35, 0x0d, 0x49, 0xe1, 0x1b, 0x2e, 0x49, 0xc2, 0x88, 0x3f, 0x4c, 0x0d, 0xac, 0x5e,
+	0x87, 0xa4, 0xf0, 0xb1, 0x8f, 0x8c, 0xc1, 0xe8, 0xb6, 0xa5, 0xd1, 0x1d, 0xcb, 0x76, 0x53, 0x03,
+	0x6c, 0xf4, 0x80, 0xaa, 0x9a, 0xc1, 0x44, 0xa5, 0xd5, 0x8f, 0x60, 0x34, 0xf8, 0xba, 0x41, 0x00,
+	0xe2, 0xcf, 0xf6, 0x8a, 0x7b, 0xc5, 0x8d, 0xd4, 0x00, 0xe3, 0xdb, 0x29, 0x6e, 0x6f, 0x6c, 0x6d,
+	0xdf, 0x4f, 0x49, 0x6c, 0x50, 0xda, 0xdb, 0xde, 0x66, 0x83, 0x41, 0x32, 0x0e, 0x89, 0xdd, 0xbd,
+	0xf5, 0xf5, 0x62, 0x71, 0xa3, 0xb8, 0x91, 0x8a, 0x31, 0xa5, 0xcd, 0x7b, 0x5b, 0x8f, 0x8b, 0x1b,
+	0xa9, 0x21, 0x26, 0xb7, 0xb7, 0xfd, 0x68, 0xfb, 0xe9, 0x87, 0xdb, 0xa9, 0xe1, 0xb5, 0xcf, 0x12,
+	0x10, 0xe7, 0x0f, 0x4a, 0xf2, 0x23, 0x00, 0xfe, 0x17, 0x16, 0xdd, 0x6c, 0xcf, 0xaf, 0x74, 0xe9,
+	0xb9, 0xde, 0xaf, 0x50, 0x65, 0xe1, 0x97, 0x7f, 0xfe, 0xc7, 0x6f, 0x06, 0xa7, 0x95, 0x89, 0xfc,
+	0xf1, 0x8d, 0xfc, 0xa1, 0x55, 0xf1, 0x7f, 0x83, 0xbc, 0x23, 0xad, 0x92, 0x0f, 0x01, 0xf8, 0x49,
+	0x10, 0xe5, 0x8d, 0x7c, 0xb2, 0x4a, 0xcf, 0x23, 0xdc, 0x7d, 0x62, 0x74, 0x13, 0xf3, 0xe3, 0x80,
+	0x11, 0xff, 0x04, 0xc6, 0xda, 0xc4, 0xbb, 0xd4, 0x25, 0xb2, 0xd0, 0xd6, 0xa2, 0xec, 0x73, 0x39,
+	0xfe, 0xf3, 0x65, 0x2e, 0xf8, 0x5d, 0x32, 0x57, 0x64, 0xdb, 0xa5, 0x2c, 0x21, 0xf9, 0x9c, 0x32,
+	0xe5, 0x93, 0x3b, 0xd4, 0x15, 0xf8, 0x4d, 0x48, 0x89, 0xdf, 0x3e, 0xd0, 0xfd, 0xc5, 0xde, 0x5f,
+	0x45, 0xb8, 0x99, 0xa5, 0xd3, 0x3e, 0x99, 0x28, 0x59, 0x34, 0xb6, 0xa0, 0xcc, 0x04, 0x91, 0x08,
+	0x9f, 0x3f, 0x28, 0xb3, 0x77, 0x1f, 0x92, 0xbc, 0x10, 0xf8, 0xc3, 0x5c, 0xc8, 0xd2, 0xbe, 0x01,
+	0xcc, 0x20, 0xe7, 0x84, 0x92, 0x60, 0x9c, 0x98, 0xb2, 0x8c, 0xa8, 0x0a, 0x63, 0x02, 0x91, 0x43,
+	0x26, 0x42, 0x26, 0x76, 0xaa, 0xa7, 0xaf, 0xe0, 0xb8, 0x5f, 0xbd, 0x2a, 0x6f, 0x23, 0x69, 0x46,
+	0x59, 0x60, 0xa4, 0x15, 0x26, 0x45, 0xb5, 0x7c, 0x15, 0x65, 0xfc, 0x0a, 0x66, 0x46, 0xb6, 0x21,
+	0xc9, 0xdb, 0xd4, 0xf9, 0xbd, 0x5d, 0x44, 0xe2, 0xd9, 0x74, 0xaa, 0xed, 0x6d, 0xfe, 0xe7, 0xec,
+	0x70, 0xf8, 0xd4, 0x77, 0x5a, 0xe0, 0x3b, 0xdb, 0xe9, 0x68, 0x8f, 0x0c, 0x9c, 0x4e, 0x47, 0x9c,
+	0xf6, 0x50, 0x46, 0x70, 0xfa, 0x23, 0x48, 0xf2, 0x13, 0x98, 0x3b, 0x3d, 0x1f, 0xda, 0x88, 0x1c,
+	0xcc, 0x7d, 0x23, 0x90, 0xd1, 0x0a, 0x59, 0xed, 0x8a, 0x80, 0x6c, 0xc2, 0xe8, 0x7d, 0xea, 0x72,
+	0xda, 0x99, 0x90, 0x36, 0xbc, 0x63, 0xa4, 0x85, 0x15, 0x0a, 0x78, 0x48, 0x37, 0x8f, 0x06, 0x89,
+	0x80, 0xc7, 0x21, 0x3c, 0xe6, 0x7e, 0xb7, 0x96, 0x74, 0xba, 0xc7, 0xb4, 0xdf, 0xf2, 0x94, 0x34,
+	0x5a, 0x98, 0x21, 0x44, 0x5c, 0x0f, 0xbe, 0x10, 0xdf, 0x95, 0xc8, 0x73, 0x18, 0x0b, 0xac, 0xe0,
+	0x29, 0x3e, 0x1b, 0xfa, 0x26, 0xdc, 0x6e, 0xd2, 0x13, 0x51, 0x58, 0xb9, 0x82, 0xa4, 0xf3, 0x64,
+	0xb6, 0xd3, 0xed, 0xbc, 0xce, 0x58, 0xee, 0x40, 0xfc, 0x01, 0xfe, 0xa2, 0x4f, 0xfa, 0xac, 0x5f,
+	0x9a, 0x97, 0x28, 0x17, 0x5a, 0x3f, 0xa0, 0xd5, 0xa3, 0x76, 0xcf, 0xff, 0xe4, 0x9b, 0xbf, 0x67,
+	0x06, 0x7e, 0xf1, 0x2a, 0x23, 0x7d, 0xf5, 0x2a, 0x23, 0x7d, 0xfd, 0x2a, 0x23, 0xfd, 0xed, 0x55,
+	0x46, 0xfa, 0xfc, 0x75, 0x66, 0xe0, 0xeb, 0xd7, 0x99, 0x81, 0x6f, 0x5e, 0x67, 0x06, 0x7e, 0xfc,
+	0x1d, 0xe1, 0x9f, 0x0c, 0x54, 0xbb, 0xae, 0x6a, 0x6a, 0xc3, 0xb6, 0xd8, 0x83, 0xde, 0x1f, 0xe5,
+	0xfd, 0xff, 0x2a, 0xf8, 0x72, 0x70, 0xe6, 0x1e, 0x02, 0x3b, 0x7c, 0x3a, 0xb7, 0x65, 0xe5, 0xee,
+	0x35, 0xf4, 0x4a, 0x1c, 0x7d, 0x79, 0xff, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x13, 0x93, 0x50,
+	0xf8, 0x27, 0x21, 0x00, 0x00,
+=======
 	// 2658 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x5a, 0x4d, 0x6f, 0x1b, 0xc7,
 	0xf9, 0xd7, 0x92, 0x12, 0x25, 0x3e, 0xa4, 0x24, 0x6a, 0x44, 0xc9, 0x6b, 0xda, 0x21, 0x99, 0xcd,
@@ -2081,6 +2505,7 @@ var fileDescriptor_e998bacb27df16c1 = []byte{
 	0x23, 0x5f, 0x46, 0xd2, 0xb7, 0x11, 0xd8, 0xe5, 0xdb, 0xc5, 0xaa, 0x59, 0xbc, 0x6d, 0xe9, 0xcd,
 	0x18, 0xda, 0xf2, 0xf6, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0x60, 0xca, 0x90, 0x21, 0x59, 0x23,
 	0x00, 0x00,
+>>>>>>> 8e523538f38596d3ff798771559764cdf0d9edd0
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -3557,6 +3982,30 @@ func (m *Queue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.ResourceLimitsByPriorityClassName) > 0 {
+		for k := range m.ResourceLimitsByPriorityClassName {
+			v := m.ResourceLimitsByPriorityClassName[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSubmit(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
 	if len(m.Permissions) > 0 {
 		for iNdEx := len(m.Permissions) - 1; iNdEx >= 0; iNdEx-- {
 			{
@@ -3702,6 +4151,112 @@ func (m *Queue_Permissions_Subject) MarshalToSizedBuffer(dAtA []byte) (int, erro
 		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Kind)))
 		i--
 		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PriorityClassResourceLimits) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PriorityClassResourceLimits) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PriorityClassResourceLimits) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.MaximumResourceFractionByPool) > 0 {
+		for k := range m.MaximumResourceFractionByPool {
+			v := m.MaximumResourceFractionByPool[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSubmit(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.MaximumResourceFraction) > 0 {
+		for k := range m.MaximumResourceFraction {
+			v := m.MaximumResourceFraction[k]
+			baseI := i
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
+			i--
+			dAtA[i] = 0x11
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PriorityClassPoolResourceLimits) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PriorityClassPoolResourceLimits) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PriorityClassPoolResourceLimits) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.MaximumResourceFraction) > 0 {
+		for k := range m.MaximumResourceFraction {
+			v := m.MaximumResourceFraction[k]
+			baseI := i
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
+			i--
+			dAtA[i] = 0x11
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
 	}
 	return len(dAtA) - i, nil
 }
@@ -4622,6 +5177,15 @@ func (m *Queue) Size() (n int) {
 			n += 1 + l + sovSubmit(uint64(l))
 		}
 	}
+	if len(m.ResourceLimitsByPriorityClassName) > 0 {
+		for k, v := range m.ResourceLimitsByPriorityClassName {
+			_ = k
+			_ = v
+			l = v.Size()
+			mapEntrySize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + l + sovSubmit(uint64(l))
+			n += mapEntrySize + 1 + sovSubmit(uint64(mapEntrySize))
+		}
+	}
 	return n
 }
 
@@ -4659,6 +5223,49 @@ func (m *Queue_Permissions_Subject) Size() (n int) {
 	l = len(m.Name)
 	if l > 0 {
 		n += 1 + l + sovSubmit(uint64(l))
+	}
+	return n
+}
+
+func (m *PriorityClassResourceLimits) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.MaximumResourceFraction) > 0 {
+		for k, v := range m.MaximumResourceFraction {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + 8
+			n += mapEntrySize + 1 + sovSubmit(uint64(mapEntrySize))
+		}
+	}
+	if len(m.MaximumResourceFractionByPool) > 0 {
+		for k, v := range m.MaximumResourceFractionByPool {
+			_ = k
+			_ = v
+			l = v.Size()
+			mapEntrySize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + l + sovSubmit(uint64(l))
+			n += mapEntrySize + 1 + sovSubmit(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
+func (m *PriorityClassPoolResourceLimits) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.MaximumResourceFraction) > 0 {
+		for k, v := range m.MaximumResourceFraction {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + 8
+			n += mapEntrySize + 1 + sovSubmit(uint64(mapEntrySize))
+		}
 	}
 	return n
 }
@@ -5186,6 +5793,16 @@ func (this *Queue) String() string {
 		mapStringForResourceLimits += fmt.Sprintf("%v: %v,", k, this.ResourceLimits[k])
 	}
 	mapStringForResourceLimits += "}"
+	keysForResourceLimitsByPriorityClassName := make([]string, 0, len(this.ResourceLimitsByPriorityClassName))
+	for k, _ := range this.ResourceLimitsByPriorityClassName {
+		keysForResourceLimitsByPriorityClassName = append(keysForResourceLimitsByPriorityClassName, k)
+	}
+	github_com_gogo_protobuf_sortkeys.Strings(keysForResourceLimitsByPriorityClassName)
+	mapStringForResourceLimitsByPriorityClassName := "map[string]PriorityClassResourceLimits{"
+	for _, k := range keysForResourceLimitsByPriorityClassName {
+		mapStringForResourceLimitsByPriorityClassName += fmt.Sprintf("%v: %v,", k, this.ResourceLimitsByPriorityClassName[k])
+	}
+	mapStringForResourceLimitsByPriorityClassName += "}"
 	s := strings.Join([]string{`&Queue{`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
 		`PriorityFactor:` + fmt.Sprintf("%v", this.PriorityFactor) + `,`,
@@ -5193,6 +5810,7 @@ func (this *Queue) String() string {
 		`GroupOwners:` + fmt.Sprintf("%v", this.GroupOwners) + `,`,
 		`ResourceLimits:` + mapStringForResourceLimits + `,`,
 		`Permissions:` + repeatedStringForPermissions + `,`,
+		`ResourceLimitsByPriorityClassName:` + mapStringForResourceLimitsByPriorityClassName + `,`,
 		`}`,
 	}, "")
 	return s
@@ -5220,6 +5838,57 @@ func (this *Queue_Permissions_Subject) String() string {
 	s := strings.Join([]string{`&Queue_Permissions_Subject{`,
 		`Kind:` + fmt.Sprintf("%v", this.Kind) + `,`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *PriorityClassResourceLimits) String() string {
+	if this == nil {
+		return "nil"
+	}
+	keysForMaximumResourceFraction := make([]string, 0, len(this.MaximumResourceFraction))
+	for k, _ := range this.MaximumResourceFraction {
+		keysForMaximumResourceFraction = append(keysForMaximumResourceFraction, k)
+	}
+	github_com_gogo_protobuf_sortkeys.Strings(keysForMaximumResourceFraction)
+	mapStringForMaximumResourceFraction := "map[string]float64{"
+	for _, k := range keysForMaximumResourceFraction {
+		mapStringForMaximumResourceFraction += fmt.Sprintf("%v: %v,", k, this.MaximumResourceFraction[k])
+	}
+	mapStringForMaximumResourceFraction += "}"
+	keysForMaximumResourceFractionByPool := make([]string, 0, len(this.MaximumResourceFractionByPool))
+	for k, _ := range this.MaximumResourceFractionByPool {
+		keysForMaximumResourceFractionByPool = append(keysForMaximumResourceFractionByPool, k)
+	}
+	github_com_gogo_protobuf_sortkeys.Strings(keysForMaximumResourceFractionByPool)
+	mapStringForMaximumResourceFractionByPool := "map[string]PriorityClassPoolResourceLimits{"
+	for _, k := range keysForMaximumResourceFractionByPool {
+		mapStringForMaximumResourceFractionByPool += fmt.Sprintf("%v: %v,", k, this.MaximumResourceFractionByPool[k])
+	}
+	mapStringForMaximumResourceFractionByPool += "}"
+	s := strings.Join([]string{`&PriorityClassResourceLimits{`,
+		`MaximumResourceFraction:` + mapStringForMaximumResourceFraction + `,`,
+		`MaximumResourceFractionByPool:` + mapStringForMaximumResourceFractionByPool + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *PriorityClassPoolResourceLimits) String() string {
+	if this == nil {
+		return "nil"
+	}
+	keysForMaximumResourceFraction := make([]string, 0, len(this.MaximumResourceFraction))
+	for k, _ := range this.MaximumResourceFraction {
+		keysForMaximumResourceFraction = append(keysForMaximumResourceFraction, k)
+	}
+	github_com_gogo_protobuf_sortkeys.Strings(keysForMaximumResourceFraction)
+	mapStringForMaximumResourceFraction := "map[string]float64{"
+	for _, k := range keysForMaximumResourceFraction {
+		mapStringForMaximumResourceFraction += fmt.Sprintf("%v: %v,", k, this.MaximumResourceFraction[k])
+	}
+	mapStringForMaximumResourceFraction += "}"
+	s := strings.Join([]string{`&PriorityClassPoolResourceLimits{`,
+		`MaximumResourceFraction:` + mapStringForMaximumResourceFraction + `,`,
 		`}`,
 	}, "")
 	return s
@@ -9064,6 +9733,135 @@ func (m *Queue) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceLimitsByPriorityClassName", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ResourceLimitsByPriorityClassName == nil {
+				m.ResourceLimitsByPriorityClassName = make(map[string]PriorityClassResourceLimits)
+			}
+			var mapkey string
+			mapvalue := &PriorityClassResourceLimits{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSubmit
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &PriorityClassResourceLimits{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipSubmit(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.ResourceLimitsByPriorityClassName[mapkey] = *mapvalue
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSubmit(dAtA[iNdEx:])
@@ -9293,6 +10091,447 @@ func (m *Queue_Permissions_Subject) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PriorityClassResourceLimits) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PriorityClassResourceLimits: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PriorityClassResourceLimits: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaximumResourceFraction", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.MaximumResourceFraction == nil {
+				m.MaximumResourceFraction = make(map[string]float64)
+			}
+			var mapkey string
+			var mapvalue float64
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSubmit
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapvaluetemp uint64
+					if (iNdEx + 8) > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvaluetemp = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+					iNdEx += 8
+					mapvalue = math.Float64frombits(mapvaluetemp)
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipSubmit(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.MaximumResourceFraction[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaximumResourceFractionByPool", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.MaximumResourceFractionByPool == nil {
+				m.MaximumResourceFractionByPool = make(map[string]PriorityClassPoolResourceLimits)
+			}
+			var mapkey string
+			mapvalue := &PriorityClassPoolResourceLimits{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSubmit
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &PriorityClassPoolResourceLimits{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipSubmit(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.MaximumResourceFractionByPool[mapkey] = *mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PriorityClassPoolResourceLimits) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PriorityClassPoolResourceLimits: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PriorityClassPoolResourceLimits: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaximumResourceFraction", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.MaximumResourceFraction == nil {
+				m.MaximumResourceFraction = make(map[string]float64)
+			}
+			var mapkey string
+			var mapvalue float64
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSubmit
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapvaluetemp uint64
+					if (iNdEx + 8) > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvaluetemp = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+					iNdEx += 8
+					mapvalue = math.Float64frombits(mapvaluetemp)
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipSubmit(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthSubmit
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.MaximumResourceFraction[mapkey] = mapvalue
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

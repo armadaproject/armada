@@ -40,13 +40,11 @@ func TestCreate(t *testing.T) {
 		PriorityFactor *float64
 		Owners         []string
 		GroupOwners    []string
-		ResourceLimits map[string]float64
 	}{
-		"default flags":         {nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}},
+		"default flags":      {nil, nil, nil, nil},
+		"valid priority":     {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
+		"valid owners":       {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil},
+		"valid group owners": {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
 	}
 
 	for name, test := range tests {
@@ -75,11 +73,6 @@ func TestCreate(t *testing.T) {
 						require.True(t, reflect.DeepEqual(q.Permissions, permissions))
 					}
 
-					if test.ResourceLimits != nil {
-						for resourceName, resourceLimit := range q.ResourceLimits {
-							require.Equal(t, test.ResourceLimits[string(resourceName)], float64(resourceLimit), "resource limit mismatch")
-						}
-					}
 					return nil
 				}
 				return nil
@@ -127,13 +120,12 @@ func TestUpdate(t *testing.T) {
 		PriorityFactor *float64
 		Owners         []string
 		GroupOwners    []string
-		ResourceLimits map[string]float64
 	}{
-		"default flags":         {nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}},
+		"default flags":         {nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil},
 	}
 
 	for name, test := range tests {
@@ -158,12 +150,6 @@ func TestUpdate(t *testing.T) {
 					}
 					if test.Owners != nil {
 						require.True(t, reflect.DeepEqual(q.Permissions, permissions))
-					}
-
-					if test.ResourceLimits != nil {
-						for resourceName, resourceLimit := range q.ResourceLimits {
-							require.Equal(t, test.ResourceLimits[string(resourceName)], float64(resourceLimit), "resource limit mismatch")
-						}
 					}
 					return nil
 				}

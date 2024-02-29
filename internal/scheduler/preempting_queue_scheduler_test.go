@@ -1866,11 +1866,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+				constraints := schedulerconstraints.NewSchedulingConstraints(
 					"pool",
 					tc.TotalResources,
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
+					nil,
 				)
 				sch := NewPreemptingQueueScheduler(
 					sctx,
@@ -2212,11 +2213,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				nodeDb.TotalResources(),
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
+				nil,
 			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
