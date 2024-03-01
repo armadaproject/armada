@@ -8,12 +8,16 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// NodeIndexKey returns a []byte to be used as a key with the NodeIndex memdb index with layout
+// NodeIndexKey returns a []byte to be used as a key with the NodeIndex memdb index.
+// This key should be used for lookup. Use the rounded version below for inserts.
 //
-// 0            8              16             32
-// | nodeTypeId | resources[0] | resources[1] | ... |
+// The layout of the key is:
 //
-// where the numbers indicate number of bytes.
+// 0            8              16             32    x          x+8
+// | nodeTypeId | resources[0] | resources[1] | ... | nodeIndex |
+//
+// where the numbers indicate byte index.
+// NodeIndex ensures each key is unique and so must be unique across all nodes.
 //
 // The key layout is such that an index ordered first by the nodeTypeId, then resources[0], and so on.
 // The byte representation is appended to out, which is returned.
@@ -22,13 +26,24 @@ func NodeIndexKey(out []byte, nodeTypeId uint64, resources []resource.Quantity) 
 	for _, q := range resources {
 		out = EncodeQuantity(out, q)
 	}
+	// Because the key returned by this function should be used with a lower-bound operation on allocatable resources
+	// we set the nodeIndex to 0.
+	out = EncodeUint64(out, 0)
 	return out
 }
 
 // RoundedNodeIndexKeyFromResourceList works like NodeIndexKey, except that prior to constructing the key
 // the i-th resource is rounded down to the closest multiple of resourceResolutionMillis[i].
+// This rounding makes iterating over nodes with at least some amount of available resources more efficient.
 // It also takes as arguments a list of resource names and a resourceList, instead of a list of resources.
-func RoundedNodeIndexKeyFromResourceList(out []byte, nodeTypeId uint64, resourceNames []string, resourceResolutionMillis []int64, rl schedulerobjects.ResourceList) []byte {
+func RoundedNodeIndexKeyFromResourceList(
+	out []byte,
+	nodeTypeId uint64,
+	resourceNames []string,
+	resourceResolutionMillis []int64,
+	rl schedulerobjects.ResourceList,
+	nodeIndex uint64,
+) []byte {
 	out = EncodeUint64(out, nodeTypeId)
 	for i, name := range resourceNames {
 		resolution := resourceResolutionMillis[i]
@@ -36,6 +51,7 @@ func RoundedNodeIndexKeyFromResourceList(out []byte, nodeTypeId uint64, resource
 		q = roundQuantityToResolution(q, resolution)
 		out = EncodeQuantity(out, q)
 	}
+	out = EncodeUint64(out, nodeIndex)
 	return out
 }
 
@@ -52,7 +68,7 @@ func EncodeQuantity(out []byte, val resource.Quantity) []byte {
 	return EncodeInt64(out, val.MilliValue())
 }
 
-// EncodeInt64 returns the canonical byte representation of a int64 used within the nodeDb.
+// EncodeInt64 returns the canonical byte representation of an int64 used within the nodeDb.
 // The resulting []byte is such that for two int64 a and b, a.Cmp(b) = bytes.Compare(enc(a), enc(b)).
 // The byte representation is appended to out, which is returned.
 func EncodeInt64(out []byte, val int64) []byte {
@@ -64,6 +80,8 @@ func EncodeInt64(out []byte, val int64) []byte {
 	// that the maximum negative int becomes 0, and the maximum positive int
 	// becomes the maximum positive uint.
 	scaled := val ^ int64(-1<<(size*8-1))
+
+	// TODO(albin): Does this work for integers larger than maxint / 2?
 
 	binary.BigEndian.PutUint64(out[len(out)-8:], uint64(scaled))
 	return out
