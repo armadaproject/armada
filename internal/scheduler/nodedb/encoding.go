@@ -82,7 +82,8 @@ func EncodeInt64(out []byte, val int64) []byte {
 	scaled := val ^ int64(-1<<(size*8-1))
 
 	// TODO(albin): It's possible (though unlikely) that this shifting causes nodeType clashes,
-	//              which would reduce the efficient of nodeType indexing. It shouldn't affect correctness.
+	//              since they're computed by hashing labels etc. and so may be big integers.
+	//              This would reduce the efficiency of nodeType indexing but shouldn't affect correctness.
 
 	binary.BigEndian.PutUint64(out[len(out)-8:], uint64(scaled))
 	return out
