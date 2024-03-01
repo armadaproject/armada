@@ -437,7 +437,7 @@ func (it *NodeTypeIterator) NextNode() (*Node, error) {
 				} else {
 					log.Warnf(
 						"new lower-bound %x is not greater than current bound %x",
-						it.newLowerBound, it.lowerBound,
+						it.newKey, it.key,
 					)
 					break
 				}
