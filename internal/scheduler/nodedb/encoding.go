@@ -81,7 +81,8 @@ func EncodeInt64(out []byte, val int64) []byte {
 	// becomes the maximum positive uint.
 	scaled := val ^ int64(-1<<(size*8-1))
 
-	// TODO(albin): Does this work for integers larger than maxint / 2?
+	// TODO(albin): It's possible (though unlikely) that this shifting causes nodeType clashes,
+	//              which would reduce the efficient of nodeType indexing. It shouldn't affect correctness.
 
 	binary.BigEndian.PutUint64(out[len(out)-8:], uint64(scaled))
 	return out
