@@ -39,9 +39,15 @@ const (
 var empty struct{}
 
 type Node struct {
-	Id       string
-	Name     string
+	// Unique id and index of this node.
+	// TODO(albin): Having both id and index is redundant.
+	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
+	Id    string
+	Index uint64
+
+	// Executor this node belongs to and node name, which must be unique per executor.
 	Executor string
+	Name     string
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
@@ -65,9 +71,11 @@ type Node struct {
 // shallow copies of fields that are not mutated by methods of NodeDb.
 func (node *Node) UnsafeCopy() *Node {
 	return &Node{
-		Id:       node.Id,
-		Name:     node.Name,
+		Id:    node.Id,
+		Index: node.Index,
+
 		Executor: node.Executor,
+		Name:     node.Name,
 
 		Taints: node.Taints,
 		Labels: node.Labels,
@@ -139,6 +147,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 			nodeDb.indexedNodeLabelValues[key][value] = empty
 		}
 	}
+	index := uint64(nodeDb.numNodes)
 	nodeDb.numNodes++
 	nodeDb.numNodesByNodeType[nodeType.Id]++
 	nodeDb.totalResources.Add(totalResources)
@@ -146,9 +155,11 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 	nodeDb.mu.Unlock()
 
 	entry := &Node{
-		Id:       node.Id,
-		Name:     node.Name,
+		Id:    node.Id,
+		Index: index,
+
 		Executor: node.Executor,
+		Name:     node.Name,
 
 		Taints: taints,
 		Labels: labels,
@@ -256,8 +267,10 @@ type NodeDb struct {
 	//
 	// Lower resolution makes scheduling faster, but may lead to jobs incorrectly being considered unschedulable.
 	indexedResourceResolutionMillis []int64
-	// Map from priority class priority to the index tracking allocatable resources at that priority.
+	// Map from priority class priority to the database index tracking allocatable resources at that priority.
 	indexNameByPriority map[int32]string
+	// Map from priority class priority to the index of node.keys corresponding to that priority.
+	keyIndexByPriority map[int32]int
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
@@ -317,7 +330,7 @@ func NewNodeDb(
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexedResource) string { return v.Name })
-	schema, indexNameByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
+	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -359,6 +372,7 @@ func NewNodeDb(
 			func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
 		),
 		indexNameByPriority:    indexNameByPriority,
+		keyIndexByPriority:     keyIndexByPriority,
 		indexedTaints:          mapFromSlice(indexedTaints),
 		indexedNodeLabels:      mapFromSlice(indexedNodeLabels),
 		indexedNodeLabelValues: indexedNodeLabelValues,
@@ -432,7 +446,7 @@ func (nodeDb *NodeDb) IndexedNodeLabelValues(label string) (map[string]struct{},
 func (nodeDb *NodeDb) NumNodes() int {
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
-	return nodeDb.numNodes
+	return int(nodeDb.numNodes)
 }
 
 func (nodeDb *NodeDb) TotalResources() schedulerobjects.ResourceList {
@@ -791,11 +805,16 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	if !ok {
 		return nil, errors.Errorf("no index for priority %d; must be in %v", priority, nodeDb.indexNameByPriority)
 	}
+	keyIndex, ok := nodeDb.keyIndexByPriority[priority]
+	if !ok {
+		return nil, errors.Errorf("no key index for priority %d; must be in %v", priority, nodeDb.keyIndexByPriority)
+	}
 	it, err := NewNodeTypesIterator(
 		txn,
 		matchingNodeTypeIds,
 		indexName,
 		priority,
+		keyIndex,
 		nodeDb.indexedResources,
 		indexResourceRequests,
 		nodeDb.indexedResourceResolutionMillis,
@@ -1158,7 +1177,7 @@ func (nodeDb *NodeDb) Upsert(node *Node) error {
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *Node) error {
 	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
 	for i, p := range nodeDb.nodeDbPriorities {
-		keys[i] = nodeDb.nodeDbKey(keys[i], node.NodeTypeId, node.AllocatableByPriority[p])
+		keys[i] = nodeDb.nodeDbKey(keys[i], node.NodeTypeId, node.AllocatableByPriority[p], node.Index)
 	}
 	node.Keys = keys
 
@@ -1204,18 +1223,18 @@ func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, inde
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string) {
-	nodesTable, indexNameByPriority := nodesTableSchema(priorities, resources)
+func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int) {
+	nodesTable, indexNameByPriority, keyIndexByPriority := nodesTableSchema(priorities, resources)
 	evictionsTable := evictionsTableSchema()
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
 			nodesTable.Name:     nodesTable,
 			evictionsTable.Name: evictionsTable,
 		},
-	}, indexNameByPriority
+	}, indexNameByPriority, keyIndexByPriority
 }
 
-func nodesTableSchema(priorities []int32, resources []string) (*memdb.TableSchema, map[int32]string) {
+func nodesTableSchema(priorities []int32, resources []string) (*memdb.TableSchema, map[int32]string, map[int32]int) {
 	indexes := make(map[string]*memdb.IndexSchema, len(priorities)+1)
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",
@@ -1223,19 +1242,21 @@ func nodesTableSchema(priorities []int32, resources []string) (*memdb.TableSchem
 		Indexer: &memdb.StringFieldIndex{Field: "Id"},
 	}
 	indexNameByPriority := make(map[int32]string, len(priorities))
+	keyIndexByPriority := make(map[int32]int, len(priorities))
 	for i, priority := range priorities {
 		name := nodeIndexName(i)
 		indexNameByPriority[priority] = name
+		keyIndexByPriority[priority] = i
 		indexes[name] = &memdb.IndexSchema{
 			Name:    name,
-			Unique:  false,
+			Unique:  true,
 			Indexer: &NodeIndex{KeyIndex: i},
 		}
 	}
 	return &memdb.TableSchema{
 		Name:    "nodes",
 		Indexes: indexes,
-	}, indexNameByPriority
+	}, indexNameByPriority, keyIndexByPriority
 }
 
 func evictionsTableSchema() *memdb.TableSchema {
@@ -1278,12 +1299,13 @@ func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason PodRequiremen
 // nodeDbKey returns the index key for a particular node.
 // Allocatable resources are rounded down to the closest multiple of nodeDb.indexedResourceResolutionMillis.
 // This improves efficiency by reducing the number of distinct values in the index.
-func (nodeDb *NodeDb) nodeDbKey(out []byte, nodeTypeId uint64, allocatable schedulerobjects.ResourceList) []byte {
+func (nodeDb *NodeDb) nodeDbKey(out []byte, nodeTypeId uint64, allocatable schedulerobjects.ResourceList, nodeIndex uint64) []byte {
 	return RoundedNodeIndexKeyFromResourceList(
 		out,
 		nodeTypeId,
 		nodeDb.indexedResources,
 		nodeDb.indexedResourceResolutionMillis,
 		allocatable,
+		nodeIndex,
 	)
 }

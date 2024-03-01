@@ -23,7 +23,7 @@ import (
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	schema, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	schema, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
 	assert.NoError(t, schema.Validate())
 }
 

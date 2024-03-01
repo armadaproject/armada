@@ -99,6 +99,51 @@ func TestEncodeQuantity(t *testing.T) {
 	}
 }
 
+func TestRoundQuantityToResolution(t *testing.T) {
+	tests := map[string]struct {
+		q                resource.Quantity
+		resolutionMillis int64
+		expected         resource.Quantity
+	}{
+		"1Ki": {
+			q:                resource.MustParse("1Ki"),
+			resolutionMillis: 1,
+			expected:         resource.MustParse("1Ki"),
+		},
+		"resolution equal to quantity": {
+			q:                resource.MustParse("1Ki"),
+			resolutionMillis: 1024 * 1000,
+			expected:         resource.MustParse("1Ki"),
+		},
+		"0": {
+			q:                resource.MustParse("0"),
+			resolutionMillis: 1,
+			expected:         resource.MustParse("0"),
+		},
+		"1m": {
+			q:                resource.MustParse("1m"),
+			resolutionMillis: 1,
+			expected:         resource.MustParse("1m"),
+		},
+		"1": {
+			q:                resource.MustParse("1"),
+			resolutionMillis: 1,
+			expected:         resource.MustParse("1"),
+		},
+		"resolution 3": {
+			q:                resource.MustParse("1"),
+			resolutionMillis: 3,
+			expected:         resource.MustParse("999m"),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			actual := roundQuantityToResolution(tc.q, tc.resolutionMillis)
+			assert.Truef(t, actual.Equal(tc.expected), "expected %s, but got %s", tc.expected.String(), actual.String())
+		})
+	}
+}
+
 func TestNodeIndexKey(t *testing.T) {
 	type nodeIndexKeyValues struct {
 		nodeTypeId uint64
@@ -205,6 +250,7 @@ func TestRoundedNodeIndexKeyFromResourceList(t *testing.T) {
 			schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{"foo": resource.MustParse("1"), "bar": resource.MustParse("2")},
 			},
+			0,
 		),
 	)
 	assert.NotEqual(
@@ -218,6 +264,7 @@ func TestRoundedNodeIndexKeyFromResourceList(t *testing.T) {
 			schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{"foo": resource.MustParse("1"), "bar": resource.MustParse("2")},
 			},
+			0,
 		),
 	)
 }

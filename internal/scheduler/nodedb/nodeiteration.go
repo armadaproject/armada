@@ -3,7 +3,6 @@ package nodedb
 import (
 	"bytes"
 	"container/heap"
-	"fmt"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -157,6 +156,7 @@ func NewNodeTypesIterator(
 	nodeTypeIds []uint64,
 	indexName string,
 	priority int32,
+	keyIndex int,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
 	indexedResourceResolutionMillis []int64,
@@ -172,6 +172,7 @@ func NewNodeTypesIterator(
 			nodeTypeId,
 			indexName,
 			priority,
+			keyIndex,
 			indexedResources,
 			indexedResourceRequests,
 			indexedResourceResolutionMillis,
@@ -291,6 +292,10 @@ type NodeTypeIterator struct {
 	nodeTypeId uint64
 	// Priority at which to consider allocatable resources on the node.
 	priority int32
+	// Used to index into node.keys to assert that keys are always increasing.
+	// This to detect if the iterator gets stuck.
+	// TODO(albin): With better testing we should be able to remove this.
+	keyIndex int
 	// Name of the memdb index used for node iteration.
 	// Should correspond to the priority set for this iterator.
 	indexName string
@@ -308,8 +313,10 @@ type NodeTypeIterator struct {
 	key []byte
 	// Current iterator into the underlying memdb.
 	// Updated in-place whenever lowerBound changes.
-	memdbIterator  memdb.ResultIterator
-	previousNodeId string
+	memdbIterator memdb.ResultIterator
+	// Used to detect if the iterator gets stuck in a loop.
+	previousKey  []byte
+	previousNode *Node
 }
 
 func NewNodeTypeIterator(
@@ -317,6 +324,7 @@ func NewNodeTypeIterator(
 	nodeTypeId uint64,
 	indexName string,
 	priority int32,
+	keyIndex int,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
 	indexedResourceResolutionMillis []int64,
@@ -327,10 +335,14 @@ func NewNodeTypeIterator(
 	if len(indexedResources) != len(indexedResourceResolutionMillis) {
 		return nil, errors.Errorf("indexedResources and indexedResourceResolutionMillis are not of equal length")
 	}
+	if keyIndex < 0 {
+		return nil, errors.Errorf("keyIndex is negative: %d", keyIndex)
+	}
 	it := &NodeTypeIterator{
 		txn:                             txn,
 		nodeTypeId:                      nodeTypeId,
 		priority:                        priority,
+		keyIndex:                        keyIndex,
 		indexName:                       indexName,
 		indexedResources:                indexedResources,
 		indexedResourceRequests:         indexedResourceRequests,
@@ -377,10 +389,18 @@ func (it *NodeTypeIterator) NextNode() (*Node, error) {
 			return nil, nil
 		}
 		node := v.(*Node)
-		if node.Id == it.previousNodeId {
-			panic(fmt.Sprintf("iterator received the same node twice consecutively: %s", node.Id))
+		if it.keyIndex >= len(node.Keys) {
+			return nil, errors.Errorf("keyIndex is %d, but node %s has only %d keys", it.keyIndex, node.Id, len(node.Keys))
 		}
-		it.previousNodeId = node.Id
+		nodeKey := node.Keys[it.keyIndex]
+		if it.previousKey != nil && bytes.Compare(it.previousKey, nodeKey) != -1 {
+			return nil, errors.Errorf(
+				"iteration loop detected: key %x of node %#v is not greater than key %x of node %#v",
+				nodeKey, node, it.previousKey, it.previousNode,
+			)
+		}
+		it.previousKey = nodeKey
+		it.previousNode = node
 		if node.NodeTypeId != it.nodeTypeId {
 			// There are no more nodes of this nodeType.
 			return nil, nil
