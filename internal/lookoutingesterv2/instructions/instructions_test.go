@@ -208,6 +208,23 @@ func TestConvert(t *testing.T) {
 		},
 	}
 
+	expectedCreateUserAnnotations := []*model.CreateUserAnnotationInstruction{
+		{
+			JobId:  testfixtures.JobIdString,
+			Key:    "a",
+			Value:  "0",
+			Queue:  testfixtures.Queue,
+			Jobset: testfixtures.JobSetName,
+		},
+		{
+			JobId:  testfixtures.JobIdString,
+			Key:    "b",
+			Value:  "1",
+			Queue:  testfixtures.Queue,
+			Jobset: testfixtures.JobSetName,
+		},
+	}
+
 	otherJobIdUlid := util.ULID()
 	otherJobId := util.StringFromUlid(otherJobIdUlid)
 	otherJobIdProto := armadaevents.ProtoUuidFromUlid(otherJobIdUlid)
@@ -243,8 +260,9 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
-				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			useLegacyEventConversion: true,
 		},
@@ -261,11 +279,12 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			useLegacyEventConversion: false,
 		},
@@ -288,10 +307,11 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -315,11 +335,12 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLegacyPendingRun},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLegacyPendingRun},
+				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			useLegacyEventConversion: true,
 		},
@@ -342,10 +363,11 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLegacyPendingRun},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLegacyPendingRun},
+				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -523,7 +545,8 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -560,7 +583,8 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
+				UserAnnotationsToCreate: expectedCreateUserAnnotations,
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -598,6 +622,8 @@ func TestConvert(t *testing.T) {
 			assert.Equal(t, tc.expected.JobsToUpdate, instructionSet.JobsToUpdate)
 			assert.Equal(t, tc.expected.JobRunsToCreate, instructionSet.JobRunsToCreate)
 			assert.Equal(t, tc.expected.JobRunsToUpdate, instructionSet.JobRunsToUpdate)
+			assert.Equal(t, tc.expected.UserAnnotationsToCreate, instructionSet.UserAnnotationsToCreate)
+			assert.Equal(t, tc.expected.MessageIds, instructionSet.MessageIds)
 		})
 	}
 }
@@ -673,33 +699,6 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.Len(t, *actual.JobsToCreate[0].PriorityClass, 63)
 	assert.Len(t, actual.JobRunsToCreate[0].Cluster, 512)
 	assert.Len(t, *actual.JobRunsToUpdate[0].Node, 512)
-}
-
-func TestAnnotations(t *testing.T) {
-	annotations := map[string]string{userAnnotationPrefix + "a": "b", "1": "2"}
-	expected := []*model.CreateUserAnnotationInstruction{
-		{
-			JobId:  testfixtures.JobIdString,
-			Key:    "1",
-			Value:  "2",
-			Queue:  testfixtures.Queue,
-			Jobset: testfixtures.JobSetName,
-		},
-		{
-			JobId:  testfixtures.JobIdString,
-			Key:    "a",
-			Value:  "b",
-			Queue:  testfixtures.Queue,
-			Jobset: testfixtures.JobSetName,
-		},
-	}
-	instructions := createUserAnnotationInstructions(
-		testfixtures.JobIdString,
-		testfixtures.Queue,
-		testfixtures.JobSetName,
-		extractUserAnnotations(userAnnotationPrefix, annotations),
-	)
-	assert.Equal(t, expected, instructions)
 }
 
 func TestExtractNodeName(t *testing.T) {
