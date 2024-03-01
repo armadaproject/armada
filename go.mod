@@ -51,7 +51,7 @@ require (
 	github.com/weaveworks/promrus v1.2.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 	golang.org/x/net v0.21.0
-	golang.org/x/oauth2 v0.16.0
+	golang.org/x/oauth2 v0.17.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/tools v0.18.0 // indirect
 	google.golang.org/genproto v0.0.0-20230526161137-0005af68ea54 // indirect
