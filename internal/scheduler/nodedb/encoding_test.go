@@ -138,10 +138,78 @@ func TestRoundQuantityToResolution(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			qc := tc.q.DeepCopy()
 			actual := roundQuantityToResolution(tc.q, tc.resolutionMillis)
+			assert.True(t, qc.Equal(tc.q))
 			assert.Truef(t, actual.Equal(tc.expected), "expected %s, but got %s", tc.expected.String(), actual.String())
+
+			qDec := tc.q.DeepCopy()
+			qDec.ToDec()
+			qDecCopy := qDec.DeepCopy()
+			actualDec := roundQuantityToResolution(qDec, tc.resolutionMillis)
+			assert.True(t, qDecCopy.Equal(qDec))
+			assert.Truef(t, actualDec.Equal(tc.expected), "expected %s, but got %s", tc.expected.String(), actual.String())
 		})
 	}
+}
+
+func TestNodeIndexKeyComparison(t *testing.T) {
+	v1 := resource.MustParse("1")
+	actualRoundedKey := RoundedNodeIndexKeyFromResourceList(
+		nil,
+		0,
+		[]string{
+			"cpu",
+			"memory",
+			"nvidia.com/gpu",
+			"nvidia.com/mig-1g.10gb",
+			"nvidia.com/mig-1g.20gb",
+			"nvidia.com/mig-1g.40gb",
+		},
+		[]int64{
+			v1.MilliValue(),
+			v1.MilliValue(),
+			v1.MilliValue(),
+			v1.MilliValue(),
+			v1.MilliValue(),
+			v1.MilliValue(),
+		},
+		schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"cpu":                    *resource.NewScaledQuantity(999958006, -9),
+				"memory":                 *resource.NewScaledQuantity(11823681536, 0),
+				"nvidia.com/gpu":         *resource.NewScaledQuantity(0, 0),
+				"nvidia.com/mig-1g.10gb": *resource.NewScaledQuantity(0, 0),
+				"nvidia.com/mig-1g.20gb": *resource.NewScaledQuantity(0, 0),
+				"nvidia.com/mig-1g.40gb": *resource.NewScaledQuantity(0, 0),
+			},
+		},
+		0,
+	)
+	actualKey := NodeIndexKey(
+		nil,
+		0,
+		[]resource.Quantity{
+			*resource.NewScaledQuantity(999958006, -9),
+			*resource.NewScaledQuantity(11823681536, 0),
+			*resource.NewScaledQuantity(0, 0),
+			*resource.NewScaledQuantity(0, 0),
+			*resource.NewScaledQuantity(0, 0),
+			*resource.NewScaledQuantity(0, 0),
+		},
+	)
+	expected := []byte{
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nodeTypeId
+		0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe8, // cpu
+		0x80, 0x00, 0x0a, 0xc0, 0xea, 0x56, 0x80, 0x00, // memory
+		0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nvidia.com.gpu
+		0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nvidia.com/mig-1g.10gb
+		0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nvidia.com/mig-1g.20gb
+		0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nvidia.com/mig-1g.40gb
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nodeIndex
+	}
+	assert.Equal(t, expected, actualRoundedKey)
+	assert.Equal(t, expected, actualKey)
 }
 
 func TestNodeIndexKey(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -308,9 +309,13 @@ type NodeTypeIterator struct {
 	// Current lower bound on node allocatable resources looked for.
 	// Updated in-place as the iterator makes progress.
 	lowerBound []resource.Quantity
+	// Tentative lower-bound.
+	newLowerBound []resource.Quantity
 	// memdb key computed from nodeTypeId and lowerBound.
 	// Stored here to avoid dynamic allocs.
 	key []byte
+	// Key for newLowerBound.
+	newKey []byte
 	// Current iterator into the underlying memdb.
 	// Updated in-place whenever lowerBound changes.
 	memdbIterator memdb.ResultIterator
@@ -348,6 +353,7 @@ func NewNodeTypeIterator(
 		indexedResourceRequests:         indexedResourceRequests,
 		indexedResourceResolutionMillis: indexedResourceResolutionMillis,
 		lowerBound:                      slices.Clone(indexedResourceRequests),
+		newLowerBound:                   slices.Clone(indexedResourceRequests),
 	}
 	memdbIt, err := it.newNodeTypeIterator()
 	if err != nil {
@@ -358,6 +364,7 @@ func NewNodeTypeIterator(
 }
 
 func (it *NodeTypeIterator) newNodeTypeIterator() (memdb.ResultIterator, error) {
+	// TODO(albin): We're re-computing the key unnecessarily here.
 	it.key = NodeIndexKey(it.key[0:0], it.nodeTypeId, it.lowerBound)
 	memdbIt, err := it.txn.LowerBound(
 		"nodes",
@@ -410,16 +417,31 @@ func (it *NodeTypeIterator) NextNode() (*Node, error) {
 			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
-			nodeQuantity := allocatableByPriority.Get(t)
-			requestQuantity := it.indexedResourceRequests[i]
-			it.lowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolutionMillis[i])
+			nodeQuantity := allocatableByPriority.Get(t).DeepCopy()
+			requestQuantity := it.indexedResourceRequests[i].DeepCopy()
+			it.newLowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolutionMillis[i])
 
 			// If nodeQuantity < requestQuantity, replace the iterator using the lowerBound.
 			// If nodeQuantity >= requestQuantity for all resources, return the node.
 			if nodeQuantity.Cmp(requestQuantity) == -1 {
 				for j := i; j < len(it.indexedResources); j++ {
-					it.lowerBound[j] = it.indexedResourceRequests[j]
+					it.newLowerBound[j] = it.indexedResourceRequests[j]
 				}
+
+				it.newKey = NodeIndexKey(it.newKey[0:0], it.nodeTypeId, it.newLowerBound)
+				if bytes.Compare(it.key, it.newKey) == -1 {
+					// TODO(albin): Temporary workaround. Shouldn't be necessary.
+					lowerBound := it.lowerBound
+					it.lowerBound = it.newLowerBound
+					it.newLowerBound = lowerBound
+				} else {
+					log.Warnf(
+						"new lower-bound %x is not greater than current bound %x",
+						it.newLowerBound, it.lowerBound,
+					)
+					break
+				}
+
 				memdbIterator, err := it.newNodeTypeIterator()
 				if err != nil {
 					return nil, err
