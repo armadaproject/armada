@@ -94,3 +94,30 @@ func newArbitraryError(message string) error {
 func newArmadaErrCreateResource() error {
 	return &armadaerrors.ErrCreateResource{}
 }
+
+func TestSubmitJobs(t *testing.T){
+	submitService := &SubmitService{
+	}
+	job1 := &SubmitJob{}
+	job2 := &SubmitJob{}
+
+	jobsToSubmit := []*SubmitJob{job1, job2}
+	
+	submitJobsChannel := make(chan *SubmitJob)
+	failedJobsChannel := make(chan *FailedSubmissionDetails, len(jobsToSubmit))
+
+	assert.NotNil(t, submitJobsChannel, "Failed to create submitJobsChannel")
+	assert.NotNil(t, failedJobsChannel, "Failed to create failedJobsChannel")
+
+	submitService.submitWorker = func(wg *sync.WaitGroup, submitJobs chan *SubmitJob, failedJobs chan *FailedSubmissionDetails) {
+		for job := range submitJobs {
+			failedJobs <- &FailedSubmissionDetails{
+			}
+		}
+		wg.Done()
+	}
+	failedJobs := submitService.submitJobs(jobsToSubmit)
+
+	assert.NotNil(t, failedJobs, "Function did not returned slice of FailedSubmissionDetails")
+	assert.Len(t, failedJobs, len(jobsToSubmit), "Unexpected length of failedJobs")
+}

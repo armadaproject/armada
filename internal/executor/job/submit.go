@@ -53,7 +53,7 @@ type FailedSubmissionDetails struct {
 
 func (submitService *SubmitService) SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
 	return submitService.submitJobs(jobsToSubmit)
-}
+} 
 
 func (submitService *SubmitService) submitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
 	wg := &sync.WaitGroup{}
@@ -110,7 +110,7 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 // submitPod submits a pod to k8s together with any services and ingresses bundled with the Armada job.
 // This function may fail partly, i.e., it may successfully create a subset of the requested objects before failing.
 // In case of failure, any already created objects are not cleaned up.
-func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
+func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) { //iska krna h
 	pod := job.Pod
 	// Ensure the K8SService and K8SIngress fields are populated
 	submitService.applyExecutorSpecificIngressDetails(job)
