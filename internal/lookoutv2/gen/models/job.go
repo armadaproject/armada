@@ -105,6 +105,18 @@ type Job struct {
 	// Min Length: 1
 	// Format: date-time
 	Submitted strfmt.DateTime `json:"submitted"`
+
+	// node
+	// Required: false
+	Node *string `json:"node,omitempty"`
+
+	// cluster
+	// Required: true
+	Cluster string `json:"cluster"`
+
+	//exitCode
+	// Required: false
+	ExitCode *int32 `json:"exitCode,omitempty"`
 }
 
 // Validate validates this job

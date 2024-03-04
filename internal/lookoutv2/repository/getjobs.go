@@ -51,6 +51,9 @@ type jobRow struct {
 	priorityClass      sql.NullString
 	latestRunId        sql.NullString
 	cancelReason       sql.NullString
+	node               sql.NullString
+	cluster            string
+	exitCode           sql.NullString
 }
 
 type runRow struct {
@@ -125,6 +128,7 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 			log.WithError(err).Error("failed getting run rows")
 			return err
 		}
+
 		annotationRows, err = makeAnnotationRows(ctx, tx, tempTableName)
 		if err != nil {
 			log.WithError(err).Error("failed getting annotation rows")
@@ -135,7 +139,6 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 	if err != nil {
 		return nil, err
 	}
-
 	jobs, err := rowsToJobs(jobRows, runRows, annotationRows)
 	if err != nil {
 		return nil, err
@@ -201,6 +204,13 @@ func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters 
 					return err
 				}
 			}
+			if len(job.Runs) > 0 {
+				lastRun := job.Runs[len(job.Runs)-1] // Get the last run
+				job.Node = lastRun.Node
+				job.Cluster = lastRun.Cluster
+				job.ExitCode = lastRun.ExitCode
+
+			}
 			jobs = append(jobs, job)
 		}
 		return nil
@@ -251,6 +261,13 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 	for i, jobId := range orderedJobIds {
 		job := jobMap[jobId]
 		sortRuns(job.Runs)
+		if len(job.Runs) > 0 {
+			lastRun := job.Runs[len(job.Runs)-1] // Get the last run
+			job.Node = lastRun.Node
+			job.Cluster = lastRun.Cluster
+			job.ExitCode = lastRun.ExitCode
+
+		}
 		jobs[i] = job
 	}
 
