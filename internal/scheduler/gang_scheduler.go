@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-memdb"
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -106,8 +107,9 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 	// This deferred function ensures unschedulable jobs are registered as such.
 	gangAddedToSchedulingContext := false
 	defer func() {
-		// Do nothing if an error occurred.
+		// If an error occurred, augment the error message and return.
 		if err != nil {
+			err = errors.WithMessagef(err, "failed scheduling gang %s composed of jobs %v", gctx.Id, gctx.JobIds())
 			return
 		}
 

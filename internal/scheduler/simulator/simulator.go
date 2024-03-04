@@ -461,12 +461,13 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					return err
 				}
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				pool.Name,
 				totalResources,
 				// Minimum job size not used for simulation; use taints/tolerations instead.
 				schedulerobjects.ResourceList{},
 				s.schedulingConfig,
+				nil,
 			)
 			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,
@@ -499,21 +500,21 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult[*jobdb.Job](result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
 			failedJobs := scheduler.FailedJobsFromSchedulerResult[*jobdb.Job](result)
-			lessJob := func(a, b *jobdb.Job) bool {
+			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {
-					return true
+					return -1
 				} else if a.Queue() > b.Queue() {
-					return false
+					return 1
 				}
 				if a.Id() < b.Id() {
-					return true
+					return -1
 				} else if a.Id() > b.Id() {
-					return false
+					return 1
 				}
-				return false
+				return 0
 			}
 			slices.SortFunc(preemptedJobs, lessJob)
-			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) bool {
+			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
 				return lessJob(a.Job.(*jobdb.Job), b.Job.(*jobdb.Job))
 			})
 			slices.SortFunc(failedJobs, lessJob)

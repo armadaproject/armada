@@ -140,10 +140,8 @@ scheduling:
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
   failureEstimatorConfig:
-    nodeSuccessProbabilityCordonThreshold: 0.1
-    queueSuccessProbabilityCordonThreshold: 0.05
-    nodeCordonTimeout: "10m"
-    queueCordonTimeout: "1m"
-    nodeEquilibriumFailureRate: 0.0167 # 1 per minute.
-    queueEquilibriumFailureRate: 0.0167 # 1 per minute.
-
+    # Optimised default parameters.
+    numInnerIterations: 10
+    innerOptimiserStepSize: 0.05
+    outerOptimiserStepSize: 0.05
+    outerOptimiserNesterovAcceleration: 0.2

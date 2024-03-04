@@ -6,6 +6,8 @@ import (
 	"math/rand"
 
 	goslices "golang.org/x/exp/slices"
+
+	"github.com/armadaproject/armada/internal/common/interfaces"
 )
 
 // PartitionToLen partitions the elements of s into non-overlapping slices,
@@ -177,4 +179,23 @@ func AnyFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
 		}
 	}
 	return false
+}
+
+// Zeros returns a slice T[] of length n with all elements equal to zero.
+func Zeros[T any](n int) []T {
+	return make([]T, n)
+}
+
+// Fill returns a slice T[] of length n with all elements equal to v.
+func Fill[T any](v T, n int) []T {
+	rv := make([]T, n)
+	for i := range rv {
+		rv[i] = v
+	}
+	return rv
+}
+
+// Ones returns a slice T[] of length n with all elements equal to 1.
+func Ones[T interfaces.Number](n int) []T {
+	return Fill[T](1, n)
 }

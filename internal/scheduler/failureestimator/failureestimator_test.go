@@ -1,190 +1,81 @@
 package failureestimator
 
 import (
-	"math"
+	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/optimisation/descent"
+	"github.com/armadaproject/armada/internal/common/optimisation/nesterov"
 )
 
-func TestNew(t *testing.T) {
-	successProbabilityCordonThreshold := 0.05
-	cordonTimeout := 10 * time.Minute
-	equilibriumFailureRate := 0.1
-
-	// Node decay rate and step size tests.
-	fe, err := New(
-		successProbabilityCordonThreshold,
-		0,
-		cordonTimeout,
-		0,
-		equilibriumFailureRate,
-		eps,
-	)
-	require.NoError(t, err)
-	assert.LessOrEqual(t, fe.nodeFailureProbabilityDecayRate, 0.9999145148300861+eps)
-	assert.GreaterOrEqual(t, fe.nodeFailureProbabilityDecayRate, 0.9999145148300861-eps)
-	assert.LessOrEqual(t, fe.nodeStepSize, 0.0008142462434300169+eps)
-	assert.GreaterOrEqual(t, fe.nodeStepSize, 0.0008142462434300169-eps)
-
-	// Queue decay rate and step size tests.
-	fe, err = New(
-		0,
-		successProbabilityCordonThreshold,
-		0,
-		cordonTimeout,
-		eps,
-		equilibriumFailureRate,
-	)
-	require.NoError(t, err)
-	assert.LessOrEqual(t, fe.queueFailureProbabilityDecayRate, 0.9999145148300861+eps)
-	assert.GreaterOrEqual(t, fe.queueFailureProbabilityDecayRate, 0.9999145148300861-eps)
-	assert.LessOrEqual(t, fe.queueStepSize, 0.0008142462434300169+eps)
-	assert.GreaterOrEqual(t, fe.queueStepSize, 0.0008142462434300169-eps)
-}
-
-func TestDecay(t *testing.T) {
-	successProbabilityCordonThreshold := 0.05
-	cordonTimeout := 10 * time.Minute
-	equilibriumFailureRate := 0.1
-
-	// Node decay tests.
-	fe, err := New(
-		successProbabilityCordonThreshold,
-		0,
-		cordonTimeout,
-		0,
-		equilibriumFailureRate,
-		eps,
-	)
-	require.NoError(t, err)
-
-	fe.successProbabilityByNode["foo"] = 0.0
-	fe.successProbabilityByNode["bar"] = 0.4
-	fe.successProbabilityByNode["baz"] = 1.0
-
-	fe.decay(0)
-	assert.Equal(
-		t,
-		fe.successProbabilityByNode,
-		map[string]float64{
-			"foo": eps,
-			"bar": 0.4,
-			"baz": 1.0 - eps,
-		},
-	)
-
-	fe.decay(1)
-	assert.Equal(
-		t,
-		fe.successProbabilityByNode,
-		map[string]float64{
-			"foo": 1 - (1-eps)*math.Pow(fe.nodeFailureProbabilityDecayRate, 1),
-			"bar": 1 - (1-0.4)*math.Pow(fe.nodeFailureProbabilityDecayRate, 1),
-			"baz": 1.0 - eps,
-		},
-	)
-
-	fe.decay(1e6)
-	assert.Equal(
-		t,
-		fe.successProbabilityByNode,
-		map[string]float64{
-			"foo": 1.0 - eps,
-			"bar": 1.0 - eps,
-			"baz": 1.0 - eps,
-		},
-	)
-
-	// Queue decay tests.
-	fe, err = New(
-		0,
-		successProbabilityCordonThreshold,
-		0,
-		cordonTimeout,
-		eps,
-		equilibriumFailureRate,
-	)
-	require.NoError(t, err)
-
-	fe.successProbabilityByQueue["foo"] = 0.0
-	fe.successProbabilityByQueue["bar"] = 0.4
-	fe.successProbabilityByQueue["baz"] = 1.0
-
-	fe.decay(0)
-	assert.Equal(
-		t,
-		fe.successProbabilityByQueue,
-		map[string]float64{
-			"foo": eps,
-			"bar": 0.4,
-			"baz": 1.0 - eps,
-		},
-	)
-
-	fe.decay(1)
-	assert.Equal(
-		t,
-		fe.successProbabilityByQueue,
-		map[string]float64{
-			"foo": 1 - (1-eps)*math.Pow(fe.queueFailureProbabilityDecayRate, 1),
-			"bar": 1 - (1-0.4)*math.Pow(fe.queueFailureProbabilityDecayRate, 1),
-			"baz": 1.0 - eps,
-		},
-	)
-
-	fe.decay(1e6)
-	assert.Equal(
-		t,
-		fe.successProbabilityByQueue,
-		map[string]float64{
-			"foo": 1.0 - eps,
-			"bar": 1.0 - eps,
-			"baz": 1.0 - eps,
-		},
-	)
-}
-
 func TestUpdate(t *testing.T) {
-	successProbabilityCordonThreshold := 0.05
-	cordonTimeout := 10 * time.Minute
-	equilibriumFailureRate := 0.1
-
 	fe, err := New(
-		successProbabilityCordonThreshold,
-		successProbabilityCordonThreshold,
-		cordonTimeout,
-		cordonTimeout,
-		equilibriumFailureRate,
-		equilibriumFailureRate,
+		10,
+		descent.MustNew(0.05),
+		nesterov.MustNew(0.05, 0.2),
 	)
 	require.NoError(t, err)
 
-	fe.Update("node", "queue", false)
-	nodeSuccessProbability, ok := fe.successProbabilityByNode["node"]
+	// Test initialisation.
+	fe.Push("node", "queue", false)
+	nodeParameterIndex, ok := fe.parameterIndexByNode["node"]
 	require.True(t, ok)
-	queueSuccessProbability, ok := fe.successProbabilityByQueue["queue"]
+	queueParameterIndex, ok := fe.parameterIndexByQueue["queue"]
 	require.True(t, ok)
+	require.Equal(t, 0, nodeParameterIndex)
+	require.Equal(t, 1, queueParameterIndex)
+	require.Equal(t, 0.5, fe.parameters.AtVec(0))
+	require.Equal(t, 0.5, fe.parameters.AtVec(1))
+
+	for i := 0; i < 100; i++ {
+		fe.Push(fmt.Sprintf("node-%d", i), "queue-0", false)
+	}
+	nodeParameterIndex, ok = fe.parameterIndexByNode["node-99"]
+	require.True(t, ok)
+	queueParameterIndex, ok = fe.parameterIndexByQueue["queue-0"]
+	require.True(t, ok)
+	require.Equal(t, 2+100, nodeParameterIndex)
+	require.Equal(t, 3, queueParameterIndex)
+	require.Equal(t, 0.5, fe.parameters.AtVec(102))
+	require.Equal(t, 0.5, fe.parameters.AtVec(3))
+
+	// Test that the estimates move in the expected direction on failure.
+	fe.Update()
+	nodeSuccessProbability := fe.parameters.AtVec(0)
+	queueSuccessProbability := fe.parameters.AtVec(1)
 	assert.Greater(t, nodeSuccessProbability, eps)
 	assert.Greater(t, queueSuccessProbability, eps)
-	assert.Less(t, nodeSuccessProbability, healthySuccessProbability-eps)
-	assert.Less(t, queueSuccessProbability, healthySuccessProbability-eps)
+	assert.Less(t, nodeSuccessProbability, 0.5-eps)
+	assert.Less(t, queueSuccessProbability, 0.5-eps)
 
-	fe.Update("node", "queue", true)
-	assert.Greater(t, fe.successProbabilityByNode["node"], nodeSuccessProbability)
-	assert.Greater(t, fe.successProbabilityByQueue["queue"], queueSuccessProbability)
+	// Test that the estimates move in the expected direction on success.
+	fe.Push("node", "queue", true)
+	fe.Update()
+	assert.Greater(t, fe.parameters.AtVec(0), nodeSuccessProbability)
+	assert.Greater(t, fe.parameters.AtVec(1), queueSuccessProbability)
 
-	for i := 0; i < 100000; i++ {
-		fe.Update("node", "queue", false)
+	for i := 0; i < 1000; i++ {
+		for i := 0; i < 10; i++ {
+			fe.Push("node", "queue", false)
+		}
+		fe.Update()
 	}
-	assert.Equal(t, fe.successProbabilityByNode["node"], eps)
-	assert.Equal(t, fe.successProbabilityByQueue["queue"], eps)
+	assert.Greater(t, fe.parameters.AtVec(0), 0.0)
+	assert.Greater(t, fe.parameters.AtVec(1), 0.0)
+	assert.Less(t, fe.parameters.AtVec(0), 2*eps)
+	assert.Less(t, fe.parameters.AtVec(1), 2*eps)
 
-	for i := 0; i < 100000; i++ {
-		fe.Update("node", "queue", true)
+	for i := 0; i < 1000; i++ {
+		for i := 0; i < 10; i++ {
+			fe.Push("node", "queue", true)
+		}
+		fe.Update()
 	}
-	assert.Equal(t, fe.successProbabilityByNode["node"], 1-eps)
-	assert.Equal(t, fe.successProbabilityByQueue["queue"], 1-eps)
+	assert.Greater(t, fe.parameters.AtVec(0), 1-2*eps)
+	assert.Greater(t, fe.parameters.AtVec(1), 1-2*eps)
+	assert.Less(t, fe.parameters.AtVec(0), 1.0)
+	assert.Less(t, fe.parameters.AtVec(1), 1.0)
 }

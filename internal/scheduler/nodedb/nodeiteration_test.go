@@ -45,7 +45,15 @@ func TestNodesIterator(t *testing.T) {
 			}
 
 			sortedNodes := slices.Clone(tc.Nodes)
-			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) int {
+				if a.Id < b.Id {
+					return -1
+				} else if a.Id > b.Id {
+					return 1
+				} else {
+					return 0
+				}
+			})
 			expected := make([]int, len(sortedNodes))
 			for i, node := range sortedNodes {
 				expected[i] = indexById[node.Id]
@@ -443,6 +451,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				tc.nodeTypeId,
 				nodeIndexName(keyIndex),
 				tc.priority,
+				keyIndex,
 				testfixtures.TestResourceNames,
 				indexedResourceRequests,
 				testfixtures.TestIndexedResourceResolutionMillis,
@@ -826,6 +835,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				tc.nodeTypeIds,
 				nodeDb.indexNameByPriority[tc.priority],
 				tc.priority,
+				nodeDb.keyIndexByPriority[tc.priority],
 				testfixtures.TestResourceNames,
 				indexedResourceRequests,
 				testfixtures.TestIndexedResourceResolutionMillis,
@@ -887,7 +897,16 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		it, err := NewNodeTypeIterator(txn, nodeTypeId, nodeDb.indexNameByPriority[priority], priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+		it, err := NewNodeTypeIterator(
+			txn,
+			nodeTypeId,
+			nodeDb.indexNameByPriority[priority],
+			priority,
+			nodeDb.keyIndexByPriority[priority],
+			nodeDb.indexedResources,
+			indexedResourceRequests,
+			testfixtures.TestIndexedResourceResolutionMillis,
+		)
 		require.NoError(b, err)
 		for {
 			node, err := it.NextNode()

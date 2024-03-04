@@ -61,8 +61,14 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 				}
 				retrievedExecutors, err := repo.GetExecutors(ctx)
 				require.NoError(t, err)
-				executorSort := func(a *schedulerobjects.Executor, b *schedulerobjects.Executor) bool {
-					return a.Id > b.Id
+				executorSort := func(a *schedulerobjects.Executor, b *schedulerobjects.Executor) int {
+					if a.Id > b.Id {
+						return -1
+					} else if a.Id < b.Id {
+						return 1
+					} else {
+						return 0
+					}
 				}
 				slices.SortFunc(retrievedExecutors, executorSort)
 				slices.SortFunc(tc.executors, executorSort)

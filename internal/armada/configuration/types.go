@@ -295,13 +295,11 @@ type PreemptionConfig struct {
 // FailureEstimatorConfig contains config controlling node and queue success probability estimation.
 // See the internal/scheduler/failureestimator package for details.
 type FailureEstimatorConfig struct {
-	Disabled                               bool
-	NodeSuccessProbabilityCordonThreshold  float64
-	QueueSuccessProbabilityCordonThreshold float64
-	NodeCordonTimeout                      time.Duration
-	QueueCordonTimeout                     time.Duration
-	NodeEquilibriumFailureRate             float64
-	QueueEquilibriumFailureRate            float64
+	Disabled                           bool
+	NumInnerIterations                 int     `validate:"gt=0"`
+	InnerOptimiserStepSize             float64 `validate:"gt=0"`
+	OuterOptimiserStepSize             float64 `validate:"gt=0"`
+	OuterOptimiserNesterovAcceleration float64 `validate:"gte=0"`
 }
 
 // TODO: we can probably just typedef this to map[string]string

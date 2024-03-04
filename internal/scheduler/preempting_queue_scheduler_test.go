@@ -1866,11 +1866,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+				constraints := schedulerconstraints.NewSchedulingConstraints(
 					"pool",
 					tc.TotalResources,
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
+					nil,
 				)
 				sch := NewPreemptingQueueScheduler(
 					sctx,
@@ -2022,8 +2023,14 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// which jobs are preempted).
 				slices.SortFunc(
 					result.ScheduledJobs,
-					func(a, b *schedulercontext.JobSchedulingContext) bool {
-						return a.Job.GetSubmitTime().Before(b.Job.GetSubmitTime())
+					func(a, b *schedulercontext.JobSchedulingContext) int {
+						if a.Job.GetSubmitTime().Before(b.Job.GetSubmitTime()) {
+							return -1
+						} else if b.Job.GetSubmitTime().Before(a.Job.GetSubmitTime()) {
+							return 1
+						} else {
+							return 0
+						}
 					},
 				)
 				var scheduledJobs []*jobdb.Job
@@ -2206,11 +2213,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				nodeDb.TotalResources(),
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
+				nil,
 			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
