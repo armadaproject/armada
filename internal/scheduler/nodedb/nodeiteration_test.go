@@ -451,6 +451,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				tc.nodeTypeId,
 				nodeIndexName(keyIndex),
 				tc.priority,
+				keyIndex,
 				testfixtures.TestResourceNames,
 				indexedResourceRequests,
 				testfixtures.TestIndexedResourceResolutionMillis,
@@ -834,6 +835,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				tc.nodeTypeIds,
 				nodeDb.indexNameByPriority[tc.priority],
 				tc.priority,
+				nodeDb.keyIndexByPriority[tc.priority],
 				testfixtures.TestResourceNames,
 				indexedResourceRequests,
 				testfixtures.TestIndexedResourceResolutionMillis,
@@ -895,7 +897,16 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		it, err := NewNodeTypeIterator(txn, nodeTypeId, nodeDb.indexNameByPriority[priority], priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+		it, err := NewNodeTypeIterator(
+			txn,
+			nodeTypeId,
+			nodeDb.indexNameByPriority[priority],
+			priority,
+			nodeDb.keyIndexByPriority[priority],
+			nodeDb.indexedResources,
+			indexedResourceRequests,
+			testfixtures.TestIndexedResourceResolutionMillis,
+		)
 		require.NoError(b, err)
 		for {
 			node, err := it.NextNode()

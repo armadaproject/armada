@@ -3,10 +3,10 @@ package nodedb
 import (
 	"bytes"
 	"container/heap"
-	"fmt"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -157,6 +157,7 @@ func NewNodeTypesIterator(
 	nodeTypeIds []uint64,
 	indexName string,
 	priority int32,
+	keyIndex int,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
 	indexedResourceResolutionMillis []int64,
@@ -172,6 +173,7 @@ func NewNodeTypesIterator(
 			nodeTypeId,
 			indexName,
 			priority,
+			keyIndex,
 			indexedResources,
 			indexedResourceRequests,
 			indexedResourceResolutionMillis,
@@ -291,6 +293,10 @@ type NodeTypeIterator struct {
 	nodeTypeId uint64
 	// Priority at which to consider allocatable resources on the node.
 	priority int32
+	// Used to index into node.keys to assert that keys are always increasing.
+	// This to detect if the iterator gets stuck.
+	// TODO(albin): With better testing we should be able to remove this.
+	keyIndex int
 	// Name of the memdb index used for node iteration.
 	// Should correspond to the priority set for this iterator.
 	indexName string
@@ -303,13 +309,19 @@ type NodeTypeIterator struct {
 	// Current lower bound on node allocatable resources looked for.
 	// Updated in-place as the iterator makes progress.
 	lowerBound []resource.Quantity
+	// Tentative lower-bound.
+	newLowerBound []resource.Quantity
 	// memdb key computed from nodeTypeId and lowerBound.
 	// Stored here to avoid dynamic allocs.
 	key []byte
+	// Key for newLowerBound.
+	newKey []byte
 	// Current iterator into the underlying memdb.
 	// Updated in-place whenever lowerBound changes.
-	memdbIterator  memdb.ResultIterator
-	previousNodeId string
+	memdbIterator memdb.ResultIterator
+	// Used to detect if the iterator gets stuck in a loop.
+	previousKey  []byte
+	previousNode *Node
 }
 
 func NewNodeTypeIterator(
@@ -317,6 +329,7 @@ func NewNodeTypeIterator(
 	nodeTypeId uint64,
 	indexName string,
 	priority int32,
+	keyIndex int,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
 	indexedResourceResolutionMillis []int64,
@@ -327,15 +340,20 @@ func NewNodeTypeIterator(
 	if len(indexedResources) != len(indexedResourceResolutionMillis) {
 		return nil, errors.Errorf("indexedResources and indexedResourceResolutionMillis are not of equal length")
 	}
+	if keyIndex < 0 {
+		return nil, errors.Errorf("keyIndex is negative: %d", keyIndex)
+	}
 	it := &NodeTypeIterator{
 		txn:                             txn,
 		nodeTypeId:                      nodeTypeId,
 		priority:                        priority,
+		keyIndex:                        keyIndex,
 		indexName:                       indexName,
 		indexedResources:                indexedResources,
 		indexedResourceRequests:         indexedResourceRequests,
 		indexedResourceResolutionMillis: indexedResourceResolutionMillis,
 		lowerBound:                      slices.Clone(indexedResourceRequests),
+		newLowerBound:                   slices.Clone(indexedResourceRequests),
 	}
 	memdbIt, err := it.newNodeTypeIterator()
 	if err != nil {
@@ -346,6 +364,7 @@ func NewNodeTypeIterator(
 }
 
 func (it *NodeTypeIterator) newNodeTypeIterator() (memdb.ResultIterator, error) {
+	// TODO(albin): We're re-computing the key unnecessarily here.
 	it.key = NodeIndexKey(it.key[0:0], it.nodeTypeId, it.lowerBound)
 	memdbIt, err := it.txn.LowerBound(
 		"nodes",
@@ -377,10 +396,18 @@ func (it *NodeTypeIterator) NextNode() (*Node, error) {
 			return nil, nil
 		}
 		node := v.(*Node)
-		if node.Id == it.previousNodeId {
-			panic(fmt.Sprintf("iterator received the same node twice consecutively: %s", node.Id))
+		if it.keyIndex >= len(node.Keys) {
+			return nil, errors.Errorf("keyIndex is %d, but node %s has only %d keys", it.keyIndex, node.Id, len(node.Keys))
 		}
-		it.previousNodeId = node.Id
+		nodeKey := node.Keys[it.keyIndex]
+		if it.previousKey != nil && bytes.Compare(it.previousKey, nodeKey) != -1 {
+			return nil, errors.Errorf(
+				"iteration loop detected: key %x of node %#v is not greater than key %x of node %#v",
+				nodeKey, node, it.previousKey, it.previousNode,
+			)
+		}
+		it.previousKey = nodeKey
+		it.previousNode = node
 		if node.NodeTypeId != it.nodeTypeId {
 			// There are no more nodes of this nodeType.
 			return nil, nil
@@ -390,16 +417,31 @@ func (it *NodeTypeIterator) NextNode() (*Node, error) {
 			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
-			nodeQuantity := allocatableByPriority.Get(t)
-			requestQuantity := it.indexedResourceRequests[i]
-			it.lowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolutionMillis[i])
+			nodeQuantity := allocatableByPriority.Get(t).DeepCopy()
+			requestQuantity := it.indexedResourceRequests[i].DeepCopy()
+			it.newLowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolutionMillis[i])
 
 			// If nodeQuantity < requestQuantity, replace the iterator using the lowerBound.
 			// If nodeQuantity >= requestQuantity for all resources, return the node.
 			if nodeQuantity.Cmp(requestQuantity) == -1 {
 				for j := i; j < len(it.indexedResources); j++ {
-					it.lowerBound[j] = it.indexedResourceRequests[j]
+					it.newLowerBound[j] = it.indexedResourceRequests[j]
 				}
+
+				it.newKey = NodeIndexKey(it.newKey[0:0], it.nodeTypeId, it.newLowerBound)
+				if bytes.Compare(it.key, it.newKey) == -1 {
+					// TODO(albin): Temporary workaround. Shouldn't be necessary.
+					lowerBound := it.lowerBound
+					it.lowerBound = it.newLowerBound
+					it.newLowerBound = lowerBound
+				} else {
+					log.Warnf(
+						"new lower-bound %x is not greater than current bound %x",
+						it.newKey, it.key,
+					)
+					break
+				}
+
 				memdbIterator, err := it.newNodeTypeIterator()
 				if err != nil {
 					return nil, err
