@@ -5,9 +5,11 @@ package events
 
 import (
 	"context"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/gogo/protobuf/types"
 	"sync"
+
+	"github.com/gogo/protobuf/types"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // Ensure, that JobEventReaderMock does implement JobEventReader.
