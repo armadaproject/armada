@@ -51,9 +51,6 @@ type jobRow struct {
 	priorityClass      sql.NullString
 	latestRunId        sql.NullString
 	cancelReason       sql.NullString
-	node               sql.NullString
-	cluster            string
-	exitCode           sql.NullString
 }
 
 type runRow struct {
