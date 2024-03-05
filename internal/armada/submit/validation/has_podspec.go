@@ -21,7 +21,7 @@ func (p hasPodSpecValidator) Validate(j *api.JobSubmitRequestItem) error {
 	// In particular, I think job.populateServicesIngresses is wrong.
 	// Hence, we return an error until we can make sure that the code is correct.
 	// - Albin
-	if len(j.PodSpecs) > 0 {
+	if len(j.PodSpecs) > 1 {
 		return errors.Errorf("Jobs with multiple pods are not supported")
 	}
 
