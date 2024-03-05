@@ -59,19 +59,10 @@ type Metrics struct {
 	matchedRegexIndexByErrorMessage *lru.Cache
 
 	// Job metrics.
-	jobs             *prometheus.CounterVec
-	cpu              *prometheus.CounterVec
-	memory           *prometheus.CounterVec
-	gpu              *prometheus.CounterVec
-	storage          *prometheus.CounterVec
-	ephemeralStorage *prometheus.CounterVec
-
-	jobsSeconds             *prometheus.CounterVec
-	cpuSeconds              *prometheus.CounterVec
-	memorySeconds           *prometheus.CounterVec
-	gpuSeconds              *prometheus.CounterVec
-	storageSeconds          *prometheus.CounterVec
-	ephemeralStorageSeconds *prometheus.CounterVec
+	jobs        *prometheus.CounterVec
+	jobsSeconds *prometheus.CounterVec
+	// A map from resource name to the counter and counterSeconds Vecs for that resource.
+	resourceCounters map[v1.ResourceName]*prometheus.CounterVec
 }
 
 func New(config configuration.MetricsConfig) (*Metrics, error) {
@@ -113,51 +104,6 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			},
 			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
 		),
-		cpu: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "cpu_total",
-				Help:      "Job CPU counters.",
-			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		memory: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "memory_total",
-				Help:      "Job memory counters.",
-			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		gpu: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "gpu_total",
-				Help:      "Job GPU counters.",
-			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		storage: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "storage_total",
-				Help:      "Job storage counters.",
-			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		ephemeralStorage: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "ephemeral_storage_total",
-				Help:      "Job ephemeral storage counters",
-			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
 		jobsSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -167,51 +113,8 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			},
 			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
 		),
-		cpuSeconds: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "cpu_seconds_total",
-				Help:      "Job CPU-second counters.",
-			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		memorySeconds: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "memory_seconds_total",
-				Help:      "Job memory-second counters.",
-			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		gpuSeconds: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "gpu_seconds_total",
-				Help:      "Job GPU-second counters.",
-			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		storageSeconds: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "storage_seconds_total",
-				Help:      "Job storage-second counters.",
-			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		ephemeralStorageSeconds: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "ephemeral_storage_seconds_total",
-				Help:      "Job ephemeral storage-second counters",
-			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
+
+		resourceCounters: make(map[v1.ResourceName]*prometheus.CounterVec),
 	}, nil
 }
 
@@ -243,18 +146,10 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	}
 
 	m.jobs.Describe(ch)
-	m.cpu.Describe(ch)
-	m.memory.Describe(ch)
-	m.gpu.Describe(ch)
-	m.storage.Describe(ch)
-	m.ephemeralStorage.Describe(ch)
-
 	m.jobsSeconds.Describe(ch)
-	m.cpuSeconds.Describe(ch)
-	m.memorySeconds.Describe(ch)
-	m.gpuSeconds.Describe(ch)
-	m.storageSeconds.Describe(ch)
-	m.ephemeralStorageSeconds.Describe(ch)
+	for _, metric := range m.resourceCounters {
+		metric.Describe(ch)
+	}
 }
 
 // Collect and then reset all metrics.
@@ -265,36 +160,19 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	m.jobs.Collect(ch)
-	m.cpu.Collect(ch)
-	m.memory.Collect(ch)
-	m.gpu.Collect(ch)
-	m.storage.Collect(ch)
-	m.ephemeralStorage.Collect(ch)
-
 	m.jobsSeconds.Collect(ch)
-	m.cpuSeconds.Collect(ch)
-	m.memorySeconds.Collect(ch)
-	m.gpuSeconds.Collect(ch)
-	m.storageSeconds.Collect(ch)
-	m.ephemeralStorageSeconds.Collect(ch)
+	for _, metric := range m.resourceCounters {
+		metric.Collect(ch)
+	}
 
 	// Reset metrics periodically.
 	t := time.Now()
 	if t.Sub(m.timeOfMostRecentReset) > m.resetInterval {
-
 		m.jobs.Reset()
-		m.cpu.Reset()
-		m.memory.Reset()
-		m.gpu.Reset()
-		m.storage.Reset()
-		m.ephemeralStorage.Reset()
-
 		m.jobsSeconds.Reset()
-		m.cpuSeconds.Reset()
-		m.memorySeconds.Reset()
-		m.gpuSeconds.Reset()
-		m.storageSeconds.Reset()
-		m.ephemeralStorageSeconds.Reset()
+		for _, metric := range m.resourceCounters {
+			metric.Reset()
+		}
 
 		m.timeOfMostRecentReset = t
 	}
@@ -305,6 +183,11 @@ func (m *Metrics) UpdateMany(
 	jsts []jobdb.JobStateTransitions,
 	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
 ) error {
+	str := ""
+	for k := range m.resourceCounters {
+		str += k.String() + " "
+	}
+	ctx.Warnf(str)
 	for _, jst := range jsts {
 		if err := m.Update(ctx, jst, jobRunErrorsByRunId); err != nil {
 			return err
@@ -592,11 +475,15 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 	}
 
 	requests := job.GetResourceRequirements().Requests
-	for _, resourceName := range m.config.TrackedResourceNames {
-		if r, ok := m.config.ResourceRenaming[resourceName]; ok {
-			resourceName = v1.ResourceName(r)
+	for _, resource := range m.config.TrackedResourceNames {
+		if r, ok := m.config.ResourceRenaming[resource]; ok {
+			resource = v1.ResourceName(r)
 		}
-		metric, metricSeconds := m.resourceToMetrics(resourceName)
+		if !isValidMetricName(resource) {
+			logrus.Warnf("Resource name is not valid for a metric name: %s", resource)
+			continue
+		}
+		metric, metricSeconds := m.getOrCreateMetrics(resource)
 		if metric == nil || metricSeconds == nil {
 			continue
 		}
@@ -608,33 +495,48 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 		if err != nil {
 			return err
 		}
-		q := requests[resourceName]
+		q := requests[resource]
 		v := float64(q.MilliValue()) / 1000
 		c.Add(v)
 		cSeconds.Add(v * stateDuration.Seconds())
 	}
-
 	return nil
 }
 
-// maps resource names to their respective counter vectors
-// e.g. cpu -> m.cpu, m.cpuSeconds
-func (m *Metrics) resourceToMetrics(resourceName v1.ResourceName) (*prometheus.CounterVec, *prometheus.CounterVec) {
-	switch resourceName {
-	case v1.ResourceCPU:
-		return m.cpu, m.cpuSeconds
-	case v1.ResourceMemory:
-		return m.memory, m.memorySeconds
-	case v1.ResourceEphemeralStorage:
-		return m.ephemeralStorage, m.ephemeralStorageSeconds
-	case v1.ResourceStorage:
-		return m.storage, m.storageSeconds
-	case "gpu":
-		return m.gpu, m.gpuSeconds
-	default:
-		logrus.Warnf("Unknown resource name: %s", resourceName)
-		return nil, nil
+// getOrCreateMetrics returns the counter and counterSeconds Vec for the given resource name.
+// If the counter and counterSeconds Vecs do not exist, they are created and stored in the resourceCounters map.
+func (m *Metrics) getOrCreateMetrics(resource v1.ResourceName) (*prometheus.CounterVec, *prometheus.CounterVec) {
+	c, ok := m.resourceCounters[resource]
+	if !ok {
+		name := resource.String() + "_total"
+		c = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      name,
+				Help:      "Job " + resource.String() + " counters.",
+			},
+			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
+		)
+		m.resourceCounters[resource] = c
 	}
+
+	resourceSeconds := v1.ResourceName(resource.String() + "_seconds")
+	cSeconds, ok := m.resourceCounters[resourceSeconds]
+	if !ok {
+		name := resourceSeconds.String() + "_total"
+		cSeconds = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      name,
+				Help:      "Job " + resource.String() + "-second counters.",
+			},
+			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
+		)
+		m.resourceCounters[resourceSeconds] = cSeconds
+	}
+	return c, cSeconds
 }
 
 // stateDuration returns:
@@ -673,4 +575,17 @@ func stateDuration(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (tim
 	// succeeded, failed, cancelled, preempted are not prior states
 
 	return stateTime.Sub(*priorTime), prior
+}
+
+func isValidMetricName(name v1.ResourceName) bool {
+	// A valid metric name should contains only: letters, digits(not as the first character), underscores, and colons.
+	// validated by the following regex
+	regx, err := regexp.Compile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+	if err != nil {
+		return false
+	}
+	if regx.MatchString(name.String()) {
+		return true
+	}
+	return false
 }
