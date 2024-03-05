@@ -27,7 +27,7 @@ schedulerMetrics:
   resourceRenaming:
     nvidia.com/gpu: "gpu"
     amd.com/gpu: "gpu"
-    ephemeral-storage: "ephemeral_storage"
+    ephemeral-storage: "ephemeralStorage"
   matchedRegexIndexByErrorMessageCacheSize: 100
   resetInterval: "1h"
 pulsar:

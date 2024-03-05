@@ -77,7 +77,6 @@ type MetricsConfig struct {
 	// E.g., if ResourceRenaming["nvidia.com/gpu"] = "gpu", then metrics for resource "nvidia.com/gpu" use resource name "gpu" instead.
 	// This can be used to avoid illegal Prometheus metric names (e.g., for "nvidia.com/gpu" as "/" is not allowed).
 	// Allowed characters in resource names are [a-zA-Z_:][a-zA-Z0-9_:]*
-	// If a tracked resource contains illegal characters, it is should be renamed here.
 	// It can also be used to track multiple resources within the same metric, e.g., "nvidia.com/gpu" and "amd.com/gpu".
 	ResourceRenaming map[v1.ResourceName]string
 	// Controls the cycle time metrics.

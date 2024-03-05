@@ -62,9 +62,6 @@ type Metrics struct {
 	// Messages that match no regex map to -1.
 	matchedRegexIndexByErrorMessage *lru.Cache
 
-	// Job metrics.
-	jobs        *prometheus.CounterVec
-	jobsSeconds *prometheus.CounterVec
 	// Map from resource name to the counter and counterSeconds Vecs for that resource.
 	resourceCounters map[v1.ResourceName]*prometheus.CounterVec
 }
@@ -99,25 +96,6 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 		errorRegexes:                    errorRegexes,
 		matchedRegexIndexByErrorMessage: matchedRegexIndexByError,
 
-		jobs: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "jobs_total",
-				Help:      "Job counters.",
-			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-		jobsSeconds: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "jobs_seconds_total",
-				Help:      "Job seconds counters.",
-			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
-		),
-
 		resourceCounters: make(map[v1.ResourceName]*prometheus.CounterVec),
 	}, nil
 }
@@ -148,9 +126,6 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	if m.IsDisabled() {
 		return
 	}
-
-	m.jobs.Describe(ch)
-	m.jobsSeconds.Describe(ch)
 	for _, metric := range m.resourceCounters {
 		metric.Describe(ch)
 	}
@@ -162,22 +137,15 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	if m.IsDisabled() {
 		return
 	}
-
-	m.jobs.Collect(ch)
-	m.jobsSeconds.Collect(ch)
 	for _, metric := range m.resourceCounters {
 		metric.Collect(ch)
 	}
-
 	// Reset metrics periodically.
 	t := time.Now()
 	if t.Sub(m.timeOfMostRecentReset) > m.resetInterval {
-		m.jobs.Reset()
-		m.jobsSeconds.Reset()
 		for _, metric := range m.resourceCounters {
 			metric.Reset()
 		}
-
 		m.timeOfMostRecentReset = t
 	}
 }
@@ -460,14 +428,14 @@ func errorTypeAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.
 }
 
 func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration time.Duration) error {
-	// update jobs counter
-	if c, err := m.jobs.GetMetricWithLabelValues(labels[1:]...); err != nil { // we don't need priorState label here
+	// update jobs and jobs-seconds metrics
+	jobs, jobsSeconds := m.counterVectorsFromResource(v1.ResourceName("jobs"))
+	if c, err := jobs.GetMetricWithLabelValues(labels[1:]...); err != nil { // we don't need priorState label here
 		return err
 	} else {
 		c.Add(1)
 	}
-	// update jobs-seconds counter
-	if c, err := m.jobsSeconds.GetMetricWithLabelValues(labels...); err != nil {
+	if c, err := jobsSeconds.GetMetricWithLabelValues(labels...); err != nil {
 		return err
 	} else {
 		c.Add(stateDuration.Seconds())
@@ -482,7 +450,7 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 			logrus.Warnf("Resource name is not valid for a metric name: %s", resource)
 			continue
 		}
-		metric, metricSeconds := m.getOrCreateMetrics(resource)
+		metric, metricSeconds := m.counterVectorsFromResource(resource)
 		if metric == nil || metricSeconds == nil {
 			continue
 		}
@@ -502,9 +470,9 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 	return nil
 }
 
-// getOrCreateMetrics returns the counter and counterSeconds Vec for the given resource name.
+// counterVectorsFromResource returns the counter and counterSeconds Vectors for the given resource name.
 // If the counter and counterSeconds Vecs do not exist, they are created and stored in the resourceCounters map.
-func (m *Metrics) getOrCreateMetrics(resource v1.ResourceName) (*prometheus.CounterVec, *prometheus.CounterVec) {
+func (m *Metrics) counterVectorsFromResource(resource v1.ResourceName) (*prometheus.CounterVec, *prometheus.CounterVec) {
 	c, ok := m.resourceCounters[resource]
 	if !ok {
 		name := resource.String() + "_total"
@@ -513,7 +481,7 @@ func (m *Metrics) getOrCreateMetrics(resource v1.ResourceName) (*prometheus.Coun
 				Namespace: namespace,
 				Subsystem: subsystem,
 				Name:      name,
-				Help:      "Job " + resource.String() + " counters.",
+				Help:      resource.String() + "resource counter.",
 			},
 			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
 		)
@@ -529,7 +497,7 @@ func (m *Metrics) getOrCreateMetrics(resource v1.ResourceName) (*prometheus.Coun
 				Namespace: namespace,
 				Subsystem: subsystem,
 				Name:      name,
-				Help:      "Job " + resource.String() + "-second counters.",
+				Help:      resource.String() + "-second resource counter.",
 			},
 			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
 		)
