@@ -39,6 +39,12 @@ const (
 	succeeded = "succeeded"
 )
 
+var (
+	// A valid metric name contains only: letters, digits(not as the first character), underscores, and colons.
+	// validated by the following regex
+	metricNameValidationRegex = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+)
+
 type Metrics struct {
 	config configuration.MetricsConfig
 
@@ -61,7 +67,7 @@ type Metrics struct {
 	// Job metrics.
 	jobs        *prometheus.CounterVec
 	jobsSeconds *prometheus.CounterVec
-	// A map from resource name to the counter and counterSeconds Vecs for that resource.
+	// Map from resource name to the counter and counterSeconds Vecs for that resource.
 	resourceCounters map[v1.ResourceName]*prometheus.CounterVec
 }
 
@@ -183,11 +189,6 @@ func (m *Metrics) UpdateMany(
 	jsts []jobdb.JobStateTransitions,
 	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
 ) error {
-	str := ""
-	for k := range m.resourceCounters {
-		str += k.String() + " "
-	}
-	ctx.Warnf(str)
 	for _, jst := range jsts {
 		if err := m.Update(ctx, jst, jobRunErrorsByRunId); err != nil {
 			return err
@@ -479,7 +480,7 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 		if r, ok := m.config.ResourceRenaming[resource]; ok {
 			resource = v1.ResourceName(r)
 		}
-		if !isValidMetricName(resource) {
+		if !metricNameValidationRegex.MatchString(resource.String()) {
 			logrus.Warnf("Resource name is not valid for a metric name: %s", resource)
 			continue
 		}
@@ -575,17 +576,4 @@ func stateDuration(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (tim
 	// succeeded, failed, cancelled, preempted are not prior states
 
 	return stateTime.Sub(*priorTime), prior
-}
-
-func isValidMetricName(name v1.ResourceName) bool {
-	// A valid metric name should contains only: letters, digits(not as the first character), underscores, and colons.
-	// validated by the following regex
-	regx, err := regexp.Compile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
-	if err != nil {
-		return false
-	}
-	if regx.MatchString(name.String()) {
-		return true
-	}
-	return false
 }
