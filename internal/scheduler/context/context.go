@@ -559,6 +559,15 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	}
 }
 
+// JobIds returns a sliced composed of the ids of the jobs that make up the gang.
+func (gctx *GangSchedulingContext) JobIds() []string {
+	rv := make([]string, len(gctx.JobSchedulingContexts))
+	for i, jctx := range gctx.JobSchedulingContexts {
+		rv[i] = jctx.JobId
+	}
+	return rv
+}
+
 // Cardinality returns the number of jobs in the gang.
 func (gctx *GangSchedulingContext) Cardinality() int {
 	return len(gctx.JobSchedulingContexts)

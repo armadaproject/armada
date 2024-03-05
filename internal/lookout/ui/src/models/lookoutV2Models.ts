@@ -78,6 +78,9 @@ export type Job = {
   lastActiveRunId?: string
   lastTransitionTime: string
   cancelReason?: string
+  node?: string
+  cluster?: string
+  exitCode?: number
 }
 
 export type JobKey = keyof Job
