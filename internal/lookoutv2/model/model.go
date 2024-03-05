@@ -40,6 +40,9 @@ type Job struct {
 	State              string
 	Submitted          time.Time
 	CancelReason       *string
+	Node               *string
+	Cluster            string
+	ExitCode           *int32
 }
 
 // PostgreSQLTime is a wrapper around time.Time that converts to UTC when

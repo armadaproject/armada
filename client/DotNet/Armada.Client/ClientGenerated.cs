@@ -2080,6 +2080,31 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiPriorityClassPoolResourceLimits 
+    {
+        [Newtonsoft.Json.JsonProperty("maximumResourceFraction", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, double> MaximumResourceFraction { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiPriorityClassResourceLimits 
+    {
+        /// <summary>Limits resources assigned to jobs of this priority class.
+        /// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.</summary>
+        [Newtonsoft.Json.JsonProperty("maximumResourceFraction", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, double> MaximumResourceFraction { get; set; }
+    
+        /// <summary>Per-pool override of maximum_resource_fraction.
+        /// If missing for a particular pool, maximum_resource_fraction is used instead for that pool.</summary>
+        [Newtonsoft.Json.JsonProperty("maximumResourceFractionByPool", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, ApiPriorityClassPoolResourceLimits> MaximumResourceFractionByPool { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiQueue 
     {
         [Newtonsoft.Json.JsonProperty("groupOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -2096,6 +2121,11 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("resourceLimits", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, double> ResourceLimits { get; set; }
+    
+        /// <summary>Map from priority class name to resource limit overrides for this queue and priority class.
+        /// If provided for a priority class, global limits for that priority class do not apply to this queue.</summary>
+        [Newtonsoft.Json.JsonProperty("resourceLimitsByPriorityClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, ApiPriorityClassResourceLimits> ResourceLimitsByPriorityClassName { get; set; }
     
         [Newtonsoft.Json.JsonProperty("userOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> UserOwners { get; set; }

@@ -6,8 +6,8 @@ import (
 )
 
 type Resource struct {
-	Version APIVersion   `json:"apiVersion"`
-	Kind    ResourceKind `json:"kind"`
+	Version APIVersion   `json:"apiVersion" yaml:"apiVersion"`
+	Kind    ResourceKind `json:"kind" yaml:"kind"`
 }
 
 type ResourceKind string

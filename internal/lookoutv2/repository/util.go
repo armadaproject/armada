@@ -225,6 +225,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobPending)
+	js.job.Cluster = cluster
 	rp := &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
@@ -264,6 +265,7 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobRunning)
+	js.job.Node = &node
 	updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunRunning,
@@ -613,6 +615,9 @@ func timestampOrNow(timestamp time.Time) time.Time {
 }
 
 func updateRun(job *model.Job, patch *runPatch) {
+	if patch.exitCode != nil {
+		job.ExitCode = patch.exitCode
+	}
 	for _, run := range job.Runs {
 		if run.RunId == patch.runId {
 			patchRun(run, patch)

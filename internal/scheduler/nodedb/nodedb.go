@@ -154,7 +154,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 	nodeDb.nodeTypes[nodeType.Id] = nodeType
 	nodeDb.mu.Unlock()
 
-	entry := &Node{
+	return &Node{
 		Id:    node.Id,
 		Index: index,
 
@@ -174,8 +174,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 		AllocatedByQueue:      allocatedByQueue,
 		AllocatedByJobId:      allocatedByJobId,
 		EvictedJobRunIds:      evictedJobRunIds,
-	}
-	return entry, nil
+	}, nil
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithApiJobsWithTxn(txn *memdb.Txn, jobs []*api.Job, node *schedulerobjects.Node) error {
