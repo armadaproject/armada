@@ -39,11 +39,9 @@ const (
 	succeeded = "succeeded"
 )
 
-var (
-	// A valid metric name contains only: letters, digits(not as the first character), underscores, and colons.
-	// validated by the following regex
-	metricNameValidationRegex = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
-)
+// A valid metric name contains only: letters, digits(not as the first character), underscores, and colons.
+// validated by the following regex
+var metricNameValidationRegex = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
 
 type Metrics struct {
 	config configuration.MetricsConfig
