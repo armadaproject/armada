@@ -18,6 +18,10 @@ func (p priorityClassValidator) Validate(j *api.JobSubmitRequestItem) error {
 	}
 
 	priorityClassName := spec.PriorityClassName
+	if priorityClassName == "" {
+		return nil
+	}
+
 	if _, exists := p.allowedPriorityClasses[priorityClassName]; !exists {
 		return fmt.Errorf("priority class %s is not supported", priorityClassName)
 	}

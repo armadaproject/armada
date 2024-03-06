@@ -6,8 +6,8 @@ import (
 )
 
 type terminationGracePeriodValidator struct {
-	minTerminationGracePeriodSeconds int64
-	maxTerminationGracePeriodSeconds int64
+	minGracePeriod int64
+	maxGracePeriod int64
 }
 
 func (p terminationGracePeriodValidator) Validate(j *api.JobSubmitRequestItem) error {
@@ -17,13 +17,13 @@ func (p terminationGracePeriodValidator) Validate(j *api.JobSubmitRequestItem) e
 	}
 	if spec.TerminationGracePeriodSeconds != nil {
 		terminationGracePeriodSeconds := *spec.TerminationGracePeriodSeconds
-		if terminationGracePeriodSeconds > p.minTerminationGracePeriodSeconds ||
-			terminationGracePeriodSeconds < p.maxTerminationGracePeriodSeconds {
+		if terminationGracePeriodSeconds < p.minGracePeriod ||
+			terminationGracePeriodSeconds > p.maxGracePeriod {
 			return fmt.Errorf(
 				"terminationGracePeriodSeconds of %d must be [%d, %d], or omitted",
 				terminationGracePeriodSeconds,
-				p.minTerminationGracePeriodSeconds,
-				p.maxTerminationGracePeriodSeconds)
+				p.minGracePeriod,
+				p.maxGracePeriod)
 		}
 	}
 	return nil

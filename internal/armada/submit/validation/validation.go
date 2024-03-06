@@ -20,8 +20,8 @@ func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.Sched
 		containerValidator{minJobResources: config.MinJobResources},
 		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},
 		terminationGracePeriodValidator{
-			minTerminationGracePeriodSeconds: int64(config.MinTerminationGracePeriod.Seconds()),
-			maxTerminationGracePeriodSeconds: int64(config.MaxTerminationGracePeriod.Seconds()),
+			minGracePeriod: int64(config.MinTerminationGracePeriod.Seconds()),
+			maxGracePeriod: int64(config.MaxTerminationGracePeriod.Seconds()),
 		},
 		ingressValidator{},
 		portsValidator{})
