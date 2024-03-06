@@ -83,23 +83,18 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.JobSet, "jobSet"],
 ])
 
+const defaultJobOrder: JobOrder = {
+  field: "jobId",
+  direction: "DESC",
+}
+
+const defaultGroupOrder: JobOrder = {
+  field: "count",
+  direction: "DESC",
+}
+
 // Return ordering to request to API based on column
-function getOrder(
-  lookoutOrder: LookoutColumnOrder,
-  lookoutFilters: JobFilter[],
-  groupedColumns: ColumnId[],
-  isJobFetch: boolean,
-): JobOrder {
-  const defaultJobOrder: JobOrder = {
-    field: "jobId",
-    direction: "DESC",
-  }
-
-  const defaultGroupOrder: JobOrder = {
-    field: "count",
-    direction: "DESC",
-  }
-
+function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrder {
   let field = ""
   if (isJobFetch) {
     if (!columnToJobSortFieldMap.has(lookoutOrder.id as ColumnId)) {
@@ -107,13 +102,10 @@ function getOrder(
     }
     field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
-    if (
-      !canOrderByField(lookoutFilters, groupedColumns, lookoutOrder.id) ||
-      !columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)
-    ) {
+    // If it is JobGroups, always return the order value here which might be overridden later
+    if (!columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultGroupOrder
     }
-
     field = columnToGroupSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   }
 
@@ -121,31 +113,6 @@ function getOrder(
     field: field,
     direction: lookoutOrder.direction,
   }
-}
-
-function canOrderByField(lookoutFilters: JobFilter[], groupedColumns: string[], id: string): boolean {
-  // A function that determines whether we can see the field in the UI, therefore allowing us to sort by it
-  // Extract 'field' values from lookoutFilters, excluding the column
-  const filterFields = lookoutFilters.map((filter) => filter.field).filter((field) => field !== id)
-
-  // Exclude column and everything after from groupedColumns for direct comparison
-  const index = groupedColumns.findIndex((col) => col === id)
-  const filteredGroupedColumns = index >= 0 ? groupedColumns.slice(0, index) : groupedColumns
-
-  // Check if the lengths are different
-  if (filterFields.length !== filteredGroupedColumns.length) {
-    return false
-  }
-
-  // Check each element for an exact match
-  for (let i = 0; i < filterFields.length; i++) {
-    if (filterFields[i] !== filteredGroupedColumns[i]) {
-      return false
-    }
-  }
-
-  // If all checks pass, return true
-  return true
 }
 
 export const useFetchJobsTableData = ({
@@ -185,7 +152,7 @@ export const useFetchJobsTableData = ({
       const isJobFetch = expandedLevel === groupingLevel
 
       const filterValues = getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? [])
-      const order = getOrder(lookoutOrder, filterValues, groupedColumns, isJobFetch)
+      const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
         filters: filterValues,
         activeJobSets: activeJobSets,
@@ -204,6 +171,11 @@ export const useFetchJobsTableData = ({
         } else {
           const groupedCol = groupedColumns[expandedLevel]
           const groupedField = columnToGroupedField(groupedCol)
+
+          // Override the group order if needed
+          if (rowRequest.order.field !== groupedCol) {
+            rowRequest.order = defaultGroupOrder
+          }
 
           // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
           rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))

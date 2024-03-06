@@ -242,6 +242,16 @@ definitions:
         minLength: 1
         x-nullable: false
 
+parameters:
+  backend:
+    name: backend
+    in: query
+    description: The backend to use for this request.
+    required: false
+    type: string
+    enum:
+      - jsonb
+
 paths:
   /health:
     get:
@@ -291,7 +301,7 @@ paths:
               take:
                 type: integer
                 description: "Number of jobs to fetch."
-
+        - $ref: "#/parameters/backend"
       produces:
         - application/json
       responses:
@@ -445,7 +455,7 @@ paths:
               take:
                 type: integer
                 description: "Number of job groups to fetch."
-
+        - $ref: "#/parameters/backend"
       produces:
         - application/json
       responses:

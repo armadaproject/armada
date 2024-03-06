@@ -212,7 +212,7 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	annotationInstructions := createUserAnnotationInstructions(jobId, queue, jobSet, event.GetObjectMeta().GetAnnotations())
+	annotationInstructions := createUserAnnotationInstructions(jobId, queue, jobSet, annotations)
 	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
 
 	return err

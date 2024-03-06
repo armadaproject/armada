@@ -280,7 +280,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Update success probability estimates.
 	if !s.failureEstimator.IsDisabled() {
-		s.failureEstimator.Decay()
 		for _, jst := range jsts {
 			if jst.Job == nil {
 				continue
@@ -290,12 +289,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 				continue
 			}
 			if jst.Failed {
-				s.failureEstimator.Update(run.NodeName(), jst.Job.GetQueue(), false)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), false)
 			}
 			if jst.Succeeded {
-				s.failureEstimator.Update(run.NodeName(), jst.Job.GetQueue(), true)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), true)
 			}
 		}
+		s.failureEstimator.Update()
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
@@ -368,12 +368,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		return nil
 	}
 	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(nil, jctx); err != nil {
-			return err
-		}
-	}
-	for _, jctx := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.UpdatePreempted(nil, jctx); err != nil {
+		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
 			return err
 		}
 	}
@@ -382,6 +377,8 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 			return err
 		}
 	}
+	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
+	// This is to make sure that preempttion is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
 }
 

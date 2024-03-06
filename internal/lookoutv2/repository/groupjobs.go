@@ -30,16 +30,18 @@ type GroupJobsRepository interface {
 }
 
 type SqlGroupJobsRepository struct {
-	db            *pgxpool.Pool
-	lookoutTables *LookoutTables
+	db              *pgxpool.Pool
+	lookoutTables   *LookoutTables
+	useJsonbBackend bool
 }
 
 const stateAggregatePrefix = "state_"
 
-func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
+func NewSqlGroupJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
-		db:            db,
-		lookoutTables: NewTables(),
+		db:              db,
+		lookoutTables:   NewTables(),
+		useJsonbBackend: useJsonbBackend,
 	}
 }
 
@@ -53,26 +55,31 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	skip int,
 	take int,
 ) (*GroupByResult, error) {
+	qb := NewQueryBuilder(r.lookoutTables)
+	groupBy := qb.GroupBy
+	if r.useJsonbBackend {
+		groupBy = qb.GroupByJsonb
+	}
+	query, err := groupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(query, "GroupBy")
+
 	var groups []*model.JobGroup
 
-	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
+	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
-		if err != nil {
-			return err
-		}
-		logQuery(groupByQuery, "GroupBy")
-		groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
+		groupRows, err := tx.Query(ctx, query.Sql, query.Args...)
 		if err != nil {
 			return err
 		}
 		groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 		return err
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 

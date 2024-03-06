@@ -33,7 +33,15 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 
 	// Sort taints to ensure node type id is consistent regardless of
 	// the order in which taints are set on the node.
-	slices.SortFunc(taints, func(a, b v1.Taint) bool { return a.Key < b.Key }) // TODO: Use less ambiguous sorting.
+	slices.SortFunc(taints, func(a, b v1.Taint) int {
+		if a.Key < b.Key {
+			return -1
+		} else if a.Key > b.Key {
+			return 1
+		} else {
+			return 0
+		}
+	}) // TODO: Use less ambiguous sorting.
 
 	// Filter out any labels that should not be indexed.
 	if indexedLabels != nil {

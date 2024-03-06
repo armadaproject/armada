@@ -53,12 +53,17 @@ var (
 )
 
 func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository) error) error {
-	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-		repo := NewSqlGetJobsRepository(db)
-		return f(converter, store, repo)
-	})
+	for _, useJsonbBackend := range []bool{false, true} {
+		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+			repo := NewSqlGetJobsRepository(db, useJsonbBackend)
+			return f(converter, store, repo)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestGetJobsSingle(t *testing.T) {
@@ -1987,6 +1992,72 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 			activeJobSet1,
 			inactiveJobSet1,
 		}, result.Jobs)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsWithLatestRunDetails(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+		runIdLatest := uuid.NewString()
+		// Simulate job submission and multiple runs, with the latest run being successful
+		NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Pending(uuid.NewString(), "first-cluster", baseTime).
+			Running(uuid.NewString(), "first-node", baseTime.Add(time.Minute)).
+			Pending(runIdLatest, "latest-cluster", baseTime.Add(2*time.Minute)).
+			Running(runIdLatest, "latest-node", baseTime.Add(3*time.Minute)).
+			RunSucceeded(runIdLatest, baseTime.Add(4*time.Minute)).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+
+		// Adjusting assertions to dereference pointer fields
+		if assert.NotNil(t, result.Jobs[0].Node) {
+			assert.Equal(t, "latest-node", *result.Jobs[0].Node)
+		}
+		if assert.NotNil(t, result.Jobs[0].ExitCode) {
+			assert.Equal(t, int32(0), *result.Jobs[0].ExitCode)
+		}
+		if assert.NotNil(t, result.Jobs[0].Cluster) {
+			assert.Equal(t, "latest-cluster", result.Jobs[0].Cluster)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsWithSpecificRunDetails(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+		runIdSpecific := uuid.NewString()
+		// Simulate job submission and a specific failed run
+		NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Pending(runIdSpecific, "specific-cluster", baseTime).
+			Running(runIdSpecific, "specific-node", baseTime.Add(time.Minute)).
+			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", baseTime.Add(2*time.Minute)).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+
+		// Adjusting assertions to dereference pointer fields
+		if assert.NotNil(t, result.Jobs[0].Node) {
+			assert.Equal(t, "specific-node", *result.Jobs[0].Node)
+		}
+		if assert.NotNil(t, result.Jobs[0].ExitCode) {
+			assert.Equal(t, int32(2), *result.Jobs[0].ExitCode)
+		}
+		if assert.NotNil(t, result.Jobs[0].Cluster) {
+			assert.Equal(t, "specific-cluster", result.Jobs[0].Cluster)
+		}
 
 		return nil
 	})

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -22,8 +23,9 @@ type GetJobsRepository interface {
 }
 
 type SqlGetJobsRepository struct {
-	db            *pgxpool.Pool
-	lookoutTables *LookoutTables
+	db              *pgxpool.Pool
+	lookoutTables   *LookoutTables
+	useJsonbBackend bool
 }
 
 type GetJobsResult struct {
@@ -70,14 +72,23 @@ type annotationRow struct {
 	annotationValue string
 }
 
-func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
+func NewSqlGetJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGetJobsRepository {
 	return &SqlGetJobsRepository{
-		db:            db,
-		lookoutTables: NewTables(),
+		db:              db,
+		lookoutTables:   NewTables(),
+		useJsonbBackend: useJsonbBackend,
 	}
 }
 
 func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+	getJobs := r.getJobs
+	if r.useJsonbBackend {
+		getJobs = r.getJobsJsonb
+	}
+	return getJobs(ctx, filters, activeJobSets, order, skip, take)
+}
+
+func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
 	var jobRows []*jobRow
 	var runRows []*runRow
 	var annotationRows []*annotationRow
@@ -114,6 +125,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 			log.WithError(err).Error("failed getting run rows")
 			return err
 		}
+
 		annotationRows, err = makeAnnotationRows(ctx, tx, tempTableName)
 		if err != nil {
 			log.WithError(err).Error("failed getting annotation rows")
@@ -124,7 +136,6 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 	if err != nil {
 		return nil, err
 	}
-
 	jobs, err := rowsToJobs(jobRows, runRows, annotationRows)
 	if err != nil {
 		return nil, err
@@ -134,33 +145,84 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 	}, nil
 }
 
+func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+	query, err := NewQueryBuilder(r.lookoutTables).GetJobsJsonb(filters, activeJobSets, order, skip, take)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(query, "GetJobs")
+	var jobs []*model.Job
+	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
+		IsoLevel:       pgx.RepeatableRead,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query.Sql, query.Args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var row jobRow
+			var annotations sql.NullString
+			var runs sql.NullString
+			if err := rows.Scan(
+				&row.jobId,
+				&row.queue,
+				&row.owner,
+				&row.namespace,
+				&row.jobSet,
+				&row.cpu,
+				&row.memory,
+				&row.ephemeralStorage,
+				&row.gpu,
+				&row.priority,
+				&row.submitted,
+				&row.cancelled,
+				&row.state,
+				&row.lastTransitionTime,
+				&row.duplicate,
+				&row.priorityClass,
+				&row.latestRunId,
+				&row.cancelReason,
+				&annotations,
+				&runs,
+			); err != nil {
+				return err
+			}
+			job := jobRowToModel(&row)
+			if annotations.Valid {
+				if err := json.Unmarshal([]byte(annotations.String), &job.Annotations); err != nil {
+					return err
+				}
+			}
+			if runs.Valid {
+				if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
+					return err
+				}
+			}
+			if len(job.Runs) > 0 {
+				lastRun := job.Runs[len(job.Runs)-1] // Get the last run
+				job.Node = lastRun.Node
+				job.Cluster = lastRun.Cluster
+				job.ExitCode = lastRun.ExitCode
+
+			}
+			jobs = append(jobs, job)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return &GetJobsResult{Jobs: jobs}, nil
+}
+
 func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow) ([]*model.Job, error) {
 	jobMap := make(map[string]*model.Job) // Map from Job ID to Job
 	orderedJobIds := make([]string, len(jobRows))
 
 	for i, row := range jobRows {
-		job := &model.Job{
-			Annotations:        make(map[string]string),
-			Cancelled:          database.ParseNullTime(row.cancelled),
-			Cpu:                row.cpu,
-			Duplicate:          row.duplicate,
-			EphemeralStorage:   row.ephemeralStorage,
-			Gpu:                row.gpu,
-			JobId:              row.jobId,
-			JobSet:             row.jobSet,
-			LastActiveRunId:    database.ParseNullString(row.latestRunId),
-			LastTransitionTime: row.lastTransitionTime,
-			Memory:             row.memory,
-			Owner:              row.owner,
-			Namespace:          database.ParseNullString(row.namespace),
-			Priority:           row.priority,
-			PriorityClass:      database.ParseNullString(row.priorityClass),
-			Queue:              row.queue,
-			Runs:               []*model.Run{},
-			State:              string(lookout.JobStateMap[row.state]),
-			Submitted:          row.submitted,
-			CancelReason:       database.ParseNullString(row.cancelReason),
-		}
+		job := jobRowToModel(row)
 		jobMap[row.jobId] = job
 		orderedJobIds[i] = row.jobId
 	}
@@ -169,13 +231,13 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 		run := &model.Run{
 			Cluster:     row.cluster,
 			ExitCode:    database.ParseNullInt32(row.exitCode),
-			Finished:    database.ParseNullTime(row.finished),
-			JobRunState: string(lookout.JobRunStateMap[row.jobRunState]),
+			Finished:    model.NewPostgreSQLTime(database.ParseNullTime(row.finished)),
+			JobRunState: row.jobRunState,
 			Node:        database.ParseNullString(row.node),
-			Leased:      database.ParseNullTime(row.leased),
-			Pending:     database.ParseNullTime(row.pending),
+			Leased:      model.NewPostgreSQLTime(database.ParseNullTime(row.leased)),
+			Pending:     model.NewPostgreSQLTime(database.ParseNullTime(row.pending)),
 			RunId:       row.runId,
-			Started:     database.ParseNullTime(row.started),
+			Started:     model.NewPostgreSQLTime(database.ParseNullTime(row.started)),
 		}
 		job, ok := jobMap[row.jobId]
 		if !ok {
@@ -196,10 +258,42 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 	for i, jobId := range orderedJobIds {
 		job := jobMap[jobId]
 		sortRuns(job.Runs)
+		if len(job.Runs) > 0 {
+			lastRun := job.Runs[len(job.Runs)-1] // Get the last run
+			job.Node = lastRun.Node
+			job.Cluster = lastRun.Cluster
+			job.ExitCode = lastRun.ExitCode
+
+		}
 		jobs[i] = job
 	}
 
 	return jobs, nil
+}
+
+func jobRowToModel(row *jobRow) *model.Job {
+	return &model.Job{
+		Annotations:        make(map[string]string),
+		Cancelled:          database.ParseNullTime(row.cancelled),
+		Cpu:                row.cpu,
+		Duplicate:          row.duplicate,
+		EphemeralStorage:   row.ephemeralStorage,
+		Gpu:                row.gpu,
+		JobId:              row.jobId,
+		JobSet:             row.jobSet,
+		LastActiveRunId:    database.ParseNullString(row.latestRunId),
+		LastTransitionTime: row.lastTransitionTime,
+		Memory:             row.memory,
+		Owner:              row.owner,
+		Namespace:          database.ParseNullString(row.namespace),
+		Priority:           row.priority,
+		PriorityClass:      database.ParseNullString(row.priorityClass),
+		Queue:              row.queue,
+		Runs:               make([]*model.Run, 0),
+		State:              string(lookout.JobStateMap[row.state]),
+		Submitted:          row.submitted,
+		CancelReason:       database.ParseNullString(row.cancelReason),
+	}
 }
 
 func sortRuns(runs []*model.Run) {
@@ -220,10 +314,10 @@ func sortRuns(runs []*model.Run) {
 
 func getJobRunTime(run *model.Run) (time.Time, error) {
 	if run.Leased != nil {
-		return *run.Leased, nil
+		return run.Leased.Time, nil
 	}
 	if run.Pending != nil {
-		return *run.Pending, nil
+		return run.Pending.Time, nil
 	}
 	return time.Time{}, errors.Errorf("error when getting run time for run with id %s", run.RunId)
 }

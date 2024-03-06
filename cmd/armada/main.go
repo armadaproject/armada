@@ -65,10 +65,12 @@ func main() {
 	})
 
 	// Expose profiling endpoints if enabled.
-	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
-	g.Go(func() error {
-		return serve.ListenAndServe(ctx, pprofServer)
-	})
+	if config.PprofPort != nil {
+		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
+		g.Go(func() error {
+			return serve.ListenAndServe(ctx, pprofServer)
+		})
+	}
 
 	// TODO This starts a separate HTTP server. Is that intended? Should we have a single mux for everything?
 	// TODO: Run in errgroup
