@@ -9,9 +9,19 @@ import (
 )
 
 func TestContainerValidator(t *testing.T) {
+
+	oneCpu := v1.ResourceList{
+		v1.ResourceCPU: resource.MustParse("1"),
+	}
+
+	twoCpu := v1.ResourceList{
+		v1.ResourceCPU: resource.MustParse("2"),
+	}
+
 	tests := map[string]struct {
-		req           *api.JobSubmitRequestItem
-		expectSuccess bool
+		req             *api.JobSubmitRequestItem
+		minJobResources v1.ResourceList
+		expectSuccess   bool
 	}{
 		"No pod spec": {
 			req:           &api.JobSubmitRequestItem{},
@@ -24,102 +34,54 @@ func TestContainerValidator(t *testing.T) {
 			expectSuccess: false,
 		},
 		"Requests Missing": {
-			req: &api.JobSubmitRequestItem{
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: v1.ResourceRequirements{
-								Limits: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-							},
-						},
-					},
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Limits: oneCpu,
 				},
-			},
+			}),
 			expectSuccess: false,
 		},
 		"Limits Missing": {
-			req: &api.JobSubmitRequestItem{
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: v1.ResourceRequirements{
-								Requests: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-							},
-						},
-					},
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
 				},
-			},
+			}),
 			expectSuccess: false,
 		},
 		"Requests and limits different": {
-			req: &api.JobSubmitRequestItem{
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: v1.ResourceRequirements{
-								Limits: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-								Requests: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("2"),
-								},
-							},
-						},
-					},
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   twoCpu,
 				},
-			},
+			}),
 			expectSuccess: false,
 		},
-		"One valid container": {
-			req: &api.JobSubmitRequestItem{
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: v1.ResourceRequirements{
-								Limits: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-								Requests: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-							},
-						},
-					},
+		"Request and limits the same": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   oneCpu,
 				},
-			},
+			}),
 			expectSuccess: true,
 		},
-		"Two valid containers": {
-			req: &api.JobSubmitRequestItem{
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: v1.ResourceRequirements{
-								Limits: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-								Requests: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("1"),
-								},
-							},
-						},
-						{
-							Resources: v1.ResourceRequirements{
-								Limits: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("2"),
-								},
-								Requests: v1.ResourceList{
-									v1.ResourceCPU: resource.MustParse("2"),
-								},
-							},
-						},
+		"Request and limits the same with two containers": {
+			req: reqFromContainers([]v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Requests: oneCpu,
+						Limits:   oneCpu,
 					},
 				},
-			},
+				{
+					Resources: v1.ResourceRequirements{
+						Requests: twoCpu,
+						Limits:   twoCpu,
+					},
+				},
+			}),
 			expectSuccess: true,
 		},
 	}
@@ -133,5 +95,15 @@ func TestContainerValidator(t *testing.T) {
 				assert.Error(t, err)
 			}
 		})
+	}
+}
+
+func reqFromContainer(container v1.Container) *api.JobSubmitRequestItem {
+	return reqFromContainers([]v1.Container{container})
+}
+
+func reqFromContainers(containers []v1.Container) *api.JobSubmitRequestItem {
+	return &api.JobSubmitRequestItem{
+		PodSpec: &v1.PodSpec{Containers: containers},
 	}
 }
