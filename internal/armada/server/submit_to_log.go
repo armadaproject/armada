@@ -114,12 +114,12 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
 	}
 
-	// Check if all jobs can be scheduled.
-	// This check uses the NodeDb of the new scheduler and
-	// can check if all jobs in a gang can go onto the same cluster.
-	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
-	}
+	// // Check if all jobs can be scheduled.
+	// // This check uses the NodeDb of the new scheduler and
+	// // can check if all jobs in a gang can go onto the same cluster.
+	// if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
+	// 	return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
+	// }
 
 	pulsarJobDetails := make([]*schedulerobjects.PulsarSchedulerJobDetails, 0)
 
