@@ -36,6 +36,7 @@ export interface JobsTableActionBarProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
   onClearFilters: () => void
+  onClearGroups: () => void
   onAddCustomView: (name: string) => void
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
@@ -62,6 +63,7 @@ export const JobsTableActionBar = memo(
     getJobsService,
     updateJobsService,
     onClearFilters,
+    onClearGroups,
     onAddCustomView,
     onDeleteCustomView,
     onLoadCustomView,
@@ -122,6 +124,9 @@ export const JobsTableActionBar = memo(
           <Divider orientation="vertical" />
           <Button variant="text" onClick={onClearFilters} color="secondary">
             Clear Filters
+          </Button>
+          <Button variant="text" onClick={onClearGroups} color="secondary">
+            Clear Groups
           </Button>
           <CustomViewPicker
             customViews={customViews}
