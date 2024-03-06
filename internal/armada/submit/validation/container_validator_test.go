@@ -10,18 +10,18 @@ import (
 
 func TestContainerValidator(t *testing.T) {
 	tests := map[string]struct {
-		req        *api.JobSubmitRequestItem
-		shouldPass bool
+		req           *api.JobSubmitRequestItem
+		expectSuccess bool
 	}{
 		"No pod spec": {
-			req:        &api.JobSubmitRequestItem{},
-			shouldPass: true,
+			req:           &api.JobSubmitRequestItem{},
+			expectSuccess: true,
 		},
 		"No containers": {
 			req: &api.JobSubmitRequestItem{
 				PodSpec: &v1.PodSpec{},
 			},
-			shouldPass: false,
+			expectSuccess: false,
 		},
 		"Requests Missing": {
 			req: &api.JobSubmitRequestItem{
@@ -37,7 +37,7 @@ func TestContainerValidator(t *testing.T) {
 					},
 				},
 			},
-			shouldPass: false,
+			expectSuccess: false,
 		},
 		"Limits Missing": {
 			req: &api.JobSubmitRequestItem{
@@ -53,7 +53,7 @@ func TestContainerValidator(t *testing.T) {
 					},
 				},
 			},
-			shouldPass: false,
+			expectSuccess: false,
 		},
 		"Requests and limits different": {
 			req: &api.JobSubmitRequestItem{
@@ -72,7 +72,7 @@ func TestContainerValidator(t *testing.T) {
 					},
 				},
 			},
-			shouldPass: false,
+			expectSuccess: false,
 		},
 		"One valid container": {
 			req: &api.JobSubmitRequestItem{
@@ -91,7 +91,7 @@ func TestContainerValidator(t *testing.T) {
 					},
 				},
 			},
-			shouldPass: true,
+			expectSuccess: true,
 		},
 		"Two valid containers": {
 			req: &api.JobSubmitRequestItem{
@@ -120,14 +120,14 @@ func TestContainerValidator(t *testing.T) {
 					},
 				},
 			},
-			shouldPass: true,
+			expectSuccess: true,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			v := containerValidator{}
 			err := v.Validate(tc.req)
-			if tc.shouldPass {
+			if tc.expectSuccess {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
