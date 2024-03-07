@@ -143,9 +143,15 @@ scheduling:
       resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
-  failureEstimatorConfig:
+  failureProbabilityEstimation:
     # Optimised default parameters.
     numInnerIterations: 10
     innerOptimiserStepSize: 0.05
     outerOptimiserStepSize: 0.05
     outerOptimiserNesterovAcceleration: 0.2
+  nodeQuarantining:
+    failureProbabilityQuarantineThreshold: 0.95
+    failureProbabilityEstimateTimeout: "10m"
+  queueQuarantining:
+    quarantineFactorMultiplier: 0.5 # At most halve the scheduling rate of misbehaving queues.
+    failureProbabilityEstimateTimeout: "10m"

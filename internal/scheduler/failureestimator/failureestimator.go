@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -55,15 +56,12 @@ type FailureEstimator struct {
 	gradient *mat.VecDense
 
 	// Maps node (queue) names to the corresponding index of parameters.
-	// E.g., if parameterIndexByNode["myNode"] = 10, then parameters[10] is the estimated success probability of myNode.
-	parameterIndexByNode  map[string]int
-	parameterIndexByQueue map[string]int
-
-	// Maps node names to the cluster they belong to.
-	clusterByNode map[string]string
+	// E.g., if nodeByName["myNode"].parameterIndex = 10, then parameters[10] is the estimated success probability of myNode.
+	nodeByName  map[string]node
+	queueByName map[string]queue
 
 	// Samples that have not been processed yet.
-	samples []Sample
+	samples []sample
 
 	// Optimisation settings.
 	numInnerIterations int
@@ -82,7 +80,18 @@ type FailureEstimator struct {
 	mu sync.Mutex
 }
 
-type Sample struct {
+type node struct {
+	parameterIndex         int
+	cluster                string
+	timeOfMostRecentSample time.Time
+}
+
+type queue struct {
+	parameterIndex         int
+	timeOfMostRecentSample time.Time
+}
+
+type sample struct {
 	i int
 	j int
 	c bool
@@ -106,10 +115,8 @@ func New(
 		intermediateParameters: mat.NewVecDense(32, armadaslices.Zeros[float64](32)),
 		gradient:               mat.NewVecDense(32, armadaslices.Zeros[float64](32)),
 
-		parameterIndexByNode:  make(map[string]int, 16),
-		parameterIndexByQueue: make(map[string]int, 16),
-
-		clusterByNode: make(map[string]string),
+		nodeByName:  make(map[string]node, 16),
+		queueByName: make(map[string]queue, 16),
 
 		numInnerIterations: numInnerIterations,
 		innerOptimiser:     innerOptimiser,
@@ -146,25 +153,34 @@ func (fe *FailureEstimator) IsDisabled() bool {
 
 // Push adds a sample to the internal buffer of the failure estimator.
 // Samples added via Push are processed on the next call to Update.
-func (fe *FailureEstimator) Push(node, queue, cluster string, success bool) {
+// The timestamp t should be the time at which the success or failure happened.
+func (fe *FailureEstimator) Push(nodeName, queueName, clusterName string, success bool, t time.Time) {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
 
-	fe.clusterByNode[node] = cluster
-	i, ok := fe.parameterIndexByNode[node]
+	node, ok := fe.nodeByName[nodeName]
 	if !ok {
-		i = len(fe.parameterIndexByNode) + len(fe.parameterIndexByQueue)
-		fe.parameterIndexByNode[node] = i
+		node.parameterIndex = len(fe.nodeByName) + len(fe.queueByName)
 	}
-	j, ok := fe.parameterIndexByQueue[queue]
+	node.cluster = clusterName
+	if node.timeOfMostRecentSample.Compare(t) == -1 {
+		node.timeOfMostRecentSample = t
+	}
+	fe.nodeByName[nodeName] = node
+
+	queue, ok := fe.queueByName[queueName]
 	if !ok {
-		j = len(fe.parameterIndexByNode) + len(fe.parameterIndexByQueue)
-		fe.parameterIndexByQueue[queue] = j
+		queue.parameterIndex = len(fe.nodeByName) + len(fe.queueByName)
 	}
-	fe.extendParameters(armadamath.Max(i, j) + 1)
-	fe.samples = append(fe.samples, Sample{
-		i: i,
-		j: j,
+	if queue.timeOfMostRecentSample.Compare(t) == -1 {
+		queue.timeOfMostRecentSample = t
+	}
+	fe.queueByName[queueName] = queue
+
+	fe.extendParameters(armadamath.Max(node.parameterIndex, queue.parameterIndex) + 1)
+	fe.samples = append(fe.samples, sample{
+		i: node.parameterIndex,
+		j: queue.parameterIndex,
 		c: success,
 	})
 }
@@ -259,6 +275,54 @@ func (fe *FailureEstimator) negLogLikelihoodGradient(nodeSuccessProbability, que
 	}
 }
 
+// FailureProbabilityFromNodeName returns the failure probability estimate of the named node
+// and the timestamp of the most recent success or failure observed for this node.
+// The most recent sample may not be reflected in the estimate if Update has not been called since the last call to Push.
+// If there is no estimate for nodeName, the final return value is false.
+func (fe *FailureEstimator) FailureProbabilityFromNodeName(nodeName string) (float64, time.Time, bool) {
+	node, ok := fe.nodeByName[nodeName]
+	if !ok {
+		return 0, time.Time{}, false
+	}
+	return 1 - fe.parameters.AtVec(node.parameterIndex), node.timeOfMostRecentSample, true
+}
+
+// FailureProbabilityFromQueueName returns the failure probability estimate of the named queue
+// and the timestamp of the most recent success or failure observed for this queue.
+// The most recent sample may not be reflected in the estimate if Update has not been called since the last call to Push.
+// If there is no estimate for queueName, the final return value is false.
+func (fe *FailureEstimator) FailureProbabilityFromQueueName(queueName string) (float64, time.Time, bool) {
+	queue, ok := fe.nodeByName[queueName]
+	if !ok {
+		return 0, time.Time{}, false
+	}
+	return 1 - fe.parameters.AtVec(queue.parameterIndex), queue.timeOfMostRecentSample, true
+}
+
+func (fe *FailureEstimator) ApplyNodes(f func(nodeName, cluster string, failureProbability float64, timeOfLastUpdate time.Time)) {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+	for nodeName, node := range fe.nodeByName {
+		// Report failure probability rounded to nearest multiple of 0.01.
+		// (As it's unlikely the estimate is accurate to within less than this.)
+		failureProbability := 1 - fe.parameters.AtVec(node.parameterIndex)
+		failureProbability = math.Round(failureProbability*100) / 100
+		f(nodeName, node.cluster, failureProbability, node.timeOfMostRecentSample)
+	}
+}
+
+func (fe *FailureEstimator) ApplyQueues(f func(queueName string, failureProbability float64, timeOfLastUpdate time.Time)) {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+	for queueName, queue := range fe.queueByName {
+		// Report failure probability rounded to nearest multiple of 0.01.
+		// (As it's unlikely the estimate is accurate to within less than this.)
+		failureProbability := 1 - fe.parameters.AtVec(queue.parameterIndex)
+		failureProbability = math.Round(failureProbability*100) / 100
+		f(queueName, failureProbability, queue.timeOfMostRecentSample)
+	}
+}
+
 func (fe *FailureEstimator) Describe(ch chan<- *prometheus.Desc) {
 	if fe.IsDisabled() {
 		return
@@ -271,19 +335,10 @@ func (fe *FailureEstimator) Collect(ch chan<- prometheus.Metric) {
 	if fe.IsDisabled() {
 		return
 	}
-	fe.mu.Lock()
-	defer fe.mu.Unlock()
-
-	// Report failure probability rounded to nearest multiple of 0.01.
-	// (As it's unlikely the estimate is accurate to within less than this.)
-	for k, i := range fe.parameterIndexByNode {
-		failureProbability := 1 - fe.parameters.AtVec(i)
-		failureProbability = math.Round(failureProbability*100) / 100
-		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByNodeDesc, prometheus.GaugeValue, failureProbability, k, fe.clusterByNode[k])
-	}
-	for k, j := range fe.parameterIndexByQueue {
-		failureProbability := 1 - fe.parameters.AtVec(j)
-		failureProbability = math.Round(failureProbability*100) / 100
-		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByQueueDesc, prometheus.GaugeValue, failureProbability, k)
-	}
+	fe.ApplyNodes(func(nodeName, cluster string, failureProbability float64, timeOfLastUpdate time.Time) {
+		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByNodeDesc, prometheus.GaugeValue, failureProbability, nodeName, cluster)
+	})
+	fe.ApplyQueues(func(queueName string, failureProbability float64, timeOfLastUpdate time.Time) {
+		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByQueueDesc, prometheus.GaugeValue, failureProbability, queueName)
+	})
 }
