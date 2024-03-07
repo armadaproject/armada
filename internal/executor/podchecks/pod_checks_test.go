@@ -65,7 +65,15 @@ func Test_GetAction_BadNode(t *testing.T) {
 	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{}, 10*time.Minute)
 	assert.Equal(t, result, ActionRetry)
 	assert.Equal(t, cause, NoStatusUpdates)
-	assert.Equal(t, message, "Pod status and pod events are both empty. Retrying")
+	assert.Equal(t, message, "Pod has received no updates within 1m0s deadline - likely the node is bad. Retrying")
+}
+
+func Test_GetAction_BadNode_ShouldIgnoreScheduledEvents(t *testing.T) {
+	podChecks := podChecksWithMocks(ActionWait, ActionWait)
+	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{{Message: "Scheduled pod onto node", Reason: EventReasonScheduled}}, 10*time.Minute)
+	assert.Equal(t, result, ActionRetry)
+	assert.Equal(t, cause, NoStatusUpdates)
+	assert.Equal(t, message, "Pod has received no updates within 1m0s deadline - likely the node is bad. Retrying")
 }
 
 func Test_GetAction_BadNodeButUnderTimeLimit(t *testing.T) {
@@ -73,7 +81,7 @@ func Test_GetAction_BadNodeButUnderTimeLimit(t *testing.T) {
 	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{}, 10*time.Second)
 	assert.Equal(t, result, ActionWait)
 	assert.Equal(t, cause, NoStatusUpdates)
-	assert.Equal(t, message, "Pod status and pod events are both empty but we are under timelimit. Waiting")
+	assert.Equal(t, message, "Pod status and pod events are both empty but we are under time limit. Waiting")
 }
 
 func createBasicPod(scheduled bool) *v1.Pod {

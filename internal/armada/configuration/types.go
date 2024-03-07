@@ -39,8 +39,7 @@ type ArmadaConfig struct {
 	Scheduling          SchedulingConfig
 	Pulsar              PulsarConfig
 	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi            EventApiConfig
-	Metrics             MetricsConfig
+	QueryApi            QueryApiConfig
 }
 
 type PulsarConfig struct {
@@ -58,7 +57,7 @@ type PulsarConfig struct {
 	AuthenticationEnabled bool
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
-	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
+	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath                string
 	JobsetEventsTopic           string
 	RedisFromPulsarSubscription string
@@ -66,11 +65,6 @@ type PulsarConfig struct {
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
 	CompressionLevel pulsar.CompressionLevel
-	// Used to construct an executorconfig.IngressConfiguration,
-	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
-	HostnameSuffix string
-	CertNameSuffix string
-	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
 	// Log all pulsar events
@@ -86,33 +80,12 @@ type PulsarConfig struct {
 	ReceiverQueueSize int
 }
 
-// DatabaseConfig represents the configuration of the database connection.
-type DatabaseConfig struct {
-	// MaxOpenConns represents the maximum number of open connections to the database.
-	MaxOpenConns int
-
-	// MaxIdleConns represents the maximum number of connections in the idle connection pool.
-	MaxIdleConns int
-
-	// ConnMaxLifetime represents the maximum amount of time a connection may be reused.
-	ConnMaxLifetime time.Duration
-
-	// Connection represents the database connection details in a key/value pairs format.
-	Connection map[string]string
-
-	// Dialect represents the dialect of the configured database.
-	Dialect string
-}
-
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// If true, schedule jobs across all executors in the same pool in a unified manner.
-	// Otherwise, schedule each executor separately.
-	UnifiedSchedulingByPool bool
-	Preemption              PreemptionConfig
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -151,7 +124,6 @@ type SchedulingConfig struct {
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
 	MaxJobSchedulingContextsPerExecutor uint
-	Lease                               LeaseSettings
 	DefaultJobLimits                    armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
@@ -161,18 +133,10 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
-	FairnessModel FairnessModel
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
 	DominantResourceFairnessResourcesToConsider []string
-	// Weights used to compute fair share when using AssetFairness.
-	// Overrides dynamic scarcity calculation if provided.
-	// Applies to both the new and old scheduler.
-	ResourceScarcity map[string]float64
-	// Applies only to the old scheduler.
-	PoolResourceScarcity map[string]map[string]float64
-	MaxPodSpecSizeBytes  uint
-	MinJobResources      v1.ResourceList
+	MaxPodSpecSizeBytes                         uint
+	MinJobResources                             v1.ResourceList
 	// Once a node has been found on which a pod can be scheduled,
 	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
 	// The scheduler selects the node with the best score out of the considered nodes.
@@ -244,8 +208,8 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Enable new preemption strategy.
-	EnableNewPreemptionStrategy bool
+	// Controls node and queue success probability estimation.
+	FailureEstimatorConfig FailureEstimatorConfig
 }
 
 const (
@@ -280,20 +244,6 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		}
 	}
 }
-
-// FairnessModel controls how fairness is computed.
-// More specifically, each queue has a cost associated with it and the next job to schedule
-// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
-type FairnessModel string
-
-const (
-	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
-	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
-	AssetFairness FairnessModel = "AssetFairness"
-	// DominantResourceFairness set the cost associated with a queue to
-	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
-	DominantResourceFairness FairnessModel = "DominantResourceFairness"
-)
 
 type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
@@ -342,39 +292,23 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
-type LeaseSettings struct {
-	ExpireAfter        time.Duration
-	ExpiryLoopInterval time.Duration
+// FailureEstimatorConfig contains config controlling node and queue success probability estimation.
+// See the internal/scheduler/failureestimator package for details.
+type FailureEstimatorConfig struct {
+	Disabled                           bool
+	NumInnerIterations                 int     `validate:"gt=0"`
+	InnerOptimiserStepSize             float64 `validate:"gt=0"`
+	OuterOptimiserStepSize             float64 `validate:"gt=0"`
+	OuterOptimiserNesterovAcceleration float64 `validate:"gte=0"`
 }
 
+// TODO: we can probably just typedef this to map[string]string
 type PostgresConfig struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	Connection      map[string]string
+	Connection map[string]string
 }
 
-type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
-	Metrics         SchedulerMetricsConfig
-}
-
-type SchedulerMetricsConfig struct {
-	ScheduleCycleTimeHistogramSettings  HistogramConfig
-	ReconcileCycleTimeHistogramSettings HistogramConfig
-}
-
-type HistogramConfig struct {
-	Start  float64
-	Factor float64
-	Count  int
-}
-
-type EventApiConfig struct {
-	Enabled          bool
-	QueryConcurrency int
-	JobsetCacheSize  int
-	UpdateTopic      string
-	Postgres         PostgresConfig
+type QueryApiConfig struct {
+	Enabled       bool
+	Postgres      PostgresConfig
+	MaxQueryItems int
 }

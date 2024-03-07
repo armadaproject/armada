@@ -23,8 +23,81 @@ import (
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	schema, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	schema, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
 	assert.NoError(t, schema.Validate())
+}
+
+func TestNodeUnsafeCopy(t *testing.T) {
+	node := &Node{
+		Id:       "id",
+		Index:    1,
+		Executor: "executor",
+		Name:     "name",
+		Taints: []v1.Taint{
+			{
+				Key:   "foo",
+				Value: "bar",
+			},
+		},
+		Labels: map[string]string{
+			"key": "value",
+		},
+		TotalResources: schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("16"),
+				"memory": resource.MustParse("32Gi"),
+			},
+		},
+		Keys: [][]byte{
+			{
+				0, 1, 255,
+			},
+		},
+		NodeTypeId: 123,
+		AllocatableByPriority: schedulerobjects.AllocatableByPriorityAndResourceType{
+			1: {
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("0"),
+					"memory": resource.MustParse("0Gi"),
+				},
+			},
+			2: {
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("8"),
+					"memory": resource.MustParse("16Gi"),
+				},
+			},
+			3: {
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("16"),
+					"memory": resource.MustParse("32Gi"),
+				},
+			},
+		},
+		AllocatedByQueue: map[string]schedulerobjects.ResourceList{
+			"queue": {
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("8"),
+					"memory": resource.MustParse("16Gi"),
+				},
+			},
+		},
+		AllocatedByJobId: map[string]schedulerobjects.ResourceList{
+			"jobId": {
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("8"),
+					"memory": resource.MustParse("16Gi"),
+				},
+			},
+		},
+		EvictedJobRunIds: map[string]bool{
+			"jobId":        false,
+			"evictedJobId": true,
+		},
+	}
+	nodeCopy := node.UnsafeCopy()
+	// TODO(albin): Add more tests here.
+	assert.Equal(t, node.Id, nodeCopy.Id)
 }
 
 // Test the accounting of total resources across all nodes.

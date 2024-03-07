@@ -44,9 +44,10 @@ func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configu
 func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 1000
 	jobIds := makeUlids(n)
+	jobsToCreate, userAnnotationsToCreate := createJobInstructions(jobIds, n, 10*n)
 	instructions := &model.InstructionSet{
-		JobsToCreate:            createJobInstructions(n, jobIds),
-		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
+		JobsToCreate:            jobsToCreate,
+		UserAnnotationsToCreate: userAnnotationsToCreate,
 	}
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
@@ -62,9 +63,10 @@ func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngester
 func benchmarkSubmissions10000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 10000
 	jobIds := makeUlids(n)
+	jobsToCreate, userAnnotationsToCreate := createJobInstructions(jobIds, n, 10*n)
 	instructions := &model.InstructionSet{
-		JobsToCreate:            createJobInstructions(n, jobIds),
-		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
+		JobsToCreate:            jobsToCreate,
+		UserAnnotationsToCreate: userAnnotationsToCreate,
 	}
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
@@ -87,8 +89,10 @@ func benchmarkUpdates1000(b *testing.B, config configuration.LookoutIngesterV2Co
 	jobIds := makeUlids(n)
 	jobRunIds := makeUuids(runsPerJob * n)
 
+	jobsToCreate, userAnnotationsToCreate := createJobInstructions(jobIds, n, 10*n)
 	initialInstructions := &model.InstructionSet{
-		JobsToCreate: createJobInstructions(n, jobIds),
+		JobsToCreate:            jobsToCreate,
+		UserAnnotationsToCreate: userAnnotationsToCreate,
 	}
 
 	instructions := &model.InstructionSet{
@@ -122,8 +126,10 @@ func benchmarkUpdates10000(b *testing.B, config configuration.LookoutIngesterV2C
 	jobIds := makeUlids(n)
 	jobRunIds := makeUuids(runsPerJob * n)
 
+	jobsToCreate, userAnnotationsToCreate := createJobInstructions(jobIds, n, 10*n)
 	initialInstructions := &model.InstructionSet{
-		JobsToCreate: createJobInstructions(n, jobIds),
+		JobsToCreate:            jobsToCreate,
+		UserAnnotationsToCreate: userAnnotationsToCreate,
 	}
 
 	instructions := &model.InstructionSet{
@@ -163,12 +169,12 @@ func makeUuids(n int) []string {
 	return uuids
 }
 
-func createJobInstructions(n int, jobIds []string) []*model.CreateJobInstruction {
-	instructions := make([]*model.CreateJobInstruction, n)
+func createJobInstructions(jobIds []string, numJobs int, numUserAnnotations int) ([]*model.CreateJobInstruction, []*model.CreateUserAnnotationInstruction) {
+	createJobInstructions := make([]*model.CreateJobInstruction, numJobs)
 	jobBytes := make([]byte, 10000, 10000)
 	rand.Read(jobBytes)
-	for i := 0; i < n; i++ {
-		instructions[i] = &model.CreateJobInstruction{
+	for i := 0; i < numJobs; i++ {
+		createJobInstructions[i] = &model.CreateJobInstruction{
 			JobId:                     jobIds[i%len(jobIds)],
 			Queue:                     uuid.NewString(),
 			Owner:                     uuid.NewString(),
@@ -185,23 +191,24 @@ func createJobInstructions(n int, jobIds []string) []*model.CreateJobInstruction
 			LastTransitionTimeSeconds: rand.Int63(),
 			JobProto:                  jobBytes,
 			PriorityClass:             pointer.String(uuid.NewString()),
+			Annotations:               make(map[string]string),
 		}
 	}
-	return instructions
-}
-
-func createUserAnnotationInstructions(n int, jobIds []string) []*model.CreateUserAnnotationInstruction {
-	instructions := make([]*model.CreateUserAnnotationInstruction, n)
-	for i := 0; i < n; i++ {
-		instructions[i] = &model.CreateUserAnnotationInstruction{
-			JobId:  jobIds[i%len(jobIds)],
-			Key:    uuid.NewString(),
-			Value:  uuid.NewString(),
-			Queue:  uuid.NewString(),
-			Jobset: uuid.NewString(),
+	createUserAnnotationInstructions := make([]*model.CreateUserAnnotationInstruction, numUserAnnotations)
+	for i := 0; i < numUserAnnotations; i++ {
+		job := createJobInstructions[i%len(createJobInstructions)]
+		k := uuid.NewString()
+		v := uuid.NewString()
+		job.Annotations[k] = v
+		createUserAnnotationInstructions[i] = &model.CreateUserAnnotationInstruction{
+			JobId:  job.JobId,
+			Key:    k,
+			Value:  v,
+			Queue:  job.Queue,
+			Jobset: job.JobSet,
 		}
 	}
-	return instructions
+	return createJobInstructions, createUserAnnotationInstructions
 }
 
 func createJobRunInstructions(n int, runIds []string) []*model.CreateJobRunInstruction {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
@@ -17,7 +18,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 	}
 	return &models.Job{
 		Annotations:        job.Annotations,
-		Cancelled:          toSwaggerTimePtr(job.Cancelled),
+		Cancelled:          ToSwaggerTime(job.Cancelled),
 		CPU:                job.Cpu,
 		Duplicate:          job.Duplicate,
 		EphemeralStorage:   job.EphemeralStorage,
@@ -36,6 +37,9 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		State:              job.State,
 		Submitted:          strfmt.DateTime(job.Submitted),
 		CancelReason:       job.CancelReason,
+		Node:               job.Node,
+		Cluster:            job.Cluster,
+		ExitCode:           job.ExitCode,
 	}
 }
 
@@ -43,13 +47,13 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 	return &models.Run{
 		Cluster:     run.Cluster,
 		ExitCode:    run.ExitCode,
-		Finished:    toSwaggerTimePtr(run.Finished),
-		JobRunState: run.JobRunState,
+		Finished:    PostgreSQLTimeToSwaggerTime(run.Finished),
+		JobRunState: string(lookout.JobRunStateMap[run.JobRunState]),
 		Node:        run.Node,
-		Leased:      toSwaggerTimePtr(run.Leased),
-		Pending:     toSwaggerTimePtr(run.Pending),
+		Leased:      PostgreSQLTimeToSwaggerTime(run.Leased),
+		Pending:     PostgreSQLTimeToSwaggerTime(run.Pending),
 		RunID:       run.RunId,
-		Started:     toSwaggerTimePtr(run.Started),
+		Started:     PostgreSQLTimeToSwaggerTime(run.Started),
 	}
 }
 
@@ -90,10 +94,18 @@ func FromSwaggerGroupedField(groupedField *operations.GroupJobsParamsBodyGrouped
 	}
 }
 
-func toSwaggerTimePtr(ts *time.Time) *strfmt.DateTime {
-	if ts == nil {
+func ToSwaggerTime(t *time.Time) *strfmt.DateTime {
+	if t == nil {
 		return nil
 	}
-	swaggerTs := strfmt.DateTime(*ts)
-	return &swaggerTs
+	s := strfmt.DateTime(*t)
+	return &s
+}
+
+func PostgreSQLTimeToSwaggerTime(t *model.PostgreSQLTime) *strfmt.DateTime {
+	if t == nil {
+		return nil
+	}
+	s := strfmt.DateTime(t.Time)
+	return &s
 }

@@ -11,11 +11,11 @@ metrics:
   refreshInterval: 30s
   metrics:
     scheduleCycleTimeHistogramSettings:
-      start: 1.0
+      start: 10.0
       factor: 1.1
       count: 110
     reconcileCycleTimeHistogramSettings:
-      start: 1.0
+      start: 10.0
       factor: 1.1
       count: 110
 schedulerMetrics:
@@ -24,6 +24,10 @@ schedulerMetrics:
     - "memory"
     - "ephemeral-storage"
     - "nvidia.com/gpu"
+  resourceRenaming:
+    nvidia.com/gpu: "gpu"
+    amd.com/gpu: "gpu"
+    ephemeral-storage: "ephemeralStorage"
   matchedRegexIndexByErrorMessageCacheSize: 100
   resetInterval: "1h"
 pulsar:
@@ -139,4 +143,9 @@ scheduling:
       resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
-
+  failureEstimatorConfig:
+    # Optimised default parameters.
+    numInnerIterations: 10
+    innerOptimiserStepSize: 0.05
+    outerOptimiserStepSize: 0.05
+    outerOptimiserNesterovAcceleration: 0.2

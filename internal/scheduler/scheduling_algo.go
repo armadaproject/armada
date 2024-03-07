@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -27,6 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
@@ -41,7 +43,7 @@ type SchedulingAlgo interface {
 type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
-	queueRepository             database.QueueRepository
+	queueRepository             repository.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -63,7 +65,7 @@ func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
-	queueRepository database.QueueRepository,
+	queueRepository repository.QueueRepository,
 	schedulingContextRepository *SchedulingContextRepository,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]; !ok {
@@ -200,21 +202,12 @@ func (l *FairSchedulingAlgo) Schedule(
 }
 
 func (l *FairSchedulingAlgo) groupExecutors(executors []*schedulerobjects.Executor) map[string][]*schedulerobjects.Executor {
-	if l.schedulingConfig.UnifiedSchedulingByPool {
-		return armadaslices.GroupByFunc(
-			executors,
-			func(executor *schedulerobjects.Executor) string {
-				return executor.Pool
-			},
-		)
-	} else {
-		return armadaslices.GroupByFunc(
-			executors,
-			func(executor *schedulerobjects.Executor) string {
-				return executor.Id
-			},
-		)
-	}
+	return armadaslices.GroupByFunc(
+		executors,
+		func(executor *schedulerobjects.Executor) string {
+			return executor.Pool
+		},
+	)
 }
 
 type JobQueueIteratorAdapter struct {
@@ -230,6 +223,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 }
 
 type fairSchedulingAlgoContext struct {
+	queues                                   []queue.Queue
 	priorityFactorByQueue                    map[string]float64
 	isActiveByQueueName                      map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
@@ -255,7 +249,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 	priorityFactorByQueue := make(map[string]float64)
 	for _, queue := range queues {
-		priorityFactorByQueue[queue.Name] = queue.Weight
+		weight := 0.0
+		if queue.PriorityFactor != 0 {
+			weight = 1 / float64(queue.PriorityFactor)
+		}
+		priorityFactorByQueue[queue.Name] = weight
 	}
 
 	// Get the total capacity available across executors.
@@ -317,6 +315,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	executors = l.filterLaggingExecutors(ctx, executors, jobsByExecutorId)
 
 	return &fairSchedulingAlgoContext{
+		queues:                                   queues,
 		priorityFactorByQueue:                    priorityFactorByQueue,
 		isActiveByQueueName:                      isActiveByQueueName,
 		totalCapacityByPool:                      totalCapacityByPool,
@@ -363,19 +362,15 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	}
 	totalResources := fsctx.totalCapacityByPool[pool]
 	var fairnessCostProvider fairness.FairnessCostProvider
-	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
-			totalResources,
-			l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		fairnessCostProvider, err = fairness.NewAssetFairness(l.schedulingConfig.ResourceScarcity)
-		if err != nil {
-			return nil, nil, err
-		}
+
+	// Right now we only support DominantResourceFairness.
+	// If we want to support other fairness models it would need to be done here
+	fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+		totalResources,
+		l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 	sctx := schedulercontext.NewSchedulingContext(
 		executorId,
@@ -412,11 +407,12 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			return nil, nil, err
 		}
 	}
-	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+	constraints := schedulerconstraints.NewSchedulingConstraints(
 		pool,
 		fsctx.totalCapacityByPool[pool],
 		minimumJobSize,
 		l.schedulingConfig,
+		fsctx.queues,
 	)
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
@@ -436,9 +432,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if l.schedulingConfig.EnableAssertions {
 		scheduler.EnableAssertions()
 	}
-	if l.schedulingConfig.EnableNewPreemptionStrategy {
-		scheduler.EnableNewPreemptionStrategy()
-	}
+
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, nil, err

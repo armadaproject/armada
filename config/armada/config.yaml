@@ -125,9 +125,6 @@ pulsar:
   maxAllowedMessageSize: 4194304 # 4MB
   receiverQueueSize: 100
 postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
   connection:
     host: postgres
     port: 5432
@@ -135,3 +132,15 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
+queryapi:
+  enabled: false
+  maxQueryItems: 500
+  postgres:
+    connection:
+      host: postgres
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+      sslmode: disable
+

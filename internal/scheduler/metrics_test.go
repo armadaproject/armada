@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/client/queue"
+
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +15,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -34,12 +35,12 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
 		poolMappings map[string]string
-		queues       []*database.Queue
+		queues       []queue.Queue
 		expected     []prometheus.Metric
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
-			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			queues:      []queue.Queue{testfixtures.MakeTestQueue()},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
@@ -63,7 +64,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		},
 		"running metrics": {
 			initialJobs: runningJobs,
-			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			queues:      []queue.Queue{testfixtures.MakeTestQueue()},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
@@ -205,8 +206,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Pending", "type-1"),
 				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Running", "type-1"),
-				commonmetrics.NewQueueAllocated(2, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewQueueAllocated(2*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewQueueAllocated(2, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "cpu", "type-1"),
+				commonmetrics.NewQueueAllocated(2*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "memory", "type-1"),
 				commonmetrics.NewQueueUsed(1, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewQueueUsed(1*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
@@ -247,7 +248,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			txn.Commit()
 
 			queueRepository := schedulermocks.NewMockQueueRepository(ctrl)
-			queueRepository.EXPECT().GetAllQueues().Return([]*database.Queue{}, nil).Times(1)
+			queueRepository.EXPECT().GetAllQueues().Return([]queue.Queue{}, nil).Times(1)
 			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)

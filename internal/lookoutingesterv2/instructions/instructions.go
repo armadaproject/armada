@@ -189,6 +189,8 @@ func (c *InstructionConverter) handleSubmitJob(
 		priorityClass = &truncatedPriorityClass
 	}
 
+	annotations := extractUserAnnotations(c.userAnnotationPrefix, event.GetObjectMeta().GetAnnotations())
+
 	job := model.CreateJobInstruction{
 		JobId:                     jobId,
 		Queue:                     queue,
@@ -206,31 +208,44 @@ func (c *InstructionConverter) handleSubmitJob(
 		State:                     lookout.JobQueuedOrdinal,
 		JobProto:                  jobProto,
 		PriorityClass:             priorityClass,
+		Annotations:               annotations,
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	annotationInstructions := extractAnnotations(jobId, queue, jobSet, event.GetObjectMeta().GetAnnotations(), c.userAnnotationPrefix)
+	annotationInstructions := createUserAnnotationInstructions(jobId, queue, jobSet, annotations)
 	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
 
 	return err
 }
 
-func extractAnnotations(jobId string, queue string, jobset string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
+// extractUserAnnotations strips userAnnotationPrefix from all keys and
+// truncates keys and values to their maximal lengths (as specified by
+// maxAnnotationKeyLen and maxAnnotationValLen).
+func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[string]string) map[string]string {
+	result := make(map[string]string, len(jobAnnotations))
+	n := len(userAnnotationPrefix)
+	for k, v := range jobAnnotations {
+		if strings.HasPrefix(k, userAnnotationPrefix) {
+			k = k[n:]
+		}
+		k = util.Truncate(k, maxAnnotationKeyLen)
+		v = util.Truncate(v, maxAnnotationValLen)
+		result[k] = v
+	}
+	return result
+}
+
+func createUserAnnotationInstructions(jobId string, queue string, jobset string, userAnnotations map[string]string) []*model.CreateUserAnnotationInstruction {
 	// This intermediate variable exists because we want our output to be deterministic
 	// Iteration over a map in go is non-deterministic, so we read everything into annotations
 	// and then sort it.
-	annotations := make([]*model.CreateUserAnnotationInstruction, 0, len(jobAnnotations))
-
-	for k, v := range jobAnnotations {
+	instructions := make([]*model.CreateUserAnnotationInstruction, 0, len(userAnnotations))
+	for k, v := range userAnnotations {
 		if k != "" {
-			// The annotation will have a key with a prefix.  We want to strip the prefix before storing in the db
-			if strings.HasPrefix(k, userAnnotationPrefix) && len(k) > len(userAnnotationPrefix) {
-				k = k[len(userAnnotationPrefix):]
-			}
-			annotations = append(annotations, &model.CreateUserAnnotationInstruction{
+			instructions = append(instructions, &model.CreateUserAnnotationInstruction{
 				JobId:  jobId,
-				Key:    util.Truncate(k, maxAnnotationKeyLen),
-				Value:  util.Truncate(v, maxAnnotationValLen),
+				Key:    k,
+				Value:  v,
 				Queue:  queue,
 				Jobset: jobset,
 			})
@@ -238,12 +253,11 @@ func extractAnnotations(jobId string, queue string, jobset string, jobAnnotation
 			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
 		}
 	}
-
 	// sort to make output deterministic
-	sort.Slice(annotations, func(i, j int) bool {
-		return annotations[i].Key < annotations[j].Key
+	sort.Slice(instructions, func(i, j int) bool {
+		return instructions[i].Key < instructions[j].Key
 	})
-	return annotations
+	return instructions
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {

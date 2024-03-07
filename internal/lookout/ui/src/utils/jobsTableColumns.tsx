@@ -51,6 +51,9 @@ export enum StandardColumnId {
   SelectorCol = "selectorCol",
 
   Count = "jobCount",
+  Node = "node",
+  Cluster = "cluster",
+  ExitCode = "exitCode",
 }
 
 export const ANNOTATION_COLUMN_PREFIX = "annotation_"
@@ -392,6 +395,30 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     displayName: "Time Since Submitted",
     additionalOptions: {
       enableSorting: true,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.Node,
+    accessor: "node",
+    displayName: "Node",
+    additionalOptions: {
+      size: 200,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.Cluster,
+    accessor: "cluster",
+    displayName: "Cluster",
+    additionalOptions: {
+      size: 200,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.ExitCode,
+    accessor: "exitCode",
+    displayName: "Exit Code",
+    additionalOptions: {
+      size: 100,
     },
   }),
 ]

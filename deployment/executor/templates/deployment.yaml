@@ -52,6 +52,11 @@ spec:
             - containerPort: 9001
               protocol: TCP
               name: metrics
+            {{- if .Values.applicationConfig.pprofPort }}
+            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+              protocol: TCP
+              name: pprof
+            {{- end }}
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml

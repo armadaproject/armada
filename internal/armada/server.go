@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -208,6 +209,28 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		log.Info("Pulsar submit API deduplication disabled")
 	}
 
+	// Consumer that's used for deleting pulsarJob details
+	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
+	// TODO: delete this when we finally remove redis
+	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer consumer.Close()
+
+	jobExpirer := &server.PulsarJobExpirer{
+		Consumer:      consumer,
+		JobRepository: jobRepository,
+	}
+	services = append(services, func() error {
+		return jobExpirer.Run(ctx)
+	})
+
 	// Service that reads from Pulsar and logs events.
 	if config.Pulsar.EventsPrinter {
 		eventsPrinter := server.EventsPrinter{
@@ -234,8 +257,21 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		jobRepository,
 	)
 
+	if config.QueryApi.Enabled {
+		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+		if err != nil {
+			return errors.WithMessage(err, "error creating QueryApi postgres pool")
+		}
+		queryapiServer := queryapi.New(
+			queryDb,
+			config.QueryApi.MaxQueryItems,
+			func() compress.Decompressor { return compress.NewZlibDecompressor() })
+		api.RegisterJobsServer(grpcServer, queryapiServer)
+	}
+
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)
 

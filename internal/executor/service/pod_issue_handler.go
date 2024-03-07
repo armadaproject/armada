@@ -244,7 +244,14 @@ func (p *IssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
 	if pod.Spec.ActiveDeadlineSeconds == nil {
 		return false
 	}
-	currentRunTimeSeconds := time.Now().Sub(pod.CreationTimestamp.Time).Seconds()
+
+	// Using StartTime here, as kubernetes bases its activeDeadlineSeconds check on the StartTime also
+	startTime := pod.Status.StartTime
+	if startTime == nil || startTime.Time.IsZero() {
+		return false
+	}
+	currentRunTimeSeconds := time.Now().Sub(startTime.Time).Seconds()
+
 	podTerminationGracePeriodSeconds := float64(0)
 	if pod.Spec.TerminationGracePeriodSeconds != nil {
 		podTerminationGracePeriodSeconds = float64(*pod.Spec.TerminationGracePeriodSeconds)
@@ -372,8 +379,9 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 					JobId: issue.RunIssue.JobId,
 					RunId: issue.RunIssue.RunId,
 					PodIssue: &podIssue{
-						OriginalPodState:  issue.RunIssue.PodIssue.OriginalPodState,
-						Message:           "Pod unexpectedly started up after delete was called",
+						OriginalPodState: issue.RunIssue.PodIssue.OriginalPodState,
+						Message: fmt.Sprintf("Pod unexpectedly started up after delete was called.\n\nDelete was originally called to handle issue:\n%s",
+							issue.RunIssue.PodIssue.Message),
 						Retryable:         false,
 						DeletionRequested: false,
 						Type:              ErrorDuringIssueHandling,

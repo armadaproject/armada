@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -47,8 +48,6 @@ type PreemptingQueueScheduler struct {
 	skipUnsuccessfulSchedulingKeyCheck bool
 	// If true, asserts that the nodeDb state is consistent with expected changes.
 	enableAssertions bool
-	// If true, a newer preemption strategy is used.
-	enableNewPreemptionStrategy bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -96,11 +95,6 @@ func (sch *PreemptingQueueScheduler) EnableAssertions() {
 
 func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
-}
-
-func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
-	sch.enableNewPreemptionStrategy = true
-	sch.nodeDb.EnableNewPreemptionStrategy()
 }
 
 // Schedule
@@ -318,13 +312,11 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	inMemoryJobRepo.EnqueueMany(evictedJctxs)
 	txn.Commit()
 
-	if sch.enableNewPreemptionStrategy {
-		if err := sch.nodeDb.Reset(); err != nil {
-			return nil, nil, err
-		}
-		if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
-			return nil, nil, err
-		}
+	if err := sch.nodeDb.Reset(); err != nil {
+		return nil, nil, err
+	}
+	if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
+		return nil, nil, err
 	}
 	return result, inMemoryJobRepo, nil
 }
@@ -861,12 +853,20 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		}
 
 		for _, job := range evictedJobs {
-			// Create a scheduling context for when re-scheduling this job.
-			// Mark as evicted and add a node selector to ensure the job is re-scheduled onto the node it was evicted from.
+			// Create a scheduling context for the attempt to re-schedule the job, and:
+			// 1. Mark the job as evicted. This ensures total scheduled resources is calculated correctly.
+			// 2. Add a node selector ensuring the job can only be re-scheduled onto the node it was evicted from.
+			// 3. Add tolerations for all taints on the node. This to ensure that:
+			//    - Adding taints to a node doesn't cause jobs already running on the node to be preempted.
+			//    - Jobs scheduled as away jobs have the necessary tolerations to be re-scheduled.
+			// TODO(albin): We can remove the checkOnlyDynamicRequirements flag in the nodeDb now that we've added the tolerations.
 			jctx := schedulercontext.JobSchedulingContextFromJob(evi.priorityClasses, job)
 			jctx.IsEvicted = true
 			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.Id)
 			evictedJctxsByJobId[job.GetId()] = jctx
+			for _, taint := range node.Taints {
+				jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
+			}
 
 			nodeIdByJobId[job.GetId()] = node.Id
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
@@ -74,6 +75,8 @@ type Scheduler struct {
 	metrics *SchedulerMetrics
 	// New scheduler metrics due to replace the above.
 	schedulerMetrics *metrics.Metrics
+	// Used to estimate the probability of a job from a particular queue succeeding on a particular node.
+	failureEstimator *failureestimator.FailureEstimator
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
@@ -94,6 +97,7 @@ func NewScheduler(
 	nodeIdLabel string,
 	metrics *SchedulerMetrics,
 	schedulerMetrics *metrics.Metrics,
+	failureEstimator *failureestimator.FailureEstimator,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -114,6 +118,7 @@ func NewScheduler(
 		runsSerial:                 -1,
 		metrics:                    metrics,
 		schedulerMetrics:           schedulerMetrics,
+		failureEstimator:           failureEstimator,
 	}, nil
 }
 
@@ -178,12 +183,10 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 			cycleTime := s.clock.Since(start)
 
-			s.metrics.ResetGaugeMetrics()
-
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
-				s.metrics.ReportSchedulerResult(ctx, result)
+				s.metrics.ReportSchedulerResult(result)
 				ctx.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
 				s.metrics.ReportReconcileCycleTime(cycleTime)
@@ -275,6 +278,26 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 	}
 
+	// Update success probability estimates.
+	if !s.failureEstimator.IsDisabled() {
+		for _, jst := range jsts {
+			if jst.Job == nil {
+				continue
+			}
+			run := jst.Job.LatestRun()
+			if run == nil {
+				continue
+			}
+			if jst.Failed {
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), false)
+			}
+			if jst.Succeeded {
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), true)
+			}
+		}
+		s.failureEstimator.Update()
+	}
+
 	// Generate any eventSequences that came out of synchronising the db state.
 	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
 	if err != nil {
@@ -345,12 +368,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		return nil
 	}
 	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(nil, jctx); err != nil {
-			return err
-		}
-	}
-	for _, jctx := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.UpdatePreempted(nil, jctx); err != nil {
+		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
 			return err
 		}
 	}
@@ -359,6 +377,8 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 			return err
 		}
 	}
+	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
+	// This is to make sure that preempttion is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
 }
 

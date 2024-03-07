@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -25,12 +26,15 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/optimisation/descent"
+	"github.com/armadaproject/armada/internal/common/optimisation/nesterov"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -44,10 +48,12 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Profiling
 	// ////////////////////////////////////////////////////////////////////////
-	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
-	g.Go(func() error {
-		return serve.ListenAndServe(ctx, pprofServer)
-	})
+	if config.PprofPort != nil {
+		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
+		g.Go(func() error {
+			return serve.ListenAndServe(ctx, pprofServer)
+		})
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Health Checks
@@ -86,7 +92,7 @@ func Run(config schedulerconfig.Configuration) error {
 				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
-	queueRepository := database.NewLegacyQueueRepository(redisClient)
+	queueRepository := repository.NewRedisQueueRepository(redisClient)
 	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -204,6 +210,10 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.Preemption.DefaultPriorityClass,
 		config.InternedStringsCacheSize,
 	)
+	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
+	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
+		return errors.WithStack(err)
+	}
 	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
 	if err != nil {
 		return err
@@ -211,6 +221,25 @@ func Run(config schedulerconfig.Configuration) error {
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
+
+	failureEstimator, err := failureestimator.New(
+		config.Scheduling.FailureEstimatorConfig.NumInnerIterations,
+		// Invalid config will have failed validation.
+		descent.MustNew(config.Scheduling.FailureEstimatorConfig.InnerOptimiserStepSize),
+		// Invalid config will have failed validation.
+		nesterov.MustNew(
+			config.Scheduling.FailureEstimatorConfig.OuterOptimiserStepSize,
+			config.Scheduling.FailureEstimatorConfig.OuterOptimiserNesterovAcceleration,
+		),
+	)
+	if err != nil {
+		return err
+	}
+	failureEstimator.Disable(config.Scheduling.FailureEstimatorConfig.Disabled)
+	if err := prometheus.Register(failureEstimator); err != nil {
+		return errors.WithStack(err)
+	}
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -224,8 +253,9 @@ func Run(config schedulerconfig.Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
-		NewSchedulerMetrics(config.Metrics.Metrics),
+		schedulingRoundMetrics,
 		schedulerMetrics,
+		failureEstimator,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

@@ -56,7 +56,7 @@ type EventSequencesWithIds struct {
 // exhausted and a Sink capable of exhausting these objects
 type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarConfig           configuration.PulsarConfig
-	metricsConfig          configuration.MetricsConfig
+	metricsPort            uint16
 	metrics                *commonmetrics.Metrics
 	pulsarSubscriptionName string
 	pulsarBatchSize        int
@@ -77,7 +77,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 	pulsarSubscriptionType pulsar.SubscriptionType,
 	converter InstructionConverter[T],
 	sink Sink[T],
-	metricsConfig configuration.MetricsConfig,
+	metricsPort uint16,
 	metrics *commonmetrics.Metrics,
 ) *IngestionPipeline[T] {
 	return NewFilteredMsgIngestionPipeline[T](
@@ -89,7 +89,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 		func(_ pulsar.Message) bool { return true },
 		converter,
 		sink,
-		metricsConfig,
+		metricsPort,
 		metrics,
 	)
 }
@@ -105,12 +105,12 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 	msgFilter func(msg pulsar.Message) bool,
 	converter InstructionConverter[T],
 	sink Sink[T],
-	metricsConfig configuration.MetricsConfig,
+	metricsPort uint16,
 	metrics *commonmetrics.Metrics,
 ) *IngestionPipeline[T] {
 	return &IngestionPipeline[T]{
 		pulsarConfig:           pulsarConfig,
-		metricsConfig:          metricsConfig,
+		metricsPort:            metricsPort,
 		metrics:                metrics,
 		pulsarSubscriptionName: pulsarSubscriptionName,
 		pulsarBatchSize:        pulsarBatchSize,
@@ -124,7 +124,7 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 
 // Run will run the ingestion pipeline until the supplied context is shut down
 func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
-	shutdownMetricServer := common.ServeMetrics(ingester.metricsConfig.Port)
+	shutdownMetricServer := common.ServeMetrics(ingester.metricsPort)
 	defer shutdownMetricServer()
 
 	// Waitgroup that wil fire when the pipeline has been torn down

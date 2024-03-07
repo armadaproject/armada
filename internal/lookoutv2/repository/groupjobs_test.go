@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -19,11 +20,22 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
-func TestGroupByQueue(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
+	for _, useJsonbBackend := range []bool{false, true} {
+		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
+			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+			repo := NewSqlGroupJobsRepository(db, useJsonbBackend)
+			return f(converter, store, repo)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
+func TestGroupByQueue(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: jobSet,
@@ -37,7 +49,6 @@ func TestGroupByQueue(t *testing.T) {
 			jobSet: jobSet,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -53,8 +64,8 @@ func TestGroupByQueue(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "queue-1",
@@ -74,14 +85,11 @@ func TestGroupByQueue(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByJobSet(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
 			jobSet: "job-set-1",
@@ -95,7 +103,6 @@ func TestGroupByJobSet(t *testing.T) {
 			jobSet: "job-set-3",
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -111,8 +118,8 @@ func TestGroupByJobSet(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-1",
@@ -132,14 +139,11 @@ func TestGroupByJobSet(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByState(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
 			jobSet: jobSet,
@@ -161,7 +165,6 @@ func TestGroupByState(t *testing.T) {
 			state:  lookout.JobFailed,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -177,8 +180,8 @@ func TestGroupByState(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 4)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 4)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
@@ -203,14 +206,11 @@ func TestGroupByState(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByWithFilters(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		testAnnotations := map[string]string{
 			"key-1": "val-1",
 			"key-2": "val-2",
@@ -325,7 +325,6 @@ func TestGroupByWithFilters(t *testing.T) {
 			state:  lookout.JobFailed,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -364,8 +363,8 @@ func TestGroupByWithFilters(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 4)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 4)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
@@ -390,14 +389,11 @@ func TestGroupByWithFilters(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:         queue,
 			jobSet:        "job-set-1",
@@ -446,7 +442,6 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 			submittedTime: pointer.Time(baseTime.Add(-7 * time.Minute)),
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -462,8 +457,8 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -489,14 +484,11 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:         "queue-1",
 			jobSet:        "job-set-1",
@@ -545,7 +537,6 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 			submittedTime: pointer.Time(baseTime.Add(-7 * time.Minute)),
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -561,8 +552,8 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "queue-3",
@@ -588,14 +579,11 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithAllStateCounts(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: "job-set-1",
@@ -644,7 +632,6 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 			state:  lookout.JobQueued,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -660,8 +647,8 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -714,14 +701,11 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: "job-set-1",
@@ -765,7 +749,6 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 			state:  lookout.JobQueued,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -791,8 +774,8 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -819,14 +802,11 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 		}, result.Groups)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsComplex(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		testAnnotations := map[string]string{
 			"key-1": "val-1",
 			"key-2": "val-23",
@@ -888,7 +868,6 @@ func TestGroupJobsComplex(t *testing.T) {
 			state:  lookout.JobFailed,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -934,8 +913,8 @@ func TestGroupJobsComplex(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:  "job-set-2",
@@ -956,14 +935,11 @@ func TestGroupJobsComplex(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByAnnotation(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
 			jobSet: jobSet,
@@ -986,7 +962,6 @@ func TestGroupByAnnotation(t *testing.T) {
 			},
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -1003,8 +978,8 @@ func TestGroupByAnnotation(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 3)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "test-value-1",
@@ -1024,14 +999,11 @@ func TestGroupByAnnotation(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
 			queue:  queue,
 			jobSet: "job-set-1",
@@ -1100,7 +1072,6 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			lastTransitionTime: pointer.Time(baseTime.Add(50 * time.Minute)),
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{
@@ -1132,8 +1103,8 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 4)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 4)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:  "4",
@@ -1170,14 +1141,11 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsSkip(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		nGroups := 15
 		for i := 0; i < nGroups; i++ {
 			manyJobs(i+1, &createJobsOpts{
@@ -1194,8 +1162,6 @@ func TestGroupJobsSkip(t *testing.T) {
 				Aggregates: map[string]interface{}{},
 			}
 		}
-
-		repo := NewSqlGroupJobsRepository(db)
 
 		t.Run("skip 3", func(t *testing.T) {
 			skip := 3
@@ -1215,8 +1181,8 @@ func TestGroupJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Groups, take)
+			require.NoError(t, err)
+			require.Len(t, result.Groups, take)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(4),
 				queueGroup(5),
@@ -1244,8 +1210,8 @@ func TestGroupJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Groups, take)
+			require.NoError(t, err)
+			require.Len(t, result.Groups, take)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(8),
 				queueGroup(9),
@@ -1273,8 +1239,8 @@ func TestGroupJobsSkip(t *testing.T) {
 				skip,
 				take,
 			)
-			assert.NoError(t, err)
-			assert.Len(t, result.Groups, 2)
+			require.NoError(t, err)
+			require.Len(t, result.Groups, 2)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(14),
 				queueGroup(15),
@@ -1283,13 +1249,11 @@ func TestGroupJobsSkip(t *testing.T) {
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupJobsValidation(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGroupJobsRepository(db)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		t.Run("valid field", func(t *testing.T) {
 			_, err := repo.GroupBy(
 				armadacontext.TODO(),
@@ -1306,7 +1270,7 @@ func TestGroupJobsValidation(t *testing.T) {
 				0,
 				100,
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		t.Run("invalid field", func(t *testing.T) {
@@ -1345,7 +1309,7 @@ func TestGroupJobsValidation(t *testing.T) {
 				0,
 				100,
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		t.Run("valid annotation with same name as column", func(t *testing.T) {
@@ -1365,19 +1329,16 @@ func TestGroupJobsValidation(t *testing.T) {
 				0,
 				100,
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestGroupByActiveJobSets(t *testing.T) {
-	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{
 			queue:  "queue-1",
 			jobSet: "job-set-1",
@@ -1411,7 +1372,6 @@ func TestGroupByActiveJobSets(t *testing.T) {
 			state:  lookout.JobCancelled,
 		}, converter, store)
 
-		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -1427,8 +1387,8 @@ func TestGroupByActiveJobSets(t *testing.T) {
 			0,
 			10,
 		)
-		assert.NoError(t, err)
-		assert.Len(t, result.Groups, 2)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-2",
@@ -1443,7 +1403,7 @@ func TestGroupByActiveJobSets(t *testing.T) {
 		})
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 type createJobsOpts struct {

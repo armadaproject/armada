@@ -61,6 +61,13 @@ const aggregatableFields = new Map<ColumnId, string>([
   [StandardColumnId.State, "state"],
 ])
 
+const groupableFields = new Map<ColumnId, string>([
+  [StandardColumnId.Queue, "queue"],
+  [StandardColumnId.Namespace, "namespace"],
+  [StandardColumnId.JobSet, "jobSet"],
+  [StandardColumnId.State, "state"],
+])
+
 export function columnIsAggregatable(columnId: ColumnId): boolean {
   return aggregatableFields.has(columnId)
 }
@@ -80,20 +87,21 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
   [StandardColumnId.TimeInState, "lastTransitionTime"],
+  [StandardColumnId.JobSet, "jobSet"],
 ])
+
+const defaultJobOrder: JobOrder = {
+  field: "jobId",
+  direction: "DESC",
+}
+
+const defaultGroupOrder: JobOrder = {
+  field: "count",
+  direction: "DESC",
+}
 
 // Return ordering to request to API based on column
 function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrder {
-  const defaultJobOrder: JobOrder = {
-    field: "jobId",
-    direction: "DESC",
-  }
-
-  const defaultGroupOrder: JobOrder = {
-    field: "count",
-    direction: "DESC",
-  }
-
   let field = ""
   if (isJobFetch) {
     if (!columnToJobSortFieldMap.has(lookoutOrder.id as ColumnId)) {
@@ -101,6 +109,7 @@ function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrd
     }
     field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
+    // If it is JobGroups, always return the order value here which might be overridden later
     if (!columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultGroupOrder
     }
@@ -149,9 +158,10 @@ export const useFetchJobsTableData = ({
       const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
       const isJobFetch = expandedLevel === groupingLevel
 
+      const filterValues = getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? [])
       const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: filterValues,
         activeJobSets: activeJobSets,
         skip: nextRequest.skip ?? paginationState.pageIndex * paginationState.pageSize,
         take: nextRequest.take ?? paginationState.pageSize,
@@ -168,6 +178,14 @@ export const useFetchJobsTableData = ({
         } else {
           const groupedCol = groupedColumns[expandedLevel]
           const groupedField = columnToGroupedField(groupedCol)
+
+          // Override the group order if needed
+          if (
+            rowRequest.order.field !== groupedCol &&
+            Array.from(groupableFields.values()).includes(rowRequest.order.field)
+          ) {
+            rowRequest.order = defaultGroupOrder
+          }
 
           // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
           rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
