@@ -297,7 +297,7 @@ type PreemptionConfig struct {
 }
 
 // FailureEstimatorConfig controls node and queue success probability estimation.
-// See the internal/scheduler/failureestimator package for details.
+// See internal/scheduler/failureestimator.go for details.
 type FailureEstimatorConfig struct {
 	Disabled                           bool
 	NumInnerIterations                 int     `validate:"gt=0"`
@@ -307,12 +307,14 @@ type FailureEstimatorConfig struct {
 }
 
 // NodeQuarantinerConfig controls how nodes are quarantined, i.e., removed from consideration when scheduling new jobs.
+// See internal/scheduler/quarantine/node_quarantiner.go for details.
 type NodeQuarantinerConfig struct {
 	FailureProbabilityQuarantineThreshold float64       `validate:"gte=0,lte=1"`
 	FailureProbabilityEstimateTimeout     time.Duration `validate:"gte=0"`
 }
 
 // QueueQuarantinerConfig controls how scheduling from misbehaving queues is rate-limited.
+// See internal/scheduler/quarantine/queue_quarantiner.go for details.
 type QueueQuarantinerConfig struct {
 	QuarantineFactorMultiplier        float64       `validate:"gte=0,lte=1"`
 	FailureProbabilityEstimateTimeout time.Duration `validate:"gte=0"`
