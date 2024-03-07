@@ -690,6 +690,16 @@ func TestQueueScheduler(t *testing.T) {
 				nodeId, ok := result.NodeIdByJobId[jctx.JobId]
 				assert.True(t, ok)
 				assert.NotEmpty(t, nodeId)
+
+				node, err := nodeDb.GetNode(nodeId)
+				require.NoError(t, err)
+				assert.NotEmpty(t, node)
+
+				// Check that the job can actually go onto this node.
+				matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+				require.NoError(t, err)
+				assert.Empty(t, reason)
+				assert.True(t, matches)
 			}
 
 			// For jobs that could not be scheduled,
