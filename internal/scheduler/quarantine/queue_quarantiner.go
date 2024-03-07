@@ -11,6 +11,13 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 )
 
+// QueueQuarantiner determines whether queues should be quarantined,
+// i.e., whether we should reduce the rate which we schedule jobs from the queue,
+// based on the estimated failure probability of the queue.
+//
+// Specifically, each queue has a quarantine factor associated with it equal to:
+// - Zero, if the failure probability estimate was last updated more then failureProbabilityEstimateTimeout ago.
+// - Failure probability estimate of the queue multiplied by quarantineFactorMultiplier otherwise.
 type QueueQuarantiner struct {
 	// Multiply the failure probability by this value to produce the qurantineFactor.
 	quarantineFactorMultiplier float64

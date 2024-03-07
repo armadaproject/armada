@@ -25,6 +25,13 @@ var highFailureProbabilityTaint = v1.Taint{
 	Effect: v1.TaintEffectNoSchedule,
 }
 
+// NodeQuarantiner determines whether nodes should be quarantined,
+// i.e., removed from consideration when scheduling new jobs,
+// based on the estimated failure probability of the node.
+//
+// Specifically, any node for which the following is true is quarantined:
+// 1. The estimated failure probability exceeds failureProbabilityQuarantineThreshold.
+// 2. The failure probability estimate was updated at most failureProbabilityEstimateTimeout ago.
 type NodeQuarantiner struct {
 	// Quarantine nodes with a failure probability greater than this threshold.
 	failureProbabilityQuarantineThreshold float64
@@ -69,6 +76,7 @@ func NewNodeQuarantiner(
 	}, nil
 }
 
+// IsQuarantined returns true if the node is quarantined and a taint expressing the reason why, and false otherwise.
 func (nq *NodeQuarantiner) IsQuarantined(t time.Time, nodeName string) (taint v1.Taint, isQuarantined bool) {
 	if nq.failureEstimator.IsDisabled() {
 		return
