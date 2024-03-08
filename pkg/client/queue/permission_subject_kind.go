@@ -26,6 +26,8 @@ func NewPermissionSubjectKind(in string) (PermissionSubjectKind, error) {
 }
 
 // UnmarshalJSON is implementation of https://pkg.go.dev/encoding/json#Unmarshaler interface.
+//
+// TODO: Unused.
 func (kind *PermissionSubjectKind) UnmarshalJSON(data []byte) error {
 	subjectKind := ""
 	if err := json.Unmarshal(data, &subjectKind); err != nil {
@@ -42,7 +44,9 @@ func (kind *PermissionSubjectKind) UnmarshalJSON(data []byte) error {
 }
 
 // Generate is implementation of https://pkg.go.dev/testing/quick#Generator interface.
-// This method is used for writing tests usign https://pkg.go.dev/testing/quick package
+// This method is used for writing tests usign https://pkg.go.dev/testing/quick package.
+//
+// TODO: Unused.
 func (kind PermissionSubjectKind) Generate(rand *rand.Rand, size int) reflect.Value {
 	values := []PermissionSubjectKind{
 		PermissionSubjectKindUser,

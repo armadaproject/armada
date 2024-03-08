@@ -5,9 +5,10 @@ package repository
 
 import (
 	"context"
-	js "github.com/armadaproject/armada/pkg/api/jobservice"
 	"sync"
 	"time"
+
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // Ensure, that SQLJobServiceMock does implement SQLJobService.

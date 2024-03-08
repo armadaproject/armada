@@ -461,12 +461,13 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					return err
 				}
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				pool.Name,
 				totalResources,
 				// Minimum job size not used for simulation; use taints/tolerations instead.
 				schedulerobjects.ResourceList{},
 				s.schedulingConfig,
+				nil,
 			)
 			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,

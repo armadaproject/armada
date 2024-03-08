@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -64,8 +64,19 @@ func (a *App) GetQueue(name string) error {
 	if err != nil {
 		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queue %s: %s", name, err)
 	}
-	fmt.Fprintf(a.Out, string(b))
+	fmt.Fprintf(a.Out, headerYaml()+string(b))
 	return nil
+}
+
+func headerYaml() string {
+	b, err := yaml.Marshal(client.Resource{
+		Version: client.APIVersionV1,
+		Kind:    client.ResourceKindQueue,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 // UpdateQueue calls app.QueueAPI.Update with the provided parameters.
