@@ -95,14 +95,13 @@ func newArmadaErrCreateResource() error {
 	return &armadaerrors.ErrCreateResource{}
 }
 
-func TestSubmitJobs(t *testing.T){
-	submitService := &SubmitService{
-	}
+func TestSubmitJobs(t *testing.T) {
+	submitService := &SubmitService{}
 	job1 := &SubmitJob{}
 	job2 := &SubmitJob{}
 
 	jobsToSubmit := []*SubmitJob{job1, job2}
-	
+
 	submitJobsChannel := make(chan *SubmitJob)
 	failedJobsChannel := make(chan *FailedSubmissionDetails, len(jobsToSubmit))
 
@@ -111,8 +110,7 @@ func TestSubmitJobs(t *testing.T){
 
 	submitService.submitWorker = func(wg *sync.WaitGroup, submitJobs chan *SubmitJob, failedJobs chan *FailedSubmissionDetails) {
 		for job := range submitJobs {
-			failedJobs <- &FailedSubmissionDetails{
-			}
+			failedJobs <- &FailedSubmissionDetails{}
 		}
 		wg.Done()
 	}
