@@ -1866,11 +1866,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+				constraints := schedulerconstraints.NewSchedulingConstraints(
 					"pool",
 					tc.TotalResources,
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
+					nil,
 				)
 				sch := NewPreemptingQueueScheduler(
 					sctx,
@@ -1936,6 +1937,16 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nodeId, ok := result.NodeIdByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotEmpty(t, nodeId)
+
+					node, err := nodeDb.GetNode(nodeId)
+					require.NoError(t, err)
+					assert.NotEmpty(t, node)
+
+					// Check that the job can actually go onto this node.
+					matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+					require.NoError(t, err)
+					assert.Empty(t, reason)
+					assert.True(t, matches)
 
 					// Check that scheduled jobs are consistently assigned to the same node.
 					// (We don't allow moving jobs between nodes.)
@@ -2212,11 +2223,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				nodeDb.TotalResources(),
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
+				nil,
 			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,

@@ -700,6 +700,18 @@ export const JobsTableContainer = ({
     setParseErrors({})
   }
 
+  const clearGroups = () => {
+    // Set grouping to an empty array to clear all groups
+    onGroupingChange([])
+
+    // Reset expanded states as no groups will exist
+    setExpanded({})
+
+    // Clear any related UI states if necessary
+    // For example, resetting selection
+    setSelectedRows({})
+  }
+
   const shiftSelectRow = async (row: Row<JobTableRow>) => {
     if (lastSelectedRow === undefined || row.depth !== lastSelectedRow.depth) {
       return
@@ -767,6 +779,7 @@ export const JobsTableContainer = ({
             getJobsService={getJobsService}
             updateJobsService={updateJobsService}
             onClearFilters={clearFilters}
+            onClearGroups={clearGroups}
             onAddCustomView={addCustomView}
             onDeleteCustomView={deleteCustomView}
             onLoadCustomView={loadCustomView}
