@@ -1938,6 +1938,16 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					assert.True(t, ok)
 					assert.NotEmpty(t, nodeId)
 
+					node, err := nodeDb.GetNode(nodeId)
+					require.NoError(t, err)
+					assert.NotEmpty(t, node)
+
+					// Check that the job can actually go onto this node.
+					matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+					require.NoError(t, err)
+					assert.Empty(t, reason)
+					assert.True(t, matches)
+
 					// Check that scheduled jobs are consistently assigned to the same node.
 					// (We don't allow moving jobs between nodes.)
 					if expectedNodeId, ok := nodeIdByJobId[job.GetId()]; ok {

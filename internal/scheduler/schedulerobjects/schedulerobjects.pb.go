@@ -835,7 +835,10 @@ type PodRequirements struct {
 	Tolerations []v1.Toleration `protobuf:"bytes,3,rep,name=tolerations,proto3" json:"tolerations"`
 	// Kubernetes annotations. Included here since we use annotations with special meaning.
 	Annotations map[string]string `protobuf:"bytes,7,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Pod priority. Should be mapped from the priority class name of the submitted pod.
+	// Priority class priority of the pod as submitted. Should be mapped from the priority class name of the submitted pod.
+	//
+	// During scheduling, the priority stored on the podSchedulingContext should be used instead,
+	// since a pod may be scheduled at a priority different from the priority it was submitted with.
 	Priority int32 `protobuf:"varint,4,opt,name=priority,proto3" json:"priority,omitempty"`
 	// One of Never, PreemptLowerPriority.
 	// Defaults to PreemptLowerPriority if unset.

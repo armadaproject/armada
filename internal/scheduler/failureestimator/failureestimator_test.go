@@ -20,7 +20,7 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test initialisation.
-	fe.Push("node", "queue", false)
+	fe.Push("node", "queue", "cluster", false)
 	nodeParameterIndex, ok := fe.parameterIndexByNode["node"]
 	require.True(t, ok)
 	queueParameterIndex, ok := fe.parameterIndexByQueue["queue"]
@@ -31,7 +31,7 @@ func TestUpdate(t *testing.T) {
 	require.Equal(t, 0.5, fe.parameters.AtVec(1))
 
 	for i := 0; i < 100; i++ {
-		fe.Push(fmt.Sprintf("node-%d", i), "queue-0", false)
+		fe.Push(fmt.Sprintf("node-%d", i), "queue-0", "cluster", false)
 	}
 	nodeParameterIndex, ok = fe.parameterIndexByNode["node-99"]
 	require.True(t, ok)
@@ -52,14 +52,14 @@ func TestUpdate(t *testing.T) {
 	assert.Less(t, queueSuccessProbability, 0.5-eps)
 
 	// Test that the estimates move in the expected direction on success.
-	fe.Push("node", "queue", true)
+	fe.Push("node", "queue", "cluster", true)
 	fe.Update()
 	assert.Greater(t, fe.parameters.AtVec(0), nodeSuccessProbability)
 	assert.Greater(t, fe.parameters.AtVec(1), queueSuccessProbability)
 
 	for i := 0; i < 1000; i++ {
 		for i := 0; i < 10; i++ {
-			fe.Push("node", "queue", false)
+			fe.Push("node", "queue", "cluster", false)
 		}
 		fe.Update()
 	}
@@ -70,7 +70,7 @@ func TestUpdate(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		for i := 0; i < 10; i++ {
-			fe.Push("node", "queue", true)
+			fe.Push("node", "queue", "cluster", true)
 		}
 		fe.Update()
 	}

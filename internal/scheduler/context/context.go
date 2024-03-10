@@ -799,7 +799,8 @@ type PodSchedulingContext struct {
 	NodeId string
 	// If set, indicates that the pod was scheduled on a specific node type.
 	WellKnownNodeTypeName string
-	// Priority at which this pod was scheduled.
+	// Priority this pod was most recently attempted to be scheduled at.
+	// If scheduling was successful, resources were marked as allocated to the job at this priority.
 	ScheduledAtPriority int32
 	// Maximum priority that this pod preempted other pods at.
 	PreemptedAtPriority int32

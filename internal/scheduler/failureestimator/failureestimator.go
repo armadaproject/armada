@@ -59,6 +59,9 @@ type FailureEstimator struct {
 	parameterIndexByNode  map[string]int
 	parameterIndexByQueue map[string]int
 
+	// Maps node names to the cluster they belong to.
+	clusterByNode map[string]string
+
 	// Samples that have not been processed yet.
 	samples []Sample
 
@@ -106,6 +109,8 @@ func New(
 		parameterIndexByNode:  make(map[string]int, 16),
 		parameterIndexByQueue: make(map[string]int, 16),
 
+		clusterByNode: make(map[string]string),
+
 		numInnerIterations: numInnerIterations,
 		innerOptimiser:     innerOptimiser,
 		outerOptimiser:     outerOptimiser,
@@ -113,7 +118,7 @@ func New(
 		failureProbabilityByNodeDesc: prometheus.NewDesc(
 			fmt.Sprintf("%s_%s_node_failure_probability", namespace, subsystem),
 			"Estimated per-node failure probability.",
-			[]string{"node"},
+			[]string{"node", "cluster"},
 			nil,
 		),
 		failureProbabilityByQueueDesc: prometheus.NewDesc(
@@ -141,10 +146,11 @@ func (fe *FailureEstimator) IsDisabled() bool {
 
 // Push adds a sample to the internal buffer of the failure estimator.
 // Samples added via Push are processed on the next call to Update.
-func (fe *FailureEstimator) Push(node, queue string, success bool) {
+func (fe *FailureEstimator) Push(node, queue, cluster string, success bool) {
 	fe.mu.Lock()
 	defer fe.mu.Unlock()
 
+	fe.clusterByNode[node] = cluster
 	i, ok := fe.parameterIndexByNode[node]
 	if !ok {
 		i = len(fe.parameterIndexByNode) + len(fe.parameterIndexByQueue)
@@ -273,7 +279,7 @@ func (fe *FailureEstimator) Collect(ch chan<- prometheus.Metric) {
 	for k, i := range fe.parameterIndexByNode {
 		failureProbability := 1 - fe.parameters.AtVec(i)
 		failureProbability = math.Round(failureProbability*100) / 100
-		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByNodeDesc, prometheus.GaugeValue, failureProbability, k)
+		ch <- prometheus.MustNewConstMetric(fe.failureProbabilityByNodeDesc, prometheus.GaugeValue, failureProbability, k, fe.clusterByNode[k])
 	}
 	for k, j := range fe.parameterIndexByQueue {
 		failureProbability := 1 - fe.parameters.AtVec(j)

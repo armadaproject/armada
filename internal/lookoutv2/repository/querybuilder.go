@@ -5,7 +5,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/utils/strings/slices"
@@ -45,9 +44,8 @@ type Query struct {
 type QueryBuilder struct {
 	// Returns information about database schema to create the queries
 	lookoutTables *LookoutTables
-	// Mapping from UUID to value to be used in query - we will use this mapping to create a prepared SQL query,
-	// substituting each UUID in the SQL string with $1, $2, ...
-	queryValues map[string]interface{}
+
+	args []interface{}
 }
 
 // queryColumn contains all data related to a column to be used in a query
@@ -76,7 +74,6 @@ type queryOrder struct {
 func NewQueryBuilder(lookoutTables *LookoutTables) *QueryBuilder {
 	return &QueryBuilder{
 		lookoutTables: lookoutTables,
-		queryValues:   make(map[string]interface{}),
 	}
 }
 
@@ -144,7 +141,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	if err != nil {
 		return nil, err
 	}
-	template := fmt.Sprintf(`
+	sql := fmt.Sprintf(`
 		INSERT INTO %s (job_id)
 		SELECT %s.job_id
 		%s
@@ -152,13 +149,9 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 		%s
 		%s
 		ON CONFLICT DO NOTHING`,
-		tempTableName, abbrev, fromBuilder.Build(), whereSql, orderSql, limitOffsetSql(skip, take))
-
-	templated, args := templateSql(template, qb.queryValues)
-	return &Query{
-		Sql:  templated,
-		Args: args,
-	}, nil
+		tempTableName, abbrev, fromBuilder.Build(), whereSql, orderSql, limitOffsetSql(skip, take),
+	)
+	return &Query{Sql: sql, Args: qb.args}, nil
 }
 
 func (qb *QueryBuilder) GetJobsJsonb(
@@ -252,8 +245,7 @@ CROSS JOIN LATERAL (
 		jobRunTable,
 	)
 
-	query, args := templateSql(query, qb.queryValues)
-	return &Query{Sql: query, Args: args}, nil
+	return &Query{Sql: query, Args: qb.args}, nil
 }
 
 func (qb *QueryBuilder) GroupBy(
@@ -350,19 +342,21 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	template := fmt.Sprintf(`
+	sql := fmt.Sprintf(`
 		SELECT %[1]s.%[2]s, %[3]s
 		%[4]s
 		%[5]s
 		%[6]s
 		%[7]s
 		%[8]s`,
-		groupCol.abbrev, groupCol.name, selectListSql, fromBuilder.Build(), whereSql, groupBySql, orderSql, limitOffsetSql(skip, take))
-	templated, args := templateSql(template, qb.queryValues)
-	return &Query{
-		Sql:  templated,
-		Args: args,
-	}, nil
+		groupCol.abbrev, groupCol.name, selectListSql,
+		fromBuilder.Build(),
+		whereSql,
+		groupBySql,
+		orderSql,
+		limitOffsetSql(skip, take),
+	)
+	return &Query{Sql: sql, Args: qb.args}, nil
 }
 
 func (qb *QueryBuilder) GroupByJsonb(
@@ -427,7 +421,7 @@ func (qb *QueryBuilder) GroupByJsonb(
 		return nil, err
 	}
 
-	query := fmt.Sprintf(
+	sql := fmt.Sprintf(
 		`SELECT %s.%s, %s
 FROM %s as %s
 %s
@@ -444,8 +438,7 @@ FROM %s as %s
 		limitOffsetSql(skip, take),
 	)
 
-	query, args := templateSql(query, qb.queryValues)
-	return &Query{Sql: query, Args: args}, nil
+	return &Query{Sql: sql, Args: qb.args}, nil
 }
 
 func (qb *QueryBuilder) createGroupBySQL(order *model.Order, groupCol *queryColumn, aggregates []string) (string, error) {
@@ -1016,9 +1009,8 @@ func parseStringForLike(value interface{}) string {
 
 // Save value to be used in prepared statement, returns template string to put in place of the value in the SQL string
 func (qb *QueryBuilder) recordValue(value interface{}) string {
-	id := uuid.NewString()
-	qb.queryValues[id] = value
-	return idToTemplateString(id)
+	qb.args = append(qb.args, value)
+	return fmt.Sprintf("$%d", len(qb.args))
 }
 
 // makeQueryOrder takes an external order and a set of tables to perform the queries on, and returns the

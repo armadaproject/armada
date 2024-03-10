@@ -289,10 +289,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 				continue
 			}
 			if jst.Failed {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), false)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), false)
 			}
 			if jst.Succeeded {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), true)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), true)
 			}
 		}
 		s.failureEstimator.Update()
