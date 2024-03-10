@@ -3,6 +3,7 @@ package eventutil
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -262,6 +263,63 @@ func PopulateK8sServicesIngresses(job *api.Job, ingressConfig *configuration.Ing
 	job.K8SService = services
 	job.K8SIngress = ingresses
 	return nil
+}
+
+func fish(job *api.JobSubmitRequestItem) {
+
+	var ingresses []*networking.Ingress
+
+	for _, ing := range job.Ingress {
+		ingresses = append(
+			ingresses,
+			&networking.Ingress{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       networking.IngressSpec{},
+			},
+		)
+	}
+
+	for _, svc := range services {
+		svcType := NodePort
+		useClusterIP := true
+		if svc.Type == api.ServiceType_Headless {
+			svcType = Headless
+			useClusterIP = false
+		}
+		result = append(
+			result,
+			&IngressServiceConfig{
+				Type:         svcType,
+				Ports:        util.DeepCopyListUint32(svc.Ports),
+				UseClusterIp: useClusterIP,
+			},
+		)
+	}
+
+	ingressToGen := CombineIngressService(job.Ingress, job.Services)
+	groupedIngressConfigs := groupIngressConfig(ingressToGen)
+	for svcType, configs := range groupedIngressConfigs {
+		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
+			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType, useClusterIP(configs))
+			services = append(services, service)
+
+			if svcType == Ingress {
+				for index, config := range configs {
+					if len(GetServicePorts([]*IngressServiceConfig{config}, &pod.Spec)) <= 0 {
+						continue
+					}
+					// TODO: This results in an invalid name (one starting with "-") if pod.Name is the empty string;
+					// we should return an error if that's the case.
+					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
+					ingress := CreateIngress(ingressName, job, pod, service, ingressConfig, config)
+					ingresses = append(ingresses, ingress)
+				}
+			}
+		}
+	}
+
+	return services, ingresses
 }
 
 // K8sServicesIngressesFromApiJob converts job.Services and job.Ingress to k8s services and ingresses.

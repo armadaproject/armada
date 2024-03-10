@@ -1,4 +1,4 @@
-package util
+package submit
 
 import (
 	"fmt"
@@ -8,23 +8,23 @@ import (
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress) {
+func GenerateIngresses(req *api.JobSubmitRequestItem) ([]*v1.Service, []*networking.Ingress) {
 	services := []*v1.Service{}
 	ingresses := []*networking.Ingress{}
-	ingressToGen := CombineIngressService(job.Ingress, job.Services)
+	ingressToGen := CombineIngressService(req.Ingress, req.Services)
 	groupedIngressConfigs := groupIngressConfig(ingressToGen)
+	podSpec := req.GetMainPodSpec()
 	for svcType, configs := range groupedIngressConfigs {
-		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
-			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType, useClusterIP(configs))
+		if len(GetServicePorts(configs, podSpec)) > 0 {
+			service := CreateService(job, pod, GetServicePorts(configs, podSpec), svcType, useClusterIP(configs))
 			services = append(services, service)
 
 			if svcType == Ingress {
 				for index, config := range configs {
-					if len(GetServicePorts([]*IngressServiceConfig{config}, &pod.Spec)) <= 0 {
+					if len(GetServicePorts([]*IngressServiceConfig{config}, podSpec)) <= 0 {
 						continue
 					}
 					// TODO: This results in an invalid name (one starting with "-") if pod.Name is the empty string;
