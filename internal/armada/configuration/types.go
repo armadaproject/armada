@@ -265,22 +265,20 @@ type WellKnownNodeType struct {
 type PreemptionConfig struct {
 	// If using PreemptToFairShare,
 	// the probability of evicting jobs on a node to balance resource usage.
+	// TODO(albin): Remove.
 	NodeEvictionProbability float64
 	// If using PreemptToFairShare,
 	// the probability of evicting jobs on oversubscribed nodes, i.e.,
 	// nodes on which the total resource requests are greater than the available resources.
+	// TODO(albin): Remove.
 	NodeOversubscriptionEvictionProbability float64
 	// Only queues allocated more than this fraction of their fair share are considered for preemption.
-	ProtectedFractionOfFairShare float64
-	// If true, the Armada scheduler will add to scheduled pods a node selector
-	// NodeIdLabel: <value of label on node selected by scheduler>.
-	// If true, NodeIdLabel must be non-empty.
-	SetNodeIdSelector bool
-	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
+	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
+	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
+	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
+	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",
+	// then Armada adds "kubernetes.io/hostname": "myNode" to the pod node selector before sending it to the executor.
 	NodeIdLabel string `validate:"required"`
-	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
-	// thus bypassing kube-scheduler entirely.
-	SetNodeName bool
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
