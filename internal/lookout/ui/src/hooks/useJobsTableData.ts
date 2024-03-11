@@ -61,6 +61,13 @@ const aggregatableFields = new Map<ColumnId, string>([
   [StandardColumnId.State, "state"],
 ])
 
+const groupableFields = new Map<ColumnId, string>([
+  [StandardColumnId.Queue, "queue"],
+  [StandardColumnId.Namespace, "namespace"],
+  [StandardColumnId.JobSet, "jobSet"],
+  [StandardColumnId.State, "state"],
+])
+
 export function columnIsAggregatable(columnId: ColumnId): boolean {
   return aggregatableFields.has(columnId)
 }
@@ -173,7 +180,10 @@ export const useFetchJobsTableData = ({
           const groupedField = columnToGroupedField(groupedCol)
 
           // Override the group order if needed
-          if (rowRequest.order.field !== groupedCol) {
+          if (
+            rowRequest.order.field !== groupedCol &&
+            Array.from(groupableFields.values()).includes(rowRequest.order.field)
+          ) {
             rowRequest.order = defaultGroupOrder
           }
 
