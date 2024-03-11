@@ -99,8 +99,8 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		return nil, err
 	}
 	jobDb := jobdb.NewJobDb(
-		schedulingConfig.Preemption.PriorityClasses,
-		schedulingConfig.Preemption.DefaultPriorityClass,
+		schedulingConfig.PriorityClasses,
+		schedulingConfig.DefaultPriorityClass,
 		1024,
 	)
 	randomSeed := workloadSpec.RandomSeed
@@ -223,7 +223,7 @@ func (s *Simulator) setupClusters() error {
 		totalResourcesForPool := schedulerobjects.ResourceList{}
 		for executorGroupIndex, executorGroup := range pool.ClusterGroups {
 			nodeDb, err := nodedb.NewNodeDb(
-				s.schedulingConfig.Preemption.PriorityClasses,
+				s.schedulingConfig.PriorityClasses,
 				s.schedulingConfig.MaxExtraNodesToConsider,
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
@@ -247,7 +247,7 @@ func (s *Simulator) setupClusters() error {
 							Labels:         maps.Clone(nodeTemplate.Labels),
 							TotalResources: nodeTemplate.TotalResources.DeepCopy(),
 							AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-								types.AllowedPriorities(s.schedulingConfig.Preemption.PriorityClasses),
+								types.AllowedPriorities(s.schedulingConfig.PriorityClasses),
 								nodeTemplate.TotalResources,
 							),
 						}
@@ -433,8 +433,8 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			sctx := schedulercontext.NewSchedulingContext(
 				fmt.Sprintf("%s-%d", pool.Name, i),
 				pool.Name,
-				s.schedulingConfig.Preemption.PriorityClasses,
-				s.schedulingConfig.Preemption.DefaultPriorityClass,
+				s.schedulingConfig.PriorityClasses,
+				s.schedulingConfig.DefaultPriorityClass,
 				fairnessCostProvider,
 				s.limiter,
 				totalResources,
@@ -472,9 +472,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
-				s.schedulingConfig.Preemption.NodeEvictionProbability,
-				s.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-				s.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
+				s.schedulingConfig.NodeEvictionProbability,
+				s.schedulingConfig.NodeOversubscriptionEvictionProbability,
+				s.schedulingConfig.ProtectedFractionOfFairShare,
 				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
@@ -661,7 +661,7 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 }
 
 func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (*jobdb.Job, bool, error) {
-	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.Preemption.PriorityClasses)
+	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.PriorityClasses)
 	if err != nil {
 		return nil, false, err
 	}
@@ -815,7 +815,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 	} else if node == nil {
 		return errors.Errorf("node %s not found", run.NodeId())
 	}
-	node, err = nodeDb.UnbindJobFromNode(s.schedulingConfig.Preemption.PriorityClasses, job, node)
+	node, err = nodeDb.UnbindJobFromNode(s.schedulingConfig.PriorityClasses, job, node)
 	if err != nil {
 		return err
 	}

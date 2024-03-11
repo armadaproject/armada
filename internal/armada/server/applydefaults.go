@@ -79,7 +79,7 @@ func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.Sch
 
 func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
 	if spec.PriorityClassName == "" {
-		spec.PriorityClassName = config.Preemption.DefaultPriorityClass
+		spec.PriorityClassName = config.DefaultPriorityClass
 	}
 }
 

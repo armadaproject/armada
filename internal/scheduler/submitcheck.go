@@ -71,10 +71,10 @@ func NewSubmitChecker(
 	}
 	return &SubmitChecker{
 		executorTimeout:           executorTimeout,
-		priorityClasses:           schedulingConfig.Preemption.PriorityClasses,
+		priorityClasses:           schedulingConfig.PriorityClasses,
 		gangIdAnnotation:          configuration.GangIdAnnotation,
 		executorById:              map[string]minimalExecutor{},
-		priorities:                types.AllowedPriorities(schedulingConfig.Preemption.PriorityClasses),
+		priorities:                types.AllowedPriorities(schedulingConfig.PriorityClasses),
 		indexedResources:          schedulingConfig.IndexedResources,
 		indexedTaints:             schedulingConfig.IndexedTaints,
 		indexedNodeLabels:         schedulingConfig.IndexedNodeLabels,

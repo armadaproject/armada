@@ -68,8 +68,8 @@ func NewFairSchedulingAlgo(
 	queueRepository repository.QueueRepository,
 	schedulingContextRepository *SchedulingContextRepository,
 ) (*FairSchedulingAlgo, error) {
-	if _, ok := config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]; !ok {
-		return nil, errors.Errorf("default priority class %s is missing from priority class mapping %v", config.Preemption.DefaultPriorityClass, config.Preemption.PriorityClasses)
+	if _, ok := config.PriorityClasses[config.DefaultPriorityClass]; !ok {
+		return nil, errors.Errorf("default priority class %s is missing from priority class mapping %v", config.DefaultPriorityClass, config.PriorityClasses)
 	}
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
@@ -338,7 +338,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	executors []*schedulerobjects.Executor,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		l.schedulingConfig.Preemption.PriorityClasses,
+		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.MaxExtraNodesToConsider,
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
@@ -375,8 +375,8 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	sctx := schedulercontext.NewSchedulingContext(
 		executorId,
 		pool,
-		l.schedulingConfig.Preemption.PriorityClasses,
-		l.schedulingConfig.Preemption.DefaultPriorityClass,
+		l.schedulingConfig.PriorityClasses,
+		l.schedulingConfig.DefaultPriorityClass,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,
@@ -417,9 +417,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
-		l.schedulingConfig.Preemption.NodeEvictionProbability,
-		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
+		l.schedulingConfig.NodeEvictionProbability,
+		l.schedulingConfig.NodeOversubscriptionEvictionProbability,
+		l.schedulingConfig.ProtectedFractionOfFairShare,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,

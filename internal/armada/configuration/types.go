@@ -85,7 +85,31 @@ type SchedulingConfig struct {
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	Preemption       PreemptionConfig
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to balance resource usage.
+	// TODO(albin): Remove.
+	NodeEvictionProbability float64
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on oversubscribed nodes, i.e.,
+	// nodes on which the total resource requests are greater than the available resources.
+	// TODO(albin): Remove.
+	NodeOversubscriptionEvictionProbability float64
+	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
+	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
+	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
+	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",
+	// then Armada adds "kubernetes.io/hostname": "myNode" to the pod node selector before sending it to the executor.
+	NodeIdLabel string `validate:"required"`
+	// Map from priority class names to priority classes.
+	// Must be consistent with Kubernetes priority classes.
+	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
+	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
+	// Priority class assigned to pods that do not specify one.
+	// Must be an entry in PriorityClasses above.
+	DefaultPriorityClass string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -230,7 +254,7 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		wellKnownNodeTypes[wellKnownNodeType.Name] = true
 	}
 
-	for priorityClassName, priorityClass := range c.Preemption.PriorityClasses {
+	for priorityClassName, priorityClass := range c.PriorityClasses {
 		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
 			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
 			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
@@ -259,35 +283,6 @@ type WellKnownNodeType struct {
 	// Taints is the set of taints that characterizes this node type; a node is
 	// part of this node type if and only if it has all of these taints.
 	Taints []v1.Taint
-}
-
-// TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
-type PreemptionConfig struct {
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on a node to balance resource usage.
-	// TODO(albin): Remove.
-	NodeEvictionProbability float64
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on oversubscribed nodes, i.e.,
-	// nodes on which the total resource requests are greater than the available resources.
-	// TODO(albin): Remove.
-	NodeOversubscriptionEvictionProbability float64
-	// Only queues allocated more than this fraction of their fair share are considered for preemption.
-	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
-	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
-	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
-	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",
-	// then Armada adds "kubernetes.io/hostname": "myNode" to the pod node selector before sending it to the executor.
-	NodeIdLabel string `validate:"required"`
-	// Map from priority class names to priority classes.
-	// Must be consistent with Kubernetes priority classes.
-	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
-	// Priority class assigned to pods that do not specify one.
-	// Must be an entry in PriorityClasses above.
-	DefaultPriorityClass string
-	// If set, override the priority class name of pods with this value when sending to an executor.
-	PriorityClassNameOverride *string
 }
 
 // FailureEstimatorConfig contains config controlling node and queue success probability estimation.

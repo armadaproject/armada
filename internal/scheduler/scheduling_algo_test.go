@@ -531,7 +531,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				b.StartTimer()
 
 				nodeDb, err := nodedb.NewNodeDb(
-					schedulingConfig.Preemption.PriorityClasses,
+					schedulingConfig.PriorityClasses,
 					schedulingConfig.MaxExtraNodesToConsider,
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,

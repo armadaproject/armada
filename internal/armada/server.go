@@ -39,8 +39,8 @@ import (
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
-	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
-	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
+	log.Infof("Armada priority classes: %v", config.Scheduling.PriorityClasses)
+	log.Infof("Default priority class: %s", config.Scheduling.DefaultPriorityClass)
 	defer log.Info("Armada server shutting down")
 
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
