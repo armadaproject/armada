@@ -1,4 +1,4 @@
-package submit
+package conversion
 
 import (
 	"github.com/armadaproject/armada/internal/common/util"

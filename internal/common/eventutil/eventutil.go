@@ -2,26 +2,19 @@ package eventutil
 
 import (
 	"fmt"
-	"math"
-	"strings"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/executor/configuration"
-	"github.com/armadaproject/armada/internal/executor/domain"
-	executorutil "github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
@@ -173,201 +166,6 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		QueueOwnershipUserGroups: groups,
 		QueueTtlSeconds:          e.QueueTtlSeconds,
 	}, nil
-}
-
-func LogSubmitJobFromApiJob(job *api.JobSubmitRequestItem) *armadaevents.SubmitJob {
-	jobId := armadaevents.MustProtoUuidFromUlidString(util.NewULID())
-	priority := LogSubmitPriorityFromApiPriority(job.GetPriority())
-	mainObject, objects := LogSubmitObjectsFromApiJob(job)
-	return &armadaevents.SubmitJob{
-		JobId:           jobId,
-		DeduplicationId: job.GetClientId(),
-		Priority:        priority,
-		ObjectMeta: &armadaevents.ObjectMeta{
-			Namespace:   job.GetNamespace(),
-			Annotations: job.GetAnnotations(),
-			Labels:      job.GetLabels(),
-		},
-		MainObject:      mainObject,
-		Objects:         objects,
-		Scheduler:       job.Scheduler,
-		QueueTtlSeconds: job.QueueTtlSeconds,
-	}
-}
-
-// LogSubmitObjectsFromApiJob extracts all objects from an API job for inclusion in a log job.
-//
-// To extract services and ingresses, PopulateK8sServicesIngresses must be called on the job first
-// to convert API-specific job objects to proper K8s objects.
-func LogSubmitObjectsFromApiJob(job *api.JobSubmitRequestItem) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject) {
-	// Objects part of the job in addition to the main object.
-	objects := make([]*armadaevents.KubernetesObject, 0, len(job.Services)+len(job.Ingress)+len(job.PodSpecs))
-
-	// Each job has a main object associated with it, which determines when the job exits.
-	// If provided, use job.PodSpec as the main object. Otherwise, try to use job.PodSpecs[0].
-	mainPodSpec := job.PodSpec
-	additionalPodSpecs := job.PodSpecs
-	if additionalPodSpecs == nil {
-		additionalPodSpecs = make([]*v1.PodSpec, 0)
-	}
-	if mainPodSpec == nil && len(additionalPodSpecs) > 0 {
-		mainPodSpec = additionalPodSpecs[0]
-		additionalPodSpecs = additionalPodSpecs[1:]
-	}
-
-	mainObject := &armadaevents.KubernetesMainObject{
-		Object: &armadaevents.KubernetesMainObject_PodSpec{
-			PodSpec: &armadaevents.PodSpecWithAvoidList{
-				PodSpec: mainPodSpec,
-			},
-		},
-	}
-
-	// Collect all additional objects.
-	for _, podSpec := range additionalPodSpecs {
-		objects = append(objects, &armadaevents.KubernetesObject{
-			Object: &armadaevents.KubernetesObject_PodSpec{
-				PodSpec: &armadaevents.PodSpecWithAvoidList{
-					PodSpec: podSpec,
-				},
-			},
-		})
-	}
-	for _, service := range job.K8SService {
-		objects = append(objects, &armadaevents.KubernetesObject{
-			ObjectMeta: LogObjectMetaFromK8sObjectMeta(&service.ObjectMeta),
-			Object: &armadaevents.KubernetesObject_Service{
-				Service: &service.Spec,
-			},
-		})
-	}
-	for _, ingress := range job.K8SIngress {
-		objects = append(objects, &armadaevents.KubernetesObject{
-			ObjectMeta: LogObjectMetaFromK8sObjectMeta(&ingress.ObjectMeta),
-			Object: &armadaevents.KubernetesObject_Ingress{
-				Ingress: &ingress.Spec,
-			},
-		})
-	}
-
-	return mainObject, objects
-}
-
-// PopulateK8sServicesIngresses converts the API-specific service and ingress object into K8s objects
-// and stores those in the job object.
-func PopulateK8sServicesIngresses(job *api.Job, ingressConfig *configuration.IngressConfiguration) error {
-	services, ingresses, err := K8sServicesIngressesFromApiJob(job, ingressConfig)
-	if err != nil {
-		return err
-	}
-	job.K8SService = services
-	job.K8SIngress = ingresses
-	return nil
-}
-
-func fish(job *api.JobSubmitRequestItem) {
-
-	var ingresses []*networking.Ingress
-
-	for _, ing := range job.Ingress {
-		ingresses = append(
-			ingresses,
-			&networking.Ingress{
-				TypeMeta:   metav1.TypeMeta{},
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec:       networking.IngressSpec{},
-			},
-		)
-	}
-
-	for _, svc := range services {
-		svcType := NodePort
-		useClusterIP := true
-		if svc.Type == api.ServiceType_Headless {
-			svcType = Headless
-			useClusterIP = false
-		}
-		result = append(
-			result,
-			&IngressServiceConfig{
-				Type:         svcType,
-				Ports:        util.DeepCopyListUint32(svc.Ports),
-				UseClusterIp: useClusterIP,
-			},
-		)
-	}
-
-	ingressToGen := CombineIngressService(job.Ingress, job.Services)
-	groupedIngressConfigs := groupIngressConfig(ingressToGen)
-	for svcType, configs := range groupedIngressConfigs {
-		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
-			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType, useClusterIP(configs))
-			services = append(services, service)
-
-			if svcType == Ingress {
-				for index, config := range configs {
-					if len(GetServicePorts([]*IngressServiceConfig{config}, &pod.Spec)) <= 0 {
-						continue
-					}
-					// TODO: This results in an invalid name (one starting with "-") if pod.Name is the empty string;
-					// we should return an error if that's the case.
-					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
-					ingress := CreateIngress(ingressName, job, pod, service, ingressConfig, config)
-					ingresses = append(ingresses, ingress)
-				}
-			}
-		}
-	}
-
-	return services, ingresses
-}
-
-// K8sServicesIngressesFromApiJob converts job.Services and job.Ingress to k8s services and ingresses.
-func K8sServicesIngressesFromApiJob(job *api.JobSubmitRequestItem, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress, error) {
-	// GenerateIngresses (below) looks into the pod to set names for the services/ingresses.
-	// Hence, we use the same code as is later used by the executor to create the pod to be submitted.
-	// Note that we only create the pod here to pass it to GenerateIngresses.
-	// TODO: This only works for a single pod; I think we should create services/ingresses for each pod in the request (Albin).
-	pod := executorutil.CreatePod(job, &configuration.PodDefaults{})
-	pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
-		domain.HasIngress:               "true",
-		domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.Services)),
-		domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.Ingress)),
-	})
-
-	// Create k8s objects from the data embedded in the request.
-	// GenerateIngresses expects a job object and a pod because it looks into those for optimisations.
-	// For example, it deletes services/ingresses for which there are no corresponding ports exposed in the PodSpec.
-	// Note that the user may submit several pods, but we only pass in one of them as a separate argument.
-	// I think this may result in Armada deleting services/ingresses needed for pods other than the first one
-	// - Albin
-	services, ingresses := executorutil.GenerateIngresses(job, pod, ingressConfig)
-
-	return services, ingresses, nil
-}
-
-// LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
-// or an error if the conversion fails.
-func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
-	if priority < 0 {
-		priority = 0
-	}
-	if priority > math.MaxUint32 {
-		priority = math.MaxUint32
-	}
-	priority = math.Round(priority)
-	return uint32(priority)
-}
-
-func LogObjectMetaFromK8sObjectMeta(meta *metav1.ObjectMeta) *armadaevents.ObjectMeta {
-	return &armadaevents.ObjectMeta{
-		ExecutorId:   "", // Not part of the k8s ObjectMeta.
-		Namespace:    meta.GetNamespace(),
-		Name:         meta.GetName(),
-		KubernetesId: string(meta.GetUID()), // The type returned by GetUID is an alias of string.
-		Annotations:  meta.GetAnnotations(),
-		Labels:       meta.GetLabels(),
-	}
 }
 
 func K8sObjectMetaFromLogObjectMeta(meta *armadaevents.ObjectMeta) *metav1.ObjectMeta {

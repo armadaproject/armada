@@ -1,7 +1,8 @@
-package submit
+package conversion
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -11,15 +12,15 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func GenerateIngresses(req *api.JobSubmitRequestItem) ([]*v1.Service, []*networking.Ingress) {
-	services := []*v1.Service{}
-	ingresses := []*networking.Ingress{}
-	ingressToGen := CombineIngressService(req.Ingress, req.Services)
+func GenerateIngresses(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, jobId string, owner string) ([]*v1.Service, []*networking.Ingress) {
+	var services []*v1.Service
+	var ingresses []*networking.Ingress
+	ingressToGen := CombineIngressService(jobReq.Ingress, jobReq.Services)
 	groupedIngressConfigs := groupIngressConfig(ingressToGen)
-	podSpec := req.GetMainPodSpec()
+	podSpec := jobReq.GetMainPodSpec()
 	for svcType, configs := range groupedIngressConfigs {
 		if len(GetServicePorts(configs, podSpec)) > 0 {
-			service := CreateService(job, pod, GetServicePorts(configs, podSpec), svcType, useClusterIP(configs))
+			service := CreateService(req, jobReq, jobId, owner, GetServicePorts(configs, podSpec), svcType, useClusterIP(configs))
 			services = append(services, service)
 
 			if svcType == Ingress {
@@ -27,10 +28,8 @@ func GenerateIngresses(req *api.JobSubmitRequestItem) ([]*v1.Service, []*network
 					if len(GetServicePorts([]*IngressServiceConfig{config}, podSpec)) <= 0 {
 						continue
 					}
-					// TODO: This results in an invalid name (one starting with "-") if pod.Name is the empty string;
-					// we should return an error if that's the case.
-					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
-					ingress := CreateIngress(ingressName, job, pod, service, ingressConfig, config)
+					ingressName := fmt.Sprintf("%s-%s-%d", common.PodName(jobId), strings.ToLower(svcType.String()), index)
+					ingress := CreateIngress(ingressName, req, jobReq, jobId, owner, service, config)
 					ingresses = append(ingresses, ingress)
 				}
 			}

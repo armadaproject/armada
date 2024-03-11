@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/armada/submit/conversion"
 	"github.com/armadaproject/armada/internal/armada/submit/validation"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
@@ -86,7 +86,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		}
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
-		submitMsg := eventutil.LogSubmitJobFromApiJob(jobRequest)
+		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, userId)
 		eventTime := time.Now().UTC()
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
 			Created: &eventTime,
