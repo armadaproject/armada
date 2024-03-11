@@ -4,6 +4,7 @@ import (
 	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"math"
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -953,4 +954,15 @@ func LegacyJobRunId() *armadaevents.Uuid {
 		panic(err)
 	}
 	return jobRunId
+}
+
+func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
+	if priority < 0 {
+		priority = 0
+	}
+	if priority > math.MaxUint32 {
+		priority = math.MaxUint32
+	}
+	priority = math.Round(priority)
+	return uint32(priority)
 }
