@@ -34,13 +34,17 @@ type ArmadaConfig struct {
 	SchedulerApiConnection client.ApiConnectionDetails
 
 	CancelJobsBatchSize int
-	Redis               redis.UniversalOptions
-	EventsApiRedis      redis.UniversalOptions
-	Submission          SubmissionConfig
-	Scheduling          SchedulingConfig
-	Pulsar              PulsarConfig
-	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
-	QueryApi            QueryApiConfig
+
+	Redis          redis.UniversalOptions
+	EventsApiRedis redis.UniversalOptions
+	Pulsar         PulsarConfig
+	Postgres       PostgresConfig // Used for Pulsar submit API deduplication
+	QueryApi       QueryApiConfig
+
+	// Config relating to job submission.
+	Submission SubmissionConfig
+	// Scheduling config used by the submitChecker.
+	Scheduling SchedulingConfig
 }
 
 type PulsarConfig struct {
@@ -90,24 +94,21 @@ type SubmissionConfig struct {
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClassName string
 	// Default job resource limits added to pods.
-	// TODO(albin): Move to server config.
 	DefaultJobLimits armadaresource.ComputeResources
 	// Tolerations added to all submitted pods.
-	// TODO(albin): Move to server config.
 	DefaultJobTolerations []v1.Toleration
 	// Tolerations added to all submitted pods of a given priority class.
-	// TODO(albin): Move to server config.
+	// TODO(albin): Rename to defaultJobTolerationsByPriorityClassName.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
 	// Tolerations added to all submitted pods requesting a non-zero amount of some resource.
-	// TODO(albin): Move to server config.
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Pods of size greater than this are rejected at submission.
-	// TODO(albin): Move to server config.
 	MaxPodSpecSizeBytes uint
 	// Jobs requesting less than this amount of resources are rejected at submission.
-	// TODO(albin): Move to server config.
 	MinJobResources v1.ResourceList
 	// Default value of GangNodeUniformityLabelAnnotation if not set on submitted jobs.
+	// TODO(albin): We should add a label to nodes in the nodeDb indicating which cluster it came from.
+	//              If we do, we can default to that label if the uniformity label is empty.
 	DefaultGangNodeUniformityLabel string
 	// Minimum allowed termination grace period for pods submitted to Armada.
 	// Should normally be set to a positive value, e.g., "10m".
@@ -176,6 +177,7 @@ type SchedulingConfig struct {
 	// TODO(albin): Validate.
 	DefaultPriorityClassName string
 	// If set, override the priority class name of pods with this value when sending to an executor.
+	// TODO(albin): We should pass the scheduled priority class through as an annotation.
 	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint

@@ -43,8 +43,9 @@ type SubmitScheduleChecker interface {
 }
 
 type SubmitChecker struct {
-	executorTimeout           time.Duration
-	priorityClasses           map[string]types.PriorityClass
+	executorTimeout time.Duration
+	priorityClasses map[string]types.PriorityClass
+	// TODO(albin): Remove. Refer directly to const.
 	gangIdAnnotation          string
 	executorById              map[string]minimalExecutor
 	priorities                []int32
