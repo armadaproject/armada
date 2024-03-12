@@ -628,11 +628,8 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 				}
 			}
 		case *armadaevents.EventSequence_Event_JobErrors:
-			for _, e := range event.GetJobErrors().Errors {
-				if e.GetJobRunPreemptedError() == nil {
-					return errors.Errorf("received unexpected JobErrors reason: %T", e.Reason)
-				}
-			}
+			s.shouldSchedule = true
+			jobs[i], shouldPublish, err = s.handleJobErrors(txn, event.GetJobErrors())
 		default:
 			// This is an event type we haven't considered
 			return errors.Errorf("received unknown event type %T", eventType)
@@ -691,22 +688,41 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 	if jobTemplate == nil {
 		return nil, false, errors.Errorf("no jobTemplate associated with job %s", jobId)
 	}
-	jobSuccessTime := s.time
-	jobSuccessTime = jobSuccessTime.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.PendingDelayDistribution))
-	jobSuccessTime = jobSuccessTime.Add(s.generateRandomShiftedExponentialDuration(jobTemplate.RuntimeDistribution))
+	jobTerminationTime := s.time
+	var event *armadaevents.EventSequence_Event
+	if s.rand.Float64() < jobTemplate.FailureProbability {
+		jobTerminationTime = jobTerminationTime.Add(s.generateRandomShiftedExponentialDuration(jobTemplate.FailureRuntimeDistribution))
+		event = &armadaevents.EventSequence_Event{
+			Created: &jobTerminationTime,
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: e.JobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+						},
+					},
+				},
+			},
+		}
+	} else {
+		jobTerminationTime = jobTerminationTime.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.PendingDelayDistribution))
+		jobTerminationTime = jobTerminationTime.Add(s.generateRandomShiftedExponentialDuration(jobTemplate.RuntimeDistribution))
+		event = &armadaevents.EventSequence_Event{
+			Created: &jobTerminationTime,
+			Event: &armadaevents.EventSequence_Event_JobSucceeded{
+				JobSucceeded: &armadaevents.JobSucceeded{
+					JobId: e.JobId,
+				},
+			},
+		}
+	}
 	s.pushEventSequence(
 		&armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
-				{
-					Created: &jobSuccessTime,
-					Event: &armadaevents.EventSequence_Event_JobSucceeded{
-						JobSucceeded: &armadaevents.JobSucceeded{
-							JobId: e.JobId,
-						},
-					},
-				},
+				event,
 			},
 		},
 	)
@@ -827,7 +843,40 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 
 func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRunPreempted) (*jobdb.Job, bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.PreemptedJobId).String()
+	job, ok, err := s.handleJobRunTerminated(txn, jobId)
+	if err != nil {
+		return nil, false, err
+	}
+	updatedJob := job.WithUpdatedRun(job.LatestRun().WithPreempted(true)).WithFailed(true)
+	return updatedJob, ok, nil
+}
+
+func (s *Simulator) handleJobErrors(txn *jobdb.Txn, e *armadaevents.JobErrors) (*jobdb.Job, bool, error) {
+	terminal := false
+	for _, jobRunError := range e.Errors {
+		terminal = terminal && jobRunError.Terminal
+	}
+	if !terminal {
+		return nil, false, nil
+	}
+	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
+	job, ok, err := s.handleJobRunTerminated(txn, jobId)
+	if err != nil {
+		return nil, false, err
+	}
+	updatedJob := job.WithFailed(true)
+	if run := job.LatestRun(); run != nil {
+		run = run.WithFailed(true)
+		updatedJob = updatedJob.WithUpdatedRun(run)
+	}
+	return updatedJob, ok, nil
+}
+
+func (s *Simulator) handleJobRunTerminated(txn *jobdb.Txn, jobId string) (*jobdb.Job, bool, error) {
 	job := txn.GetById(jobId)
+	if err := txn.BatchDelete([]string{jobId}); err != nil {
+		return nil, false, err
+	}
 
 	// Submit a retry for this job.
 	jobTemplate := s.jobTemplateByJobId[job.GetId()]
@@ -848,11 +897,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 		},
 	)
 	s.jobTemplateByJobId[retryJobId.String()] = jobTemplate
-	updatedJob := job.WithUpdatedRun(job.LatestRun().WithReturned(true))
-	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
-		return nil, false, err
-	}
-	return updatedJob, true, nil
+	return job, true, nil
 }
 
 func maxTime(a, b time.Time) time.Time {

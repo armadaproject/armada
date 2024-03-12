@@ -45,6 +45,7 @@ message NodeTemplate {
 
 message Queue {
     string name = 1;
+    // Determines the fair share of the queue.
     double weight = 2;
     repeated JobTemplate job_templates = 3;
 }
@@ -72,7 +73,7 @@ message JobTemplate {
     // Earliest time job can be submitted from when all its dependencies have completed.
     // This option is meant to model thinking or processing time, where some fixed amount of time
     // needs to be spent between dependencies completing and the next batch of jobs being ready to submit.
-    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];    
+    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
     // Job runtimes are assumed to follow a shifted exponential distribution
     // i.e., to be a fixed constant (runtime_minimum) plus a random amount of time
     // drawn from an exponential distribution with known mean (runtime_tail_mean).
@@ -81,6 +82,10 @@ message JobTemplate {
     // see https://bora.uib.no/bora-xmlui/bitstream/handle/11250/3014726/drthesis_2022_severinson.pdf?sequence=2
     // for a discussion on the topic.
     ShiftedExponential runtime_distribution = 12 [(gogoproto.nullable) = false];
+    // Each job submitted from this template fails with this probability.
+    double failure_probability = 13;
+    // Runtime distribution of jobs that fail.
+    ShiftedExponential failure_runtime_distribution = 14 [(gogoproto.nullable) = false];
 }
 
 message ShiftedExponential {
