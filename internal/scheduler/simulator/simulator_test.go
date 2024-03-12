@@ -401,7 +401,7 @@ func TestSimulator(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu-whale",

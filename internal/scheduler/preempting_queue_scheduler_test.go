@@ -36,8 +36,8 @@ func TestEvictOversubscribed(t *testing.T) {
 	priorities := types.AllowedPriorities(config.PriorityClasses)
 
 	jobs := append(
-		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClass, 20),
-		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClass, 20)...,
+		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClassName, 20),
+		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClassName, 20)...,
 	)
 
 	node := testfixtures.Test32CpuNode(priorities)
@@ -47,7 +47,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClass, 1024)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, 1024)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestEvictOversubscribed(t *testing.T) {
 		NewSchedulerJobRepositoryAdapter(jobDbTxn),
 		nodeDb,
 		config.PriorityClasses,
-		config.DefaultPriorityClass,
+		config.DefaultPriorityClassName,
 		1,
 		nil,
 	)
@@ -1493,7 +1493,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1559,7 +1559,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1625,7 +1625,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1692,7 +1692,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1758,7 +1758,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClass, 1024)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, 1024)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.
@@ -1849,7 +1849,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					"executor",
 					"pool",
 					tc.SchedulingConfig.PriorityClasses,
-					tc.SchedulingConfig.DefaultPriorityClass,
+					tc.SchedulingConfig.DefaultPriorityClassName,
 					fairnessCostProvider,
 					limiter,
 					tc.TotalResources,
@@ -2181,7 +2181,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClass, 1024)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, 1024)
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {
@@ -2213,7 +2213,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.DefaultPriorityClass,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				limiter,
 				nodeDb.TotalResources(),
@@ -2282,7 +2282,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					"executor",
 					"pool",
 					tc.SchedulingConfig.PriorityClasses,
-					tc.SchedulingConfig.DefaultPriorityClass,
+					tc.SchedulingConfig.DefaultPriorityClassName,
 					fairnessCostProvider,
 					limiter,
 					nodeDb.TotalResources(),

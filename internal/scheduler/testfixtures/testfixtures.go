@@ -124,12 +124,10 @@ func Repeat[T any](v T, n int) []T {
 
 func TestSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
-		Preemption: configuration.PreemptionConfig{
-			PriorityClasses:                         maps.Clone(TestPriorityClasses),
-			DefaultPriorityClass:                    TestDefaultPriorityClass,
-			NodeEvictionProbability:                 1.0,
-			NodeOversubscriptionEvictionProbability: 1.0,
-		},
+		PriorityClasses:                             maps.Clone(TestPriorityClasses),
+		DefaultPriorityClassName:                    TestDefaultPriorityClass,
+		NodeEvictionProbability:                     1.0,
+		NodeOversubscriptionEvictionProbability:     1.0,
 		MaximumSchedulingRate:                       math.Inf(1),
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),

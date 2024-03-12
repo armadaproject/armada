@@ -471,7 +471,7 @@ func TestGangScheduler(t *testing.T) {
 						},
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible-away"
+				config.DefaultPriorityClassName = "armada-preemptible-away"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name: "node-type-a",
@@ -533,7 +533,7 @@ func TestGangScheduler(t *testing.T) {
 						},
 					},
 				}
-				config.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name: "node-type-a",
@@ -606,7 +606,7 @@ func TestGangScheduler(t *testing.T) {
 				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.DefaultPriorityClass,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),

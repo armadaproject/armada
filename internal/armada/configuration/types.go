@@ -171,6 +171,10 @@ type SchedulingConfig struct {
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
+	// Jobs with no priority class are assigned this priority class when ingested by the scheduler.
+	// Must be a key in the PriorityClasses map above.
+	// TODO(albin): Validate.
+	DefaultPriorityClassName string
 	// If set, override the priority class name of pods with this value when sending to an executor.
 	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.

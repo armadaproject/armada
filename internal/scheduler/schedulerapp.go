@@ -207,7 +207,7 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 	jobDb := jobdb.NewJobDb(
 		config.Scheduling.PriorityClasses,
-		config.Scheduling.DefaultPriorityClass,
+		config.Scheduling.DefaultPriorityClassName,
 		config.InternedStringsCacheSize,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)

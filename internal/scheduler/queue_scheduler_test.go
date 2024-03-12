@@ -562,7 +562,7 @@ func TestQueueScheduler(t *testing.T) {
 				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.DefaultPriorityClass,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),

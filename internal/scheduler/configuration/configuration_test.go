@@ -23,16 +23,14 @@ func TestSchedulingConfigValidate(t *testing.T) {
 					Taints: []v1.Taint{{Key: "other-key", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 				},
 			},
-			Preemption: configuration.PreemptionConfig{
-				PriorityClasses: map[string]types.PriorityClass{
-					"armada-preemptible-away": {
-						Priority: 100,
+			PriorityClasses: map[string]types.PriorityClass{
+				"armada-preemptible-away": {
+					Priority: 100,
 
-						AwayNodeTypes: []types.AwayNodeType{
-							{
-								Priority:              50,
-								WellKnownNodeTypeName: "not-gpu",
-							},
+					AwayNodeTypes: []types.AwayNodeType{
+						{
+							Priority:              50,
+							WellKnownNodeTypeName: "not-gpu",
 						},
 					},
 				},

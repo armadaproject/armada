@@ -68,8 +68,11 @@ func NewFairSchedulingAlgo(
 	queueRepository repository.QueueRepository,
 	schedulingContextRepository *SchedulingContextRepository,
 ) (*FairSchedulingAlgo, error) {
-	if _, ok := config.PriorityClasses[config.DefaultPriorityClass]; !ok {
-		return nil, errors.Errorf("default priority class %s is missing from priority class mapping %v", config.DefaultPriorityClass, config.PriorityClasses)
+	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
+		return nil, errors.Errorf(
+			"defaultPriorityClassName %s does not correspond to a priority class; priorityClasses is %v",
+			config.DefaultPriorityClassName, config.PriorityClasses,
+		)
 	}
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
@@ -376,7 +379,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		executorId,
 		pool,
 		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.DefaultPriorityClass,
+		l.schedulingConfig.DefaultPriorityClassName,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,

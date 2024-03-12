@@ -100,7 +100,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	}
 	jobDb := jobdb.NewJobDb(
 		schedulingConfig.PriorityClasses,
-		schedulingConfig.DefaultPriorityClass,
+		schedulingConfig.DefaultPriorityClassName,
 		1024,
 	)
 	randomSeed := workloadSpec.RandomSeed
@@ -434,7 +434,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				fmt.Sprintf("%s-%d", pool.Name, i),
 				pool.Name,
 				s.schedulingConfig.PriorityClasses,
-				s.schedulingConfig.DefaultPriorityClass,
+				s.schedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				s.limiter,
 				totalResources,
