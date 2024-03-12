@@ -3,10 +3,11 @@ package validation
 import (
 	"testing"
 
-	"testing"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestPriorityClassValidator(t *testing.T) {

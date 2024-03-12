@@ -2,6 +2,10 @@ package validation
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestHasNamespaceValidator(t *testing.T) {
