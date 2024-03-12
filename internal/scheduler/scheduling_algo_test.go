@@ -61,6 +61,28 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
+		"Fair share": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []queue.Queue{
+				{
+					Name:           "testQueueA",
+					PriorityFactor: 100,
+				},
+				{
+					Name:           "testQueueB",
+					PriorityFactor: 300,
+				},
+			},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs("testQueueA", testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs("testQueueB", testfixtures.PriorityClass3, 10)...,
+			),
+			expectedScheduledIndices: []int{0, 1, 2, 10},
+		},
 		"do not schedule onto stale executors": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{

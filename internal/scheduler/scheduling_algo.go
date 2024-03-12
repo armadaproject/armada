@@ -252,11 +252,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 	priorityFactorByQueue := make(map[string]float64)
 	for _, queue := range queues {
-		weight := 0.0
-		if queue.PriorityFactor != 0 {
-			weight = 1 / float64(queue.PriorityFactor)
-		}
-		priorityFactorByQueue[queue.Name] = weight
+		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
 	}
 
 	// Get the total capacity available across executors.

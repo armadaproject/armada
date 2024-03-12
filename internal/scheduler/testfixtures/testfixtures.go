@@ -788,7 +788,7 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 func MakeTestQueue() queue.Queue {
 	return queue.Queue{
 		Name:           TestQueue,
-		PriorityFactor: 0.01,
+		PriorityFactor: 100,
 	}
 }
 
