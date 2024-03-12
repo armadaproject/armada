@@ -74,21 +74,14 @@ grpc:
     permitWithoutStream: true
   tls:
     enabled: false
+# You may want to configure indexedNodeLabels and indexedTaints to speed up scheduling.
 scheduling:
-  executorTimeout: 10m
-  executorUpdateFrequency: 1m
-  enableAssertions: true
-  fairnessModel: "AssetFairness"
-  dominantResourceFairnessResourcesToConsider:
-    - "cpu"
-    - "memory"
-    - "nvidia.com/gpu"
-  alwaysAttemptScheduling: false
-  enabled: true
+  disableScheduling: false
+  enableAssertions: false
   nodeEvictionProbability: 1.0
   nodeOversubscriptionEvictionProbability: 1.0
   protectedFractionOfFairShare: 1.0
-  nodeIdLabel: kubernetes.io/hostname
+  nodeIdLabel: "kubernetes.io/hostname"
   priorityClasses:
     armada-default:
       priority: 1000
@@ -101,8 +94,7 @@ scheduling:
       preemptible: true
   defaultPriorityClass: armada-default
   priorityClassNameOverride: armada-default
-  maxQueueLookback: 1000
-  maxExtraNodesToConsider: 1
+  maxQueueLookback: 100000
   maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
@@ -110,36 +102,26 @@ scheduling:
   maximumSchedulingBurst: 1000
   maximumPerQueueSchedulingRate: 50.0
   maximumPerQueueSchedulingBurst: 1000
-  maxUnacknowledgedJobsPerExecutor: 2500
   maxJobSchedulingContextsPerExecutor: 10000
-  defaultJobLimits:
-    cpu: 1
-    memory: 1Gi
-    ephemeral-storage: 8Gi
-  defaultJobTolerations:
-    - key: "armadaproject.io/armada"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-  defaultJobTolerationsByPriorityClass:
-    armada-default:
-      - key: "armadaproject.io/pc-armada-default"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
-    armada-preemptible:
-      - key: "armadaproject.io/pc-armada-preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
-  maxRetries: 5
+  maxRetries: 3
+  dominantResourceFairnessResourcesToConsider:
+    - "cpu"
+    - "memory"
+    - "nvidia.com/gpu"
+    - "ephemeral-storage"
   indexedResources:
+    - name: "nvidia.com/gpu"
+      resolution: "1"
     - name: "cpu"
       resolution: "100m"
     - name: "memory"
-      resolution: "1Mi"
-  gangIdAnnotation: armadaproject.io/gangId
-  gangCardinalityAnnotation: armadaproject.io/gangCardinality
+      resolution: "100Mi"
+    - name: "ephemeral-storage"
+      resolution: "1Gi"
+  executorTimeout: "10m"
+  maxUnacknowledgedJobsPerExecutor: 2500
+  alwaysAttemptScheduling: false
+  executorUpdateFrequency: "1m"
   failureEstimatorConfig:
     # Optimised default parameters.
     numInnerIterations: 10
