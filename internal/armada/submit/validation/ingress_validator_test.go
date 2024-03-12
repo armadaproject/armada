@@ -1,9 +1,11 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestIngressValidator(t *testing.T) {
