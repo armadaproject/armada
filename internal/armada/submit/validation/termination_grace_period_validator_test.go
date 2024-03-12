@@ -1,15 +1,16 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
-	"testing"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestTerminationGracePeriodValidator(t *testing.T) {
-
 	var defaultMinPeriod int64 = 30
 	var defaultMaxPeriod int64 = 300
 

@@ -1,15 +1,16 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
+	"testing"
+
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"testing"
 )
 
 func TestContainerValidator(t *testing.T) {
-
 	oneCpu := v1.ResourceList{
 		v1.ResourceCPU: resource.MustParse("1"),
 	}

@@ -7,7 +7,6 @@ import (
 )
 
 func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SchedulingConfig) error {
-
 	requestValidator := validation.NewCompoundValidator[*api.JobSubmitRequest](
 		queueValidator{},
 		gangValidator{})

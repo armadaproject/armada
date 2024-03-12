@@ -1,14 +1,14 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type hasPodSpecValidator struct{}
 
 func (p hasPodSpecValidator) Validate(j *api.JobSubmitRequestItem) error {
-
 	if j.PodSpec == nil && len(j.PodSpecs) == 0 {
 		return errors.Errorf("Job does not contain at least one PodSpec")
 	}

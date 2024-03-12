@@ -2,13 +2,13 @@ package validation
 
 import (
 	"fmt"
+
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 type portsValidator struct{}
 
 func (p portsValidator) Validate(j *api.JobSubmitRequestItem) error {
-
 	spec := j.GetMainPodSpec()
 	if spec == nil {
 		return nil

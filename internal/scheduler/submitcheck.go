@@ -2,8 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"strings"
 	"sync"
 	"time"
@@ -138,31 +136,11 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	srv.jobSchedulingResultsCache.Purge()
 }
 
-func (srv *SubmitChecker) CheckApiJobs(es *armadaevents.EventSequence) (bool, string) {
-	jobDb := jobdb.NewJobDb(srv.priorityClasses, "", 100)
-	jobs := make([]*jobdb.Job, 0, len(es.Events))
-	for _, event := range es.Events {
-		submitMsg := event.GetSubmitJob()
-		if submitMsg != nil {
-			schedInfo, err := adapters.SchedulingInfoFromSubmitJob(submitMsg, time.Now(), srv.priorityClasses)
-			if err != nil {
-				return false, err.Error()
-			}
-			job := jobDb.NewJob(
-				armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId),
-				es.JobSetName,
-				es.Queue,
-				submitMsg.Priority,
-				schedInfo,
-				true,
-				0,
-				false,
-				false,
-				false,
-				0)
-			jobs = append(jobs, job)
-		}
-	}
+func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
+	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
+}
+
+func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
 	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 

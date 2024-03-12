@@ -1,15 +1,16 @@
 package validation
 
 import (
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/pkg/api"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"testing"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestPodSpecSizeValidator(t *testing.T) {
-
 	defaultPodSpec := &v1.PodSpec{
 		Volumes: []v1.Volume{
 			{

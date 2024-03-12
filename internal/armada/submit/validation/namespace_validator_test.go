@@ -1,8 +1,6 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/stretchr/testify/assert"
 	"testing"
 )
 

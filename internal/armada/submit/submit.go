@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/armadaproject/armada/internal/armada/submit/conversion"
-	"github.com/armadaproject/armada/internal/armada/submit/validation"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -19,6 +17,8 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/armada/submit/conversion"
+	"github.com/armadaproject/armada/internal/armada/submit/validation"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
@@ -117,7 +117,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	}
 
 	if len(jobResponses) > 0 {
-		pulsarJobDetails := armadaslices.Map[](
+		pulsarJobDetails := armadaslices.Map(
 			jobResponses,
 			func(r *api.JobSubmitResponseItem) *schedulerobjects.PulsarSchedulerJobDetails {
 				return &schedulerobjects.PulsarSchedulerJobDetails{
@@ -187,7 +187,6 @@ func jobKey(queue, clientId string) string {
 }
 
 func (s *Server) getOriginalJobIds(ctx *armadacontext.Context, queue string, jobRequests []*api.JobSubmitRequestItem) (map[string]string, error) {
-
 	// If we don't have a KV store, then just return empty map
 	if s.KVStore == nil {
 		return map[string]string{}, nil

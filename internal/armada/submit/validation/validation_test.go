@@ -1,18 +1,19 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/pkg/api"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"testing"
-	"time"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestValidateSubmitRequest(t *testing.T) {
-
 	defaultSchedulingConfig := configuration.SchedulingConfig{
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses: map[string]types.PriorityClass{

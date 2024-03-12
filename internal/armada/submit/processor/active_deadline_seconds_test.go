@@ -1,13 +1,15 @@
 package processor
 
 import (
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
-	"testing"
-	"time"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func TestActiveDeadlineSecondsProcessor(t *testing.T) {

@@ -11,7 +11,6 @@ import (
 )
 
 func TestResourceProcessor(t *testing.T) {
-
 	defaultConfig := configuration.SchedulingConfig{
 		DefaultJobLimits: map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10"),
@@ -67,7 +66,8 @@ func TestResourceProcessor(t *testing.T) {
 								"memory": resource.MustParse("2Gi"),
 							},
 						},
-					}},
+					},
+				},
 			},
 			expected: v1.PodSpec{
 				Containers: []v1.Container{

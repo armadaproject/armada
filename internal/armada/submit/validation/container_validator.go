@@ -2,8 +2,10 @@ package validation
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/pkg/api"
+
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type containerValidator struct {
@@ -11,7 +13,6 @@ type containerValidator struct {
 }
 
 func (c containerValidator) Validate(j *api.JobSubmitRequestItem) error {
-
 	spec := j.GetMainPodSpec()
 	if spec == nil {
 		return nil

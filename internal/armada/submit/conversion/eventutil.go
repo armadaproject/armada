@@ -1,11 +1,12 @@
 package conversion
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, owner string) *armadaevents.SubmitJob {
@@ -30,7 +31,6 @@ func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitReq
 
 // submitObjectsFromApiJob extracts all objects from an API job request for inclusion in a log job.
 func submitObjectsFromApiJobReq(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, jobId string, owner string) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject) {
-
 	// Objects part of the job in addition to the main object.
 	objects := make([]*armadaevents.KubernetesObject, 0, len(jobReq.Services)+len(jobReq.Ingress)+1)
 

@@ -2,16 +2,15 @@ package processor
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/util"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestTemplateProcessor(t *testing.T) {
-
 	jobId := util.NewULID()
 	jobIdProto := armadaevents.MustProtoUuidFromUlidString(jobId)
 

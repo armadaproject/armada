@@ -1,18 +1,18 @@
 package adapters
 
 import (
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
-	"time"
-
-	"github.com/armadaproject/armada/internal/common/types"
 
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // PodRequirementsFromPod function creates the schedulerobjects and creates a value for the

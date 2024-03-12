@@ -10,7 +10,6 @@ type gangAnnotationProcessor struct {
 }
 
 func (p gangAnnotationProcessor) Apply(msg *armadaevents.SubmitJob) {
-
 	annotations := msg.MainObject.GetObjectMeta().GetAnnotations()
 
 	if annotations == nil {

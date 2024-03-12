@@ -1,8 +1,9 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type podSpecSizeValidator struct {
@@ -10,7 +11,6 @@ type podSpecSizeValidator struct {
 }
 
 func (p podSpecSizeValidator) Validate(j *api.JobSubmitRequestItem) error {
-
 	spec := j.GetMainPodSpec()
 
 	if spec == nil {

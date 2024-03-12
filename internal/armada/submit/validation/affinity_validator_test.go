@@ -1,10 +1,12 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
+	"testing"
+
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"testing"
 )
 
 func TestAffinityValidator(t *testing.T) {

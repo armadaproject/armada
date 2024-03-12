@@ -25,7 +25,6 @@ func (p podSpecProcessor) Apply(msg *armadaevents.SubmitJob) {
 func (p podSpecProcessor) processPodSpec(spec *v1.PodSpec) {}
 
 func ApplyDefaults(msg *armadaevents.SubmitJob, config configuration.SchedulingConfig) {
-
 	processors := []Processor{
 		activeDeadlineSecondsProcessor{
 			defaultActiveDeadline:                  config.DefaultActiveDeadline,

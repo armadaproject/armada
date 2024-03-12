@@ -1,10 +1,12 @@
 package processor
 
 import (
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"testing"
+
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"testing"
 )
 
 func TestPriorityClassProcessor(t *testing.T) {

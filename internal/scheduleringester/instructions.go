@@ -1,7 +1,6 @@
 package scheduleringester
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -15,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"

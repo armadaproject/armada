@@ -1,14 +1,15 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"testing"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestPortsValidator(t *testing.T) {
-
 	tests := map[string]struct {
 		req           *api.JobSubmitRequestItem
 		expectSuccess bool

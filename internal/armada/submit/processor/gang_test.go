@@ -1,10 +1,12 @@
 package processor
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestGangAnnotationProcessor(t *testing.T) {

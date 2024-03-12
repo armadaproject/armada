@@ -2,9 +2,11 @@ package validation
 
 import (
 	"fmt"
+
+	"github.com/pkg/errors"
+
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/pkg/errors"
 )
 
 type jobAdapter struct {

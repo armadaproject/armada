@@ -1,4 +1,4 @@
-package conversion
+package util
 
 import (
 	"fmt"
@@ -7,29 +7,30 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func GenerateIngresses(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, jobId string, owner string) ([]*v1.Service, []*networking.Ingress) {
-	var services []*v1.Service
-	var ingresses []*networking.Ingress
-	ingressToGen := CombineIngressService(jobReq.Ingress, jobReq.Services)
+func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress) {
+	services := []*v1.Service{}
+	ingresses := []*networking.Ingress{}
+	ingressToGen := CombineIngressService(job.Ingress, job.Services)
 	groupedIngressConfigs := groupIngressConfig(ingressToGen)
-	podSpec := jobReq.GetMainPodSpec()
 	for svcType, configs := range groupedIngressConfigs {
-		if len(GetServicePorts(configs, podSpec)) > 0 {
-			service := CreateService(req, jobReq, jobId, owner, GetServicePorts(configs, podSpec), svcType, useClusterIP(configs))
+		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
+			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType, useClusterIP(configs))
 			services = append(services, service)
 
 			if svcType == Ingress {
 				for index, config := range configs {
-					if len(GetServicePorts([]*IngressServiceConfig{config}, podSpec)) <= 0 {
+					if len(GetServicePorts([]*IngressServiceConfig{config}, &pod.Spec)) <= 0 {
 						continue
 					}
-					ingressName := fmt.Sprintf("%s-%s-%d", common.PodName(jobId), strings.ToLower(svcType.String()), index)
-					ingress := CreateIngress(ingressName, req, jobReq, jobId, owner, service, config)
+					// TODO: This results in an invalid name (one starting with "-") if pod.Name is the empty string;
+					// we should return an error if that's the case.
+					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
+					ingress := CreateIngress(ingressName, job, pod, service, ingressConfig, config)
 					ingresses = append(ingresses, ingress)
 				}
 			}

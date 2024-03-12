@@ -174,18 +174,6 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
 
-	submitChecker := NewSubmitChecker(
-		30*time.Minute,
-		config.Scheduling,
-		executorRepository,
-	)
-	services = append(services, func() error {
-		return submitChecker.Run(ctx)
-	})
-	if err != nil {
-		return errors.WithMessage(err, "error creating submit checker")
-	}
-
 	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling context repository")
@@ -247,7 +235,6 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingAlgo,
 		leaderController,
 		pulsarPublisher,
-		submitChecker,
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
