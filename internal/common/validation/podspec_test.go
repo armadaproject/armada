@@ -291,16 +291,8 @@ func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 		"validation should pass when specified priority class is configured to be allowed and preemption is enabled",
 	)
 
-	err := validatePodSpecPriorityClass(validPriorityClass, allowedPriorityClasses)
-	assert.Error(
-		t,
-		err,
-		"validation should fail if priority class is specified and disabled",
-	)
-	validateInvalidArgumentErrorMessage(t, err, "Preemption is disabled in Server config")
-
 	invalidPriorityClass := &v1.PodSpec{PriorityClassName: "some-other-priority-class"}
-	err = validatePodSpecPriorityClass(invalidPriorityClass, allowedPriorityClasses)
+	err := validatePodSpecPriorityClass(invalidPriorityClass, allowedPriorityClasses)
 	assert.Error(
 		t,
 		err,
