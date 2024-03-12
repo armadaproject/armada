@@ -36,6 +36,7 @@ type ArmadaConfig struct {
 	CancelJobsBatchSize int
 	Redis               redis.UniversalOptions
 	EventsApiRedis      redis.UniversalOptions
+	Submission          SubmissionConfig
 	Scheduling          SchedulingConfig
 	Pulsar              PulsarConfig
 	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
@@ -80,6 +81,59 @@ type PulsarConfig struct {
 	ReceiverQueueSize int
 }
 
+// SubmissionConfig contains config relating to job submission.
+type SubmissionConfig struct {
+	// The priorityClassName field on submitted pod must be either empty or in this list.
+	// These names should correspond to priority classes defined in schedulingConfig.
+	AllowedPriorityClassNames map[string]bool
+	// Priority class name assigned to pods that do not specify one.
+	// Must be an entry in PriorityClasses above.
+	DefaultPriorityClassName string
+	// Default job resource limits added to pods.
+	// TODO(albin): Move to server config.
+	DefaultJobLimits armadaresource.ComputeResources
+	// Tolerations added to all submitted pods.
+	// TODO(albin): Move to server config.
+	DefaultJobTolerations []v1.Toleration
+	// Tolerations added to all submitted pods of a given priority class.
+	// TODO(albin): Move to server config.
+	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Tolerations added to all submitted pods requesting a non-zero amount of some resource.
+	// TODO(albin): Move to server config.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
+	// Pods of size greater than this are rejected at submission.
+	// TODO(albin): Move to server config.
+	MaxPodSpecSizeBytes uint
+	// Jobs requesting less than this amount of resources are rejected at submission.
+	// TODO(albin): Move to server config.
+	MinJobResources v1.ResourceList
+	// Default value of GangNodeUniformityLabelAnnotation if not set on submitted jobs.
+	DefaultGangNodeUniformityLabel string
+	// Minimum allowed termination grace period for pods submitted to Armada.
+	// Should normally be set to a positive value, e.g., "10m".
+	// Since a zero grace period causes Kubernetes to force delete pods, which may causes issues with container resource cleanup.
+	//
+	// The grace period of pods that either
+	// - do not set a grace period, or
+	// - explicitly set a grace period of 0 seconds,
+	// is automatically set to MinTerminationGracePeriod.
+	MinTerminationGracePeriod time.Duration
+	// Max allowed grace period.
+	// Should normally not be set greater than single-digit minutes,
+	// since cancellation and preemption may need to wait for this amount of time.
+	MaxTerminationGracePeriod time.Duration
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1.
+	// Trumps DefaultActiveDeadline.
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+}
+
 // SchedulingConfig contains config controlling the Armada scheduler.
 //
 // The Armada scheduler is in charge of assigning pods to cluster and nodes.
@@ -117,9 +171,6 @@ type SchedulingConfig struct {
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
-	// Priority class assigned to pods that do not specify one.
-	// Must be an entry in PriorityClasses above.
-	DefaultPriorityClass string
 	// If set, override the priority class name of pods with this value when sending to an executor.
 	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
@@ -160,29 +211,10 @@ type SchedulingConfig struct {
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
 	MaxJobSchedulingContextsPerExecutor uint
-	// Default job resource limits added to pods.
-	// TODO(albin): Remove.
-	// TODO(albin): Move to server config.
-	DefaultJobLimits armadaresource.ComputeResources
-	// Tolerations added to all submitted pods.
-	// TODO(albin): Move to server config.
-	DefaultJobTolerations []v1.Toleration
-	// Tolerations added to all submitted pods of a given priority class.
-	// TODO(albin): Move to server config.
-	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
-	// Tolerations added to all submitted pods requesting a non-zero amount of some resource.
-	// TODO(albin): Move to server config.
-	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
 	DominantResourceFairnessResourcesToConsider []string
-	// Pods of size greater than this are rejected at submission.
-	// TODO(albin): Move to server config.
-	MaxPodSpecSizeBytes uint
-	// Jobs requesting less than this amount of resources are rejected at submission.
-	// TODO(albin): Move to server config.
-	MinJobResources v1.ResourceList
 	// Once a node has been found on which a pod can be scheduled,
 	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
 	// The scheduler selects the node with the best score out of the considered nodes.
@@ -206,34 +238,9 @@ type SchedulingConfig struct {
 	IndexedTaints []string
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
-	// Default value of GangNodeUniformityLabelAnnotation if not set on submitted jobs.
-	DefaultGangNodeUniformityLabel string
-	// Minimum allowed termination grace period for pods submitted to Armada.
-	// Should normally be set to a positive value, e.g., "10m".
-	// Since a zero grace period causes Kubernetes to force delete pods, which may causes issues with container resource cleanup.
-	//
-	// The grace period of pods that either
-	// - do not set a grace period, or
-	// - explicitly set a grace period of 0 seconds,
-	// is automatically set to MinTerminationGracePeriod.
-	MinTerminationGracePeriod time.Duration
-	// Max allowed grace period.
-	// Should normally not be set greater than single-digit minutes,
-	// since cancellation and preemption may need to wait for this amount of time.
-	MaxTerminationGracePeriod time.Duration
 	// Executor that haven't heartbeated in this time period are considered stale.
 	// No new jobs are scheduled onto stale executors.
 	ExecutorTimeout time.Duration
-	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
-	// Is trumped by DefaultActiveDeadlineByResourceRequest.
-	DefaultActiveDeadline time.Duration
-	// Default activeDeadline for pods with at least one container requesting a given resource.
-	// For example, if
-	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
-	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
-	// will have activeDeadlineSeconds set to 1.
-	// Trumps DefaultActiveDeadline.
-	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
 	// the scheduler is excluded from consideration by the scheduler.
 	MaxUnacknowledgedJobsPerExecutor uint

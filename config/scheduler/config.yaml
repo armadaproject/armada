@@ -83,27 +83,24 @@ scheduling:
     - "cpu"
     - "memory"
     - "nvidia.com/gpu"
-  resourceScarcity:
-    cpu: 1.0
-  preemption:
-    alwaysAttemptScheduling: false
-    enabled: true
-    nodeEvictionProbability: 1.0
-    nodeOversubscriptionEvictionProbability: 1.0
-    protectedFractionOfFairShare: 1.0
-    nodeIdLabel: kubernetes.io/hostname
-    priorityClasses:
-      armada-default:
-        priority: 1000
-        preemptible: false
-        maximumResourceFractionPerQueue:
-          memory: 1.0
-          cpu: 1.0
-      armada-preemptible:
-        priority: 1000
-        preemptible: true
-    defaultPriorityClass: armada-default
-    priorityClassNameOverride: armada-default
+  alwaysAttemptScheduling: false
+  enabled: true
+  nodeEvictionProbability: 1.0
+  nodeOversubscriptionEvictionProbability: 1.0
+  protectedFractionOfFairShare: 1.0
+  nodeIdLabel: kubernetes.io/hostname
+  priorityClasses:
+    armada-default:
+      priority: 1000
+      preemptible: false
+      maximumResourceFractionPerQueue:
+        memory: 1.0
+        cpu: 1.0
+    armada-preemptible:
+      priority: 1000
+      preemptible: true
+  defaultPriorityClass: armada-default
+  priorityClassNameOverride: armada-default
   maxQueueLookback: 1000
   maxExtraNodesToConsider: 1
   maximumResourceFractionToSchedule:

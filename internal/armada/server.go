@@ -39,8 +39,6 @@ import (
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
-	log.Infof("Armada priority classes: %v", config.Scheduling.PriorityClasses)
-	log.Infof("Default priority class: %s", config.Scheduling.DefaultPriorityClass)
 	defer log.Info("Armada server shutting down")
 
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
@@ -58,13 +56,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	err := validateCancelJobsBatchSizeConfig(config)
-	if err != nil {
+	if err := validateCancelJobsBatchSizeConfig(config); err != nil {
 		return err
 	}
-
-	err = validatePreemptionConfig(config.Scheduling.Preemption)
-	if err != nil {
+	if err := validateSubmissionConfig(config.Submission); err != nil {
 		return err
 	}
 
@@ -180,7 +175,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		Producer:              producer,
 		QueueRepository:       queueRepository,
 		JobRepository:         jobRepository,
-		SchedulingConfig:      config.Scheduling,
+		SubmissionConfig:      config.Submission,
 		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
 		GangIdAnnotation:      configuration.GangIdAnnotation,
 		SubmitChecker:         pulsarSchedulerSubmitChecker,
@@ -308,15 +303,16 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 	return nil
 }
 
-func validatePreemptionConfig(config configuration.PreemptionConfig) error {
-	// Check that the default priority class is in the priority class map.
-	if config.DefaultPriorityClass != "" {
-		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
-		if !ok {
-			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no such priority class has been configured", config.DefaultPriorityClass))
+func validateSubmissionConfig(config configuration.SubmissionConfig) error {
+	// Check that the default priority class is allowed to be submitted.
+	if config.DefaultPriorityClassName != "" {
+		if !config.AllowedPriorityClassNames[config.DefaultPriorityClassName] {
+			return errors.WithStack(fmt.Errorf(
+				"defaultPriorityClassName %s is not allowed; allowedPriorityClassNames is %v",
+				config.DefaultPriorityClassName, config.AllowedPriorityClassNames,
+			))
 		}
 	}
-
 	return nil
 }
 

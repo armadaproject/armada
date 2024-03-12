@@ -10,14 +10,14 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
-func applyDefaultsToAnnotations(annotations map[string]string, config configuration.SchedulingConfig) {
+func applyDefaultsToAnnotations(annotations map[string]string, config configuration.SubmissionConfig) {
 	if annotations == nil {
 		return
 	}
 	applyDefaultNodeUniformityLabelAnnotation(annotations, config)
 }
 
-func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, config configuration.SchedulingConfig) {
+func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, config configuration.SubmissionConfig) {
 	if _, ok := annotations[configuration.GangIdAnnotation]; ok {
 		if _, ok := annotations[configuration.GangNodeUniformityLabelAnnotation]; !ok {
 			annotations[configuration.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
@@ -25,7 +25,7 @@ func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, co
 	}
 }
 
-func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec == nil {
 		return
 	}
@@ -36,7 +36,7 @@ func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingCon
 	applyDefaultTerminationGracePeriodToPodSpec(spec, config)
 }
 
-func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	for i := range spec.Containers {
 		c := &spec.Containers[i]
 		if c.Resources.Limits == nil {
@@ -56,7 +56,7 @@ func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configurati
 	}
 }
 
-func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	spec.Tolerations = append(spec.Tolerations, config.DefaultJobTolerations...)
 	if config.DefaultJobTolerationsByPriorityClass != nil {
 		if tolerations, ok := config.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
@@ -77,9 +77,9 @@ func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.Sch
 	}
 }
 
-func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.PriorityClassName == "" {
-		spec.PriorityClassName = config.DefaultPriorityClass
+		spec.PriorityClassName = config.DefaultPriorityClassName
 	}
 }
 
@@ -87,7 +87,7 @@ func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configurati
 // of the pod equal to the minimum if
 // - the pod does not explicitly set a termination period, or
 // - the pod explicitly sets a termination period of 0.
-func applyDefaultTerminationGracePeriodToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultTerminationGracePeriodToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if config.MinTerminationGracePeriod.Seconds() == 0 {
 		return
 	}
@@ -103,7 +103,7 @@ func applyDefaultTerminationGracePeriodToPodSpec(spec *v1.PodSpec, config config
 	}
 }
 
-func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.ActiveDeadlineSeconds != nil {
 		return
 	}

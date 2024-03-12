@@ -31,6 +31,8 @@ kubernetes:
   impersonateUsers: false
   trackedNodeLabels:
     - kubernetes.io/hostname
+  toleratedTaints:
+    - "mytaint"
   QPS: 10000
   Burst: 10000
   nodeIdLabel: kubernetes.io/hostname
