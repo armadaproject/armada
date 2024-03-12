@@ -56,6 +56,7 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 				Preemptible: true,
 			},
 		},
+		DefaultPriorityClassName: "armada-default",
 		MaximumResourceFractionToSchedule: map[string]float64{
 			"memory": 0.025,
 			"cpu":    0.025,
