@@ -30,7 +30,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jackc/pgtype v1.14.2
-	github.com/jackc/pgx/v4 v4.17.2 // indirect
+	github.com/jackc/pgx/v4 v4.18.2 // indirect
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
 	github.com/lib/pq v1.10.7 // indirect
