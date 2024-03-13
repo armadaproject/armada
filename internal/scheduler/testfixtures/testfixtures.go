@@ -9,9 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client/queue"
-
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"golang.org/x/exp/maps"
@@ -24,6 +21,8 @@ import (
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const (
@@ -840,34 +839,55 @@ func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
 }
 
-func Test1CoreCpuApiJob() *api.Job {
-	return &api.Job{
-		Id:    util.NewULID(),
-		Queue: uuid.NewString(),
-		PodSpec: &v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Resources: v1.ResourceRequirements{
-						Limits: map[v1.ResourceName]resource.Quantity{
-							"cpu": resource.MustParse("1"),
+func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
+	return &armadaevents.SubmitJob{
+		JobId: armadaevents.MustProtoUuidFromUlidString(util.NewULID()),
+		MainObject: &armadaevents.KubernetesMainObject{
+			Object: &armadaevents.KubernetesMainObject_PodSpec{
+				PodSpec: &armadaevents.PodSpecWithAvoidList{
+					PodSpec: &v1.PodSpec{
+						Containers: []v1.Container{
+							{
+								Resources: v1.ResourceRequirements{
+									Limits: map[v1.ResourceName]resource.Quantity{
+										"cpu": resource.MustParse("1"),
+									},
+									Requests: map[v1.ResourceName]resource.Quantity{
+										"cpu": resource.MustParse("1"),
+									},
+								},
+							},
 						},
-						Requests: map[v1.ResourceName]resource.Quantity{
-							"cpu": resource.MustParse("1"),
-						},
+						PriorityClassName: TestDefaultPriorityClass,
 					},
 				},
 			},
-			PriorityClassName: TestDefaultPriorityClass,
 		},
 	}
 }
 
-func TestNApiJobGang(n int) []*api.Job {
+func Test100CoreSubmitMsg() *armadaevents.SubmitJob {
+	job := Test1CoreSubmitMsg()
+	hundredCores := map[v1.ResourceName]resource.Quantity{
+		"cpu": resource.MustParse("100"),
+	}
+	job.MainObject.GetPodSpec().PodSpec.Containers[0].Resources.Limits = hundredCores
+	job.MainObject.GetPodSpec().PodSpec.Containers[0].Resources.Requests = hundredCores
+	return job
+}
+
+func Test1CoreSubmitMsgWithNodeSelector(selector map[string]string) *armadaevents.SubmitJob {
+	job := Test1CoreSubmitMsg()
+	job.MainObject.GetPodSpec().PodSpec.NodeSelector = selector
+	return job
+}
+
+func TestNSubmitMsgGang(n int) []*armadaevents.SubmitJob {
 	gangId := uuid.NewString()
-	gang := make([]*api.Job, n)
+	gang := make([]*armadaevents.SubmitJob, n)
 	for i := 0; i < n; i++ {
-		job := Test1CoreCpuApiJob()
-		job.Annotations = map[string]string{
+		job := Test1CoreSubmitMsg()
+		job.MainObject.ObjectMeta.Annotations = map[string]string{
 			configuration.GangIdAnnotation:                 gangId,
 			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
 			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
@@ -877,12 +897,12 @@ func TestNApiJobGang(n int) []*api.Job {
 	return gang
 }
 
-func TestNApiJobGangLessThanMinCardinality(n int) []*api.Job {
+func TestNSubmitMsgGangLessThanMinCardinality(n int) []*armadaevents.SubmitJob {
 	gangId := uuid.NewString()
-	gang := make([]*api.Job, n)
+	gang := make([]*armadaevents.SubmitJob, n)
 	for i := 0; i < n; i++ {
-		job := Test1CoreCpuApiJob()
-		job.Annotations = map[string]string{
+		job := Test1CoreSubmitMsg()
+		job.MainObject.ObjectMeta.Annotations = map[string]string{
 			configuration.GangIdAnnotation:                 gangId,
 			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
 			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
@@ -890,22 +910,6 @@ func TestNApiJobGangLessThanMinCardinality(n int) []*api.Job {
 		gang[i] = job
 	}
 	return gang
-}
-
-func Test100CoreCpuApiJob() *api.Job {
-	job := Test1CoreCpuApiJob()
-	hundredCores := map[v1.ResourceName]resource.Quantity{
-		"cpu": resource.MustParse("100"),
-	}
-	job.PodSpec.Containers[0].Resources.Limits = hundredCores
-	job.PodSpec.Containers[0].Resources.Requests = hundredCores
-	return job
-}
-
-func Test1CoreCpuApiJobWithNodeSelector(selector map[string]string) *api.Job {
-	job := Test1CoreCpuApiJob()
-	job.PodSpec.NodeSelector = selector
-	return job
 }
 
 func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
