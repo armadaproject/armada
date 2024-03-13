@@ -9,8 +9,6 @@ cordon:
     armadaproject.io/cordon-reason: "binoculars"
     armadaproject.io/cordon-user: "<user>"
 auth:
-  basicAuth:
-    enableAuthentication: false
   anonymousAuth: true
 impersonateUsers: false
 kubernetes:

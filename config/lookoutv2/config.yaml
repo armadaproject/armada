@@ -8,9 +8,6 @@ tls:
   certPath: /certs/tls.crt
   keyPath: /certs/tls.key
 postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
   connection:
     host: postgres
     port: 5433
