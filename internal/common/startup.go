@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
+	"golang.org/x/exp/slices"
+
 	"github.com/armadaproject/armada/internal/common/certs"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,7 +42,7 @@ func BindCommandlineArguments() {
 }
 
 // TODO Move code relating to config out of common into a new package internal/serverconfig
-func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string) *viper.Viper {
+func LoadConfig(config any, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigName(baseConfigFileName)
 	v.AddConfigPath(defaultPath)
@@ -48,6 +51,9 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string
 		os.Exit(-1)
 	}
 	log.Infof("Read base config from %s", v.ConfigFileUsed())
+	if len(overrideConfigs) > 0 {
+		log.Infof("Read override config from %v", overrideConfigs)
+	}
 
 	for _, overrideConfig := range overrideConfigs {
 		v.SetConfigFile(overrideConfig)
@@ -63,10 +69,21 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string
 	v.SetEnvPrefix("ARMADA")
 	v.AutomaticEnv()
 
-	err := v.Unmarshal(config, commonconfig.CustomHooks...)
-	if err != nil {
+	var metadata mapstructure.Metadata
+	customHooks := append(slices.Clone(commonconfig.CustomHooks), func(c *mapstructure.DecoderConfig) { c.Metadata = &metadata })
+	if err := v.Unmarshal(config, customHooks...); err != nil {
 		log.Error(err)
 		os.Exit(-1)
+	}
+
+	if len(metadata.Keys) > 0 {
+		log.Debugf("Decoded keys: %v", metadata.Keys)
+	}
+	if len(metadata.Unused) > 0 {
+		log.Warnf("Unused keys: %v", metadata.Unused)
+	}
+	if len(metadata.Unset) > 0 {
+		log.Debugf("Unset keys: %v", metadata.Unset)
 	}
 
 	return v
