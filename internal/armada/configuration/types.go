@@ -34,12 +34,17 @@ type ArmadaConfig struct {
 	SchedulerApiConnection client.ApiConnectionDetails
 
 	CancelJobsBatchSize int
-	Redis               redis.UniversalOptions
-	EventsApiRedis      redis.UniversalOptions
-	Scheduling          SchedulingConfig
-	Pulsar              PulsarConfig
-	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
-	QueryApi            QueryApiConfig
+
+	Redis          redis.UniversalOptions
+	EventsApiRedis redis.UniversalOptions
+	Pulsar         PulsarConfig
+	Postgres       PostgresConfig // Used for Pulsar submit API deduplication
+	QueryApi       QueryApiConfig
+
+	// Config relating to job submission.
+	Submission SubmissionConfig
+	// Scheduling config used by the submitChecker.
+	Scheduling SchedulingConfig
 }
 
 type PulsarConfig struct {
@@ -80,12 +85,97 @@ type PulsarConfig struct {
 	ReceiverQueueSize int
 }
 
+// SubmissionConfig contains config relating to job submission.
+type SubmissionConfig struct {
+	// The priorityClassName field on submitted pod must be either empty or in this list.
+	// These names should correspond to priority classes defined in schedulingConfig.
+	AllowedPriorityClassNames map[string]bool
+	// Priority class name assigned to pods that do not specify one.
+	// Must be an entry in PriorityClasses above.
+	DefaultPriorityClassName string
+	// Default job resource limits added to pods.
+	DefaultJobLimits armadaresource.ComputeResources
+	// Tolerations added to all submitted pods.
+	DefaultJobTolerations []v1.Toleration
+	// Tolerations added to all submitted pods of a given priority class.
+	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Tolerations added to all submitted pods requesting a non-zero amount of some resource.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
+	// Pods of size greater than this are rejected at submission.
+	MaxPodSpecSizeBytes uint
+	// Jobs requesting less than this amount of resources are rejected at submission.
+	MinJobResources v1.ResourceList
+	// Default value of GangNodeUniformityLabelAnnotation if not set on submitted jobs.
+	// TODO(albin): We should add a label to nodes in the nodeDb indicating which cluster it came from.
+	//              If we do, we can default to that label if the uniformity label is empty.
+	DefaultGangNodeUniformityLabel string
+	// Minimum allowed termination grace period for pods submitted to Armada.
+	// Should normally be set to a positive value, e.g., "10m".
+	// Since a zero grace period causes Kubernetes to force delete pods, which may causes issues with container resource cleanup.
+	//
+	// The grace period of pods that either
+	// - do not set a grace period, or
+	// - explicitly set a grace period of 0 seconds,
+	// is automatically set to MinTerminationGracePeriod.
+	MinTerminationGracePeriod time.Duration
+	// Max allowed grace period.
+	// Should normally not be set greater than single-digit minutes,
+	// since cancellation and preemption may need to wait for this amount of time.
+	MaxTerminationGracePeriod time.Duration
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1.
+	// Trumps DefaultActiveDeadline.
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+}
+
+// SchedulingConfig contains config controlling the Armada scheduler.
+//
+// The Armada scheduler is in charge of assigning pods to cluster and nodes.
+// The Armada scheduler is part of the Armada control plane.
+//
+// Features:
+// 1. Queuing and fairly dividing resources between users.
+// 2. Fair preemption, including between jobs of equal priority to balance resource allocation.
+// 3. Gang scheduling, optional across clusters, and with lower and upper bounds on the number of jobs scheduled.
+//
+// Note that Armada still relies on kube-scheduler for binding of pods to nodes.
+// This is achieved by adding to each pod created by Armada a node selector that matches only the intended node.
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	Preemption       PreemptionConfig
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to balance resource usage.
+	// TODO(albin): Remove.
+	NodeEvictionProbability float64
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on oversubscribed nodes, i.e.,
+	// nodes on which the total resource requests are greater than the available resources.
+	// TODO(albin): Remove.
+	NodeOversubscriptionEvictionProbability float64
+	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
+	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
+	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
+	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",
+	// then Armada adds "kubernetes.io/hostname": "myNode" to the pod node selector before sending it to the executor.
+	NodeIdLabel string `validate:"required"`
+	// Map from priority class names to priority classes.
+	// Must be consistent with Kubernetes priority classes.
+	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
+	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
+	// Jobs with no priority class are assigned this priority class when ingested by the scheduler.
+	// Must be a key in the PriorityClasses map above.
+	DefaultPriorityClassName string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -124,83 +214,36 @@ type SchedulingConfig struct {
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
 	MaxJobSchedulingContextsPerExecutor uint
-	DefaultJobLimits                    armadaresource.ComputeResources
-	// Set of tolerations added to all submitted pods.
-	DefaultJobTolerations []v1.Toleration
-	// Set of tolerations added to all submitted pods of a given priority class.
-	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
-	// Set of tolerations added to all submitted pods with a given resource request.
-	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
 	DominantResourceFairnessResourcesToConsider []string
-	MaxPodSpecSizeBytes                         uint
-	MinJobResources                             v1.ResourceList
 	// Once a node has been found on which a pod can be scheduled,
 	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
 	// The scheduler selects the node with the best score out of the considered nodes.
 	// In particular, the score expresses whether preemption is necessary to schedule a pod.
 	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
+	// TODO(albin): Remove. It's unused.
 	MaxExtraNodesToConsider uint
-	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
-	// for which the scheduler creates indexes for efficient lookup.
-	// Applies only to the new scheduler.
+	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu", for which the scheduler creates indexes for efficient lookup.
+	// This list must contain at least one resource. Adding more than one resource is not required, but may speed up scheduling.
+	// Ideally, this list contains all resources that frequently constrain which nodes a job can be scheduled onto.
 	IndexedResources []IndexedResource
 	// Node labels that the scheduler creates indexes for efficient lookup of.
-	// Should include node labels frequently used for scheduling.
-	// Since the scheduler can efficiently sort out nodes for which these labels
-	// are not set correctly when looking for a node a pod can be scheduled on.
+	// Should include node labels frequently used by node selectors on submitted jobs.
 	//
 	// If not set, no labels are indexed.
-	//
-	// Applies only to the new scheduler.
 	IndexedNodeLabels []string
 	// Taint keys that the scheduler creates indexes for efficient lookup of.
-	// Should include taints frequently used for scheduling.
-	// Since the scheduler can efficiently sort out nodes for which these taints
-	// are not set correctly when looking for a node a pod can be scheduled on.
+	// Should include keys of taints frequently used in tolerations on submitted jobs.
 	//
 	// If not set, all taints are indexed.
-	//
-	// Applies only to the new scheduler.
 	IndexedTaints []string
-	// WellKnownNodeTypes defines a set of well-known node types; these are used
-	// to define "home" and "away" nodes for a given priority class.
+	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
-	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
-	DefaultGangNodeUniformityLabel string
-	// Kubernetes pods may specify a termination grace period.
-	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
-	// If a pod has not exited within its termination grace period,
-	// it is killed forcefully by Kubernetes sending it a SIGKILL.
-	//
-	// This is the minimum allowed termination grace period.
-	// It should normally be set to a positive value, e.g., 1 second.
-	// Since a zero grace period causes Kubernetes to force delete pods,
-	// which may causes issues where resources associated with the pod, e.g.,
-	// containers, are not cleaned up correctly.
-	//
-	// The grace period of pods that either
-	// - do not set a grace period, or
-	// - explicitly set a grace period of 0 seconds,
-	// is automatically set to MinTerminationGracePeriod.
-	MinTerminationGracePeriod time.Duration
-	// Max allowed grace period.
-	// Should normally not be set greater than single-digit minutes,
-	// since cancellation and preemption may need to wait for this amount of time.
-	MaxTerminationGracePeriod time.Duration
-	// If an executor hasn't heartbeated in this time period, it will be considered stale
+	// Executor that haven't heartbeated in this time period are considered stale.
+	// No new jobs are scheduled onto stale executors.
 	ExecutorTimeout time.Duration
-	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
-	// Is trumped by DefaultActiveDeadlineByResourceRequest.
-	DefaultActiveDeadline time.Duration
-	// Default activeDeadline for pods with at least one container requesting a given resource.
-	// For example, if
-	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
-	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
-	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
-	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
 	// the scheduler is excluded from consideration by the scheduler.
 	MaxUnacknowledgedJobsPerExecutor uint
@@ -234,7 +277,7 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		wellKnownNodeTypes[wellKnownNodeType.Name] = true
 	}
 
-	for priorityClassName, priorityClass := range c.Preemption.PriorityClasses {
+	for priorityClassName, priorityClass := range c.PriorityClasses {
 		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
 			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
 			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
@@ -249,10 +292,16 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 	}
 }
 
+// IndexedResource represents a resource the scheduler indexes for efficient lookup.
 type IndexedResource struct {
-	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
+	// Resource name, e.g., "cpu", "memory", or "nvidia.com/gpu".
 	Name string
-	// See NodeDb docs.
+	// Resolution with which Armada tracks this resource; larger values indicate lower resolution.
+	// In particular, the allocatable resources on each node are rounded to a multiple of the resolution.
+	// Lower resolution speeds up scheduling by improving node lookup speed but may prevent scheduling jobs,
+	// since the allocatable resources may be rounded down to be a multiple of the resolution.
+	//
+	// See NodeDb docs for more details.
 	Resolution resource.Quantity
 }
 
@@ -263,37 +312,6 @@ type WellKnownNodeType struct {
 	// Taints is the set of taints that characterizes this node type; a node is
 	// part of this node type if and only if it has all of these taints.
 	Taints []v1.Taint
-}
-
-// TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
-type PreemptionConfig struct {
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on a node to balance resource usage.
-	NodeEvictionProbability float64
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on oversubscribed nodes, i.e.,
-	// nodes on which the total resource requests are greater than the available resources.
-	NodeOversubscriptionEvictionProbability float64
-	// Only queues allocated more than this fraction of their fair share are considered for preemption.
-	ProtectedFractionOfFairShare float64
-	// If true, the Armada scheduler will add to scheduled pods a node selector
-	// NodeIdLabel: <value of label on node selected by scheduler>.
-	// If true, NodeIdLabel must be non-empty.
-	SetNodeIdSelector bool
-	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
-	NodeIdLabel string `validate:"required"`
-	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
-	// thus bypassing kube-scheduler entirely.
-	SetNodeName bool
-	// Map from priority class names to priority classes.
-	// Must be consistent with Kubernetes priority classes.
-	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
-	// Priority class assigned to pods that do not specify one.
-	// Must be an entry in PriorityClasses above.
-	DefaultPriorityClass string
-	// If set, override the priority class name of pods with this value when sending to an executor.
-	PriorityClassNameOverride *string
 }
 
 // FailureEstimatorConfig controls node and queue success probability estimation.

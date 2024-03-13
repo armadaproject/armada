@@ -548,7 +548,7 @@ func TestQueueScheduler(t *testing.T) {
 			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(
 				schedulercontext.JobSchedulingContextsFromJobs(
-					tc.SchedulingConfig.Preemption.PriorityClasses,
+					tc.SchedulingConfig.PriorityClasses,
 					legacySchedulerJobs,
 				),
 			)
@@ -561,8 +561,8 @@ func TestQueueScheduler(t *testing.T) {
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
 				"pool",
-				tc.SchedulingConfig.Preemption.PriorityClasses,
-				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
+				tc.SchedulingConfig.PriorityClasses,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -730,7 +730,7 @@ func TestQueueScheduler(t *testing.T) {
 
 func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		config.Preemption.PriorityClasses,
+		config.PriorityClasses,
 		config.MaxExtraNodesToConsider,
 		config.IndexedResources,
 		config.IndexedTaints,

@@ -97,7 +97,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
-					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.RuntimeGangCardinality: strconv.Itoa(numScheduled)}
+					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.GangNumJobsScheduledAnnotation: strconv.Itoa(numScheduled)}
 				} else if jctx.ShouldFail {
 					failedJobs = append(failedJobs, jctx)
 				}

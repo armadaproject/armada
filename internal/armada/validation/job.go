@@ -77,11 +77,11 @@ func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
 	if err := ValidateApiJobPodSpecs(job); err != nil {
 		return err
 	}
-	if err := validatePodSpecPriorityClass(job.PodSpec, true, config.Preemption.PriorityClasses); err != nil {
+	if err := validatePodSpecPriorityClass(job.PodSpec, true, config.PriorityClasses); err != nil {
 		return err
 	}
 	for _, podSpec := range job.PodSpecs {
-		if err := validatePodSpecPriorityClass(podSpec, true, config.Preemption.PriorityClasses); err != nil {
+		if err := validatePodSpecPriorityClass(podSpec, true, config.PriorityClasses); err != nil {
 			return err
 		}
 	}

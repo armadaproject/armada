@@ -155,9 +155,9 @@ func Run(config schedulerconfig.Configuration) error {
 		jobRepository,
 		executorRepository,
 		legacyExecutorRepository,
-		types.AllowedPriorities(config.Scheduling.Preemption.PriorityClasses),
-		config.Scheduling.Preemption.NodeIdLabel,
-		config.Scheduling.Preemption.PriorityClassNameOverride,
+		types.AllowedPriorities(config.Scheduling.PriorityClasses),
+		config.Scheduling.NodeIdLabel,
+		config.Scheduling.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
@@ -250,8 +250,8 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}
 	jobDb := jobdb.NewJobDb(
-		config.Scheduling.Preemption.PriorityClasses,
-		config.Scheduling.Preemption.DefaultPriorityClass,
+		config.Scheduling.PriorityClasses,
+		config.Scheduling.DefaultPriorityClassName,
 		config.InternedStringsCacheSize,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
@@ -278,7 +278,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
-		config.Scheduling.Preemption.NodeIdLabel,
+		config.Scheduling.NodeIdLabel,
 		schedulingRoundMetrics,
 		schedulerMetrics,
 		failureEstimator,

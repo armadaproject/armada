@@ -31,52 +31,43 @@ eventsApiRedis:
   password: ""
   db: 1
   poolSize: 1000
+# Scheduling config used by the job submitChecker. Only needs the following subset of config options.
+# You may also wish to configure indexedNodeLabels and indexedTaints to speed up checking.
+#
+# This config must be consistent with the scheduling config used by the scheduler.
+# You may want to insert the scheduling config used for the scheduler automatically, e.g., using PyYAML, to guarantee consistency.
 scheduling:
-  enableAssertions: true
-  fairnessModel: "AssetFairness"
-  dominantResourceFairnessResourcesToConsider:
-    - "cpu"
-    - "memory"
-    - "nvidia.com/gpu"
-  resourceScarcity:
-    cpu: 1.0
-  preemption:
-    nodeEvictionProbability: 1.0
-    nodeOversubscriptionEvictionProbability: 1.0
-    protectedFractionOfFairShare: 1.0
-    setNodeIdSelector: true
-    nodeIdLabel: kubernetes.io/hostname
-    setNodeName: false
-    priorityClasses:
-      armada-default:
-        priority: 1000
-        preemptible: false
-        maximumResourceFractionPerQueue:
-          memory: 1.0
-          cpu: 1.0
-      armada-preemptible:
-        priority: 1000
-        preemptible: true
-    defaultPriorityClass: armada-default
-    priorityClassNameOverride: armada-default
-  executorTimeout: 60m
-  maxQueueLookback: 1000
-  maxExtraNodesToConsider: 1
-  maximumResourceFractionToSchedule:
-    memory: 1.0
-    cpu: 1.0
-  maximumSchedulingRate: 100.0
-  maximumSchedulingBurst: 1000
-  maximumPerQueueSchedulingRate: 50.0
-  maximumPerQueueSchedulingBurst: 1000
-  maxJobSchedulingContextsPerExecutor: 10000
-  lease:
-    expireAfter: 15m
-    expiryLoopInterval: 5s
+  executorTimeout: "60m"
+  executorUpdateFrequency: "1m"
+  priorityClasses:
+    armada-default:
+      priority: 1000
+      preemptible: false
+      maximumResourceFractionPerQueue:
+        memory: 1.0
+        cpu: 1.0
+    armada-preemptible:
+      priority: 1000
+      preemptible: true
+  indexedResources:
+    - name: "nvidia.com/gpu"
+      resolution: "1"
+    - name: "cpu"
+      resolution: "100m"
+    - name: "memory"
+      resolution: "100Mi"
+    - name: "ephemeral-storage"
+      resolution: "1Gi"
+submission:
+  allowedPriorityClassNames:
+    armada-default: true
+    armada-preemptible: true
+    armada-resilient: true
+  defaultPriorityClassName: "armada-default"
   defaultJobLimits:
-    cpu: 1
-    memory: 1Gi
-    ephemeral-storage: 8Gi
+    cpu: "1"
+    memory: "1Gi"
+    ephemeral-storage: "8Gi"
   defaultJobTolerations:
     - key: "armadaproject.io/armada"
       operator: "Equal"
@@ -93,18 +84,20 @@ scheduling:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
-  maxRetries: 5
+  defaultJobTolerationsByResourceRequest:
+    - "nvidia.com/gpu":
+        - key: "armadaproject.io/gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
   maxPodSpecSizeBytes: 65535
   minJobResources:
-    memory: 1Mi
-  indexedResources:
-    - name: "cpu"
-      resolution: "100m"
-    - name: "memory"
-      resolution: "1Mi"
-  minTerminationGracePeriod: 1s
-  maxTerminationGracePeriod: 300s
-  executorUpdateFrequency: 1m
+    memory: "1Mi"
+  minTerminationGracePeriod: "1s"
+  maxTerminationGracePeriod: "5m"
+  defaultActiveDeadline: "72h" # 3 days.
+  defaultActiveDeadlineByResourceRequest:
+    nvidia.com/gpu: "336h" # 14 days.
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h

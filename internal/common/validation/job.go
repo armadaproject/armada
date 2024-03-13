@@ -9,7 +9,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) ([]*api.JobSubmitResponseItem, error) {
+func ValidateApiJobs(jobs []*api.Job, config configuration.SubmissionConfig) ([]*api.JobSubmitResponseItem, error) {
 	if _, err := validateGangs(jobs); err != nil {
 		return nil, err
 	}
@@ -73,15 +73,15 @@ func validateGangs(jobs []*api.Job) (map[string]schedulercontext.GangInfo, error
 	return gangDetailsByGangId, nil
 }
 
-func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
+func ValidateApiJob(job *api.Job, config configuration.SubmissionConfig) error {
 	if err := ValidateApiJobPodSpecs(job); err != nil {
 		return err
 	}
-	if err := validatePodSpecPriorityClass(job.PodSpec, true, config.Preemption.PriorityClasses); err != nil {
+	if err := validatePodSpecPriorityClass(job.PodSpec, config.AllowedPriorityClassNames); err != nil {
 		return err
 	}
 	for _, podSpec := range job.PodSpecs {
-		if err := validatePodSpecPriorityClass(podSpec, true, config.Preemption.PriorityClasses); err != nil {
+		if err := validatePodSpecPriorityClass(podSpec, config.AllowedPriorityClassNames); err != nil {
 			return err
 		}
 	}
