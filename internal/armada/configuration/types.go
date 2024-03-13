@@ -98,7 +98,6 @@ type SubmissionConfig struct {
 	// Tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
 	// Tolerations added to all submitted pods of a given priority class.
-	// TODO(albin): Rename to defaultJobTolerationsByPriorityClassName.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
 	// Tolerations added to all submitted pods requesting a non-zero amount of some resource.
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
@@ -174,10 +173,8 @@ type SchedulingConfig struct {
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
 	// Jobs with no priority class are assigned this priority class when ingested by the scheduler.
 	// Must be a key in the PriorityClasses map above.
-	// TODO(albin): Validate.
 	DefaultPriorityClassName string
 	// If set, override the priority class name of pods with this value when sending to an executor.
-	// TODO(albin): We should pass the scheduled priority class through as an annotation.
 	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint

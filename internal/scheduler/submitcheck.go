@@ -43,10 +43,8 @@ type SubmitScheduleChecker interface {
 }
 
 type SubmitChecker struct {
-	executorTimeout time.Duration
-	priorityClasses map[string]types.PriorityClass
-	// TODO(albin): Remove. Refer directly to const.
-	gangIdAnnotation          string
+	executorTimeout           time.Duration
+	priorityClasses           map[string]types.PriorityClass
 	executorById              map[string]minimalExecutor
 	priorities                []int32
 	indexedResources          []configuration.IndexedResource
@@ -73,7 +71,6 @@ func NewSubmitChecker(
 	return &SubmitChecker{
 		executorTimeout:           executorTimeout,
 		priorityClasses:           schedulingConfig.PriorityClasses,
-		gangIdAnnotation:          configuration.GangIdAnnotation,
 		executorById:              map[string]minimalExecutor{},
 		priorities:                types.AllowedPriorities(schedulingConfig.PriorityClasses),
 		indexedResources:          schedulingConfig.IndexedResources,
