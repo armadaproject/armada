@@ -14,6 +14,8 @@ name: "CodeQL"
 on:
   schedule:
     - cron: "0 9 * * *"
+  push:
+    branches: [oss-586-resolve-deprecation-and-warnings]
 
 permissions:
   actions: read
