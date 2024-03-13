@@ -76,6 +76,9 @@ func LoadConfig(config any, defaultPath string, overrideConfigs []string) *viper
 		os.Exit(-1)
 	}
 
+	// Log a warning if there are config keys that don't match a config item in the struct the yaml is decoded into.
+	// Since such unused keys indicate there's a typo in the config.
+	// Also log set and unset keys at a debug level.
 	if len(metadata.Keys) > 0 {
 		log.Debugf("Decoded keys: %v", metadata.Keys)
 	}
