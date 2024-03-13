@@ -10,20 +10,19 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/types"
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
 
-	assert.Error(t, ValidatePodSpec(nil, schedulingConfig))
-	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(nil, config))
+	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, config))
 	assert.Error(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{}},
-	}, schedulingConfig))
+	}, config))
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
@@ -34,7 +33,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 	resources1 := v1.ResourceList{"cpu": cpu, "memory": memory}
 	resources2 := v1.ResourceList{"cpu": cpu2, "memory": memory}
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -46,7 +45,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources2,
 			},
 		}},
-	}, schedulingConfig))
+	}, config))
 
 	assert.NoError(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{
@@ -55,15 +54,13 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources1,
 			},
 		}},
-	}, schedulingConfig))
+	}, config))
 }
 
 func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
-		Preemption: configuration.PreemptionConfig{
-			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]types.PriorityClass{"high": {Priority: 0}},
-		},
+	config := &configuration.SubmissionConfig{
+		DefaultPriorityClassName:  "high",
+		AllowedPriorityClassNames: map[string]bool{"high": true},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
 	}
@@ -80,13 +77,13 @@ func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 		PriorityClassName: "high",
 	}
 
-	assert.Error(t, validateTerminationGracePeriod(podspecOutsideRange, schedulingConfig))
-	assert.NoError(t, validateTerminationGracePeriod(podspecWithinRange, schedulingConfig))
-	assert.NoError(t, validateTerminationGracePeriod(podspecNoSetting, schedulingConfig))
+	assert.Error(t, validateTerminationGracePeriod(podspecOutsideRange, config))
+	assert.NoError(t, validateTerminationGracePeriod(podspecWithinRange, config))
+	assert.NoError(t, validateTerminationGracePeriod(podspecNoSetting, config))
 }
 
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -120,12 +117,12 @@ func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 			},
 		},
 	}
-	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, schedulingConfig))
-	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, config))
+	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, config))
 }
 
 func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -152,11 +149,11 @@ func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(podSpec, config))
 }
 
 func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -182,11 +179,11 @@ func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, ValidatePodSpec(podSpec, schedulingConfig))
+	assert.Nil(t, ValidatePodSpec(podSpec, config))
 }
 
 func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: 65535,
 	}
@@ -212,34 +209,34 @@ func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(podSpec, config))
 }
 
 func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
 	spec := minimalValidPodSpec()
 	specSize := uint(spec.Size())
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MinJobResources:     v1.ResourceList{},
 		MaxPodSpecSizeBytes: specSize,
 	}
-	assert.NoError(t, ValidatePodSpec(spec, schedulingConfig))
+	assert.NoError(t, ValidatePodSpec(spec, config))
 
-	schedulingConfig.MaxPodSpecSizeBytes -= 1
-	assert.Error(t, ValidatePodSpec(spec, schedulingConfig))
+	config.MaxPodSpecSizeBytes -= 1
+	assert.Error(t, ValidatePodSpec(spec, config))
 }
 
 func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeeds(t *testing.T) {
 	spec := minimalValidPodSpec()
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MaxPodSpecSizeBytes: uint(spec.Size()),
 		MinJobResources: v1.ResourceList{
 			"memory": resource.MustParse("100Mi"),
 		},
 	}
 
-	assert.NoError(t, ValidatePodSpec(spec, schedulingConfig))
+	assert.NoError(t, ValidatePodSpec(spec, config))
 }
 
 func Test_ValidatePodSpec_WhenResourcesBelowMinimum_Fails(t *testing.T) {
@@ -258,14 +255,14 @@ func Test_ValidatePodSpec_WhenResourcesBelowMinimum_Fails(t *testing.T) {
 		},
 	}
 
-	schedulingConfig := &configuration.SchedulingConfig{
+	config := &configuration.SubmissionConfig{
 		MaxPodSpecSizeBytes: uint(spec.Size()),
 		MinJobResources: v1.ResourceList{
 			"memory": resource.MustParse("100Mi"),
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(spec, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(spec, config))
 }
 
 func minimalValidPodSpec() *v1.PodSpec {
@@ -287,27 +284,19 @@ func minimalValidPodSpec() *v1.PodSpec {
 
 func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 	validPriorityClass := &v1.PodSpec{PriorityClassName: "some-priority-class"}
-	allowedPriorityClasses := map[string]types.PriorityClass{"some-priority-class": {Priority: 10}}
+	allowedPriorityClasses := map[string]bool{"some-priority-class": true}
 	assert.NoError(
 		t,
-		validatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),
+		validatePodSpecPriorityClass(validPriorityClass, allowedPriorityClasses),
 		"validation should pass when specified priority class is configured to be allowed and preemption is enabled",
 	)
 
-	err := validatePodSpecPriorityClass(validPriorityClass, false, allowedPriorityClasses)
-	assert.Error(
-		t,
-		err,
-		"validation should fail if priority class is specified and disabled",
-	)
-	validateInvalidArgumentErrorMessage(t, err, "Preemption is disabled in Server config")
-
 	invalidPriorityClass := &v1.PodSpec{PriorityClassName: "some-other-priority-class"}
-	err = validatePodSpecPriorityClass(invalidPriorityClass, true, allowedPriorityClasses)
+	err := validatePodSpecPriorityClass(invalidPriorityClass, allowedPriorityClasses)
 	assert.Error(
 		t,
 		err,
 		"validation should fail if specified priority class is not configured to be allowed",
 	)
-	validateInvalidArgumentErrorMessage(t, err, "Specified Priority Class is not supported in Server config")
+	validateInvalidArgumentErrorMessage(t, err, "priorityClassName not in map[some-priority-class:true]")
 }

@@ -389,7 +389,7 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
@@ -401,7 +401,7 @@ func TestSimulator(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu-whale",

@@ -53,9 +53,7 @@ func TestConstraints(t *testing.T) {
 			configuration.SchedulingConfig{
 				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 				MaxQueueLookback:                  1000,
-				Preemption: configuration.PreemptionConfig{
-					PriorityClasses: map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
-				},
+				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
 			},
 			[]queue.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
 		)),
@@ -111,9 +109,7 @@ func TestConstraints(t *testing.T) {
 				configuration.SchedulingConfig{
 					MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 					MaxQueueLookback:                  1000,
-					Preemption: configuration.PreemptionConfig{
-						PriorityClasses: map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-					},
+					PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 				},
 				[]queue.Queue{},
 			))
@@ -127,9 +123,7 @@ func TestConstraints(t *testing.T) {
 			configuration.SchedulingConfig{
 				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 				MaxQueueLookback:                  1000,
-				Preemption: configuration.PreemptionConfig{
-					PriorityClasses: map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-				},
+				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 			},
 			[]queue.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
 		)),
@@ -241,7 +235,7 @@ func makeSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
 		MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 		MaxQueueLookback:                  1000,
-		Preemption:                        configuration.PreemptionConfig{PriorityClasses: map[string]types.PriorityClass{"priority-class-1": {}}},
+		PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {}},
 	}
 }
 

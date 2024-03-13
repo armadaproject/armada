@@ -474,9 +474,9 @@ func TestSchedule(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
 			}
-			// Sanity check: we've set `RuntimeGangCardinality` for all scheduled jobs.
+			// Sanity check: we've set `GangNumJobsScheduledAnnotation` for all scheduled jobs.
 			for _, job := range scheduledJobs {
-				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], configuration.RuntimeGangCardinality)
+				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], configuration.GangNumJobsScheduledAnnotation)
 			}
 
 			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality
@@ -553,7 +553,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				b.StartTimer()
 
 				nodeDb, err := nodedb.NewNodeDb(
-					schedulingConfig.Preemption.PriorityClasses,
+					schedulingConfig.PriorityClasses,
 					schedulingConfig.MaxExtraNodesToConsider,
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,

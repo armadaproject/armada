@@ -13,7 +13,7 @@ import (
 
 func TestApplyDefaultsToAnnotations(t *testing.T) {
 	tests := map[string]struct {
-		Config      configuration.SchedulingConfig
+		Config      configuration.SubmissionConfig
 		Annotations map[string]string
 		Expected    map[string]string
 	}{
@@ -22,7 +22,7 @@ func TestApplyDefaultsToAnnotations(t *testing.T) {
 			Expected:    make(map[string]string),
 		},
 		"DefaultNodeUniformityLabelAnnotation no change for non-gang jobs": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			Annotations: make(map[string]string),
@@ -38,7 +38,7 @@ func TestApplyDefaultsToAnnotations(t *testing.T) {
 			},
 		},
 		"DefaultNodeUniformityLabelAnnotation": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			Annotations: map[string]string{
@@ -60,15 +60,13 @@ func TestApplyDefaultsToAnnotations(t *testing.T) {
 
 func TestApplyDefaultsToPodSpec(t *testing.T) {
 	tests := map[string]struct {
-		Config   configuration.SchedulingConfig
+		Config   configuration.SubmissionConfig
 		PodSpec  v1.PodSpec
 		Expected v1.PodSpec
 	}{
 		"DefaultPriorityClassName": {
-			Config: configuration.SchedulingConfig{
-				Preemption: configuration.PreemptionConfig{
-					DefaultPriorityClass: "pc",
-				},
+			Config: configuration.SubmissionConfig{
+				DefaultPriorityClassName: "pc",
 			},
 			PodSpec: v1.PodSpec{},
 			Expected: v1.PodSpec{
@@ -76,7 +74,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultJobLimits": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultJobLimits: map[string]resource.Quantity{
 					"cpu":    resource.MustParse("10"),
 					"memory": resource.MustParse("1Gi"),
@@ -115,7 +113,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultJobTolerations": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultJobTolerations: []v1.Toleration{{Key: "foo"}, {Key: "bar"}},
 			},
 			PodSpec: v1.PodSpec{
@@ -126,7 +124,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultJobTolerationsByPriorityClass": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultJobTolerationsByPriorityClass: map[string][]v1.Toleration{
 					"pc-1": {{Key: "foo"}, {Key: "bar"}},
 					"pc-2": {{Key: "oof"}, {Key: "rab"}},
@@ -142,7 +140,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultJobTolerationsByResourceRequest": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
 					"gpu": {{Key: "foo"}, {Key: "bar"}},
 				},
@@ -177,7 +175,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultJobTolerationsByResourceRequest explicit zero resource": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
 					"gpu": {{Key: "foo"}, {Key: "bar"}},
 				},
@@ -212,10 +210,8 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultPriorityClassName + DefaultJobTolerationsByPriorityClass": {
-			Config: configuration.SchedulingConfig{
-				Preemption: configuration.PreemptionConfig{
-					DefaultPriorityClass: "pc",
-				},
+			Config: configuration.SubmissionConfig{
+				DefaultPriorityClassName: "pc",
 				DefaultJobTolerationsByPriorityClass: map[string][]v1.Toleration{
 					"pc": {{Key: "foo"}, {Key: "bar"}},
 				},
@@ -227,7 +223,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultActiveDeadlineSeconds": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultActiveDeadline: time.Second,
 			},
 			Expected: v1.PodSpec{
@@ -235,7 +231,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultActiveDeadlineSecondsByResource": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
 					"memory": 2 * time.Minute,
 					"gpu":    time.Minute,
@@ -272,7 +268,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultActiveDeadlineSeconds + DefaultActiveDeadlineSecondsByResource": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultActiveDeadline: time.Second,
 				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
 					"gpu": time.Minute,
@@ -307,7 +303,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultActiveDeadlineSecondsByResource trumps DefaultActiveDeadlineSeconds": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultActiveDeadline: time.Minute,
 				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
 					"gpu": time.Second,
@@ -340,7 +336,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"DefaultActiveDeadlineSecondsByResource explicit zero resource": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
 					"gpu": time.Second,
 				},
@@ -371,7 +367,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"MinTerminationGracePeriod": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				MinTerminationGracePeriod: time.Second,
 			},
 			Expected: v1.PodSpec{
@@ -379,7 +375,7 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 			},
 		},
 		"MinTerminationGracePeriod convert 0 to 1": {
-			Config: configuration.SchedulingConfig{
+			Config: configuration.SubmissionConfig{
 				MinTerminationGracePeriod: time.Second,
 			},
 			PodSpec: v1.PodSpec{

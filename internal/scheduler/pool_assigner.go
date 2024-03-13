@@ -58,10 +58,10 @@ func NewPoolAssigner(executorTimeout time.Duration,
 	}
 	return &DefaultPoolAssigner{
 		executorTimeout:        executorTimeout,
-		priorityClasses:        schedulingConfig.Preemption.PriorityClasses,
+		priorityClasses:        schedulingConfig.PriorityClasses,
 		executorsByPool:        map[string][]*executor{},
 		poolByExecutorId:       map[string]string{},
-		priorities:             types.AllowedPriorities(schedulingConfig.Preemption.PriorityClasses),
+		priorities:             types.AllowedPriorities(schedulingConfig.PriorityClasses),
 		indexedResources:       schedulingConfig.IndexedResources,
 		indexedTaints:          schedulingConfig.IndexedTaints,
 		wellKnownNodeTypes:     schedulingConfig.WellKnownNodeTypes,
