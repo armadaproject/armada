@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3.3.0
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 16.14.2
           cache: yarn
@@ -32,26 +32,26 @@ jobs:
       - name: Generating TypeScript lint results as summary
         working-directory: ./internal/lookout/ui
         run: |
-           yarn run lint &> lint_results.txt || true
-           lint_results=$(cat lint_results.txt)
-           echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
-           if [[ $lint_results =~ "problem" ]]; then
-              echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
-              echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
-              echo -e "${lint_results}"
-              exit 1
-           else
+          yarn run lint &> lint_results.txt || true
+          lint_results=$(cat lint_results.txt)
+          echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
+          if [[ $lint_results =~ "problem" ]]; then
+            echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+            echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+            echo -e "${lint_results}"
+            exit 1
+          else
               echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY
               echo -e "No Lint issues found."
               exit 0
-           fi
+          fi
 
   go-lint:
     name: Lint Go
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v3.3.0
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -59,7 +59,7 @@ jobs:
           cache-prefix: go-lint
 
       - name: Lint using golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
           skip-pkg-cache: true
           skip-build-cache: true
