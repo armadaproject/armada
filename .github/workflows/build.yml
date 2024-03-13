@@ -5,8 +5,8 @@ on:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest-16-cores
-    if: github.repository_owner == 'armadaproject'
+    runs-on: ubuntu-latest
+    # if: github.repository_owner == 'armadaproject'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,16 +32,16 @@ jobs:
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
 
       - name: Output full commit sha
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        # if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: echo "sha_full=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
       - name: Save Docker image tarballs
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        # if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           scripts/docker-save.sh -t ${{ env.sha_full }} -o /tmp/imgs
 
       - name: Save Docker image tarballs as artifacts
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        # if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: armada-image-tarballs

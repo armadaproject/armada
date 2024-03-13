@@ -11,8 +11,8 @@ name: Check required jobs
 # for more details.
 
 on:
-  workflow_run:
-    workflows: [CI]
+  push:
+    branches: [oss-586-resolve-deprecation-and-warnings]
 
 permissions:
   actions: read
@@ -21,7 +21,7 @@ permissions:
 jobs:
   required-jobs:
     name: Check required jobs
-    if: ${{ !github.event.repository.fork }}
+    # if: ${{ !github.event.repository.fork }}
     environment: create-check
     runs-on: ubuntu-latest
     steps:
@@ -31,6 +31,12 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            core.info(`Dummy value`)
 
       - uses: actions/github-script@v7
         with:

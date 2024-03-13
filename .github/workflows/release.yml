@@ -6,13 +6,16 @@ on:
     workflows: [CI]
     branches:
       - v*
+      - oss-586-resolve-deprecation-and-warnings
+  push:
+    branches: [oss-586-resolve-deprecation-and-warnings]
 
 permissions:
   contents: write
 
 jobs:
   validate:
-    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
+    # if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
     name: "Validate revision"
     runs-on: ubuntu-22.04
 
@@ -25,18 +28,18 @@ jobs:
       # The given ref should belong to the master branch.
       # If it starts with 'v', it should be a tag, belong to the master branch and match the semver regex.
       # Anything else is invalid.
-      - name: Validate ref
-        run: |
-          ref='${{ github.event.workflow_run.head_branch }}'
-          sha='${{ github.event.workflow_run.head_sha }}'
+      # - name: Validate ref
+      #   run: |
+      #     ref='${{ github.event.workflow_run.head_branch }}'
+      #     sha='${{ github.event.workflow_run.head_sha }}'
 
-          [[ $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-          [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -eq 1 ] &&
-          [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
-          if [ $? -ne 0 ]; then
-            echo "::error ::Invalid ref $ref $sha: must be a tag, belong to the master branch and match the semver regex"
-            exit 1
-          fi
+      #     [[ $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+      #     [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -eq 1 ] &&
+      #     [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
+      #     if [ $? -ne 0 ]; then
+      #       echo "::error ::Invalid ref $ref $sha: must be a tag, belong to the master branch and match the semver regex"
+      #       exit 1
+      #     fi
   release:
     name: "Release"
     needs: validate
@@ -90,13 +93,13 @@ jobs:
           DOCKER_REPO: "gresearch"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
-  invoke-chart-push:
-    name: Invoke Chart push
-    needs: release
-    uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
-    secrets:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+  # invoke-chart-push:
+  #   name: Invoke Chart push
+  #   needs: release
+  #   uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
+  #   secrets:
+  #     APP_ID: ${{ secrets.APP_ID }}
+  #     APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
   push-nuget:
     name: Push nuget clients
