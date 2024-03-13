@@ -298,5 +298,5 @@ func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 		err,
 		"validation should fail if specified priority class is not configured to be allowed",
 	)
-	validateInvalidArgumentErrorMessage(t, err, "Specified Priority Class is not supported in Server config")
+	validateInvalidArgumentErrorMessage(t, err, "priorityClassName not in map[some-priority-class:true]")
 }
