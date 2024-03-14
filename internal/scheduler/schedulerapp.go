@@ -37,6 +37,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -195,12 +196,55 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
 
+	// Setup failure estimation and quarantining.
+	failureEstimator, err := failureestimator.New(
+		config.Scheduling.FailureProbabilityEstimation.NumInnerIterations,
+		// Invalid config will have failed validation.
+		descent.MustNew(config.Scheduling.FailureProbabilityEstimation.InnerOptimiserStepSize),
+		// Invalid config will have failed validation.
+		nesterov.MustNew(
+			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserStepSize,
+			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserNesterovAcceleration,
+		),
+	)
+	if err != nil {
+		return err
+	}
+	failureEstimator.Disable(config.Scheduling.FailureProbabilityEstimation.Disabled)
+	if err := prometheus.Register(failureEstimator); err != nil {
+		return errors.WithStack(err)
+	}
+	nodeQuarantiner, err := quarantine.NewNodeQuarantiner(
+		config.Scheduling.NodeQuarantining.FailureProbabilityQuarantineThreshold,
+		config.Scheduling.NodeQuarantining.FailureProbabilityEstimateTimeout,
+		failureEstimator,
+	)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(nodeQuarantiner); err != nil {
+		return errors.WithStack(err)
+	}
+	queueQuarantiner, err := quarantine.NewQueueQuarantiner(
+		config.Scheduling.QueueQuarantining.QuarantineFactorMultiplier,
+		config.Scheduling.QueueQuarantining.FailureProbabilityEstimateTimeout,
+		failureEstimator,
+	)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(queueQuarantiner); err != nil {
+		return errors.WithStack(err)
+	}
+
 	schedulingAlgo, err := NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
 		executorRepository,
 		queueRepository,
 		schedulingContextRepository,
+		nodeQuarantiner,
+		queueQuarantiner,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -219,24 +263,6 @@ func Run(config schedulerconfig.Configuration) error {
 		return err
 	}
 	if err := prometheus.Register(schedulerMetrics); err != nil {
-		return errors.WithStack(err)
-	}
-
-	failureEstimator, err := failureestimator.New(
-		config.Scheduling.FailureEstimatorConfig.NumInnerIterations,
-		// Invalid config will have failed validation.
-		descent.MustNew(config.Scheduling.FailureEstimatorConfig.InnerOptimiserStepSize),
-		// Invalid config will have failed validation.
-		nesterov.MustNew(
-			config.Scheduling.FailureEstimatorConfig.OuterOptimiserStepSize,
-			config.Scheduling.FailureEstimatorConfig.OuterOptimiserNesterovAcceleration,
-		),
-	)
-	if err != nil {
-		return err
-	}
-	failureEstimator.Disable(config.Scheduling.FailureEstimatorConfig.Disabled)
-	if err := prometheus.Register(failureEstimator); err != nil {
 		return errors.WithStack(err)
 	}
 

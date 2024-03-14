@@ -390,6 +390,8 @@ func TestSchedule(t *testing.T) {
 				mockExecutorRepo,
 				mockQueueRepo,
 				schedulingContextRepo,
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -545,6 +547,8 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				algo, err := NewFairSchedulingAlgo(
 					schedulingConfig,
 					time.Second*5,
+					nil,
+					nil,
 					nil,
 					nil,
 					nil,

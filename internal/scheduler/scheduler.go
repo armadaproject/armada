@@ -288,11 +288,17 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			if run == nil {
 				continue
 			}
+			var t time.Time
+			if terminatedTime := run.TerminatedTime(); terminatedTime != nil {
+				t = *terminatedTime
+			} else {
+				t = time.Now()
+			}
 			if jst.Failed {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), false)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), false, t)
 			}
 			if jst.Succeeded {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), true)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), true, t)
 			}
 		}
 		s.failureEstimator.Update()
