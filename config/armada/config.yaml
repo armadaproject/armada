@@ -98,17 +98,10 @@ submission:
   defaultActiveDeadline: "72h" # 3 days.
   defaultActiveDeadlineByResourceRequest:
     nvidia.com/gpu: "336h" # 14 days.
-eventRetention:
-  expiryEnabled: true
-  retentionDuration: 336h
-metrics:
-  refreshInterval: 5m
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
-  hostnameSuffix: "svc"
-  certNameSuffix: "ingress-tls-certificate"
   dedupTable: pulsar_submit_dedup
   maxConnectionsPerBroker: 1
   compressionType: zlib

@@ -39,8 +39,7 @@ func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
-	// TODO Load relevant config in one place: don't use viper here and in the config package
-	// (currently in common).
+	// TODO Load relevant config in one place: don't use viper here and in LoadConfig.
 	var config configuration.ArmadaConfig
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/armada", userSpecifiedConfigs)
