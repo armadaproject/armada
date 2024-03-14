@@ -3,6 +3,7 @@ package failureestimator
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,25 +21,29 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test initialisation.
-	fe.Push("node", "queue", "cluster", false)
-	nodeParameterIndex, ok := fe.parameterIndexByNode["node"]
+	now := time.Now()
+	fe.Push("node", "queue", "cluster", false, now)
+	node, ok := fe.nodeByName["node"]
 	require.True(t, ok)
-	queueParameterIndex, ok := fe.parameterIndexByQueue["queue"]
+	queue, ok := fe.queueByName["queue"]
 	require.True(t, ok)
-	require.Equal(t, 0, nodeParameterIndex)
-	require.Equal(t, 1, queueParameterIndex)
+	require.Equal(t, 0, node.parameterIndex)
+	require.Equal(t, 1, queue.parameterIndex)
 	require.Equal(t, 0.5, fe.parameters.AtVec(0))
 	require.Equal(t, 0.5, fe.parameters.AtVec(1))
+	require.Equal(t, now, node.timeOfMostRecentSample)
+	require.Equal(t, now, queue.timeOfMostRecentSample)
 
 	for i := 0; i < 100; i++ {
-		fe.Push(fmt.Sprintf("node-%d", i), "queue-0", "cluster", false)
+		now := time.Now()
+		fe.Push(fmt.Sprintf("node-%d", i), "queue-0", "cluster", false, now)
 	}
-	nodeParameterIndex, ok = fe.parameterIndexByNode["node-99"]
+	node, ok = fe.nodeByName["node-99"]
 	require.True(t, ok)
-	queueParameterIndex, ok = fe.parameterIndexByQueue["queue-0"]
+	queue, ok = fe.queueByName["queue-0"]
 	require.True(t, ok)
-	require.Equal(t, 2+100, nodeParameterIndex)
-	require.Equal(t, 3, queueParameterIndex)
+	require.Equal(t, 2+100, node.parameterIndex)
+	require.Equal(t, 3, queue.parameterIndex)
 	require.Equal(t, 0.5, fe.parameters.AtVec(102))
 	require.Equal(t, 0.5, fe.parameters.AtVec(3))
 
@@ -51,15 +56,15 @@ func TestUpdate(t *testing.T) {
 	assert.Less(t, nodeSuccessProbability, 0.5-eps)
 	assert.Less(t, queueSuccessProbability, 0.5-eps)
 
-	// Test that the estimates move in the expected direction on success.
-	fe.Push("node", "queue", "cluster", true)
+	// Test that the estimates move in the expected direction after observing successes and failures.
+	fe.Push("node", "queue", "cluster", true, now)
 	fe.Update()
 	assert.Greater(t, fe.parameters.AtVec(0), nodeSuccessProbability)
 	assert.Greater(t, fe.parameters.AtVec(1), queueSuccessProbability)
 
 	for i := 0; i < 1000; i++ {
 		for i := 0; i < 10; i++ {
-			fe.Push("node", "queue", "cluster", false)
+			fe.Push("node", "queue", "cluster", false, now)
 		}
 		fe.Update()
 	}
@@ -70,7 +75,7 @@ func TestUpdate(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		for i := 0; i < 10; i++ {
-			fe.Push("node", "queue", "cluster", true)
+			fe.Push("node", "queue", "cluster", true, now)
 		}
 		fe.Update()
 	}

@@ -251,8 +251,12 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Controls node and queue failure probability estimation.
-	FailureEstimatorConfig FailureEstimatorConfig
+	// Controls node and queue success probability estimation.
+	FailureProbabilityEstimation FailureEstimatorConfig
+	// Controls node quarantining, i.e., removing from consideration for scheduling misbehaving nodes.
+	NodeQuarantining NodeQuarantinerConfig
+	// Controls queue quarantining, i.e., rate-limiting scheduling from misbehaving queues.
+	QueueQuarantining QueueQuarantinerConfig
 }
 
 const (
@@ -310,14 +314,28 @@ type WellKnownNodeType struct {
 	Taints []v1.Taint
 }
 
-// FailureEstimatorConfig contains config controlling node and queue success probability estimation.
-// See the internal/scheduler/failureestimator package for details.
+// FailureEstimatorConfig controls node and queue success probability estimation.
+// See internal/scheduler/failureestimator.go for details.
 type FailureEstimatorConfig struct {
 	Disabled                           bool
 	NumInnerIterations                 int     `validate:"gt=0"`
 	InnerOptimiserStepSize             float64 `validate:"gt=0"`
 	OuterOptimiserStepSize             float64 `validate:"gt=0"`
 	OuterOptimiserNesterovAcceleration float64 `validate:"gte=0"`
+}
+
+// NodeQuarantinerConfig controls how nodes are quarantined, i.e., removed from consideration when scheduling new jobs.
+// See internal/scheduler/quarantine/node_quarantiner.go for details.
+type NodeQuarantinerConfig struct {
+	FailureProbabilityQuarantineThreshold float64       `validate:"gte=0,lte=1"`
+	FailureProbabilityEstimateTimeout     time.Duration `validate:"gte=0"`
+}
+
+// QueueQuarantinerConfig controls how scheduling from misbehaving queues is rate-limited.
+// See internal/scheduler/quarantine/queue_quarantiner.go for details.
+type QueueQuarantinerConfig struct {
+	QuarantineFactorMultiplier        float64       `validate:"gte=0,lte=1"`
+	FailureProbabilityEstimateTimeout time.Duration `validate:"gte=0"`
 }
 
 // TODO: we can probably just typedef this to map[string]string
