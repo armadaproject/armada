@@ -1,13 +1,14 @@
 name: Slack CI Alerts
 
 on:
-  push:
-    branches: [oss-586-resolve-deprecation-and-warnings]
+  workflow_run:
+    workflows: [CI, Python Airflow Operator, Build Release Images, Release Armada components, Release Armada components - RC]
+    types: [completed]
 
 jobs:
   on-failure:
     runs-on: ubuntu-latest
-    # if: github.event.workflow_run.conclusion == 'failure' 
+    if: github.event.workflow_run.conclusion == 'failure' 
     steps:
       - uses: actions/checkout@v4
       - name: "Send Notification"

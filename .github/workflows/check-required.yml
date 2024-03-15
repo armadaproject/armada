@@ -11,8 +11,8 @@ name: Check required jobs
 # for more details.
 
 on:
-  push:
-    branches: [oss-586-resolve-deprecation-and-warnings]
+  workflow_run:
+    workflows: [CI]
 
 permissions:
   actions: read
@@ -21,7 +21,7 @@ permissions:
 jobs:
   required-jobs:
     name: Check required jobs
-    # if: ${{ !github.event.repository.fork }}
+    if: ${{ !github.event.repository.fork }}
     environment: create-check
     runs-on: ubuntu-latest
     steps:
