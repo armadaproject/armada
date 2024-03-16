@@ -11,19 +11,6 @@ type Processor interface {
 	Apply(msg *armadaevents.SubmitJob)
 }
 
-type podSpecProcessor struct{}
-
-func (p podSpecProcessor) Apply(msg *armadaevents.SubmitJob) {
-	if msg.MainObject != nil {
-		switch typed := msg.MainObject.Object.(type) {
-		case *armadaevents.KubernetesMainObject_PodSpec:
-			p.processPodSpec(typed.PodSpec.PodSpec)
-		}
-	}
-}
-
-func (p podSpecProcessor) processPodSpec(spec *v1.PodSpec) {}
-
 func ApplyDefaults(msg *armadaevents.SubmitJob, config configuration.SchedulingConfig) {
 	processors := []Processor{
 		activeDeadlineSecondsProcessor{
@@ -44,5 +31,14 @@ func ApplyDefaults(msg *armadaevents.SubmitJob, config configuration.SchedulingC
 
 	for _, p := range processors {
 		p.Apply(msg)
+	}
+}
+
+func processPodSpec(msg *armadaevents.SubmitJob, f func(*v1.PodSpec)) {
+	if msg.MainObject != nil {
+		switch typed := msg.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			f(typed.PodSpec.PodSpec)
+		}
 	}
 }

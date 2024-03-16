@@ -169,7 +169,7 @@ func TestActiveDeadlineSecondsProcessor(t *testing.T) {
 				defaultActiveDeadline:                  tc.config.DefaultActiveDeadline,
 				defaultActiveDeadlineByResourceRequest: tc.config.DefaultActiveDeadlineByResourceRequest,
 			}
-			p.processPodSpec(&tc.podSpec)
+			p.Apply(&tc.podSpec)
 			assert.Equal(t, tc.expected, tc.podSpec)
 		})
 	}
