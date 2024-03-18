@@ -7,6 +7,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/soheilhy/cmux"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -276,8 +278,14 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	m := cmux.New(lis)
+
+	// Match connections in order:
+	// First grpc, then HTTP, and otherwise Go RPC/TCP.
+	grpcL := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
 	services = append(services, func() error {
-		return grpcServer.Serve(lis)
+		return grpcServer.Serve(grpcL)
 	})
 
 	// Start all services and wait for the context to be cancelled,

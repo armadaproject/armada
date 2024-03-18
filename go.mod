@@ -87,6 +87,7 @@ require (
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
 	github.com/segmentio/fasthash v1.0.3
+	github.com/soheilhy/cmux v0.1.5
 	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/time v0.3.0
 	gonum.org/v1/gonum v0.14.0
