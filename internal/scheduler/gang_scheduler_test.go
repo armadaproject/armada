@@ -452,7 +452,7 @@ func TestGangScheduler(t *testing.T) {
 		"AwayNodeTypes": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
@@ -471,7 +471,7 @@ func TestGangScheduler(t *testing.T) {
 						},
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible-away"
+				config.DefaultPriorityClassName = "armada-preemptible-away"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name: "node-type-a",
@@ -520,7 +520,7 @@ func TestGangScheduler(t *testing.T) {
 		"Home-away scheduling": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible": {
 						Priority:    30000,
 						Preemptible: true,
@@ -533,7 +533,7 @@ func TestGangScheduler(t *testing.T) {
 						},
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name: "node-type-a",
@@ -572,7 +572,7 @@ func TestGangScheduler(t *testing.T) {
 				nodesById[node.Id] = node
 			}
 			nodeDb, err := nodedb.NewNodeDb(
-				tc.SchedulingConfig.Preemption.PriorityClasses,
+				tc.SchedulingConfig.PriorityClasses,
 				tc.SchedulingConfig.MaxExtraNodesToConsider,
 				tc.SchedulingConfig.IndexedResources,
 				tc.SchedulingConfig.IndexedTaints,
@@ -605,8 +605,8 @@ func TestGangScheduler(t *testing.T) {
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
 				"pool",
-				tc.SchedulingConfig.Preemption.PriorityClasses,
-				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
+				tc.SchedulingConfig.PriorityClasses,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -639,7 +639,7 @@ func TestGangScheduler(t *testing.T) {
 			var actualScheduledIndices []int
 			scheduledGangs := 0
 			for i, gang := range tc.Gangs {
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.SchedulingConfig.Preemption.PriorityClasses, gang)
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.SchedulingConfig.PriorityClasses, gang)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 				require.NoError(t, err)

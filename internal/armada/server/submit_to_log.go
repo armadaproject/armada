@@ -44,12 +44,11 @@ import (
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
 // TODO: Consider returning a list of message ids of the messages generated
-// TODO: Include job set as the message key for each message
 type PulsarSubmitServer struct {
 	Producer         pulsar.Producer
 	QueueRepository  repository.QueueRepository
 	JobRepository    repository.JobRepository
-	SchedulingConfig configuration.SchedulingConfig
+	SubmissionConfig configuration.SubmissionConfig
 	// Maximum size of Pulsar messages
 	MaxAllowedMessageSize uint
 	// Used for job submission deduplication.
@@ -93,7 +92,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 		return nil, st.Err()
 	}
-	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, srv.SchedulingConfig); err != nil {
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, srv.SubmissionConfig); err != nil {
 		details := &api.JobSubmitResponse{
 			JobResponseItems: responseItems,
 		}
@@ -918,9 +917,9 @@ func (srv *PulsarSubmitServer) createJobsObjects(request *api.JobSubmitRequest, 
 			namespace = "default"
 		}
 		fillContainerRequestsAndLimits(podSpec.Containers)
-		applyDefaultsToAnnotations(item.Annotations, srv.SchedulingConfig)
-		applyDefaultsToPodSpec(podSpec, srv.SchedulingConfig)
-		if err := validation.ValidatePodSpec(podSpec, srv.SchedulingConfig); err != nil {
+		applyDefaultsToAnnotations(item.Annotations, srv.SubmissionConfig)
+		applyDefaultsToPodSpec(podSpec, srv.SubmissionConfig)
+		if err := validation.ValidatePodSpec(podSpec, srv.SubmissionConfig); err != nil {
 			response := &api.JobSubmitResponseItem{
 				JobId: jobId,
 				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
