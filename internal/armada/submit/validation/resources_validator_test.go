@@ -88,7 +88,7 @@ func TestContainerValidator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			v := containerValidator{}
+			v := resourcesValidator{}
 			err := v.Validate(tc.req)
 			if tc.expectSuccess {
 				assert.NoError(t, err)

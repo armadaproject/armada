@@ -16,7 +16,7 @@ func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.Sched
 		hasPodSpecValidator{},
 		podSpecSizeValidator{},
 		affinityValidator{},
-		containerValidator{minJobResources: config.MinJobResources},
+		resourcesValidator{minJobResources: config.MinJobResources},
 		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},
 		terminationGracePeriodValidator{
 			minGracePeriod: int64(config.MinTerminationGracePeriod.Seconds()),

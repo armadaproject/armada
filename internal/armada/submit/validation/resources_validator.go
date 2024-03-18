@@ -8,11 +8,11 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-type containerValidator struct {
+type resourcesValidator struct {
 	minJobResources v1.ResourceList
 }
 
-func (c containerValidator) Validate(j *api.JobSubmitRequestItem) error {
+func (c resourcesValidator) Validate(j *api.JobSubmitRequestItem) error {
 	spec := j.GetMainPodSpec()
 	if spec == nil {
 		return nil
@@ -24,8 +24,8 @@ func (c containerValidator) Validate(j *api.JobSubmitRequestItem) error {
 
 	for _, container := range spec.Containers {
 
-		if len(container.Resources.Requests) == 0 {
-			return fmt.Errorf("container %v has no resource requests specified", container.Name)
+		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
+			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
