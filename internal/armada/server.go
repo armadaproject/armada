@@ -159,9 +159,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	defer producer.Close()
 
 	pulsarSubmitServer := &submit.Server{
-		Producer:              producer,
-		QueueRepository:       queueRepository,
-		JobRepository:         jobRepository,
+		producer:              producer,
+		queueRepository:       queueRepository,
+		jobRepository:         jobRepository,
 		SchedulingConfig:      config.Scheduling,
 		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
 		SubmitChecker:         pulsarSchedulerSubmitChecker,

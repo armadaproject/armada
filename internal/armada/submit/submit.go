@@ -36,17 +36,21 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
-	Producer         pulsar.Producer
-	QueueRepository  repository.QueueRepository
-	JobRepository    repository.JobRepository
-	SchedulingConfig configuration.SchedulingConfig
+	producer         pulsar.Producer
+	queueRepository  repository.QueueRepository
+	jobRepository    repository.JobRepository
+	schedulingConfig configuration.SchedulingConfig
 	// Maximum size of Pulsar messages
-	MaxAllowedMessageSize uint
+	maxAllowedMessageSize uint
 	// Used for job submission deduplication.
-	KVStore *pgkeyvalue.PGKeyValueStore
+	kVStore *pgkeyvalue.PGKeyValueStore
 	// Used to check at job submit time if the job is unschedulable
-	SubmitChecker *scheduler.SubmitChecker
-	Authorizer    server.ActionAuthorizer
+	submitChecker *scheduler.SubmitChecker
+	authorizer    server.ActionAuthorizer
+}
+
+func NewServer() *Server {
+
 }
 
 func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -127,14 +131,14 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 				}
 			})
 
-		if err = s.JobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails); err != nil {
+		if err = s.jobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails); err != nil {
 			log.WithError(err).Error("failed store pulsar job details")
 			return nil, status.Error(codes.Internal, "failed store pulsar job details")
 		}
 	}
 
 	if len(es.Events) > 0 {
-		err = pulsarutils.CompactAndPublishSequences(ctx, []*armadaevents.EventSequence{es}, s.Producer, s.MaxAllowedMessageSize, schedulers.Pulsar)
+		err = pulsarutils.CompactAndPublishSequences(ctx, []*armadaevents.EventSequence{es}, s.producer, s.MaxAllowedMessageSize, schedulers.Pulsar)
 		if err != nil {
 			log.WithError(err).Error("failed send events to Pulsar")
 			return nil, status.Error(codes.Internal, "Failed to send message")
@@ -162,7 +166,7 @@ func (s *Server) Authorize(
 	principal := authorization.GetPrincipal(ctx)
 	userId := principal.GetName()
 	groups := principal.GetGroupNames()
-	q, err := s.QueueRepository.GetQueue(queueName)
+	q, err := s.queueRepository.GetQueue(queueName)
 	if err != nil {
 		return userId, groups, err
 	}

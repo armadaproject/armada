@@ -38,7 +38,7 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 		return nil, status.Errorf(codes.InvalidArgument, "[CreateQueue] error validating queue: %s", err)
 	}
 
-	err = s.QueueRepository.CreateQueue(queue)
+	err = s.queueRepository.CreateQueue(queue)
 	var eq *repository.ErrQueueAlreadyExists
 	if errors.As(err, &eq) {
 		return nil, status.Errorf(codes.AlreadyExists, "[CreateQueue] error creating queue: %s", err)
@@ -83,7 +83,7 @@ func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
 	}
 
-	err = s.QueueRepository.UpdateQueue(queue)
+	err = s.queueRepository.UpdateQueue(queue)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "[UpdateQueue] error: %s", err)
@@ -123,7 +123,7 @@ func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteReques
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[DeleteQueue] error checking permissions: %s", err)
 	}
-	err = s.QueueRepository.DeleteQueue(req.Name)
+	err = s.queueRepository.DeleteQueue(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error deleting queue %s: %s", req.Name, err)
 	}
@@ -131,7 +131,7 @@ func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteReques
 }
 
 func (s *Server) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	queue, err := s.QueueRepository.GetQueue(req.Name)
+	queue, err := s.queueRepository.GetQueue(req.Name)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "[GetQueue] error: %s", err)
@@ -148,7 +148,7 @@ func (s *Server) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_
 		numToReturn = math.MaxUint32
 	}
 
-	queues, err := s.QueueRepository.GetAllQueues()
+	queues, err := s.queueRepository.GetAllQueues()
 	if err != nil {
 		return err
 	}

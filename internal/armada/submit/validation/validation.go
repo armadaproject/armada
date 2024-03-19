@@ -14,7 +14,7 @@ func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.Sched
 	itemValidator := validation.NewCompoundValidator[*api.JobSubmitRequestItem](
 		hasNamespaceValidator{},
 		hasPodSpecValidator{},
-		podSpecSizeValidator{},
+		podSpecSizeValidator{maxSize: config.MaxPodSpecSizeBytes},
 		affinityValidator{},
 		resourcesValidator{minJobResources: config.MinJobResources},
 		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},

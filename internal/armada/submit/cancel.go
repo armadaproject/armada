@@ -109,7 +109,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	err = pulsarutils.CompactAndPublishSequences(
 		ctx,
 		[]*armadaevents.EventSequence{sequence},
-		s.Producer, s.MaxAllowedMessageSize,
+		s.producer, s.MaxAllowedMessageSize,
 		schedulers.Pulsar)
 
 	if err != nil {
@@ -235,7 +235,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 	err = pulsarutils.CompactAndPublishSequences(
 		ctx,
 		[]*armadaevents.EventSequence{sequence},
-		s.Producer, s.MaxAllowedMessageSize,
+		s.producer, s.MaxAllowedMessageSize,
 		schedulers.Pulsar)
 
 	if err != nil {
@@ -306,7 +306,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	err = pulsarutils.CompactAndPublishSequences(
 		ctx,
 		[]*armadaevents.EventSequence{pulsarSchedulerSequence},
-		s.Producer, s.MaxAllowedMessageSize,
+		s.producer, s.MaxAllowedMessageSize,
 		schedulers.Pulsar)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
@@ -342,7 +342,7 @@ func (s *Server) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []st
 	err = pulsarutils.CompactAndPublishSequences(
 		ctx,
 		[]*armadaevents.EventSequence{es},
-		s.Producer, s.MaxAllowedMessageSize,
+		s.producer, s.MaxAllowedMessageSize,
 		schedulers.Pulsar)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -386,7 +386,7 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
 // If no job can be retrieved then an error is returned.
 func (s *Server) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
-	jobDetails, err := s.JobRepository.GetPulsarSchedulerJobDetails(jobId)
+	jobDetails, err := s.jobRepository.GetPulsarSchedulerJobDetails(jobId)
 	if err != nil {
 		return "", "", err
 	}

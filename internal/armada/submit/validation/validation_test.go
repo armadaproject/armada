@@ -21,7 +21,7 @@ func TestValidateSubmitRequest(t *testing.T) {
 			},
 		},
 		MinJobResources:           map[v1.ResourceName]resource.Quantity{},
-		MaxPodSpecSizeBytes:       100,
+		MaxPodSpecSizeBytes:       1000,
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 	}
@@ -33,7 +33,37 @@ func TestValidateSubmitRequest(t *testing.T) {
 	}{
 		"valid request": {
 			schedulingConfig: defaultSchedulingConfig,
-			expectSuccess:    true,
+			req: &api.JobSubmitRequest{
+				Queue:    "testQueue",
+				JobSetId: "testJobset",
+				JobRequestItems: []*api.JobSubmitRequestItem{
+					{
+						Priority:    1000,
+						Namespace:   "testNamespace",
+						Labels:      nil,
+						Annotations: nil,
+						PodSpec: &v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Resources: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":    resource.MustParse("1"),
+											"memory": resource.MustParse("1Gi"),
+										},
+										Limits: v1.ResourceList{
+											"cpu":    resource.MustParse("1"),
+											"memory": resource.MustParse("1Gi"),
+										},
+									},
+								},
+							},
+						},
+						Ingress:  nil,
+						Services: nil,
+					},
+				},
+			},
+			expectSuccess: true,
 		},
 	}
 	for name, tc := range tests {
