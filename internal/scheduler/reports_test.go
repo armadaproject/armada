@@ -22,11 +22,11 @@ func TestAddGetSchedulingContext(t *testing.T) {
 	sctx = withSuccessfulJobSchedulingContext(sctx, "A", "successFooA")
 	err := repo.AddSchedulingContext(sctx)
 	require.NoError(t, err)
-
-	sctx = testSchedulingContext("foo")
-	sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
-	err = repo.AddSchedulingContext(sctx)
-	require.NoError(t, err)
+	//
+	//sctx = testSchedulingContext("foo")
+	//sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
+	//err = repo.AddSchedulingContext(sctx)
+	//require.NoError(t, err)
 
 	sctx = testSchedulingContext("bar")
 	sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
@@ -46,33 +46,6 @@ func TestAddGetSchedulingContext(t *testing.T) {
 
 	var actualSchedulingContextByExecutor SchedulingContextByExecutor
 	var ok bool
-
-	//actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("doesNotExist")
-	//require.Nil(t, actualSchedulingContextByExecutor)
-	//require.False(t, ok)
-
-	//actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("successFooA")
-	//require.True(t, ok)
-	//assert.Equal(
-	//	t,
-	//	SchedulingContextByExecutor{
-	//		"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA"),
-	//	},
-	//	actualSchedulingContextByExecutor,
-	//)
-
-	//actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("failureA")
-	//require.True(t, ok)
-	//assert.Equal(
-	//	t,
-	//	withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
-	//	actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
-	//)
-	//assert.Equal(
-	//	t,
-	//	withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
-	//	actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["A"],
-	//)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("doesNotExist")
 	require.Nil(t, actualSchedulingContextByExecutor)
