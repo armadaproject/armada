@@ -22,11 +22,11 @@ func TestAddGetSchedulingContext(t *testing.T) {
 	sctx = withSuccessfulJobSchedulingContext(sctx, "A", "successFooA")
 	err := repo.AddSchedulingContext(sctx)
 	require.NoError(t, err)
-	//
-	//sctx = testSchedulingContext("foo")
-	//sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
-	//err = repo.AddSchedulingContext(sctx)
-	//require.NoError(t, err)
+
+	sctx = testSchedulingContext("foo")
+	sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
+	err = repo.AddSchedulingContext(sctx)
+	require.NoError(t, err)
 
 	sctx = testSchedulingContext("bar")
 	sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
