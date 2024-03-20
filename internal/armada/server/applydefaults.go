@@ -131,6 +131,7 @@ func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configu
 // Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
 // assigns a CPU request that matches the limit.
 func fillContainerRequestsAndLimits(containers []v1.Container) string {
+	var infoMsg = ""
 	for index := range containers {
 		if containers[index].Resources.Limits == nil {
 			containers[index].Resources.Limits = v1.ResourceList{}
@@ -150,5 +151,5 @@ func fillContainerRequestsAndLimits(containers []v1.Container) string {
 			}
 		}
 	}
-	return ""
+	return infoMsg
 }
