@@ -916,7 +916,10 @@ func (srv *PulsarSubmitServer) createJobsObjects(request *api.JobSubmitRequest, 
 		if namespace == "" {
 			namespace = "default"
 		}
-		fillContainerRequestsAndLimits(podSpec.Containers)
+		mutationMsg := fillContainerRequestsAndLimits(podSpec.Containers)
+		if mutationMsg != "" {
+			log.Infof("Inconsistent resources detected for job %s: %s", jobId, mutationMsg)
+		}
 		applyDefaultsToAnnotations(item.Annotations, srv.SubmissionConfig)
 		applyDefaultsToPodSpec(podSpec, srv.SubmissionConfig)
 		if err := validation.ValidatePodSpec(podSpec, srv.SubmissionConfig); err != nil {
