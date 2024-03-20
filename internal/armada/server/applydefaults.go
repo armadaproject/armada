@@ -135,7 +135,7 @@ func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configu
 // 2024-03-18 chrisma: This seems suboptimal. return a string we can log out if people are submitting sparse requests.
 // If nobody is using this then remove this.
 func fillContainerRequestsAndLimits(containers []v1.Container) string {
-	var infoMsg = ""
+	infoMsg := ""
 	for index := range containers {
 		if containers[index].Resources.Limits == nil {
 			containers[index].Resources.Limits = v1.ResourceList{}
