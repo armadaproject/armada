@@ -131,8 +131,8 @@ func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configu
 // memory limit, but does not specify a memory request, assign a memory request that matches the limit.
 // Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
 // assigns a CPU request that matches the limit.
-// 2024-03-18 chrisma: This seems suboptimal. return a string we can log out if people are submitting sparse requests.
-// If nobody is using this then remove this.
+// 2024-03-18 chrisma: This seems suboptimal. return a string we can log out if people are submitting
+// sparse requests. If nobody is using this then remove this.
 func fillContainerRequestsAndLimits(containers []v1.Container) string {
 	var infoMsg = ""
 	for index := range containers {
@@ -147,7 +147,8 @@ func fillContainerRequestsAndLimits(containers []v1.Container) string {
 			if _, ok := containers[index].Resources.Requests[resourceName]; !ok {
 				containers[index].Resources.Requests[resourceName] = quantity
 				if infoMsg == "" {
-					infoMsg = fmt.Sprintf("container %s had limits but not requests for %s", containers[index].Name, resourceName)
+					infoMsg = fmt.Sprintf(
+						"container %s had limits but not requests for %s", containers[index].Name, resourceName)
 				}
 			}
 		}
@@ -155,7 +156,8 @@ func fillContainerRequestsAndLimits(containers []v1.Container) string {
 			if _, ok := containers[index].Resources.Limits[resourceName]; !ok {
 				containers[index].Resources.Limits[resourceName] = quantity
 				if infoMsg == "" {
-					infoMsg = fmt.Sprintf("container %s had requests but not limits for %s", containers[index].Name, resourceName)
+					infoMsg = fmt.Sprintf(
+						"container %s had requests but not limits for %s", containers[index].Name, resourceName)
 				}
 			}
 		}
