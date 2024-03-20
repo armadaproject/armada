@@ -210,10 +210,6 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingRate float64 `validate:"gt=0"`
 	// Per-queue version of MaximumSchedulingBurst.
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
-	// Armada stores contexts associated with recent job scheduling attempts.
-	// This setting limits the number of such contexts to store.
-	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
-	MaxJobSchedulingContextsPerExecutor uint
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.

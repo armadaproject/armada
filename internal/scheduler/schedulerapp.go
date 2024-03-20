@@ -187,10 +187,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
 
-	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
-	if err != nil {
-		return errors.WithMessage(err, "error creating scheduling context repository")
-	}
+	schedulingContextRepository := NewSchedulingContextRepository()
 
 	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
 	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
