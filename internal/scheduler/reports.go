@@ -53,7 +53,6 @@ type SchedulingContextRepository struct {
 type SchedulingContextByExecutor map[string]*schedulercontext.SchedulingContext
 
 func NewSchedulingContextRepository() *SchedulingContextRepository {
-
 	rv := &SchedulingContextRepository{
 		executorIds: make(map[string]bool),
 	}
