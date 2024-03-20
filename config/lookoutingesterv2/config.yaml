@@ -6,7 +6,7 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
-metricsPort: 9000
+metricsPort: 9002
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
