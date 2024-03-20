@@ -1,0 +1,20 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "event_ingester.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "event_ingester.labels.all" . | nindent 4 -}}
+    {{- if .Values.prometheus.labels }}
+    {{- toYaml .Values.prometheus.labels | nindent 4 -}}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "event_ingester.labels.identity" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.prometheus.scrapeInterval }}
+      scrapeTimeout: {{ .Values.prometheus.scrapeTimeout }}
+{{- end }}
