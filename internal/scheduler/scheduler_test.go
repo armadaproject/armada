@@ -162,13 +162,27 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
-	uint32(10),
+	0,
 	schedulingInfo,
 	false,
 	1,
 	false,
 	false,
 	false,
+	1,
+).WithNewRun("testExecutor", "test-node", "node", 5)
+
+var cancelledJob = testfixtures.JobDb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	schedulingInfo,
+	false,
+	1,
+	true,
+	false,
+	true,
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
@@ -650,7 +664,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
 			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
 		},
-		"Job reprioritised": {
+		"Queued job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
 			jobUpdates: []database.Job{
 				{
@@ -665,6 +679,39 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueued:           []string{queuedJob.Id()},
 			expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
 			expectedQueuedVersion:    queuedJob.QueuedVersion(),
+		},
+		"Lease job reprioritised": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:    leasedJob.Id(),
+					JobSet:   "testJobSet",
+					Queue:    "testQueue",
+					Priority: 2,
+					Serial:   1,
+				},
+			},
+			expectedJobReprioritised: []string{leasedJob.Id()},
+			expectedLeased:           []string{leasedJob.Id()},
+			expectedJobPriority:      map[string]uint32{leasedJob.Id(): 2},
+			expectedQueuedVersion:    leasedJob.QueuedVersion(),
+		},
+		"Terminal job reprioritised": {
+			initialJobs: []*jobdb.Job{cancelledJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:    cancelledJob.Id(),
+					JobSet:   "testJobSet",
+					Queue:    "testQueue",
+					Priority: 2,
+					Serial:   1,
+				},
+			},
+			// No events should be sent for a terminal job when it is reprioritised
+			expectedJobReprioritised: []string{},
+			expectedLeased:           []string{},
+			expectedJobPriority:      map[string]uint32{cancelledJob.Id(): cancelledJob.Priority()},
+			expectedQueuedVersion:    cancelledJob.QueuedVersion(),
 		},
 		"Lease expired": {
 			initialJobs:           []*jobdb.Job{leasedJob},

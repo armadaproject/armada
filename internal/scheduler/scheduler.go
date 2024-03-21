@@ -663,6 +663,21 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		return nil, err
 	}
 	origJob := job
+
+	if job.RequestedPriority() != job.Priority() {
+		job = job.WithPriority(job.RequestedPriority())
+		jobReprioritised := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+				ReprioritisedJob: &armadaevents.ReprioritisedJob{
+					JobId:    jobId,
+					Priority: job.Priority(),
+				},
+			},
+		}
+		events = append(events, jobReprioritised)
+	}
+
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
 		for _, run := range job.AllRuns() {
@@ -788,18 +803,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				events = append(events, jobErrors)
 			}
 		}
-	} else if job.RequestedPriority() != job.Priority() {
-		job = job.WithPriority(job.RequestedPriority())
-		jobReprioritised := &armadaevents.EventSequence_Event{
-			Created: s.now(),
-			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
-				ReprioritisedJob: &armadaevents.ReprioritisedJob{
-					JobId:    jobId,
-					Priority: job.Priority(),
-				},
-			},
-		}
-		events = append(events, jobReprioritised)
 	}
 
 	if !origJob.Equal(job) {
