@@ -358,7 +358,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 }
 
 func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequence) error {
-
 	bytes, err := proto.Marshal(es)
 	if err != nil {
 		return err
