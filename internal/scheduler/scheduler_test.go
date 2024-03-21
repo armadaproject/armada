@@ -680,7 +680,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
 			expectedQueuedVersion:    queuedJob.QueuedVersion(),
 		},
-		"Lease job reprioritised": {
+		"Leased job reprioritised": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
 				{
