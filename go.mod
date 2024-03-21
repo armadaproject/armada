@@ -75,7 +75,6 @@ require (
 	github.com/go-openapi/swag v0.22.6
 	github.com/go-openapi/validate v0.22.6
 	github.com/go-playground/validator/v10 v10.15.4
-	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/status v1.1.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.15.2
