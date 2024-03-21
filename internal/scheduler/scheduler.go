@@ -663,12 +663,27 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		return nil, err
 	}
 	origJob := job
+
+	if job.RequestedPriority() != job.Priority() {
+		job = job.WithPriority(job.RequestedPriority())
+		jobReprioritised := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+				ReprioritisedJob: &armadaevents.ReprioritisedJob{
+					JobId:    jobId,
+					Priority: job.Priority(),
+				},
+			},
+		}
+		events = append(events, jobReprioritised)
+	}
+
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
 		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithCancelled(true))
+			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
 		}
-		job = job.WithQueued(false).WithCancelled(true)
+		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
@@ -678,9 +693,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
 		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithCancelled(true))
+			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
 		}
-		job = job.WithQueued(false).WithCancelled(true)
+		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
@@ -788,18 +803,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				events = append(events, jobErrors)
 			}
 		}
-	} else if job.RequestedPriority() != job.Priority() {
-		job = job.WithPriority(job.RequestedPriority())
-		jobReprioritised := &armadaevents.EventSequence_Event{
-			Created: s.now(),
-			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
-				ReprioritisedJob: &armadaevents.ReprioritisedJob{
-					JobId:    jobId,
-					Priority: job.Priority(),
-				},
-			},
-		}
-		events = append(events, jobReprioritised)
 	}
 
 	if !origJob.Equal(job) {
