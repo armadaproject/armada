@@ -6,8 +6,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "armada-scheduler-ingester.labels.all" . | nindent 4 -}}
-    {{- if .Values.prometheus.labels }}
-    {{- toYaml .Values.prometheus.labels | nindent 4 -}}
+    {{- if .Values.ingester.prometheus.labels }}
+    {{- toYaml .Values.ingester.prometheus.labels | nindent 4 -}}
     {{- end }}
 spec:
   selector:
