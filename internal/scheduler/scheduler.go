@@ -666,7 +666,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
 		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithCancelled(true))
+			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
 		}
 		job = job.WithQueued(false).WithCancelled(true)
 		cancel := &armadaevents.EventSequence_Event{
@@ -678,7 +678,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
 		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithCancelled(true))
+			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
 		}
 		job = job.WithQueued(false).WithCancelled(true)
 		cancelRequest := &armadaevents.EventSequence_Event{
