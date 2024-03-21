@@ -129,7 +129,7 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 }
 
 func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
-	queues, err := c.queueRepository.GetAllQueues()
+	queues, err := c.queueRepository.GetAllQueues(ctx)
 	if err != nil {
 		return nil, err
 	}

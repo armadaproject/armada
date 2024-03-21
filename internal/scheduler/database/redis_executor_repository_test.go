@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -52,9 +52,9 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			withRedisExecutorRepository(func(repo *RedisExecutorRepository) {
-				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-				defer cancel()
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+			withRedisExecutorRepository(ctx, func(repo *RedisExecutorRepository) {
 				for _, executor := range tc.executors {
 					err := repo.StoreExecutor(ctx, executor)
 					require.NoError(t, err)
@@ -81,12 +81,12 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 	}
 }
 
-func withRedisExecutorRepository(action func(repository *RedisExecutorRepository)) {
+func withRedisExecutorRepository(ctx *armadacontext.Context, action func(repository *RedisExecutorRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	defer client.FlushDB()
+	defer client.FlushDB(ctx)
 	defer client.Close()
 
-	client.FlushDB()
+	client.FlushDB(ctx)
 	repo := NewRedisExecutorRepository(client, "pulsar")
 	action(repo)
 }
