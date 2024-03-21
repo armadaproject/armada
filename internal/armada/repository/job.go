@@ -2,13 +2,13 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )

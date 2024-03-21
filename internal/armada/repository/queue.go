@@ -2,12 +2,12 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )

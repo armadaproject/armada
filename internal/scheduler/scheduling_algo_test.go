@@ -380,7 +380,7 @@ func TestSchedule(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
-			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
+			mockQueueRepo.EXPECT().GetAllQueues(ctx).Return(tc.queues, nil).AnyTimes()
 
 			schedulingContextRepo := NewSchedulingContextRepository()
 			sch, err := NewFairSchedulingAlgo(

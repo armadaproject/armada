@@ -7,6 +7,7 @@ package schedulermocks
 import (
 	reflect "reflect"
 
+	armadacontext "github.com/armadaproject/armada/internal/common/armadacontext"
 	queue "github.com/armadaproject/armada/pkg/client/queue"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -35,73 +36,73 @@ func (m *MockQueueRepository) EXPECT() *MockQueueRepositoryMockRecorder {
 }
 
 // CreateQueue mocks base method.
-func (m *MockQueueRepository) CreateQueue(arg0 queue.Queue) error {
+func (m *MockQueueRepository) CreateQueue(arg0 *armadacontext.Context, arg1 queue.Queue) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateQueue", arg0)
+	ret := m.ctrl.Call(m, "CreateQueue", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateQueue indicates an expected call of CreateQueue.
-func (mr *MockQueueRepositoryMockRecorder) CreateQueue(arg0 interface{}) *gomock.Call {
+func (mr *MockQueueRepositoryMockRecorder) CreateQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateQueue", reflect.TypeOf((*MockQueueRepository)(nil).CreateQueue), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateQueue", reflect.TypeOf((*MockQueueRepository)(nil).CreateQueue), arg0, arg1)
 }
 
 // DeleteQueue mocks base method.
-func (m *MockQueueRepository) DeleteQueue(arg0 string) error {
+func (m *MockQueueRepository) DeleteQueue(arg0 *armadacontext.Context, arg1 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteQueue", arg0)
+	ret := m.ctrl.Call(m, "DeleteQueue", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteQueue indicates an expected call of DeleteQueue.
-func (mr *MockQueueRepositoryMockRecorder) DeleteQueue(arg0 interface{}) *gomock.Call {
+func (mr *MockQueueRepositoryMockRecorder) DeleteQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteQueue", reflect.TypeOf((*MockQueueRepository)(nil).DeleteQueue), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteQueue", reflect.TypeOf((*MockQueueRepository)(nil).DeleteQueue), arg0, arg1)
 }
 
 // GetAllQueues mocks base method.
-func (m *MockQueueRepository) GetAllQueues() ([]queue.Queue, error) {
+func (m *MockQueueRepository) GetAllQueues(arg0 *armadacontext.Context) ([]queue.Queue, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllQueues")
+	ret := m.ctrl.Call(m, "GetAllQueues", arg0)
 	ret0, _ := ret[0].([]queue.Queue)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllQueues indicates an expected call of GetAllQueues.
-func (mr *MockQueueRepositoryMockRecorder) GetAllQueues() *gomock.Call {
+func (mr *MockQueueRepositoryMockRecorder) GetAllQueues(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllQueues", reflect.TypeOf((*MockQueueRepository)(nil).GetAllQueues))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllQueues", reflect.TypeOf((*MockQueueRepository)(nil).GetAllQueues), arg0)
 }
 
 // GetQueue mocks base method.
-func (m *MockQueueRepository) GetQueue(arg0 string) (queue.Queue, error) {
+func (m *MockQueueRepository) GetQueue(arg0 *armadacontext.Context, arg1 string) (queue.Queue, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQueue", arg0)
+	ret := m.ctrl.Call(m, "GetQueue", arg0, arg1)
 	ret0, _ := ret[0].(queue.Queue)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetQueue indicates an expected call of GetQueue.
-func (mr *MockQueueRepositoryMockRecorder) GetQueue(arg0 interface{}) *gomock.Call {
+func (mr *MockQueueRepositoryMockRecorder) GetQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueue", reflect.TypeOf((*MockQueueRepository)(nil).GetQueue), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueue", reflect.TypeOf((*MockQueueRepository)(nil).GetQueue), arg0, arg1)
 }
 
 // UpdateQueue mocks base method.
-func (m *MockQueueRepository) UpdateQueue(arg0 queue.Queue) error {
+func (m *MockQueueRepository) UpdateQueue(arg0 *armadacontext.Context, arg1 queue.Queue) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateQueue", arg0)
+	ret := m.ctrl.Call(m, "UpdateQueue", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateQueue indicates an expected call of UpdateQueue.
-func (mr *MockQueueRepositoryMockRecorder) UpdateQueue(arg0 interface{}) *gomock.Call {
+func (mr *MockQueueRepositoryMockRecorder) UpdateQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueue", reflect.TypeOf((*MockQueueRepository)(nil).UpdateQueue), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueue", reflect.TypeOf((*MockQueueRepository)(nil).UpdateQueue), arg0, arg1)
 }
