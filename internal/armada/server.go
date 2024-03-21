@@ -3,9 +3,6 @@ package armada
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/redis/go-redis/extra/redisprometheus/v9"
-	"github.com/redis/go-redis/v9"
 	"math"
 	"net"
 	"time"
@@ -16,6 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/extra/redisprometheus/v9"
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 

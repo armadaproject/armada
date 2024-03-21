@@ -75,6 +75,7 @@ require (
 	github.com/go-openapi/swag v0.22.6
 	github.com/go-openapi/validate v0.22.6
 	github.com/go-playground/validator/v10 v10.15.4
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/status v1.1.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.15.2
@@ -84,6 +85,8 @@ require (
 	github.com/minio/highwayhash v1.0.2
 	github.com/openconfig/goyang v1.2.0
 	github.com/prometheus/common v0.39.0
+	github.com/redis/go-redis/extra/redisprometheus/v9 v9.0.5
+	github.com/redis/go-redis/v9 v9.5.1
 	github.com/sanity-io/litter v1.5.5
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
@@ -171,8 +174,6 @@ require (
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
-	github.com/redis/go-redis/extra/redisprometheus/v9 v9.0.5 // indirect
-	github.com/redis/go-redis/v9 v9.5.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
