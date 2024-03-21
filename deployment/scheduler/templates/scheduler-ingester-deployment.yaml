@@ -44,6 +44,15 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.ingester.resources | nindent 12 }}
+          ports:
+            {{- if .Values.ingester.applicationConfig.pprofPort }}
+            - containerPort: {{ .Values.ingester.applicationConfig.pprofPort }}
+              protocol: TCP
+              name: pprof
+            {{- end }}
+            - containerPort: {{ .Values.ingester.applicationConfig.metricsPort }}
+              protocol: TCP
+              name: metrics
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
