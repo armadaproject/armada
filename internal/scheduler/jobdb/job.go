@@ -590,6 +590,14 @@ func (job *Job) WithFailed(failed bool) *Job {
 	return j
 }
 
+func (job *Job) WithoutTerminal() *Job {
+	j := copyJob(*job)
+	j.cancelled = false
+	j.failed = false
+	j.succeeded = false
+	return j
+}
+
 // Created Returns the creation time of the job
 func (job *Job) Created() int64 {
 	return job.submittedTime
