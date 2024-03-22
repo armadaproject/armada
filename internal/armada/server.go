@@ -103,7 +103,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		}
 	}()
 	prometheus.MustRegister(
-		redisprometheus.NewCollector("armada", "events-redis", eventDb))
+		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
