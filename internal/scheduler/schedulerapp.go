@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -37,6 +37,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -154,9 +155,9 @@ func Run(config schedulerconfig.Configuration) error {
 		jobRepository,
 		executorRepository,
 		legacyExecutorRepository,
-		types.AllowedPriorities(config.Scheduling.Preemption.PriorityClasses),
-		config.Scheduling.Preemption.NodeIdLabel,
-		config.Scheduling.Preemption.PriorityClassNameOverride,
+		types.AllowedPriorities(config.Scheduling.PriorityClasses),
+		config.Scheduling.NodeIdLabel,
+		config.Scheduling.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
@@ -186,14 +187,52 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
 
-	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
-	if err != nil {
-		return errors.WithMessage(err, "error creating scheduling context repository")
-	}
+	schedulingContextRepository := NewSchedulingContextRepository()
 
 	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
 	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	// Setup failure estimation and quarantining.
+	failureEstimator, err := failureestimator.New(
+		config.Scheduling.FailureProbabilityEstimation.NumInnerIterations,
+		// Invalid config will have failed validation.
+		descent.MustNew(config.Scheduling.FailureProbabilityEstimation.InnerOptimiserStepSize),
+		// Invalid config will have failed validation.
+		nesterov.MustNew(
+			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserStepSize,
+			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserNesterovAcceleration,
+		),
+	)
+	if err != nil {
+		return err
+	}
+	failureEstimator.Disable(config.Scheduling.FailureProbabilityEstimation.Disabled)
+	if err := prometheus.Register(failureEstimator); err != nil {
+		return errors.WithStack(err)
+	}
+	nodeQuarantiner, err := quarantine.NewNodeQuarantiner(
+		config.Scheduling.NodeQuarantining.FailureProbabilityQuarantineThreshold,
+		config.Scheduling.NodeQuarantining.FailureProbabilityEstimateTimeout,
+		failureEstimator,
+	)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(nodeQuarantiner); err != nil {
+		return errors.WithStack(err)
+	}
+	queueQuarantiner, err := quarantine.NewQueueQuarantiner(
+		config.Scheduling.QueueQuarantining.QuarantineFactorMultiplier,
+		config.Scheduling.QueueQuarantining.FailureProbabilityEstimateTimeout,
+		failureEstimator,
+	)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(queueQuarantiner); err != nil {
+		return errors.WithStack(err)
+	}
 
 	schedulingAlgo, err := NewFairSchedulingAlgo(
 		config.Scheduling,
@@ -201,13 +240,15 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		queueRepository,
 		schedulingContextRepository,
+		nodeQuarantiner,
+		queueQuarantiner,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}
 	jobDb := jobdb.NewJobDb(
-		config.Scheduling.Preemption.PriorityClasses,
-		config.Scheduling.Preemption.DefaultPriorityClass,
+		config.Scheduling.PriorityClasses,
+		config.Scheduling.DefaultPriorityClassName,
 		config.InternedStringsCacheSize,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
@@ -219,24 +260,6 @@ func Run(config schedulerconfig.Configuration) error {
 		return err
 	}
 	if err := prometheus.Register(schedulerMetrics); err != nil {
-		return errors.WithStack(err)
-	}
-
-	failureEstimator, err := failureestimator.New(
-		config.Scheduling.FailureEstimatorConfig.NumInnerIterations,
-		// Invalid config will have failed validation.
-		descent.MustNew(config.Scheduling.FailureEstimatorConfig.InnerOptimiserStepSize),
-		// Invalid config will have failed validation.
-		nesterov.MustNew(
-			config.Scheduling.FailureEstimatorConfig.OuterOptimiserStepSize,
-			config.Scheduling.FailureEstimatorConfig.OuterOptimiserNesterovAcceleration,
-		),
-	)
-	if err != nil {
-		return err
-	}
-	failureEstimator.Disable(config.Scheduling.FailureEstimatorConfig.Disabled)
-	if err := prometheus.Register(failureEstimator); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -252,7 +275,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
-		config.Scheduling.Preemption.NodeIdLabel,
+		config.Scheduling.NodeIdLabel,
 		schedulingRoundMetrics,
 		schedulerMetrics,
 		failureEstimator,

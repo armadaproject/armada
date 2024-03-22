@@ -44,12 +44,11 @@ import (
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
 // TODO: Consider returning a list of message ids of the messages generated
-// TODO: Include job set as the message key for each message
 type PulsarSubmitServer struct {
 	Producer         pulsar.Producer
 	QueueRepository  repository.QueueRepository
 	JobRepository    repository.JobRepository
-	SchedulingConfig configuration.SchedulingConfig
+	SubmissionConfig configuration.SubmissionConfig
 	// Maximum size of Pulsar messages
 	MaxAllowedMessageSize uint
 	// Used for job submission deduplication.
@@ -93,7 +92,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 		return nil, st.Err()
 	}
-	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, srv.SchedulingConfig); err != nil {
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, srv.SubmissionConfig); err != nil {
 		details := &api.JobSubmitResponse{
 			JobResponseItems: responseItems,
 		}
@@ -202,7 +201,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 	}
 
 	if len(pulsarJobDetails) > 0 {
-		err = srv.JobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails)
+		err = srv.JobRepository.StorePulsarSchedulerJobDetails(ctx, pulsarJobDetails)
 		if err != nil {
 			log.WithError(err).Error("failed store pulsar job details")
 			return nil, status.Error(codes.Internal, "failed store pulsar job details")
@@ -260,7 +259,7 @@ func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobC
 	}
 
 	// resolve the queue and jobset of the job: we can't trust what the user has given us
-	resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(req.JobId)
+	resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(ctx, req.JobId)
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +466,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *ap
 	if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
 		firstJobId := req.JobIds[0]
 
-		resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(firstJobId)
+		resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(ctx, firstJobId)
 		if err != nil {
 			return nil, err
 		}
@@ -586,7 +585,7 @@ func (srv *PulsarSubmitServer) Authorize(
 	principal := authorization.GetPrincipal(ctx)
 	userId := principal.GetName()
 	groups := principal.GetGroupNames()
-	q, err := srv.QueueRepository.GetQueue(queueName)
+	q, err := srv.QueueRepository.GetQueue(ctx, queueName)
 	if err != nil {
 		return userId, groups, err
 	}
@@ -619,7 +618,7 @@ func (srv *PulsarSubmitServer) CreateQueue(grpcCtx context.Context, req *api.Que
 		return nil, status.Errorf(codes.InvalidArgument, "[CreateQueue] error validating queue: %s", err)
 	}
 
-	err = srv.QueueRepository.CreateQueue(queue)
+	err = srv.QueueRepository.CreateQueue(ctx, queue)
 	var eq *repository.ErrQueueAlreadyExists
 	if errors.As(err, &eq) {
 		return nil, status.Errorf(codes.AlreadyExists, "[CreateQueue] error creating queue: %s", err)
@@ -664,7 +663,7 @@ func (srv *PulsarSubmitServer) UpdateQueue(grpcCtx context.Context, req *api.Que
 		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
 	}
 
-	err = srv.QueueRepository.UpdateQueue(queue)
+	err = srv.QueueRepository.UpdateQueue(ctx, queue)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "[UpdateQueue] error: %s", err)
@@ -704,15 +703,16 @@ func (srv *PulsarSubmitServer) DeleteQueue(grpcCtx context.Context, req *api.Que
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[DeleteQueue] error checking permissions: %s", err)
 	}
-	err = srv.QueueRepository.DeleteQueue(req.Name)
+	err = srv.QueueRepository.DeleteQueue(ctx, req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error deleting queue %s: %s", req.Name, err)
 	}
 	return &types.Empty{}, nil
 }
 
-func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	queue, err := srv.QueueRepository.GetQueue(req.Name)
+func (srv *PulsarSubmitServer) GetQueue(grpcCtx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	queue, err := srv.QueueRepository.GetQueue(ctx, req.Name)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "[GetQueue] error: %s", err)
@@ -728,8 +728,8 @@ func (srv *PulsarSubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stre
 	if numToReturn < 1 {
 		numToReturn = math.MaxUint32
 	}
-
-	queues, err := srv.QueueRepository.GetAllQueues()
+	ctx := armadacontext.FromGrpcCtx(stream.Context())
+	queues, err := srv.QueueRepository.GetAllQueues(ctx)
 	if err != nil {
 		return err
 	}
@@ -754,7 +754,7 @@ func (srv *PulsarSubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stre
 	return nil
 }
 
-func (srv *PulsarSubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+func (srv *PulsarSubmitServer) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
@@ -837,8 +837,8 @@ func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, a
 
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
 // If no job can be retrieved then an error is returned.
-func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
-	jobDetails, err := srv.JobRepository.GetPulsarSchedulerJobDetails(jobId)
+func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(ctx *armadacontext.Context, jobId string) (string, string, error) {
+	jobDetails, err := srv.JobRepository.GetPulsarSchedulerJobDetails(ctx, jobId)
 	if err != nil {
 		return "", "", err
 	}
@@ -917,10 +917,13 @@ func (srv *PulsarSubmitServer) createJobsObjects(request *api.JobSubmitRequest, 
 		if namespace == "" {
 			namespace = "default"
 		}
-		fillContainerRequestsAndLimits(podSpec.Containers)
-		applyDefaultsToAnnotations(item.Annotations, srv.SchedulingConfig)
-		applyDefaultsToPodSpec(podSpec, srv.SchedulingConfig)
-		if err := validation.ValidatePodSpec(podSpec, srv.SchedulingConfig); err != nil {
+		mutationMsg := fillContainerRequestsAndLimits(podSpec.Containers)
+		if mutationMsg != "" {
+			log.Infof("Inconsistent resources detected for job %s: %s", jobId, mutationMsg)
+		}
+		applyDefaultsToAnnotations(item.Annotations, srv.SubmissionConfig)
+		applyDefaultsToPodSpec(podSpec, srv.SubmissionConfig)
+		if err := validation.ValidatePodSpec(podSpec, srv.SubmissionConfig); err != nil {
 			response := &api.JobSubmitResponseItem{
 				JobId: jobId,
 				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),

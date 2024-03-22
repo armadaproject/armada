@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/hashicorp/go-multierror"
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -54,7 +54,7 @@ func (repo *RedisEventStore) Store(ctx *armadacontext.Context, update *model.Bat
 		newSize := currentSize + len(event.Event)
 		newRows := currentRows + 1
 		if newSize > repo.maxSize || newRows > repo.maxRows {
-			err := repo.doStore(batch)
+			err := repo.doStore(ctx, batch)
 			result = multierror.Append(result, err)
 			batch = make([]*model.Event, 0, repo.maxRows)
 			currentSize = 0
@@ -66,14 +66,14 @@ func (repo *RedisEventStore) Store(ctx *armadacontext.Context, update *model.Bat
 
 		// If this is the last element we need to flush
 		if i == len(update.Events)-1 {
-			err := repo.doStore(batch)
+			err := repo.doStore(ctx, batch)
 			result = multierror.Append(result, err)
 		}
 	}
 	return result.ErrorOrNil()
 }
 
-func (repo *RedisEventStore) doStore(update []*model.Event) error {
+func (repo *RedisEventStore) doStore(ctx *armadacontext.Context, update []*model.Event) error {
 	type eventData struct {
 		key  string
 		data []byte
@@ -90,7 +90,7 @@ func (repo *RedisEventStore) doStore(update []*model.Event) error {
 	return ingest.WithRetry(func() (bool, error) {
 		pipe := repo.db.Pipeline()
 		for _, e := range data {
-			pipe.XAdd(&redis.XAddArgs{
+			pipe.XAdd(ctx, &redis.XAddArgs{
 				Stream: e.key,
 				Values: map[string]interface{}{
 					dataKey: e.data,
@@ -99,10 +99,10 @@ func (repo *RedisEventStore) doStore(update []*model.Event) error {
 		}
 
 		for key := range uniqueJobSets {
-			pipe.Expire(key, repo.eventRetention.RetentionDuration)
+			pipe.Expire(ctx, key, repo.eventRetention.RetentionDuration)
 		}
 
-		_, err := pipe.Exec()
+		_, err := pipe.Exec(ctx)
 
 		if err == nil {
 			return false, nil

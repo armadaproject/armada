@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -17,9 +18,9 @@ const (
 )
 
 type JobRepository interface {
-	StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
-	GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error)
-	ExpirePulsarSchedulerJobDetails(jobId []string) error
+	StorePulsarSchedulerJobDetails(ctx *armadacontext.Context, jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
+	GetPulsarSchedulerJobDetails(ctx *armadacontext.Context, jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error)
+	ExpirePulsarSchedulerJobDetails(ctx *armadacontext.Context, jobId []string) error
 }
 
 type RedisJobRepository struct {
@@ -32,7 +33,7 @@ func NewRedisJobRepository(
 	return &RedisJobRepository{db: db}
 }
 
-func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
+func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(ctx *armadacontext.Context, jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
 	pipe := repo.db.Pipeline()
 	for _, job := range jobDetails {
 		key := fmt.Sprintf("%s%s", pulsarJobPrefix, job.JobId)
@@ -40,17 +41,17 @@ func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*sch
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		pipe.Set(key, jobData, 375*24*time.Hour) // expire after a year
+		pipe.Set(ctx, key, jobData, 375*24*time.Hour) // expire after a year
 	}
-	_, err := pipe.Exec()
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "error storing pulsar job details in redis")
 	}
 	return nil
 }
 
-func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
-	cmd := repo.db.Get(pulsarJobPrefix + jobId)
+func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(ctx *armadacontext.Context, jobId string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
+	cmd := repo.db.Get(ctx, pulsarJobPrefix+jobId)
 
 	bytes, err := cmd.Bytes()
 	if err != nil && err != redis.Nil {
@@ -67,7 +68,7 @@ func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*sch
 	return details, nil
 }
 
-func (repo *RedisJobRepository) ExpirePulsarSchedulerJobDetails(jobIds []string) error {
+func (repo *RedisJobRepository) ExpirePulsarSchedulerJobDetails(ctx *armadacontext.Context, jobIds []string) error {
 	if len(jobIds) == 0 {
 		return nil
 	}
@@ -75,9 +76,9 @@ func (repo *RedisJobRepository) ExpirePulsarSchedulerJobDetails(jobIds []string)
 	for _, jobId := range jobIds {
 		key := fmt.Sprintf("%s%s", pulsarJobPrefix, jobId)
 		// Expire as opposed to delete so that we are permissive of race conditions.
-		pipe.Expire(key, 1*time.Hour)
+		pipe.Expire(ctx, key, 1*time.Hour)
 	}
-	if _, err := pipe.Exec(); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		return errors.Wrap(err, "failed to delete pulsar job details in Redis")
 	}
 	return nil

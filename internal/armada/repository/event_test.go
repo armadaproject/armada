@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -140,24 +141,26 @@ var expectedRunning = api.EventMessage{
 }
 
 func TestRead(t *testing.T) {
-	withRedisEventRepository(func(r *RedisEventRepository) {
-		err := storeEvents(r, assigned, running)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisEventRepository(ctx, func(r *RedisEventRepository) {
+		err := storeEvents(ctx, r, assigned, running)
 		assert.NoError(t, err)
 
 		// Fetch from beginning
-		events, lastMessageId, err := r.ReadEvents(testQueue, jobSetName, "", 500, 1*time.Second)
+		events, lastMessageId, err := r.ReadEvents(ctx, testQueue, jobSetName, "", 500, 1*time.Second)
 		assert.NoError(t, err)
 		assertExpected(t, events, lastMessageId, &expectedPending, &expectedRunning)
 
 		// Fetch from offset in the middle
 		offset := events[0].Id
-		events, lastMessageId, err = r.ReadEvents(testQueue, jobSetName, offset, 500, 1*time.Second)
+		events, lastMessageId, err = r.ReadEvents(ctx, testQueue, jobSetName, offset, 500, 1*time.Second)
 		assert.NoError(t, err)
 		assertExpected(t, events, lastMessageId, &expectedRunning)
 
 		// Fetch from offset after
 		offset = events[0].Id
-		events, lastMessageId, err = r.ReadEvents(testQueue, jobSetName, offset, 500, 1*time.Second)
+		events, lastMessageId, err = r.ReadEvents(ctx, testQueue, jobSetName, offset, 500, 1*time.Second)
 		assert.NoError(t, err)
 		assert.Nil(t, lastMessageId)
 		assert.Equal(t, 0, len(events))
@@ -166,11 +169,11 @@ func TestRead(t *testing.T) {
 		// JobRunSucceeded doesn't result in an api event, so expect:
 		// - No events
 		// - Last message Id to be non-nil
-		err = storeEvents(r, runSucceeded)
+		err = storeEvents(ctx, r, runSucceeded)
 		assert.NoError(t, err)
 		offSetId, err := sequence.Parse(offset)
 		assert.NoError(t, err)
-		events, lastMessageId, err = r.ReadEvents(testQueue, jobSetName, offSetId.String(), 500, 1*time.Second)
+		events, lastMessageId, err = r.ReadEvents(ctx, testQueue, jobSetName, offSetId.String(), 500, 1*time.Second)
 		assert.NoError(t, err)
 		assert.NotNil(t, lastMessageId)
 		assert.True(t, lastMessageId.IsAfter(offSetId))
@@ -179,47 +182,51 @@ func TestRead(t *testing.T) {
 }
 
 func TestGetLastId(t *testing.T) {
-	withRedisEventRepository(func(r *RedisEventRepository) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisEventRepository(ctx, func(r *RedisEventRepository) {
 		// Event doesn't exist- should be "0"
-		retrievedLastId, err := r.GetLastMessageId(testQueue, jobSetName)
+		retrievedLastId, err := r.GetLastMessageId(ctx, testQueue, jobSetName)
 		assert.NoError(t, err)
 		assert.Equal(t, "0", retrievedLastId)
 
 		// Now create the stream and fetch the events to manually determine the last id
-		err = storeEvents(r, assigned, running)
+		err = storeEvents(ctx, r, assigned, running)
 		assert.NoError(t, err)
-		events, _, err := r.ReadEvents(testQueue, jobSetName, "", 500, 1*time.Second)
+		events, _, err := r.ReadEvents(ctx, testQueue, jobSetName, "", 500, 1*time.Second)
 		assert.NoError(t, err)
 		actualLastId := events[1].Id
 
 		// Assert that the test id matches
-		retrievedLastId, err = r.GetLastMessageId(testQueue, jobSetName)
+		retrievedLastId, err = r.GetLastMessageId(ctx, testQueue, jobSetName)
 		assert.NoError(t, err)
 		assert.Equal(t, actualLastId, retrievedLastId)
 	})
 }
 
 func TestStreamExists(t *testing.T) {
-	withRedisEventRepository(func(r *RedisEventRepository) {
-		exists, err := r.CheckStreamExists(testQueue, jobSetName)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisEventRepository(ctx, func(r *RedisEventRepository) {
+		exists, err := r.CheckStreamExists(ctx, testQueue, jobSetName)
 		assert.NoError(t, err)
 		assert.False(t, exists)
 
-		err = storeEvents(r, assigned, running)
+		err = storeEvents(ctx, r, assigned, running)
 		assert.NoError(t, err)
 
-		exists, err = r.CheckStreamExists(testQueue, jobSetName)
+		exists, err = r.CheckStreamExists(ctx, testQueue, jobSetName)
 		assert.NoError(t, err)
 		assert.True(t, exists)
 	})
 }
 
-func withRedisEventRepository(action func(r *RedisEventRepository)) {
+func withRedisEventRepository(ctx *armadacontext.Context, action func(r *RedisEventRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	defer client.FlushDB()
+	defer client.FlushDB(ctx)
 	defer client.Close()
 
-	client.FlushDB()
+	client.FlushDB(ctx)
 
 	repo := NewEventRepository(client)
 	action(repo)
@@ -234,7 +241,7 @@ func assertExpected(t *testing.T, actual []*api.EventStreamMessage, lastMessageI
 	assert.Equal(t, actual[len(actual)-1].Id, lastMessageId.String())
 }
 
-func storeEvents(r *RedisEventRepository, events ...*armadaevents.EventSequence_Event) error {
+func storeEvents(ctx *armadacontext.Context, r *RedisEventRepository, events ...*armadaevents.EventSequence_Event) error {
 	// create an eventSequence
 	es := &armadaevents.EventSequence{Events: events}
 
@@ -251,7 +258,7 @@ func storeEvents(r *RedisEventRepository, events ...*armadaevents.EventSequence_
 		return err
 	}
 
-	r.db.XAdd(&redis.XAddArgs{
+	r.db.XAdd(ctx, &redis.XAddArgs{
 		Stream: eventStreamPrefix + testQueue + ":" + jobSetName,
 		Values: map[string]interface{}{
 			dataKey: compressed,

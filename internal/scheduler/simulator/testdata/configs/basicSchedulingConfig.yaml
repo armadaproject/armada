@@ -18,12 +18,12 @@ indexedResources:
     resolution: "1Mi"
   - name: "nvidia.com/gpu"
     resolution: "1"
-preemption:
-  nodeEvictionProbability: 1.0
-  priorityClasses:
-    armada-default:
-      priority: 30000
-      preemptible: false
-    armada-preemptible:
-      priority: 30000
-      preemptible: true
+nodeEvictionProbability: 1.0
+priorityClasses:
+  armada-default:
+    priority: 30000
+    preemptible: false
+  armada-preemptible:
+    priority: 30000
+    preemptible: true
+defaultPriorityClassName: "armada-default"

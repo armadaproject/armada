@@ -548,7 +548,7 @@ func TestQueueScheduler(t *testing.T) {
 			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(
 				schedulercontext.JobSchedulingContextsFromJobs(
-					tc.SchedulingConfig.Preemption.PriorityClasses,
+					tc.SchedulingConfig.PriorityClasses,
 					legacySchedulerJobs,
 				),
 			)
@@ -561,8 +561,8 @@ func TestQueueScheduler(t *testing.T) {
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
 				"pool",
-				tc.SchedulingConfig.Preemption.PriorityClasses,
-				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
+				tc.SchedulingConfig.PriorityClasses,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -690,6 +690,16 @@ func TestQueueScheduler(t *testing.T) {
 				nodeId, ok := result.NodeIdByJobId[jctx.JobId]
 				assert.True(t, ok)
 				assert.NotEmpty(t, nodeId)
+
+				node, err := nodeDb.GetNode(nodeId)
+				require.NoError(t, err)
+				assert.NotEmpty(t, node)
+
+				// Check that the job can actually go onto this node.
+				matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+				require.NoError(t, err)
+				assert.Empty(t, reason)
+				assert.True(t, matches)
 			}
 
 			// For jobs that could not be scheduled,
@@ -720,7 +730,7 @@ func TestQueueScheduler(t *testing.T) {
 
 func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		config.Preemption.PriorityClasses,
+		config.PriorityClasses,
 		config.MaxExtraNodesToConsider,
 		config.IndexedResources,
 		config.IndexedTaints,

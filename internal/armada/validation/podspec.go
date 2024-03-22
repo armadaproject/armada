@@ -10,13 +10,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig configuration.SchedulingConfig) error {
+func ValidatePodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) error {
 	if spec == nil {
 		return errors.Errorf("empty pod spec")
 	}
 
-	if uint(spec.Size()) > schedulingConfig.MaxPodSpecSizeBytes {
-		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), schedulingConfig.MaxPodSpecSizeBytes)
+	if uint(spec.Size()) > config.MaxPodSpecSizeBytes {
+		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), config.MaxPodSpecSizeBytes)
 	}
 
 	if len(spec.Containers) == 0 {
@@ -28,7 +28,7 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig configuration.Scheduling
 		return err
 	}
 
-	err = validateTerminationGracePeriod(spec, schedulingConfig)
+	err = validateTerminationGracePeriod(spec, config)
 	if err != nil {
 		return err
 	}
@@ -40,12 +40,10 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig configuration.Scheduling
 		if len(container.Resources.Requests) == 0 {
 			return errors.Errorf("container %v has no resource requests specified", container.Name)
 		}
-		err = validateContainerResource(container.Resources.Limits, schedulingConfig.MinJobResources, container.Name, "limit")
-		if err != nil {
+		if err := validateContainerResource(container.Resources.Limits, config.MinJobResources, container.Name, "limit"); err != nil {
 			return err
 		}
-		err = validateContainerResource(container.Resources.Requests, schedulingConfig.MinJobResources, container.Name, "request")
-		if err != nil {
+		if err := validateContainerResource(container.Resources.Requests, config.MinJobResources, container.Name, "request"); err != nil {
 			return err
 		}
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
@@ -55,14 +53,14 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig configuration.Scheduling
 	return validatePorts(spec)
 }
 
-func validateTerminationGracePeriod(spec *v1.PodSpec, config configuration.SchedulingConfig) error {
+func validateTerminationGracePeriod(spec *v1.PodSpec, config configuration.SubmissionConfig) error {
 	specHasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
 	var terminationGracePeriodSeconds int64
 	var exceedsBounds bool
 	if specHasTerminationGracePeriod {
 		terminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
-		exceedsBounds = (terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
-			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()))
+		exceedsBounds = terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
+			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds())
 	}
 	if exceedsBounds {
 		return errors.Errorf("terminationGracePeriodSeconds of %v must be in [%d, %d]s, or omitted",
@@ -125,9 +123,7 @@ func validateRequiredNodeAffinity(required *v1.NodeSelector) error {
 	if required == nil {
 		return nil
 	}
-
-	_, err := nodeaffinity.NewNodeSelector(required)
-	if err != nil {
+	if _, err := nodeaffinity.NewNodeSelector(required); err != nil {
 		return errors.Errorf("invalid RequiredDuringSchedulingIgnoredDuringExecution node affinity: %v", err)
 	}
 	return nil

@@ -92,8 +92,8 @@ func NewSchedulingConstraints(
 	config configuration.SchedulingConfig,
 	queues []queue.Queue,
 ) SchedulingConstraints {
-	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]PriorityClassSchedulingConstraints, len(config.Preemption.PriorityClasses))
-	for name, priorityClass := range config.Preemption.PriorityClasses {
+	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]PriorityClassSchedulingConstraints, len(config.PriorityClasses))
+	for name, priorityClass := range config.PriorityClasses {
 		maximumResourceFractionPerQueue := priorityClass.MaximumResourceFractionPerQueue
 		if m, ok := priorityClass.MaximumResourceFractionPerQueueByPool[pool]; ok {
 			// Use pool-specific config is available.

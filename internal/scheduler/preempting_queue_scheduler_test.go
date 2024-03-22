@@ -33,11 +33,11 @@ import (
 func TestEvictOversubscribed(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 
-	priorities := types.AllowedPriorities(config.Preemption.PriorityClasses)
+	priorities := types.AllowedPriorities(config.PriorityClasses)
 
 	jobs := append(
-		testfixtures.N1Cpu4GiJobs("A", config.Preemption.DefaultPriorityClass, 20),
-		testfixtures.N1Cpu4GiJobs("A", config.Preemption.DefaultPriorityClass, 20)...,
+		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClassName, 20),
+		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClassName, 20)...,
 	)
 
 	node := testfixtures.Test32CpuNode(priorities)
@@ -47,7 +47,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.Preemption.PriorityClasses, config.Preemption.DefaultPriorityClass, 1024)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, 1024)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -55,8 +55,8 @@ func TestEvictOversubscribed(t *testing.T) {
 	evictor := NewOversubscribedEvictor(
 		NewSchedulerJobRepositoryAdapter(jobDbTxn),
 		nodeDb,
-		config.Preemption.PriorityClasses,
-		config.Preemption.DefaultPriorityClass,
+		config.PriorityClasses,
+		config.DefaultPriorityClassName,
 		1,
 		nil,
 	)
@@ -1481,7 +1481,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		"home-away preemption, away jobs first": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
@@ -1493,7 +1493,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1547,7 +1547,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		"home-away preemption, home jobs first": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
@@ -1559,7 +1559,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1613,7 +1613,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		"home-away preemption, mixed nodes, away jobs first": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
@@ -1625,7 +1625,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1680,7 +1680,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		"home-away preemption, mixed nodes, home jobs first": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+				config.PriorityClasses = map[string]types.PriorityClass{
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
@@ -1692,7 +1692,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Preemptible: true,
 					},
 				}
-				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
 						Name:   "gpu",
@@ -1756,9 +1756,9 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			}
 			nodeDbTxn.Commit()
 
-			priorities := types.AllowedPriorities(tc.SchedulingConfig.Preemption.PriorityClasses)
+			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass, 1024)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, 1024)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.
@@ -1813,7 +1813,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							nodeId := nodeIdByJobId[job.GetId()]
 							node, err := nodeDb.GetNode(nodeId)
 							require.NoError(t, err)
-							node, err = nodeDb.UnbindJobFromNode(tc.SchedulingConfig.Preemption.PriorityClasses, job, node)
+							node, err = nodeDb.UnbindJobFromNode(tc.SchedulingConfig.PriorityClasses, job, node)
 							require.NoError(t, err)
 							err = nodeDb.Upsert(node)
 							require.NoError(t, err)
@@ -1848,8 +1848,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				sctx := schedulercontext.NewSchedulingContext(
 					"executor",
 					"pool",
-					tc.SchedulingConfig.Preemption.PriorityClasses,
-					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
+					tc.SchedulingConfig.PriorityClasses,
+					tc.SchedulingConfig.DefaultPriorityClassName,
 					fairnessCostProvider,
 					limiter,
 					tc.TotalResources,
@@ -1876,9 +1876,9 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
-					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
-					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-					tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
+					tc.SchedulingConfig.NodeEvictionProbability,
+					tc.SchedulingConfig.NodeOversubscriptionEvictionProbability,
+					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
 					nodeIdByJobId,
@@ -1937,6 +1937,16 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nodeId, ok := result.NodeIdByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotEmpty(t, nodeId)
+
+					node, err := nodeDb.GetNode(nodeId)
+					require.NoError(t, err)
+					assert.NotEmpty(t, node)
+
+					// Check that the job can actually go onto this node.
+					matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+					require.NoError(t, err)
+					assert.Empty(t, reason)
+					assert.True(t, matches)
 
 					// Check that scheduled jobs are consistently assigned to the same node.
 					// (We don't allow moving jobs between nodes.)
@@ -2171,7 +2181,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass, 1024)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, 1024)
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {
@@ -2202,8 +2212,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
 				"pool",
-				tc.SchedulingConfig.Preemption.PriorityClasses,
-				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
+				tc.SchedulingConfig.PriorityClasses,
+				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				limiter,
 				nodeDb.TotalResources(),
@@ -2223,9 +2233,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
-				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
-				tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-				tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
+				tc.SchedulingConfig.NodeEvictionProbability,
+				tc.SchedulingConfig.NodeOversubscriptionEvictionProbability,
+				tc.SchedulingConfig.ProtectedFractionOfFairShare,
 				NewSchedulerJobRepositoryAdapter(jobDbTxn),
 				nodeDb,
 				nil,
@@ -2271,8 +2281,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				sctx := schedulercontext.NewSchedulingContext(
 					"executor",
 					"pool",
-					tc.SchedulingConfig.Preemption.PriorityClasses,
-					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
+					tc.SchedulingConfig.PriorityClasses,
+					tc.SchedulingConfig.DefaultPriorityClassName,
 					fairnessCostProvider,
 					limiter,
 					nodeDb.TotalResources(),
@@ -2285,9 +2295,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
-					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
-					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-					tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
+					tc.SchedulingConfig.NodeEvictionProbability,
+					tc.SchedulingConfig.NodeOversubscriptionEvictionProbability,
+					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
 					nil,
