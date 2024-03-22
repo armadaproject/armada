@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +28,10 @@ import (
 )
 
 func TestEventServer_Health(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
 	withEventServer(
+		ctx,
 		t,
 		func(s *EventServer) {
 			health, err := s.Health(armadacontext.Background(), &types.Empty{})
@@ -39,7 +42,10 @@ func TestEventServer_Health(t *testing.T) {
 }
 
 func TestEventServer_ForceNew(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
 	withEventServer(
+		ctx,
 		t,
 		func(s *EventServer) {
 			jobSetId := "set1"
@@ -62,7 +68,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 				},
 			}
 
-			err := reportPulsarEvent(&armadaevents.EventSequence{
+			err := reportPulsarEvent(ctx, &armadaevents.EventSequence{
 				Queue:      queue,
 				JobSetName: jobSetId,
 				Events:     []*armadaevents.EventSequence_Event{assigned},
@@ -84,7 +90,10 @@ func TestEventServer_ForceNew(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
 	withEventServer(
+		ctx,
 		t,
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
@@ -96,7 +105,10 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
 	withEventServer(
+		ctx,
 		t,
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
@@ -115,6 +127,8 @@ func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
 	q := queue.Queue{
 		Name:           "test-queue",
 		PriorityFactor: 1,
@@ -122,9 +136,10 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 
 	t.Run("job set non existent ErrorIfMissing true", func(t *testing.T) {
 		withEventServer(
+			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(q)
+				err := s.queueRepository.CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -143,9 +158,10 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 
 	t.Run("job set non existent ErrorIfMissing false", func(t *testing.T) {
 		withEventServer(
+			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(q)
+				err := s.queueRepository.CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -161,9 +177,10 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 
 	t.Run("job set exists ErrorIfMissing true", func(t *testing.T) {
 		withEventServer(
+			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(q)
+				err := s.queueRepository.CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -183,7 +200,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					},
 				}
 
-				err = reportPulsarEvent(&armadaevents.EventSequence{
+				err = reportPulsarEvent(ctx, &armadaevents.EventSequence{
 					Queue:      "test-queue",
 					JobSetName: "job-set-1",
 					Events:     []*armadaevents.EventSequence_Event{assigned},
@@ -204,9 +221,10 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 
 	t.Run("job set exists ErrorIfMissing false", func(t *testing.T) {
 		withEventServer(
+			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(q)
+				err := s.queueRepository.CreateQueue(ctx, q)
 				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -226,7 +244,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					},
 				}
 
-				err = reportPulsarEvent(&armadaevents.EventSequence{
+				err = reportPulsarEvent(ctx, &armadaevents.EventSequence{
 					Queue:      "test-queue",
 					JobSetName: "job-set-1",
 					Events:     []*armadaevents.EventSequence_Event{assigned},
@@ -247,6 +265,8 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
 		permissions.WatchAllEvents: {"watch-all-events-group"},
@@ -267,10 +287,11 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 
 	t.Run("no permissions", func(t *testing.T) {
 		withEventServer(
+			ctx,
 			t,
 			func(s *EventServer) {
 				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.CreateQueue(q)
+				err := s.queueRepository.CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{})
@@ -291,10 +312,11 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 
 	t.Run("global permissions", func(t *testing.T) {
 		withEventServer(
+			ctx,
 			t,
 			func(s *EventServer) {
 				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.CreateQueue(q)
+				err := s.queueRepository.CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
@@ -314,9 +336,9 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	})
 
 	t.Run("queue permission", func(t *testing.T) {
-		withEventServer(t, func(s *EventServer) {
+		withEventServer(ctx, t, func(s *EventServer) {
 			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-			err := s.queueRepository.CreateQueue(q)
+			err := s.queueRepository.CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
 			principal := authorization.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
@@ -335,7 +357,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	})
 }
 
-func reportPulsarEvent(es *armadaevents.EventSequence) error {
+func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequence) error {
 	bytes, err := proto.Marshal(es)
 	if err != nil {
 		return err
@@ -351,7 +373,7 @@ func reportPulsarEvent(es *armadaevents.EventSequence) error {
 
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
-	client.XAdd(&redis.XAddArgs{
+	client.XAdd(ctx, &redis.XAddArgs{
 		Stream: "Events:" + es.Queue + ":" + es.JobSetName,
 		Values: map[string]interface{}{
 			"message": compressed,
@@ -360,7 +382,7 @@ func reportPulsarEvent(es *armadaevents.EventSequence) error {
 	return nil
 }
 
-func withEventServer(t *testing.T, action func(s *EventServer)) {
+func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *EventServer)) {
 	t.Helper()
 
 	// using real redis instance as miniredis does not support streams
@@ -372,11 +394,11 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 	jobRepo := repository.NewRedisJobRepository(client)
 	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo, jobRepo)
 
-	client.FlushDB()
-	legacyClient.FlushDB()
+	client.FlushDB(ctx)
+	legacyClient.FlushDB(ctx)
 
 	// Create test queue
-	err := queueRepo.CreateQueue(queue.Queue{
+	err := queueRepo.CreateQueue(ctx, queue.Queue{
 		Name:           "",
 		Permissions:    nil,
 		PriorityFactor: 1,
@@ -384,8 +406,8 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 	require.NoError(t, err)
 	action(server)
 
-	client.FlushDB()
-	legacyClient.FlushDB()
+	client.FlushDB(ctx)
+	legacyClient.FlushDB(ctx)
 }
 
 type eventStreamMock struct {

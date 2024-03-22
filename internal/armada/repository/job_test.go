@@ -2,40 +2,44 @@ package repository
 
 import (
 	"testing"
+	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestStoreAndGetPulsarSchedulerJobDetails(t *testing.T) {
-	withRepository(func(r *RedisJobRepository) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	withRepository(ctx, func(r *RedisJobRepository) {
 		details := &schedulerobjects.PulsarSchedulerJobDetails{
 			JobId:  util.NewULID(),
 			Queue:  "testQueue",
 			JobSet: "testJobset",
 		}
-		err := r.StorePulsarSchedulerJobDetails([]*schedulerobjects.PulsarSchedulerJobDetails{details})
+		err := r.StorePulsarSchedulerJobDetails(ctx, []*schedulerobjects.PulsarSchedulerJobDetails{details})
 		require.NoError(t, err)
 
-		retrievedDetails, err := r.GetPulsarSchedulerJobDetails(details.JobId)
+		retrievedDetails, err := r.GetPulsarSchedulerJobDetails(ctx, details.JobId)
 		require.NoError(t, err)
 		assert.Equal(t, details, retrievedDetails)
 
-		nonExistantDetails, err := r.GetPulsarSchedulerJobDetails("not a valid details key")
+		nonExistantDetails, err := r.GetPulsarSchedulerJobDetails(ctx, "not a valid details key")
 		require.NoError(t, err)
 		assert.Nil(t, nonExistantDetails)
 	})
 }
 
-func withRepository(action func(r *RedisJobRepository)) {
+func withRepository(ctx *armadacontext.Context, action func(r *RedisJobRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	defer client.FlushDB()
+	defer client.FlushDB(ctx)
 	defer client.Close()
-	client.FlushDB()
+	client.FlushDB(ctx)
 	repo := NewRedisJobRepository(client)
 	action(repo)
 }

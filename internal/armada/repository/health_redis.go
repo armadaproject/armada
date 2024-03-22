@@ -1,9 +1,10 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/go-redis/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 type RedisHealth struct {
@@ -15,7 +16,7 @@ func NewRedisHealth(db redis.UniversalClient) *RedisHealth {
 }
 
 func (r *RedisHealth) Check() error {
-	_, err := r.db.Ping().Result()
+	_, err := r.db.Ping(context.Background()).Result()
 	if err == nil {
 		return nil
 	} else {

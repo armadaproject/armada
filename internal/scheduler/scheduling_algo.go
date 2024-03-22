@@ -256,7 +256,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	executors = l.filterStaleExecutors(executors)
 
 	// TODO(albin): Skip queues with a high failure rate.
-	queues, err := l.queueRepository.GetAllQueues()
+	queues, err := l.queueRepository.GetAllQueues(ctx)
 	if err != nil {
 		return nil, err
 	}
