@@ -72,9 +72,6 @@ type PulsarConfig struct {
 	CompressionLevel pulsar.CompressionLevel
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
-	// Log all pulsar events
-	EventsPrinterSubscription string
-	EventsPrinter             bool
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
 	// Timeout when polling pulsar for messages

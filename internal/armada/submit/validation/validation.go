@@ -6,7 +6,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SchedulingConfig) error {
+func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SubmissionConfig) error {
 	requestValidator := validation.NewCompoundValidator[*api.JobSubmitRequest](
 		queueValidator{},
 		gangValidator{})
@@ -17,7 +17,7 @@ func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.Sched
 		podSpecSizeValidator{maxSize: config.MaxPodSpecSizeBytes},
 		affinityValidator{},
 		resourcesValidator{minJobResources: config.MinJobResources},
-		priorityClassValidator{allowedPriorityClasses: config.Preemption.PriorityClasses},
+		priorityClassValidator{allowedPriorityClasses: config.AllowedPriorityClassNames},
 		terminationGracePeriodValidator{
 			minGracePeriod: int64(config.MinTerminationGracePeriod.Seconds()),
 			maxGracePeriod: int64(config.MaxTerminationGracePeriod.Seconds()),

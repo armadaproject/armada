@@ -3,12 +3,11 @@ package validation
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 type priorityClassValidator struct {
-	allowedPriorityClasses map[string]types.PriorityClass
+	allowedPriorityClasses map[string]bool
 }
 
 func (p priorityClassValidator) Validate(j *api.JobSubmitRequestItem) error {

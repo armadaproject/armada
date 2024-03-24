@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -22,9 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -36,21 +31,33 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
-	producer         pulsar.Producer
+	publisher        Publisher
 	queueRepository  repository.QueueRepository
 	jobRepository    repository.JobRepository
-	schedulingConfig configuration.SchedulingConfig
-	// Maximum size of Pulsar messages
-	maxAllowedMessageSize uint
-	// Used for job submission deduplication.
-	kVStore *pgkeyvalue.PGKeyValueStore
-	// Used to check at job submit time if the job is unschedulable
-	submitChecker *scheduler.SubmitChecker
-	authorizer    server.ActionAuthorizer
+	submissionConfig configuration.SubmissionConfig
+	deduplicator     Deduplicator
+	submitChecker    *scheduler.SubmitChecker
+	authorizer       server.ActionAuthorizer
 }
 
-func NewServer() *Server {
-
+func NewServer(
+	publisher Publisher,
+	queueRepository repository.QueueRepository,
+	jobRepository repository.JobRepository,
+	submissionConfig configuration.SubmissionConfig,
+	deduplicator Deduplicator,
+	submitChecker *scheduler.SubmitChecker,
+	authorizer server.ActionAuthorizer,
+) *Server {
+	return &Server{
+		publisher:        publisher,
+		queueRepository:  queueRepository,
+		jobRepository:    jobRepository,
+		submissionConfig: submissionConfig,
+		deduplicator:     deduplicator,
+		submitChecker:    submitChecker,
+		authorizer:       authorizer,
+	}
 }
 
 func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -63,13 +70,13 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	}
 
 	// Validate the request is well-formed
-	if err = validation.ValidateSubmitRequest(req, s.SchedulingConfig); err != nil {
+	if err = validation.ValidateSubmitRequest(req, s.submissionConfig); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	// Get a mapping between req.ClientId and existing jobId.  If such a mapping exists, it means that
 	// this job has already been submitted.
-	originalIds, err := s.getOriginalJobIds(ctx, req.Queue, req.JobRequestItems)
+	originalIds, err := s.deduplicator.GetOriginalJobIds(ctx, req.Queue, req.JobRequestItems)
 	if err != nil {
 		// Deduplication is best-effort, therefore this is not fatal
 		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
@@ -116,7 +123,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		Groups:     groups,
 		Events:     submitMsgs,
 	}
-	if canSchedule, reason := s.SubmitChecker.CheckApiJobs(es); !canSchedule {
+	if canSchedule, reason := s.submitChecker.CheckApiJobs(es); !canSchedule {
 		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
@@ -131,23 +138,23 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 				}
 			})
 
-		if err = s.jobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails); err != nil {
+		if err = s.jobRepository.StorePulsarSchedulerJobDetails(ctx, pulsarJobDetails); err != nil {
 			log.WithError(err).Error("failed store pulsar job details")
 			return nil, status.Error(codes.Internal, "failed store pulsar job details")
 		}
 	}
 
 	if len(es.Events) > 0 {
-		err = pulsarutils.CompactAndPublishSequences(ctx, []*armadaevents.EventSequence{es}, s.producer, s.MaxAllowedMessageSize, schedulers.Pulsar)
+		err = s.publisher.PublishMessages(ctx, es)
 		if err != nil {
 			log.WithError(err).Error("failed send events to Pulsar")
-			return nil, status.Error(codes.Internal, "Failed to send message")
+			return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 		}
 	}
 
 	// Store the deduplication ids. Note that this will not be called if pulsar submission has failed, hence
 	// a partial pulsar submission can result in duplicate jobs.
-	if err = s.storeOriginalJobIds(ctx, req.Queue, idMappings); err != nil {
+	if err = s.deduplicator.StoreOriginalJobIds(ctx, req.Queue, idMappings); err != nil {
 		log.WithError(err).Warn("failed to store deduplication ids")
 	}
 	return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
@@ -166,11 +173,11 @@ func (s *Server) Authorize(
 	principal := authorization.GetPrincipal(ctx)
 	userId := principal.GetName()
 	groups := principal.GetGroupNames()
-	q, err := s.queueRepository.GetQueue(queueName)
+	q, err := s.queueRepository.GetQueue(ctx, queueName)
 	if err != nil {
 		return userId, groups, err
 	}
-	err = s.Authorizer.AuthorizeQueueAction(ctx, q, anyPerm, perm)
+	err = s.authorizer.AuthorizeQueueAction(ctx, q, anyPerm, perm)
 	return userId, groups, err
 }
 
@@ -188,49 +195,4 @@ func jobKey(queue, clientId string) string {
 	combined := fmt.Sprintf("%s:%s", queue, clientId)
 	h := sha1.Sum([]byte(combined))
 	return fmt.Sprintf("%x", h)
-}
-
-func (s *Server) getOriginalJobIds(ctx *armadacontext.Context, queue string, jobRequests []*api.JobSubmitRequestItem) (map[string]string, error) {
-	// If we don't have a KV store, then just return empty map
-	if s.KVStore == nil {
-		return map[string]string{}, nil
-	}
-
-	// Armada checks for duplicate job submissions if a ClientId (i.e. a deduplication id) is provided.
-	// Deduplication is based on storing the combined hash of the ClientId and queue. For storage efficiency,
-	// we store hashes instead of user-provided strings.
-	kvs := make(map[string][]byte, len(jobRequests))
-	for _, req := range jobRequests {
-		if req.ClientId != "" {
-			kvs[jobKey(queue, req.ClientId)] = []byte(req.ClientId)
-		}
-	}
-
-	duplicates := make(map[string]string)
-	// If we have any client Ids, retrieve their job ids
-	if len(kvs) > 0 {
-		keys := maps.Keys(kvs)
-		existingKvs, err := s.KVStore.Load(ctx, keys)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range kvs {
-			originalJobId, ok := existingKvs[k]
-			if ok {
-				duplicates[string(v)] = string(originalJobId)
-			}
-		}
-	}
-	return duplicates, nil
-}
-
-func (s *Server) storeOriginalJobIds(ctx *armadacontext.Context, queue string, mappings map[string]string) error {
-	if s.KVStore == nil || len(mappings) == 0 {
-		return nil
-	}
-	kvs := make(map[string][]byte, len(mappings))
-	for k, v := range mappings {
-		kvs[jobKey(queue, k)] = []byte(v)
-	}
-	return s.KVStore.Store(ctx, kvs)
 }
