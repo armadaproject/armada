@@ -1,35 +1,34 @@
 package validation
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/types"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {
+func ValidatePodSpec(spec *v1.PodSpec, config *configuration.SubmissionConfig) error {
 	if spec == nil {
 		return errors.Errorf("empty pod spec")
 	}
 
-	if uint(spec.Size()) > schedulingConfig.MaxPodSpecSizeBytes {
-		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), schedulingConfig.MaxPodSpecSizeBytes)
+	if uint(spec.Size()) > config.MaxPodSpecSizeBytes {
+		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), config.MaxPodSpecSizeBytes)
 	}
 
 	if len(spec.Containers) == 0 {
 		return errors.Errorf("pod spec has no containers")
 	}
 
-	err := validateAffinity(spec.Affinity)
-	if err != nil {
+	if err := validateAffinity(spec.Affinity); err != nil {
 		return err
 	}
 
-	err = validateTerminationGracePeriod(spec, schedulingConfig)
-	if err != nil {
+	if err := validateTerminationGracePeriod(spec, config); err != nil {
 		return err
 	}
 
@@ -40,12 +39,10 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.Schedulin
 		if len(container.Resources.Requests) == 0 {
 			return errors.Errorf("container %v has no resource requests specified", container.Name)
 		}
-		err = validateContainerResource(container.Resources.Limits, schedulingConfig.MinJobResources, container.Name, "limit")
-		if err != nil {
+		if err := validateContainerResource(container.Resources.Limits, config.MinJobResources, container.Name, "limit"); err != nil {
 			return err
 		}
-		err = validateContainerResource(container.Resources.Requests, schedulingConfig.MinJobResources, container.Name, "request")
-		if err != nil {
+		if err := validateContainerResource(container.Resources.Requests, config.MinJobResources, container.Name, "request"); err != nil {
 			return err
 		}
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
@@ -55,7 +52,7 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.Schedulin
 	return validatePorts(spec)
 }
 
-func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.SchedulingConfig) error {
+func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.SubmissionConfig) error {
 	specHasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
 	var terminationGracePeriodSeconds int64
 	var exceedsBounds bool
@@ -161,24 +158,14 @@ func validatePorts(podSpec *v1.PodSpec) error {
 	return nil
 }
 
-func validatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]types.PriorityClass) error {
+func validatePodSpecPriorityClass(podSpec *v1.PodSpec, allowedPriorityClassNames map[string]bool) error {
 	priorityClassName := podSpec.PriorityClassName
-	if priorityClassName != "" {
-		if !preemptionEnabled {
-			return errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PriorityClassName",
-				Value:   podSpec.PriorityClassName,
-				Message: "Preemption is disabled in Server config",
-			})
-		}
-		if _, exists := allowedPriorityClasses[priorityClassName]; !exists {
-			return errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PriorityClassName",
-				Value:   podSpec.PriorityClassName,
-				Message: "Specified Priority Class is not supported in Server config",
-			})
-		}
+	if !allowedPriorityClassNames[priorityClassName] {
+		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "PriorityClassName",
+			Value:   podSpec.PriorityClassName,
+			Message: fmt.Sprintf("priorityClassName not in %v", allowedPriorityClassNames),
+		})
 	}
-
 	return nil
 }

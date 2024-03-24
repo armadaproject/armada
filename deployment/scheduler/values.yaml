@@ -58,8 +58,7 @@ ingester:
       memory: 512Mi
       cpu: 200m
   applicationConfig:
-    metrics:
-      port: 9003
+    metricsPort: 9003
     pulsar: {}
   strategy:
     rollingUpdate:
@@ -70,6 +69,11 @@ ingester:
   additionalVolumeMounts: []
   additionalVolumes: []
   terminationGracePeriodSeconds: 30
+  prometheus:
+    enabled: false
+    labels: { }
+    scrapeInterval: 15s
+    scrapeTimeout: 10s
 
 pruner:
   enabled: true

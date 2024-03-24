@@ -61,6 +61,28 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
+		"Fair share": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []queue.Queue{
+				{
+					Name:           "testQueueA",
+					PriorityFactor: 100,
+				},
+				{
+					Name:           "testQueueB",
+					PriorityFactor: 300,
+				},
+			},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs("testQueueA", testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs("testQueueB", testfixtures.PriorityClass3, 10)...,
+			),
+			expectedScheduledIndices: []int{0, 1, 2, 10},
+		},
 		"do not schedule onto stale executors": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
@@ -358,16 +380,17 @@ func TestSchedule(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
-			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
+			mockQueueRepo.EXPECT().GetAllQueues(ctx).Return(tc.queues, nil).AnyTimes()
 
-			schedulingContextRepo, err := NewSchedulingContextRepository(1024)
-			require.NoError(t, err)
+			schedulingContextRepo := NewSchedulingContextRepository()
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
 				0,
 				mockExecutorRepo,
 				mockQueueRepo,
 				schedulingContextRepo,
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -452,9 +475,9 @@ func TestSchedule(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
 			}
-			// Sanity check: we've set `RuntimeGangCardinality` for all scheduled jobs.
+			// Sanity check: we've set `GangNumJobsScheduledAnnotation` for all scheduled jobs.
 			for _, job := range scheduledJobs {
-				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], configuration.RuntimeGangCardinality)
+				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], configuration.GangNumJobsScheduledAnnotation)
 			}
 
 			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality
@@ -526,12 +549,14 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					nil,
 					nil,
+					nil,
+					nil,
 				)
 				require.NoError(b, err)
 				b.StartTimer()
 
 				nodeDb, err := nodedb.NewNodeDb(
-					schedulingConfig.Preemption.PriorityClasses,
+					schedulingConfig.PriorityClasses,
 					schedulingConfig.MaxExtraNodesToConsider,
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,

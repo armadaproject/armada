@@ -123,12 +123,10 @@ func Repeat[T any](v T, n int) []T {
 
 func TestSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
-		Preemption: configuration.PreemptionConfig{
-			PriorityClasses:                         maps.Clone(TestPriorityClasses),
-			DefaultPriorityClass:                    TestDefaultPriorityClass,
-			NodeEvictionProbability:                 1.0,
-			NodeOversubscriptionEvictionProbability: 1.0,
-		},
+		PriorityClasses:                             maps.Clone(TestPriorityClasses),
+		DefaultPriorityClassName:                    TestDefaultPriorityClass,
+		NodeEvictionProbability:                     1.0,
+		NodeOversubscriptionEvictionProbability:     1.0,
 		MaximumSchedulingRate:                       math.Inf(1),
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
@@ -150,17 +148,17 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.Sch
 }
 
 func WithProtectedFractionOfFairShareConfig(v float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.Preemption.ProtectedFractionOfFairShare = v
+	config.ProtectedFractionOfFairShare = v
 	return config
 }
 
 func WithNodeEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.Preemption.NodeEvictionProbability = p
+	config.NodeEvictionProbability = p
 	return config
 }
 
 func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.Preemption.NodeOversubscriptionEvictionProbability = p
+	config.NodeOversubscriptionEvictionProbability = p
 	return config
 }
 
@@ -176,12 +174,12 @@ func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config conf
 
 func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	for priorityClassName, limit := range limits {
-		priorityClass, ok := config.Preemption.PriorityClasses[priorityClassName]
+		priorityClass, ok := config.PriorityClasses[priorityClassName]
 		if !ok {
 			panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
 		}
 		// We need to make a copy to avoid mutating the priorityClasses, which are used by other tests too.
-		config.Preemption.PriorityClasses[priorityClassName] = types.PriorityClass{
+		config.PriorityClasses[priorityClassName] = types.PriorityClass{
 			Priority:                              priorityClass.Priority,
 			Preemptible:                           priorityClass.Preemptible,
 			MaximumResourceFractionPerQueue:       limit,
@@ -789,7 +787,7 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 func MakeTestQueue() queue.Queue {
 	return queue.Queue{
 		Name:           TestQueue,
-		PriorityFactor: 0.01,
+		PriorityFactor: 100,
 	}
 }
 

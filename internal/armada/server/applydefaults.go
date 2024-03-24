@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"math"
 
 	v1 "k8s.io/api/core/v1"
@@ -10,14 +11,14 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
-func applyDefaultsToAnnotations(annotations map[string]string, config configuration.SchedulingConfig) {
+func applyDefaultsToAnnotations(annotations map[string]string, config configuration.SubmissionConfig) {
 	if annotations == nil {
 		return
 	}
 	applyDefaultNodeUniformityLabelAnnotation(annotations, config)
 }
 
-func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, config configuration.SchedulingConfig) {
+func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, config configuration.SubmissionConfig) {
 	if _, ok := annotations[configuration.GangIdAnnotation]; ok {
 		if _, ok := annotations[configuration.GangNodeUniformityLabelAnnotation]; !ok {
 			annotations[configuration.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
@@ -25,7 +26,7 @@ func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, co
 	}
 }
 
-func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec == nil {
 		return
 	}
@@ -36,7 +37,7 @@ func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingCon
 	applyDefaultTerminationGracePeriodToPodSpec(spec, config)
 }
 
-func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	for i := range spec.Containers {
 		c := &spec.Containers[i]
 		if c.Resources.Limits == nil {
@@ -56,7 +57,7 @@ func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configurati
 	}
 }
 
-func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	spec.Tolerations = append(spec.Tolerations, config.DefaultJobTolerations...)
 	if config.DefaultJobTolerationsByPriorityClass != nil {
 		if tolerations, ok := config.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
@@ -77,9 +78,9 @@ func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.Sch
 	}
 }
 
-func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.PriorityClassName == "" {
-		spec.PriorityClassName = config.Preemption.DefaultPriorityClass
+		spec.PriorityClassName = config.DefaultPriorityClassName
 	}
 }
 
@@ -87,7 +88,7 @@ func applyDefaultPriorityClassNameToPodSpec(spec *v1.PodSpec, config configurati
 // of the pod equal to the minimum if
 // - the pod does not explicitly set a termination period, or
 // - the pod explicitly sets a termination period of 0.
-func applyDefaultTerminationGracePeriodToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultTerminationGracePeriodToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if config.MinTerminationGracePeriod.Seconds() == 0 {
 		return
 	}
@@ -103,7 +104,7 @@ func applyDefaultTerminationGracePeriodToPodSpec(spec *v1.PodSpec, config config
 	}
 }
 
-func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.ActiveDeadlineSeconds != nil {
 		return
 	}
@@ -130,7 +131,11 @@ func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configu
 // memory limit, but does not specify a memory request, assign a memory request that matches the limit.
 // Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
 // assigns a CPU request that matches the limit.
-func fillContainerRequestsAndLimits(containers []v1.Container) {
+//
+// 2024-03-18 chrisma: This seems suboptimal. return a string we can log out if people are submitting sparse requests.
+// If nobody is using this then remove this.
+func fillContainerRequestsAndLimits(containers []v1.Container) string {
+	infoMsg := ""
 	for index := range containers {
 		if containers[index].Resources.Limits == nil {
 			containers[index].Resources.Limits = v1.ResourceList{}
@@ -142,12 +147,19 @@ func fillContainerRequestsAndLimits(containers []v1.Container) {
 		for resourceName, quantity := range containers[index].Resources.Limits {
 			if _, ok := containers[index].Resources.Requests[resourceName]; !ok {
 				containers[index].Resources.Requests[resourceName] = quantity
+				if infoMsg == "" {
+					infoMsg = fmt.Sprintf("container %s had limits but not requests for %s", containers[index].Name, resourceName)
+				}
 			}
 		}
 		for resourceName, quantity := range containers[index].Resources.Requests {
 			if _, ok := containers[index].Resources.Limits[resourceName]; !ok {
 				containers[index].Resources.Limits[resourceName] = quantity
+				if infoMsg == "" {
+					infoMsg = fmt.Sprintf("container %s had requests but not limits for %s", containers[index].Name, resourceName)
+				}
 			}
 		}
 	}
+	return infoMsg
 }

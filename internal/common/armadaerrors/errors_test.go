@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-redis/redis"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -181,7 +181,7 @@ func TestIsNetworkErrorRedis(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:637", // Assume nothing is listening on this port
 	})
-	cmd := client.Ping()
+	cmd := client.Ping(context.TODO())
 
 	err := errors.Wrap(cmd.Err(), "foo")
 	assert.True(t, IsNetworkError(err))

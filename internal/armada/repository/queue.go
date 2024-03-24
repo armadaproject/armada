@@ -3,10 +3,11 @@ package repository
 import (
 	"fmt"
 
-	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -30,11 +31,11 @@ func (err *ErrQueueAlreadyExists) Error() string {
 }
 
 type QueueRepository interface {
-	GetAllQueues() ([]queue.Queue, error)
-	GetQueue(name string) (queue.Queue, error)
-	CreateQueue(queue.Queue) error
-	UpdateQueue(queue.Queue) error
-	DeleteQueue(name string) error
+	GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error)
+	GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error)
+	CreateQueue(*armadacontext.Context, queue.Queue) error
+	UpdateQueue(*armadacontext.Context, queue.Queue) error
+	DeleteQueue(ctx *armadacontext.Context, name string) error
 }
 
 type RedisQueueRepository struct {
@@ -45,8 +46,8 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 	return &RedisQueueRepository{db: db}
 }
 
-func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
-	result, err := r.db.HGetAll(queueHashKey).Result()
+func (r *RedisQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
+	result, err := r.db.HGetAll(ctx, queueHashKey).Result()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -68,8 +69,8 @@ func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 	return queues, nil
 }
 
-func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
-	result, err := r.db.HGet(queueHashKey, name).Result()
+func (r *RedisQueueRepository) GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error) {
+	result, err := r.db.HGet(ctx, queueHashKey, name).Result()
 	if err == redis.Nil {
 		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
 	} else if err != nil {
@@ -85,7 +86,7 @@ func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
 	return queue.NewQueue(apiQueue)
 }
 
-func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
+func (r *RedisQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error marshalling queue: %s", err)
@@ -93,7 +94,7 @@ func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
 
 	// HSetNX sets a key-value pair if the key doesn't already exist.
 	// If the key exists, this is a no-op, and result is false.
-	result, err := r.db.HSetNX(queueHashKey, queue.Name, data).Result()
+	result, err := r.db.HSetNX(ctx, queueHashKey, queue.Name, data).Result()
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error writing to database: %s", err)
 	}
@@ -107,8 +108,8 @@ func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
 // TODO If the queue to be updated is deleted between this method checking if the queue exists and
 // making the update, the deleted queue is re-added to Redis. There's no "update if exists"
 // operation in Redis, so we need to do this with a script or transaction.
-func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
-	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
+func (r *RedisQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
+	existsResult, err := r.db.HExists(ctx, queueHashKey, queue.Name).Result()
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from database: %s", err)
 	} else if !existsResult {
@@ -120,7 +121,7 @@ func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error marshalling queue: %s", err)
 	}
 
-	result := r.db.HSet(queueHashKey, queue.Name, data)
+	result := r.db.HSet(ctx, queueHashKey, queue.Name, data)
 	if err := result.Err(); err != nil {
 		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error writing to database: %s", err)
 	}
@@ -128,8 +129,8 @@ func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 	return nil
 }
 
-func (r *RedisQueueRepository) DeleteQueue(name string) error {
-	result := r.db.HDel(queueHashKey, name)
+func (r *RedisQueueRepository) DeleteQueue(ctx *armadacontext.Context, name string) error {
+	result := r.db.HDel(ctx, queueHashKey, name)
 	if err := result.Err(); err != nil {
 		return fmt.Errorf("[RedisQueueRepository.DeleteQueue] error deleting queue: %s", err)
 	}

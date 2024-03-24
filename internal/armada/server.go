@@ -1,16 +1,21 @@
 package armada
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"net"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/extra/redisprometheus/v9"
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
@@ -18,7 +23,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
-	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
@@ -37,8 +41,6 @@ import (
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
-	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
-	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	defer log.Info("Armada server shutting down")
 
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
@@ -56,13 +58,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	err := validateCancelJobsBatchSizeConfig(config)
-	if err != nil {
+	if err := validateCancelJobsBatchSizeConfig(config); err != nil {
 		return err
 	}
-
-	err = validatePreemptionConfig(config.Scheduling.Preemption)
-	if err != nil {
+	if err := validateSubmissionConfig(config.Submission); err != nil {
 		return err
 	}
 
@@ -94,6 +93,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			log.WithError(err).Error("failed to close Redis client")
 		}
 	}()
+	prometheus.MustRegister(
+		redisprometheus.NewCollector("armada", "redis", db))
 
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
@@ -101,6 +102,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			log.WithError(err).Error("failed to close events api Redis client")
 		}
 	}()
+	prometheus.MustRegister(
+		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
@@ -158,14 +161,32 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer producer.Close()
 
-	pulsarSubmitServer := &submit.Server{
-		producer:              producer,
-		queueRepository:       queueRepository,
-		jobRepository:         jobRepository,
-		SchedulingConfig:      config.Scheduling,
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	compressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibCompressor(512)
+		}), &poolConfig)
+
+	pulsarSubmitServer := &server.PulsarSubmitServer{
+		Producer:              producer,
+		QueueRepository:       queueRepository,
+		JobRepository:         jobRepository,
+		SubmissionConfig:      config.Submission,
 		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
+		GangIdAnnotation:      configuration.GangIdAnnotation,
 		SubmitChecker:         pulsarSchedulerSubmitChecker,
 		Authorizer:            authorizer,
+		CompressorPool:        compressorPool,
 	}
 
 	// If postgres details were provided, enable deduplication.
@@ -288,15 +309,16 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 	return nil
 }
 
-func validatePreemptionConfig(config configuration.PreemptionConfig) error {
-	// Check that the default priority class is in the priority class map.
-	if config.DefaultPriorityClass != "" {
-		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
-		if !ok {
-			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no such priority class has been configured", config.DefaultPriorityClass))
+func validateSubmissionConfig(config configuration.SubmissionConfig) error {
+	// Check that the default priority class is allowed to be submitted.
+	if config.DefaultPriorityClassName != "" {
+		if !config.AllowedPriorityClassNames[config.DefaultPriorityClassName] {
+			return errors.WithStack(fmt.Errorf(
+				"defaultPriorityClassName %s is not allowed; allowedPriorityClassNames is %v",
+				config.DefaultPriorityClassName, config.AllowedPriorityClassNames,
+			))
 		}
 	}
-
 	return nil
 }
 

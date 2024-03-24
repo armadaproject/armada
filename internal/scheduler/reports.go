@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/oklog/ulid"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
@@ -41,10 +40,6 @@ type SchedulingContextRepository struct {
 	// The most recent attempt that preempted at least one job belonging to this queue.
 	mostRecentPreemptingByExecutorByQueue atomic.Pointer[map[string]SchedulingContextByExecutor]
 
-	// Maps job ID to SchedulingContextByExecutor.
-	// We limit the number of job contexts to store to control memory usage.
-	mostRecentByExecutorByJobId *lru.Cache
-
 	// Store all executor ids seen so far in a set.
 	// Used to ensure all executors are included in reports.
 	executorIds map[string]bool
@@ -57,14 +52,9 @@ type SchedulingContextRepository struct {
 
 type SchedulingContextByExecutor map[string]*schedulercontext.SchedulingContext
 
-func NewSchedulingContextRepository(jobCacheSize uint) (*SchedulingContextRepository, error) {
-	mostRecentByExecutorByJobId, err := lru.New(int(jobCacheSize))
-	if err != nil {
-		return nil, err
-	}
+func NewSchedulingContextRepository() *SchedulingContextRepository {
 	rv := &SchedulingContextRepository{
-		mostRecentByExecutorByJobId: mostRecentByExecutorByJobId,
-		executorIds:                 make(map[string]bool),
+		executorIds: make(map[string]bool),
 	}
 
 	mostRecentByExecutor := make(SchedulingContextByExecutor)
@@ -87,7 +77,7 @@ func NewSchedulingContextRepository(jobCacheSize uint) (*SchedulingContextReposi
 
 	rv.sortedExecutorIds.Store(&sortedExecutorIds)
 
-	return rv, nil
+	return rv
 }
 
 // AddSchedulingContext adds a scheduling context to the repo.
@@ -101,9 +91,6 @@ func NewSchedulingContextRepository(jobCacheSize uint) (*SchedulingContextReposi
 func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *schedulercontext.SchedulingContext) error {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	if err := repo.addSchedulingContextForJobs(sctx); err != nil {
-		return err
-	}
 	if err := repo.addSchedulingContextForQueues(sctx); err != nil {
 		return err
 	}
@@ -218,57 +205,6 @@ func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *sch
 	return nil
 }
 
-// Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *schedulercontext.SchedulingContext) error {
-	executorId := sctx.ExecutorId
-	if executorId == "" {
-		return errors.WithStack(
-			&armadaerrors.ErrInvalidArgument{
-				Name:    "ExecutorId",
-				Value:   "",
-				Message: "received empty executorId",
-			},
-		)
-	}
-	for _, qctx := range sctx.QueueSchedulingContexts {
-		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
-			jobId := jctx.JobId
-			if jobId == "" {
-				return errors.WithStack(
-					&armadaerrors.ErrInvalidArgument{
-						Name:    "JobId",
-						Value:   "",
-						Message: "received empty jobId",
-					},
-				)
-			}
-			if previous, ok, _ := repo.mostRecentByExecutorByJobId.PeekOrAdd(jobId, SchedulingContextByExecutor{executorId: sctx}); ok {
-				byExecutor := previous.(SchedulingContextByExecutor)
-				byExecutor[executorId] = sctx
-				repo.mostRecentByExecutorByJobId.Add(jobId, byExecutor)
-			}
-		}
-		for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
-			jobId := jctx.JobId
-			if jobId == "" {
-				return errors.WithStack(
-					&armadaerrors.ErrInvalidArgument{
-						Name:    "JobId",
-						Value:   "",
-						Message: "received empty jobId",
-					},
-				)
-			}
-			if previous, ok, _ := repo.mostRecentByExecutorByJobId.PeekOrAdd(jobId, SchedulingContextByExecutor{executorId: sctx}); ok {
-				byExecutor := previous.(SchedulingContextByExecutor)
-				byExecutor[executorId] = sctx
-				repo.mostRecentByExecutorByJobId.Add(jobId, byExecutor)
-			}
-		}
-	}
-	return nil
-}
-
 // GetSchedulingReport is a gRPC endpoint for querying scheduler reports.
 // TODO: Further separate this from internal contexts.
 func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
@@ -353,14 +289,13 @@ func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForJob(jobId string, verbosity int32) string {
-	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	for _, executorId := range repo.GetSortedExecutorIds() {
+	for executorId, sctx := range repo.GetMostRecentSuccessfulSchedulingContextByExecutor() {
 		fmt.Fprintf(w, "%s:\n", executorId)
-		if sctx := mostRecentByExecutor[executorId]; sctx != nil {
+		if sr := getSchedulingReportForJob(sctx, jobId); sr.jobSchedulingContext != nil {
 			fmt.Fprintf(w, "\tMost recent scheduling round that affected job %s:\n", jobId)
-			sr := getSchedulingReportForJob(sctx, jobId)
+
 			fmt.Fprint(w, indent.String("\t\t", sr.ReportString(verbosity)))
 		} else {
 			fmt.Fprintf(w, "\tMost recent scheduling round that affected job %s: none\n", jobId)
@@ -486,11 +421,10 @@ func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, request
 }
 
 func (repo *SchedulingContextRepository) getJobReportString(jobId string) string {
-	byExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	for _, executorId := range repo.GetSortedExecutorIds() {
-		if sr := getSchedulingReportForJob(byExecutor[executorId], jobId); sr.jobSchedulingContext != nil {
+	for executorId, sctx := range repo.GetMostRecentSchedulingContextByExecutor() {
+		if sr := getSchedulingReportForJob(sctx, jobId); sr.jobSchedulingContext != nil {
 			fmt.Fprintf(w, "%s:\n", executorId)
 			fmt.Fprint(w, indent.String("\t", sr.jobSchedulingContext.String()))
 		} else {
@@ -529,13 +463,6 @@ func (repo *SchedulingContextRepository) GetMostRecentPreemptingSchedulingContex
 	mostRecentPreemptingByExecutorByQueue := *repo.mostRecentPreemptingByExecutorByQueue.Load()
 	mostRecentPreemptingByExecutor, ok := mostRecentPreemptingByExecutorByQueue[queue]
 	return mostRecentPreemptingByExecutor, ok
-}
-
-func (repo *SchedulingContextRepository) GetMostRecentSchedulingContextByExecutorForJob(jobId string) (SchedulingContextByExecutor, bool) {
-	if value, ok := repo.mostRecentByExecutorByJobId.Get(jobId); ok {
-		return value.(SchedulingContextByExecutor), true
-	}
-	return nil, false
 }
 
 func (repo *SchedulingContextRepository) GetSortedExecutorIds() []string {

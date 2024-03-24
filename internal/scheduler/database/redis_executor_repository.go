@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -29,8 +29,8 @@ func NewRedisExecutorRepository(db redis.UniversalClient, schedulerName string) 
 	}
 }
 
-func (r *RedisExecutorRepository) GetExecutors(_ *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
-	result, err := r.db.HGetAll(r.executorsKey).Result()
+func (r *RedisExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
+	result, err := r.db.HGetAll(ctx, r.executorsKey).Result()
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving executors from redis")
 	}
@@ -52,15 +52,15 @@ func (r *RedisExecutorRepository) GetLastUpdateTimes(_ *armadacontext.Context) (
 	panic("GetLastUpdateTimes is not implemented")
 }
 
-func (r *RedisExecutorRepository) StoreExecutor(_ *armadacontext.Context, executor *schedulerobjects.Executor) error {
+func (r *RedisExecutorRepository) StoreExecutor(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 	data, err := proto.Marshal(executor)
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling executor proto")
 	}
 
 	pipe := r.db.TxPipeline()
-	pipe.HSet(r.executorsKey, executor.Id, data)
-	_, err = pipe.Exec()
+	pipe.HSet(ctx, r.executorsKey, executor.Id, data)
+	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return errors.Wrap(err, "Error storing executor in redis")
 	}

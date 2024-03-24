@@ -16,12 +16,11 @@ import (
 )
 
 func TestAddGetSchedulingContext(t *testing.T) {
-	repo, err := NewSchedulingContextRepository(10)
-	require.NoError(t, err)
+	repo := NewSchedulingContextRepository()
 
 	sctx := testSchedulingContext("foo")
 	sctx = withSuccessfulJobSchedulingContext(sctx, "A", "successFooA")
-	err = repo.AddSchedulingContext(sctx)
+	err := repo.AddSchedulingContext(sctx)
 	require.NoError(t, err)
 
 	sctx = testSchedulingContext("foo")
@@ -47,33 +46,6 @@ func TestAddGetSchedulingContext(t *testing.T) {
 
 	var actualSchedulingContextByExecutor SchedulingContextByExecutor
 	var ok bool
-
-	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("doesNotExist")
-	require.Nil(t, actualSchedulingContextByExecutor)
-	require.False(t, ok)
-
-	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("successFooA")
-	require.True(t, ok)
-	assert.Equal(
-		t,
-		SchedulingContextByExecutor{
-			"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA"),
-		},
-		actualSchedulingContextByExecutor,
-	)
-
-	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("failureA")
-	require.True(t, ok)
-	assert.Equal(
-		t,
-		withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
-		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
-	)
-	assert.Equal(
-		t,
-		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
-		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["A"],
-	)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("doesNotExist")
 	require.Nil(t, actualSchedulingContextByExecutor)
@@ -157,8 +129,8 @@ func TestAddGetSchedulingContext(t *testing.T) {
 
 // Concurrently write/read to/from the repo to test that there are no panics.
 func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
-	repo, err := NewSchedulingContextRepository(10)
-	require.NoError(t, err)
+	repo := NewSchedulingContextRepository()
+
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second)
 	defer cancel()
 	for _, executorId := range []string{"foo", "bar"} {
@@ -175,7 +147,7 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 				sctx = withUnsuccessfulJobSchedulingContext(sctx, "C", "failureC")
 				sctx = withSuccessfulJobSchedulingContext(sctx, "B", fmt.Sprintf("success%sB", executorId))
 				sctx = withPreemptingJobSchedulingContext(sctx, "C", "preempted")
-				err = repo.AddSchedulingContext(sctx)
+				err := repo.AddSchedulingContext(sctx)
 				require.NoError(t, err)
 				err = repo.AddSchedulingContext(sctx)
 				require.NoError(t, err)
@@ -198,9 +170,9 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 }
 
 func TestReportDoesNotExist(t *testing.T) {
-	repo, err := NewSchedulingContextRepository(1024)
-	require.NoError(t, err)
-	err = repo.AddSchedulingContext(testSchedulingContext("executor-01"))
+	repo := NewSchedulingContextRepository()
+
+	err := repo.AddSchedulingContext(testSchedulingContext("executor-01"))
 	require.NoError(t, err)
 	ctx := armadacontext.Background()
 	queue := "queue-does-not-exist"

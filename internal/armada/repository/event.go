@@ -6,10 +6,10 @@ import (
 	"math"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
@@ -26,9 +26,9 @@ const (
 )
 
 type EventRepository interface {
-	CheckStreamExists(queue string, jobSetId string) (bool, error)
-	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, *sequence.ExternalSeqNo, error)
-	GetLastMessageId(queue, jobSetId string) (string, error)
+	CheckStreamExists(ctx *armadacontext.Context, queue string, jobSetId string) (bool, error)
+	ReadEvents(ctx *armadacontext.Context, queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, *sequence.ExternalSeqNo, error)
+	GetLastMessageId(ctx *armadacontext.Context, queue, jobSetId string) (string, error)
 }
 
 type RedisEventRepository struct {
@@ -57,8 +57,8 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 	return &RedisEventRepository{db: db, decompressorPool: decompressorPool}
 }
 
-func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId string) (bool, error) {
-	result, err := repo.db.Exists(getJobSetEventsKey(queue, jobSetId)).Result()
+func (repo *RedisEventRepository) CheckStreamExists(ctx *armadacontext.Context, queue string, jobSetId string) (bool, error) {
+	result, err := repo.db.Exists(ctx, getJobSetEventsKey(queue, jobSetId)).Result()
 	if err != nil {
 		return false, err
 	}
@@ -66,13 +66,13 @@ func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId strin
 	return exists, nil
 }
 
-func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, *sequence.ExternalSeqNo, error) {
+func (repo *RedisEventRepository) ReadEvents(ctx *armadacontext.Context, queue string, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, *sequence.ExternalSeqNo, error) {
 	from, err := sequence.Parse(lastId)
 	if err != nil {
 		return nil, nil, err
 	}
 	seqId := from.PrevRedisId()
-	cmd, err := repo.db.XRead(&redis.XReadArgs{
+	cmd, err := repo.db.XRead(ctx, &redis.XReadArgs{
 		Streams: []string{getJobSetEventsKey(queue, jobSetId), seqId},
 		Count:   limit,
 		Block:   block,
@@ -90,7 +90,7 @@ func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, last
 	for _, m := range cmd[0].Messages {
 		// TODO: here we decompress all the events we fetched from the db- it would be much better
 		// If we could decompress lazily, but the interface confines us somewhat here
-		apiEvents, err := repo.extractEvents(m, queue, jobSetId)
+		apiEvents, err := repo.extractEvents(ctx, m, queue, jobSetId)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -113,13 +113,13 @@ func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, last
 	return messages, lastMessageId, nil
 }
 
-func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
-	msg, err := repo.db.XRevRangeN(getJobSetEventsKey(queue, jobSetId), "+", "-", 1).Result()
+func (repo *RedisEventRepository) GetLastMessageId(ctx *armadacontext.Context, queue, jobSetId string) (string, error) {
+	msg, err := repo.db.XRevRangeN(ctx, getJobSetEventsKey(queue, jobSetId), "+", "-", 1).Result()
 	if err != nil {
 		return "", errors.Wrap(err, "Error retrieving the last message id from Redis")
 	}
 	if len(msg) > 0 {
-		apiEvents, err := repo.extractEvents(msg[0], queue, jobSetId)
+		apiEvents, err := repo.extractEvents(ctx, msg[0], queue, jobSetId)
 		if err != nil {
 			return "", err
 		}
@@ -132,7 +132,7 @@ func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (stri
 	return "0", nil
 }
 
-func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSetId string) ([]*api.EventMessage, error) {
+func (repo *RedisEventRepository) extractEvents(ctx *armadacontext.Context, msg redis.XMessage, queue, jobSetId string) ([]*api.EventMessage, error) {
 	data := msg.Values[dataKey]
 	bytes := []byte(data.(string))
 	decompressor, err := repo.decompressorPool.BorrowObject(armadacontext.Background())
@@ -144,7 +144,7 @@ func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSe
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressor to pool")
 		}
-	}(repo.decompressorPool, armadacontext.Background(), decompressor)
+	}(repo.decompressorPool, ctx, decompressor)
 	decompressedData, err := decompressor.(compress.Decompressor).Decompress(bytes)
 	if err != nil {
 		return nil, errors.WithStack(err)

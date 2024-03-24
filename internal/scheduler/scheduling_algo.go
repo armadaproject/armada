@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -54,6 +55,10 @@ type FairSchedulingAlgo struct {
 	// Order in which to schedule executor groups.
 	// Executors are grouped by either id (i.e., individually) or by pool.
 	executorGroupsToSchedule []string
+	// Used to avoid scheduling onto broken nodes.
+	nodeQuarantiner *quarantine.NodeQuarantiner
+	// Used to reduce the rate at which jobs are scheduled from misbehaving queues.
+	queueQuarantiner *quarantine.QueueQuarantiner
 	// Function that is called every time an executor is scheduled. Useful for testing.
 	onExecutorScheduled func(executor *schedulerobjects.Executor)
 	// rand and clock injected here for repeatable testing.
@@ -67,9 +72,14 @@ func NewFairSchedulingAlgo(
 	executorRepository database.ExecutorRepository,
 	queueRepository repository.QueueRepository,
 	schedulingContextRepository *SchedulingContextRepository,
+	nodeQuarantiner *quarantine.NodeQuarantiner,
+	queueQuarantiner *quarantine.QueueQuarantiner,
 ) (*FairSchedulingAlgo, error) {
-	if _, ok := config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]; !ok {
-		return nil, errors.Errorf("default priority class %s is missing from priority class mapping %v", config.Preemption.DefaultPriorityClass, config.Preemption.PriorityClasses)
+	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
+		return nil, errors.Errorf(
+			"defaultPriorityClassName %s does not correspond to a priority class; priorityClasses is %v",
+			config.DefaultPriorityClassName, config.PriorityClasses,
+		)
 	}
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
@@ -79,9 +89,11 @@ func NewFairSchedulingAlgo(
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
 		maxSchedulingDuration:       maxSchedulingDuration,
+		nodeQuarantiner:             nodeQuarantiner,
+		queueQuarantiner:            queueQuarantiner,
+		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
-		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
 	}, nil
 }
 
@@ -243,17 +255,14 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 	executors = l.filterStaleExecutors(executors)
 
-	queues, err := l.queueRepository.GetAllQueues()
+	// TODO(albin): Skip queues with a high failure rate.
+	queues, err := l.queueRepository.GetAllQueues(ctx)
 	if err != nil {
 		return nil, err
 	}
 	priorityFactorByQueue := make(map[string]float64)
 	for _, queue := range queues {
-		weight := 0.0
-		if queue.PriorityFactor != 0 {
-			weight = 1 / float64(queue.PriorityFactor)
-		}
-		priorityFactorByQueue[queue.Name] = weight
+		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
 	}
 
 	// Get the total capacity available across executors.
@@ -338,7 +347,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	executors []*schedulerobjects.Executor,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		l.schedulingConfig.Preemption.PriorityClasses,
+		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.MaxExtraNodesToConsider,
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
@@ -375,12 +384,14 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	sctx := schedulercontext.NewSchedulingContext(
 		executorId,
 		pool,
-		l.schedulingConfig.Preemption.PriorityClasses,
-		l.schedulingConfig.Preemption.DefaultPriorityClass,
+		l.schedulingConfig.PriorityClasses,
+		l.schedulingConfig.DefaultPriorityClassName,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,
 	)
+
+	now := time.Now()
 	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
 		if !fsctx.isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
@@ -394,15 +405,24 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if priorityFactor > 0 {
 			weight = 1 / priorityFactor
 		}
+
+		// Create per-queue limiters lazily.
 		queueLimiter, ok := l.limiterByQueue[queue]
 		if !ok {
-			// Create per-queue limiters lazily.
 			queueLimiter = rate.NewLimiter(
 				rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate),
 				l.schedulingConfig.MaximumPerQueueSchedulingBurst,
 			)
 			l.limiterByQueue[queue] = queueLimiter
 		}
+
+		// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.
+		quarantineFactor := 0.0
+		if l.queueQuarantiner != nil {
+			quarantineFactor = l.queueQuarantiner.QuarantineFactor(now, queue)
+		}
+		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate*(1-quarantineFactor)))
+
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueLimiter); err != nil {
 			return nil, nil, err
 		}
@@ -417,9 +437,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
-		l.schedulingConfig.Preemption.NodeEvictionProbability,
-		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
+		l.schedulingConfig.NodeEvictionProbability,
+		l.schedulingConfig.NodeOversubscriptionEvictionProbability,
+		l.schedulingConfig.ProtectedFractionOfFairShare,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
@@ -532,7 +552,16 @@ func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 	}
+
+	now := time.Now()
 	for _, node := range nodes {
+		// Taint quarantined nodes to avoid scheduling new jobs onto them.
+		if l.nodeQuarantiner != nil {
+			if taint, ok := l.nodeQuarantiner.IsQuarantined(now, node.Name); ok {
+				node.Taints = append(node.Taints, taint)
+			}
+		}
+
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], node); err != nil {
 			return err
 		}
