@@ -2,8 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
-	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -38,8 +36,10 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
