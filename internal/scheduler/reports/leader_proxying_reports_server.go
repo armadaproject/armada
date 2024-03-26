@@ -2,10 +2,10 @@ package reports
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 
 	"google.golang.org/grpc"
 
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

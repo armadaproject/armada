@@ -44,7 +44,6 @@ var testContextB = &schedulercontext.SchedulingContext{
 }
 
 func TestJobSchedulingContext(t *testing.T) {
-
 	tests := map[string]struct {
 		inputContexts    []*schedulercontext.SchedulingContext
 		jobId            string
@@ -107,7 +106,6 @@ func TestJobSchedulingContext(t *testing.T) {
 }
 
 func TestQueueSchedulingContext(t *testing.T) {
-
 	tests := map[string]struct {
 		inputContexts    []*schedulercontext.SchedulingContext
 		queueId          string
@@ -157,7 +155,6 @@ func TestQueueSchedulingContext(t *testing.T) {
 }
 
 func TestRoundSchedulingContext(t *testing.T) {
-
 	tests := map[string]struct {
 		inputContexts    []*schedulercontext.SchedulingContext
 		expectedContexts []CtxPoolPair[*schedulercontext.SchedulingContext]
