@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
 
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
@@ -34,9 +35,14 @@ type JobEventReporter struct {
 
 	jobRunStateStore *job.JobRunStateStore
 	clusterContext   clusterContext.ClusterContext
+	clock            clock.Clock
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateStore, eventSender EventSender) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(
+	clusterContext clusterContext.ClusterContext,
+	jobRunState *job.JobRunStateStore,
+	eventSender EventSender,
+	clock clock.Clock) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
@@ -45,6 +51,7 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunSta
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
+		clock:            clock,
 	}
 
 	clusterContext.AddPodEventHandler(reporter.podEventHandler())
@@ -210,6 +217,8 @@ func (eventReporter *JobEventReporter) QueueEvent(event EventMessage, callback f
 }
 
 func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
+	ticker := eventReporter.clock.NewTicker(time.Second * 2)
+	toSendBuffer := make([]*queuedEvent, 0, batchSize)
 	for {
 		select {
 		case <-stop:
@@ -219,8 +228,17 @@ func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
 			}
 			return
 		case event := <-eventReporter.eventBuffer:
-			batch := eventReporter.fillBatch(event)
-			eventReporter.sendBatch(batch)
+			toSendBuffer = append(toSendBuffer, event)
+			if len(toSendBuffer) >= batchSize {
+				eventReporter.sendBatch(toSendBuffer)
+				toSendBuffer = nil
+			}
+		case <-ticker.C():
+			if len(toSendBuffer) <= 0 {
+				break
+			}
+			eventReporter.sendBatch(toSendBuffer)
+			toSendBuffer = nil
 		}
 	}
 }
@@ -233,6 +251,7 @@ func (eventReporter *JobEventReporter) fillBatch(batch ...*queuedEvent) []*queue
 }
 
 func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
+	log.Debugf("Sending batch of %d events", len(batch))
 	err := eventReporter.eventSender.SendEvents(queuedEventsToEventMessages(batch))
 	go func() {
 		for _, e := range batch {
