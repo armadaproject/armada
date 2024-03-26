@@ -3,13 +3,15 @@ package reports
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"strings"
+	"text/tabwriter"
+
 	"github.com/gogo/status"
 	"github.com/oklog/ulid"
 	"github.com/openconfig/goyang/pkg/indent"
 	"google.golang.org/grpc/codes"
-	"strings"
-	"text/tabwriter"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type Server struct {
