@@ -1,4 +1,4 @@
-package scheduler
+package leader
 
 import (
 	"context"
@@ -37,6 +37,10 @@ type LeaderReport struct {
 type LeaderToken struct {
 	leader bool
 	id     uuid.UUID
+}
+
+func (l LeaderToken) Leader() bool {
+	return l.leader
 }
 
 // InvalidLeaderToken returns a LeaderToken indicating this instance is not leader.
