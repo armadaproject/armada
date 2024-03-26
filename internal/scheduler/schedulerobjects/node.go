@@ -23,6 +23,7 @@ func (node *Node) DeepCopy() *Node {
 		Name:           node.Name,
 		Executor:       node.Executor,
 		LastSeen:       node.LastSeen,
+		NodeType:       node.NodeType.DeepCopy(),
 		Taints:         slices.Clone(node.Taints),
 		Labels:         maps.Clone(node.Labels),
 		TotalResources: node.TotalResources.DeepCopy(),
