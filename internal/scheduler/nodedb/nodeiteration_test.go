@@ -429,7 +429,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeTypeId
+				entry.NodeTypeId = node.NodeType.Id
 
 				entries[i] = entry
 			}
@@ -448,7 +448,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			require.NotEqual(t, -1, keyIndex)
 			it, err := NewNodeTypeIterator(
 				nodeDb.Txn(false),
-				tc.nodeTypeId,
+				tc.nodeType.Id,
 				nodeIndexName(keyIndex),
 				tc.priority,
 				keyIndex,

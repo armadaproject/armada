@@ -236,7 +236,7 @@ func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*
 
 func WithNodeTypeIdNodes(nodeTypeId uint64, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-		node.NodeTypeId = nodeTypeId
+		node.NodeType.Id = nodeTypeId
 	}
 	return nodes
 }
@@ -627,7 +627,6 @@ func TestCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:         "node1",
-			NodeTypeId: 1,
 			NodeType:   &schedulerobjects.NodeType{Id: 1},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
@@ -646,7 +645,6 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:         "node2",
-			NodeTypeId: 2,
 			NodeType:   &schedulerobjects.NodeType{Id: 2},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
@@ -665,7 +663,6 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:         "node3",
-			NodeTypeId: 3,
 			NodeType:   &schedulerobjects.NodeType{Id: 3},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
