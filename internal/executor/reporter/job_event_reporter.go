@@ -42,7 +42,8 @@ func NewJobEventReporter(
 	jobRunState *job.JobRunStateStore,
 	eventSender EventSender,
 	clock clock.Clock,
-	maxBatchSize int) (*JobEventReporter, chan bool) {
+	maxBatchSize int,
+) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
