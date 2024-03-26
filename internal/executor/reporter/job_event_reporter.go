@@ -15,8 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
-const batchSize = 200
-
 type EventReporter interface {
 	Report(events []EventMessage) error
 	QueueEvent(event EventMessage, callback func(error))
@@ -36,13 +34,15 @@ type JobEventReporter struct {
 	jobRunStateStore *job.JobRunStateStore
 	clusterContext   clusterContext.ClusterContext
 	clock            clock.Clock
+	maxBatchSize     int
 }
 
 func NewJobEventReporter(
 	clusterContext clusterContext.ClusterContext,
 	jobRunState *job.JobRunStateStore,
 	eventSender EventSender,
-	clock clock.Clock) (*JobEventReporter, chan bool) {
+	clock clock.Clock,
+	maxBatchSize int) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
@@ -52,6 +52,7 @@ func NewJobEventReporter(
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
 		clock:            clock,
+		maxBatchSize:     maxBatchSize,
 	}
 
 	clusterContext.AddPodEventHandler(reporter.podEventHandler())
@@ -218,18 +219,18 @@ func (eventReporter *JobEventReporter) QueueEvent(event EventMessage, callback f
 
 func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
 	ticker := eventReporter.clock.NewTicker(time.Second * 2)
-	toSendBuffer := make([]*queuedEvent, 0, batchSize)
+	toSendBuffer := make([]*queuedEvent, 0, eventReporter.maxBatchSize)
 	for {
 		select {
 		case <-stop:
-			for i := len(eventReporter.eventBuffer); i > 0; i -= batchSize {
+			for i := len(eventReporter.eventBuffer); i > 0; i -= eventReporter.maxBatchSize {
 				batch := eventReporter.fillBatch()
 				eventReporter.sendBatch(batch)
 			}
 			return
 		case event := <-eventReporter.eventBuffer:
 			toSendBuffer = append(toSendBuffer, event)
-			if len(toSendBuffer) >= batchSize {
+			if len(toSendBuffer) >= eventReporter.maxBatchSize {
 				eventReporter.sendBatch(toSendBuffer)
 				toSendBuffer = nil
 			}
@@ -244,7 +245,7 @@ func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
 }
 
 func (eventReporter *JobEventReporter) fillBatch(batch ...*queuedEvent) []*queuedEvent {
-	for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
+	for len(batch) < eventReporter.maxBatchSize && len(eventReporter.eventBuffer) > 0 {
 		batch = append(batch, <-eventReporter.eventBuffer)
 	}
 	return batch
