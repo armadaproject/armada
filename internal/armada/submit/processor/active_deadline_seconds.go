@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -16,6 +17,7 @@ type activeDeadlineSecondsProcessor struct {
 }
 
 func (p activeDeadlineSecondsProcessor) Apply(msg *armadaevents.SubmitJob) {
+	println(fmt.Sprintf("%+v", msg.GetMainObject().GetPodSpec()))
 	processPodSpec(msg, func(spec *v1.PodSpec) {
 		if spec.ActiveDeadlineSeconds != nil {
 			return

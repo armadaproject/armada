@@ -11,7 +11,7 @@ import (
 
 func TestGangAnnotationProcessor(t *testing.T) {
 	tests := map[string]struct {
-		config      configuration.SchedulingConfig
+		config      configuration.SubmissionConfig
 		annotations map[string]string
 		expected    map[string]string
 	}{
@@ -20,7 +20,7 @@ func TestGangAnnotationProcessor(t *testing.T) {
 			expected:    make(map[string]string),
 		},
 		"No change for non-gang jobs": {
-			config: configuration.SchedulingConfig{
+			config: configuration.SubmissionConfig{
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			annotations: make(map[string]string),
@@ -36,7 +36,7 @@ func TestGangAnnotationProcessor(t *testing.T) {
 			},
 		},
 		"Add when missing": {
-			config: configuration.SchedulingConfig{
+			config: configuration.SubmissionConfig{
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			annotations: map[string]string{

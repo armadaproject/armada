@@ -36,7 +36,7 @@ type Server struct {
 	jobRepository    repository.JobRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
-	submitChecker    *scheduler.SubmitChecker
+	submitChecker    scheduler.SubmitScheduleChecker
 	authorizer       server.ActionAuthorizer
 }
 
@@ -46,7 +46,7 @@ func NewServer(
 	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
-	submitChecker *scheduler.SubmitChecker,
+	submitChecker scheduler.SubmitScheduleChecker,
 	authorizer server.ActionAuthorizer,
 ) *Server {
 	return &Server{

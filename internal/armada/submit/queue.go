@@ -20,7 +20,7 @@ import (
 
 func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := s.Authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", req.Name, ep)
@@ -38,7 +38,7 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 		return nil, status.Errorf(codes.InvalidArgument, "[CreateQueue] error validating queue: %s", err)
 	}
 
-	err = s.queueRepository.CreateQueue(queue)
+	err = s.queueRepository.CreateQueue(ctx, queue)
 	var eq *repository.ErrQueueAlreadyExists
 	if errors.As(err, &eq) {
 		return nil, status.Errorf(codes.AlreadyExists, "[CreateQueue] error creating queue: %s", err)
@@ -70,7 +70,7 @@ func (s *Server) CreateQueues(grpcCtx context.Context, req *api.QueueList) (*api
 
 func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := s.Authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", req.Name, ep)
@@ -83,7 +83,7 @@ func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
 	}
 
-	err = s.queueRepository.UpdateQueue(queue)
+	err = s.queueRepository.UpdateQueue(ctx, queue)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "[UpdateQueue] error: %s", err)
@@ -116,22 +116,23 @@ func (s *Server) UpdateQueues(grpcCtx context.Context, req *api.QueueList) (*api
 
 func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := s.Authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", req.Name, ep)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[DeleteQueue] error checking permissions: %s", err)
 	}
-	err = s.queueRepository.DeleteQueue(req.Name)
+	err = s.queueRepository.DeleteQueue(ctx, req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error deleting queue %s: %s", req.Name, err)
 	}
 	return &types.Empty{}, nil
 }
 
-func (s *Server) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	queue, err := s.queueRepository.GetQueue(req.Name)
+func (s *Server) GetQueue(grpcCtx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	queue, err := s.queueRepository.GetQueue(ctx, req.Name)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "[GetQueue] error: %s", err)
@@ -142,13 +143,15 @@ func (s *Server) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Q
 }
 
 func (s *Server) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_GetQueuesServer) error {
+	ctx := armadacontext.FromGrpcCtx(stream.Context())
+
 	// Receive once to get information about the number of queues to return
 	numToReturn := req.GetNum()
 	if numToReturn < 1 {
 		numToReturn = math.MaxUint32
 	}
 
-	queues, err := s.queueRepository.GetAllQueues()
+	queues, err := s.queueRepository.GetAllQueues(ctx)
 	if err != nil {
 		return err
 	}

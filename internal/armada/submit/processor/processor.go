@@ -11,14 +11,14 @@ type Processor interface {
 	Apply(msg *armadaevents.SubmitJob)
 }
 
-func ApplyDefaults(msg *armadaevents.SubmitJob, config configuration.SchedulingConfig) {
+func ApplyDefaults(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
 	processors := []Processor{
 		activeDeadlineSecondsProcessor{
 			defaultActiveDeadline:                  config.DefaultActiveDeadline,
 			defaultActiveDeadlineByResourceRequest: config.DefaultActiveDeadlineByResourceRequest,
 		},
 		gangAnnotationProcessor{defaultGangNodeUniformityLabel: config.DefaultGangNodeUniformityLabel},
-		priorityClassProcessor{defaultPriorityClass: config.Preemption.DefaultPriorityClass},
+		priorityClassProcessor{defaultPriorityClass: config.DefaultPriorityClassName},
 		resourceProcessor{defaultJobLimits: nil},
 		jobIdTemplateProcessor{},
 		terminationGracePeriodProcessor{minTerminationGracePeriod: config.MinTerminationGracePeriod},

@@ -11,7 +11,7 @@ import (
 )
 
 func TestResourceProcessor(t *testing.T) {
-	defaultConfig := configuration.SchedulingConfig{
+	defaultConfig := configuration.SubmissionConfig{
 		DefaultJobLimits: map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10"),
 			"memory": resource.MustParse("1Gi"),
@@ -24,16 +24,16 @@ func TestResourceProcessor(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		config   configuration.SchedulingConfig
-		podSpec  v1.PodSpec
-		expected v1.PodSpec
+		config   configuration.SubmissionConfig
+		podSpec  *v1.PodSpec
+		expected *v1.PodSpec
 	}{
 		"All Containers need defaults": {
 			config: defaultConfig,
-			podSpec: v1.PodSpec{
+			podSpec: &v1.PodSpec{
 				Containers: []v1.Container{{}, {}},
 			},
-			expected: v1.PodSpec{
+			expected: &v1.PodSpec{
 				Containers: []v1.Container{
 					{
 						Resources: v1.ResourceRequirements{
@@ -52,7 +52,7 @@ func TestResourceProcessor(t *testing.T) {
 		},
 		"One container needs defaults": {
 			config: defaultConfig,
-			podSpec: v1.PodSpec{
+			podSpec: &v1.PodSpec{
 				Containers: []v1.Container{
 					{},
 					{
@@ -69,7 +69,7 @@ func TestResourceProcessor(t *testing.T) {
 					},
 				},
 			},
-			expected: v1.PodSpec{
+			expected: &v1.PodSpec{
 				Containers: []v1.Container{
 					{
 						Resources: v1.ResourceRequirements{
@@ -98,7 +98,7 @@ func TestResourceProcessor(t *testing.T) {
 			p := resourceProcessor{
 				defaultJobLimits: tc.config.DefaultJobLimits,
 			}
-			p.processPodSpec(&tc.podSpec)
+			p.Apply(submitMsgFromPodSpec(tc.podSpec))
 			assert.Equal(t, tc.expected, tc.podSpec)
 		})
 	}

@@ -5,37 +5,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func TestPriorityClassProcessor(t *testing.T) {
 	tests := map[string]struct {
-		config   configuration.SchedulingConfig
-		podSpec  v1.PodSpec
-		expected v1.PodSpec
+		defaultPriorityClass string
+		podSpec              *v1.PodSpec
+		expected             *v1.PodSpec
 	}{
 		"Default PriorityClassName When Not Specified": {
-			config: configuration.SchedulingConfig{
-				Preemption: configuration.PreemptionConfig{
-					DefaultPriorityClass: "pc",
-				},
-			},
-			podSpec: v1.PodSpec{},
-			expected: v1.PodSpec{
+			defaultPriorityClass: "pc",
+			podSpec:              &v1.PodSpec{},
+			expected: &v1.PodSpec{
 				PriorityClassName: "pc",
 			},
 		},
 		"Don't Default PriorityClassName When Already Present": {
-			config: configuration.SchedulingConfig{
-				Preemption: configuration.PreemptionConfig{
-					DefaultPriorityClass: "pc1",
-				},
-			},
-			podSpec: v1.PodSpec{
+			defaultPriorityClass: "pc",
+			podSpec: &v1.PodSpec{
 				PriorityClassName: "pc2",
 			},
-			expected: v1.PodSpec{
+			expected: &v1.PodSpec{
 				PriorityClassName: "pc2",
 			},
 		},
@@ -43,9 +33,9 @@ func TestPriorityClassProcessor(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			p := priorityClassProcessor{
-				defaultPriorityClass: tc.config.Preemption.DefaultPriorityClass,
+				defaultPriorityClass: tc.defaultPriorityClass,
 			}
-			p.processPodSpec(&tc.podSpec)
+			p.Apply(submitMsgFromPodSpec(tc.podSpec))
 			assert.Equal(t, tc.expected, tc.podSpec)
 		})
 	}

@@ -1,6 +1,10 @@
 package submit
 
 import (
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/server"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler"
 	"testing"
 	"time"
 
@@ -9,26 +13,42 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestSubmit(t *testing.T) {
-	defaultSchedulingConfig := configuration.SchedulingConfig{
-		Preemption: configuration.PreemptionConfig{
-			PriorityClasses: map[string]types.PriorityClass{
-				"pc1": {},
+	defaultSchedulingConfig := configuration.SubmissionConfig{
+		AllowedPriorityClassNames: map[string]bool{"pc1": true, "pc2": true},
+		DefaultPriorityClassName:  "pc1",
+		DefaultJobLimits:          armadaresource.ComputeResources{"cpu": resource.MustParse("1")},
+		DefaultJobTolerations: []v1.Toleration{
+			{
+				Key:      "armadaproject.io/foo",
+				Operator: "Exists",
 			},
 		},
-		MinJobResources:           map[v1.ResourceName]resource.Quantity{},
-		MaxPodSpecSizeBytes:       1000,
-		MinTerminationGracePeriod: 30 * time.Second,
-		MaxTerminationGracePeriod: 300 * time.Second,
+		DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
+			"nvidia.com/gpu": {
+				{
+					Key:      "armadaproject.io/gpuNode",
+					Operator: "Exists",
+				},
+			},
+		},
+		MaxPodSpecSizeBytes:            1000,
+		MinJobResources:                map[v1.ResourceName]resource.Quantity{},
+		DefaultGangNodeUniformityLabel: "",
+		MinTerminationGracePeriod:      30 * time.Second,
+		MaxTerminationGracePeriod:      300 * time.Second,
+		DefaultActiveDeadline:          1 * time.Hour,
+		DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
+			"nvidia.com/gpu": 24 * time.Hour,
+		},
 	}
 
 	tests := map[string]struct {
 		req              *api.JobSubmitRequest
-		schedulingConfig configuration.SchedulingConfig
+		schedulingConfig configuration.SubmissionConfig
 		expectSuccess    bool
 	}{
 		"valid request": {
@@ -40,8 +60,6 @@ func TestSubmit(t *testing.T) {
 					{
 						Priority:    1000,
 						Namespace:   "testNamespace",
-						Labels:      nil,
-						Annotations: nil,
 						PodSpec: &v1.PodSpec{
 							Containers: []v1.Container{
 								{
@@ -58,8 +76,6 @@ func TestSubmit(t *testing.T) {
 								},
 							},
 						},
-						Ingress:  nil,
-						Services: nil,
 					},
 				},
 			},
@@ -68,7 +84,15 @@ func TestSubmit(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidateSubmitRequest(tc.req, tc.schedulingConfig)
+			server := NewServer(publisher,
+				queueRepository repository.QueueRepository,
+				jobRepository repository.JobRepository,
+				submissionConfig configuration.SubmissionConfig,
+				deduplicator Deduplicator,
+				submitChecker *scheduler.SubmitChecker,
+				authorizer server.ActionAuthorizer)
+
+			server.SubmitJobs()
 			if tc.expectSuccess {
 				assert.NoError(t, err)
 			} else {
