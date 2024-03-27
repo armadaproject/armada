@@ -54,7 +54,6 @@ type FailedSubmissionDetails struct {
 func (submitService *SubmitService) SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
 	return submitService.submitJobs(jobsToSubmit)
 }
-
 func (submitService *SubmitService) submitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
 	wg := &sync.WaitGroup{}
 	submitJobsChannel := make(chan *SubmitJob)
