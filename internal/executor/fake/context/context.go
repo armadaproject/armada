@@ -55,17 +55,16 @@ type nodeAllocation struct {
 }
 
 type FakeClusterContext struct {
-	clusterId            string
-	nodeIdLabel          string
-	pool                 string
-	podEventHandlers     []*cache.ResourceEventHandlerFuncs
-	clusterEventHandlers []*cache.ResourceEventHandlerFuncs
-	rwLock               sync.RWMutex
-	pods                 map[string]*v1.Pod
-	events               map[string]*v1.Event
-	nodes                []*v1.Node
-	nodesByNodeId        map[string]*v1.Node
-	nodeAllocation       map[string]nodeAllocation
+	clusterId        string
+	nodeIdLabel      string
+	pool             string
+	podEventHandlers []*cache.ResourceEventHandlerFuncs
+	rwLock           sync.RWMutex
+	pods             map[string]*v1.Pod
+	events           map[string]*v1.Event
+	nodes            []*v1.Node
+	nodesByNodeId    map[string]*v1.Node
+	nodeAllocation   map[string]nodeAllocation
 }
 
 func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeIdLabel string, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
@@ -93,10 +92,6 @@ func (*FakeClusterContext) Stop() {
 
 func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
 	c.podEventHandlers = append(c.podEventHandlers, &handler)
-}
-
-func (c *FakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.clusterEventHandlers = append(c.clusterEventHandlers, &handler)
 }
 
 func (c *FakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
@@ -263,20 +258,6 @@ func (c *FakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]s
 	p, found := c.pods[pod.Name]
 	if !found {
 		return errors.Errorf("missing pod to annotate: %s", pod.Name)
-	}
-	for k, v := range annotations {
-		p.Annotations[k] = v
-	}
-	return nil
-}
-
-func (c *FakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error {
-	c.rwLock.Lock()
-	defer c.rwLock.Unlock()
-
-	p, found := c.events[event.Name]
-	if !found {
-		return errors.Errorf("missing event to annotate: %s", event.Name)
 	}
 	for k, v := range annotations {
 		p.Annotations[k] = v

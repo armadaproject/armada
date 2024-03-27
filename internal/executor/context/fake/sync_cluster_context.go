@@ -16,10 +16,9 @@ import (
 )
 
 type SyncFakeClusterContext struct {
-	Pods                 map[string]*v1.Pod
-	AnnotationsAdded     map[string]map[string]string
-	podEventHandlers     []*cache.ResourceEventHandlerFuncs
-	clusterEventHandlers []*cache.ResourceEventHandlerFuncs
+	Pods             map[string]*v1.Pod
+	AnnotationsAdded map[string]map[string]string
+	podEventHandlers []*cache.ResourceEventHandlerFuncs
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
@@ -31,10 +30,6 @@ func (*SyncFakeClusterContext) Stop() {}
 
 func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
 	c.podEventHandlers = append(c.podEventHandlers, &handler)
-}
-
-func (c *SyncFakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.clusterEventHandlers = append(c.clusterEventHandlers, &handler)
 }
 
 func (c *SyncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
@@ -107,10 +102,6 @@ func (c *SyncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[stri
 	return nil
 }
 
-func (c *SyncFakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error {
-	return nil
-}
-
 func (c *SyncFakeClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
 	if condition(pod) {
 		c.DeletePods([]*v1.Pod{pod})
@@ -148,14 +139,6 @@ func (c *SyncFakeClusterContext) SimulatePodAddEvent(pod *v1.Pod) {
 	for _, h := range c.podEventHandlers {
 		if h.AddFunc != nil {
 			h.AddFunc(pod)
-		}
-	}
-}
-
-func (c *SyncFakeClusterContext) SimulateClusterAddEvent(clusterEvent *v1.Event) {
-	for _, h := range c.clusterEventHandlers {
-		if h.AddFunc != nil {
-			h.AddFunc(clusterEvent)
 		}
 	}
 }
