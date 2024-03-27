@@ -244,10 +244,12 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 	// we no longer have to store both objects, while it is safe because at the api we assert that limits and requests
 	// must be equal. Long term this is undesirable as if we ever want to have limits != requests this trick will not work.
 	// instead we should find a more efficient mechanism for representing this data
-	resourceRequirements := schedulingInfo.GetPodRequirements().GetResourceRequirements()
-	schedulingInfo.GetPodRequirements().ResourceRequirements = v1.ResourceRequirements{
-		Limits:   resourceRequirements.Limits,
-		Requests: resourceRequirements.Limits,
+	if schedulingInfo.GetPodRequirements() != nil {
+		resourceRequirements := schedulingInfo.GetPodRequirements().GetResourceRequirements()
+		schedulingInfo.GetPodRequirements().ResourceRequirements = v1.ResourceRequirements{
+			Limits:   resourceRequirements.Limits,
+			Requests: resourceRequirements.Limits,
+		}
 	}
 
 	job := jobDb.NewJob(
