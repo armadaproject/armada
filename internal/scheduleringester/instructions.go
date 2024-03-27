@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -415,7 +416,11 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 			if podRequirements.Annotations == nil {
 				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
 			}
-			maps.Copy(podRequirements.Annotations, submitJob.MainObject.ObjectMeta.Annotations)
+			for k, v := range submitJob.MainObject.ObjectMeta.Annotations {
+				if configuration.IsSchedulingAnnotation(k) {
+					podRequirements.Annotations[k] = v
+				}
+			}
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,

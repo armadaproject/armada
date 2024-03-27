@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
@@ -320,6 +321,9 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 								"memory": resource.MustParse("64Mi"),
 								"cpu":    resource.MustParse("150m"),
 							},
+						},
+						Annotations: map[string]string{
+							configuration.FailFastAnnotation: "true",
 						},
 					},
 				},

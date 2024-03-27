@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -93,6 +94,12 @@ var Submit = &armadaevents.EventSequence_Event{
 				Name:      "test-job",
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Annotations: map[string]string{
+						"foo":                            "bar",
+						configuration.FailFastAnnotation: "true",
+					},
+				},
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
 						PodSpec: &v1.PodSpec{
