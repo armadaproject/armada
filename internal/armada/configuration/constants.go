@@ -21,3 +21,17 @@ const (
 	// Instead, the job the pod is part of fails immediately.
 	FailFastAnnotation = "armadaproject.io/failFast"
 )
+
+var schedulingAnnotations = map[string]bool{
+	GangIdAnnotation:                  true,
+	GangCardinalityAnnotation:         true,
+	GangMinimumCardinalityAnnotation:  true,
+	GangNodeUniformityLabelAnnotation: true,
+	GangNumJobsScheduledAnnotation:    true,
+	FailFastAnnotation:                true,
+}
+
+func IsSchedulingAnnotation(annotation string) bool {
+	_, ok := schedulingAnnotations[annotation]
+	return ok
+}
