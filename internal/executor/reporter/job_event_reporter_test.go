@@ -89,20 +89,6 @@ func setupBatchEventsTest(batchSize int) (*JobEventReporter, *FakeEventSender, *
 	return jobEventReporter, eventSender, testClock
 }
 
-func setupTest(t *testing.T, existingPods []*v1.Pod) (*JobEventReporter, *fakecontext.SyncFakeClusterContext, *job.JobRunStateStore, *FakeEventSender) {
-	executorContext := fakecontext.NewSyncFakeClusterContext()
-	for _, pod := range existingPods {
-		_, err := executorContext.SubmitPod(pod, "test", []string{})
-		assert.NoError(t, err)
-	}
-
-	eventSender := NewFakeEventSender()
-	jobRunState := job.NewJobRunStateStore(executorContext)
-	jobEventReporter, _ := NewJobEventReporter(executorContext, jobRunState, eventSender, clock.RealClock{}, 1)
-
-	return jobEventReporter, executorContext, jobRunState, eventSender
-}
-
 func createPod(index int) *v1.Pod {
 	jobId := util2.NewULID()
 	return &v1.Pod{

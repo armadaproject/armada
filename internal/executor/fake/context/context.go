@@ -61,7 +61,6 @@ type FakeClusterContext struct {
 	podEventHandlers []*cache.ResourceEventHandlerFuncs
 	rwLock           sync.RWMutex
 	pods             map[string]*v1.Pod
-	events           map[string]*v1.Event
 	nodes            []*v1.Node
 	nodesByNodeId    map[string]*v1.Node
 	nodeAllocation   map[string]nodeAllocation
