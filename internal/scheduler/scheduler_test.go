@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
@@ -162,13 +163,27 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
-	uint32(10),
+	0,
 	schedulingInfo,
 	false,
 	1,
 	false,
 	false,
 	false,
+	1,
+).WithNewRun("testExecutor", "test-node", "node", 5)
+
+var cancelledJob = testfixtures.JobDb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	schedulingInfo,
+	false,
+	1,
+	true,
+	false,
+	true,
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
@@ -650,7 +665,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
 			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
 		},
-		"Job reprioritised": {
+		"Queued job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
 			jobUpdates: []database.Job{
 				{
@@ -665,6 +680,39 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueued:           []string{queuedJob.Id()},
 			expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
 			expectedQueuedVersion:    queuedJob.QueuedVersion(),
+		},
+		"Leased job reprioritised": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:    leasedJob.Id(),
+					JobSet:   "testJobSet",
+					Queue:    "testQueue",
+					Priority: 2,
+					Serial:   1,
+				},
+			},
+			expectedJobReprioritised: []string{leasedJob.Id()},
+			expectedLeased:           []string{leasedJob.Id()},
+			expectedJobPriority:      map[string]uint32{leasedJob.Id(): 2},
+			expectedQueuedVersion:    leasedJob.QueuedVersion(),
+		},
+		"Terminal job reprioritised": {
+			initialJobs: []*jobdb.Job{cancelledJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:    cancelledJob.Id(),
+					JobSet:   "testJobSet",
+					Queue:    "testQueue",
+					Priority: 2,
+					Serial:   1,
+				},
+			},
+			// No events should be sent for a terminal job when it is reprioritised
+			expectedJobReprioritised: []string{},
+			expectedLeased:           []string{},
+			expectedJobPriority:      map[string]uint32{cancelledJob.Id(): cancelledJob.Priority()},
+			expectedQueuedVersion:    cancelledJob.QueuedVersion(),
 		},
 		"Lease expired": {
 			initialJobs:           []*jobdb.Job{leasedJob},
@@ -769,7 +817,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
-				NewStandaloneLeaderController(),
+				leader.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
 				1*time.Second,
@@ -924,7 +972,7 @@ func TestRun(t *testing.T) {
 	schedulingAlgo := &testSchedulingAlgo{}
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
-	leaderController := NewStandaloneLeaderController()
+	leaderController := leader.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(),
@@ -974,13 +1022,13 @@ func TestRun(t *testing.T) {
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// invalidate our leadership: we should not publish
-	leaderController.token = InvalidLeaderToken()
+	leaderController.SetToken(leader.InvalidLeaderToken())
 	fireCycle()
 	assert.Equal(t, 0, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// become master again: we should publish
-	leaderController.token = NewLeaderToken()
+	leaderController.SetToken(leader.NewLeaderToken())
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
@@ -1150,7 +1198,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := NewStandaloneLeaderController()
+			leaderController := leader.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(),
 				jobRepo,
@@ -2306,7 +2354,7 @@ func TestCycleConsistency(t *testing.T) {
 						jobsToPreempt:  tc.idsOfJobsToPreempt,
 						jobsToFail:     tc.idsOfJobsToFail,
 					},
-					NewStandaloneLeaderController(),
+					leader.NewStandaloneLeaderController(),
 					newTestPublisher(),
 					&testSubmitChecker{},
 					1*time.Second,
@@ -2343,7 +2391,7 @@ func TestCycleConsistency(t *testing.T) {
 					b.schedulingAlgo = a.schedulingAlgo
 
 					// Initially, "a" is leader and "b" follower.
-					(b.leaderController.(*StandaloneLeaderController)).SetToken(InvalidLeaderToken())
+					(b.leaderController.(*leader.StandaloneLeaderController)).SetToken(leader.InvalidLeaderToken())
 
 					return f(a, b, schedulerDb)
 				})
@@ -2433,8 +2481,8 @@ func TestCycleConsistency(t *testing.T) {
 			// failover swaps the leader tokens between a and b, thus swapping which scheduler is leader.
 			failover := func(a, b *Scheduler) error {
 				t.Logf("failover schedulers %p, %p", a, b)
-				lca := a.leaderController.(*StandaloneLeaderController)
-				lcb := b.leaderController.(*StandaloneLeaderController)
+				lca := a.leaderController.(*leader.StandaloneLeaderController)
+				lcb := b.leaderController.(*leader.StandaloneLeaderController)
 				lta := lca.GetToken()
 				ltb := lcb.GetToken()
 				lca.SetToken(ltb)

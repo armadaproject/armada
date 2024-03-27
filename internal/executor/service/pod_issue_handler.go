@@ -440,9 +440,9 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 
 func createStuckPodMessage(retryable bool, originalMessage string) string {
 	if retryable {
-		return fmt.Sprintf("Unable to schedule pod, Armada will return lease and retry.\n%s", originalMessage)
+		return fmt.Sprintf("Unable to start pod.\n%s", originalMessage)
 	}
-	return fmt.Sprintf("Unable to schedule pod with unrecoverable problem, Armada will not retry.\n%s", originalMessage)
+	return fmt.Sprintf("Unable to start pod - encountered an unrecoverable problem.\n%s", originalMessage)
 }
 
 func (p *IssueHandler) handleDeletedPod(pod *v1.Pod) {

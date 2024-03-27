@@ -43,7 +43,7 @@ func NewEventServer(
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	ctx := armadacontext.FromGrpcCtx(stream.Context())
-	q, err := s.queueRepository.GetQueue(request.Queue)
+	q, err := s.queueRepository.GetQueue(ctx, request.Queue)
 	var expected *repository.ErrQueueNotFound
 	if errors.As(err, &expected) {
 		return status.Errorf(codes.NotFound, "[GetJobSetEvents] Queue %s does not exist", request.Queue)
@@ -89,8 +89,9 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, eventRepository repository.EventRepository,
 	stream api.Event_GetJobSetEventsServer,
 ) error {
+	ctx := armadacontext.FromGrpcCtx(stream.Context())
 	if request.ErrorIfMissing {
-		exists, err := eventRepository.CheckStreamExists(request.Queue, request.Id)
+		exists, err := eventRepository.CheckStreamExists(ctx, request.Queue, request.Id)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error when checking jobset exists: %s", err)
 		}
@@ -106,7 +107,7 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	if request.Watch {
 		timeout = 5 * time.Second
 	} else {
-		lastId, err := eventRepository.GetLastMessageId(request.Queue, request.Id)
+		lastId, err := eventRepository.GetLastMessageId(ctx, request.Queue, request.Id)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error getting ID of last message: %s", err)
 		}
@@ -115,12 +116,12 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 
 	for {
 		select {
-		case <-stream.Context().Done():
+		case <-ctx.Done():
 			return nil
 		default:
 		}
 
-		messages, lastMessageId, err := eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
+		messages, lastMessageId, err := eventRepository.ReadEvents(ctx, request.Queue, request.Id, fromId, 500, timeout)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error reading events: %s", err)
 		}

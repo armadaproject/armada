@@ -50,6 +50,9 @@ spec:
               protocol: TCP
               name: pprof
             {{- end }}
+            - containerPort: {{ .Values.applicationConfig.metricsPort }}
+              protocol: TCP
+              name: metrics
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml

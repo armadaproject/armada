@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/extra/redisprometheus/v9"
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
@@ -32,6 +34,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -91,6 +94,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			log.WithError(err).Error("failed to close Redis client")
 		}
 	}()
+	prometheus.MustRegister(
+		redisprometheus.NewCollector("armada", "redis", db))
 
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
@@ -98,6 +103,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			log.WithError(err).Error("failed to close events api Redis client")
 		}
 	}()
+	prometheus.MustRegister(
+		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
@@ -243,7 +250,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return errors.Wrapf(err, "error creating connection to scheduler api")
 	}
 	schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
-	schedulingReportsServer := scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
+	schedulingReportsServer := reports.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 
 	eventServer := server.NewEventServer(
 		authorizer,

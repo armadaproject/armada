@@ -71,7 +71,7 @@ func (srv *PulsarJobExpirer) handlePulsarSchedulerEventSequence(ctx *armadaconte
 		}
 		idsOfJobsToExpireMappingFor = append(idsOfJobsToExpireMappingFor, jobId)
 	}
-	return srv.JobRepository.ExpirePulsarSchedulerJobDetails(idsOfJobsToExpireMappingFor)
+	return srv.JobRepository.ExpirePulsarSchedulerJobDetails(ctx, idsOfJobsToExpireMappingFor)
 }
 
 func (srv *PulsarJobExpirer) ack(ctx *armadacontext.Context, msg pulsar.Message) {

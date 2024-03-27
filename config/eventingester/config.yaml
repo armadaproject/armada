@@ -17,3 +17,4 @@ batchDuration: 100ms
 batchMessages: 10000
 eventRetentionPolicy:
   retentionDuration: 336h
+metricsPort: 9001
