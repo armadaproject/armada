@@ -34,6 +34,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -249,7 +250,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return errors.Wrapf(err, "error creating connection to scheduler api")
 	}
 	schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
-	schedulingReportsServer := scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
+	schedulingReportsServer := reports.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 
 	eventServer := server.NewEventServer(
 		authorizer,
