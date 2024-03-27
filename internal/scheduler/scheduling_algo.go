@@ -28,6 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -45,7 +46,7 @@ type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueRepository             repository.QueueRepository
-	schedulingContextRepository *SchedulingContextRepository
+	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
@@ -71,7 +72,7 @@ func NewFairSchedulingAlgo(
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
 	queueRepository repository.QueueRepository,
-	schedulingContextRepository *SchedulingContextRepository,
+	schedulingContextRepository *reports.SchedulingContextRepository,
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
 ) (*FairSchedulingAlgo, error) {
@@ -177,9 +178,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			return nil, err
 		}
 		if l.schedulingContextRepository != nil {
-			if err := l.schedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-				logging.WithStacktrace(ctx, err).Error("failed to add scheduling context")
-			}
+			l.schedulingContextRepository.StoreSchedulingContext(sctx)
 		}
 
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)

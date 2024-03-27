@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -41,7 +42,7 @@ type Scheduler struct {
 	// TODO: Confusing name. Change.
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
-	leaderController LeaderController
+	leaderController leader.LeaderController
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -87,7 +88,7 @@ func NewScheduler(
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	schedulingAlgo SchedulingAlgo,
-	leaderController LeaderController,
+	leaderController leader.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
 	cyclePeriod time.Duration,
@@ -139,7 +140,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 	ctx.Infof("JobDb initialised in %s", s.clock.Since(start))
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
-	prevLeaderToken := InvalidLeaderToken()
+	prevLeaderToken := leader.InvalidLeaderToken()
 	for {
 		select {
 		case <-ctx.Done():
@@ -150,16 +151,16 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
-			ctx.Infof("received leaderToken; leader status is %t", leaderToken.leader)
+			ctx.Infof("received leaderToken; leader status is %t", leaderToken)
 
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
-			if leaderToken.leader && leaderToken != prevLeaderToken {
+			if leaderToken.Leader() && leaderToken != prevLeaderToken {
 				ctx.Infof("becoming leader")
 				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
 					logging.WithStacktrace(ctx, err).Error("could not become leader")
-					leaderToken = InvalidLeaderToken()
+					leaderToken = leader.InvalidLeaderToken()
 				} else {
 					fullUpdate = true
 				}
@@ -178,12 +179,12 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
 				logging.WithStacktrace(ctx, err).Error("scheduling cycle failure")
-				leaderToken = InvalidLeaderToken()
+				leaderToken = leader.InvalidLeaderToken()
 			}
 
 			cycleTime := s.clock.Since(start)
 
-			if shouldSchedule && leaderToken.leader {
+			if shouldSchedule && leaderToken.Leader() {
 				// Only the leader does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
 				s.metrics.ReportSchedulerResult(result)
@@ -226,7 +227,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := SchedulerResult{}
 

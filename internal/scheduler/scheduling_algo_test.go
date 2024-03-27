@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -382,7 +383,7 @@ func TestSchedule(t *testing.T) {
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 			mockQueueRepo.EXPECT().GetAllQueues(ctx).Return(tc.queues, nil).AnyTimes()
 
-			schedulingContextRepo := NewSchedulingContextRepository()
+			schedulingContextRepo := reports.NewSchedulingContextRepository()
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
 				0,
