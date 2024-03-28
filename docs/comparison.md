@@ -1,22 +1,20 @@
 # Comparison
 
-To support the throughout we need, the Armada scheduler stores jobs in a specialised high-throughput storage layer. We achieve much higher throughput than etcd by sacrificing timeliness, i.e., there may be some lag before changes applied in Armada are visible to all of Armada's components. This storage layer is built on Pulsar and Postrges.
+Armada is not the only (or first) attempt to run batch workloads on Kubernetes. In particular, the Volcano, YuniKorn, Kueue, and Fluence projects are of note. Here, we give a comparison between these systems and Armada.
 
-## On etcd
+## etcd
+
+An important difference between Armada and other batch schedulers for Kubernetes is that Armada does not rely on etcd for queuing and scheduling. Instead, Armada relies on a specialised storage layer that trades off timeliness and consistency for higher throughput. Because etcd is an important aspect of the comparisons we will make, we first give a brief overview of the advantages and disadvantages of etcd.
 
 etcd is a strongly consistent distributed key-value store. Formally, etcd implements total order broadcast via the Raft protocol, and key-value storage is implemented on top of total order broadcast. As a result, etcd provides excellent consistency, durability, and availability guarantees, but low throughput.
 
-If we were to use etcd as the primary database for storing jobs, all submitted jobs would need to be written into etcd. Because etcd has low throughput, we would need to limit the rate at which jobs can be submitted.
+Using etcd as the primary database for storing jobs would require all submitted jobs would need to be written into etcd. Because etcd has low throughput, it would be necessary to limit the rate at which jobs can be submitted. Exactly what rate is achievable depends on how set it up; etcd has a fanout design, such that the load depends on the number of Kubernetes components interested in each etcd key. But the throughout would be orders of magnitude lower than what is possible using the Armada storage layer.
 
-Exactly what rate we would be able to support depends on how set it up; etcd has a fanout design, such that the load depends on the number of Kubernetes components interested in each etcd key. But the throughout would be orders of magnitude less than what we can do with Armada now.
+Further, etcd does not have good ways of protecting itself and is quite fragile. As a result, submitting jobs directly to etcd would risk overloading etcd. If etcd becomes overloaded, the system locks up and requires human intervention.
 
-Further, etcd does not have good ways of protecting itself and is quite fragile. As a result, submitting jobs directly to etcd would risk overloading etcd. If etcd becomes overloaded, the system locks up and requires human intervention. As a side note, Armada currently monitors etcd health to avoid overloading it.
-
-These limitations of etcd are typically not an issue when using Kubernetes to run long-lived services (which is what Kubernetes was originally designed for) since pods may last for days or weeks. However, when running batch jobs, pods may only last for a few minutes, significantly increasing pod churn, at which point etcd throughput becomes a problem.
+These limitations of etcd are typically not an issue when using Kubernetes for long-lived services (which is what Kubernetes was originally designed for) since pods may last for days or weeks. However, when running batch jobs, pods may only last for a few minutes, significantly increasing pod churn, at which point etcd throughput becomes a problem.
 
 ## Alternatives proposed in the community
-
-Armada is not the only (or first) attempt to run batch workloads on Kubernetes. In particular, the Volcano, YuniKorn, Kueue, and Fluence projects are of note. These all have in common that they introduce a notion of job queues and fair sharing of resources between them (with the exception of Fluence). Here, we give a brief overview.
 
 ### Volcano
 
@@ -30,15 +28,13 @@ Because Volcano defines its own CRDs and scheduler, using Volcano may result in 
 
 Like Volcano, YuniKorn (YK) is a replacement of kube-scheduler with added features. Unlike Volcano, YK does not primarily rely on CRDs. Instead, it uses labels and annotations with special meaning to indicate, e.g., which queue a pod belongs to. Such labels/annotations are also used to connect the pods that make up a distributed job; all pods with the same "applicationId" annotation are considered to be part of the same job. This approach avoids the need to define non-standard objects. Like with Volcano, resources (e.g., pods) are submitted directly to Kubernetes and YK relies on etcd for storage (although YK is less tightly coupled to etcd than Volcano and Kueue).
 
-YK is built by Cloudera. It's essentially an attempt to move YARN users onto K8s and hence YK attempts to replicate YARN features within K8s. YK is implemented as a series of plugins for kube-scheduler. However, the plugins are so extensive as to essentially be a replacement of kube-scheduler. The goal of YK is to provide all of the features of kube-scheduler but to also include YARN-style queuing and fair share, and advanced scheduling features like gang-scheduling and Spark support. However, it doesn't yet support all features of kube-scheduler. For example, they don't support preemption.
+YK is built by Cloudera and is in some ways similar to YARN. YK is implemented as a series of plugins for kube-scheduler. However, the plugins are so extensive as to essentially be a replacement of kube-scheduler. The goal of YK is to provide all of the features of kube-scheduler but to also include YARN-style queuing and fair share, and advanced scheduling features like gang-scheduling and Spark support.
 
-YK has a complicated hierarchical queuing structure inherited from YARN. They need to support this in addition to supporting all regular k8s features. Hence, they're trying to solve a much more difficult problem than we do with Armada.
+YK has a hierarchical queuing structure inherited from YARN. They need to support this in addition to supporting all regular k8s features. Hence, they're trying to solve a much more difficult problem than we do with Armada.
 
 ### Kueue
 
 Unlike Volcano and YuniKorn, Kueue is not a replacement of kube-scheduler. Instead, it's a replacement of the standard Kubernetes job controller. A Kubernetes job is the combination of a pod spec and associated instructions, e.g., for how that pod should be run, and how many times it should be retried. The job controller is responsible for creating pods from the job that are then scheduled by the Kubernetes scheduler (which could be kube-scheduler or, e.g., YuniKorn). The Kueue project goes to great lengths to do things in a Kubernetes-native way, e.g., by suggesting changes to the Kubernetes job definition via the Kubernetes Extension Proposal process. Like Volcano and YuniKorn, resources are submitted directly to Kubernetes and are stored in etcd.
-
-Regardless of it Kueue is used in any way on the calc farm, the Kubernetes improvements proposed by the Kueue project are interesting and we should monitor and make use of these where possible.
 
 ### Fluence
 

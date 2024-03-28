@@ -7,7 +7,7 @@
 
 # Armada
 
-Armada is a system built on top of [Kubernetes](https://kubernetes.io/docs/concepts/overview/) for running batch workloads. With Armada as middleware for batch, Kubernetes can be a common substrate for batch and service workloads.  Armada is used in production and can run millions of jobs per day across tens of thousands of nodes. 
+Armada is a high-throughput [batch scheduler](https://en.wikipedia.org/wiki/Job_scheduler) built on top of [Kubernetes](https://kubernetes.io/docs/concepts/overview/). Armada is used in production and can run millions of jobs per day across thousands of nodes.
 
 Armada addresses the following limitations of Kubernetes:
 
@@ -29,12 +29,7 @@ Armada is designed with the enterprise in mind; all components are secure and hi
 
 Armada is a [CNCF](https://www.cncf.io/) Sandbox project and is used in production at [G-Research](https://www.gresearch.co.uk/).
 
-For an overview of Armada, see the following videos:
-
-- [Armada - high-throughput batch scheduling](https://www.youtube.com/watch?v=FT8pXYciD9A)
-- [Building Armada - Running Batch Jobs at Massive Scale on Kubernetes](https://www.youtube.com/watch?v=B3WPxw3OUl4)
-
-The Armada project adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
+### Limitations
 
 ## Documentation
 
@@ -52,6 +47,13 @@ We expect readers of the documentation to have a basic understanding of Docker a
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
+## Presentations
+
+Presentations relating to Armada:
+
+- [Armada - high-throughput batch scheduling](https://www.youtube.com/watch?v=FT8pXYciD9A)
+- [Building Armada - Running Batch Jobs at Massive Scale on Kubernetes](https://www.youtube.com/watch?v=B3WPxw3OUl4)
+
 ## Contributions
 
 Thank you for considering contributing to Armada!
@@ -59,6 +61,8 @@ We want everyone to feel that they can contribute to the Armada Project.
 Your contributions are valuable, whether it's fixing a bug, implementing a new feature, improving documentation, or suggesting enhancements.
 We appreciate your time and effort in helping make this project better for everyone.
 For more information about contributing to Armada see [CONTRIBUTING.md](https://github.com/armadaproject/armada/blob/master/CONTRIBUTING.md) and before proceeding to contributions see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+The Armada project adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
 
 ## Discussion
 
