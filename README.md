@@ -11,13 +11,13 @@ Armada is a high-throughput [batch scheduler](https://en.wikipedia.org/wiki/Job_
 
 Armada addresses the following limitations of Kubernetes:
 
-1. Scaling a single Kubernetes cluster beyond a certain size is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/). Hence, Armada is designed to effectively schedule jobs across many Kubernetes clusters. Many thousands of nodes can be managed by Armada in this way.
-2. Achieving very high throughput using the in-cluster storage backend, etcd, is [challenging](https://etcd.io/docs/v3.5/op-guide/performance/). Hence, Armada performs queueing and scheduling out-of-cluster using a specialized storage layer. This allows Armada to maintain queues composed of millions of jobs.
-3. The default [kube-scheduler](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) is not suitable for batch. Instead, Armada includes a novel multi-Kubernetes cluster scheduler with support for important batch scheduling features, such as:
-   * Fair queuing and scheduling across multiple users. Based on dominant resource fairness.
-   * Resource and job scheduling rate limits.
-   * Gang-scheduling, i.e., atomically scheduling sets of related jobs.
-   * Job preemption, both to run urgent jobs in a timely fashion and to balance resource allocation between users.
+1. Scaling and operating a single Kubernetes cluster beyond about 1000 nodes is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/). One contributing reason is that the number of [watch requests](https://etcd.io/docs/v3.2/learning/api/#watch-api) scales with the square of the number of nodes in some cases. Hence, Armada is designed to effectively schedule jobs across many Kubernetes clusters. Many thousands of nodes can be managed by Armada in this way. Further, Kubernetes clusters can be connected and disconnected in a manner transparent to users, which simplifies, e.g., maintenance and upgrades.
+2. Achieving very high throughput using the in-cluster storage backend, etcd, is [challenging](https://etcd.io/docs/v3.5/op-guide/performance/) as a consequence of the stringent concistency and timeliness guarantees provided by etcd. Hence, Armada performs queueing and scheduling out-of-cluster using a specialized storage layer, which trades off timeliness for higher throughput. This allows Armada to maintain queues composed of millions of jobs.
+3. The default [kube-scheduler](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) lacks many features necessary for anything but trivial batch workflows. Instead, Armada includes a novel multi-Kubernetes cluster scheduler with support for such features, including:
+   * Sophisticated queuing and scheduling algorithms to fairly divide scarce cluster resources between competing requests.
+   * Scheduling limits, which prevent individual users from consuming more than their allotted share of resources.
+   * Gang-scheduling, i.e., atomically scheduling sets of related jobs, as is necessary for, e.g., modern distributed machine learning applications.
+   * State-of-the-art preemption algorithms. For example, Armada can automatically preempt running jobs to balance resource allocation between multiple users, or to make resources available for an urgent job immediately.
 
 Armada also provides features to help manage large compute clusters effectively, including:
 
