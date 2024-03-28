@@ -14,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cluster"
@@ -194,7 +195,9 @@ func setupExecutorApiComponents(
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
 		clusterContext,
 		jobRunState,
-		eventSender)
+		eventSender,
+		clock.RealClock{},
+		200)
 
 	submitter := job.NewSubmitter(
 		clusterContext,

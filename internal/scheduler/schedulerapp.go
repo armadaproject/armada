@@ -36,8 +36,10 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -171,6 +173,16 @@ func Run(config schedulerconfig.Configuration) error {
 	services = append(services, grpcCommon.CreateShutdownHandler(ctx, 5*time.Second, grpcServer))
 
 	// ////////////////////////////////////////////////////////////////////////
+	// Scheduler Reports
+	// ////////////////////////////////////////////////////////////////////////
+	schedulingContextRepository := reports.NewSchedulingContextRepository()
+	reportServer := reports.NewServer(schedulingContextRepository)
+
+	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader)
+	schedulingReportServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	// ////////////////////////////////////////////////////////////////////////
 	// Scheduling
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
@@ -186,12 +198,6 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-
-	schedulingContextRepository := NewSchedulingContextRepository()
-
-	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
-	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
-	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
 
 	// Setup failure estimation and quarantining.
 	failureEstimator, err := failureestimator.New(
@@ -320,11 +326,11 @@ func Run(config schedulerconfig.Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.LeaderConfig) (LeaderController, error) {
+func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.LeaderConfig) (leader.LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		ctx.Infof("Scheduler will run in standalone mode")
-		return NewStandaloneLeaderController(), nil
+		return leader.NewStandaloneLeaderController(), nil
 	case "kubernetes":
 		ctx.Infof("Scheduler will run kubernetes mode")
 		clusterConfig, err := loadClusterConfig(ctx)
@@ -335,8 +341,8 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
-		leaderController := NewKubernetesLeaderController(config, clientSet.CoordinationV1())
-		leaderStatusMetrics := NewLeaderStatusMetricsCollector(config.PodName)
+		leaderController := leader.NewKubernetesLeaderController(config, clientSet.CoordinationV1())
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
 		return leaderController, nil

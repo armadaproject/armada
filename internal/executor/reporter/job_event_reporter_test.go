@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
@@ -79,7 +80,8 @@ func TestJobEventReporter_SendsPreemptionEvent(t *testing.T) {
 			_, executorContext, _, eventSender := setupTest(t, tc.podsInJobRunState)
 			preemptedClusterEvent := createPreemptedClusterEvent(preemptedPod, preemptivePod)
 			executorContext.SimulateClusterAddEvent(preemptedClusterEvent)
-			// Event processing is async, sleep shortly to give it time to process
+
+			// Event processing is async, give time for event to be processed
 			time.Sleep(time.Millisecond * 100)
 
 			if tc.expectPreemptedEventToBeSent {
@@ -104,7 +106,51 @@ func TestJobEventReporter_SendsPreemptionEvent(t *testing.T) {
 	}
 }
 
-func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontext.SyncFakeClusterContext, *job.JobRunStateStore, *FakeEventSender) {
+func TestJobEventReporter_SendsEventImmediately_OnceNumberOfWaitingEventsMatchesBatchSize(t *testing.T) {
+	jobEventReporter, eventSender, _ := setupBatchEventsTest(2)
+	pod1 := createPod(1)
+	pod2 := createPod(2)
+
+	jobEventReporter.QueueEvent(EventMessage{CreateSimpleJobFailedEvent(pod1, "failed", "cluster1", api.Cause_Error), util.ExtractJobRunId(pod1)}, func(err error) {})
+	time.Sleep(time.Millisecond * 100) // Allow time for async event processing
+	// No calls excepted, as batch size is 2 and only 1 event has been sent
+	assert.Equal(t, 0, eventSender.GetNumberOfSendEventCalls())
+
+	jobEventReporter.QueueEvent(EventMessage{CreateSimpleJobFailedEvent(pod2, "failed", "cluster1", api.Cause_Error), util.ExtractJobRunId(pod2)}, func(err error) {})
+	time.Sleep(time.Millisecond * 100) // Allow time for async event processing
+
+	assert.Equal(t, 1, eventSender.GetNumberOfSendEventCalls())
+	sentMessages := eventSender.GetSentEvents(0)
+	assert.Len(t, sentMessages, 2)
+}
+
+func TestJobEventReporter_SendsAllEventsInBuffer_EachBatchTickInterval(t *testing.T) {
+	jobEventReporter, eventSender, testClock := setupBatchEventsTest(2)
+	pod1 := createPod(1)
+
+	jobEventReporter.QueueEvent(EventMessage{CreateSimpleJobFailedEvent(pod1, "failed", "cluster1", api.Cause_Error), util.ExtractJobRunId(pod1)}, func(err error) {})
+	time.Sleep(time.Millisecond * 100)
+	assert.Equal(t, 0, eventSender.GetNumberOfSendEventCalls())
+
+	// Increment time
+	testClock.Step(time.Second * 5)
+	time.Sleep(time.Millisecond * 100)
+
+	assert.Equal(t, 1, eventSender.GetNumberOfSendEventCalls())
+	sentMessages := eventSender.GetSentEvents(0)
+	assert.Len(t, sentMessages, 1)
+}
+
+func setupBatchEventsTest(batchSize int) (*JobEventReporter, *FakeEventSender, *clock.FakeClock) {
+	executorContext := fakecontext.NewSyncFakeClusterContext()
+	eventSender := NewFakeEventSender()
+	jobRunState := job.NewJobRunStateStore(executorContext)
+	testClock := clock.NewFakeClock(time.Now())
+	jobEventReporter, _ := NewJobEventReporter(executorContext, jobRunState, eventSender, testClock, batchSize)
+	return jobEventReporter, eventSender, testClock
+}
+
+func setupTest(t *testing.T, existingPods []*v1.Pod) (*JobEventReporter, *fakecontext.SyncFakeClusterContext, *job.JobRunStateStore, *FakeEventSender) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	for _, pod := range existingPods {
 		_, err := executorContext.SubmitPod(pod, "test", []string{})
@@ -113,7 +159,7 @@ func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontex
 
 	eventSender := NewFakeEventSender()
 	jobRunState := job.NewJobRunStateStore(executorContext)
-	jobEventReporter, _ := NewJobEventReporter(executorContext, jobRunState, eventSender)
+	jobEventReporter, _ := NewJobEventReporter(executorContext, jobRunState, eventSender, clock.RealClock{}, 1)
 
 	return jobEventReporter, executorContext, jobRunState, eventSender
 }
