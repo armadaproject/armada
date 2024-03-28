@@ -11,12 +11,13 @@ import (
 
 // This is largely needed as there is no way to customise the default bucket sizes unfortunately
 // Similar approaches have been taken by kubernetes projects, such as:
-// - https://github.com/kubernetes-sigs/controller-runtime/blob/21368602d84b669eacfb36ec49b10a665b2d4d49/pkg/metrics/client_go_adapter.go#L35
+// - https://github.com/kubernetes-sigs/controller-runtime/blob/139e0d728e115fdeb4718fb2de18eacb9fd85f91/pkg/metrics/client_go_adapter.go
 var (
 	requestLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "rest_client_request_duration_seconds",
-			Help: "Request latency in seconds. Broken down by verb and URL.",
+			Name:    "rest_client_request_duration_seconds",
+			Help:    "Request latency in seconds. Broken down by verb and URL.",
+			Buckets: []float64{.01, .05, .1, .2, .3, .4, .5, .6, .8, 1, 1.25, 1.5, 1.75, 2, 3, 4, 5, 10},
 		},
 		[]string{"verb", "url"},
 	)
