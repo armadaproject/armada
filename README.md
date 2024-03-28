@@ -7,7 +7,7 @@
 
 # Armada
 
-Armada is a high-throughput [batch scheduler](https://en.wikipedia.org/wiki/Job_scheduler) built on top of [Kubernetes](https://kubernetes.io/docs/concepts/overview/). Armada is used in production and can run millions of jobs per day across thousands of nodes.
+Armada is a high-throughput [batch scheduler](https://en.wikipedia.org/wiki/Job_scheduler) built on top of [Kubernetes](https://kubernetes.io/docs/concepts/overview/). Armada is used for critical tasks in a live business environment. Armada can run millions of jobs per day across thousands of nodes. No other batch scheduler for Kubernetes can currently do this at the scale Armada is capable of.
 
 Armada addresses the following limitations of Kubernetes:
 
@@ -22,7 +22,7 @@ Armada addresses the following limitations of Kubernetes:
 Armada also provides features to help manage large compute clusters effectively, including:
 
 * Detailed analytics exposed via [Prometheus](https://prometheus.io/) showing how the system behaves and how resources are allocated.
-* Automatically removing nodes exhibiting high failure rates from consideration for scheduling.
+* Automatic removal of nodes exhibiting high failure rates from consideration for scheduling.
 * A mechanism to earmark nodes for a particular set of jobs, but allowing them to be used by other jobs when not used for their primary purpose.
 
 Armada is designed with the enterprise in mind; all components are secure and highly available.
