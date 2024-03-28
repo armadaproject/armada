@@ -236,9 +236,9 @@ func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*
 
 func WithNodeTypeIdNodes(nodeTypeId uint64, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-	        if node.NodeType == nil {
-	                node.NodeType = &schedulerobjects.NodeType{}
-	        }
+		if node.NodeType == nil {
+			node.NodeType = &schedulerobjects.NodeType{}
+		}
 		node.NodeType.Id = nodeTypeId
 	}
 	return nodes
@@ -629,8 +629,8 @@ func TestUnitReqs(priority int32) *schedulerobjects.PodRequirements {
 func TestCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
-			Id:         "node1",
-			NodeType:   &schedulerobjects.NodeType{Id: 1},
+			Id:       "node1",
+			NodeType: &schedulerobjects.NodeType{Id: 1},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
@@ -647,8 +647,8 @@ func TestCluster() []*schedulerobjects.Node {
 			},
 		},
 		{
-			Id:         "node2",
-			NodeType:   &schedulerobjects.NodeType{Id: 2},
+			Id:       "node2",
+			NodeType: &schedulerobjects.NodeType{Id: 2},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
@@ -665,8 +665,8 @@ func TestCluster() []*schedulerobjects.Node {
 			},
 		},
 		{
-			Id:         "node3",
-			NodeType:   &schedulerobjects.NodeType{Id: 3},
+			Id:       "node3",
+			NodeType: &schedulerobjects.NodeType{Id: 3},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
