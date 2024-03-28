@@ -2,7 +2,6 @@ package reporter
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -40,10 +39,6 @@ func TestSendEvents_LimitsMessageSize(t *testing.T) {
 	assert.True(t, numberOfApiCalls > 1)
 	for i := 0; i < numberOfApiCalls; i++ {
 		sentMessage := fakeExecutorApiClient.GetReportedEvents(i)
-		fmt.Println(fmt.Sprintf("Max size %d", maxMessageSize))
-		fmt.Println(fmt.Sprintf("Real size %d", proto.Size(sentMessage)))
-		isLessThan := proto.Size(sentMessage) < maxMessageSize
-		fmt.Println(isLessThan)
 		assert.True(t, proto.Size(sentMessage) < maxMessageSize)
 	}
 }

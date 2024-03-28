@@ -1,17 +1,18 @@
 package reporter
 
 import (
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/gogo/protobuf/proto"
 )
 
 type EventSender interface {
 	SendEvents(events []EventMessage) error
 }
+
+const eventListOverheadBytes int = 50
 
 type ExecutorApiEventSender struct {
 	eventClient    executorapi.ExecutorApiClient
@@ -53,7 +54,7 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 }
 
 func splitIntoEventListWithByteLimit(sequences []*armadaevents.EventSequence, maxEventListSizeBytes int) ([]*executorapi.EventList, error) {
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, uint(maxEventListSizeBytes), true)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, uint(maxEventListSizeBytes-eventListOverheadBytes), true)
 	if err != nil {
 		return nil, err
 	}
