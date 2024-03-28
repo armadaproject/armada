@@ -29,16 +29,27 @@ var (
 		},
 		[]string{"code", "method", "host"},
 	)
+
+	rateLimiterLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "rest_client_rate_limiter_duration_seconds",
+			Help: "Client side rate limiter latency in seconds. Broken down by verb and URL.",
+		},
+		[]string{"verb", "url"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(requestLatency)
 	prometheus.MustRegister(requestResult)
-	latencyAdapter := &latencyAdapter{m: requestLatency}
+	prometheus.MustRegister(rateLimiterLatency)
+	requestLatencyAdapter := &latencyAdapter{m: requestLatency}
+	rateLimiterLatencyAdapter := &latencyAdapter{m: rateLimiterLatency}
 	resultAdapter := &resultAdapter{requestResult}
 	opts := metrics.RegisterOpts{
-		RequestLatency: latencyAdapter,
-		RequestResult:  resultAdapter,
+		RequestLatency:     requestLatencyAdapter,
+		RequestResult:      resultAdapter,
+		RateLimiterLatency: rateLimiterLatencyAdapter,
 	}
 	metrics.Register(opts)
 }
