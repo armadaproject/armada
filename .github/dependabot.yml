@@ -3,6 +3,14 @@
 
 version: 2
 updates:
+
+  # Enable version updated for GitHub actions used in workflows 
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      # Check for updates to GitHub Actions every week
+      interval: "weekly"
+
   # Enable version updates for npm
   - package-ecosystem: "npm"
     # Look for `package.json` and `lock` files in the `internal/lookout` directory
