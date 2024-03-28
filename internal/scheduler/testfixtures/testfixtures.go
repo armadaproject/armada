@@ -234,12 +234,9 @@ func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*
 	return nodes
 }
 
-func WithNodeTypeIdNodes(nodeTypeId uint64, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+func WithNodeTypeNodes(nodeTypeId uint64, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-		if node.NodeType == nil {
-			node.NodeType = &schedulerobjects.NodeType{}
-		}
-		node.NodeType.Id = nodeTypeId
+		node.NodeType = &schedulerobjects.NodeType{Id: nodeTypeId}
 	}
 	return nodes
 }
