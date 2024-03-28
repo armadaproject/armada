@@ -132,7 +132,11 @@ func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) bool {
 	if info.utilisationMax.IsEmpty() {
 		return false
 	}
-	event := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationMax, r.clusterContext.GetClusterId())
+	event, err := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationMax, r.clusterContext.GetClusterId())
+	if err != nil {
+		log.Errorf("failed to create utilisation event %s", err)
+		return false
+	}
 	r.queueEventWithRetry(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(info.pod)}, 3)
 	return true
 }

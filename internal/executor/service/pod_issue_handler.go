@@ -17,7 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type podIssueType int
@@ -38,7 +38,7 @@ type podIssue struct {
 	Retryable         bool
 	DeletionRequested bool
 	Type              podIssueType
-	Cause             api.Cause
+	Cause             armadaevents.KubernetesReason
 }
 
 type reconciliationIssue struct {
@@ -330,13 +330,22 @@ func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 
 		events := make([]reporter.EventMessage, 0, 2)
 		if issue.RunIssue.PodIssue.Type == StuckStartingUp || issue.RunIssue.PodIssue.Type == UnableToSchedule {
-			unableToScheduleEvent := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, message, p.clusterContext.GetClusterId())
+			unableToScheduleEvent, err := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, message, p.clusterContext.GetClusterId())
+			if err != nil {
+				log.Errorf("Failed to create unable to schedule event for job %s because %s", issue.RunIssue.JobId, err)
+				return
+			}
 			events = append(events, reporter.EventMessage{Event: unableToScheduleEvent, JobRunId: issue.RunIssue.RunId})
 		}
-		failedEvent := reporter.CreateSimpleJobFailedEvent(issue.RunIssue.PodIssue.OriginalPodState, message, p.clusterContext.GetClusterId(), issue.RunIssue.PodIssue.Cause)
+		failedEvent, err := reporter.CreateSimpleJobFailedEvent(issue.RunIssue.PodIssue.OriginalPodState, message, p.clusterContext.GetClusterId(), issue.RunIssue.PodIssue.Cause)
+		if err != nil {
+			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
+			return
+		}
+
 		events = append(events, reporter.EventMessage{Event: failedEvent, JobRunId: issue.RunIssue.RunId})
 
-		err := p.eventReporter.Report(events)
+		err = p.eventReporter.Report(events)
 		if err != nil {
 			log.Errorf("Failed to report failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
@@ -361,8 +370,12 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
 		log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		if issue.RunIssue.PodIssue.Type == StuckStartingUp || issue.RunIssue.PodIssue.Type == UnableToSchedule {
-			event := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId())
-			err := p.eventReporter.Report([]reporter.EventMessage{{Event: event, JobRunId: issue.RunIssue.RunId}})
+			event, err := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId())
+			if err != nil {
+				log.Errorf("Failed to create unable to schedule event for job %s because %s", issue.RunIssue.JobId, err)
+				return
+			}
+			err = p.eventReporter.Report([]reporter.EventMessage{{Event: event, JobRunId: issue.RunIssue.RunId}})
 			if err != nil {
 				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
 				return
@@ -385,7 +398,7 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 						Retryable:         false,
 						DeletionRequested: false,
 						Type:              ErrorDuringIssueHandling,
-						Cause:             api.Cause_Error,
+						Cause:             armadaevents.KubernetesReason_AppError,
 					},
 				})
 			}
@@ -406,8 +419,13 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 		// When we have our own internal state - we don't need to wait for the pod deletion to complete
 		// We can just mark is to delete in our state and return the lease
 		jobRunAttempted := issue.RunIssue.PodIssue.Type != UnableToSchedule
-		returnLeaseEvent := reporter.CreateReturnLeaseEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId(), jobRunAttempted)
-		err := p.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: issue.RunIssue.RunId}})
+		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId(), jobRunAttempted)
+		if err != nil {
+			log.Errorf("Failed to create return lease event for job %s because %s", issue.RunIssue.JobId, err)
+			return
+		}
+
+		err = p.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: issue.RunIssue.RunId}})
 		if err != nil {
 			log.Errorf("Failed to return lease for job %s because %s", issue.RunIssue.JobId, err)
 			return
@@ -496,17 +514,20 @@ func (p *IssueHandler) handleReconciliationIssue(issue *issue) {
 	if currentRunState.Phase == job.Active && timeSinceInitialDetection > p.stateChecksConfig.DeadlineForActivePodConsideredMissing {
 		log.Infof("Pod missing for active run  detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 
-		event := &api.JobFailedEvent{
-			JobId:     currentRunState.Meta.JobId,
-			JobSetId:  currentRunState.Meta.JobSet,
-			Queue:     currentRunState.Meta.Queue,
-			Created:   p.clock.Now(),
-			ClusterId: p.clusterContext.GetClusterId(),
-			Reason:    fmt.Sprintf("Pod is unexpectedly missing in Kubernetes"),
-			Cause:     api.Cause_Error,
+		event, err := reporter.CreateMinimalJobFailedEvent(
+			currentRunState.Meta.JobId,
+			issue.RunIssue.RunId,
+			currentRunState.Meta.JobSet,
+			currentRunState.Meta.Queue,
+			p.clusterContext.GetClusterId(),
+			fmt.Sprintf("Pod is unexpectedly missing in Kubernetes"),
+		)
+		if err != nil {
+			log.Errorf("failed to create job failed event because %s", err)
+			return
 		}
 
-		err := p.eventReporter.Report([]reporter.EventMessage{{Event: event, JobRunId: issue.RunIssue.RunId}})
+		err = p.eventReporter.Report([]reporter.EventMessage{{Event: event, JobRunId: issue.RunIssue.RunId}})
 		if err != nil {
 			log.Errorf("Failure to report failed event %+v because %s", event, err)
 			return

@@ -7,74 +7,60 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
+	pod := makeTestPod(v1.PodPending)
 
-	result, err := CreateEventForCurrentState(&pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1")
 	assert.Nil(t, err)
 
-	_, ok := result.(*api.JobPendingEvent)
+	assert.Len(t, result.Events, 1)
+	_, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunAssigned)
 	assert.True(t, ok)
 }
 
 func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodRunning,
-		},
-	}
+	pod := makeTestPod(v1.PodRunning)
 
-	result, err := CreateEventForCurrentState(&pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1")
 	assert.Nil(t, err)
 
-	_, ok := result.(*api.JobRunningEvent)
+	assert.Len(t, result.Events, 1)
+	_, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunRunning)
 	assert.True(t, ok)
 }
 
 func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodFailed,
-		},
-	}
+	pod := makeTestPod(v1.PodFailed)
 
-	result, err := CreateEventForCurrentState(&pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1")
 	assert.Nil(t, err)
 
-	_, ok := result.(*api.JobFailedEvent)
+	assert.Len(t, result.Events, 1)
+	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
+	assert.Len(t, event.JobRunErrors.Errors, 1)
+	assert.True(t, event.JobRunErrors.Errors[0].GetPodError() != nil)
 }
 
 func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodSucceeded,
-		},
-	}
+	pod := makeTestPod(v1.PodSucceeded)
 
-	result, err := CreateEventForCurrentState(&pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1")
 	assert.Nil(t, err)
 
-	_, ok := result.(*api.JobSucceededEvent)
+	assert.Len(t, result.Events, 1)
+	_, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunSucceeded)
 	assert.True(t, ok)
 }
 
 func TestCreateEventForCurrentState_ShouldError_WhenPodPhaseUnknown(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodUnknown,
-		},
-	}
+	pod := makeTestPod(v1.PodUnknown)
 
-	_, err := CreateEventForCurrentState(&pod, "cluster1")
-	assert.NotNil(t, err)
+	_, err := CreateEventForCurrentState(pod, "cluster1")
+	assert.Error(t, err)
 }
 
 func TestCreateJobIngressInfoEvent(t *testing.T) {
@@ -89,10 +75,11 @@ func TestCreateJobIngressInfoEvent(t *testing.T) {
 	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{service}, []*networking.Ingress{ingress})
 	assert.NoError(t, err)
 
-	ingressEvent, ok := event.(*api.JobIngressInfoEvent)
+	assert.Len(t, event.Events, 1)
+	ingressEvent, ok := event.Events[0].Event.(*armadaevents.EventSequence_Event_StandaloneIngressInfo)
 	assert.True(t, ok)
 
-	assert.Equal(t, expectedIngressMapping, ingressEvent.IngressAddresses)
+	assert.Equal(t, expectedIngressMapping, ingressEvent.StandaloneIngressInfo.IngressAddresses)
 }
 
 func TestCreateJobIngressInfoEvent_OnlyIncludesNodePortServices(t *testing.T) {
@@ -107,10 +94,11 @@ func TestCreateJobIngressInfoEvent_OnlyIncludesNodePortServices(t *testing.T) {
 	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{nodePortService, clusterIpService}, []*networking.Ingress{})
 	assert.NoError(t, err)
 
-	ingressEvent, ok := event.(*api.JobIngressInfoEvent)
+	assert.Len(t, event.Events, 1)
+	ingressEvent, ok := event.Events[0].Event.(*armadaevents.EventSequence_Event_StandaloneIngressInfo)
 	assert.True(t, ok)
 
-	assert.Equal(t, expectedIngressMapping, ingressEvent.IngressAddresses)
+	assert.Equal(t, expectedIngressMapping, ingressEvent.StandaloneIngressInfo.IngressAddresses)
 }
 
 func TestCreateJobIngressInfoEvent_PodNotAllocatedToNode(t *testing.T) {
@@ -156,14 +144,9 @@ func TestCreateJobIngressInfoEvent_EmptyIngresses(t *testing.T) {
 }
 
 func createNodeAllocatedPod() *v1.Pod {
-	return &v1.Pod{
-		Spec: v1.PodSpec{
-			NodeName: "somenode",
-		},
-		Status: v1.PodStatus{
-			HostIP: "192.0.0.1",
-		},
-	}
+	pod := makeTestPod(v1.PodRunning)
+	pod.Status.HostIP = "192.0.0.1"
+	return pod
 }
 
 func createIngress(hostname string, port int32) *networking.Ingress {

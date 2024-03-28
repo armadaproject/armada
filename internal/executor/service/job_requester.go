@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -15,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -183,18 +183,7 @@ func (r *JobRequester) markJobRunsToPreempt(runIdsToPreempt []*armadaevents.Uuid
 
 func (r *JobRequester) handleFailedJobCreation(failedJobCreationDetails []*failedJobCreationDetails) {
 	for _, failedCreateDetails := range failedJobCreationDetails {
-		failedEvent := &api.JobFailedEvent{
-			JobId:             failedCreateDetails.JobRunMeta.JobId,
-			JobSetId:          failedCreateDetails.JobRunMeta.JobSet,
-			Queue:             failedCreateDetails.JobRunMeta.Queue,
-			Created:           time.Now(),
-			ClusterId:         r.clusterId.GetClusterId(),
-			Reason:            failedCreateDetails.Error.Error(),
-			ExitCodes:         map[string]int32{},
-			ContainerStatuses: []*api.ContainerStatus{},
-			Cause:             api.Cause_Error,
-		}
-		err := r.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: failedCreateDetails.JobRunMeta.RunId}})
+		err := r.sendFailedEvent(failedCreateDetails)
 		if err == nil {
 			r.jobRunStateStore.ReportRunInvalid(failedCreateDetails.JobRunMeta)
 		} else {
@@ -202,4 +191,19 @@ func (r *JobRequester) handleFailedJobCreation(failedJobCreationDetails []*faile
 				failedCreateDetails.JobRunMeta.JobId, failedCreateDetails.JobRunMeta.RunId, err)
 		}
 	}
+}
+
+func (r *JobRequester) sendFailedEvent(details *failedJobCreationDetails) error {
+	failedEvent, err := reporter.CreateMinimalJobFailedEvent(
+		details.JobRunMeta.JobId,
+		details.JobRunMeta.RunId,
+		details.JobRunMeta.JobSet,
+		details.JobRunMeta.Queue,
+		r.clusterId.GetClusterId(),
+		details.Error.Error(),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create job failed events because %s", err)
+	}
+	return r.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: details.JobRunMeta.RunId}})
 }

@@ -14,7 +14,7 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type ClusterAllocator interface {
@@ -96,8 +96,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 		}
 
 		if details.Recoverable {
-			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), true)
-			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: details.JobRunMeta.RunId}})
+			err := allocationService.sendReturnLeaseEvent(details, message)
 			if err == nil {
 				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta.RunId)
 			} else {
@@ -107,8 +106,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 				log.Errorf("Failed to return lease for job %s because %s", details.JobRunMeta.JobId, err)
 			}
 		} else {
-			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), api.Cause_Error)
-			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: details.JobRunMeta.RunId}})
+			err := allocationService.sendFailedEvent(details, message)
 			if err == nil {
 				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta.RunId)
 			} else {
@@ -119,6 +117,22 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 			}
 		}
 	}
+}
+
+func (allocationService *ClusterAllocationService) sendReturnLeaseEvent(details *job.FailedSubmissionDetails, message string) error {
+	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), true)
+	if err != nil {
+		return fmt.Errorf("failed to create return lease event %s", err)
+	}
+	return allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: details.JobRunMeta.RunId}})
+}
+
+func (allocationService *ClusterAllocationService) sendFailedEvent(details *job.FailedSubmissionDetails, message string) error {
+	failEvent, err := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), armadaevents.KubernetesReason_AppError)
+	if err != nil {
+		return fmt.Errorf("failed to create return lease event %s", err)
+	}
+	return allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: details.JobRunMeta.RunId}})
 }
 
 func formatResources(availableResource armadaresource.ComputeResources) string {

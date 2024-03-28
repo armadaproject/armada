@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,7 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
@@ -56,12 +58,17 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
 	assert.Len(t, eventsReporter.ReceivedEvents, 2)
-	_, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobUnableToScheduleEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	unableToScheduleEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
+	assert.Len(t, unableToScheduleEvent.JobRunErrors.Errors, 1)
+	assert.True(t, unableToScheduleEvent.JobRunErrors.Errors[0].GetPodUnschedulable() != nil)
 
-	failedEvent, ok := eventsReporter.ReceivedEvents[1].Event.(*api.JobFailedEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[1].Event.Events, 1)
+	failedEvent, ok := eventsReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
-	assert.Contains(t, failedEvent.Reason, "unrecoverable problem")
+	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "unrecoverable problem")
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {
@@ -74,10 +81,11 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testin
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
-	assert.Contains(t, failedEvent.Reason, "terminating")
+	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "terminating")
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *testing.T) {
@@ -116,9 +124,11 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 			if tc.expectIssueDetected {
 				assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 				assert.Len(t, eventsReporter.ReceivedEvents, 1)
-				failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+				assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+				failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 				assert.True(t, ok)
-				assert.Contains(t, failedEvent.Reason, "exceeded active deadline")
+				assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+				assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "exceeded active deadline")
 			} else {
 				assert.Equal(t, []*v1.Pod{tc.pod}, remainingActivePods)
 				assert.Len(t, eventsReporter.ReceivedEvents, 0)
@@ -140,16 +150,21 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 
 	// Reports UnableToSchedule
 	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	_, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobUnableToScheduleEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	unableToScheduleEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
+	assert.Len(t, unableToScheduleEvent.JobRunErrors.Errors, 1)
+	assert.True(t, unableToScheduleEvent.JobRunErrors.Errors[0].GetPodUnschedulable() != nil)
 
 	// Reset events
 	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
 	podIssueService.HandlePodIssues()
 
-	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	_, ok = eventsReporter.ReceivedEvents[0].Event.(*api.JobLeaseReturnedEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	returnedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
+	assert.Len(t, returnedEvent.JobRunErrors.Errors, 1)
+	assert.True(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned() != nil)
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
@@ -161,8 +176,11 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 
 	// Reports UnableToSchedule
 	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	_, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobUnableToScheduleEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	unableToScheduleEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
+	assert.Len(t, unableToScheduleEvent.JobRunErrors.Errors, 1)
+	assert.True(t, unableToScheduleEvent.JobRunErrors.Errors[0].GetPodUnschedulable() != nil)
 
 	// Reset events, and add pod back as running
 	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
@@ -179,28 +197,40 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
 
 	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	_, ok = eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
+	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
 }
 
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
 	runningPod := makeRunningPod()
+	protoJobId, err := armadaevents.ProtoUuidFromUlidString(util.ExtractJobId(runningPod))
+	require.NoError(t, err)
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
 	podIssueService.HandlePodIssues()
 
 	// Reports Failed
 	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
-	assert.Equal(t, failedEvent.JobId, util.ExtractJobId(runningPod))
+	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
+	assert.Equal(t, failedEvent.JobRunErrors.JobId, protoJobId)
 }
 
 func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
-	podIssueService, _, _, eventsReporter := setupTestComponents([]*job.RunState{createRunState("job-1", "run-1", job.Active)})
+	jobId := commonutil.NewULID()
+	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
+	require.NoError(t, err)
+
+	podIssueService, _, _, eventsReporter := setupTestComponents([]*job.RunState{createRunState(jobId, uuid.New().String(), job.Active)})
 	podIssueService.clock = fakeClock
 
 	podIssueService.HandlePodIssues()
@@ -211,9 +241,12 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 	podIssueService.HandlePodIssues()
 	// Reports Failed
 	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
-	assert.Equal(t, failedEvent.JobId, "job-1")
+	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
+	assert.Equal(t, failedEvent.JobRunErrors.JobId, protoJobId)
 }
 
 func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T) {
@@ -370,9 +403,9 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				domain.JobId:    "job-id-1",
+				domain.JobId:    commonutil.NewULID(),
 				domain.Queue:    "queue-id-1",
-				domain.JobRunId: "job-run-id-1",
+				domain.JobRunId: uuid.New().String(),
 			},
 			Annotations: map[string]string{
 				domain.JobSetId: "job-set-id-1",

@@ -4,14 +4,20 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/job/mocks"
 	mocks2 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestAllocateSpareClusterCapacity(t *testing.T) {
@@ -94,7 +100,7 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			leaseRun := createRun("leased", job.Leased)
+			leaseRun := createRun(uuid.New().String(), job.Leased)
 			clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest([]*job.RunState{leaseRun})
 			eventReporter.ErrorOnReport = tc.failOnReportingEvent
 			submitter.FailedSubmissionDetails = []*job.FailedSubmissionDetails{
@@ -118,16 +124,22 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 				run := runStore.Get(leaseRun.Meta.RunId)
 				assert.Equal(t, run.Phase, job.FailedSubmission)
 				assert.Len(t, eventReporter.ReceivedEvents, 1)
-				_, ok := eventReporter.ReceivedEvents[0].Event.(*api.JobLeaseReturnedEvent)
+				assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+				event, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 				assert.True(t, ok)
+				assert.Len(t, event.JobRunErrors.Errors, 1)
+				assert.True(t, event.JobRunErrors.Errors[0].GetPodLeaseReturned() != nil)
 			}
 
 			if tc.expectFailEvent {
 				run := runStore.Get(leaseRun.Meta.RunId)
 				assert.Equal(t, run.Phase, job.FailedSubmission)
 				assert.Len(t, eventReporter.ReceivedEvents, 1)
-				_, ok := eventReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+				assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+				event, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 				assert.True(t, ok)
+				assert.Len(t, event.JobRunErrors.Errors, 1)
+				assert.True(t, event.JobRunErrors.Errors[0].GetPodError() != nil)
 			}
 		})
 	}
@@ -157,6 +169,15 @@ func setupClusterAllocationServiceTest(initialJobRuns []*job.RunState) (
 }
 
 func createRun(runId string, phase job.RunPhase) *job.RunState {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        util2.NewULID(),
+			UID:         types.UID(util2.NewULID()),
+			Namespace:   "default",
+			Annotations: map[string]string{},
+			Labels:      map[string]string{domain.Queue: "test", domain.JobId: util2.NewULID(), domain.JobRunId: runId},
+		},
+	}
 	return &job.RunState{
 		Meta: &job.RunMeta{
 			RunId: runId,
@@ -167,7 +188,7 @@ func createRun(runId string, phase job.RunPhase) *job.RunState {
 					RunId: runId,
 				},
 			},
-			Pod: makePod("queue-1"),
+			Pod: pod,
 		},
 		Phase: phase,
 	}
