@@ -1,11 +1,12 @@
 package reporter
 
 import (
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
-	"github.com/gogo/protobuf/proto"
 )
 
 type EventSender interface {
