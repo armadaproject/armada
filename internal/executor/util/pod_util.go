@@ -304,11 +304,6 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	return annotationPresent
 }
 
-func HasCurrentClusterEventBeenReported(clusterEvent *v1.Event) bool {
-	_, annotationPresent := clusterEvent.Annotations[domain.ClusterEventReported]
-	return annotationPresent
-}
-
 func IsArmadaJobPod(name string) bool {
 	return strings.HasPrefix(name, common.PodNamePrefix)
 }
