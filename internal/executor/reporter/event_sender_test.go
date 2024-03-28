@@ -2,186 +2,60 @@ package reporter
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func TestSendEvents_OnlySendsJobRunEvents(t *testing.T) {
-	tests := map[string]struct {
-		event                  api.Event
-		expectedNumberOfEvents int
-	}{
-		"JobPendingEvent": {
-			event:                  &api.JobPendingEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobRunningEvent": {
-			event:                  &api.JobRunningEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobSucceededEvent": {
-			event:                  &api.JobSucceededEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobFailedEvent": {
-			event:                  &api.JobFailedEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobLeaseReturnedEvent": {
-			event:                  &api.JobLeaseReturnedEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobUnableToScheduleEvent": {
-			event:                  &api.JobUnableToScheduleEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobPreemptedEvent": {
-			event:                  &api.JobPreemptedEvent{JobId: util.ULID().String(), RunId: uuid.New().String(), PreemptiveRunId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobIngressInfoEvent": {
-			event:                  &api.JobIngressInfoEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobUtilisationEvent": {
-			event:                  &api.JobUtilisationEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()},
-			expectedNumberOfEvents: 1,
-		},
-		"JobQueuedEvent": {
-			event:                  &api.JobQueuedEvent{JobId: util.ULID().String()},
-			expectedNumberOfEvents: 0,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			eventSender, fakeExecutorApiClient := setup()
-			err := eventSender.SendEvents([]EventMessage{{Event: test.event, JobRunId: uuid.New().String()}})
-
-			assert.NoError(t, err)
-			if test.expectedNumberOfEvents <= 0 {
-				assert.Equal(t, 0, fakeExecutorApiClient.GetNumberOfReportEventCalls())
-			} else {
-				assert.Equal(t, test.expectedNumberOfEvents, fakeExecutorApiClient.GetNumberOfReportEventCalls())
-				for i := 0; i < test.expectedNumberOfEvents; i++ {
-					assert.Len(t, getAllSentEvents(fakeExecutorApiClient.GetReportedEvents(i)), test.expectedNumberOfEvents)
-				}
-			}
-		})
-	}
-}
-
-func TestSendEvents_ShouldPopulateRunIdWithProvidedId(t *testing.T) {
-	eventSender, fakeExecutorApiClient := setup()
-
-	jobRunId := uuid.New().String()
-	event := &api.JobRunningEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()}
-
-	err := eventSender.SendEvents([]EventMessage{{Event: event, JobRunId: jobRunId}})
-
-	assert.NoError(t, err)
-	assert.Equal(t, 1, fakeExecutorApiClient.GetNumberOfReportEventCalls())
-
-	for _, e := range getAllSentEvents(fakeExecutorApiClient.GetReportedEvents(0)) {
-		runIdString, err := armadaevents.UuidStringFromProtoUuid(e.GetJobRunRunning().RunId)
-		assert.NoError(t, err)
-		assert.Equal(t, jobRunId, runIdString)
-	}
-}
-
 func TestSendEvents_MakesNoCallToClient_IfNoEventsToSend(t *testing.T) {
 	eventSender, fakeExecutorApiClient := setup()
-	// This is not an event type supported by the event sender, so should get filtered out
-	event := &api.JobQueuedEvent{JobId: util.ULID().String()}
 
-	err := eventSender.SendEvents([]EventMessage{{Event: event, JobRunId: uuid.New().String()}})
+	err := eventSender.SendEvents([]EventMessage{})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, fakeExecutorApiClient.GetNumberOfReportEventCalls())
-}
-
-func TestSendEvents_ReturnsError_OnInvalidIdFormats(t *testing.T) {
-	tests := map[string]struct {
-		jobId       string
-		runId       string
-		shouldError bool
-	}{
-		"ValidIds": {
-			jobId:       util.ULID().String(),
-			runId:       uuid.New().String(),
-			shouldError: false,
-		},
-		"InvalidJobId": {
-			jobId:       "invalid-job-id-format",
-			runId:       uuid.New().String(),
-			shouldError: true,
-		},
-		"InvalidRunId": {
-			jobId:       util.ULID().String(),
-			runId:       "invalid-job-run-id",
-			shouldError: true,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			eventSender, _ := setup()
-			event := &api.JobRunningEvent{
-				JobId:        test.jobId,
-				KubernetesId: uuid.New().String(),
-			}
-			err := eventSender.SendEvents([]EventMessage{{Event: event, JobRunId: test.runId}})
-			if test.shouldError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
 }
 
 func TestSendEvents_LimitsMessageSize(t *testing.T) {
 	maxMessageSize := 1024
 	eventSender, fakeExecutorApiClient := setupWithMaxMessageSize(maxMessageSize)
-	err := eventSender.SendEvents(generateEventMessages(100))
+	err := eventSender.SendEvents(generateEventMessages(t, 100))
 	assert.NoError(t, err)
 
 	numberOfApiCalls := fakeExecutorApiClient.GetNumberOfReportEventCalls()
 	assert.True(t, numberOfApiCalls > 1)
 	for i := 0; i < numberOfApiCalls; i++ {
 		sentMessage := fakeExecutorApiClient.GetReportedEvents(i)
+		fmt.Println(fmt.Sprintf("Max size %d", maxMessageSize))
+		fmt.Println(fmt.Sprintf("Real size %d", proto.Size(sentMessage)))
+		isLessThan := proto.Size(sentMessage) < maxMessageSize
+		fmt.Println(isLessThan)
 		assert.True(t, proto.Size(sentMessage) < maxMessageSize)
 	}
 }
 
-func generateEventMessages(count int) []EventMessage {
+func generateEventMessages(t *testing.T, count int) []EventMessage {
 	result := make([]EventMessage, 0, count)
 
 	for i := 0; i < count; i++ {
-		event := &api.JobRunningEvent{JobId: util.ULID().String(), KubernetesId: uuid.New().String()}
+		pod := makeTestPod(v1.PodRunning)
+		event, err := CreateEventForCurrentState(pod, "cluster-1")
+		require.NoError(t, err)
 		result = append(result, EventMessage{Event: event, JobRunId: uuid.New().String()})
 	}
-	return result
-}
-
-func getAllSentEvents(eventList *executorapi.EventList) []*armadaevents.EventSequence_Event {
-	result := []*armadaevents.EventSequence_Event{}
-
-	for _, sequence := range eventList.Events {
-		for _, e := range sequence.Events {
-			result = append(result, e)
-		}
-	}
-
 	return result
 }
 
@@ -222,4 +96,28 @@ func (fakeClient *fakeExecutorApiClient) GetNumberOfReportEventCalls() int {
 
 func (fakeClient *fakeExecutorApiClient) GetReportedEvents(callIndex int) *executorapi.EventList {
 	return fakeClient.reportedEvents[callIndex]
+}
+
+func makeTestPod(phase v1.PodPhase) *v1.Pod {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				domain.JobId:    util.ULID().String(),
+				domain.Queue:    "queue-id-1",
+				domain.JobRunId: uuid.New().String(),
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: "job-set-id-1",
+			},
+			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+			UID:               k8sTypes.UID(util.NewULID()),
+		},
+		Spec: v1.PodSpec{
+			NodeName: "node1",
+		},
+		Status: v1.PodStatus{
+			Phase: phase,
+		},
+	}
+	return pod
 }

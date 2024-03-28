@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 type RunPreemptedProcessor struct {
@@ -74,14 +74,20 @@ func (j *RunPreemptedProcessor) Run() {
 }
 
 func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Pod) error {
-	preemptedEvent := reporter.CreateSimpleJobPreemptedEvent(pod, j.clusterContext.GetClusterId())
-	failedEvent := reporter.CreateSimpleJobFailedEvent(pod, "Run preempted", j.clusterContext.GetClusterId(), api.Cause_Error)
+	preemptedEvent, err := reporter.CreateSimpleJobPreemptedEvent(pod)
+	if err != nil {
+		return fmt.Errorf("failed creating preempted event because - %s", err)
+	}
+	failedEvent, err := reporter.CreateSimpleJobFailedEvent(pod, "Run preempted", j.clusterContext.GetClusterId(), armadaevents.KubernetesReason_AppError)
+	if err != nil {
+		return fmt.Errorf("failed creating failed event because - %s", err)
+	}
 	events := []reporter.EventMessage{
 		{Event: preemptedEvent, JobRunId: run.Meta.RunId},
 		{Event: failedEvent, JobRunId: run.Meta.RunId},
 	}
 
-	err := j.eventReporter.Report(events)
+	err = j.eventReporter.Report(events)
 	if err != nil {
 		return fmt.Errorf("failed reporting preempted events because - %s", err)
 	}

@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestRequiresIngressToBeReported_FalseWhenIngressHasBeenReported(t *testing.T) {
@@ -50,12 +52,12 @@ func TestJobEventReporter_SendsEventImmediately_OnceNumberOfWaitingEventsMatches
 	pod1 := createPod(1)
 	pod2 := createPod(2)
 
-	jobEventReporter.QueueEvent(EventMessage{CreateSimpleJobFailedEvent(pod1, "failed", "cluster1", api.Cause_Error), util.ExtractJobRunId(pod1)}, func(err error) {})
+	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod1), util.ExtractJobRunId(pod1)}, func(err error) {})
 	time.Sleep(time.Millisecond * 100) // Allow time for async event processing
 	// No calls excepted, as batch size is 2 and only 1 event has been sent
 	assert.Equal(t, 0, eventSender.GetNumberOfSendEventCalls())
 
-	jobEventReporter.QueueEvent(EventMessage{CreateSimpleJobFailedEvent(pod2, "failed", "cluster1", api.Cause_Error), util.ExtractJobRunId(pod2)}, func(err error) {})
+	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod2), util.ExtractJobRunId(pod2)}, func(err error) {})
 	time.Sleep(time.Millisecond * 100) // Allow time for async event processing
 
 	assert.Equal(t, 1, eventSender.GetNumberOfSendEventCalls())
@@ -67,7 +69,7 @@ func TestJobEventReporter_SendsAllEventsInBuffer_EachBatchTickInterval(t *testin
 	jobEventReporter, eventSender, testClock := setupBatchEventsTest(2)
 	pod1 := createPod(1)
 
-	jobEventReporter.QueueEvent(EventMessage{CreateSimpleJobFailedEvent(pod1, "failed", "cluster1", api.Cause_Error), util.ExtractJobRunId(pod1)}, func(err error) {})
+	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod1), util.ExtractJobRunId(pod1)}, func(err error) {})
 	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, 0, eventSender.GetNumberOfSendEventCalls())
 
@@ -78,6 +80,12 @@ func TestJobEventReporter_SendsAllEventsInBuffer_EachBatchTickInterval(t *testin
 	assert.Equal(t, 1, eventSender.GetNumberOfSendEventCalls())
 	sentMessages := eventSender.GetSentEvents(0)
 	assert.Len(t, sentMessages, 1)
+}
+
+func createFailedEvent(t *testing.T, pod *v1.Pod) *armadaevents.EventSequence {
+	event, err := CreateSimpleJobFailedEvent(pod, "failed", "cluster1", armadaevents.KubernetesReason_AppError)
+	require.NoError(t, err)
+	return event
 }
 
 func setupBatchEventsTest(batchSize int) (*JobEventReporter, *FakeEventSender, *clock.FakeClock) {
@@ -91,6 +99,7 @@ func setupBatchEventsTest(batchSize int) (*JobEventReporter, *FakeEventSender, *
 
 func createPod(index int) *v1.Pod {
 	jobId := util2.NewULID()
+	runId := uuid.New().String()
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       types.UID(fmt.Sprintf("job-uid-%d", index)),
@@ -98,7 +107,7 @@ func createPod(index int) *v1.Pod {
 			Namespace: util2.NewULID(),
 			Labels: map[string]string{
 				domain.JobId:    jobId,
-				domain.JobRunId: fmt.Sprintf("job-run-%d", index),
+				domain.JobRunId: runId,
 				domain.Queue:    fmt.Sprintf("queue-%d", index),
 			},
 			Annotations: map[string]string{

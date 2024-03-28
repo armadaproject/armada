@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -16,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestRun_PreemptedRunProcessor(t *testing.T) {
@@ -98,9 +99,11 @@ func TestRun_PreemptedRunProcessor(t *testing.T) {
 			if tc.expectEvents {
 				events := eventReporter.ReceivedEvents
 				assert.Len(t, events, 2)
-				_, ok := eventReporter.ReceivedEvents[0].Event.(*api.JobPreemptedEvent)
+				assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+				_, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunPreempted)
 				assert.True(t, ok)
-				_, ok = eventReporter.ReceivedEvents[1].Event.(*api.JobFailedEvent)
+				assert.Len(t, eventReporter.ReceivedEvents[1].Event.Events, 1)
+				_, ok = eventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 				assert.True(t, ok)
 			} else {
 				assert.Len(t, eventReporter.ReceivedEvents, 0)
@@ -135,7 +138,7 @@ func createPod() *v1.Pod {
 			Namespace: util2.NewULID(),
 			Labels: map[string]string{
 				domain.JobId:    jobId,
-				domain.JobRunId: util2.NewULID(),
+				domain.JobRunId: uuid.New().String(),
 				domain.Queue:    util2.NewULID(),
 			},
 			Annotations: map[string]string{
