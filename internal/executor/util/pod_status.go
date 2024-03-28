@@ -3,10 +3,10 @@ package util
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})

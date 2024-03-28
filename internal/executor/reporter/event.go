@@ -5,13 +5,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.EventSequence, error) {
@@ -246,8 +246,8 @@ func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, ca
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason,
-	containerStatuses []*armadaevents.ContainerError, clusterId string) (*armadaevents.EventSequence, error) {
-
+	containerStatuses []*armadaevents.ContainerError, clusterId string,
+) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
 	if err != nil {

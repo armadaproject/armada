@@ -522,7 +522,6 @@ func (p *IssueHandler) handleReconciliationIssue(issue *issue) {
 			p.clusterContext.GetClusterId(),
 			fmt.Sprintf("Pod is unexpectedly missing in Kubernetes"),
 		)
-
 		if err != nil {
 			log.Errorf("failed to create job failed event because %s", err)
 			return

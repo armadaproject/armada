@@ -3,10 +3,11 @@ package reporter
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {

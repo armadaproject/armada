@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type RunPreemptedProcessor struct {

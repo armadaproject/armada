@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestRequiresIngressToBeReported_FalseWhenIngressHasBeenReported(t *testing.T) {

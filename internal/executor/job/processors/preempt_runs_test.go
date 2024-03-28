@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestRun_PreemptedRunProcessor(t *testing.T) {

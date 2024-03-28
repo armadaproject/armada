@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var (

@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	util2 "github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -14,10 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/job/mocks"
 	mocks2 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestAllocateSpareClusterCapacity(t *testing.T) {

@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	util2 "github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,11 +12,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var testPodResources = domain.UtilisationData{
