@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
 
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
@@ -13,8 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
-
-const batchSize = 200
 
 type EventReporter interface {
 	Report(events []EventMessage) error
@@ -34,9 +33,17 @@ type JobEventReporter struct {
 
 	jobRunStateStore *job.JobRunStateStore
 	clusterContext   clusterContext.ClusterContext
+	clock            clock.Clock
+	maxBatchSize     int
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateStore, eventSender EventSender) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(
+	clusterContext clusterContext.ClusterContext,
+	jobRunState *job.JobRunStateStore,
+	eventSender EventSender,
+	clock clock.Clock,
+	maxBatchSize int,
+) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
@@ -45,10 +52,11 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunSta
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
+		clock:            clock,
+		maxBatchSize:     maxBatchSize,
 	}
 
 	clusterContext.AddPodEventHandler(reporter.podEventHandler())
-	clusterContext.AddClusterEventEventHandler(reporter.clusterEventEventHandler())
 
 	go reporter.processEventQueue(stop)
 
@@ -81,76 +89,8 @@ func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHand
 	}
 }
 
-func (eventReporter *JobEventReporter) clusterEventEventHandler() cache.ResourceEventHandlerFuncs {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			clusterEvent, ok := obj.(*v1.Event)
-			if !ok {
-				log.Errorf("Failed to process cluster event due to it being an unexpected type. Failed to process %+v", obj)
-				return
-			}
-			if util.IsPreemptedEvent(clusterEvent) {
-				eventReporter.reportPreemptedEvent(clusterEvent)
-			}
-		},
-	}
-}
-
 func (eventReporter *JobEventReporter) Report(events []EventMessage) error {
 	return eventReporter.eventSender.SendEvents(events)
-}
-
-func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Event) {
-	if util.HasCurrentClusterEventBeenReported(clusterEvent) || !util.IsArmadaJobPod(clusterEvent.InvolvedObject.Name) {
-		return
-	}
-
-	preemptedRunId := ""
-	event, err := CreateJobPreemptedEvent(clusterEvent, eventReporter.clusterContext.GetClusterId())
-	if err != nil {
-		log.Errorf("Failed to create JobPreemptedEvent: %v", err)
-		return
-	}
-	// Special handling for Executor API
-	// Once we are migrated to the Executor API this should be tidied up (and probably moved out of job_event_reporter)
-	if eventReporter.jobRunStateStore != nil {
-		preemptedRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.RunId)
-		if preemptedRun != nil && preemptedRun.Meta != nil {
-			preemptedRunId = preemptedRun.Meta.RunId
-			event.Queue = preemptedRun.Meta.Queue
-			event.JobSetId = preemptedRun.Meta.JobSet
-		} else {
-			log.Errorf("Failed to create JobPreemptedEvent for job %s because job run id could not be found", event.JobId)
-			return
-		}
-		preemptiveRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.PreemptiveRunId)
-		if preemptiveRun != nil && preemptiveRun.Meta != nil {
-			event.PreemptiveRunId = preemptiveRun.Meta.RunId
-		} else {
-			event.PreemptiveRunId = ""
-		}
-	}
-	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: preemptedRunId}, func(err error) {
-		if err != nil {
-			log.Errorf(
-				"Failed to report event JobPreemptedEvent for cluster event %s/%s: %v",
-				clusterEvent.Namespace, clusterEvent.Name, err,
-			)
-			return
-		}
-
-		err = eventReporter.addAnnotationToMarkClusterEventReported(clusterEvent)
-		if err != nil {
-			log.Errorf(
-				"Failed to add preemption reported annotation to cluster event %s/%s: %v",
-				clusterEvent.Namespace, clusterEvent.Name, err,
-			)
-			return
-		}
-	})
-	if err := eventReporter.addAnnotationToMarkClusterEventReported(clusterEvent); err != nil {
-		log.Errorf("Failed to add preempted event reported annotation to event %s/%s: %v", clusterEvent.Namespace, clusterEvent.Name, err)
-	}
 }
 
 func (eventReporter *JobEventReporter) reportStatusUpdate(old *v1.Pod, new *v1.Pod) {
@@ -210,29 +150,41 @@ func (eventReporter *JobEventReporter) QueueEvent(event EventMessage, callback f
 }
 
 func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
+	ticker := eventReporter.clock.NewTicker(time.Second * 2)
+	toSendBuffer := make([]*queuedEvent, 0, eventReporter.maxBatchSize)
 	for {
 		select {
 		case <-stop:
-			for i := len(eventReporter.eventBuffer); i > 0; i -= batchSize {
+			for i := len(eventReporter.eventBuffer); i > 0; i -= eventReporter.maxBatchSize {
 				batch := eventReporter.fillBatch()
 				eventReporter.sendBatch(batch)
 			}
 			return
 		case event := <-eventReporter.eventBuffer:
-			batch := eventReporter.fillBatch(event)
-			eventReporter.sendBatch(batch)
+			toSendBuffer = append(toSendBuffer, event)
+			if len(toSendBuffer) >= eventReporter.maxBatchSize {
+				eventReporter.sendBatch(toSendBuffer)
+				toSendBuffer = nil
+			}
+		case <-ticker.C():
+			if len(toSendBuffer) <= 0 {
+				break
+			}
+			eventReporter.sendBatch(toSendBuffer)
+			toSendBuffer = nil
 		}
 	}
 }
 
 func (eventReporter *JobEventReporter) fillBatch(batch ...*queuedEvent) []*queuedEvent {
-	for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
+	for len(batch) < eventReporter.maxBatchSize && len(eventReporter.eventBuffer) > 0 {
 		batch = append(batch, <-eventReporter.eventBuffer)
 	}
 	return batch
 }
 
 func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
+	log.Debugf("Sending batch of %d events", len(batch))
 	err := eventReporter.eventSender.SendEvents(queuedEventsToEventMessages(batch))
 	go func() {
 		for _, e := range batch {
@@ -274,14 +226,6 @@ func (eventReporter *JobEventReporter) addAnnotationToMarkIngressReported(pod *v
 	annotations[annotationName] = time.Now().String()
 
 	return eventReporter.clusterContext.AddAnnotation(pod, annotations)
-}
-
-func (eventReporter *JobEventReporter) addAnnotationToMarkClusterEventReported(clusterEvent *v1.Event) error {
-	annotations := make(map[string]string)
-	annotationName := domain2.ClusterEventReported
-	annotations[annotationName] = time.Now().String()
-
-	return eventReporter.clusterContext.AddClusterEventAnnotation(clusterEvent, annotations)
 }
 
 func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
