@@ -1,8 +1,10 @@
 package reporter
 
-import "github.com/armadaproject/armada/pkg/api"
+import (
+	"github.com/armadaproject/armada/pkg/armadaevents"
+)
 
 type EventMessage struct {
-	Event    api.Event
+	Event    *armadaevents.EventSequence
 	JobRunId string
 }

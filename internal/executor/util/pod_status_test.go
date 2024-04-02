@@ -9,7 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var (
@@ -115,35 +115,35 @@ func TestExtractPodFailedReason(t *testing.T) {
 }
 
 func TestExtractPodFailedCause(t *testing.T) {
-	failedCause := ExtractPodFailedCause(evictedPod)
-	assert.Equal(t, failedCause, api.Cause_Evicted)
+	failedCause := ExtractPodFailureCause(evictedPod)
+	assert.Equal(t, failedCause, armadaevents.KubernetesReason_Evicted)
 
-	failedCause = ExtractPodFailedCause(deadlineExceededPod)
-	assert.Equal(t, failedCause, api.Cause_DeadlineExceeded)
+	failedCause = ExtractPodFailureCause(deadlineExceededPod)
+	assert.Equal(t, failedCause, armadaevents.KubernetesReason_DeadlineExceeded)
 
-	failedCause = ExtractPodFailedCause(oomPod)
-	assert.Equal(t, failedCause, api.Cause_OOM)
+	failedCause = ExtractPodFailureCause(oomPod)
+	assert.Equal(t, failedCause, armadaevents.KubernetesReason_OOM)
 
-	failedCause = ExtractPodFailedCause(customErrorPod)
-	assert.Equal(t, failedCause, api.Cause_Error)
+	failedCause = ExtractPodFailureCause(customErrorPod)
+	assert.Equal(t, failedCause, armadaevents.KubernetesReason_AppError)
 }
 
 func TestExtractFailedPodContainerStatuses(t *testing.T) {
-	containerStatuses := ExtractFailedPodContainerStatuses(evictedPod)
+	containerStatuses := ExtractFailedPodContainerStatuses(evictedPod, "cluster1")
 	assert.Equal(t, len(containerStatuses), 0)
 
-	containerStatuses = ExtractFailedPodContainerStatuses(deadlineExceededPod)
+	containerStatuses = ExtractFailedPodContainerStatuses(deadlineExceededPod, "cluster1")
 	assert.Equal(t, len(containerStatuses), 0)
 
-	containerStatuses = ExtractFailedPodContainerStatuses(oomPod)
+	containerStatuses = ExtractFailedPodContainerStatuses(oomPod, "cluster1")
 	assert.Equal(t, len(containerStatuses), 1)
 	assert.Equal(t, containerStatuses[0].Reason, oomPod.Status.ContainerStatuses[0].State.Terminated.Reason)
-	assert.Equal(t, containerStatuses[0].Cause, api.Cause_OOM)
+	assert.Equal(t, containerStatuses[0].KubernetesReason, armadaevents.KubernetesReason_OOM)
 
-	containerStatuses = ExtractFailedPodContainerStatuses(customErrorPod)
+	containerStatuses = ExtractFailedPodContainerStatuses(customErrorPod, "cluster1")
 	assert.Equal(t, len(containerStatuses), 1)
 	assert.Equal(t, containerStatuses[0].Message, customErrorPod.Status.ContainerStatuses[0].State.Terminated.Message)
-	assert.Equal(t, containerStatuses[0].Cause, api.Cause_Error)
+	assert.Equal(t, containerStatuses[0].KubernetesReason, armadaevents.KubernetesReason_AppError)
 }
 
 func createOomContainerStatus() v1.ContainerStatus {
