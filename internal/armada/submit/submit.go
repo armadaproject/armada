@@ -2,14 +2,14 @@ package submit
 
 import (
 	"context"
-	"crypto/sha1"
-	"fmt"
-	"time"
-
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
@@ -20,9 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -38,6 +36,9 @@ type Server struct {
 	deduplicator     Deduplicator
 	submitChecker    scheduler.SubmitScheduleChecker
 	authorizer       server.ActionAuthorizer
+	// Below are used only for testing
+	clock       clock.Clock
+	idGenerator func() *armadaevents.Uuid
 }
 
 func NewServer(
@@ -57,6 +58,10 @@ func NewServer(
 		deduplicator:     deduplicator,
 		submitChecker:    submitChecker,
 		authorizer:       authorizer,
+		clock:            clock.RealClock{},
+		idGenerator: func() *armadaevents.Uuid {
+			return armadaevents.MustProtoUuidFromUlidString(util.NewULID())
+		},
 	}
 }
 
@@ -97,8 +102,8 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		}
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
-		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, userId)
-		eventTime := time.Now().UTC()
+		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, s.idGenerator, userId)
+		eventTime := s.clock.Now().UTC()
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
 			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_SubmitJob{
@@ -127,21 +132,19 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
-	if len(jobResponses) > 0 {
-		pulsarJobDetails := armadaslices.Map(
-			jobResponses,
-			func(r *api.JobSubmitResponseItem) *schedulerobjects.PulsarSchedulerJobDetails {
-				return &schedulerobjects.PulsarSchedulerJobDetails{
-					JobId:  r.JobId,
-					Queue:  req.Queue,
-					JobSet: req.JobSetId,
-				}
-			})
+	pulsarJobDetails := armadaslices.Map(
+		jobResponses,
+		func(r *api.JobSubmitResponseItem) *schedulerobjects.PulsarSchedulerJobDetails {
+			return &schedulerobjects.PulsarSchedulerJobDetails{
+				JobId:  r.JobId,
+				Queue:  req.Queue,
+				JobSet: req.JobSetId,
+			}
+		})
 
-		if err = s.jobRepository.StorePulsarSchedulerJobDetails(ctx, pulsarJobDetails); err != nil {
-			log.WithError(err).Error("failed store pulsar job details")
-			return nil, status.Error(codes.Internal, "failed store pulsar job details")
-		}
+	if err = s.jobRepository.StorePulsarSchedulerJobDetails(ctx, pulsarJobDetails); err != nil {
+		log.WithError(err).Error("failed store pulsar job details")
+		return nil, status.Error(codes.Internal, "failed store pulsar job details")
 	}
 
 	if len(es.Events) > 0 {
@@ -189,10 +192,4 @@ func (s *Server) GetUser(ctx *armadacontext.Context) string {
 func (s *Server) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
-}
-
-func jobKey(queue, clientId string) string {
-	combined := fmt.Sprintf("%s:%s", queue, clientId)
-	h := sha1.Sum([]byte(combined))
-	return fmt.Sprintf("%x", h)
 }

@@ -4,17 +4,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, owner string) *armadaevents.SubmitJob {
-	jobId := util.NewULID()
+func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, idGen func() *armadaevents.Uuid, owner string) *armadaevents.SubmitJob {
+	jobId := idGen()
+	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
 	priority := eventutil.LogSubmitPriorityFromApiPriority(jobReq.GetPriority())
-	mainObject, objects := submitObjectsFromApiJobReq(req, jobReq, jobId, owner)
+	mainObject, objects := submitObjectsFromApiJobReq(req, jobReq, jobIdStr, owner)
 	return &armadaevents.SubmitJob{
-		JobId:           armadaevents.MustProtoUuidFromUlidString(jobId),
+		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
 		ObjectMeta: &armadaevents.ObjectMeta{

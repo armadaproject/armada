@@ -1,6 +1,8 @@
 package submit
 
 import (
+	"crypto/sha1"
+	"fmt"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/pkg/api"
@@ -28,7 +30,7 @@ func (s *PostgresDeduplicator) GetOriginalJobIds(ctx *armadacontext.Context, que
 	kvs := make(map[string][]byte, len(jobRequests))
 	for _, req := range jobRequests {
 		if req.ClientId != "" {
-			kvs[jobKey(queue, req.ClientId)] = []byte(req.ClientId)
+			kvs[s.jobKey(queue, req.ClientId)] = []byte(req.ClientId)
 		}
 	}
 
@@ -56,7 +58,13 @@ func (s *PostgresDeduplicator) StoreOriginalJobIds(ctx *armadacontext.Context, q
 	}
 	kvs := make(map[string][]byte, len(mappings))
 	for k, v := range mappings {
-		kvs[jobKey(queue, k)] = []byte(v)
+		kvs[s.jobKey(queue, k)] = []byte(v)
 	}
 	return s.kvStore.Store(ctx, kvs)
+}
+
+func (s *PostgresDeduplicator) jobKey(queue, clientId string) string {
+	combined := fmt.Sprintf("%s:%s", queue, clientId)
+	h := sha1.Sum([]byte(combined))
+	return fmt.Sprintf("%x", h)
 }
