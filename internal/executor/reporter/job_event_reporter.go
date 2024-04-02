@@ -144,8 +144,8 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 func (eventReporter *JobEventReporter) QueueEvent(event EventMessage, callback func(error)) {
 	eventReporter.eventQueuedMutex.Lock()
 	defer eventReporter.eventQueuedMutex.Unlock()
-	jobId := event.Event.GetJobId()
-	eventReporter.eventQueued[jobId] = eventReporter.eventQueued[jobId] + 1
+	runId := event.JobRunId
+	eventReporter.eventQueued[runId] = eventReporter.eventQueued[runId] + 1
 	eventReporter.eventBuffer <- &queuedEvent{event, callback}
 }
 
@@ -193,7 +193,7 @@ func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
 	}()
 	eventReporter.eventQueuedMutex.Lock()
 	for _, e := range batch {
-		id := e.Event.Event.GetJobId()
+		id := e.Event.JobRunId
 		count := eventReporter.eventQueued[id]
 		if count <= 1 {
 			delete(eventReporter.eventQueued, id)
@@ -308,7 +308,7 @@ func requiresIngressToBeReported(pod *v1.Pod) bool {
 func (eventReporter *JobEventReporter) hasPendingEvents(pod *v1.Pod) bool {
 	eventReporter.eventQueuedMutex.Lock()
 	defer eventReporter.eventQueuedMutex.Unlock()
-	id := util.ExtractJobId(pod)
+	id := util.ExtractJobRunId(pod)
 	return eventReporter.eventQueued[id] > 0
 }
 

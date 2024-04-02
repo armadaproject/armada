@@ -226,9 +226,12 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 	jobRequester.RequestJobsRuns()
 
 	assert.Len(t, eventReporter.ReceivedEvents, 1)
-	event, ok := eventReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+	assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
-	assert.Equal(t, event.JobId, jobId)
+	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	assert.NotNil(t, failedEvent.JobRunErrors.Errors[0].GetPodError())
+	assert.Equal(t, failedEvent.JobRunErrors.JobId, protoJobId)
 
 	allJobRuns := stateStore.GetAll()
 	assert.Len(t, allJobRuns, 1)
