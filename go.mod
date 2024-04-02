@@ -46,7 +46,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/weaveworks/promrus v1.2.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 	golang.org/x/net v0.22.0
@@ -69,7 +69,7 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/benbjohnson/immutable v0.4.3
-	github.com/go-openapi/errors v0.21.0
+	github.com/go-openapi/errors v0.22.0
 	github.com/go-openapi/strfmt v0.21.10
 	github.com/go-openapi/swag v0.22.6
 	github.com/go-openapi/validate v0.22.6
