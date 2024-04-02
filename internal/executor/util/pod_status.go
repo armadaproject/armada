@@ -6,7 +6,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
@@ -45,12 +45,12 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 	return failedMessage
 }
 
-func ExtractPodFailedCause(pod *v1.Pod) api.Cause {
+func ExtractPodFailureCause(pod *v1.Pod) armadaevents.KubernetesReason {
 	if pod.Status.Reason == evictedReason {
-		return api.Cause_Evicted
+		return armadaevents.KubernetesReason_Evicted
 	}
 	if pod.Status.Reason == deadlineExceeded {
-		return api.Cause_DeadlineExceeded
+		return armadaevents.KubernetesReason_DeadlineExceeded
 	}
 
 	containerStatuses := pod.Status.ContainerStatuses
@@ -58,10 +58,10 @@ func ExtractPodFailedCause(pod *v1.Pod) api.Cause {
 
 	for _, containerStatus := range containerStatuses {
 		if isOom(containerStatus) {
-			return api.Cause_OOM
+			return armadaevents.KubernetesReason_OOM
 		}
 	}
-	return api.Cause_Error
+	return armadaevents.KubernetesReason_AppError
 }
 
 func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
@@ -79,11 +79,11 @@ func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
 	return exitCodes
 }
 
-func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
+func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadaevents.ContainerError {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 
-	returnStatuses := make([]*api.ContainerStatus, 0, len(containerStatuses))
+	returnStatuses := make([]*armadaevents.ContainerError, 0, len(containerStatuses))
 
 	for _, containerStatus := range containerStatuses {
 		if containerStatus.State.Terminated == nil {
@@ -91,19 +91,26 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 			// Skip non-finished containers
 			continue
 		}
-		status := &api.ContainerStatus{
-			Name:  containerStatus.Name,
-			Cause: api.Cause_Error,
-		}
-		if isOom(containerStatus) {
-			status.Cause = api.Cause_OOM
-		}
-		status.ExitCode = containerStatus.State.Terminated.ExitCode
-		status.Message = containerStatus.State.Terminated.Message
-		status.Reason = containerStatus.State.Terminated.Reason
-		returnStatuses = append(returnStatuses, status)
-	}
 
+		containerInfo := &armadaevents.ContainerError{
+			ExitCode: containerStatus.State.Terminated.ExitCode,
+			Message:  containerStatus.State.Terminated.Message,
+			Reason:   containerStatus.State.Terminated.Reason,
+			ObjectMeta: &armadaevents.ObjectMeta{
+				ExecutorId:   clusterId,
+				Namespace:    pod.Namespace,
+				Name:         containerStatus.Name,
+				KubernetesId: "", // only the id of the pod is stored in the failed message
+			},
+		}
+
+		containerInfo.KubernetesReason = armadaevents.KubernetesReason_AppError
+		if isOom(containerStatus) {
+			containerInfo.KubernetesReason = armadaevents.KubernetesReason_OOM
+		}
+
+		returnStatuses = append(returnStatuses, containerInfo)
+	}
 	return returnStatuses
 }
 

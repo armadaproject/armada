@@ -59,7 +59,6 @@ require (
 	k8s.io/api v0.22.4
 	k8s.io/apimachinery v0.22.4
 	k8s.io/client-go v0.22.4
-	k8s.io/component-base v0.22.4
 	k8s.io/component-helpers v0.22.4
 	k8s.io/kubelet v0.22.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
@@ -106,7 +105,6 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/caarlos0/log v0.4.4 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/charmbracelet/lipgloss v0.9.1 // indirect
