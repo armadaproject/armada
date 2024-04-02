@@ -149,82 +149,6 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod, clusterId string) *api.JobPreemp
 	}
 }
 
-func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
-	eventTime := clusterEvent.LastTimestamp.Time
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
-	event = &api.JobPreemptedEvent{
-		Created:   eventTime,
-		ClusterId: clusterId,
-	}
-
-	if err := enrichPreemptedEventFromInvolvedObject(event, clusterEvent.InvolvedObject); err != nil {
-		return nil, err
-	}
-
-	if clusterEvent.Related != nil {
-		if err := enrichPreemptedEventFromRelatedObject(event, clusterEvent.Related); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := enrichPreemptedEventFromClusterEventMessage(event, clusterEvent.Message); err != nil {
-		return nil, err
-	}
-
-	return event, nil
-}
-
-func enrichPreemptedEventFromInvolvedObject(event *api.JobPreemptedEvent, involved v1.ObjectReference) error {
-	preemptedJobId, err := util.ExtractJobIdFromName(involved.Name)
-	if err != nil {
-		return errors.WithMessage(err, "error extracting preempted job id from pod name")
-	}
-
-	event.JobId = preemptedJobId
-	event.RunId = string(involved.UID)
-
-	return nil
-}
-
-func enrichPreemptedEventFromRelatedObject(event *api.JobPreemptedEvent, related *v1.ObjectReference) error {
-	if util.IsArmadaJobPod(related.Name) {
-		preemptiveJobId, err := util.ExtractJobIdFromName(related.Name)
-		if err != nil {
-			return errors.WithMessage(err, "error extracting preemptive job id from pod name")
-		}
-
-		event.PreemptiveJobId = preemptiveJobId
-	}
-
-	event.PreemptiveRunId = string(related.UID)
-
-	return nil
-}
-
-func enrichPreemptedEventFromClusterEventMessage(event *api.JobPreemptedEvent, msg string) error {
-	info, err := util.ParsePreemptionMessage(msg)
-	if err != nil {
-		return nil
-	}
-
-	if !util.IsArmadaJobPod(info.Name) {
-		return nil
-	}
-
-	if event.PreemptiveJobId == "" {
-		preemptiveJobId, err := util.ExtractJobIdFromName(info.Name)
-		if err != nil {
-			return errors.WithMessage(err, "error extracting preemptive job id from pod name")
-		}
-
-		event.PreemptiveJobId = preemptiveJobId
-	}
-
-	return nil
-}
-
 func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause api.Cause) api.Event {
 	return CreateJobFailedEvent(pod, reason, cause, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
 }
@@ -278,20 +202,5 @@ func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationD
 		PodName:               pod.Name,
 		PodNamespace:          pod.Namespace,
 		NodeName:              pod.Spec.NodeName,
-	}
-}
-
-func CreateJobTerminatedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
-	return &api.JobTerminatedEvent{
-		JobId:        pod.Labels[domain.JobId],
-		JobSetId:     pod.Annotations[domain.JobSetId],
-		Queue:        pod.Labels[domain.Queue],
-		Created:      time.Now(),
-		ClusterId:    clusterId,
-		KubernetesId: string(pod.ObjectMeta.UID),
-		PodNumber:    getPodNumber(pod),
-		PodName:      pod.Name,
-		PodNamespace: pod.Namespace,
-		Reason:       reason,
 	}
 }

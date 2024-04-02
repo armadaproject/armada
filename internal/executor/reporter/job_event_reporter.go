@@ -57,7 +57,6 @@ func NewJobEventReporter(
 	}
 
 	clusterContext.AddPodEventHandler(reporter.podEventHandler())
-	clusterContext.AddClusterEventEventHandler(reporter.clusterEventEventHandler())
 
 	go reporter.processEventQueue(stop)
 
@@ -90,76 +89,8 @@ func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHand
 	}
 }
 
-func (eventReporter *JobEventReporter) clusterEventEventHandler() cache.ResourceEventHandlerFuncs {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			clusterEvent, ok := obj.(*v1.Event)
-			if !ok {
-				log.Errorf("Failed to process cluster event due to it being an unexpected type. Failed to process %+v", obj)
-				return
-			}
-			if util.IsPreemptedEvent(clusterEvent) {
-				eventReporter.reportPreemptedEvent(clusterEvent)
-			}
-		},
-	}
-}
-
 func (eventReporter *JobEventReporter) Report(events []EventMessage) error {
 	return eventReporter.eventSender.SendEvents(events)
-}
-
-func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Event) {
-	if util.HasCurrentClusterEventBeenReported(clusterEvent) || !util.IsArmadaJobPod(clusterEvent.InvolvedObject.Name) {
-		return
-	}
-
-	preemptedRunId := ""
-	event, err := CreateJobPreemptedEvent(clusterEvent, eventReporter.clusterContext.GetClusterId())
-	if err != nil {
-		log.Errorf("Failed to create JobPreemptedEvent: %v", err)
-		return
-	}
-	// Special handling for Executor API
-	// Once we are migrated to the Executor API this should be tidied up (and probably moved out of job_event_reporter)
-	if eventReporter.jobRunStateStore != nil {
-		preemptedRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.RunId)
-		if preemptedRun != nil && preemptedRun.Meta != nil {
-			preemptedRunId = preemptedRun.Meta.RunId
-			event.Queue = preemptedRun.Meta.Queue
-			event.JobSetId = preemptedRun.Meta.JobSet
-		} else {
-			log.Errorf("Failed to create JobPreemptedEvent for job %s because job run id could not be found", event.JobId)
-			return
-		}
-		preemptiveRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.PreemptiveRunId)
-		if preemptiveRun != nil && preemptiveRun.Meta != nil {
-			event.PreemptiveRunId = preemptiveRun.Meta.RunId
-		} else {
-			event.PreemptiveRunId = ""
-		}
-	}
-	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: preemptedRunId}, func(err error) {
-		if err != nil {
-			log.Errorf(
-				"Failed to report event JobPreemptedEvent for cluster event %s/%s: %v",
-				clusterEvent.Namespace, clusterEvent.Name, err,
-			)
-			return
-		}
-
-		err = eventReporter.addAnnotationToMarkClusterEventReported(clusterEvent)
-		if err != nil {
-			log.Errorf(
-				"Failed to add preemption reported annotation to cluster event %s/%s: %v",
-				clusterEvent.Namespace, clusterEvent.Name, err,
-			)
-			return
-		}
-	})
-	if err := eventReporter.addAnnotationToMarkClusterEventReported(clusterEvent); err != nil {
-		log.Errorf("Failed to add preempted event reported annotation to event %s/%s: %v", clusterEvent.Namespace, clusterEvent.Name, err)
-	}
 }
 
 func (eventReporter *JobEventReporter) reportStatusUpdate(old *v1.Pod, new *v1.Pod) {
@@ -295,14 +226,6 @@ func (eventReporter *JobEventReporter) addAnnotationToMarkIngressReported(pod *v
 	annotations[annotationName] = time.Now().String()
 
 	return eventReporter.clusterContext.AddAnnotation(pod, annotations)
-}
-
-func (eventReporter *JobEventReporter) addAnnotationToMarkClusterEventReported(clusterEvent *v1.Event) error {
-	annotations := make(map[string]string)
-	annotationName := domain2.ClusterEventReported
-	annotations[annotationName] = time.Now().String()
-
-	return eventReporter.clusterContext.AddClusterEventAnnotation(clusterEvent, annotations)
 }
 
 func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
