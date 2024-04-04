@@ -3,10 +3,11 @@ package armadactl
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
-	"github.com/pkg/errors"
 )
 
 // Preempt a job.
