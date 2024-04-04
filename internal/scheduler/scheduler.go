@@ -807,7 +807,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 
 				events = append(events, jobErrors)
 			}
-		} else if lastRun.PreemptRequested() {
+		} else if lastRun.PreemptRequested() && job.GetPriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(lastRun.Id()), s.clock.Now())...)
 		}

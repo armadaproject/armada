@@ -73,6 +73,8 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.IngressInfo, nil
 	case *EventMessage_Updated:
 		return event.Updated, nil
+	case *EventMessage_Preempting:
+		return event.Preempting, nil
 	case *EventMessage_Preempted:
 		return event.Preempted, nil
 	}
@@ -193,6 +195,12 @@ func Wrap(event Event) (*EventMessage, error) {
 		return &EventMessage{
 			Events: &EventMessage_Updated{
 				Updated: typed,
+			},
+		}, nil
+	case *JobPreemptingEvent:
+		return &EventMessage{
+			Events: &EventMessage_Preempting{
+				Preempting: typed,
 			},
 		}, nil
 	case *JobPreemptedEvent:

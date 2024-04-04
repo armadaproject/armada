@@ -380,6 +380,11 @@ func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
+// Priority returns the priority class of the job.
+func (job *Job) GetPriorityClass() types.PriorityClass {
+	return job.priorityClass
+}
+
 // GetSchedulingKey returns the scheduling key associated with a job.
 // The second return value is always true since scheduling keys are computed at job creation time.
 // This is needed for compatibility with interfaces.LegacySchedulerJob.

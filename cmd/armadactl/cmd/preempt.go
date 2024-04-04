@@ -20,7 +20,7 @@ func preemptCmd() *cobra.Command {
 			jobId, _ := cmd.Flags().GetString("jobId")
 			queue, _ := cmd.Flags().GetString("queue")
 			jobSetId, _ := cmd.Flags().GetString("jobSet")
-			return a.Cancel(queue, jobSetId, jobId)
+			return a.Preempt(queue, jobSetId, jobId)
 		},
 	}
 	cmd.Flags().String("jobId", "", "job to cancel")

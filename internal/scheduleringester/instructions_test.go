@@ -83,6 +83,10 @@ func TestConvertSequence(t *testing.T) {
 			events:   []*armadaevents.EventSequence_Event{f.Assigned},
 			expected: []DbOperation{MarkRunsPending{f.RunIdUuid: f.BaseTime}},
 		},
+		"job preemption requested": {
+			events:   []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: []string{f.JobIdString}}},
+		},
 		"job run preempted": {
 			events:   []*armadaevents.EventSequence_Event{f.JobPreempted},
 			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
