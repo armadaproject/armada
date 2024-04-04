@@ -93,6 +93,8 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobSucceeded(event.GetJobSucceeded())
 		case *armadaevents.EventSequence_Event_JobErrors:
 			operationsFromEvent, err = c.handleJobErrors(event.GetJobErrors())
+		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+			operationsFromEvent, err = c.handleJobPreemptionRequested(event.GetJobPreemptionRequested())
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
 			operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob())
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
@@ -319,6 +321,16 @@ func (c *InstructionConverter) handleJobErrors(jobErrors *armadaevents.JobErrors
 		}
 	}
 	return nil, nil
+}
+
+func (c *InstructionConverter) handleJobPreemptionRequested(preemptionRequested *armadaevents.JobPreemptionRequested) ([]DbOperation, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(preemptionRequested.GetJobId())
+	if err != nil {
+		return nil, err
+	}
+	return []DbOperation{MarkRunsForJobPreemptRequested{
+		jobId: true,
+	}}, nil
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob) ([]DbOperation, error) {

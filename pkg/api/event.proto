@@ -135,6 +135,14 @@ message JobFailedEvent {
     Cause cause = 12;
 }
 
+message JobPreemptingEvent {
+  string job_id = 1;
+  string job_set_id = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  string requestor = 5;
+}
+
 message JobPreemptedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -260,6 +268,7 @@ message EventMessage {
         JobUpdatedEvent updated = 19;
         JobFailedEventCompressed failedCompressed = 20;  // This event is for internal armada use only
         JobPreemptedEvent preempted = 21;
+        JobPreemptingEvent preempting = 22;
     }
 }
 

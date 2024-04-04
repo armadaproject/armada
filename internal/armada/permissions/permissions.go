@@ -8,6 +8,7 @@ import "github.com/armadaproject/armada/internal/common/auth/permission"
 const (
 	SubmitAnyJobs       permission.Permission = "submit_any_jobs"
 	CancelAnyJobs                             = "cancel_any_jobs"
+	PreemptAnyJobs                            = "preempt_any_jobs"
 	ReprioritizeAnyJobs                       = "reprioritize_any_jobs"
 	WatchAllEvents                            = "watch_all_events"
 	CreateQueue                               = "create_queue"

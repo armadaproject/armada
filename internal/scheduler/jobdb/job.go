@@ -638,6 +638,7 @@ func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAt
 		false,
 		false,
 		false,
+		false,
 		nil,
 		nil,
 		nil,

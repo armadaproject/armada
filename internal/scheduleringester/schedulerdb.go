@@ -195,6 +195,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if _, err := tx.Exec(ctx, sqlStmt, jobIds, canceled, cancelTimes); err != nil {
 			return errors.WithStack(err)
 		}
+	case MarkRunsForJobPreemptRequested:
+		jobIds := maps.Keys(o)
+		err := queries.MarkJobRunsPreemptRequestedByJobId(ctx, jobIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	case MarkJobsSucceeded:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsSucceededById(ctx, jobIds)
@@ -352,8 +358,8 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	return fmt.Sprintf(`update runs set
 	%[2]v = runs_temp.%[2]v,
 	%[3]v = runs_temp.%[3]v
-	from (select * from unnest($1::%[4]v[], $2::boolean[] ,$3::timestamptz[])) 
-	as runs_temp(%[1]v, %[2]v, %[3]v) 
+	from (select * from unnest($1::%[4]v[], $2::boolean[] ,$3::timestamptz[]))
+	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
 		id, phaseColumn, timeStampColumn, idPgType)
 }
