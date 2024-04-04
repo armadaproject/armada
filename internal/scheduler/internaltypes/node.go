@@ -2,7 +2,7 @@ package internaltypes
 
 import (
 	"golang.org/x/exp/maps"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
