@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -76,7 +77,7 @@ func TestNodePairIterator(t *testing.T) {
 	}
 	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	entries := make([]*Node, len(nodes))
+	entries := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		entry, err := nodeDb.GetNode(node.Id)
 		require.NoError(t, err)
@@ -420,7 +421,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			entries := make([]*Node, len(tc.nodes))
+			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
@@ -811,7 +812,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			entries := make([]*Node, len(tc.nodes))
+			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
