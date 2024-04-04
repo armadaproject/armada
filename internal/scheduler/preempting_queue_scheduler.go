@@ -21,6 +21,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -687,7 +688,7 @@ type Evictor struct {
 	jobRepo         JobRepository
 	nodeDb          *nodedb.NodeDb
 	priorityClasses map[string]types.PriorityClass
-	nodeFilter      func(*armadacontext.Context, *nodedb.Node) bool
+	nodeFilter      func(*armadacontext.Context, *internaltypes.Node) bool
 	jobFilter       func(*armadacontext.Context, interfaces.LegacySchedulerJob) bool
 }
 
@@ -695,7 +696,7 @@ type EvictorResult struct {
 	// For all evicted jobs, map from job id to the scheduling context for re-scheduling that job.
 	EvictedJctxsByJobId map[string]*schedulercontext.JobSchedulingContext
 	// Map from node id to node, containing all nodes on which at least one job was evicted.
-	AffectedNodesById map[string]*nodedb.Node
+	AffectedNodesById map[string]*internaltypes.Node
 	// For each evicted job, maps the id of the job to the id of the node it was evicted from.
 	NodeIdByJobId map[string]string
 }
@@ -718,7 +719,7 @@ func NewNodeEvictor(
 		jobRepo:         jobRepo,
 		nodeDb:          nodeDb,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ *armadacontext.Context, node *nodedb.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
 			return len(node.AllocatedByJobId) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 		jobFilter: jobFilter,
@@ -741,7 +742,7 @@ func NewFilteredEvictor(
 		jobRepo:         jobRepo,
 		nodeDb:          nodeDb,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ *armadacontext.Context, node *nodedb.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
 			shouldEvict := nodeIdsToEvict[node.Id]
 			return shouldEvict
 		},
@@ -777,7 +778,7 @@ func NewOversubscribedEvictor(
 		jobRepo:         jobRepo,
 		nodeDb:          nodeDb,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ *armadacontext.Context, node *nodedb.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriority {
 				if p < 0 {
@@ -818,7 +819,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		jobFilter = func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
 	}
 	evictedJctxsByJobId := make(map[string]*schedulercontext.JobSchedulingContext)
-	affectedNodesById := make(map[string]*nodedb.Node)
+	affectedNodesById := make(map[string]*internaltypes.Node)
 	nodeIdByJobId := make(map[string]string)
 
 	it, err := nodedb.NewNodesIterator(nodeDbTxn)
