@@ -17,12 +17,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -38,62 +38,7 @@ const (
 
 var empty struct{}
 
-type Node struct {
-	// Unique id and index of this node.
-	// TODO(albin): Having both id and index is redundant.
-	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
-	Id    string
-	Index uint64
-
-	// Executor this node belongs to and node name, which must be unique per executor.
-	Executor string
-	Name     string
-
-	// We need to store taints and labels separately from the node type: the latter only includes
-	// indexed taints and labels, but we need all of them when checking pod requirements.
-	Taints []v1.Taint
-	Labels map[string]string
-
-	TotalResources schedulerobjects.ResourceList
-
-	// This field is set when inserting the Node into a NodeDb.
-	Keys [][]byte
-
-	NodeTypeId uint64
-
-	AllocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType
-	AllocatedByQueue      map[string]schedulerobjects.ResourceList
-	AllocatedByJobId      map[string]schedulerobjects.ResourceList
-	EvictedJobRunIds      map[string]bool
-}
-
-// UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
-// shallow copies of fields that are not mutated by methods of NodeDb.
-func (node *Node) UnsafeCopy() *Node {
-	return &Node{
-		Id:    node.Id,
-		Index: node.Index,
-
-		Executor: node.Executor,
-		Name:     node.Name,
-
-		Taints: node.Taints,
-		Labels: node.Labels,
-
-		TotalResources: node.TotalResources,
-
-		Keys: nil,
-
-		NodeTypeId: node.NodeTypeId,
-
-		AllocatableByPriority: armadamaps.DeepCopy(node.AllocatableByPriority),
-		AllocatedByQueue:      armadamaps.DeepCopy(node.AllocatedByQueue),
-		AllocatedByJobId:      armadamaps.DeepCopy(node.AllocatedByJobId),
-		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
-	}
-}
-
-func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
+func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, error) {
 	taints := node.GetTaints()
 	if node.Unschedulable {
 		taints = append(slices.Clone(taints), UnschedulableTaint())
@@ -154,7 +99,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 	nodeDb.nodeTypes[nodeType.Id] = nodeType
 	nodeDb.mu.Unlock()
 
-	return &Node{
+	return &internaltypes.Node{
 		Id:    node.Id,
 		Index: index,
 
@@ -459,13 +404,13 @@ func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
 }
 
 // GetNode returns a node in the db with given id.
-func (nodeDb *NodeDb) GetNode(id string) (*Node, error) {
+func (nodeDb *NodeDb) GetNode(id string) (*internaltypes.Node, error) {
 	return nodeDb.GetNodeWithTxn(nodeDb.Txn(false), id)
 }
 
 // GetNodeWithTxn returns a node in the db with given id,
 // within the provided transactions.
-func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*Node, error) {
+func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.Node, error) {
 	it, err := txn.Get("nodes", "id", id)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -474,16 +419,16 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*Node, error) {
 	if obj == nil {
 		return nil, nil
 	}
-	return obj.(*Node), nil
+	return obj.(*internaltypes.Node), nil
 }
 
 // NodeJobDiff compares two snapshots of the NodeDb memdb and returns
 // - a map from job ids of all preempted jobs to the node they used to be on
 // - a map from job ids of all scheduled jobs to the node they were scheduled on
 // that happened between the two snapshots.
-func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*Node, map[string]*Node, error) {
-	preempted := make(map[string]*Node)
-	scheduled := make(map[string]*Node)
+func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*internaltypes.Node, map[string]*internaltypes.Node, error) {
+	preempted := make(map[string]*internaltypes.Node)
+	scheduled := make(map[string]*internaltypes.Node)
 	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
 	if err != nil {
 		return nil, nil, err
@@ -572,7 +517,7 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 }
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
+func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
 	req := jctx.PodRequirements
 	priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, nodeDb.defaultPriorityClass, jctx.Job)
 
@@ -645,7 +590,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
 	awayNodeType types.AwayNodeType,
-) (node *Node, err error) {
+) (node *internaltypes.Node, err error) {
 	// Save the number of additional tolerations that the job originally had; we
 	// use this value to restore the slice of additional toleration at the end
 	// of each loop iteration.
@@ -677,7 +622,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
-) (*Node, error) {
+) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 
 	matchingNodeTypeIds, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingJob(jctx)
@@ -734,7 +679,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	return nil, nil
 }
 
-func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext, node *Node) error {
+func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext, node *internaltypes.Node) error {
 	if node != nil {
 		if pctx.NodeId == "" {
 			return errors.New("pctx.NodeId not set")
@@ -752,7 +697,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
-) (*Node, error) {
+) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
 	for _, priority := range nodeDb.nodeDbPriorities {
@@ -788,7 +733,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	jctx *schedulercontext.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
 	priority int32,
-) (*Node, error) {
+) (*internaltypes.Node, error) {
 	req := jctx.PodRequirements
 
 	indexResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
@@ -831,8 +776,8 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	jctx *schedulercontext.JobSchedulingContext,
 	priority int32,
 	onlyCheckDynamicRequirements bool,
-) (*Node, error) {
-	var selectedNode *Node
+) (*internaltypes.Node, error) {
+	var selectedNode *internaltypes.Node
 	var selectedNodeScore int
 	var numExtraNodes uint
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -843,7 +788,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			}
 		}
 
-		node := obj.(*Node)
+		node := obj.(*internaltypes.Node)
 		if node == nil {
 			return nil, nil
 		}
@@ -887,11 +832,11 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 //
 // It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
 // from being re-scheduled the jobs that would be scheduled last.
-func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
+func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 
-	var selectedNode *Node
-	nodesById := make(map[string]*Node)
+	var selectedNode *internaltypes.Node
+	nodesById := make(map[string]*internaltypes.Node)
 	evictedJobSchedulingContextsByNodeId := make(map[string][]*EvictedJobSchedulingContext)
 	it, err := txn.ReverseLowerBound("evictedJobs", "index", math.MaxInt)
 	if err != nil {
@@ -959,7 +904,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 }
 
 // bindJobToNode returns a copy of node with job bound to it.
-func (nodeDb *NodeDb) bindJobToNode(node *Node, job interfaces.LegacySchedulerJob, priority int32) (*Node, error) {
+func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job interfaces.LegacySchedulerJob, priority int32) (*internaltypes.Node, error) {
 	node = node.UnsafeCopy()
 	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
 		return nil, err
@@ -968,7 +913,7 @@ func (nodeDb *NodeDb) bindJobToNode(node *Node, job interfaces.LegacySchedulerJo
 }
 
 // bindJobToNodeInPlace is like bindJobToNode, but doesn't make a copy of node.
-func (nodeDb *NodeDb) bindJobToNodeInPlace(node *Node, job interfaces.LegacySchedulerJob, priority int32) error {
+func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job interfaces.LegacySchedulerJob, priority int32) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
 
@@ -1019,8 +964,8 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 	priorityClasses map[string]types.PriorityClass,
 	jobFilter func(interfaces.LegacySchedulerJob) bool,
 	jobs []interfaces.LegacySchedulerJob,
-	node *Node,
-) ([]interfaces.LegacySchedulerJob, *Node, error) {
+	node *internaltypes.Node,
+) ([]interfaces.LegacySchedulerJob, *internaltypes.Node, error) {
 	evicted := make([]interfaces.LegacySchedulerJob, 0)
 	node = node.UnsafeCopy()
 	for _, job := range jobs {
@@ -1036,7 +981,7 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
-func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *internaltypes.Node) error {
 	jobId := job.GetId()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
@@ -1068,7 +1013,7 @@ func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.P
 }
 
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
-func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.UnsafeCopy()
 	for _, job := range jobs {
 		if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
@@ -1079,7 +1024,7 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.Priori
 }
 
 // UnbindJobFromNode returns a copy of node with job unbound from it.
-func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.UnsafeCopy()
 	if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 		return nil, err
@@ -1088,7 +1033,7 @@ func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.Priorit
 }
 
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
-func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *internaltypes.Node) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
 
@@ -1147,7 +1092,7 @@ func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *schedulercontext.JobSchedulingC
 	return matchingNodeTypeIds, numExcludedNodesByReason, nil
 }
 
-func (nodeDb *NodeDb) UpsertMany(nodes []*Node) error {
+func (nodeDb *NodeDb) UpsertMany(nodes []*internaltypes.Node) error {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	if err := nodeDb.UpsertManyWithTxn(txn, nodes); err != nil {
@@ -1157,7 +1102,7 @@ func (nodeDb *NodeDb) UpsertMany(nodes []*Node) error {
 	return nil
 }
 
-func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*Node) error {
+func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*internaltypes.Node) error {
 	for _, node := range nodes {
 		if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
 			return err
@@ -1166,7 +1111,7 @@ func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*Node) error {
 	return nil
 }
 
-func (nodeDb *NodeDb) Upsert(node *Node) error {
+func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
@@ -1176,7 +1121,7 @@ func (nodeDb *NodeDb) Upsert(node *Node) error {
 	return nil
 }
 
-func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *Node) error {
+func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
 	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
 	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.NodeTypeId, node.AllocatableByPriority[p], node.Index)
@@ -1197,7 +1142,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	if err != nil {
 		return err
 	}
-	newNodes := make([]*Node, 0)
+	newNodes := make([]*internaltypes.Node, 0)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.UnsafeCopy()
 		node.AllocatableByPriority = schedulerobjects.NewAllocatableByPriorityAndResourceType(
