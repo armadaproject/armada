@@ -430,7 +430,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeType.Id
+				entry = testWithNodeTypeId(entry, node.NodeType.Id)
 
 				entries[i] = entry
 			}
@@ -821,7 +821,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeType.Id
+				entry = testWithNodeTypeId(entry, node.NodeType.Id)
 
 				entries[i] = entry
 			}
@@ -917,4 +917,22 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			}
 		}
 	}
+}
+
+func testWithNodeTypeId(node *internaltypes.Node, nodeTypeId uint64) *internaltypes.Node {
+	return internaltypes.CreateNode(
+		node.GetId(),
+		nodeTypeId,
+		node.GetIndex(),
+		node.GetExecutor(),
+		node.GetName(),
+		node.Taints,
+		node.Labels,
+		node.TotalResources,
+		node.AllocatableByPriority,
+		node.AllocatedByQueue,
+		node.AllocatedByJobId,
+		node.EvictedJobRunIds,
+		node.Keys,
+	)
 }

@@ -2056,7 +2056,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						scheduledJobs,
 						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
-							WithNewRun(node.Executor, node.GetId(), node.Name, priority),
+							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority),
 					)
 				}
 				err = jobDbTxn.Upsert(scheduledJobs)
