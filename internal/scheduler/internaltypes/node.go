@@ -12,7 +12,7 @@ type Node struct {
 	// Unique id and index of this node.
 	// TODO(albin): Having both id and index is redundant.
 	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
-	Id    string
+	id    string
 	Index uint64
 
 	// Executor this node belongs to and node name, which must be unique per executor.
@@ -37,11 +37,47 @@ type Node struct {
 	EvictedJobRunIds      map[string]bool
 }
 
+func CreateNode(
+	id string,
+	nodeTypeId uint64,
+	index uint64,
+	executor string,
+	name string,
+	taints []v1.Taint,
+	labels map[string]string,
+	totalResources schedulerobjects.ResourceList,
+	allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType,
+	allocatedByQueue map[string]schedulerobjects.ResourceList,
+	allocatedByJobId map[string]schedulerobjects.ResourceList,
+	evictedJobRunIds map[string]bool,
+	keys [][]byte,
+) *Node {
+	return &Node{
+		id:                    id,
+		NodeTypeId:            nodeTypeId,
+		Index:                 index,
+		Executor:              executor,
+		Name:                  name,
+		Taints:                taints,
+		Labels:                labels,
+		TotalResources:        totalResources,
+		AllocatableByPriority: allocatableByPriority,
+		AllocatedByQueue:      allocatedByQueue,
+		AllocatedByJobId:      allocatedByJobId,
+		EvictedJobRunIds:      evictedJobRunIds,
+		Keys:                  keys,
+	}
+}
+
+func (node *Node) GetId() string {
+	return node.id
+}
+
 // UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
 // shallow copies of fields that are not mutated by methods of NodeDb.
 func (node *Node) UnsafeCopy() *Node {
 	return &Node{
-		Id:    node.Id,
+		id:    node.id,
 		Index: node.Index,
 
 		Executor: node.Executor,

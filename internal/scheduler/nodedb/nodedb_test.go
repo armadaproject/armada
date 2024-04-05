@@ -83,7 +83,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 		require.NoError(t, err)
 		pctx := jctx.PodSchedulingContext
 		if assert.NotNil(t, node) {
-			assert.Equal(t, nodeId, node.Id)
+			assert.Equal(t, nodeId, node.GetId())
 		}
 		if assert.NotNil(t, pctx) {
 			assert.Equal(t, nodeId, pctx.NodeId)
