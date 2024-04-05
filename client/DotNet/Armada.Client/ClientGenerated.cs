@@ -395,6 +395,207 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        public System.Threading.Tasks.Task<ApiJobDetailsResponse> GetJobDetailsAsync(ApiJobDetailsRequest body)
+        {
+            return GetJobDetailsAsync(body, System.Threading.CancellationToken.None);
+        }
+    
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public async System.Threading.Tasks.Task<ApiJobDetailsResponse> GetJobDetailsAsync(ApiJobDetailsRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            var urlBuilder_ = new System.Text.StringBuilder();
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job/jobdetails");
+    
+            var client_ = _httpClient;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var content_ = new System.Net.Http.StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(body, _settings.Value));
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+    
+                    PrepareRequest(client_, request_, urlBuilder_);
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+                    PrepareRequest(client_, request_, url_);
+    
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var headers_ = System.Linq.Enumerable.ToDictionary(response_.Headers, h_ => h_.Key, h_ => h_.Value);
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+    
+                        ProcessResponse(client_, response_);
+    
+                        var status_ = ((int)response_.StatusCode).ToString();
+                        if (status_ == "200") 
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiJobDetailsResponse>(response_, headers_).ConfigureAwait(false);
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<RuntimeError>(response_, headers_).ConfigureAwait(false);
+                            throw new ApiException<RuntimeError>("An unexpected error response.", (int)response_.StatusCode, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (response_ != null)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+            }
+        }
+    
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public System.Threading.Tasks.Task<ApiJobRunDetailsResponse> GetJobRunDetailsAsync(ApiJobRunDetailsRequest body)
+        {
+            return GetJobRunDetailsAsync(body, System.Threading.CancellationToken.None);
+        }
+    
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public async System.Threading.Tasks.Task<ApiJobRunDetailsResponse> GetJobRunDetailsAsync(ApiJobRunDetailsRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            var urlBuilder_ = new System.Text.StringBuilder();
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job/jobrundetails");
+    
+            var client_ = _httpClient;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var content_ = new System.Net.Http.StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(body, _settings.Value));
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+    
+                    PrepareRequest(client_, request_, urlBuilder_);
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+                    PrepareRequest(client_, request_, url_);
+    
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var headers_ = System.Linq.Enumerable.ToDictionary(response_.Headers, h_ => h_.Key, h_ => h_.Value);
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+    
+                        ProcessResponse(client_, response_);
+    
+                        var status_ = ((int)response_.StatusCode).ToString();
+                        if (status_ == "200") 
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiJobRunDetailsResponse>(response_, headers_).ConfigureAwait(false);
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<RuntimeError>(response_, headers_).ConfigureAwait(false);
+                            throw new ApiException<RuntimeError>("An unexpected error response.", (int)response_.StatusCode, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (response_ != null)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+            }
+        }
+    
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public System.Threading.Tasks.Task<ApiJobStatusResponse> GetJobStatusAsync(ApiJobStatusRequest body)
+        {
+            return GetJobStatusAsync(body, System.Threading.CancellationToken.None);
+        }
+    
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public async System.Threading.Tasks.Task<ApiJobStatusResponse> GetJobStatusAsync(ApiJobStatusRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            var urlBuilder_ = new System.Text.StringBuilder();
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job/jobstatus");
+    
+            var client_ = _httpClient;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var content_ = new System.Net.Http.StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(body, _settings.Value));
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+    
+                    PrepareRequest(client_, request_, urlBuilder_);
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+                    PrepareRequest(client_, request_, url_);
+    
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var headers_ = System.Linq.Enumerable.ToDictionary(response_.Headers, h_ => h_.Key, h_ => h_.Value);
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+    
+                        ProcessResponse(client_, response_);
+    
+                        var status_ = ((int)response_.StatusCode).ToString();
+                        if (status_ == "200") 
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiJobStatusResponse>(response_, headers_).ConfigureAwait(false);
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<RuntimeError>(response_, headers_).ConfigureAwait(false);
+                            throw new ApiException<RuntimeError>("An unexpected error response.", (int)response_.StatusCode, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (response_ != null)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+            }
+        }
+    
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         public System.Threading.Tasks.Task<ApiJobReprioritizeResponse> ReprioritizeJobsAsync(ApiJobReprioritizeRequest body)
         {
             return ReprioritizeJobsAsync(body, System.Threading.CancellationToken.None);
@@ -1330,6 +1531,73 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobDetails 
+    {
+        [Newtonsoft.Json.JsonProperty("cancelReason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string CancelReason { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("cancelTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? CancelTs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobRuns", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiJobRunDetails> JobRuns { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJob JobSpec { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobset", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Jobset { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("lastTransitionTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? LastTransitionTs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("latestRunId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string LatestRunId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Namespace { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("state", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+        public ApiJobState? State { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("submittedTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? SubmittedTs { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobDetailsRequest 
+    {
+        [Newtonsoft.Json.JsonProperty("expandJobRun", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ExpandJobRun { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("expandJobSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ExpandJobSpec { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobIds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> JobIds { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobDetailsResponse 
+    {
+        [Newtonsoft.Json.JsonProperty("jobDetails", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, ApiJobDetails> JobDetails { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobDuplicateFoundEvent 
     {
         [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -1676,6 +1944,93 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobRunDetails 
+    {
+        [Newtonsoft.Json.JsonProperty("cluster", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Cluster { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("finishedTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? FinishedTs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("leasedTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? LeasedTs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("node", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Node { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("pendingTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? PendingTs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("runId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string RunId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("startedTs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? StartedTs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("state", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+        public ApiJobRunState? State { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobRunDetailsRequest 
+    {
+        [Newtonsoft.Json.JsonProperty("runIds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> RunIds { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobRunDetailsResponse 
+    {
+        [Newtonsoft.Json.JsonProperty("jobRunDetails", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, ApiJobRunDetails> JobRunDetails { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public enum ApiJobRunState
+    {
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_UNKNOWN")]
+        RUN_STATE_UNKNOWN = 0,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_LEASED")]
+        RUN_STATE_LEASED = 1,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_PENDING")]
+        RUN_STATE_PENDING = 2,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_RUNNING")]
+        RUN_STATE_RUNNING = 3,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_SUCCEEDED")]
+        RUN_STATE_SUCCEEDED = 4,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_FAILED")]
+        RUN_STATE_FAILED = 5,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_PREEMPTED")]
+        RUN_STATE_PREEMPTED = 6,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_CANCELLED")]
+        RUN_STATE_CANCELLED = 7,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUN_STATE_LEASE_EXPIRED")]
+        RUN_STATE_LEASE_EXPIRED = 8,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUNS_STATE_LEASE_RETURNED")]
+        RUNS_STATE_LEASE_RETURNED = 9,
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobRunningEvent 
     {
         [Newtonsoft.Json.JsonProperty("clusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -1797,6 +2152,24 @@ namespace GResearch.Armada.Client
     
         [System.Runtime.Serialization.EnumMember(Value = @"CANCELLED")]
         CANCELLED = 9,
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobStatusRequest 
+    {
+        [Newtonsoft.Json.JsonProperty("jobIds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> JobIds { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobStatusResponse 
+    {
+        [Newtonsoft.Json.JsonProperty("jobStates", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, ApiJobState> JobStates { get; set; }
+    
     
     }
     
@@ -2500,17 +2873,30 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>ClientIPConfig represents the configurations of Client IP based session affinity.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ClientIPConfig 
     {
+        /// <summary>timeoutSeconds specifies the seconds of ClientIP type session sticky time.
+        /// The value must be &gt;0 &amp;&amp; &lt;=86400(for 1 day) if ServiceAffinity == "ClientIP".
+        /// Default value is 10800(for 3 hours).
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("timeoutSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? TimeoutSeconds { get; set; }
     
     
     }
     
-    /// <summary>// other fields
+    /// <summary>This struct is intended for direct use as an array at the field path .status.conditions.  For example,
+    /// type FooStatus struct{
+    /// Represents the observations of a foo's current state.
+    /// Known .status.conditions.type are: "Available", "Progressing", and "Degraded"
+    /// +patchMergeKey=type
+    /// +patchStrategy=merge
+    /// +listType=map
+    /// +listMapKey=type
+    /// Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+    /// 
+    /// other fields
     /// }</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Condition 
@@ -2518,18 +2904,47 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("lastTransitionTime", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.DateTimeOffset? LastTransitionTime { get; set; }
     
+        /// <summary>message is a human readable message indicating details about the transition.
+        /// This may be an empty string.
+        /// +required
+        /// +kubebuilder:validation:Required
+        /// +kubebuilder:validation:MaxLength=32768</summary>
         [Newtonsoft.Json.JsonProperty("message", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Message { get; set; }
     
+        /// <summary>observedGeneration represents the .metadata.generation that the condition was set based upon.
+        /// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+        /// with respect to the current state of the instance.
+        /// +optional
+        /// +kubebuilder:validation:Minimum=0</summary>
         [Newtonsoft.Json.JsonProperty("observedGeneration", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ObservedGeneration { get; set; }
+        public long? ObservedGeneration { get; set; }
     
+        /// <summary>reason contains a programmatic identifier indicating the reason for the condition's last transition.
+        /// Producers of specific condition types may define expected values and meanings for this field,
+        /// and whether the values are considered a guaranteed API.
+        /// The value should be a CamelCase string.
+        /// This field may not be empty.
+        /// +required
+        /// +kubebuilder:validation:Required
+        /// +kubebuilder:validation:MaxLength=1024
+        /// +kubebuilder:validation:MinLength=1
+        /// +kubebuilder:validation:Pattern=`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`</summary>
         [Newtonsoft.Json.JsonProperty("reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
     
         [Newtonsoft.Json.JsonProperty("status", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Status { get; set; }
     
+        /// <summary>type of condition in CamelCase or in foo.example.com/CamelCase.
+        /// 
+        /// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+        /// useful (see .node.status.conditions), the ability to deconflict is important.
+        /// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+        /// +required
+        /// +kubebuilder:validation:Required
+        /// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
+        /// +kubebuilder:validation:MaxLength=316</summary>
         [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Type { get; set; }
     
@@ -3419,42 +3834,32 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1HTTPIngressPath 
     {
-        /// <summary>Backend defines the referenced service endpoint to which the traffic
-        /// will be forwarded to.</summary>
         [Newtonsoft.Json.JsonProperty("backend", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1IngressBackend Backend { get; set; }
     
+        /// <summary>Path is matched against the path of an incoming request. Currently it can
+        /// contain characters disallowed from the conventional "path" part of a URL
+        /// as defined by RFC 3986. Paths must begin with a '/' and must be present
+        /// when using PathType with value "Exact" or "Prefix".
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
-        /// <summary>PathType determines the interpretation of the Path matching. PathType can
-        /// be one of the following values:
-        /// * Exact: Matches the URL path exactly.
-        /// * Prefix: Matches based on a URL path prefix split by '/'. Matching is
-        ///   done on a path element by element basis. A path element refers is the
-        ///   list of labels in the path split by the '/' separator. A request is a
-        ///   match for path p if every p is an element-wise prefix of p of the
-        ///   request path. Note that if the last element of the path is a substring
-        ///   of the last element in request path, it is not a match (e.g. /foo/bar
-        ///   matches /foo/bar/baz, but does not match /foo/barbaz).
-        /// * ImplementationSpecific: Interpretation of the Path matching is up to
-        ///   the IngressClass. Implementations can treat this as a separate PathType
-        ///   or treat it identically to Prefix or Exact path types.
-        /// Implementations are required to support all path types.</summary>
         [Newtonsoft.Json.JsonProperty("pathType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string PathType { get; set; }
     
     
     }
     
-    /// <summary>HTTPIngressRuleValue is a list of http selectors pointing to backends.
-    /// In the example: http://&lt;host&gt;/&lt;path&gt;?&lt;searchpart&gt; -&gt; backend where
+    /// <summary>In the example: http://&lt;host&gt;/&lt;path&gt;?&lt;searchpart&gt; -&gt; backend where
     /// where parts of the url correspond to RFC 3986, this resource will be used
     /// to match against everything after the last '/' and before the first '?'
     /// or '#'.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1HTTPIngressRuleValue 
     {
+        /// <summary>A collection of paths that map requests to backends.
+        /// +listType=atomic</summary>
         [Newtonsoft.Json.JsonProperty("paths", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1HTTPIngressPath> Paths { get; set; }
     
@@ -3585,8 +3990,171 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Ingress 
     {
-        [Newtonsoft.Json.JsonProperty("metadata", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ObjectMeta Metadata { get; set; }
+        /// <summary>Annotations is an unstructured key value map stored with a resource that may be
+        /// set by external tools to store and retrieve arbitrary metadata. They are not
+        /// queryable and should be preserved when modifying objects.
+        /// More info: http://kubernetes.io/docs/user-guide/annotations
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+    
+        /// <summary>APIVersion defines the versioned schema of this representation of an object.
+        /// Servers should convert recognized schemas to the latest internal value, and
+        /// may reject unrecognized values.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("apiVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ApiVersion { get; set; }
+    
+        /// <summary>The name of the cluster which the object belongs to.
+        /// This is used to distinguish resources with same name and namespace in different clusters.
+        /// This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("clusterName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("creationTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? CreationTimestamp { get; set; }
+    
+        /// <summary>Number of seconds allowed for this object to gracefully terminate before
+        /// it will be removed from the system. Only set when deletionTimestamp is also set.
+        /// May only be shortened.
+        /// Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("deletionGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? DeletionGracePeriodSeconds { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("deletionTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? DeletionTimestamp { get; set; }
+    
+        /// <summary>Must be empty before the object is deleted from the registry. Each entry
+        /// is an identifier for the responsible component that will remove the entry
+        /// from the list. If the deletionTimestamp of the object is non-nil, entries
+        /// in this list can only be removed.
+        /// Finalizers may be processed and removed in any order.  Order is NOT enforced
+        /// because it introduces significant risk of stuck finalizers.
+        /// finalizers is a shared field, any actor with permission can reorder it.
+        /// If the finalizer list is processed in order, then this can lead to a situation
+        /// in which the component responsible for the first finalizer in the list is
+        /// waiting for a signal (field value, external system, or other) produced by a
+        /// component responsible for a finalizer later in the list, resulting in a deadlock.
+        /// Without enforced ordering finalizers are free to order amongst themselves and
+        /// are not vulnerable to ordering changes in the list.
+        /// +optional
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("finalizers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Finalizers { get; set; }
+    
+        /// <summary>GenerateName is an optional prefix, used by the server, to generate a unique
+        /// name ONLY IF the Name field has not been provided.
+        /// If this field is used, the name returned to the client will be different
+        /// than the name passed. This value will also be combined with a unique suffix.
+        /// The provided value has the same validation rules as the Name field,
+        /// and may be truncated by the length of the suffix required to make the value
+        /// unique on the server.
+        /// 
+        /// If this field is specified and the generated name exists, the server will
+        /// NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+        /// ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+        /// should retry (optionally after the time indicated in the Retry-After header).
+        /// 
+        /// Applied only if Name is not specified.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generateName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string GenerateName { get; set; }
+    
+        /// <summary>A sequence number representing a specific generation of the desired state.
+        /// Populated by the system. Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? Generation { get; set; }
+    
+        /// <summary>Kind is a string value representing the REST resource this object represents.
+        /// Servers may infer this from the endpoint the client submits requests to.
+        /// Cannot be updated.
+        /// In CamelCase.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("kind", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Kind { get; set; }
+    
+        /// <summary>Map of string keys and values that can be used to organize and categorize
+        /// (scope and select) objects. May match selectors of replication controllers
+        /// and services.
+        /// More info: http://kubernetes.io/docs/user-guide/labels
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
+    
+        /// <summary>ManagedFields maps workflow-id and version to the set of fields
+        /// that are managed by that workflow. This is mostly for internal
+        /// housekeeping, and users typically shouldn't need to set or
+        /// understand this field. A workflow can be the user's name, a
+        /// controller's name, or the name of a specific apply path like
+        /// "ci-cd". The set of fields is always in the version that the
+        /// workflow used when modifying the object.
+        /// 
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("managedFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1ManagedFieldsEntry> ManagedFields { get; set; }
+    
+        /// <summary>Name must be unique within a namespace. Is required when creating resources, although
+        /// some resources may allow a client to request the generation of an appropriate name
+        /// automatically. Name is primarily intended for creation idempotence and configuration
+        /// definition.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Namespace defines the space within which each name must be unique. An empty namespace is
+        /// equivalent to the "default" namespace, but "default" is the canonical representation.
+        /// Not all objects are required to be scoped to a namespace - the value of this field for
+        /// those objects will be empty.
+        /// 
+        /// Must be a DNS_LABEL.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/namespaces
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Namespace { get; set; }
+    
+        /// <summary>List of objects depended by this object. If ALL objects in the list have
+        /// been deleted, this object will be garbage collected. If this object is managed by a controller,
+        /// then an entry in this list will point to this controller, with the controller field set to true.
+        /// There cannot be more than one managing controller.
+        /// +optional
+        /// +patchMergeKey=uid
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("ownerReferences", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1OwnerReference> OwnerReferences { get; set; }
+    
+        /// <summary>An opaque value that represents the internal version of this object that can
+        /// be used by clients to determine when objects have changed. May be used for optimistic
+        /// concurrency, change detection, and the watch operation on a resource or set of resources.
+        /// Clients must treat these values as opaque and passed unmodified back to the server.
+        /// They may only be valid for a particular resource or set of resources.
+        /// 
+        /// Populated by the system.
+        /// Read-only.
+        /// Value must be treated as opaque by clients and .
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("resourceVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ResourceVersion { get; set; }
+    
+        /// <summary>SelfLink is a URL representing this object.
+        /// Populated by the system.
+        /// Read-only.
+        /// 
+        /// DEPRECATED
+        /// Kubernetes will stop propagating this field in 1.20 release and the field is planned
+        /// to be removed in 1.21 release.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("selfLink", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SelfLink { get; set; }
     
         [Newtonsoft.Json.JsonProperty("spec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1IngressSpec Spec { get; set; }
@@ -3594,10 +4162,12 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("status", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1IngressStatus Status { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Uid { get; set; }
+    
     
     }
     
-    /// <summary>IngressBackend describes all endpoints for a given service and port.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1IngressBackend 
     {
@@ -3620,10 +4190,10 @@ namespace GResearch.Armada.Client
         /// Note the following deviations from the "host" part of the
         /// URI as defined in RFC 3986:
         /// 1. IPs are not allowed. Currently an IngressRuleValue can only apply to
-        ///    the IP in the Spec of the parent Ingress.
+        /// the IP in the Spec of the parent Ingress.
         /// 2. The `:` delimiter is not respected because ports are not allowed.
-        /// 	  Currently the port of an Ingress is implicitly :80 for http and
-        /// 	  :443 for https.
+        /// Currently the port of an Ingress is implicitly :80 for http and
+        /// :443 for https.
         /// Both these may change in the future.
         /// Incoming requests are matched against the host before the
         /// IngressRuleValue. If the host is unspecified, the Ingress routes all
@@ -3642,26 +4212,12 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("host", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Host { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("ingressRuleValue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1IngressRuleValue IngressRuleValue { get; set; }
-    
-    
-    }
-    
-    /// <summary>IngressRuleValue represents a rule to apply against incoming requests. If the
-    /// rule is satisfied, the request is routed to the specified backend. Currently
-    /// mixing different types of rules in a single Ingress is disallowed, so exactly
-    /// one of the following must be set.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1IngressRuleValue 
-    {
         [Newtonsoft.Json.JsonProperty("http", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1HTTPIngressRuleValue Http { get; set; }
     
     
     }
     
-    /// <summary>IngressServiceBackend references a Kubernetes Service as a Backend.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1IngressServiceBackend 
     {
@@ -3670,34 +4226,52 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
-        /// <summary>Port of the referenced service. A port name or port number
-        /// is required for a IngressServiceBackend.</summary>
         [Newtonsoft.Json.JsonProperty("port", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ServiceBackendPort Port { get; set; }
     
     
     }
     
-    /// <summary>IngressSpec describes the Ingress the user wishes to exist.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1IngressSpec 
     {
         [Newtonsoft.Json.JsonProperty("defaultBackend", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1IngressBackend DefaultBackend { get; set; }
     
+        /// <summary>IngressClassName is the name of the IngressClass cluster resource. The
+        /// associated IngressClass defines which controller will implement the
+        /// resource. This replaces the deprecated `kubernetes.io/ingress.class`
+        /// annotation. For backwards compatibility, when that annotation is set, it
+        /// must be given precedence over this field. The controller may emit a
+        /// warning if the field and annotation have different values.
+        /// Implementations of this API should ignore Ingresses without a class
+        /// specified. An IngressClass resource may be marked as default, which can
+        /// be used to set a default value for this field. For more information,
+        /// refer to the IngressClass documentation.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("ingressClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string IngressClassName { get; set; }
     
+        /// <summary>A list of host rules used to configure the Ingress. If unspecified, or
+        /// no rule matches, all traffic is sent to the default backend.
+        /// +listType=atomic
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("rules", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1IngressRule> Rules { get; set; }
     
+        /// <summary>TLS configuration. Currently the Ingress only supports a single TLS
+        /// port, 443. If multiple members of this list specify different hosts, they
+        /// will be multiplexed on the same port according to the hostname specified
+        /// through the SNI TLS extension, if the ingress controller fulfilling the
+        /// ingress supports SNI.
+        /// +listType=atomic
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("tls", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1IngressTLS> Tls { get; set; }
     
     
     }
     
-    /// <summary>IngressStatus describe the current state of the Ingress.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1IngressStatus 
     {
@@ -3707,13 +4281,24 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>IngressTLS describes the transport layer security associated with an Ingress.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1IngressTLS 
     {
+        /// <summary>Hosts are a list of hosts included in the TLS certificate. The values in
+        /// this list must match the name/s used in the tlsSecret. Defaults to the
+        /// wildcard host setting for the loadbalancer controller fulfilling this
+        /// Ingress, if left unspecified.
+        /// +listType=atomic
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("hosts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Hosts { get; set; }
     
+        /// <summary>SecretName is the name of the secret used to terminate TLS traffic on
+        /// port 443. Field is left optional to allow TLS routing based on SNI
+        /// hostname alone. If the SNI host in a listener conflicts with the "Host"
+        /// header field used by an IngressRule, the SNI host is used for termination
+        /// and value of the Host header is used for routing.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("secretName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string SecretName { get; set; }
     
@@ -3809,27 +4394,38 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>LoadBalancerIngress represents the status of a load-balancer ingress point:
-    /// traffic intended for the service should be sent to an ingress point.</summary>
+    /// <summary>traffic intended for the service should be sent to an ingress point.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LoadBalancerIngress 
     {
+        /// <summary>Hostname is set for load-balancer ingress points that are DNS based
+        /// (typically AWS load-balancers)
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("hostname", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Hostname { get; set; }
     
+        /// <summary>IP is set for load-balancer ingress points that are IP based
+        /// (typically GCE or OpenStack load-balancers)
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("ip", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Ip { get; set; }
     
+        /// <summary>Ports is a list of records of service ports
+        /// If used, every port defined in the service should have an entry in it
+        /// +listType=atomic
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1PortStatus> Ports { get; set; }
     
     
     }
     
-    /// <summary>LoadBalancerStatus represents the status of a load-balancer.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LoadBalancerStatus 
     {
+        /// <summary>Ingress is a list containing ingress points for the load-balancer.
+        /// Traffic intended for the service should be sent to these ingress points.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("ingress", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1LoadBalancerIngress> Ingress { get; set; }
     
@@ -4012,166 +4608,6 @@ namespace GResearch.Armada.Client
         /// <summary>Path of the field to select in the specified API version.</summary>
         [Newtonsoft.Json.JsonProperty("fieldPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FieldPath { get; set; }
-    
-    
-    }
-    
-    /// <summary>ObjectMeta is metadata that all persisted resources must have, which includes all objects
-    /// users must create.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1ObjectMeta 
-    {
-        /// <summary>Annotations is an unstructured key value map stored with a resource that may be
-        /// set by external tools to store and retrieve arbitrary metadata. They are not
-        /// queryable and should be preserved when modifying objects.
-        /// More info: http://kubernetes.io/docs/user-guide/annotations
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
-    
-        /// <summary>The name of the cluster which the object belongs to.
-        /// This is used to distinguish resources with same name and namespace in different clusters.
-        /// This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("clusterName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("creationTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? CreationTimestamp { get; set; }
-    
-        /// <summary>Number of seconds allowed for this object to gracefully terminate before
-        /// it will be removed from the system. Only set when deletionTimestamp is also set.
-        /// May only be shortened.
-        /// Read-only.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("deletionGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? DeletionGracePeriodSeconds { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("deletionTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? DeletionTimestamp { get; set; }
-    
-        /// <summary>Must be empty before the object is deleted from the registry. Each entry
-        /// is an identifier for the responsible component that will remove the entry
-        /// from the list. If the deletionTimestamp of the object is non-nil, entries
-        /// in this list can only be removed.
-        /// Finalizers may be processed and removed in any order.  Order is NOT enforced
-        /// because it introduces significant risk of stuck finalizers.
-        /// finalizers is a shared field, any actor with permission can reorder it.
-        /// If the finalizer list is processed in order, then this can lead to a situation
-        /// in which the component responsible for the first finalizer in the list is
-        /// waiting for a signal (field value, external system, or other) produced by a
-        /// component responsible for a finalizer later in the list, resulting in a deadlock.
-        /// Without enforced ordering finalizers are free to order amongst themselves and
-        /// are not vulnerable to ordering changes in the list.
-        /// +optional
-        /// +patchStrategy=merge</summary>
-        [Newtonsoft.Json.JsonProperty("finalizers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Finalizers { get; set; }
-    
-        /// <summary>GenerateName is an optional prefix, used by the server, to generate a unique
-        /// name ONLY IF the Name field has not been provided.
-        /// If this field is used, the name returned to the client will be different
-        /// than the name passed. This value will also be combined with a unique suffix.
-        /// The provided value has the same validation rules as the Name field,
-        /// and may be truncated by the length of the suffix required to make the value
-        /// unique on the server.
-        /// 
-        /// If this field is specified and the generated name exists, the server will
-        /// NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
-        /// ServerTimeout indicating a unique name could not be found in the time allotted, and the client
-        /// should retry (optionally after the time indicated in the Retry-After header).
-        /// 
-        /// Applied only if Name is not specified.
-        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("generateName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string GenerateName { get; set; }
-    
-        /// <summary>A sequence number representing a specific generation of the desired state.
-        /// Populated by the system. Read-only.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("generation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? Generation { get; set; }
-    
-        /// <summary>Map of string keys and values that can be used to organize and categorize
-        /// (scope and select) objects. May match selectors of replication controllers
-        /// and services.
-        /// More info: http://kubernetes.io/docs/user-guide/labels
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
-    
-        /// <summary>ManagedFields maps workflow-id and version to the set of fields
-        /// that are managed by that workflow. This is mostly for internal
-        /// housekeeping, and users typically shouldn't need to set or
-        /// understand this field. A workflow can be the user's name, a
-        /// controller's name, or the name of a specific apply path like
-        /// "ci-cd". The set of fields is always in the version that the
-        /// workflow used when modifying the object.
-        /// 
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("managedFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1ManagedFieldsEntry> ManagedFields { get; set; }
-    
-        /// <summary>Name must be unique within a namespace. Is required when creating resources, although
-        /// some resources may allow a client to request the generation of an appropriate name
-        /// automatically. Name is primarily intended for creation idempotence and configuration
-        /// definition.
-        /// Cannot be updated.
-        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Name { get; set; }
-    
-        /// <summary>Namespace defines the space within which each name must be unique. An empty namespace is
-        /// equivalent to the "default" namespace, but "default" is the canonical representation.
-        /// Not all objects are required to be scoped to a namespace - the value of this field for
-        /// those objects will be empty.
-        /// 
-        /// Must be a DNS_LABEL.
-        /// Cannot be updated.
-        /// More info: http://kubernetes.io/docs/user-guide/namespaces
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Namespace { get; set; }
-    
-        /// <summary>List of objects depended by this object. If ALL objects in the list have
-        /// been deleted, this object will be garbage collected. If this object is managed by a controller,
-        /// then an entry in this list will point to this controller, with the controller field set to true.
-        /// There cannot be more than one managing controller.
-        /// +optional
-        /// +patchMergeKey=uid
-        /// +patchStrategy=merge</summary>
-        [Newtonsoft.Json.JsonProperty("ownerReferences", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1OwnerReference> OwnerReferences { get; set; }
-    
-        /// <summary>An opaque value that represents the internal version of this object that can
-        /// be used by clients to determine when objects have changed. May be used for optimistic
-        /// concurrency, change detection, and the watch operation on a resource or set of resources.
-        /// Clients must treat these values as opaque and passed unmodified back to the server.
-        /// They may only be valid for a particular resource or set of resources.
-        /// 
-        /// Populated by the system.
-        /// Read-only.
-        /// Value must be treated as opaque by clients and .
-        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("resourceVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ResourceVersion { get; set; }
-    
-        /// <summary>SelfLink is a URL representing this object.
-        /// Populated by the system.
-        /// Read-only.
-        /// 
-        /// DEPRECATED
-        /// Kubernetes will stop propagating this field in 1.20 release and the field is planned
-        /// to be removed in 1.21 release.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("selfLink", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string SelfLink { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Uid { get; set; }
     
     
     }
@@ -4945,9 +5381,22 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PortStatus 
     {
+        /// <summary>Error is to record the problem with the service port
+        /// The format of the error shall comply with the following rules:
+        /// built-in error values shall be specified in this file and those shall use
+        /// CamelCase names
+        /// cloud provider specific error values must have names that comply with the
+        /// format foo.example.com/CamelCase.
+        /// 
+        /// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+        /// +optional
+        /// +kubebuilder:validation:Required
+        /// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
+        /// +kubebuilder:validation:MaxLength=316</summary>
         [Newtonsoft.Json.JsonProperty("error", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Error { get; set; }
     
+        /// <summary>Port is the port number of the service port of which status is recorded here</summary>
         [Newtonsoft.Json.JsonProperty("port", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Port { get; set; }
     
@@ -5514,14 +5963,180 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Service 
     {
-        [Newtonsoft.Json.JsonProperty("metadata", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ObjectMeta Metadata { get; set; }
+        /// <summary>Annotations is an unstructured key value map stored with a resource that may be
+        /// set by external tools to store and retrieve arbitrary metadata. They are not
+        /// queryable and should be preserved when modifying objects.
+        /// More info: http://kubernetes.io/docs/user-guide/annotations
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+    
+        /// <summary>APIVersion defines the versioned schema of this representation of an object.
+        /// Servers should convert recognized schemas to the latest internal value, and
+        /// may reject unrecognized values.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("apiVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ApiVersion { get; set; }
+    
+        /// <summary>The name of the cluster which the object belongs to.
+        /// This is used to distinguish resources with same name and namespace in different clusters.
+        /// This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("clusterName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("creationTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? CreationTimestamp { get; set; }
+    
+        /// <summary>Number of seconds allowed for this object to gracefully terminate before
+        /// it will be removed from the system. Only set when deletionTimestamp is also set.
+        /// May only be shortened.
+        /// Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("deletionGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? DeletionGracePeriodSeconds { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("deletionTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? DeletionTimestamp { get; set; }
+    
+        /// <summary>Must be empty before the object is deleted from the registry. Each entry
+        /// is an identifier for the responsible component that will remove the entry
+        /// from the list. If the deletionTimestamp of the object is non-nil, entries
+        /// in this list can only be removed.
+        /// Finalizers may be processed and removed in any order.  Order is NOT enforced
+        /// because it introduces significant risk of stuck finalizers.
+        /// finalizers is a shared field, any actor with permission can reorder it.
+        /// If the finalizer list is processed in order, then this can lead to a situation
+        /// in which the component responsible for the first finalizer in the list is
+        /// waiting for a signal (field value, external system, or other) produced by a
+        /// component responsible for a finalizer later in the list, resulting in a deadlock.
+        /// Without enforced ordering finalizers are free to order amongst themselves and
+        /// are not vulnerable to ordering changes in the list.
+        /// +optional
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("finalizers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Finalizers { get; set; }
+    
+        /// <summary>GenerateName is an optional prefix, used by the server, to generate a unique
+        /// name ONLY IF the Name field has not been provided.
+        /// If this field is used, the name returned to the client will be different
+        /// than the name passed. This value will also be combined with a unique suffix.
+        /// The provided value has the same validation rules as the Name field,
+        /// and may be truncated by the length of the suffix required to make the value
+        /// unique on the server.
+        /// 
+        /// If this field is specified and the generated name exists, the server will
+        /// NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+        /// ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+        /// should retry (optionally after the time indicated in the Retry-After header).
+        /// 
+        /// Applied only if Name is not specified.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generateName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string GenerateName { get; set; }
+    
+        /// <summary>A sequence number representing a specific generation of the desired state.
+        /// Populated by the system. Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? Generation { get; set; }
+    
+        /// <summary>Kind is a string value representing the REST resource this object represents.
+        /// Servers may infer this from the endpoint the client submits requests to.
+        /// Cannot be updated.
+        /// In CamelCase.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("kind", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Kind { get; set; }
+    
+        /// <summary>Map of string keys and values that can be used to organize and categorize
+        /// (scope and select) objects. May match selectors of replication controllers
+        /// and services.
+        /// More info: http://kubernetes.io/docs/user-guide/labels
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
+    
+        /// <summary>ManagedFields maps workflow-id and version to the set of fields
+        /// that are managed by that workflow. This is mostly for internal
+        /// housekeeping, and users typically shouldn't need to set or
+        /// understand this field. A workflow can be the user's name, a
+        /// controller's name, or the name of a specific apply path like
+        /// "ci-cd". The set of fields is always in the version that the
+        /// workflow used when modifying the object.
+        /// 
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("managedFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1ManagedFieldsEntry> ManagedFields { get; set; }
+    
+        /// <summary>Name must be unique within a namespace. Is required when creating resources, although
+        /// some resources may allow a client to request the generation of an appropriate name
+        /// automatically. Name is primarily intended for creation idempotence and configuration
+        /// definition.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Namespace defines the space within which each name must be unique. An empty namespace is
+        /// equivalent to the "default" namespace, but "default" is the canonical representation.
+        /// Not all objects are required to be scoped to a namespace - the value of this field for
+        /// those objects will be empty.
+        /// 
+        /// Must be a DNS_LABEL.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/namespaces
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Namespace { get; set; }
+    
+        /// <summary>List of objects depended by this object. If ALL objects in the list have
+        /// been deleted, this object will be garbage collected. If this object is managed by a controller,
+        /// then an entry in this list will point to this controller, with the controller field set to true.
+        /// There cannot be more than one managing controller.
+        /// +optional
+        /// +patchMergeKey=uid
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("ownerReferences", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1OwnerReference> OwnerReferences { get; set; }
+    
+        /// <summary>An opaque value that represents the internal version of this object that can
+        /// be used by clients to determine when objects have changed. May be used for optimistic
+        /// concurrency, change detection, and the watch operation on a resource or set of resources.
+        /// Clients must treat these values as opaque and passed unmodified back to the server.
+        /// They may only be valid for a particular resource or set of resources.
+        /// 
+        /// Populated by the system.
+        /// Read-only.
+        /// Value must be treated as opaque by clients and .
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("resourceVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ResourceVersion { get; set; }
+    
+        /// <summary>SelfLink is a URL representing this object.
+        /// Populated by the system.
+        /// Read-only.
+        /// 
+        /// DEPRECATED
+        /// Kubernetes will stop propagating this field in 1.20 release and the field is planned
+        /// to be removed in 1.21 release.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("selfLink", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SelfLink { get; set; }
     
         [Newtonsoft.Json.JsonProperty("spec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ServiceSpec Spec { get; set; }
     
         [Newtonsoft.Json.JsonProperty("status", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ServiceStatus Status { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Uid { get; set; }
     
     
     }
@@ -5559,29 +6174,56 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>ServiceBackendPort is the service port being referenced.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ServiceBackendPort 
     {
+        /// <summary>Name is the name of the port on the Service.
+        /// This is a mutually exclusive setting with "Number".
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+        /// <summary>Number is the numerical port number (e.g. 80) on the Service.
+        /// This is a mutually exclusive setting with "Name".
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("number", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Number { get; set; }
     
     
     }
     
-    /// <summary>ServicePort contains information on service's port.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ServicePort 
     {
+        /// <summary>The application protocol for this port.
+        /// This field follows standard Kubernetes label syntax.
+        /// Un-prefixed names are reserved for IANA standard service names (as per
+        /// RFC-6335 and http://www.iana.org/assignments/service-names).
+        /// Non-standard protocols should use prefixed names such as
+        /// mycompany.com/my-custom-protocol.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("appProtocol", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string AppProtocol { get; set; }
     
+        /// <summary>The name of this port within the service. This must be a DNS_LABEL.
+        /// All ports within a ServiceSpec must have unique names. When considering
+        /// the endpoints for a Service, this must match the 'name' field in the
+        /// EndpointPort.
+        /// Optional if only one ServicePort is defined on this service.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+        /// <summary>The port on each node on which this service is exposed when type is
+        /// NodePort or LoadBalancer.  Usually assigned by the system. If a value is
+        /// specified, in-range, and not in use it will be used, otherwise the
+        /// operation will fail.  If not specified, a port will be allocated if this
+        /// Service requires one.  If this field is specified when creating a
+        /// Service which does not need it, creation will fail. This field will be
+        /// wiped when updating a Service to no longer need it (e.g. changing type
+        /// from NodePort to ClusterIP).
+        /// More info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("nodePort", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? NodePort { get; set; }
     
@@ -5598,13 +6240,38 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>ServiceSpec describes the attributes that a user creates on a service.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ServiceSpec 
     {
+        /// <summary>allocateLoadBalancerNodePorts defines if NodePorts will be automatically
+        /// allocated for services with type LoadBalancer.  Default is "true". It
+        /// may be set to "false" if the cluster load-balancer does not rely on
+        /// NodePorts.  If the caller requests specific NodePorts (by specifying a
+        /// value), those requests will be respected, regardless of this field.
+        /// This field may only be set for services with type LoadBalancer and will
+        /// be cleared if the type is changed to any other type.
+        /// This field is beta-level and is only honored by servers that enable the ServiceLBNodePortControl feature.
+        /// +featureGate=ServiceLBNodePortControl
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("allocateLoadBalancerNodePorts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? AllocateLoadBalancerNodePorts { get; set; }
     
+        /// <summary>clusterIP is the IP address of the service and is usually assigned
+        /// randomly. If an address is specified manually, is in-range (as per
+        /// system configuration), and is not in use, it will be allocated to the
+        /// service; otherwise creation of the service will fail. This field may not
+        /// be changed through updates unless the type field is also being changed
+        /// to ExternalName (which requires this field to be blank) or the type
+        /// field is being changed from ExternalName (in which case this field may
+        /// optionally be specified, as describe above).  Valid values are "None",
+        /// empty string (""), or a valid IP address. Setting this to "None" makes a
+        /// "headless service" (no virtual IP), which is useful when direct endpoint
+        /// connections are preferred and proxying is not required.  Only applies to
+        /// types ClusterIP, NodePort, and LoadBalancer. If this field is specified
+        /// when creating a Service of type ExternalName, creation will fail. This
+        /// field will be wiped when updating a Service to type ExternalName.
+        /// More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("clusterIP", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClusterIP { get; set; }
     
@@ -5639,15 +6306,36 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("clusterIPs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> ClusterIPs { get; set; }
     
+        /// <summary>externalIPs is a list of IP addresses for which nodes in the cluster
+        /// will also accept traffic for this service.  These IPs are not managed by
+        /// Kubernetes.  The user is responsible for ensuring that traffic arrives
+        /// at a node with this IP.  A common example is external load-balancers
+        /// that are not part of the Kubernetes system.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("externalIPs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> ExternalIPs { get; set; }
     
+        /// <summary>externalName is the external reference that discovery mechanisms will
+        /// return as an alias for this service (e.g. a DNS CNAME record). No
+        /// proxying will be involved.  Must be a lowercase RFC-1123 hostname
+        /// (https://tools.ietf.org/html/rfc1123) and requires `type` to be "ExternalName".
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("externalName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ExternalName { get; set; }
     
         [Newtonsoft.Json.JsonProperty("externalTrafficPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ExternalTrafficPolicy { get; set; }
     
+        /// <summary>healthCheckNodePort specifies the healthcheck nodePort for the service.
+        /// This only applies when type is set to LoadBalancer and
+        /// externalTrafficPolicy is set to Local. If a value is specified, is
+        /// in-range, and is not in use, it will be used.  If not specified, a value
+        /// will be automatically allocated.  External systems (e.g. load-balancers)
+        /// can use this port to determine if a given node holds endpoints for this
+        /// service or not.  If this field is specified when creating a Service
+        /// which does not need it, creation will fail. This field will be wiped
+        /// when updating a Service to no longer need it (e.g. changing type).
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("healthCheckNodePort", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? HealthCheckNodePort { get; set; }
     
@@ -5679,21 +6367,68 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("ipFamilyPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string IpFamilyPolicy { get; set; }
     
+        /// <summary>loadBalancerClass is the class of the load balancer implementation this Service belongs to.
+        /// If specified, the value of this field must be a label-style identifier, with an optional prefix,
+        /// e.g. "internal-vip" or "example.com/internal-vip". Unprefixed names are reserved for end-users.
+        /// This field can only be set when the Service type is 'LoadBalancer'. If not set, the default load
+        /// balancer implementation is used, today this is typically done through the cloud provider integration,
+        /// but should apply for any default implementation. If set, it is assumed that a load balancer
+        /// implementation is watching for Services with a matching class. Any default load balancer
+        /// implementation (e.g. cloud providers) should ignore Services that set this field.
+        /// This field can only be set when creating or updating a Service to type 'LoadBalancer'.
+        /// Once set, it can not be changed. This field will be wiped when a service is updated to a non 'LoadBalancer' type.
+        /// +featureGate=LoadBalancerClass
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("loadBalancerClass", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string LoadBalancerClass { get; set; }
     
+        /// <summary>Only applies to Service Type: LoadBalancer
+        /// LoadBalancer will get created with the IP specified in this field.
+        /// This feature depends on whether the underlying cloud-provider supports specifying
+        /// the loadBalancerIP when a load balancer is created.
+        /// This field will be ignored if the cloud-provider does not support the feature.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("loadBalancerIP", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string LoadBalancerIP { get; set; }
     
+        /// <summary>If specified and supported by the platform, this will restrict traffic through the cloud-provider
+        /// load-balancer will be restricted to the specified client IPs. This field will be ignored if the
+        /// cloud-provider does not support the feature."
+        /// More info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("loadBalancerSourceRanges", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> LoadBalancerSourceRanges { get; set; }
     
+        /// <summary>The list of ports that are exposed by this service.
+        /// More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+        /// +patchMergeKey=port
+        /// +patchStrategy=merge
+        /// +listType=map
+        /// +listMapKey=port
+        /// +listMapKey=protocol</summary>
         [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1ServicePort> Ports { get; set; }
     
+        /// <summary>publishNotReadyAddresses indicates that any agent which deals with endpoints for this
+        /// Service should disregard any indications of ready/not-ready.
+        /// The primary use case for setting this field is for a StatefulSet's Headless Service to
+        /// propagate SRV DNS records for its Pods for the purpose of peer discovery.
+        /// The Kubernetes controllers that generate Endpoints and EndpointSlice resources for
+        /// Services interpret this to mean that all endpoints are considered "ready" even if the
+        /// Pods themselves are not. Agents which consume only Kubernetes generated endpoints
+        /// through the Endpoints or EndpointSlice resources can safely assume this behavior.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("publishNotReadyAddresses", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? PublishNotReadyAddresses { get; set; }
     
+        /// <summary>Route service traffic to pods with label keys and values matching this
+        /// selector. If empty or not present, the service is assumed to have an
+        /// external process managing its endpoints, which Kubernetes will not
+        /// modify. Only applies to types ClusterIP, NodePort, and LoadBalancer.
+        /// Ignored if type is ExternalName.
+        /// More info: https://kubernetes.io/docs/concepts/services-networking/service/
+        /// +optional
+        /// +mapType=atomic</summary>
         [Newtonsoft.Json.JsonProperty("selector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> Selector { get; set; }
     
@@ -5709,10 +6444,15 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>ServiceStatus represents the current status of a service.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ServiceStatus 
     {
+        /// <summary>Current service state
+        /// +optional
+        /// +patchMergeKey=type
+        /// +patchStrategy=merge
+        /// +listType=map
+        /// +listMapKey=type</summary>
         [Newtonsoft.Json.JsonProperty("conditions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1Condition> Conditions { get; set; }
     
@@ -5722,7 +6462,6 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>SessionAffinityConfig represents the configurations of session affinity.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SessionAffinityConfig 
     {
