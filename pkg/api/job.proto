@@ -5,6 +5,7 @@ option go_package = "github.com/armadaproject/armada/pkg/api";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/submit.proto";
 import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
@@ -22,6 +23,7 @@ enum JobRunState {
   RUNS_STATE_LEASE_RETURNED = 9;
 }
 
+// swagger:model
 message JobRunDetails {
   string run_id = 1;
   string job_id = 2;
@@ -35,6 +37,7 @@ message JobRunDetails {
 }
 
 
+// swagger:model
 message JobDetails {
   string job_id = 1;
   string queue = 2;
@@ -50,34 +53,55 @@ message JobDetails {
   repeated JobRunDetails job_runs = 12; // Only filled in if expand_job_run is true;
 }
 
+// swagger:model
 message JobDetailsRequest {
   repeated string job_ids = 1;
   bool expand_job_spec = 2;
   bool expand_job_run = 3;
 }
 
+// swagger:model
 message JobDetailsResponse {
   map<string, JobDetails> job_details = 1;
 }
 
+// swagger:model
 message JobRunDetailsResponse {
   map<string, JobRunDetails> job_run_details = 1;
 }
 
+// swagger:model
 message JobRunDetailsRequest {
   repeated string run_ids = 1;
 }
 
+// swagger:model
 message JobStatusRequest{
   repeated string job_ids = 1;
 }
 
+// swagger:model
 message JobStatusResponse{
   map<string, JobState> job_states = 1;
 }
 
 service Jobs {
-  rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse);
-  rpc GetJobDetails (JobDetailsRequest) returns (JobDetailsResponse);
-  rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse);
+  rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse) {
+    option (google.api.http) = {
+      post: "/v1/job/jobstatus"
+      body: "*"
+    };
+  }
+  rpc GetJobDetails (JobDetailsRequest) returns (JobDetailsResponse){
+    option (google.api.http) = {
+      post: "/v1/job/jobdetails"
+      body: "*"
+    };
+  }
+  rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse){
+    option (google.api.http) = {
+      post: "/v1/job/jobrundetails"
+      body: "*"
+    };
+  }
 }

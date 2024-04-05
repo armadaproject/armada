@@ -213,6 +213,102 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/job/jobdetails\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobDetails\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobDetailsRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobDetailsResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/jobrundetails\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobRunDetails\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobRunDetailsRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobRunDetailsResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/jobstatus\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobStatus\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobStatusRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobStatusResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/job/reprioritize\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -823,6 +919,84 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobDetails\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cancelReason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"cancelTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobRuns\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobRunDetails\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobSpec\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJob\"\n" +
+		"        },\n" +
+		"        \"jobset\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"lastTransitionTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"latestRunId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"state\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobState\"\n" +
+		"        },\n" +
+		"        \"submittedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobDetailsRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"expandJobRun\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"expandJobSpec\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"jobIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobDetailsResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobDetails\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobDetails\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobDuplicateFoundEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1192,6 +1366,83 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobRunDetails\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cluster\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"finishedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"leasedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"node\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"pendingTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"startedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"state\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobRunState\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunDetailsRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"runIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunDetailsResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobRunDetails\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobRunDetails\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunState\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"RUN_STATE_UNKNOWN\",\n" +
+		"      \"enum\": [\n" +
+		"        \"RUN_STATE_UNKNOWN\",\n" +
+		"        \"RUN_STATE_LEASED\",\n" +
+		"        \"RUN_STATE_PENDING\",\n" +
+		"        \"RUN_STATE_RUNNING\",\n" +
+		"        \"RUN_STATE_SUCCEEDED\",\n" +
+		"        \"RUN_STATE_FAILED\",\n" +
+		"        \"RUN_STATE_PREEMPTED\",\n" +
+		"        \"RUN_STATE_CANCELLED\",\n" +
+		"        \"RUN_STATE_LEASE_EXPIRED\",\n" +
+		"        \"RUNS_STATE_LEASE_RETURNED\"\n" +
+		"      ]\n" +
+		"    },\n" +
 		"    \"apiJobRunningEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1302,6 +1553,30 @@ func SwaggerJsonTemplate() string {
 		"        \"PREEMPTED\",\n" +
 		"        \"CANCELLED\"\n" +
 		"      ]\n" +
+		"    },\n" +
+		"    \"apiJobStatusRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobStatusResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobStates\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobState\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -2087,47 +2362,56 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ClientIPConfig\": {\n" +
-		"      \"description\": \"ClientIPConfig represents the configurations of Client IP based session affinity.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ClientIPConfig represents the configurations of Client IP based session affinity.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"timeoutSeconds\": {\n" +
+		"          \"description\": \"timeoutSeconds specifies the seconds of ClientIP type session sticky time.\\nThe value must be \\u003e0 \\u0026\\u0026 \\u003c=86400(for 1 day) if ServiceAffinity == \\\"ClientIP\\\".\\nDefault value is 10800(for 3 hours).\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"timeoutSeconds specifies the seconds of ClientIP type session sticky time.\\nThe value must be \\u003e0 \\u0026\\u0026 \\u003c=86400(for 1 day) if ServiceAffinity == \\\"ClientIP\\\".\\nDefault value is 10800(for 3 hours).\\n+optional\"\n" +
+		"          \"x-go-name\": \"TimeoutSeconds\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1Condition\": {\n" +
-		"      \"description\": \"// other fields\\n}\",\n" +
+		"      \"description\": \"This struct is intended for direct use as an array at the field path .status.conditions.  For example,\\ntype FooStatus struct{\\nRepresents the observations of a foo's current state.\\nKnown .status.conditions.type are: \\\"Available\\\", \\\"Progressing\\\", and \\\"Degraded\\\"\\n+patchMergeKey=type\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=type\\nConditions []metav1.Condition `json:\\\"conditions,omitempty\\\" patchStrategy:\\\"merge\\\" patchMergeKey:\\\"type\\\" protobuf:\\\"bytes,1,rep,name=conditions\\\"`\\n\\nother fields\\n}\",\n" +
 		"      \"type\": \"object\",\n" +
-		"      \"title\": \"Condition contains details for one aspect of the current state of this API Resource.\\n---\\nThis struct is intended for direct use as an array at the field path .status.conditions.  For example,\\ntype FooStatus struct{\\n    // Represents the observations of a foo's current state.\\n    // Known .status.conditions.type are: \\\"Available\\\", \\\"Progressing\\\", and \\\"Degraded\\\"\\n    // +patchMergeKey=type\\n    // +patchStrategy=merge\\n    // +listType=map\\n    // +listMapKey=type\\n    Conditions []metav1.Condition `json:\\\"conditions,omitempty\\\" patchStrategy:\\\"merge\\\" patchMergeKey:\\\"type\\\" protobuf:\\\"bytes,1,rep,name=conditions\\\"`\",\n" +
+		"      \"title\": \"Condition contains details for one aspect of the current state of this API Resource.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"lastTransitionTime\": {\n" +
-		"          \"title\": \"lastTransitionTime is the last time the condition transitioned from one status to another.\\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Type=string\\n+kubebuilder:validation:Format=date-time\",\n" +
 		"          \"$ref\": \"#/definitions/v1Time\"\n" +
 		"        },\n" +
 		"        \"message\": {\n" +
+		"          \"description\": \"message is a human readable message indicating details about the transition.\\nThis may be an empty string.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:MaxLength=32768\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"message is a human readable message indicating details about the transition.\\nThis may be an empty string.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:MaxLength=32768\"\n" +
+		"          \"x-go-name\": \"Message\"\n" +
 		"        },\n" +
 		"        \"observedGeneration\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"description\": \"observedGeneration represents the .metadata.generation that the condition was set based upon.\\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\\nwith respect to the current state of the instance.\\n+optional\\n+kubebuilder:validation:Minimum=0\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
-		"          \"title\": \"observedGeneration represents the .metadata.generation that the condition was set based upon.\\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\\nwith respect to the current state of the instance.\\n+optional\\n+kubebuilder:validation:Minimum=0\"\n" +
+		"          \"x-go-name\": \"ObservedGeneration\"\n" +
 		"        },\n" +
 		"        \"reason\": {\n" +
+		"          \"description\": \"reason contains a programmatic identifier indicating the reason for the condition's last transition.\\nProducers of specific condition types may define expected values and meanings for this field,\\nand whether the values are considered a guaranteed API.\\nThe value should be a CamelCase string.\\nThis field may not be empty.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:MaxLength=1024\\n+kubebuilder:validation:MinLength=1\\n+kubebuilder:validation:Pattern=`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"reason contains a programmatic identifier indicating the reason for the condition's last transition.\\nProducers of specific condition types may define expected values and meanings for this field,\\nand whether the values are considered a guaranteed API.\\nThe value should be a CamelCase string.\\nThis field may not be empty.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:MaxLength=1024\\n+kubebuilder:validation:MinLength=1\\n+kubebuilder:validation:Pattern=`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`\"\n" +
+		"          \"x-go-name\": \"Reason\"\n" +
 		"        },\n" +
 		"        \"status\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"status of the condition, one of True, False, Unknown.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Enum=True;False;Unknown\"\n" +
+		"          \"$ref\": \"#/definitions/v1ConditionStatus\"\n" +
 		"        },\n" +
 		"        \"type\": {\n" +
+		"          \"description\": \"type of condition in CamelCase or in foo.example.com/CamelCase.\\n\\nMany .condition.type values are consistent across resources like Available, but because arbitrary conditions can be\\nuseful (see .node.status.conditions), the ability to deconflict is important.\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"type of condition in CamelCase or in foo.example.com/CamelCase.\\n---\\nMany .condition.type values are consistent across resources like Available, but because arbitrary conditions can be\\nuseful (see .node.status.conditions), the ability to deconflict is important.\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\"\n" +
+		"          \"x-go-name\": \"Type\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
+		"    \"v1ConditionStatus\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    },\n" +
 		"    \"v1ConfigMapEnvSource\": {\n" +
 		"      \"description\": \"The contents of the target ConfigMap's Data field will represent the\\nkey-value pairs as environment variables.\",\n" +
@@ -2897,31 +3181,34 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"backend\": {\n" +
-		"          \"description\": \"Backend defines the referenced service endpoint to which the traffic\\nwill be forwarded to.\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressBackend\"\n" +
 		"        },\n" +
 		"        \"path\": {\n" +
+		"          \"description\": \"Path is matched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\" part of a URL\\nas defined by RFC 3986. Paths must begin with a '/' and must be present\\nwhen using PathType with value \\\"Exact\\\" or \\\"Prefix\\\".\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Path is matched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\" part of a URL\\nas defined by RFC 3986. Paths must begin with a '/' and must be present\\nwhen using PathType with value \\\"Exact\\\" or \\\"Prefix\\\".\\n+optional\"\n" +
+		"          \"x-go-name\": \"Path\"\n" +
 		"        },\n" +
 		"        \"pathType\": {\n" +
-		"          \"description\": \"PathType determines the interpretation of the Path matching. PathType can\\nbe one of the following values:\\n* Exact: Matches the URL path exactly.\\n* Prefix: Matches based on a URL path prefix split by '/'. Matching is\\n  done on a path element by element basis. A path element refers is the\\n  list of labels in the path split by the '/' separator. A request is a\\n  match for path p if every p is an element-wise prefix of p of the\\n  request path. Note that if the last element of the path is a substring\\n  of the last element in request path, it is not a match (e.g. /foo/bar\\n  matches /foo/bar/baz, but does not match /foo/barbaz).\\n* ImplementationSpecific: Interpretation of the Path matching is up to\\n  the IngressClass. Implementations can treat this as a separate PathType\\n  or treat it identically to Prefix or Exact path types.\\nImplementations are required to support all path types.\",\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"$ref\": \"#/definitions/v1PathType\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1HTTPIngressRuleValue\": {\n" +
-		"      \"description\": \"HTTPIngressRuleValue is a list of http selectors pointing to backends.\\nIn the example: http://\\u003chost\\u003e/\\u003cpath\\u003e?\\u003csearchpart\\u003e -\\u003e backend where\\nwhere parts of the url correspond to RFC 3986, this resource will be used\\nto match against everything after the last '/' and before the first '?'\\nor '#'.\",\n" +
+		"      \"description\": \"In the example: http://\\u003chost\\u003e/\\u003cpath\\u003e?\\u003csearchpart\\u003e -\\u003e backend where\\nwhere parts of the url correspond to RFC 3986, this resource will be used\\nto match against everything after the last '/' and before the first '?'\\nor '#'.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"HTTPIngressRuleValue is a list of http selectors pointing to backends.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"paths\": {\n" +
+		"          \"description\": \"A collection of paths that map requests to backends.\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"A collection of paths that map requests to backends.\\n+listType=atomic\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1HTTPIngressPath\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Paths\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1Handler\": {\n" +
 		"      \"description\": \"Handler defines a specific action that should be taken\\nTODO: pass structured data to these actions, and document that data here.\",\n" +
@@ -2977,6 +3264,16 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1HostPathType\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1IPFamily\": {\n" +
+		"      \"description\": \"IPFamily represents the IP Family (IPv4 or IPv6). This type is used\\nto express the family of an IP expressed by a type (e.g. service.spec.ipFamilies).\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1IPFamilyPolicyType\": {\n" +
+		"      \"description\": \"IPFamilyPolicyType represents the dual-stack-ness requested or required by a Service\",\n" +
+		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ISCSIVolumeSource\": {\n" +
@@ -3048,126 +3345,219 @@ func SwaggerJsonTemplate() string {
 		"      \"description\": \"Ingress is a collection of rules that allow inbound connections to reach the\\nendpoints defined by a backend. An Ingress can be configured to give services\\nexternally-reachable urls, load balance traffic, terminate SSL, offer name\\nbased virtual hosting etc.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"metadata\": {\n" +
-		"          \"title\": \"Standard object's metadata.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
+		"        \"annotations\": {\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
+		"        },\n" +
+		"        \"apiVersion\": {\n" +
+		"          \"description\": \"APIVersion defines the versioned schema of this representation of an object.\\nServers should convert recognized schemas to the latest internal value, and\\nmay reject unrecognized values.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"APIVersion\"\n" +
+		"        },\n" +
+		"        \"clusterName\": {\n" +
+		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ClusterName\"\n" +
+		"        },\n" +
+		"        \"creationTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"deletionGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
+		"        },\n" +
+		"        \"deletionTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"finalizers\": {\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Finalizers\"\n" +
+		"        },\n" +
+		"        \"generateName\": {\n" +
+		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"GenerateName\"\n" +
+		"        },\n" +
+		"        \"generation\": {\n" +
+		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Generation\"\n" +
+		"        },\n" +
+		"        \"kind\": {\n" +
+		"          \"description\": \"Kind is a string value representing the REST resource this object represents.\\nServers may infer this from the endpoint the client submits requests to.\\nCannot be updated.\\nIn CamelCase.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Kind\"\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
+		"        },\n" +
+		"        \"managedFields\": {\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ManagedFields\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
+		"        },\n" +
+		"        \"ownerReferences\": {\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"OwnerReferences\"\n" +
+		"        },\n" +
+		"        \"resourceVersion\": {\n" +
+		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceVersion\"\n" +
+		"        },\n" +
+		"        \"selfLink\": {\n" +
+		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SelfLink\"\n" +
 		"        },\n" +
 		"        \"spec\": {\n" +
-		"          \"title\": \"Spec is the desired state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressSpec\"\n" +
 		"        },\n" +
 		"        \"status\": {\n" +
-		"          \"title\": \"Status is the current state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressStatus\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1IngressBackend\": {\n" +
-		"      \"description\": \"IngressBackend describes all endpoints for a given service and port.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"IngressBackend describes all endpoints for a given service and port.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"resource\": {\n" +
-		"          \"title\": \"Resource is an ObjectRef to another Kubernetes resource in the namespace\\nof the Ingress object. If resource is specified, a service.Name and\\nservice.Port must not be specified.\\nThis is a mutually exclusive setting with \\\"Service\\\".\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1TypedLocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"service\": {\n" +
-		"          \"title\": \"Service references a Service as a Backend.\\nThis is a mutually exclusive setting with \\\"Resource\\\".\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressServiceBackend\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1IngressRule\": {\n" +
 		"      \"description\": \"IngressRule represents the rules mapping the paths under a specified host to\\nthe related backend services. Incoming requests are first evaluated for a host\\nmatch, then routed to the backend associated with the matching IngressRuleValue.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"host\": {\n" +
-		"          \"description\": \"Host is the fully qualified domain name of a network host, as defined by RFC 3986.\\nNote the following deviations from the \\\"host\\\" part of the\\nURI as defined in RFC 3986:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to\\n   the IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\n\\t  Currently the port of an Ingress is implicitly :80 for http and\\n\\t  :443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the\\nIngressRuleValue. If the host is unspecified, the Ingress routes all\\ntraffic based on the specified IngressRuleValue.\\n\\nHost can be \\\"precise\\\" which is a domain name without the terminating dot of\\na network host (e.g. \\\"foo.bar.com\\\") or \\\"wildcard\\\", which is a domain name\\nprefixed with a single wildcard label (e.g. \\\"*.foo.com\\\").\\nThe wildcard character '*' must appear by itself as the first DNS label and\\nmatches only a single label. You cannot have a wildcard label by itself (e.g. Host == \\\"*\\\").\\nRequests will be matched against the Host field in the following way:\\n1. If Host is precise, the request matches this rule if the http host header is equal to Host.\\n2. If Host is a wildcard, then the request matches this rule if the http host header\\nis to equal to the suffix (removing the first label) of the wildcard rule.\\n+optional\",\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"description\": \"Host is the fully qualified domain name of a network host, as defined by RFC 3986.\\nNote the following deviations from the \\\"host\\\" part of the\\nURI as defined in RFC 3986:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to\\nthe IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\nCurrently the port of an Ingress is implicitly :80 for http and\\n:443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the\\nIngressRuleValue. If the host is unspecified, the Ingress routes all\\ntraffic based on the specified IngressRuleValue.\\n\\nHost can be \\\"precise\\\" which is a domain name without the terminating dot of\\na network host (e.g. \\\"foo.bar.com\\\") or \\\"wildcard\\\", which is a domain name\\nprefixed with a single wildcard label (e.g. \\\"*.foo.com\\\").\\nThe wildcard character '*' must appear by itself as the first DNS label and\\nmatches only a single label. You cannot have a wildcard label by itself (e.g. Host == \\\"*\\\").\\nRequests will be matched against the Host field in the following way:\\n1. If Host is precise, the request matches this rule if the http host header is equal to Host.\\n2. If Host is a wildcard, then the request matches this rule if the http host header\\nis to equal to the suffix (removing the first label) of the wildcard rule.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Host\"\n" +
 		"        },\n" +
-		"        \"ingressRuleValue\": {\n" +
-		"          \"title\": \"IngressRuleValue represents a rule to route requests for this IngressRule.\\nIf unspecified, the rule defaults to a http catch-all. Whether that sends\\njust traffic matching the host to the default backend or all traffic to the\\ndefault backend, is left to the controller fulfilling the Ingress. Http is\\ncurrently the only supported IngressRuleValue.\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1IngressRuleValue\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1IngressRuleValue\": {\n" +
-		"      \"description\": \"IngressRuleValue represents a rule to apply against incoming requests. If the\\nrule is satisfied, the request is routed to the specified backend. Currently\\nmixing different types of rules in a single Ingress is disallowed, so exactly\\none of the following must be set.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
 		"        \"http\": {\n" +
-		"          \"title\": \"+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1HTTPIngressRuleValue\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1IngressServiceBackend\": {\n" +
-		"      \"description\": \"IngressServiceBackend references a Kubernetes Service as a Backend.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"IngressServiceBackend references a Kubernetes Service as a Backend.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
 		"          \"description\": \"Name is the referenced service. The service must exist in\\nthe same namespace as the Ingress object.\",\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"port\": {\n" +
-		"          \"description\": \"Port of the referenced service. A port name or port number\\nis required for a IngressServiceBackend.\",\n" +
 		"          \"$ref\": \"#/definitions/v1ServiceBackendPort\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1IngressSpec\": {\n" +
-		"      \"description\": \"IngressSpec describes the Ingress the user wishes to exist.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"IngressSpec describes the Ingress the user wishes to exist.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"defaultBackend\": {\n" +
-		"          \"title\": \"DefaultBackend is the backend that should handle requests that don't\\nmatch any rule. If Rules are not specified, DefaultBackend must be specified.\\nIf DefaultBackend is not set, the handling of requests that do not match any\\nof the rules will be up to the Ingress controller.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressBackend\"\n" +
 		"        },\n" +
 		"        \"ingressClassName\": {\n" +
+		"          \"description\": \"IngressClassName is the name of the IngressClass cluster resource. The\\nassociated IngressClass defines which controller will implement the\\nresource. This replaces the deprecated `kubernetes.io/ingress.class`\\nannotation. For backwards compatibility, when that annotation is set, it\\nmust be given precedence over this field. The controller may emit a\\nwarning if the field and annotation have different values.\\nImplementations of this API should ignore Ingresses without a class\\nspecified. An IngressClass resource may be marked as default, which can\\nbe used to set a default value for this field. For more information,\\nrefer to the IngressClass documentation.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"IngressClassName is the name of the IngressClass cluster resource. The\\nassociated IngressClass defines which controller will implement the\\nresource. This replaces the deprecated `kubernetes.io/ingress.class`\\nannotation. For backwards compatibility, when that annotation is set, it\\nmust be given precedence over this field. The controller may emit a\\nwarning if the field and annotation have different values.\\nImplementations of this API should ignore Ingresses without a class\\nspecified. An IngressClass resource may be marked as default, which can\\nbe used to set a default value for this field. For more information,\\nrefer to the IngressClass documentation.\\n+optional\"\n" +
+		"          \"x-go-name\": \"IngressClassName\"\n" +
 		"        },\n" +
 		"        \"rules\": {\n" +
+		"          \"description\": \"A list of host rules used to configure the Ingress. If unspecified, or\\nno rule matches, all traffic is sent to the default backend.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"A list of host rules used to configure the Ingress. If unspecified, or\\nno rule matches, all traffic is sent to the default backend.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressRule\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Rules\"\n" +
 		"        },\n" +
 		"        \"tls\": {\n" +
+		"          \"description\": \"TLS configuration. Currently the Ingress only supports a single TLS\\nport, 443. If multiple members of this list specify different hosts, they\\nwill be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"TLS configuration. Currently the Ingress only supports a single TLS\\nport, 443. If multiple members of this list specify different hosts, they\\nwill be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressTLS\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"TLS\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1IngressStatus\": {\n" +
-		"      \"description\": \"IngressStatus describe the current state of the Ingress.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"IngressStatus describe the current state of the Ingress.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"loadBalancer\": {\n" +
-		"          \"title\": \"LoadBalancer contains the current status of the load-balancer.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1IngressTLS\": {\n" +
-		"      \"description\": \"IngressTLS describes the transport layer security associated with an Ingress.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"IngressTLS describes the transport layer security associated with an Ingress.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"hosts\": {\n" +
+		"          \"description\": \"Hosts are a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Hosts are a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Hosts\"\n" +
 		"        },\n" +
 		"        \"secretName\": {\n" +
+		"          \"description\": \"SecretName is the name of the secret used to terminate TLS traffic on\\nport 443. Field is left optional to allow TLS routing based on SNI\\nhostname alone. If the SNI host in a listener conflicts with the \\\"Host\\\"\\nheader field used by an IngressRule, the SNI host is used for termination\\nand value of the Host header is used for routing.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"SecretName is the name of the secret used to terminate TLS traffic on\\nport 443. Field is left optional to allow TLS routing based on SNI\\nhostname alone. If the SNI host in a listener conflicts with the \\\"Host\\\"\\nheader field used by an IngressRule, the SNI host is used for termination\\nand value of the Host header is used for routing.\\n+optional\"\n" +
+		"          \"x-go-name\": \"SecretName\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1KeyToPath\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -3257,38 +3647,45 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1LoadBalancerIngress\": {\n" +
-		"      \"description\": \"LoadBalancerIngress represents the status of a load-balancer ingress point:\\ntraffic intended for the service should be sent to an ingress point.\",\n" +
+		"      \"description\": \"traffic intended for the service should be sent to an ingress point.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"LoadBalancerIngress represents the status of a load-balancer ingress point:\",\n" +
 		"      \"properties\": {\n" +
 		"        \"hostname\": {\n" +
+		"          \"description\": \"Hostname is set for load-balancer ingress points that are DNS based\\n(typically AWS load-balancers)\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Hostname is set for load-balancer ingress points that are DNS based\\n(typically AWS load-balancers)\\n+optional\"\n" +
+		"          \"x-go-name\": \"Hostname\"\n" +
 		"        },\n" +
 		"        \"ip\": {\n" +
+		"          \"description\": \"IP is set for load-balancer ingress points that are IP based\\n(typically GCE or OpenStack load-balancers)\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"IP is set for load-balancer ingress points that are IP based\\n(typically GCE or OpenStack load-balancers)\\n+optional\"\n" +
+		"          \"x-go-name\": \"IP\"\n" +
 		"        },\n" +
 		"        \"ports\": {\n" +
+		"          \"description\": \"Ports is a list of records of service ports\\nIf used, every port defined in the service should have an entry in it\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Ports is a list of records of service ports\\nIf used, every port defined in the service should have an entry in it\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PortStatus\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Ports\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1LoadBalancerStatus\": {\n" +
-		"      \"description\": \"LoadBalancerStatus represents the status of a load-balancer.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"LoadBalancerStatus represents the status of a load-balancer.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"ingress\": {\n" +
+		"          \"description\": \"Ingress is a list containing ingress points for the load-balancer.\\nTraffic intended for the service should be sent to these ingress points.\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Ingress is a list containing ingress points for the load-balancer.\\nTraffic intended for the service should be sent to these ingress points.\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1LoadBalancerIngress\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Ingress\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1LocalObjectReference\": {\n" +
 		"      \"description\": \"LocalObjectReference contains enough information to let you locate the\\nreferenced object inside the same namespace.\\n+structType=atomic\",\n" +
@@ -3473,104 +3870,6 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
-		"    \"v1ObjectMeta\": {\n" +
-		"      \"description\": \"ObjectMeta is metadata that all persisted resources must have, which includes all objects\\nusers must create.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"annotations\": {\n" +
-		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          },\n" +
-		"          \"x-go-name\": \"Annotations\"\n" +
-		"        },\n" +
-		"        \"clusterName\": {\n" +
-		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"ClusterName\"\n" +
-		"        },\n" +
-		"        \"creationTimestamp\": {\n" +
-		"          \"$ref\": \"#/definitions/v1Time\"\n" +
-		"        },\n" +
-		"        \"deletionGracePeriodSeconds\": {\n" +
-		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int64\",\n" +
-		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
-		"        },\n" +
-		"        \"deletionTimestamp\": {\n" +
-		"          \"$ref\": \"#/definitions/v1Time\"\n" +
-		"        },\n" +
-		"        \"finalizers\": {\n" +
-		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          },\n" +
-		"          \"x-go-name\": \"Finalizers\"\n" +
-		"        },\n" +
-		"        \"generateName\": {\n" +
-		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"GenerateName\"\n" +
-		"        },\n" +
-		"        \"generation\": {\n" +
-		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int64\",\n" +
-		"          \"x-go-name\": \"Generation\"\n" +
-		"        },\n" +
-		"        \"labels\": {\n" +
-		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          },\n" +
-		"          \"x-go-name\": \"Labels\"\n" +
-		"        },\n" +
-		"        \"managedFields\": {\n" +
-		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
-		"          },\n" +
-		"          \"x-go-name\": \"ManagedFields\"\n" +
-		"        },\n" +
-		"        \"name\": {\n" +
-		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"Name\"\n" +
-		"        },\n" +
-		"        \"namespace\": {\n" +
-		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"Namespace\"\n" +
-		"        },\n" +
-		"        \"ownerReferences\": {\n" +
-		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
-		"          },\n" +
-		"          \"x-go-name\": \"OwnerReferences\"\n" +
-		"        },\n" +
-		"        \"resourceVersion\": {\n" +
-		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"ResourceVersion\"\n" +
-		"        },\n" +
-		"        \"selfLink\": {\n" +
-		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"SelfLink\"\n" +
-		"        },\n" +
-		"        \"uid\": {\n" +
-		"          \"$ref\": \"#/definitions/typesUID\"\n" +
-		"        }\n" +
-		"      },\n" +
-		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
-		"    },\n" +
 		"    \"v1OwnerReference\": {\n" +
 		"      \"description\": \"OwnerReference contains enough information to let you identify an owning\\nobject. An owning object must be in the same namespace as the dependent, or\\nbe cluster-scoped, so there is no namespace field.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -3605,6 +3904,11 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
+		"    \"v1PathType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"PathType represents the type of path referred to by a HTTPIngressPath.\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
 		"    },\n" +
 		"    \"v1PersistentVolumeAccessMode\": {\n" +
 		"      \"type\": \"string\",\n" +
@@ -4196,19 +4500,21 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"error\": {\n" +
+		"          \"description\": \"Error is to record the problem with the service port\\nThe format of the error shall comply with the following rules:\\nbuilt-in error values shall be specified in this file and those shall use\\nCamelCase names\\ncloud provider specific error values must have names that comply with the\\nformat foo.example.com/CamelCase.\\n\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+optional\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Error is to record the problem with the service port\\nThe format of the error shall comply with the following rules:\\n- built-in error values shall be specified in this file and those shall use\\n  CamelCase names\\n- cloud provider specific error values must have names that comply with the\\n  format foo.example.com/CamelCase.\\n---\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+optional\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\"\n" +
+		"          \"x-go-name\": \"Error\"\n" +
 		"        },\n" +
 		"        \"port\": {\n" +
+		"          \"description\": \"Port is the port number of the service port of which status is recorded here\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"Port is the port number of the service port of which status is recorded here\"\n" +
+		"          \"x-go-name\": \"Port\"\n" +
 		"        },\n" +
 		"        \"protocol\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Protocol is the protocol of the service port of which status is recorded here\\nThe supported values are: \\\"TCP\\\", \\\"UDP\\\", \\\"SCTP\\\"\"\n" +
+		"          \"$ref\": \"#/definitions/v1Protocol\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PortworxVolumeSource\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -4735,19 +5041,115 @@ func SwaggerJsonTemplate() string {
 		"      \"description\": \"Service is a named abstraction of software service (for example, mysql) consisting of local port\\n(for example 3306) that the proxy listens on, and the selector that determines which pods\\nwill answer requests sent through the proxy.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"metadata\": {\n" +
-		"          \"title\": \"Standard object's metadata.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
+		"        \"annotations\": {\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
+		"        },\n" +
+		"        \"apiVersion\": {\n" +
+		"          \"description\": \"APIVersion defines the versioned schema of this representation of an object.\\nServers should convert recognized schemas to the latest internal value, and\\nmay reject unrecognized values.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"APIVersion\"\n" +
+		"        },\n" +
+		"        \"clusterName\": {\n" +
+		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ClusterName\"\n" +
+		"        },\n" +
+		"        \"creationTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"deletionGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
+		"        },\n" +
+		"        \"deletionTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"finalizers\": {\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Finalizers\"\n" +
+		"        },\n" +
+		"        \"generateName\": {\n" +
+		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"GenerateName\"\n" +
+		"        },\n" +
+		"        \"generation\": {\n" +
+		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Generation\"\n" +
+		"        },\n" +
+		"        \"kind\": {\n" +
+		"          \"description\": \"Kind is a string value representing the REST resource this object represents.\\nServers may infer this from the endpoint the client submits requests to.\\nCannot be updated.\\nIn CamelCase.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Kind\"\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
+		"        },\n" +
+		"        \"managedFields\": {\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ManagedFields\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
+		"        },\n" +
+		"        \"ownerReferences\": {\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"OwnerReferences\"\n" +
+		"        },\n" +
+		"        \"resourceVersion\": {\n" +
+		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceVersion\"\n" +
+		"        },\n" +
+		"        \"selfLink\": {\n" +
+		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SelfLink\"\n" +
 		"        },\n" +
 		"        \"spec\": {\n" +
-		"          \"title\": \"Spec defines the behavior of a service.\\nhttps://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1ServiceSpec\"\n" +
 		"        },\n" +
 		"        \"status\": {\n" +
-		"          \"title\": \"Most recently observed status of the service.\\nPopulated by the system.\\nRead-only.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1ServiceStatus\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ServiceAccountTokenProjection\": {\n" +
 		"      \"description\": \"ServiceAccountTokenProjection represents a projected service account token\\nvolume. This projection can be used to insert a service account token into\\nthe pods runtime filesystem for use against APIs (Kubernetes API Server or\\notherwise).\",\n" +
@@ -4772,180 +5174,215 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1ServiceAffinity\": {\n" +
+		"      \"description\": \"Session Affinity Type string\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1ServiceBackendPort\": {\n" +
-		"      \"description\": \"ServiceBackendPort is the service port being referenced.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ServiceBackendPort is the service port being referenced.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
+		"          \"description\": \"Name is the name of the port on the Service.\\nThis is a mutually exclusive setting with \\\"Number\\\".\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Name is the name of the port on the Service.\\nThis is a mutually exclusive setting with \\\"Number\\\".\\n+optional\"\n" +
+		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"number\": {\n" +
+		"          \"description\": \"Number is the numerical port number (e.g. 80) on the Service.\\nThis is a mutually exclusive setting with \\\"Name\\\".\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"Number is the numerical port number (e.g. 80) on the Service.\\nThis is a mutually exclusive setting with \\\"Name\\\".\\n+optional\"\n" +
+		"          \"x-go-name\": \"Number\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/networking/v1\"\n" +
+		"    },\n" +
+		"    \"v1ServiceExternalTrafficPolicyType\": {\n" +
+		"      \"description\": \"Service External Traffic Policy Type string\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ServiceInternalTrafficPolicyType\": {\n" +
+		"      \"description\": \"ServiceInternalTrafficPolicyType describes the type of traffic routing for\\ninternal traffic\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ServicePort\": {\n" +
-		"      \"description\": \"ServicePort contains information on service's port.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ServicePort contains information on service's port.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"appProtocol\": {\n" +
+		"          \"description\": \"The application protocol for this port.\\nThis field follows standard Kubernetes label syntax.\\nUn-prefixed names are reserved for IANA standard service names (as per\\nRFC-6335 and http://www.iana.org/assignments/service-names).\\nNon-standard protocols should use prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"The application protocol for this port.\\nThis field follows standard Kubernetes label syntax.\\nUn-prefixed names are reserved for IANA standard service names (as per\\nRFC-6335 and http://www.iana.org/assignments/service-names).\\nNon-standard protocols should use prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\"\n" +
+		"          \"x-go-name\": \"AppProtocol\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
+		"          \"description\": \"The name of this port within the service. This must be a DNS_LABEL.\\nAll ports within a ServiceSpec must have unique names. When considering\\nthe endpoints for a Service, this must match the 'name' field in the\\nEndpointPort.\\nOptional if only one ServicePort is defined on this service.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"The name of this port within the service. This must be a DNS_LABEL.\\nAll ports within a ServiceSpec must have unique names. When considering\\nthe endpoints for a Service, this must match the 'name' field in the\\nEndpointPort.\\nOptional if only one ServicePort is defined on this service.\\n+optional\"\n" +
+		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"nodePort\": {\n" +
+		"          \"description\": \"The port on each node on which this service is exposed when type is\\nNodePort or LoadBalancer.  Usually assigned by the system. If a value is\\nspecified, in-range, and not in use it will be used, otherwise the\\noperation will fail.  If not specified, a port will be allocated if this\\nService requires one.  If this field is specified when creating a\\nService which does not need it, creation will fail. This field will be\\nwiped when updating a Service to no longer need it (e.g. changing type\\nfrom NodePort to ClusterIP).\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"The port on each node on which this service is exposed when type is\\nNodePort or LoadBalancer.  Usually assigned by the system. If a value is\\nspecified, in-range, and not in use it will be used, otherwise the\\noperation will fail.  If not specified, a port will be allocated if this\\nService requires one.  If this field is specified when creating a\\nService which does not need it, creation will fail. This field will be\\nwiped when updating a Service to no longer need it (e.g. changing type\\nfrom NodePort to ClusterIP).\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport\\n+optional\"\n" +
+		"          \"x-go-name\": \"NodePort\"\n" +
 		"        },\n" +
 		"        \"port\": {\n" +
 		"          \"description\": \"The port that will be exposed by this service.\",\n" +
 		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"Port\"\n" +
 		"        },\n" +
 		"        \"protocol\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"The IP protocol for this port. Supports \\\"TCP\\\", \\\"UDP\\\", and \\\"SCTP\\\".\\nDefault is TCP.\\n+default=\\\"TCP\\\"\\n+optional\"\n" +
+		"          \"$ref\": \"#/definitions/v1Protocol\"\n" +
 		"        },\n" +
 		"        \"targetPort\": {\n" +
-		"          \"title\": \"Number or name of the port to access on the pods targeted by the service.\\nNumber must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.\\nIf this is a string, it will be looked up as a named port in the\\ntarget Pod's container ports. If this is not specified, the value\\nof the 'port' field is used (an identity map).\\nThis field is ignored for services with clusterIP=None, and should be\\nomitted or set equal to the 'port' field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/intstrIntOrString\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ServiceSpec\": {\n" +
-		"      \"description\": \"ServiceSpec describes the attributes that a user creates on a service.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ServiceSpec describes the attributes that a user creates on a service.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"allocateLoadBalancerNodePorts\": {\n" +
+		"          \"description\": \"allocateLoadBalancerNodePorts defines if NodePorts will be automatically\\nallocated for services with type LoadBalancer.  Default is \\\"true\\\". It\\nmay be set to \\\"false\\\" if the cluster load-balancer does not rely on\\nNodePorts.  If the caller requests specific NodePorts (by specifying a\\nvalue), those requests will be respected, regardless of this field.\\nThis field may only be set for services with type LoadBalancer and will\\nbe cleared if the type is changed to any other type.\\nThis field is beta-level and is only honored by servers that enable the ServiceLBNodePortControl feature.\\n+featureGate=ServiceLBNodePortControl\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
-		"          \"title\": \"allocateLoadBalancerNodePorts defines if NodePorts will be automatically\\nallocated for services with type LoadBalancer.  Default is \\\"true\\\". It\\nmay be set to \\\"false\\\" if the cluster load-balancer does not rely on\\nNodePorts.  If the caller requests specific NodePorts (by specifying a\\nvalue), those requests will be respected, regardless of this field.\\nThis field may only be set for services with type LoadBalancer and will\\nbe cleared if the type is changed to any other type.\\nThis field is beta-level and is only honored by servers that enable the ServiceLBNodePortControl feature.\\n+featureGate=ServiceLBNodePortControl\\n+optional\"\n" +
+		"          \"x-go-name\": \"AllocateLoadBalancerNodePorts\"\n" +
 		"        },\n" +
 		"        \"clusterIP\": {\n" +
+		"          \"description\": \"clusterIP is the IP address of the service and is usually assigned\\nrandomly. If an address is specified manually, is in-range (as per\\nsystem configuration), and is not in use, it will be allocated to the\\nservice; otherwise creation of the service will fail. This field may not\\nbe changed through updates unless the type field is also being changed\\nto ExternalName (which requires this field to be blank) or the type\\nfield is being changed from ExternalName (in which case this field may\\noptionally be specified, as describe above).  Valid values are \\\"None\\\",\\nempty string (\\\"\\\"), or a valid IP address. Setting this to \\\"None\\\" makes a\\n\\\"headless service\\\" (no virtual IP), which is useful when direct endpoint\\nconnections are preferred and proxying is not required.  Only applies to\\ntypes ClusterIP, NodePort, and LoadBalancer. If this field is specified\\nwhen creating a Service of type ExternalName, creation will fail. This\\nfield will be wiped when updating a Service to type ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"clusterIP is the IP address of the service and is usually assigned\\nrandomly. If an address is specified manually, is in-range (as per\\nsystem configuration), and is not in use, it will be allocated to the\\nservice; otherwise creation of the service will fail. This field may not\\nbe changed through updates unless the type field is also being changed\\nto ExternalName (which requires this field to be blank) or the type\\nfield is being changed from ExternalName (in which case this field may\\noptionally be specified, as describe above).  Valid values are \\\"None\\\",\\nempty string (\\\"\\\"), or a valid IP address. Setting this to \\\"None\\\" makes a\\n\\\"headless service\\\" (no virtual IP), which is useful when direct endpoint\\nconnections are preferred and proxying is not required.  Only applies to\\ntypes ClusterIP, NodePort, and LoadBalancer. If this field is specified\\nwhen creating a Service of type ExternalName, creation will fail. This\\nfield will be wiped when updating a Service to type ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
+		"          \"x-go-name\": \"ClusterIP\"\n" +
 		"        },\n" +
 		"        \"clusterIPs\": {\n" +
 		"          \"description\": \"ClusterIPs is a list of IP addresses assigned to this service, and are\\nusually assigned randomly.  If an address is specified manually, is\\nin-range (as per system configuration), and is not in use, it will be\\nallocated to the service; otherwise creation of the service will fail.\\nThis field may not be changed through updates unless the type field is\\nalso being changed to ExternalName (which requires this field to be\\nempty) or the type field is being changed from ExternalName (in which\\ncase this field may optionally be specified, as describe above).  Valid\\nvalues are \\\"None\\\", empty string (\\\"\\\"), or a valid IP address.  Setting\\nthis to \\\"None\\\" makes a \\\"headless service\\\" (no virtual IP), which is\\nuseful when direct endpoint connections are preferred and proxying is\\nnot required.  Only applies to types ClusterIP, NodePort, and\\nLoadBalancer. If this field is specified when creating a Service of type\\nExternalName, creation will fail. This field will be wiped when updating\\na Service to type ExternalName.  If this field is not specified, it will\\nbe initialized from the clusterIP field.  If this field is specified,\\nclients must ensure that clusterIPs[0] and clusterIP have the same\\nvalue.\\n\\nUnless the \\\"IPv6DualStack\\\" feature gate is enabled, this field is\\nlimited to one value, which must be the same as the clusterIP field.  If\\nthe feature gate is enabled, this field may hold a maximum of two\\nentries (dual-stack IPs, in either order).  These IPs must correspond to\\nthe values of the ipFamilies field. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ClusterIPs\"\n" +
 		"        },\n" +
 		"        \"externalIPs\": {\n" +
+		"          \"description\": \"externalIPs is a list of IP addresses for which nodes in the cluster\\nwill also accept traffic for this service.  These IPs are not managed by\\nKubernetes.  The user is responsible for ensuring that traffic arrives\\nat a node with this IP.  A common example is external load-balancers\\nthat are not part of the Kubernetes system.\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"externalIPs is a list of IP addresses for which nodes in the cluster\\nwill also accept traffic for this service.  These IPs are not managed by\\nKubernetes.  The user is responsible for ensuring that traffic arrives\\nat a node with this IP.  A common example is external load-balancers\\nthat are not part of the Kubernetes system.\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ExternalIPs\"\n" +
 		"        },\n" +
 		"        \"externalName\": {\n" +
+		"          \"description\": \"externalName is the external reference that discovery mechanisms will\\nreturn as an alias for this service (e.g. a DNS CNAME record). No\\nproxying will be involved.  Must be a lowercase RFC-1123 hostname\\n(https://tools.ietf.org/html/rfc1123) and requires `type` to be \\\"ExternalName\\\".\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"externalName is the external reference that discovery mechanisms will\\nreturn as an alias for this service (e.g. a DNS CNAME record). No\\nproxying will be involved.  Must be a lowercase RFC-1123 hostname\\n(https://tools.ietf.org/html/rfc1123) and requires `type` to be \\\"ExternalName\\\".\\n+optional\"\n" +
+		"          \"x-go-name\": \"ExternalName\"\n" +
 		"        },\n" +
 		"        \"externalTrafficPolicy\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"externalTrafficPolicy denotes if this Service desires to route external\\ntraffic to node-local or cluster-wide endpoints. \\\"Local\\\" preserves the\\nclient source IP and avoids a second hop for LoadBalancer and Nodeport\\ntype services, but risks potentially imbalanced traffic spreading.\\n\\\"Cluster\\\" obscures the client source IP and may cause a second hop to\\nanother node, but should have good overall load-spreading.\\n+optional\"\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceExternalTrafficPolicyType\"\n" +
 		"        },\n" +
 		"        \"healthCheckNodePort\": {\n" +
+		"          \"description\": \"healthCheckNodePort specifies the healthcheck nodePort for the service.\\nThis only applies when type is set to LoadBalancer and\\nexternalTrafficPolicy is set to Local. If a value is specified, is\\nin-range, and is not in use, it will be used.  If not specified, a value\\nwill be automatically allocated.  External systems (e.g. load-balancers)\\ncan use this port to determine if a given node holds endpoints for this\\nservice or not.  If this field is specified when creating a Service\\nwhich does not need it, creation will fail. This field will be wiped\\nwhen updating a Service to no longer need it (e.g. changing type).\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"healthCheckNodePort specifies the healthcheck nodePort for the service.\\nThis only applies when type is set to LoadBalancer and\\nexternalTrafficPolicy is set to Local. If a value is specified, is\\nin-range, and is not in use, it will be used.  If not specified, a value\\nwill be automatically allocated.  External systems (e.g. load-balancers)\\ncan use this port to determine if a given node holds endpoints for this\\nservice or not.  If this field is specified when creating a Service\\nwhich does not need it, creation will fail. This field will be wiped\\nwhen updating a Service to no longer need it (e.g. changing type).\\n+optional\"\n" +
+		"          \"x-go-name\": \"HealthCheckNodePort\"\n" +
 		"        },\n" +
 		"        \"internalTrafficPolicy\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"InternalTrafficPolicy specifies if the cluster internal traffic\\nshould be routed to all endpoints or node-local endpoints only.\\n\\\"Cluster\\\" routes internal traffic to a Service to all endpoints.\\n\\\"Local\\\" routes traffic to node-local endpoints only, traffic is\\ndropped if no node-local endpoints are ready.\\nThe default value is \\\"Cluster\\\".\\n+featureGate=ServiceInternalTrafficPolicy\\n+optional\"\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceInternalTrafficPolicyType\"\n" +
 		"        },\n" +
 		"        \"ipFamilies\": {\n" +
 		"          \"description\": \"IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to this\\nservice, and is gated by the \\\"IPv6DualStack\\\" feature gate.  This field\\nis usually assigned automatically based on cluster configuration and the\\nipFamilyPolicy field. If this field is specified manually, the requested\\nfamily is available in the cluster, and ipFamilyPolicy allows it, it\\nwill be used; otherwise creation of the service will fail.  This field\\nis conditionally mutable: it allows for adding or removing a secondary\\nIP family, but it does not allow changing the primary IP family of the\\nService.  Valid values are \\\"IPv4\\\" and \\\"IPv6\\\".  This field only applies\\nto Services of types ClusterIP, NodePort, and LoadBalancer, and does\\napply to \\\"headless\\\" services.  This field will be wiped when updating a\\nService to type ExternalName.\\n\\nThis field may hold a maximum of two entries (dual-stack families, in\\neither order).  These families must correspond to the values of the\\nclusterIPs field, if specified. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"            \"$ref\": \"#/definitions/v1IPFamily\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"IPFamilies\"\n" +
 		"        },\n" +
 		"        \"ipFamilyPolicy\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"IPFamilyPolicy represents the dual-stack-ness requested or required by\\nthis Service, and is gated by the \\\"IPv6DualStack\\\" feature gate.  If\\nthere is no value provided, then this field will be set to SingleStack.\\nServices can be \\\"SingleStack\\\" (a single IP family), \\\"PreferDualStack\\\"\\n(two IP families on dual-stack configured clusters or a single IP family\\non single-stack clusters), or \\\"RequireDualStack\\\" (two IP families on\\ndual-stack configured clusters, otherwise fail). The ipFamilies and\\nclusterIPs fields depend on the value of this field.  This field will be\\nwiped when updating a service to type ExternalName.\\n+optional\"\n" +
+		"          \"$ref\": \"#/definitions/v1IPFamilyPolicyType\"\n" +
 		"        },\n" +
 		"        \"loadBalancerClass\": {\n" +
+		"          \"description\": \"loadBalancerClass is the class of the load balancer implementation this Service belongs to.\\nIf specified, the value of this field must be a label-style identifier, with an optional prefix,\\ne.g. \\\"internal-vip\\\" or \\\"example.com/internal-vip\\\". Unprefixed names are reserved for end-users.\\nThis field can only be set when the Service type is 'LoadBalancer'. If not set, the default load\\nbalancer implementation is used, today this is typically done through the cloud provider integration,\\nbut should apply for any default implementation. If set, it is assumed that a load balancer\\nimplementation is watching for Services with a matching class. Any default load balancer\\nimplementation (e.g. cloud providers) should ignore Services that set this field.\\nThis field can only be set when creating or updating a Service to type 'LoadBalancer'.\\nOnce set, it can not be changed. This field will be wiped when a service is updated to a non 'LoadBalancer' type.\\n+featureGate=LoadBalancerClass\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"loadBalancerClass is the class of the load balancer implementation this Service belongs to.\\nIf specified, the value of this field must be a label-style identifier, with an optional prefix,\\ne.g. \\\"internal-vip\\\" or \\\"example.com/internal-vip\\\". Unprefixed names are reserved for end-users.\\nThis field can only be set when the Service type is 'LoadBalancer'. If not set, the default load\\nbalancer implementation is used, today this is typically done through the cloud provider integration,\\nbut should apply for any default implementation. If set, it is assumed that a load balancer\\nimplementation is watching for Services with a matching class. Any default load balancer\\nimplementation (e.g. cloud providers) should ignore Services that set this field.\\nThis field can only be set when creating or updating a Service to type 'LoadBalancer'.\\nOnce set, it can not be changed. This field will be wiped when a service is updated to a non 'LoadBalancer' type.\\n+featureGate=LoadBalancerClass\\n+optional\"\n" +
+		"          \"x-go-name\": \"LoadBalancerClass\"\n" +
 		"        },\n" +
 		"        \"loadBalancerIP\": {\n" +
+		"          \"description\": \"Only applies to Service Type: LoadBalancer\\nLoadBalancer will get created with the IP specified in this field.\\nThis feature depends on whether the underlying cloud-provider supports specifying\\nthe loadBalancerIP when a load balancer is created.\\nThis field will be ignored if the cloud-provider does not support the feature.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Only applies to Service Type: LoadBalancer\\nLoadBalancer will get created with the IP specified in this field.\\nThis feature depends on whether the underlying cloud-provider supports specifying\\nthe loadBalancerIP when a load balancer is created.\\nThis field will be ignored if the cloud-provider does not support the feature.\\n+optional\"\n" +
+		"          \"x-go-name\": \"LoadBalancerIP\"\n" +
 		"        },\n" +
 		"        \"loadBalancerSourceRanges\": {\n" +
+		"          \"description\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"LoadBalancerSourceRanges\"\n" +
 		"        },\n" +
 		"        \"ports\": {\n" +
+		"          \"description\": \"The list of ports that are exposed by this service.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+patchMergeKey=port\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=port\\n+listMapKey=protocol\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"The list of ports that are exposed by this service.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+patchMergeKey=port\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=port\\n+listMapKey=protocol\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1ServicePort\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Ports\"\n" +
 		"        },\n" +
 		"        \"publishNotReadyAddresses\": {\n" +
+		"          \"description\": \"publishNotReadyAddresses indicates that any agent which deals with endpoints for this\\nService should disregard any indications of ready/not-ready.\\nThe primary use case for setting this field is for a StatefulSet's Headless Service to\\npropagate SRV DNS records for its Pods for the purpose of peer discovery.\\nThe Kubernetes controllers that generate Endpoints and EndpointSlice resources for\\nServices interpret this to mean that all endpoints are considered \\\"ready\\\" even if the\\nPods themselves are not. Agents which consume only Kubernetes generated endpoints\\nthrough the Endpoints or EndpointSlice resources can safely assume this behavior.\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
-		"          \"title\": \"publishNotReadyAddresses indicates that any agent which deals with endpoints for this\\nService should disregard any indications of ready/not-ready.\\nThe primary use case for setting this field is for a StatefulSet's Headless Service to\\npropagate SRV DNS records for its Pods for the purpose of peer discovery.\\nThe Kubernetes controllers that generate Endpoints and EndpointSlice resources for\\nServices interpret this to mean that all endpoints are considered \\\"ready\\\" even if the\\nPods themselves are not. Agents which consume only Kubernetes generated endpoints\\nthrough the Endpoints or EndpointSlice resources can safely assume this behavior.\\n+optional\"\n" +
+		"          \"x-go-name\": \"PublishNotReadyAddresses\"\n" +
 		"        },\n" +
 		"        \"selector\": {\n" +
+		"          \"description\": \"Route service traffic to pods with label keys and values matching this\\nselector. If empty or not present, the service is assumed to have an\\nexternal process managing its endpoints, which Kubernetes will not\\nmodify. Only applies to types ClusterIP, NodePort, and LoadBalancer.\\nIgnored if type is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/\\n+optional\\n+mapType=atomic\",\n" +
 		"          \"type\": \"object\",\n" +
-		"          \"title\": \"Route service traffic to pods with label keys and values matching this\\nselector. If empty or not present, the service is assumed to have an\\nexternal process managing its endpoints, which Kubernetes will not\\nmodify. Only applies to types ClusterIP, NodePort, and LoadBalancer.\\nIgnored if type is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/\\n+optional\\n+mapType=atomic\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Selector\"\n" +
 		"        },\n" +
 		"        \"sessionAffinity\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Supports \\\"ClientIP\\\" and \\\"None\\\". Used to maintain session affinity.\\nEnable client IP based session affinity.\\nMust be ClientIP or None.\\nDefaults to None.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceAffinity\"\n" +
 		"        },\n" +
 		"        \"sessionAffinityConfig\": {\n" +
-		"          \"title\": \"sessionAffinityConfig contains the configurations of session affinity.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1SessionAffinityConfig\"\n" +
 		"        },\n" +
 		"        \"type\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"type determines how the Service is exposed. Defaults to ClusterIP. Valid\\noptions are ExternalName, ClusterIP, NodePort, and LoadBalancer.\\n\\\"ClusterIP\\\" allocates a cluster-internal IP address for load-balancing\\nto endpoints. Endpoints are determined by the selector or if that is not\\nspecified, by manual construction of an Endpoints object or\\nEndpointSlice objects. If clusterIP is \\\"None\\\", no virtual IP is\\nallocated and the endpoints are published as a set of endpoints rather\\nthan a virtual IP.\\n\\\"NodePort\\\" builds on ClusterIP and allocates a port on every node which\\nroutes to the same endpoints as the clusterIP.\\n\\\"LoadBalancer\\\" builds on NodePort and creates an external load-balancer\\n(if supported in the current cloud) which routes to the same endpoints\\nas the clusterIP.\\n\\\"ExternalName\\\" aliases this service to the specified externalName.\\nSeveral other fields do not apply to ExternalName services.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types\\n+optional\"\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceType\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ServiceStatus\": {\n" +
-		"      \"description\": \"ServiceStatus represents the current status of a service.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ServiceStatus represents the current status of a service.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"conditions\": {\n" +
+		"          \"description\": \"Current service state\\n+optional\\n+patchMergeKey=type\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=type\",\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Current service state\\n+optional\\n+patchMergeKey=type\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=type\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Condition\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Conditions\"\n" +
 		"        },\n" +
 		"        \"loadBalancer\": {\n" +
-		"          \"title\": \"LoadBalancer contains the current status of the load-balancer,\\nif one is present.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ServiceType\": {\n" +
+		"      \"description\": \"Service Type string describes ingress methods for a service\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1SessionAffinityConfig\": {\n" +
-		"      \"description\": \"SessionAffinityConfig represents the configurations of session affinity.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"SessionAffinityConfig represents the configurations of session affinity.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clientIP\": {\n" +
-		"          \"title\": \"clientIP contains the configurations of Client IP based session affinity.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1ClientIPConfig\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1StorageMedium\": {\n" +
 		"      \"type\": \"string\",\n" +
