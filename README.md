@@ -3,7 +3,7 @@
 
 <p><a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
 <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
-<a href="https://insights.lfx.linuxfoundation.org/foundation/cncf/overview?project=armada"><img src="https://img.shields.io/badge/LFX%20Insights-0094FF" alt="LFX Insights Dashboard"></a>
+<a href="https://insights.lfx.linuxfoundation.org/foundation/cncf/overview?project=armada" title="Click to view project insights and health checks"><img src="https://img.shields.io/badge/LFX%20Insights-0094FF" alt="LFX Insights Dashboard"></a>
 </p></div>
 
 # Armada
