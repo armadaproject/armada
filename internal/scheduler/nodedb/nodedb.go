@@ -856,12 +856,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
+			node = node.UnsafeCopy()
+			nodesById[nodeId] = node
 		}
-		node, err = nodeDb.UnbindJobFromNode(nodeDb.priorityClasses, evictedJctx.Job, node)
+
+		err = nodeDb.unbindJobFromNodeInPlace(nodeDb.priorityClasses, evictedJctx.Job, node)
 		if err != nil {
 			return nil, err
 		}
-		nodesById[nodeId] = node
 		evictedJobSchedulingContextsByNodeId[nodeId] = append(evictedJobSchedulingContextsByNodeId[nodeId], evictedJobSchedulingContext)
 
 		priority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
