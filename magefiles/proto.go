@@ -112,7 +112,7 @@ func protoGenerate() error {
 		}
 	}
 
-	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto", "pkg/api/job.proto")
+	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
 	if err != nil {
 		return err
 	}
