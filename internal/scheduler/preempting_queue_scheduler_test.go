@@ -2006,7 +2006,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
 						for resourceType, q := range node.AllocatableByPriority[p].Resources {
-							assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), node.Id)
+							assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), node.GetId())
 						}
 					}
 				}
@@ -2056,7 +2056,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						scheduledJobs,
 						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
-							WithNewRun(node.Executor, node.Id, node.Name, priority),
+							WithNewRun(node.Executor, node.GetId(), node.Name, priority),
 					)
 				}
 				err = jobDbTxn.Upsert(scheduledJobs)

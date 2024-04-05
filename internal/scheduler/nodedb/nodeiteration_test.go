@@ -62,7 +62,7 @@ func TestNodesIterator(t *testing.T) {
 
 			actual := make([]int, 0)
 			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, indexById[node.Id])
+				actual = append(actual, indexById[node.GetId()])
 			}
 
 			assert.Equal(t, expected, actual)
@@ -470,7 +470,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
@@ -854,7 +854,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
