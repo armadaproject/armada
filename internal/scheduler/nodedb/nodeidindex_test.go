@@ -1,12 +1,13 @@
 package nodedb
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestFromObjectValid(t *testing.T) {

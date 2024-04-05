@@ -8,8 +8,7 @@ import (
 )
 
 // NodeIndex is an index for internaltypes.Node that indexes Node.GetId()
-type nodeIdIndex struct {
-}
+type nodeIdIndex struct{}
 
 func createNodeIdIndex() *nodeIdIndex {
 	return &nodeIdIndex{}
