@@ -113,7 +113,7 @@ func Map[S ~[]E, E any, V any](s S, f func(E) V) []V {
 	if s == nil {
 		return nil
 	}
-	out := make([]V, 0, len(s))
+	out := make([]V, len(s))
 	for i, s := range s {
 		out[i] = f(s)
 	}
