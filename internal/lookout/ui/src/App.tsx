@@ -1,12 +1,12 @@
-import React, { useEffect } from "react"
+import React, { useEffect, useState, createContext, useContext } from "react"
 
 import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
 import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { UserManager, WebStorageStateStore } from "oidc-client-ts"
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { UserManager, WebStorageStateStore, UserManagerSettings } from "oidc-client-ts"
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
@@ -15,7 +15,6 @@ import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
-import { UserManagerContext, useUserManager } from "./oidc"
 import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
@@ -80,18 +79,79 @@ type AppProps = {
   commandSpecs: CommandSpec[]
 }
 
-function OidcCallback(): JSX.Element {
+// Handling authentication on page opening
+
+interface AuthWrapperProps {
+  children: React.ReactNode
+  userManager: UserManager | null
+  isAuthenticated: boolean
+}
+
+interface OidcCallbackProps {
+  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+const UserManagerContext = createContext<UserManager | null>(null)
+
+export const UserManagerProvider = UserManagerContext.Provider
+export const useUserManager = () => useContext(UserManagerContext)
+
+function OidcCallback({ setIsAuthenticated }: OidcCallbackProps): JSX.Element {
+  const navigate = useNavigate()
   const userManager = useUserManager()
-  const [error, setError] = React.useState<string | undefined>()
-  React.useEffect(() => {
-    userManager &&
-      userManager.signinPopupCallback().catch((e) => {
+  const [error, setError] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (!userManager) return
+    userManager
+      .signinRedirectCallback()
+      .then(() => {
+        setIsAuthenticated(true)
+        navigate("/")
+      })
+      .catch((e) => {
         setError(`${e}`)
         console.error(e)
       })
-  }, [])
-  if (error !== undefined) return <p>Something went wrong; more details are available in the console.</p>
+  }, [navigate, userManager, setIsAuthenticated])
+
+  if (error) return <p>Something went wrong; more details are available in the console.</p>
   return <p>Authenticating...</p>
+}
+
+function AuthWrapper({ children, userManager, isAuthenticated }: AuthWrapperProps) {
+  useEffect(() => {
+    if (!userManager || isAuthenticated) return // Skip if userManager is not available or user is already authenticated
+
+    const handleAuthentication = async () => {
+      try {
+        const user = await userManager.getUser()
+        if (!user) {
+          await userManager.signinRedirect()
+        }
+      } catch (error) {
+        console.error("Error during authentication:", error)
+      }
+    }
+
+    ;(async () => {
+      await handleAuthentication()
+    })()
+  }, [userManager, isAuthenticated])
+
+  return <>{children}</>
+}
+
+export function createUserManager(config: OidcConfig): UserManager {
+  const userManagerSettings: UserManagerSettings = {
+    authority: config.authority,
+    client_id: config.clientId,
+    redirect_uri: `${window.location.origin}/oidc`,
+    scope: config.scope,
+    userStore: new WebStorageStateStore({ store: window.localStorage }),
+  }
+
+  return new UserManager(userManagerSettings)
 }
 
 // Version 2 of the Lookout UI used to be hosted under /v2, so we try our best
@@ -99,6 +159,16 @@ function OidcCallback(): JSX.Element {
 const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
 
 export function App(props: AppProps): JSX.Element {
+  const [userManager, setUserManager] = useState<UserManager | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  useEffect(() => {
+    if (!userManager && props.oidcConfig) {
+      const userManagerInstance = createUserManager(props.oidcConfig)
+      setUserManager(userManagerInstance)
+    }
+  }, [props.oidcConfig])
+
   useEffect(() => {
     if (props.customTitle) {
       document.title = `${props.customTitle} - Armada Lookout`
@@ -115,42 +185,46 @@ export function App(props: AppProps): JSX.Element {
             maxSnack={3}
           >
             <BrowserRouter>
-              <div className="app-container">
-                <NavBar customTitle={props.customTitle} />
-                <div className="app-content">
-                  <Routes>
-                    <Route
-                      path="/"
-                      element={
-                        <JobsTableContainer
-                          getJobsService={props.v2GetJobsService}
-                          groupJobsService={props.v2GroupJobsService}
-                          updateJobsService={props.v2UpdateJobsService}
-                          runErrorService={props.v2RunErrorService}
-                          jobSpecService={props.v2JobSpecService}
-                          logService={props.v2LogService}
-                          cordonService={props.v2CordonService}
-                          debug={props.debugEnabled}
-                          autoRefreshMs={props.jobsAutoRefreshMs}
-                          commandSpecs={props.commandSpecs}
+              <UserManagerProvider value={userManager}>
+                <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
+                  <div className="app-container">
+                    <NavBar customTitle={props.customTitle} />
+                    <div className="app-content">
+                      <Routes>
+                        <Route
+                          path="/"
+                          element={
+                            <JobsTableContainer
+                              getJobsService={props.v2GetJobsService}
+                              groupJobsService={props.v2GroupJobsService}
+                              updateJobsService={props.v2UpdateJobsService}
+                              runErrorService={props.v2RunErrorService}
+                              jobSpecService={props.v2JobSpecService}
+                              logService={props.v2LogService}
+                              cordonService={props.v2CordonService}
+                              debug={props.debugEnabled}
+                              autoRefreshMs={props.jobsAutoRefreshMs}
+                              commandSpecs={props.commandSpecs}
+                            />
+                          }
                         />
-                      }
-                    />
-                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
-                    <Route path="/oidc" element={<OidcCallback />} />
-                    <Route path="/v2" element={<V2Redirect />} />
-                    <Route
-                      path="*"
-                      element={
-                        // This wildcard route ensures that users who follow old
-                        // links to /job-sets or /jobs see something other than
-                        // a blank page.
-                        <Navigate to="/" />
-                      }
-                    />
-                  </Routes>
-                </div>
-              </div>
+                        <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                        <Route path="/oidc" element={<OidcCallback setIsAuthenticated={setIsAuthenticated} />} />
+                        <Route path="/v2" element={<V2Redirect />} />
+                        <Route
+                          path="*"
+                          element={
+                            // This wildcard route ensures that users who follow old
+                            // links to /job-sets or /jobs see something other than
+                            // a blank page.
+                            <Navigate to="/" />
+                          }
+                        />
+                      </Routes>
+                    </div>
+                  </div>
+                </AuthWrapper>
+              </UserManagerProvider>
             </BrowserRouter>
           </SnackbarProvider>
         </ThemeProviderV5>
@@ -158,21 +232,5 @@ export function App(props: AppProps): JSX.Element {
     </StylesProvider>
   )
 
-  if (props.oidcConfig === undefined) return result
-
-  return (
-    <UserManagerContext.Provider
-      value={
-        new UserManager({
-          authority: props.oidcConfig.authority,
-          client_id: props.oidcConfig.clientId,
-          redirect_uri: `${window.location.origin}/oidc`,
-          scope: props.oidcConfig.scope,
-          userStore: new WebStorageStateStore({ store: window.localStorage }),
-        })
-      }
-    >
-      {result}
-    </UserManagerContext.Provider>
-  )
+  return result
 }
