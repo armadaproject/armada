@@ -307,7 +307,7 @@ service Submit {
     }
     rpc UpdateQueues (QueueList) returns (BatchQueueUpdateResponse) {
         option (google.api.http) = {
-            put: "/v1/batched/update_queues"
+            put: "/v1/batched/update_queues2"
             body: "*"
         };
     }

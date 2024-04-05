@@ -93,7 +93,7 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"/v1/batched/update_queues\": {\n" +
+		"    \"/v1/batched/update_queues2\": {\n" +
 		"      \"put\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +

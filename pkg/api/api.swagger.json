@@ -82,7 +82,7 @@
         }
       }
     },
-    "/v1/batched/update_queues": {
+    "/v1/batched/update_queues2": {
       "put": {
         "tags": [
           "Submit"
