@@ -19,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
-	"github.com/armadaproject/armada/internal/executor/metrics"
 )
 
 const CustomConfigLocation string = "config"
@@ -65,7 +64,7 @@ func main() {
 
 	shutdownMetricServer := common.ServeMetricsFor(
 		config.Metric.Port,
-		prometheus.Gatherers{metrics.GetMetricsGatherer()},
+		prometheus.Gatherers{prometheus.DefaultGatherer},
 	)
 	defer shutdownMetricServer()
 

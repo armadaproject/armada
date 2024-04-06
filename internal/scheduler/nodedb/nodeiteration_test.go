@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -61,7 +62,7 @@ func TestNodesIterator(t *testing.T) {
 
 			actual := make([]int, 0)
 			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, indexById[node.Id])
+				actual = append(actual, indexById[node.GetId()])
 			}
 
 			assert.Equal(t, expected, actual)
@@ -76,7 +77,7 @@ func TestNodePairIterator(t *testing.T) {
 	}
 	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	entries := make([]*Node, len(nodes))
+	entries := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		entry, err := nodeDb.GetNode(node.Id)
 		require.NoError(t, err)
@@ -128,15 +129,15 @@ func TestNodeTypeIterator(t *testing.T) {
 	}{
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					1,
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					2,
 					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					1,
 					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
@@ -150,7 +151,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			),
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
-			nodes: testfixtures.WithNodeTypeIdNodes(
+			nodes: testfixtures.WithNodeTypeNodes(
 				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
@@ -176,7 +177,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
-			nodes: testfixtures.WithNodeTypeIdNodes(
+			nodes: testfixtures.WithNodeTypeNodes(
 				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
@@ -232,7 +233,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
-			nodes: testfixtures.WithNodeTypeIdNodes(
+			nodes: testfixtures.WithNodeTypeNodes(
 				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
@@ -317,7 +318,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			expected: []int{6, 1, 0},
 		},
 		"double-nested ordering": {
-			nodes: testfixtures.WithNodeTypeIdNodes(
+			nodes: testfixtures.WithNodeTypeNodes(
 				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
@@ -420,7 +421,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			entries := make([]*Node, len(tc.nodes))
+			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
@@ -429,7 +430,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeTypeId
+				entry.NodeTypeId = node.NodeType.Id
 
 				entries[i] = entry
 			}
@@ -469,7 +470,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
@@ -493,15 +494,15 @@ func TestNodeTypesIterator(t *testing.T) {
 	}{
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					1,
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					2,
 					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					3,
 					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
@@ -516,7 +517,7 @@ func TestNodeTypesIterator(t *testing.T) {
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					1,
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -524,7 +525,7 @@ func TestNodeTypesIterator(t *testing.T) {
 						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					2,
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -532,7 +533,7 @@ func TestNodeTypesIterator(t *testing.T) {
 						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					3,
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -540,7 +541,7 @@ func TestNodeTypesIterator(t *testing.T) {
 						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					4,
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -555,7 +556,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
-			nodes: testfixtures.WithNodeTypeIdNodes(
+			nodes: testfixtures.WithNodeTypeNodes(
 				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
@@ -611,7 +612,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
-			nodes: testfixtures.WithNodeTypeIdNodes(
+			nodes: testfixtures.WithNodeTypeNodes(
 				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
@@ -697,7 +698,7 @@ func TestNodeTypesIterator(t *testing.T) {
 		},
 		"double-nested ordering": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					1,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
@@ -737,7 +738,7 @@ func TestNodeTypesIterator(t *testing.T) {
 						),
 					),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					2,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
@@ -775,7 +776,7 @@ func TestNodeTypesIterator(t *testing.T) {
 						),
 					),
 				),
-				testfixtures.WithNodeTypeIdNodes(
+				testfixtures.WithNodeTypeNodes(
 					3,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
@@ -811,7 +812,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			entries := make([]*Node, len(tc.nodes))
+			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
@@ -820,7 +821,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeTypeId
+				entry.NodeTypeId = node.NodeType.Id
 
 				entries[i] = entry
 			}
@@ -853,7 +854,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 

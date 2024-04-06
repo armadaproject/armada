@@ -5,14 +5,9 @@ import (
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 )
-
-func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
-	return AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(priority, resourceType)
-}
 
 func (node *Node) DeepCopy() *Node {
 	if node == nil {
@@ -22,10 +17,8 @@ func (node *Node) DeepCopy() *Node {
 		Id:             node.Id,
 		Name:           node.Name,
 		Executor:       node.Executor,
-		NodeDbKeys:     slices.Clone(node.NodeDbKeys),
 		LastSeen:       node.LastSeen,
 		NodeType:       node.NodeType.DeepCopy(),
-		NodeTypeId:     node.NodeTypeId,
 		Taints:         slices.Clone(node.Taints),
 		Labels:         maps.Clone(node.Labels),
 		TotalResources: node.TotalResources.DeepCopy(),

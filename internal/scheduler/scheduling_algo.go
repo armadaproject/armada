@@ -483,7 +483,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		result.ScheduledJobs[i].Job = jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
-			WithNewRun(node.Executor, node.Id, node.Name, priority)
+			WithNewRun(node.Executor, node.GetId(), node.Name, priority)
 	}
 	for i, jctx := range result.FailedJobs {
 		jobDbJob := jctx.Job.(*jobdb.Job)

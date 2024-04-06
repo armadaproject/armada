@@ -9,10 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
 type NodeIterator interface {
-	NextNode() *Node
+	NextNode() *internaltypes.Node
 }
 
 // NodesIterator is an iterator over all nodes in the db.
@@ -34,12 +36,12 @@ func (it *NodesIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
-func (it *NodesIterator) NextNode() *Node {
+func (it *NodesIterator) NextNode() *internaltypes.Node {
 	obj := it.it.Next()
 	if obj == nil {
 		return nil
 	}
-	return obj.(*Node)
+	return obj.(*internaltypes.Node)
 }
 
 func (it *NodesIterator) Next() interface{} {
@@ -49,13 +51,13 @@ func (it *NodesIterator) Next() interface{} {
 type NodePairIterator struct {
 	itA   *NodesIterator
 	itB   *NodesIterator
-	nodeA *Node
-	nodeB *Node
+	nodeA *internaltypes.Node
+	nodeB *internaltypes.Node
 }
 
 type NodePairIteratorItem struct {
-	NodeA *Node
-	NodeB *Node
+	NodeA *internaltypes.Node
+	NodeB *internaltypes.Node
 }
 
 func NewNodePairIterator(txnA, txnB *memdb.Txn) (*NodePairIterator, error) {
@@ -103,7 +105,7 @@ func (it *NodePairIterator) NextItem() (rv *NodePairIteratorItem) {
 			NodeB: it.nodeB,
 		}
 	}
-	cmp := bytes.Compare([]byte(it.nodeA.Id), []byte(it.nodeB.Id))
+	cmp := bytes.Compare([]byte(it.nodeA.GetId()), []byte(it.nodeB.GetId()))
 	if cmp == 0 {
 		return &NodePairIteratorItem{
 			NodeA: it.nodeA,
@@ -124,7 +126,7 @@ func (it *NodePairIterator) Next() interface{} {
 	return it.NextItem()
 }
 
-// NodeIndex is an index for schedulerobjects.Node that returns node.NodeDbKeys[KeyIndex].
+// NodeIndex is an index for internaltypes.Node that returns node.NodeDbKeys[KeyIndex].
 type NodeIndex struct {
 	KeyIndex int
 }
@@ -140,7 +142,7 @@ func (index *NodeIndex) FromArgs(args ...interface{}) ([]byte, error) {
 
 // FromObject extracts the index key from a *Node.
 func (index *NodeIndex) FromObject(raw interface{}) (bool, []byte, error) {
-	node := raw.(*Node)
+	node := raw.(*internaltypes.Node)
 	return true, node.Keys[index.KeyIndex], nil
 }
 
@@ -208,7 +210,7 @@ func (it *NodeTypesIterator) Next() interface{} {
 	return v
 }
 
-func (it *NodeTypesIterator) NextNode() (*Node, error) {
+func (it *NodeTypesIterator) NextNode() (*internaltypes.Node, error) {
 	if it.pq.Len() == 0 {
 		return nil, nil
 	}
@@ -232,7 +234,7 @@ type nodeTypesIteratorPQ struct {
 }
 
 type nodeTypesIteratorPQItem struct {
-	node *Node
+	node *internaltypes.Node
 	it   *NodeTypeIterator
 	// The index of the item in the heap. Maintained by the heap.Interface methods.
 	index int
@@ -244,7 +246,7 @@ func (pq *nodeTypesIteratorPQ) Less(i, j int) bool {
 	return pq.less(pq.items[i].node, pq.items[j].node)
 }
 
-func (it *nodeTypesIteratorPQ) less(a, b *Node) bool {
+func (it *nodeTypesIteratorPQ) less(a, b *internaltypes.Node) bool {
 	allocatableByPriorityA := a.AllocatableByPriority[it.priority]
 	allocatableByPriorityB := b.AllocatableByPriority[it.priority]
 	for _, t := range it.indexedResources {
@@ -257,7 +259,7 @@ func (it *nodeTypesIteratorPQ) less(a, b *Node) bool {
 		}
 	}
 	// Tie-break by id.
-	return a.Id < b.Id
+	return a.GetId() < b.GetId()
 }
 
 func (pq *nodeTypesIteratorPQ) Swap(i, j int) {
@@ -321,7 +323,7 @@ type NodeTypeIterator struct {
 	memdbIterator memdb.ResultIterator
 	// Used to detect if the iterator gets stuck in a loop.
 	previousKey  []byte
-	previousNode *Node
+	previousNode *internaltypes.Node
 }
 
 func NewNodeTypeIterator(
@@ -389,15 +391,15 @@ func (it *NodeTypeIterator) Next() interface{} {
 	return v
 }
 
-func (it *NodeTypeIterator) NextNode() (*Node, error) {
+func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 	for {
 		v := it.memdbIterator.Next()
 		if v == nil {
 			return nil, nil
 		}
-		node := v.(*Node)
+		node := v.(*internaltypes.Node)
 		if it.keyIndex >= len(node.Keys) {
-			return nil, errors.Errorf("keyIndex is %d, but node %s has only %d keys", it.keyIndex, node.Id, len(node.Keys))
+			return nil, errors.Errorf("keyIndex is %d, but node %s has only %d keys", it.keyIndex, node.GetId(), len(node.Keys))
 		}
 		nodeKey := node.Keys[it.keyIndex]
 		if it.previousKey != nil && bytes.Compare(it.previousKey, nodeKey) != -1 {
@@ -414,7 +416,7 @@ func (it *NodeTypeIterator) NextNode() (*Node, error) {
 		}
 		allocatableByPriority := node.AllocatableByPriority[it.priority]
 		if len(allocatableByPriority.Resources) == 0 {
-			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriority)
+			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
 			nodeQuantity := allocatableByPriority.Get(t).DeepCopy()
