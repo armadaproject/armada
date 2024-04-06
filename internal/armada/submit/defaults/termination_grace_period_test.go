@@ -1,13 +1,14 @@
 package defaults
 
 import (
-	"k8s.io/utils/pointer"
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/pointer"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func TestTerminationGracePeriodProcessor(t *testing.T) {

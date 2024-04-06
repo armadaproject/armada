@@ -1,11 +1,11 @@
 package defaults
 
 import (
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type resourceProcessor struct {

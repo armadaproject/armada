@@ -1,11 +1,11 @@
 package defaults
 
 import (
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 
-	"time"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type terminationGracePeriodProcessor struct {

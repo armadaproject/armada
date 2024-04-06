@@ -2,9 +2,6 @@ package submit
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"k8s.io/apimachinery/pkg/util/clock"
-	"k8s.io/utils/pointer"
 	"testing"
 	"time"
 
@@ -12,10 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/mocks"
 	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
@@ -52,7 +52,6 @@ var (
 )
 
 func TestNeeded(t *testing.T) {
-
 	// ***Success***
 	// Single job
 	// Two jobs
@@ -65,11 +64,9 @@ func TestNeeded(t *testing.T) {
 	// unauthorized
 	// cannot be scheduled
 	// fail to publish
-
 }
 
 func TestSubmit_Success(t *testing.T) {
-
 	tests := map[string]struct {
 		req              *api.JobSubmitRequest
 		deduplicationIds map[string]string
@@ -103,7 +100,6 @@ func TestSubmit_Success(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctx = armadacontext.WithValue(ctx, "principal", defaultPrincipal)
 
@@ -208,7 +204,6 @@ func TestSubmit_FailedValidation(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 			ctrl := gomock.NewController(t)

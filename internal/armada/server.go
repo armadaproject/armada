@@ -2,7 +2,6 @@ package armada
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/armada/submit"
 	"net"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"

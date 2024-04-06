@@ -2,15 +2,17 @@ package submit
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/armada/submit/defaults"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/armadaproject/armada/internal/armada/submit/defaults"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"

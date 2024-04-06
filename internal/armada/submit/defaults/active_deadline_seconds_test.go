@@ -1,7 +1,6 @@
 package defaults
 
 import (
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestActiveDeadlineSecondsProcessor(t *testing.T) {

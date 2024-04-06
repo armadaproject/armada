@@ -3,10 +3,12 @@ package submit
 import (
 	"crypto/sha1"
 	"fmt"
+
+	"golang.org/x/exp/maps"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/pkg/api"
-	"golang.org/x/exp/maps"
 )
 
 type Deduplicator interface {
@@ -23,7 +25,6 @@ func NewDeduplicator(kvStore *pgkeyvalue.PGKeyValueStore) *PostgresDeduplicator 
 }
 
 func (s *PostgresDeduplicator) GetOriginalJobIds(ctx *armadacontext.Context, queue string, jobRequests []*api.JobSubmitRequestItem) (map[string]string, error) {
-
 	// Armada checks for duplicate job submissions if a ClientId (i.e. a deduplication id) is provided.
 	// Deduplication is based on storing the combined hash of the ClientId and queue. For storage efficiency,
 	// we store hashes instead of user-provided strings.

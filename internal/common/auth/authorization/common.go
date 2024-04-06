@@ -3,10 +3,10 @@ package authorization
 import (
 	"context"
 	"errors"
-	"golang.org/x/exp/slices"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/util"
