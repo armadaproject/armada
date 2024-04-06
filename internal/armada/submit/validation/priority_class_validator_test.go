@@ -6,18 +6,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestPriorityClassValidator(t *testing.T) {
-	defaultAllowedPriorityClasses := map[string]types.PriorityClass{
-		"pc1": {},
+	defaultAllowedPriorityClasses := map[string]bool{
+		"pc1": true,
 	}
 
 	tests := map[string]struct {
 		req             *api.JobSubmitRequestItem
-		priorityClasses map[string]types.PriorityClass
+		priorityClasses map[string]bool
 		expectSuccess   bool
 	}{
 		"empty priority class": {
