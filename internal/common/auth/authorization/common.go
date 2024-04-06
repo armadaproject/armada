@@ -3,6 +3,7 @@ package authorization
 import (
 	"context"
 	"errors"
+	"golang.org/x/exp/slices"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
@@ -79,6 +80,7 @@ func (p *StaticPrincipal) GetGroupNames() []string {
 	for g := range p.groups {
 		names = append(names, g)
 	}
+	slices.Sort(names) // sort names so that we have stable output for testing
 	return names
 }
 

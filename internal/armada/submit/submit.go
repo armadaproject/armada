@@ -154,12 +154,10 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		return nil, status.Error(codes.Internal, "failed store pulsar job details")
 	}
 
-	if len(es.Events) > 0 {
-		err = s.publisher.PublishMessages(ctx, es)
-		if err != nil {
-			log.WithError(err).Error("failed send events to Pulsar")
-			return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
-		}
+	err = s.publisher.PublishMessages(ctx, es)
+	if err != nil {
+		log.WithError(err).Error("failed send events to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
 	// Store the deduplication ids. Note that this will not be called if pulsar submission has failed, hence
