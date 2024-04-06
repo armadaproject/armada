@@ -3,7 +3,6 @@ package submit
 import (
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"testing"
 	"time"
@@ -54,12 +53,17 @@ func TestSuccessfulSubmit(t *testing.T) {
 		expectedEvents   []*armadaevents.EventSequence_Event
 	}{
 		"single job request": {
-			req:            minimalValidSubmission(),
-			expectedEvents: []*armadaevents.EventSequence_Event{minimalEventSequenceEvent()},
+			req:            submitRequestWithNItems(1),
+			expectedEvents: nEventSequenceEvents(1),
 		},
 		"multiple job request": {
-			req:            minimalValidSubmission(),
-			expectedEvents: []*armadaevents.EventSequence_Event{minimalEventSequenceEvent()},
+			req:            submitRequestWithNItems(2),
+			expectedEvents: nEventSequenceEvents(2),
+		},
+		"duplicate jobs": {
+			req:              submitRequestWithNItems(2),
+			deduplicationIds: map[string]string{"2": "3"},
+			expectedEvents:   nEventSequenceEvents(1),
 		},
 	}
 	for name, tc := range tests {
@@ -88,15 +92,14 @@ func TestSuccessfulSubmit(t *testing.T) {
 			counter := 0
 			testUlidGenerator := func() *armadaevents.Uuid {
 				counter++
-				ulid := fmt.Sprintf("000000000000000000000000%02X", counter)
-				return armadaevents.MustProtoUuidFromUlidString(ulid)
+				return testUlid(counter)
 			}
 
 			server := NewServer(
 				publisher,
 				queueRepository,
 				jobRepository,
-				defaultSubmissionConfig,
+				defaultSubmissionConfig(),
 				deduplicator,
 				submitChecker,
 				authorizer)
@@ -108,14 +111,8 @@ func TestSuccessfulSubmit(t *testing.T) {
 			authorizer.EXPECT().AuthorizeQueueAction(ctx, defaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil).Times(1)
 			deduplicator.EXPECT().GetOriginalJobIds(ctx, defaultQueue.Name, tc.req.JobRequestItems).Return(tc.deduplicationIds, nil).Times(1)
 			deduplicator.EXPECT().StoreOriginalJobIds(ctx, defaultQueue.Name, gomock.Any())
-			submitChecker.EXPECT().CheckApiJobs(expectedEventSequence).Return(true, "").Times(1)
-			jobRepository.EXPECT().StorePulsarSchedulerJobDetails(ctx, []*schedulerobjects.PulsarSchedulerJobDetails{
-				{
-					JobId:  "00000000000000000000000001",
-					Queue:  "testQueue",
-					JobSet: "testJobset",
-				},
-			}).Return(nil).Times(1)
+			submitChecker.EXPECT().CheckApiJobs(gomock.Any()).Return(true, "").Times(1)
+			jobRepository.EXPECT().StorePulsarSchedulerJobDetails(ctx, gomock.Any()).Return(nil).Times(1)
 
 			var capturedEventSequence *armadaevents.EventSequence
 			publisher.EXPECT().
@@ -136,29 +133,33 @@ func TestSuccessfulSubmit(t *testing.T) {
 	}
 }
 
-func minimalEventSequenceEvent() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Created: &baseTime,
-		Event: &armadaevents.EventSequence_Event_SubmitJob{
-			SubmitJob: &armadaevents.SubmitJob{
-				JobId:      armadaevents.MustProtoUuidFromUlidString("00000000000000000000000001"),
-				Priority:   1000,
-				ObjectMeta: &armadaevents.ObjectMeta{Namespace: "testNamespace"},
-				Objects:    []*armadaevents.KubernetesObject{},
-				MainObject: &armadaevents.KubernetesMainObject{
-					Object: &armadaevents.KubernetesMainObject_PodSpec{
-						PodSpec: &armadaevents.PodSpecWithAvoidList{
-							PodSpec: &v1.PodSpec{
-								Containers: []v1.Container{
-									{
-										Resources: v1.ResourceRequirements{
-											Requests: v1.ResourceList{
-												"cpu":    resource.MustParse("1"),
-												"memory": resource.MustParse("1Gi"),
-											},
-											Limits: v1.ResourceList{
-												"cpu":    resource.MustParse("1"),
-												"memory": resource.MustParse("1Gi"),
+func nEventSequenceEvents(n int) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, n)
+	for i := 0; i < n; i++ {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &baseTime,
+			Event: &armadaevents.EventSequence_Event_SubmitJob{
+				SubmitJob: &armadaevents.SubmitJob{
+					JobId:           testUlid(i + 1),
+					Priority:        1000,
+					ObjectMeta:      &armadaevents.ObjectMeta{Namespace: "testNamespace"},
+					Objects:         []*armadaevents.KubernetesObject{},
+					DeduplicationId: fmt.Sprintf("%d", i+1),
+					MainObject: &armadaevents.KubernetesMainObject{
+						Object: &armadaevents.KubernetesMainObject_PodSpec{
+							PodSpec: &armadaevents.PodSpecWithAvoidList{
+								PodSpec: &v1.PodSpec{
+									Containers: []v1.Container{
+										{
+											Resources: v1.ResourceRequirements{
+												Requests: v1.ResourceList{
+													"cpu":    resource.MustParse("1"),
+													"memory": resource.MustParse("1Gi"),
+												},
+												Limits: v1.ResourceList{
+													"cpu":    resource.MustParse("1"),
+													"memory": resource.MustParse("1Gi"),
+												},
 											},
 										},
 									},
@@ -168,40 +169,41 @@ func minimalEventSequenceEvent() *armadaevents.EventSequence_Event {
 					},
 				},
 			},
-		},
+		}
 	}
+
+	return events
 }
 
-func MinimalValidSubmissions() *api.JobSubmitRequest {
-	return nil
-}
-
-func minimalValidSubmission() *api.JobSubmitRequest {
-	return &api.JobSubmitRequest{
-		Queue:    "testQueue",
-		JobSetId: "testJobset",
-		JobRequestItems: []*api.JobSubmitRequestItem{
-			{
-				Priority:  1000,
-				Namespace: "testNamespace",
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: v1.ResourceRequirements{
-								Requests: v1.ResourceList{
-									"cpu":    resource.MustParse("1"),
-									"memory": resource.MustParse("1Gi"),
-								},
-								Limits: v1.ResourceList{
-									"cpu":    resource.MustParse("1"),
-									"memory": resource.MustParse("1Gi"),
-								},
+func submitRequestWithNItems(n int) *api.JobSubmitRequest {
+	items := make([]*api.JobSubmitRequestItem, n)
+	for i := 0; i < n; i++ {
+		items[i] = &api.JobSubmitRequestItem{
+			Priority:  1000,
+			Namespace: "testNamespace",
+			ClientId:  fmt.Sprintf("%d", i+1),
+			PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("1"),
+								"memory": resource.MustParse("1Gi"),
+							},
+							Limits: v1.ResourceList{
+								"cpu":    resource.MustParse("1"),
+								"memory": resource.MustParse("1Gi"),
 							},
 						},
 					},
 				},
 			},
-		},
+		}
+	}
+	return &api.JobSubmitRequest{
+		Queue:           "testQueue",
+		JobSetId:        "testJobset",
+		JobRequestItems: items,
 	}
 }
 
@@ -234,4 +236,9 @@ func defaultSubmissionConfig() configuration.SubmissionConfig {
 			"nvidia.com/gpu": 24 * time.Hour,
 		},
 	}
+}
+
+func testUlid(i int) *armadaevents.Uuid {
+	ulid := fmt.Sprintf("000000000000000000000000%02X", i)
+	return armadaevents.MustProtoUuidFromUlidString(ulid)
 }

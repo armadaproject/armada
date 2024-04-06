@@ -1,4 +1,4 @@
-package processor
+package defaults
 
 import (
 	"github.com/armadaproject/armada/internal/armada/configuration"

@@ -2,6 +2,7 @@ package submit
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/armada/submit/defaults"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -103,6 +104,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
 		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, s.idGenerator, userId)
+		defaults.ApplyDefaults(submitMsg, s.submissionConfig)
 		eventTime := s.clock.Now().UTC()
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
 			Created: &eventTime,
@@ -118,6 +120,11 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		if jobRequest.ClientId != "" {
 			idMappings[jobRequest.ClientId] = armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId)
 		}
+	}
+
+	// If we have no submit msgs then we can return early
+	if len(submitMsgs) < 1 {
+		return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 	}
 
 	// Check if all jobs can be scheduled.
