@@ -2,16 +2,39 @@ package validation
 
 import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/validation"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+type Validator[T any] interface {
+	Validate(obj T) error
+}
+
+type CompoundValidator[T any] struct {
+	validators []Validator[T]
+}
+
+func NewCompoundValidator[T any](validators ...Validator[T]) CompoundValidator[T] {
+	return CompoundValidator[T]{
+		validators: validators,
+	}
+}
+
+func (c CompoundValidator[T]) Validate(obj T) error {
+	for _, v := range c.validators {
+		err := v.Validate(obj)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SubmissionConfig) error {
-	requestValidator := validation.NewCompoundValidator[*api.JobSubmitRequest](
+	requestValidator := NewCompoundValidator[*api.JobSubmitRequest](
 		queueValidator{},
 		gangValidator{})
 
-	itemValidator := validation.NewCompoundValidator[*api.JobSubmitRequestItem](
+	itemValidator := NewCompoundValidator[*api.JobSubmitRequestItem](
 		hasNamespaceValidator{},
 		hasPodSpecValidator{},
 		podSpecSizeValidator{maxSize: config.MaxPodSpecSizeBytes},
