@@ -1,7 +1,6 @@
 package jobdb
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
@@ -28,9 +27,7 @@ type JobDb struct {
 	jobsByQueue     map[string]immutable.SortedSet[*Job]
 	queuedJobsByTtl *immutable.SortedSet[*Job]
 	// Configured priority classes.
-	priorityClasses map[string]types.PriorityClass
-	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
-	defaultPriorityClass   types.PriorityClass
+	priorityClasses        map[string]types.PriorityClass
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// We intern strings to save memory.
 	stringInterner *stringinterner.StringInterner
@@ -59,7 +56,6 @@ func (_ RealUUIDProvider) New() uuid.UUID {
 func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
-		defaultPriorityClassName,
 		schedulerobjects.NewSchedulingKeyGenerator(),
 		stringInternerCacheSize,
 	)
@@ -67,22 +63,15 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityCla
 
 func NewJobDbWithSchedulingKeyGenerator(
 	priorityClasses map[string]types.PriorityClass,
-	defaultPriorityClassName string,
 	skg *schedulerobjects.SchedulingKeyGenerator,
 	stringInternerCacheSize uint32,
 ) *JobDb {
-	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
-	if !ok {
-		// TODO(albin): Return an error instead.
-		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
-	}
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
 		priorityClasses:        priorityClasses,
-		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringinterner.New(stringInternerCacheSize),
 		clock:                  clock.RealClock{},
@@ -106,7 +95,6 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
 		queuedJobsByTtl:        jobDb.queuedJobsByTtl,
 		priorityClasses:        jobDb.priorityClasses,
-		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
 		stringInterner:         jobDb.stringInterner,
 	}
@@ -127,10 +115,7 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
-	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
-	if !ok {
-		priorityClass = jobDb.defaultPriorityClass
-	}
+	priorityClass := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	job := &Job{
 		jobDb:                   jobDb,
 		id:                      jobId,

@@ -95,7 +95,6 @@ func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
 func NewJobDb() *jobdb.JobDb {
 	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
-		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		1024,
 	)
@@ -838,6 +837,7 @@ func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
 		JobId: armadaevents.MustProtoUuidFromUlidString(util.NewULID()),
 		MainObject: &armadaevents.KubernetesMainObject{
+			ObjectMeta: &armadaevents.ObjectMeta{},
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{
 					PodSpec: &v1.PodSpec{

@@ -23,6 +23,7 @@ func TestActiveDeadlineSecondsProcessor(t *testing.T) {
 			config: configuration.SubmissionConfig{
 				DefaultActiveDeadline: time.Second,
 			},
+			podSpec: &v1.PodSpec{},
 			expected: &v1.PodSpec{
 				ActiveDeadlineSeconds: pointer.Int64Ptr(1),
 			},
