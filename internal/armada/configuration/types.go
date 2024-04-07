@@ -129,6 +129,13 @@ type SubmissionConfig struct {
 	// will have activeDeadlineSeconds set to 1.
 	// Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+	IngressConfig                          IngressConfiguration
+}
+
+type IngressConfiguration struct {
+	HostnameSuffix string
+	CertNameSuffix string
+	Annotations    map[string]string
 }
 
 // SchedulingConfig contains config controlling the Armada scheduler.
