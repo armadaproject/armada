@@ -29,7 +29,7 @@ var (
 	}
 )
 
-func PostProcess(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
+func postProcess(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
 	for _, p := range msgLevelProcessors {
 		p(msg, config)
 	}

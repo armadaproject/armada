@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/submit/defaults"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -105,8 +104,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		}
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
-		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, s.idGenerator, userId)
-		defaults.ApplyDefaults(submitMsg, s.submissionConfig)
+		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, s.idGenerator, userId, s.submissionConfig)
 		eventTime := s.clock.Now().UTC()
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
 			Created: &eventTime,

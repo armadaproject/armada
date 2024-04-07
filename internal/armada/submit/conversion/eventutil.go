@@ -1,6 +1,7 @@
 package conversion
 
 import (
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
@@ -8,12 +9,12 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, idGen func() *armadaevents.Uuid, owner string) *armadaevents.SubmitJob {
+func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, idGen func() *armadaevents.Uuid, owner string, config configuration.SubmissionConfig) *armadaevents.SubmitJob {
 	jobId := idGen()
 	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
 	priority := eventutil.LogSubmitPriorityFromApiPriority(jobReq.GetPriority())
 	mainObject, objects := submitObjectsFromApiJobReq(req, jobReq, jobIdStr, owner)
-	return &armadaevents.SubmitJob{
+	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
@@ -27,6 +28,8 @@ func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitReq
 		Scheduler:       jobReq.Scheduler,
 		QueueTtlSeconds: jobReq.QueueTtlSeconds,
 	}
+	postProcess(msg, config)
+	return msg
 }
 
 // submitObjectsFromApiJob extracts all objects from an API job request for inclusion in a log job.
