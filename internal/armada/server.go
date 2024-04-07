@@ -189,7 +189,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer consumer.Close()
 
-	jobExpirer := &server.PulsarJobExpirer{
+	jobExpirer := &PulsarJobExpirer{
 		Consumer:      consumer,
 		JobRepository: jobRepository,
 	}
