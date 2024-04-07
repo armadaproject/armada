@@ -1,17 +1,17 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/internal/armada/configuration"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/utils/pointer"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -832,8 +832,8 @@ func TestValidateResources(t *testing.T) {
 }
 
 func TestValidateerminationGracePeriod(t *testing.T) {
-	var defaultMinPeriod = 30 * time.Second
-	var defaultMaxPeriod = 300 * time.Second
+	defaultMinPeriod := 30 * time.Second
+	defaultMaxPeriod := 300 * time.Second
 
 	tests := map[string]struct {
 		req            *api.JobSubmitRequestItem

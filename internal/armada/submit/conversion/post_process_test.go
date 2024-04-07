@@ -2,17 +2,17 @@ package conversion
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestTemplateProcessor(t *testing.T) {

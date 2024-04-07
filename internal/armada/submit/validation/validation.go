@@ -2,14 +2,15 @@ package validation
 
 import (
 	"fmt"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // requestValidator is a function that validates the entire JobSubmitRequest

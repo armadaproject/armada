@@ -1,7 +1,6 @@
 package conversion
 
 import (
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"math"
 	"strings"
 
@@ -9,11 +8,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-type msgLevelProcessor func(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig)
-type podLevelProcessor func(spec *v1.PodSpec, config configuration.SubmissionConfig)
+type (
+	msgLevelProcessor func(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig)
+	podLevelProcessor func(spec *v1.PodSpec, config configuration.SubmissionConfig)
+)
 
 var (
 	msgLevelProcessors = []msgLevelProcessor{

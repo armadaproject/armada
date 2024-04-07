@@ -51,10 +51,10 @@ func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitReq
 func convertIngressesAndServices(
 	jobReq *api.JobSubmitRequestItem,
 	ingressInfo configuration.IngressConfiguration,
-	jobId, jobsetId, queue, owner string) []*armadaevents.KubernetesObject {
-
+	jobId, jobsetId, queue, owner string,
+) []*armadaevents.KubernetesObject {
 	objects := make([]*armadaevents.KubernetesObject, 0, 2*len(jobReq.Ingress)+len(jobReq.Services))
-	var serviceIdx = 0
+	serviceIdx := 0
 
 	// Extract Ports from containers
 	availableServicePorts := make([]v1.ServicePort, 0)
@@ -88,8 +88,8 @@ func convertIngressesAndServices(
 	// Create standalone services
 	for _, serviceConfig := range jobReq.Services {
 		ports := filterServicePorts(availableServicePorts, serviceConfig.Ports)
-		var serviceType = v1.ServiceTypeClusterIP
-		var useClusterIp = false
+		serviceType := v1.ServiceTypeClusterIP
+		useClusterIp := false
 		if serviceConfig.Type == api.ServiceType_NodePort {
 			serviceType = v1.ServiceTypeNodePort
 			useClusterIp = true
@@ -119,7 +119,6 @@ func createService(
 	serviceType v1.ServiceType,
 	useClusterIP bool,
 ) *armadaevents.KubernetesObject {
-
 	var clusterIP string
 	if useClusterIP {
 		clusterIP = ""
@@ -151,7 +150,6 @@ func createIngressFromService(
 	ingressInfo configuration.IngressConfiguration,
 	serviceName, namespace, jobId string,
 ) *armadaevents.KubernetesObject {
-
 	rules := make([]networking.IngressRule, 0, len(service.Ports))
 	tlsHosts := make([]string, 0, len(service.Ports))
 
