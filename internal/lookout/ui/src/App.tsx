@@ -1,4 +1,4 @@
-import React, { useEffect, useState, createContext, useContext } from "react"
+import React, { useEffect, useState } from "react"
 
 import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
 import { createGenerateClassName } from "@material-ui/core/styles"
@@ -15,6 +15,7 @@ import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
+import { UserManagerContext, useUserManager } from "./oidc"
 import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
@@ -83,7 +84,7 @@ type AppProps = {
 
 interface AuthWrapperProps {
   children: React.ReactNode
-  userManager: UserManager | null
+  userManager: UserManager | undefined
   isAuthenticated: boolean
 }
 
@@ -91,10 +92,7 @@ interface OidcCallbackProps {
   setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const UserManagerContext = createContext<UserManager | null>(null)
-
 export const UserManagerProvider = UserManagerContext.Provider
-export const useUserManager = () => useContext(UserManagerContext)
 
 function OidcCallback({ setIsAuthenticated }: OidcCallbackProps): JSX.Element {
   const navigate = useNavigate()
@@ -159,7 +157,7 @@ export function createUserManager(config: OidcConfig): UserManager {
 const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
 
 export function App(props: AppProps): JSX.Element {
-  const [userManager, setUserManager] = useState<UserManager | null>(null)
+  const [userManager, setUserManager] = useState<UserManager | undefined>(undefined)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
