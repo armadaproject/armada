@@ -124,7 +124,7 @@ function AuthWrapper({ children, userManager, isAuthenticated }: AuthWrapperProp
     const handleAuthentication = async () => {
       try {
         const user = await userManager.getUser()
-        if (!user) {
+        if (!user || user.expired) {
           await userManager.signinRedirect()
         }
       } catch (error) {
