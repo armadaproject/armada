@@ -114,7 +114,7 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 		return nil, errors.WithStack(err)
 	}
 	if err := UnmarshalTestCase(yamlBytes, testSpec); err != nil {
-		return nil, err
+		return nil, errors.WithMessagef(err, "Could not parse file %s", filePath)
 	}
 
 	// Randomise job set for each test to ensure we're only getting events for this run.
@@ -352,12 +352,14 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 	var result *multierror.Error
 	successExpectedEvents := false
 	successEverythingElse := false
-	yamlSpecSeparator := []byte("---")
+	yamlSpecSeparator := []byte("\n---\n")
 	docs := bytes.Split(yamlBytes, yamlSpecSeparator)
+
 	for _, docYamlBytes := range docs {
 
 		// yaml.Unmarshal can unmarshal everything,
 		// but leaves oneof fields empty (these are silently discarded).
+
 		if err := apimachineryYaml.NewYAMLOrJSONDecoder(bytes.NewReader(yamlBytes), 128).Decode(testSpec); err != nil {
 			result = multierror.Append(result, err)
 		} else {

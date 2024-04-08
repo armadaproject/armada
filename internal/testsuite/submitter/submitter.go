@@ -2,6 +2,8 @@ package submitter
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -33,9 +35,10 @@ type Submitter struct {
 	Timeout time.Duration
 	jobIds  []string
 	mu      sync.Mutex
+	out     io.Writer
 }
 
-func NewSubmitterFromTestSpec(conn *client.ApiConnectionDetails, testSpec *api.TestSpec) *Submitter {
+func NewSubmitterFromTestSpec(conn *client.ApiConnectionDetails, testSpec *api.TestSpec, out io.Writer) *Submitter {
 	return &Submitter{
 		ApiConnectionDetails: conn,
 		Jobs:                 testSpec.Jobs,
@@ -45,35 +48,36 @@ func NewSubmitterFromTestSpec(conn *client.ApiConnectionDetails, testSpec *api.T
 		BatchSize:            testSpec.BatchSize,
 		Interval:             testSpec.Interval,
 		RandomClientId:       testSpec.RandomClientId,
+		out:                  out,
 	}
 }
 
-func (config *Submitter) Validate() error {
-	if len(config.Jobs) == 0 {
+func (srv *Submitter) Validate() error {
+	if len(srv.Jobs) == 0 {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "Jobs",
-			Value:   config.Jobs,
+			Value:   srv.Jobs,
 			Message: "no jobs provided",
 		})
 	}
-	if config.Queue == "" {
+	if srv.Queue == "" {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
-			Value:   config.Queue,
+			Value:   srv.Queue,
 			Message: "not provided",
 		})
 	}
-	if config.JobSetName == "" {
+	if srv.JobSetName == "" {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "JobSetName",
-			Value:   config.JobSetName,
+			Value:   srv.JobSetName,
 			Message: "not provided",
 		})
 	}
-	if config.BatchSize <= 0 {
+	if srv.BatchSize <= 0 {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "BatchSize",
-			Value:   config.BatchSize,
+			Value:   srv.BatchSize,
 			Message: "batch size must be positive",
 		})
 	}
@@ -118,7 +122,7 @@ func (srv *Submitter) Run(ctx context.Context) error {
 			case <-tickerCh:
 				// Stagger submissions by a couple of millis to avoid Kerberos replay issues.
 				submissionSerializer.Lock()
-				res, err := c.SubmitJobs(ctx, req)
+				res, err := srv.submit(c, ctx, req)
 				time.Sleep(5 * time.Millisecond)
 				submissionSerializer.Unlock()
 
@@ -135,6 +139,22 @@ func (srv *Submitter) Run(ctx context.Context) error {
 		}
 		return nil
 	})
+}
+
+func (srv *Submitter) submit(c api.SubmitClient, ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	start := time.Now()
+	res, err := c.SubmitJobs(ctx, req)
+	srv.logSubmitStatus(req, err, time.Now().Sub(start))
+	return res, err
+}
+
+func (srv *Submitter) logSubmitStatus(req *api.JobSubmitRequest, err error, elapsed time.Duration) {
+	summary := fmt.Sprintf("Submit %d job(s) to url %s jobSet %s in %v", len(req.GetJobRequestItems()), srv.ApiConnectionDetails.ArmadaUrl, req.JobSetId, elapsed)
+	if err != nil {
+		_, _ = fmt.Fprintf(srv.out, "%s: FAIL (%v)\n", summary, err)
+	} else {
+		_, _ = fmt.Fprintf(srv.out, "%s: SUCCESS\n", summary)
+	}
 }
 
 func (srv *Submitter) JobIds() []string {
