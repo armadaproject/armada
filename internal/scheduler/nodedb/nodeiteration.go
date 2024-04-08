@@ -410,7 +410,7 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 		}
 		it.previousKey = nodeKey
 		it.previousNode = node
-		if node.NodeTypeId != it.nodeTypeId {
+		if node.GetNodeTypeId() != it.nodeTypeId {
 			// There are no more nodes of this nodeType.
 			return nil, nil
 		}

@@ -1119,7 +1119,7 @@ func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
 	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
 	for i, p := range nodeDb.nodeDbPriorities {
-		keys[i] = nodeDb.nodeDbKey(keys[i], node.NodeTypeId, node.AllocatableByPriority[p], node.Index)
+		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableByPriority[p], node.GetIndex())
 	}
 	node.Keys = keys
 
