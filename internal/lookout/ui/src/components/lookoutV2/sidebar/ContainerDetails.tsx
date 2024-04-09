@@ -44,7 +44,6 @@ const getContainerData = (container: any): ContainerData => {
   }
   if (container.image) {
     details.image = container.image as string
-    console.log(details.image)
   }
   return details
 }
