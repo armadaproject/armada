@@ -320,42 +320,119 @@ func TestDefaultActiveDeadlineSeconds(t *testing.T) {
 	}
 }
 
-func TestDefaultPriorityClass(t *testing.T) {
+func TestDefaultTolerations(t *testing.T) {
 	tests := map[string]struct {
 		config   configuration.SubmissionConfig
 		podSpec  *v1.PodSpec
 		expected *v1.PodSpec
 	}{
-		"Default PriorityClassName When Not Specified": {
+		"DefaultJobTolerations": {
 			config: configuration.SubmissionConfig{
-				DefaultPriorityClassName: "pc",
-			},
-			podSpec: &v1.PodSpec{},
-			expected: &v1.PodSpec{
-				PriorityClassName: "pc",
-			},
-		},
-		"Don't Default PriorityClassName When Already Present": {
-			config: configuration.SubmissionConfig{
-				DefaultPriorityClassName: "pc",
+				DefaultJobTolerations: []v1.Toleration{{Key: "foo"}, {Key: "bar"}},
 			},
 			podSpec: &v1.PodSpec{
-				PriorityClassName: "pc2",
+				Tolerations: []v1.Toleration{{Key: "baz"}},
 			},
 			expected: &v1.PodSpec{
-				PriorityClassName: "pc2",
+				Tolerations: []v1.Toleration{{Key: "baz"}, {Key: "foo"}, {Key: "bar"}},
+			},
+		},
+		"DefaultJobTolerationsByPriorityClass": {
+			config: configuration.SubmissionConfig{
+				DefaultJobTolerationsByPriorityClass: map[string][]v1.Toleration{
+					"pc-1": {{Key: "foo"}, {Key: "bar"}},
+					"pc-2": {{Key: "oof"}, {Key: "rab"}},
+				},
+			},
+			podSpec: &v1.PodSpec{
+				PriorityClassName: "pc-1",
+				Tolerations:       []v1.Toleration{{Key: "baz"}},
+			},
+			expected: &v1.PodSpec{
+				PriorityClassName: "pc-1",
+				Tolerations:       []v1.Toleration{{Key: "baz"}, {Key: "foo"}, {Key: "bar"}},
+			},
+		},
+		"DefaultJobTolerationsByResourceRequest": {
+			config: configuration.SubmissionConfig{
+				DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
+					"gpu": {{Key: "foo"}, {Key: "bar"}},
+				},
+			},
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("1Gi"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}},
+			},
+			expected: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("1Gi"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}, {Key: "foo"}, {Key: "bar"}},
+			},
+		},
+		"DefaultJobTolerationsByResourceRequest explicit zero resource": {
+			config: configuration.SubmissionConfig{
+				DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
+					"gpu": {{Key: "foo"}, {Key: "bar"}},
+				},
+			},
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("0"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}},
+			},
+			expected: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("0"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}},
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			defaultPriorityClass(tc.podSpec, tc.config)
+			defaultTolerations(tc.podSpec, tc.config)
 			assert.Equal(t, tc.expected, tc.podSpec)
 		})
 	}
 }
 
-func TestDefaultTolerations(t *testing.T) {
+func TestDefaultPriorityClass(t *testing.T) {
 	tests := map[string]struct {
 		config   configuration.SubmissionConfig
 		podSpec  *v1.PodSpec
