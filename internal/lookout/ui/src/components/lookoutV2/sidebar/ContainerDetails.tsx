@@ -115,7 +115,7 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
             />
           </div>
           <div>
-            <Typography>Container Details</Typography>
+            <Typography>Details</Typography>
             <KeyValuePairTable
               data={[
                 {
