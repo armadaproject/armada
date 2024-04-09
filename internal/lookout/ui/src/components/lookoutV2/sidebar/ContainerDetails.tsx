@@ -12,6 +12,7 @@ import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecServic
 export interface ContainerData {
   name: string
   command: string
+  image: string
   args: string
   resources: Record<string, string>
 }
@@ -26,6 +27,7 @@ const getContainerData = (container: any): ContainerData => {
     name: "",
     command: "",
     args: "",
+    image: "",
     resources: {},
   }
   if (container.name) {
@@ -39,6 +41,10 @@ const getContainerData = (container: any): ContainerData => {
   }
   if (container.resources && (container.resources as Record<string, unknown>).limits) {
     details.resources = (container.resources as Record<string, unknown>).limits as Record<string, string>
+  }
+  if (container.image) {
+    details.image = container.image as string
+    console.log(details.image)
   }
   return details
 }
@@ -106,6 +112,17 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
                 key: key,
                 value: value,
               }))}
+            />
+          </div>
+          <div>
+            <Typography>Container Details</Typography>
+            <KeyValuePairTable
+              data={[
+                {
+                  key: "image",
+                  value: container.image,
+                },
+              ]}
             />
           </div>
         </div>
