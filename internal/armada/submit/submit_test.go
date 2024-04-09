@@ -243,6 +243,48 @@ func TestSubmit_FailedValidation(t *testing.T) {
 	}
 }
 
+func TestSubmit_SubmitCheckFailed(t *testing.T) {
+	tests := map[string]struct {
+		req *api.JobSubmitRequest
+	}{
+		"Submit check fails": {
+			req: submitRequestWithNItems(1),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+
+			ctrl := gomock.NewController(t)
+			publisher := mocks.NewMockPublisher(ctrl)
+			queueRepository := mocks.NewMockQueueRepository(ctrl)
+			jobRepository := mocks.NewMockJobRepository(ctrl)
+			deduplicator := mocks.NewMockDeduplicator(ctrl)
+			submitChecker := mocks.NewMockSubmitScheduleChecker(ctrl)
+			authorizer := mocks.NewMockActionAuthorizer(ctrl)
+
+			server := NewServer(
+				publisher,
+				queueRepository,
+				jobRepository,
+				defaultSubmissionConfig(),
+				deduplicator,
+				submitChecker,
+				authorizer)
+
+			queueRepository.EXPECT().GetQueue(ctx, tc.req.Queue).Return(defaultQueue, nil)
+			authorizer.EXPECT().AuthorizeQueueAction(ctx, defaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil).Times(1)
+			deduplicator.EXPECT().GetOriginalJobIds(ctx, defaultQueue.Name, tc.req.JobRequestItems).Return(nil, nil).Times(1)
+			submitChecker.EXPECT().CheckApiJobs(gomock.Any()).Return(false, "").Times(1)
+
+			resp, err := server.SubmitJobs(ctx, tc.req)
+			assert.Error(t, err)
+			assert.Nil(t, resp)
+			cancel()
+		})
+	}
+}
+
 func nEventSequenceEvents(n int) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, n)
 	for i := 0; i < n; i++ {
