@@ -68,7 +68,9 @@ func TestValidateAffinity(t *testing.T) {
 		expectSuccess bool
 	}{
 		"No affinity": {
-			req:           &api.JobSubmitRequestItem{},
+			req: &api.JobSubmitRequestItem{
+				PodSpec: &v1.PodSpec{},
+			},
 			expectSuccess: true,
 		},
 		"valid affinity": {

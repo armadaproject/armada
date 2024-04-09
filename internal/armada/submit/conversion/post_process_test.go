@@ -355,6 +355,41 @@ func TestDefaultPriorityClass(t *testing.T) {
 	}
 }
 
+func TestDefaultTolerations(t *testing.T) {
+	tests := map[string]struct {
+		config   configuration.SubmissionConfig
+		podSpec  *v1.PodSpec
+		expected *v1.PodSpec
+	}{
+		"Default PriorityClassName When Not Specified": {
+			config: configuration.SubmissionConfig{
+				DefaultPriorityClassName: "pc",
+			},
+			podSpec: &v1.PodSpec{},
+			expected: &v1.PodSpec{
+				PriorityClassName: "pc",
+			},
+		},
+		"Don't Default PriorityClassName When Already Present": {
+			config: configuration.SubmissionConfig{
+				DefaultPriorityClassName: "pc",
+			},
+			podSpec: &v1.PodSpec{
+				PriorityClassName: "pc2",
+			},
+			expected: &v1.PodSpec{
+				PriorityClassName: "pc2",
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			defaultPriorityClass(tc.podSpec, tc.config)
+			assert.Equal(t, tc.expected, tc.podSpec)
+		})
+	}
+}
+
 func TestDefaultResource(t *testing.T) {
 	defaultConfig := configuration.SubmissionConfig{
 		DefaultJobLimits: map[string]resource.Quantity{
