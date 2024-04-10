@@ -24,6 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -36,7 +37,7 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
-	publisher        Publisher
+	publisher        pulsarutils.Publisher
 	queueRepository  repository.QueueRepository
 	jobRepository    repository.JobRepository
 	submissionConfig configuration.SubmissionConfig
@@ -49,7 +50,7 @@ type Server struct {
 }
 
 func NewServer(
-	publisher Publisher,
+	publisher pulsarutils.Publisher,
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,

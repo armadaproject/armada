@@ -17,10 +17,10 @@ type Deduplicator interface {
 }
 
 type PostgresDeduplicator struct {
-	kvStore *pgkeyvalue.PGKeyValueStore
+	kvStore pgkeyvalue.KeyValueStore
 }
 
-func NewDeduplicator(kvStore *pgkeyvalue.PGKeyValueStore) *PostgresDeduplicator {
+func NewDeduplicator(kvStore pgkeyvalue.KeyValueStore) *PostgresDeduplicator {
 	return &PostgresDeduplicator{kvStore: kvStore}
 }
 

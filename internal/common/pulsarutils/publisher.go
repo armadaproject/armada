@@ -1,11 +1,10 @@
-package submit
+package pulsarutils
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -43,7 +42,7 @@ func NewPulsarPublisher(
 // PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
 // single event sequences up to maxMessageBatchSize.
 func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, es *armadaevents.EventSequence) error {
-	return pulsarutils.CompactAndPublishSequences(
+	return CompactAndPublishSequences(
 		ctx,
 		[]*armadaevents.EventSequence{es},
 		p.producer,
