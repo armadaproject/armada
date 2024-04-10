@@ -1,8 +1,6 @@
 package submit
 
 import (
-	"github.com/armadaproject/armada/internal/armada/mocks"
-	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"testing"
 	"time"
 
@@ -13,7 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/armada/mocks"
 	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"

@@ -13,9 +13,7 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-var (
-	defaultIngressPathType = networking.PathType("Prefix")
-)
+var defaultIngressPathType = networking.PathType("Prefix")
 
 func TestSubmitJobFromApiRequest(t *testing.T) {
 	tests := map[string]struct {

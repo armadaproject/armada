@@ -2,7 +2,6 @@ package conversion
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/util"
 	"math"
 
 	v1 "k8s.io/api/core/v1"
@@ -11,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -21,8 +21,8 @@ func SubmitJobFromApiRequest(
 	jobReq *api.JobSubmitRequestItem,
 	config configuration.SubmissionConfig,
 	jobSetId, queue, owner string,
-	idGen func() *armadaevents.Uuid) *armadaevents.SubmitJob {
-
+	idGen func() *armadaevents.Uuid,
+) *armadaevents.SubmitJob {
 	jobId := idGen()
 	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
 	priority := priorityAsInt32(jobReq.GetPriority())
