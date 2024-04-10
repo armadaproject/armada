@@ -210,7 +210,7 @@ func createIngressFromService(
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
 			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId), serviceIdx),
-			Annotations: util.MergeMaps(map[string]string{}, ingressConfig.Annotations),
+			Annotations: util.MergeMaps(ingressInfo.Annotations, ingressConfig.Annotations),
 			Labels:      map[string]string{},
 		},
 		Object: &armadaevents.KubernetesObject_Ingress{

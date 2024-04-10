@@ -328,14 +328,36 @@ func TestCreateIngressFromService(t *testing.T) {
 				},
 			},
 		},
+		"ingressWithConfigAnnotations": {
+			ingressConfig: &api.IngressConfig{
+				Annotations: map[string]string{"testCustomAnnotationKey": "testCustomAnnotationVal"},
+			},
+			expectedIngress: &armadaevents.KubernetesObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Name:        "armada-00000000000000000000000001-0-ingress-1",
+					Annotations: map[string]string{"testCustomAnnotationKey": "testCustomAnnotationVal"},
+					Labels:      map[string]string{},
+				},
+				Object: &armadaevents.KubernetesObject_Ingress{
+					Ingress: &networking.IngressSpec{
+						TLS:   []networking.IngressTLS{},
+						Rules: []networking.IngressRule{defaultIngressRule},
+					},
+				},
+			},
+		},
 	}
 	for name, tc := range tests {
+		ingressConfig := testfixtures.DefaultSubmissionConfig().IngressConfig
+		if tc.submissionConfigAnnotations != nil {
+			ingressConfig.Annotations = tc.submissionConfigAnnotations
+		}
 		t.Run(name, func(t *testing.T) {
 			generatedIngress := createIngressFromService(
 				defaultServiceSpec,
 				1,
 				tc.ingressConfig,
-				testfixtures.DefaultSubmissionConfig().IngressConfig,
+				ingressConfig,
 				"testService",
 				testfixtures.DefaultNamespace,
 				"00000000000000000000000001")
