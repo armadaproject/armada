@@ -10,8 +10,24 @@ export function useUserManager(): UserManager | undefined {
 
 export async function getAccessToken(userManager: UserManager): Promise<string> {
   const user = await userManager.getUser()
-  if (user !== null && !user.expired) return user.access_token
-  return (await userManager.signinPopup()).access_token
+
+  if (user !== null && !user.expired) {
+    return user.access_token
+  }
+
+  try {
+    await userManager.signinRedirect()
+  } catch (err) {
+    console.error("Error during sign-in redirect:", err)
+    throw err
+  }
+
+  const redirectedUser = await userManager.getUser()
+  if (redirectedUser !== null) {
+    return redirectedUser.access_token
+  }
+
+  throw new Error("Failed to obtain access token after sign-in redirect")
 }
 
 export function getAuthorizationHeaders(accessToken: string): Headers {

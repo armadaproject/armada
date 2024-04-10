@@ -13,11 +13,12 @@ type Node struct {
 	// TODO(albin): Having both id and index is redundant.
 	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
 	id    string
-	Index uint64
+	index uint64
 
 	// Executor this node belongs to and node name, which must be unique per executor.
-	Executor string
-	Name     string
+	executor   string
+	name       string
+	nodeTypeId uint64
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
@@ -28,8 +29,6 @@ type Node struct {
 
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
-
-	NodeTypeId uint64
 
 	AllocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType
 	AllocatedByQueue      map[string]schedulerobjects.ResourceList
@@ -54,10 +53,10 @@ func CreateNode(
 ) *Node {
 	return &Node{
 		id:                    id,
-		NodeTypeId:            nodeTypeId,
-		Index:                 index,
-		Executor:              executor,
-		Name:                  name,
+		nodeTypeId:            nodeTypeId,
+		index:                 index,
+		executor:              executor,
+		name:                  name,
 		Taints:                taints,
 		Labels:                labels,
 		TotalResources:        totalResources,
@@ -73,15 +72,31 @@ func (node *Node) GetId() string {
 	return node.id
 }
 
+func (node *Node) GetName() string {
+	return node.name
+}
+
+func (node *Node) GetIndex() uint64 {
+	return node.index
+}
+
+func (node *Node) GetExecutor() string {
+	return node.executor
+}
+
+func (node *Node) GetNodeTypeId() uint64 {
+	return node.nodeTypeId
+}
+
 // UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
 // shallow copies of fields that are not mutated by methods of NodeDb.
 func (node *Node) UnsafeCopy() *Node {
 	return &Node{
-		id:    node.id,
-		Index: node.Index,
-
-		Executor: node.Executor,
-		Name:     node.Name,
+		id:         node.id,
+		index:      node.index,
+		executor:   node.executor,
+		name:       node.name,
+		nodeTypeId: node.nodeTypeId,
 
 		Taints: node.Taints,
 		Labels: node.Labels,
@@ -89,8 +104,6 @@ func (node *Node) UnsafeCopy() *Node {
 		TotalResources: node.TotalResources,
 
 		Keys: nil,
-
-		NodeTypeId: node.NodeTypeId,
 
 		AllocatableByPriority: armadamaps.DeepCopy(node.AllocatableByPriority),
 		AllocatedByQueue:      armadamaps.DeepCopy(node.AllocatedByQueue),
