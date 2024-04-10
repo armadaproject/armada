@@ -4,11 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/mocks"
@@ -18,6 +14,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/clock"
 )
 
 type mockObjects struct {
@@ -261,10 +261,12 @@ func withQueue(req *api.JobSubmitRequest, q string) *api.JobSubmitRequest {
 
 func withResources(req *api.JobSubmitRequest, r v1.ResourceRequirements) *api.JobSubmitRequest {
 	for _, item := range req.JobRequestItems {
+		containers := make([]v1.Container, len(item.PodSpec.Containers))
 		for i, container := range item.PodSpec.Containers {
 			container.Resources = r
-			item.PodSpec.Containers[i] = container
+			containers[i] = container
 		}
+		item.PodSpec.Containers = containers
 	}
 	return req
 }

@@ -38,7 +38,7 @@ var (
 			"memory": resource.MustParse("1Gi"),
 		},
 	}
-	DefaultContainer = []v1.Container{
+	DefaultContainers = []v1.Container{
 		{
 			Name:      "testContainer",
 			Ports:     []v1.ContainerPort{DefaultContainerPort},
@@ -113,7 +113,7 @@ func JobSubmitRequestItem(i int) *api.JobSubmitRequestItem {
 			TerminationGracePeriodSeconds: pointer.Int64(DefaultTerminationGracePeriodSeconds),
 			ActiveDeadlineSeconds:         pointer.Int64(DefaultActiveDeadlineSeconds),
 			PriorityClassName:             DefaultPriorityClass,
-			Containers:                    DefaultContainer,
+			Containers:                    DefaultContainers,
 		},
 	}
 }
@@ -133,7 +133,7 @@ func SubmitJob(i int) *armadaevents.SubmitJob {
 						ActiveDeadlineSeconds:         pointer.Int64(DefaultActiveDeadlineSeconds),
 						PriorityClassName:             DefaultPriorityClass,
 						Tolerations:                   DefaultTolerations,
-						Containers:                    DefaultContainer,
+						Containers:                    DefaultContainers,
 					},
 				},
 			},
