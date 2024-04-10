@@ -118,7 +118,7 @@ func TestDeduplicator(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			//Fetch
+			// Fetch
 			keys, err := deduplicator.GetOriginalJobIds(ctx, tc.queueToFetch, tc.jobsToFetch)
 			require.NoError(t, err)
 

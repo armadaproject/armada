@@ -145,7 +145,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer pulsarClient.Close()
 
-	publisher, err := submit.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-server-%s", serverId),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
