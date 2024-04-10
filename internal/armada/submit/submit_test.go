@@ -1,7 +1,8 @@
 package submit
 
 import (
-	"fmt"
+	"github.com/armadaproject/armada/internal/armada/mocks"
+	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"testing"
 	"time"
 
@@ -12,58 +13,32 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/mocks"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-var (
-	defaultNamespace = "testNamespace"
-	defaultQueue     = queue.Queue{Name: "testQueue"}
-	defaultPriority  = uint32(1000)
-	defaultPrincipal = authorization.NewStaticPrincipal("testUser", []string{"groupA"})
-	defaultResources = v1.ResourceRequirements{
-		Requests: v1.ResourceList{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("1Gi"),
-		},
-		Limits: v1.ResourceList{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("1Gi"),
-		},
-	}
-	defaultContainer   = []v1.Container{{Resources: defaultResources}}
-	defaultTolerations = []v1.Toleration{
-		{
-			Key:      "armadaproject.io/foo",
-			Operator: "Exists",
-		},
-	}
-	defaultPriorityClass                 = "testPriorityClass"
-	defaultTerminationGracePeriodSeconds = int64(30)
-	defaultActiveDeadlineSeconds         = int64(3600)
-	baseTime                             = time.Now().UTC()
-)
+type mockObjects struct {
+	publisher     *mocks.MockPublisher
+	queueRepo     *mocks.MockQueueRepository
+	jobRep        *mocks.MockJobRepository
+	deduplicator  *mocks.MockDeduplicator
+	submitChecker *mocks.MockSubmitScheduleChecker
+	authorizer    *mocks.MockActionAuthorizer
+}
 
-func TestNeeded(t *testing.T) {
-	// ***Success***
-	// Single job
-	// Two jobs
-	// Duplicate job
-	// Defaulted fields
-
-	// ***Failure***
-	// Single job fails validation
-	// two jobs, one passes, one fails validation
-	// unauthorized
-	// cannot be scheduled
-	// fail to publish
+func createMocks(t *testing.T) *mockObjects {
+	ctrl := gomock.NewController(t)
+	return &mockObjects{
+		publisher:     mocks.NewMockPublisher(ctrl),
+		queueRepo:     mocks.NewMockQueueRepository(ctrl),
+		jobRep:        mocks.NewMockJobRepository(ctrl),
+		deduplicator:  mocks.NewMockDeduplicator(ctrl),
+		submitChecker: mocks.NewMockSubmitScheduleChecker(ctrl),
+		authorizer:    mocks.NewMockActionAuthorizer(ctrl),
+	}
 }
 
 func TestSubmit_Success(t *testing.T) {
@@ -73,80 +48,83 @@ func TestSubmit_Success(t *testing.T) {
 		expectedEvents   []*armadaevents.EventSequence_Event
 	}{
 		"Submit request with one job": {
-			req:            submitRequestWithNItems(1),
-			expectedEvents: nEventSequenceEvents(1),
+			req:            testfixtures.SubmitRequestWithNItems(1),
+			expectedEvents: testfixtures.NEventSequenceEvents(1),
 		},
 		"Submit request with two jobs": {
-			req:            submitRequestWithNItems(2),
-			expectedEvents: nEventSequenceEvents(2),
+			req:            testfixtures.SubmitRequestWithNItems(2),
+			expectedEvents: testfixtures.NEventSequenceEvents(2),
 		},
 		"Submit request with two jobs, second is a duplicate": {
-			req:              submitRequestWithNItems(2),
+			req:              testfixtures.SubmitRequestWithNItems(2),
 			deduplicationIds: map[string]string{"2": "3"},
-			expectedEvents:   nEventSequenceEvents(1),
+			expectedEvents:   testfixtures.NEventSequenceEvents(1),
 		},
 		"Submit request without active deadline seconds": {
-			req:            withActiveDeadlineSeconds(submitRequestWithNItems(1), nil),
-			expectedEvents: nEventSequenceEvents(1),
+			req:            withActiveDeadlineSeconds(testfixtures.SubmitRequestWithNItems(1), nil),
+			expectedEvents: testfixtures.NEventSequenceEvents(1),
 		},
 		"Submit request without termination grace period": {
-			req:            withTerminationGracePeriod(submitRequestWithNItems(1), nil),
-			expectedEvents: nEventSequenceEvents(1),
+			req:            withTerminationGracePeriod(testfixtures.SubmitRequestWithNItems(1), nil),
+			expectedEvents: testfixtures.NEventSequenceEvents(1),
 		},
 		"Submit request without priority class": {
-			req:            withPriorityClass(submitRequestWithNItems(1), ""),
-			expectedEvents: nEventSequenceEvents(1),
+			req:            withPriorityClass(testfixtures.SubmitRequestWithNItems(1), ""),
+			expectedEvents: testfixtures.NEventSequenceEvents(1),
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			ctx = armadacontext.WithValue(ctx, "principal", defaultPrincipal)
+			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+
+			server, mockedObjects := createTestServer(t)
+
+			mockedObjects.queueRepo.
+				EXPECT().
+				GetQueue(ctx, tc.req.Queue).
+				Return(testfixtures.DefaultQueue, nil).
+				Times(1)
+
+			mockedObjects.authorizer.
+				EXPECT().
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
+				Return(nil).
+				Times(1)
+
+			mockedObjects.deduplicator.
+				EXPECT().
+				GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, tc.req.JobRequestItems).
+				Return(tc.deduplicationIds, nil).
+				Times(1)
+
+			mockedObjects.deduplicator.
+				EXPECT().
+				StoreOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, gomock.Any()).
+				Times(1)
+
+			mockedObjects.submitChecker.
+				EXPECT().
+				CheckApiJobs(gomock.Any()).
+				Return(true, "").
+				Times(1)
+
+			mockedObjects.jobRep.
+				EXPECT().
+				StorePulsarSchedulerJobDetails(ctx, gomock.Any()).
+				Return(nil).
+				Times(1)
 
 			expectedEventSequence := &armadaevents.EventSequence{
-				Queue:      defaultQueue.Name,
-				JobSetName: "testJobset",
-				UserId:     "testUser",
+				Queue:      testfixtures.DefaultQueue.Name,
+				JobSetName: testfixtures.DefaultJobset,
+				UserId:     testfixtures.DefaultOwner,
 				Groups:     []string{"everyone", "groupA"},
 				Events:     tc.expectedEvents,
 			}
 
-			ctrl := gomock.NewController(t)
-			publisher := mocks.NewMockPublisher(ctrl)
-			queueRepository := mocks.NewMockQueueRepository(ctrl)
-			jobRepository := mocks.NewMockJobRepository(ctrl)
-			deduplicator := mocks.NewMockDeduplicator(ctrl)
-			submitChecker := mocks.NewMockSubmitScheduleChecker(ctrl)
-			authorizer := mocks.NewMockActionAuthorizer(ctrl)
-
-			// Generates ulids starting at "00000000000000000000000001" and incrementing from there
-			counter := 0
-			testUlidGenerator := func() *armadaevents.Uuid {
-				counter++
-				return testUlid(counter)
-			}
-
-			server := NewServer(
-				publisher,
-				queueRepository,
-				jobRepository,
-				defaultSubmissionConfig(),
-				deduplicator,
-				submitChecker,
-				authorizer)
-
-			server.clock = clock.NewFakeClock(baseTime)
-			server.idGenerator = testUlidGenerator
-
-			queueRepository.EXPECT().GetQueue(ctx, tc.req.Queue).Return(defaultQueue, nil)
-			authorizer.EXPECT().AuthorizeQueueAction(ctx, defaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil).Times(1)
-			deduplicator.EXPECT().GetOriginalJobIds(ctx, defaultQueue.Name, tc.req.JobRequestItems).Return(tc.deduplicationIds, nil).Times(1)
-			deduplicator.EXPECT().StoreOriginalJobIds(ctx, defaultQueue.Name, gomock.Any())
-			submitChecker.EXPECT().CheckApiJobs(gomock.Any()).Return(true, "").Times(1)
-			jobRepository.EXPECT().StorePulsarSchedulerJobDetails(ctx, gomock.Any()).Return(nil).Times(1)
-
 			var capturedEventSequence *armadaevents.EventSequence
-			publisher.EXPECT().
+			mockedObjects.publisher.EXPECT().
 				PublishMessages(ctx, gomock.Any()).
 				Times(1).
 				Do(func(_ interface{}, es *armadaevents.EventSequence) {
@@ -156,9 +134,7 @@ func TestSubmit_Success(t *testing.T) {
 			resp, err := server.SubmitJobs(ctx, tc.req)
 			assert.NoError(t, err)
 			assert.Equal(t, len(tc.req.JobRequestItems), len(resp.JobResponseItems))
-			a := expectedEventSequence
-			b := capturedEventSequence
-			assert.Equal(t, a, b)
+			assert.Equal(t, expectedEventSequence, capturedEventSequence)
 			cancel()
 		})
 	}
@@ -169,10 +145,10 @@ func TestSubmit_FailedValidation(t *testing.T) {
 		req *api.JobSubmitRequest
 	}{
 		"No Podspec": {
-			req: withPodSpec(submitRequestWithNItems(1), nil),
+			req: withPodSpec(testfixtures.SubmitRequestWithNItems(1), nil),
 		},
 		"InvalidAffinity": {
-			req: withAffinity(submitRequestWithNItems(1), &v1.Affinity{
+			req: withAffinity(testfixtures.SubmitRequestWithNItems(1), &v1.Affinity{
 				NodeAffinity: &v1.NodeAffinity{
 					PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
 						{},
@@ -181,22 +157,22 @@ func TestSubmit_FailedValidation(t *testing.T) {
 			}),
 		},
 		"No Namespace": {
-			req: withNamespace(submitRequestWithNItems(1), ""),
+			req: withNamespace(testfixtures.SubmitRequestWithNItems(1), ""),
 		},
 		"No Queue": {
-			req: withQueue(submitRequestWithNItems(1), ""),
+			req: withQueue(testfixtures.SubmitRequestWithNItems(1), ""),
 		},
 		"Invalid Priority Class": {
-			req: withPriorityClass(submitRequestWithNItems(1), "invalidPc"),
+			req: withPriorityClass(testfixtures.SubmitRequestWithNItems(1), "invalidPc"),
 		},
 		"Below Minimum Termination Grace Period": {
-			req: withTerminationGracePeriod(submitRequestWithNItems(1), pointer.Int64(1)),
+			req: withTerminationGracePeriod(testfixtures.SubmitRequestWithNItems(1), pointer.Int64(1)),
 		},
 		"Above Maximum Termination Grace Period": {
-			req: withTerminationGracePeriod(submitRequestWithNItems(1), pointer.Int64(1000000)),
+			req: withTerminationGracePeriod(testfixtures.SubmitRequestWithNItems(1), pointer.Int64(1000000)),
 		},
 		"Requests not equal to Limits": {
-			req: withResources(submitRequestWithNItems(1), v1.ResourceRequirements{
+			req: withResources(testfixtures.SubmitRequestWithNItems(1), v1.ResourceRequirements{
 				Limits:   v1.ResourceList{"cpu": resource.MustParse("1")},
 				Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
 			}),
@@ -205,36 +181,20 @@ func TestSubmit_FailedValidation(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			server, mockedObjects := createTestServer(t)
 
-			ctrl := gomock.NewController(t)
-			publisher := mocks.NewMockPublisher(ctrl)
-			queueRepository := mocks.NewMockQueueRepository(ctrl)
-			jobRepository := mocks.NewMockJobRepository(ctrl)
-			deduplicator := mocks.NewMockDeduplicator(ctrl)
-			submitChecker := mocks.NewMockSubmitScheduleChecker(ctrl)
-			authorizer := mocks.NewMockActionAuthorizer(ctrl)
+			mockedObjects.queueRepo.
+				EXPECT().
+				GetQueue(ctx, tc.req.Queue).
+				Return(testfixtures.DefaultQueue, nil).
+				Times(1)
 
-			// Generates ulids starting at "00000000000000000000000001" and incrementing from there
-			counter := 0
-			testUlidGenerator := func() *armadaevents.Uuid {
-				counter++
-				return testUlid(counter)
-			}
+			mockedObjects.authorizer.
+				EXPECT().
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
+				Return(nil).
+				Times(1)
 
-			server := NewServer(
-				publisher,
-				queueRepository,
-				jobRepository,
-				defaultSubmissionConfig(),
-				deduplicator,
-				submitChecker,
-				authorizer)
-
-			server.clock = clock.NewFakeClock(baseTime)
-			server.idGenerator = testUlidGenerator
-
-			queueRepository.EXPECT().GetQueue(ctx, tc.req.Queue).Return(defaultQueue, nil)
-			authorizer.EXPECT().AuthorizeQueueAction(ctx, defaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil).Times(1)
 			resp, err := server.SubmitJobs(ctx, tc.req)
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -248,94 +208,42 @@ func TestSubmit_SubmitCheckFailed(t *testing.T) {
 		req *api.JobSubmitRequest
 	}{
 		"Submit check fails": {
-			req: submitRequestWithNItems(1),
+			req: testfixtures.SubmitRequestWithNItems(1),
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			server, mockedObjects := createTestServer(t)
 
-			ctrl := gomock.NewController(t)
-			publisher := mocks.NewMockPublisher(ctrl)
-			queueRepository := mocks.NewMockQueueRepository(ctrl)
-			jobRepository := mocks.NewMockJobRepository(ctrl)
-			deduplicator := mocks.NewMockDeduplicator(ctrl)
-			submitChecker := mocks.NewMockSubmitScheduleChecker(ctrl)
-			authorizer := mocks.NewMockActionAuthorizer(ctrl)
+			mockedObjects.queueRepo.
+				EXPECT().GetQueue(ctx, tc.req.Queue).
+				Return(testfixtures.DefaultQueue, nil).
+				Times(1)
 
-			server := NewServer(
-				publisher,
-				queueRepository,
-				jobRepository,
-				defaultSubmissionConfig(),
-				deduplicator,
-				submitChecker,
-				authorizer)
+			mockedObjects.authorizer.
+				EXPECT().
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
+				Return(nil).
+				Times(1)
 
-			queueRepository.EXPECT().GetQueue(ctx, tc.req.Queue).Return(defaultQueue, nil)
-			authorizer.EXPECT().AuthorizeQueueAction(ctx, defaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil).Times(1)
-			deduplicator.EXPECT().GetOriginalJobIds(ctx, defaultQueue.Name, tc.req.JobRequestItems).Return(nil, nil).Times(1)
-			submitChecker.EXPECT().CheckApiJobs(gomock.Any()).Return(false, "").Times(1)
+			mockedObjects.deduplicator.
+				EXPECT().
+				GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, tc.req.JobRequestItems).
+				Return(nil, nil).
+				Times(1)
+
+			mockedObjects.submitChecker.
+				EXPECT().
+				CheckApiJobs(gomock.Any()).
+				Return(false, "").
+				Times(1)
 
 			resp, err := server.SubmitJobs(ctx, tc.req)
 			assert.Error(t, err)
 			assert.Nil(t, resp)
 			cancel()
 		})
-	}
-}
-
-func nEventSequenceEvents(n int) []*armadaevents.EventSequence_Event {
-	events := make([]*armadaevents.EventSequence_Event, n)
-	for i := 0; i < n; i++ {
-		events[i] = &armadaevents.EventSequence_Event{
-			Created: &baseTime,
-			Event: &armadaevents.EventSequence_Event_SubmitJob{
-				SubmitJob: &armadaevents.SubmitJob{
-					JobId:           testUlid(i + 1),
-					Priority:        defaultPriority,
-					ObjectMeta:      &armadaevents.ObjectMeta{Namespace: defaultNamespace},
-					Objects:         []*armadaevents.KubernetesObject{},
-					DeduplicationId: fmt.Sprintf("%d", i+1),
-					MainObject: &armadaevents.KubernetesMainObject{
-						Object: &armadaevents.KubernetesMainObject_PodSpec{
-							PodSpec: &armadaevents.PodSpecWithAvoidList{
-								PodSpec: &v1.PodSpec{
-									TerminationGracePeriodSeconds: pointer.Int64(defaultTerminationGracePeriodSeconds),
-									ActiveDeadlineSeconds:         pointer.Int64(defaultActiveDeadlineSeconds),
-									PriorityClassName:             defaultPriorityClass,
-									Tolerations:                   defaultTolerations,
-									Containers:                    defaultContainer,
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-	}
-	return events
-}
-
-func submitRequestWithNItems(n int) *api.JobSubmitRequest {
-	items := make([]*api.JobSubmitRequestItem, n)
-	for i := 0; i < n; i++ {
-		items[i] = &api.JobSubmitRequestItem{
-			Priority:  float64(defaultPriority),
-			Namespace: defaultNamespace,
-			ClientId:  fmt.Sprintf("%d", i+1),
-			PodSpec: &v1.PodSpec{
-				TerminationGracePeriodSeconds: pointer.Int64(defaultTerminationGracePeriodSeconds),
-				ActiveDeadlineSeconds:         pointer.Int64(defaultActiveDeadlineSeconds),
-				PriorityClassName:             defaultPriorityClass,
-				Containers:                    defaultContainer,
-			},
-		}
-	}
-	return &api.JobSubmitRequest{
-		Queue:           "testQueue",
-		JobSetId:        "testJobset",
-		JobRequestItems: items,
 	}
 }
 
@@ -396,21 +304,17 @@ func withTerminationGracePeriod(req *api.JobSubmitRequest, v *int64) *api.JobSub
 	return req
 }
 
-func defaultSubmissionConfig() configuration.SubmissionConfig {
-	return configuration.SubmissionConfig{
-		AllowedPriorityClassNames: map[string]bool{defaultPriorityClass: true},
-		DefaultPriorityClassName:  defaultPriorityClass,
-		DefaultJobLimits:          armadaresource.ComputeResources{"cpu": resource.MustParse("1")},
-		DefaultJobTolerations:     defaultTolerations,
-		MaxPodSpecSizeBytes:       1000,
-		MinJobResources:           map[v1.ResourceName]resource.Quantity{},
-		MinTerminationGracePeriod: 30 * time.Second,
-		MaxTerminationGracePeriod: 300 * time.Second,
-		DefaultActiveDeadline:     1 * time.Hour,
-	}
-}
-
-func testUlid(i int) *armadaevents.Uuid {
-	ulid := fmt.Sprintf("000000000000000000000000%02X", i)
-	return armadaevents.MustProtoUuidFromUlidString(ulid)
+func createTestServer(t *testing.T) (*Server, *mockObjects) {
+	m := createMocks(t)
+	server := NewServer(
+		m.publisher,
+		m.queueRepo,
+		m.jobRep,
+		testfixtures.DefaultSubmissionConfig(),
+		m.deduplicator,
+		m.submitChecker,
+		m.authorizer)
+	server.clock = clock.NewFakeClock(testfixtures.DefaultTime)
+	server.idGenerator = testfixtures.TestUlidGenerator()
+	return server, m
 }

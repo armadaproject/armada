@@ -2,6 +2,7 @@ package conversion
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/util"
 	"math"
 
 	v1 "k8s.io/api/core/v1"
@@ -15,20 +16,17 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitRequestItem, idGen func() *armadaevents.Uuid, owner string, config configuration.SubmissionConfig) *armadaevents.SubmitJob {
+// SubmitJobFromApiRequest converts an *api.JobSubmitRequest into an *armadaevents.SubmitJob
+func SubmitJobFromApiRequest(
+	jobReq *api.JobSubmitRequestItem,
+	config configuration.SubmissionConfig,
+	jobSetId, queue, owner string,
+	idGen func() *armadaevents.Uuid) *armadaevents.SubmitJob {
+
 	jobId := idGen()
 	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
 	priority := priorityAsInt32(jobReq.GetPriority())
-
-	mainObject := &armadaevents.KubernetesMainObject{
-		Object: &armadaevents.KubernetesMainObject_PodSpec{
-			PodSpec: &armadaevents.PodSpecWithAvoidList{
-				PodSpec: jobReq.GetMainPodSpec(),
-			},
-		},
-	}
-
-	ingressesAndServices := convertIngressesAndServices(jobReq, config.IngressConfig, jobIdStr, req.JobSetId, req.Queue, owner)
+	ingressesAndServices := convertIngressesAndServices(jobReq, config.IngressConfig, jobIdStr, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
@@ -39,7 +37,13 @@ func SubmitJobFromApiRequest(req *api.JobSubmitRequest, jobReq *api.JobSubmitReq
 			Annotations: jobReq.GetAnnotations(),
 			Labels:      jobReq.GetLabels(),
 		},
-		MainObject:      mainObject,
+		MainObject: &armadaevents.KubernetesMainObject{
+			Object: &armadaevents.KubernetesMainObject_PodSpec{
+				PodSpec: &armadaevents.PodSpecWithAvoidList{
+					PodSpec: jobReq.GetMainPodSpec(),
+				},
+			},
+		},
 		Objects:         ingressesAndServices,
 		Scheduler:       jobReq.Scheduler,
 		QueueTtlSeconds: jobReq.QueueTtlSeconds,
@@ -101,10 +105,14 @@ func convertIngressesAndServices(
 
 	// Add standard annotations and labels to all objects
 	for _, object := range objects {
-		annotations := object.GetObjectMeta().GetAnnotations()
+		md := object.GetObjectMeta()
+		md.Namespace = jobReq.Namespace
+
+		annotations := md.GetAnnotations()
 		annotations[domain.JobSetId] = jobsetId
 		annotations[domain.Owner] = owner
-		labels := object.GetObjectMeta().GetLabels()
+
+		labels := md.GetLabels()
 		labels[domain.JobId] = jobId
 		labels[domain.Queue] = queue
 	}
@@ -128,7 +136,9 @@ func createService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name: fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx),
+			Name:        fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx),
+			Annotations: map[string]string{},
+			Labels:      map[string]string{},
 		},
 		Object: &armadaevents.KubernetesObject_Service{
 			Service: &v1.ServiceSpec{
@@ -199,7 +209,9 @@ func createIngressFromService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name: fmt.Sprintf("%s-ingress-%d", jobId, serviceIdx),
+			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId), serviceIdx),
+			Annotations: util.MergeMaps(map[string]string{}, ingressConfig.Annotations),
+			Labels:      map[string]string{},
 		},
 		Object: &armadaevents.KubernetesObject_Ingress{
 			Ingress: &networking.IngressSpec{

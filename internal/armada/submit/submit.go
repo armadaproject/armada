@@ -109,7 +109,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		}
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
-		submitMsg := conversion.SubmitJobFromApiRequest(req, jobRequest, s.idGenerator, userId, s.submissionConfig)
+		submitMsg := conversion.SubmitJobFromApiRequest(jobRequest, s.submissionConfig, req.JobSetId, req.Queue, userId, s.idGenerator)
 		eventTime := s.clock.Now().UTC()
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
 			Created: &eventTime,
@@ -128,7 +128,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	}
 
 	// If we have no submit msgs then we can return early
-	if len(submitMsgs) < 1 {
+	if len(submitMsgs) == 0 {
 		return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 	}
 
