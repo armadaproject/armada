@@ -14,7 +14,7 @@ import {
 } from "@mui/material"
 import { Button, Tooltip } from "@mui/material"
 import { Job, JobRun } from "models/lookoutV2Models"
-import {formatJobRunState, formatTimeSince, formatUtcDate} from "utils/jobsTableFormatters"
+import { formatJobRunState, formatTimeSince, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
@@ -138,7 +138,8 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
                   { key: "Finished (UTC)", value: formatUtcDate(run.finished) },
                   {
                     key: "Runtime",
-                    value: run.started && run.finished ? formatTimeSince(run.started, new Date(run.finished).getTime()) : "",
+                    value:
+                      run.started && run.finished ? formatTimeSince(run.started, new Date(run.finished).getTime()) : "",
                   },
                   { key: "Cluster", value: run.cluster },
                   { key: "Node", value: run.node ?? "" },
