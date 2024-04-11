@@ -64,6 +64,10 @@ func convertIngressesAndServices(
 	availableServicePorts := make([]v1.ServicePort, 0)
 	for _, container := range jobReq.GetMainPodSpec().Containers {
 		for _, port := range container.Ports {
+			// Don't expose host via service, this will already be handled by kubernetes
+			if port.HostPort > 0 {
+				continue
+			}
 			availableServicePorts = append(availableServicePorts, v1.ServicePort{
 				Name:     fmt.Sprintf("%s-%d", container.Name, port.ContainerPort),
 				Port:     port.ContainerPort,
@@ -75,32 +79,36 @@ func convertIngressesAndServices(
 	// Create ingress and associated services
 	for _, ingressConfig := range jobReq.Ingress {
 		ports := filterServicePorts(availableServicePorts, ingressConfig.Ports)
-		serviceObject := createService(jobId, serviceIdx, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
-		serviceIdx++
-		ingressObject := createIngressFromService(
-			serviceObject.GetService(),
-			serviceIdx,
-			ingressConfig,
-			ingressInfo,
-			serviceObject.ObjectMeta.Name,
-			jobReq.Namespace,
-			jobId)
-		objects = append(objects, serviceObject)
-		objects = append(objects, ingressObject)
+		if len(ports) > 0 {
+			serviceObject := createService(jobId, serviceIdx, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
+			serviceIdx++
+			ingressObject := createIngressFromService(
+				serviceObject.GetService(),
+				serviceIdx,
+				ingressConfig,
+				ingressInfo,
+				serviceObject.ObjectMeta.Name,
+				jobReq.Namespace,
+				jobId)
+			objects = append(objects, serviceObject)
+			objects = append(objects, ingressObject)
+		}
 	}
 
 	// Create standalone services
 	for _, serviceConfig := range jobReq.Services {
 		ports := filterServicePorts(availableServicePorts, serviceConfig.Ports)
-		serviceType := v1.ServiceTypeClusterIP
-		useClusterIp := false
-		if serviceConfig.Type == api.ServiceType_NodePort {
-			serviceType = v1.ServiceTypeNodePort
-			useClusterIp = true
+		if len(ports) >0 {
+			serviceType := v1.ServiceTypeClusterIP
+			useClusterIp := false
+			if serviceConfig.Type == api.ServiceType_NodePort {
+				serviceType = v1.ServiceTypeNodePort
+				useClusterIp = true
+			}
+			serviceObject := createService(jobId, serviceIdx, ports, serviceType, useClusterIp)
+			serviceIdx++
+			objects = append(objects, serviceObject
 		}
-		serviceObject := createService(jobId, serviceIdx, ports, serviceType, useClusterIp)
-		serviceIdx++
-		objects = append(objects, serviceObject)
 	}
 
 	// Add standard annotations and labels to all objects
