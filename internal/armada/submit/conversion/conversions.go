@@ -98,7 +98,7 @@ func convertIngressesAndServices(
 	// Create standalone services
 	for _, serviceConfig := range jobReq.Services {
 		ports := filterServicePorts(availableServicePorts, serviceConfig.Ports)
-		if len(ports) >0 {
+		if len(ports) > 0 {
 			serviceType := v1.ServiceTypeClusterIP
 			useClusterIp := false
 			if serviceConfig.Type == api.ServiceType_NodePort {
@@ -107,7 +107,7 @@ func convertIngressesAndServices(
 			}
 			serviceObject := createService(jobId, serviceIdx, ports, serviceType, useClusterIp)
 			serviceIdx++
-			objects = append(objects, serviceObject
+			objects = append(objects, serviceObject)
 		}
 	}
 
