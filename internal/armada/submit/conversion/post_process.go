@@ -178,6 +178,6 @@ func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig)
 	}
 
 	jobId := armadaevents.MustUlidStringFromProtoUuid(msg.JobId)
-	template(msg.MainObject.GetObjectMeta().GetAnnotations(), jobId)
-	template(msg.MainObject.GetObjectMeta().GetLabels(), jobId)
+	template(msg.GetObjectMeta().GetAnnotations(), jobId)
+	template(msg.GetObjectMeta().GetLabels(), jobId)
 }
