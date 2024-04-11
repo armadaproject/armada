@@ -11,11 +11,13 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+// Deduplicator deduplicates jobs submitted ot armada in order to prevent double submission
 type Deduplicator interface {
 	GetOriginalJobIds(ctx *armadacontext.Context, queue string, jobRequests []*api.JobSubmitRequestItem) (map[string]string, error)
 	StoreOriginalJobIds(ctx *armadacontext.Context, queue string, mappings map[string]string) error
 }
 
+// PostgresDeduplicator is an implementation of a Deduplicator that uses a pgkeyvalue.KeyValueStore as its state store
 type PostgresDeduplicator struct {
 	kvStore pgkeyvalue.KeyValueStore
 }
