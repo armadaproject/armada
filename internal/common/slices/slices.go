@@ -109,6 +109,7 @@ func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[
 	return rv
 }
 
+// Map Returns a slice consisting of the results of applying the given function to the elements of the input slice
 func Map[S ~[]E, E any, V any](s S, f func(E) V) []V {
 	if s == nil {
 		return nil
