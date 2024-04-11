@@ -37,6 +37,10 @@ var (
 	}
 )
 
+// ValidateSubmitRequest ensures that the incoming api.JobSubmitRequest is well-formed. It achieves this
+// by applying a series of validators that each check a single aspect of the request. Validators may
+// chose to validate the whole obSubmitRequest or just a single JobSubmitRequestItem.
+// This function will return the error from the first validator that fails, or nil if all  validators pass.
 func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SubmissionConfig) error {
 	for _, validationFunc := range requestValidators {
 		err := validationFunc(req, config)
@@ -57,6 +61,8 @@ func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.Submi
 	return nil
 }
 
+// Ensures the serialised size of the podspec (in bytes) is less than the maximum allowed in config.
+// This check exists because excessively large podspecs can cause  issues for ETCd in the executor clusters.
 func validatePodSpecSize(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 
@@ -69,6 +75,7 @@ func validatePodSpecSize(j *api.JobSubmitRequestItem, config configuration.Submi
 	return nil
 }
 
+// Ensures that ingresses define at least one port and that the same port isn't shared between multiple ingresses.
 func validateIngresses(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	existingPortSet := make(map[uint32]int)
 
@@ -93,6 +100,7 @@ func validateIngresses(j *api.JobSubmitRequestItem, _ configuration.SubmissionCo
 	return nil
 }
 
+// Ensures that the request has non-empty namespace field.
 func validateHasNamespace(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	if len(j.Namespace) == 0 {
 		return fmt.Errorf("namespace is a required field")
@@ -100,6 +108,7 @@ func validateHasNamespace(j *api.JobSubmitRequestItem, _ configuration.Submissio
 	return nil
 }
 
+// Validates that the JobSubmitRequestItem has exactly one podspec defined.
 func validateHasPodSpec(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	if j.PodSpec == nil && len(j.PodSpecs) == 0 {
 		return errors.Errorf("Job must contain at least one PodSpec")
@@ -116,6 +125,7 @@ func validateHasPodSpec(j *api.JobSubmitRequestItem, _ configuration.SubmissionC
 	return nil
 }
 
+// Ensures that the request has non-empty queue field.
 func validateHasQueue(r *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
 	if len(r.Queue) == 0 {
 		return fmt.Errorf("queue is a required field")
@@ -123,6 +133,7 @@ func validateHasQueue(r *api.JobSubmitRequest, _ configuration.SubmissionConfig)
 	return nil
 }
 
+// Ensures that each container exposes a given port at most once.
 func validatePorts(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	existingPortSet := make(map[int32]int)
@@ -140,6 +151,8 @@ func validatePorts(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig
 	return nil
 }
 
+// Ensures that the request does not define  a  PreferredDuringSchedulingIgnoredDuringExecution Affinity (which is
+// not supported by Armada) and that any other affinities defined are valid.
 func validateAffinity(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	affinity := j.GetMainPodSpec().Affinity
 	if affinity == nil {
@@ -166,6 +179,7 @@ func validateAffinity(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 	return nil
 }
 
+// Ensures that if a request specifies a PriorityCVlass, that priority class is supported by Armada.
 func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	if spec == nil {
@@ -183,6 +197,8 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 	return nil
 }
 
+// Ensures that the JobSubmitRequestItem's limits and requests are equal.
+// Also  checks that  any resources defined are above minimum values set in  config
 func validateResources(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	// Function which tells us if two k8s resource lists contain exactly the same elements
 	resourceListEquals := func(a v1.ResourceList, b v1.ResourceList) bool {
@@ -224,20 +240,23 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	return nil
 }
 
-// jobAdapter turns JobSubmitRequestItem into a Minimal Job
+// jobAdapter turns JobSubmitRequestItem into a MinimalJob
+// This is needed for gang information to be extracted
 type jobAdapter struct {
 	*api.JobSubmitRequestItem
 }
 
+// GetPriorityClassName is needed to fulfil the MinimalJob interface
 func (j jobAdapter) GetPriorityClassName() string {
-	if j.PodSpec != nil {
-		return j.PodSpec.PriorityClassName
-	} else if len(j.PodSpecs) > 0 {
-		return j.PodSpecs[0].PriorityClassName
-	}
-	return ""
+	return j.GetMainPodSpec().PriorityClassName
 }
 
+// Ensures that any gang jobs defined in the request are consistent.  This checks that all jobs in the same gang have
+// the same:
+//   - Cardinality
+//   - MinimumCardinality
+//   - Priority Class
+//   - Node Uniformity
 func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
 	gangDetailsByGangId := make(map[string]schedulercontext.GangInfo)
 	for _, job := range request.JobRequestItems {
@@ -280,6 +299,7 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 	return nil
 }
 
+// Validates the the job request doesn't define a TerminationGracePeriod outside the range allowed in configuration
 func validateTerminationGracePeriod(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	if spec == nil {
