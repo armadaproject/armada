@@ -17,11 +17,12 @@ import (
 )
 
 // SubmitJobFromApiRequest converts an *api.JobSubmitRequest into an *armadaevents.SubmitJob
+// It is assumed that the jobReq has already been validated to ensure that all necessary data is present
 func SubmitJobFromApiRequest(
 	jobReq *api.JobSubmitRequestItem,
 	config configuration.SubmissionConfig,
 	jobSetId, queue, owner string,
-	idGen func() *armadaevents.Uuid,
+	idGen func() *armadaevents.Uuid, //  injected so that ids can be stable for testing
 ) *armadaevents.SubmitJob {
 	jobId := idGen()
 	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
@@ -52,6 +53,8 @@ func SubmitJobFromApiRequest(
 	return msg
 }
 
+// Creates KubernetesObjects representing ingresses and services from the *api.JobSubmitRequestItem.
+// An ingress will have  a corresponding service created for it.
 func convertIngressesAndServices(
 	jobReq *api.JobSubmitRequestItem,
 	ingressInfo configuration.IngressConfiguration,

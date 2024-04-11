@@ -13,16 +13,18 @@ import (
 )
 
 type (
-	msgLevelProcessor func(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig)
-	podLevelProcessor func(spec *v1.PodSpec, config configuration.SubmissionConfig)
+	// msgProcessor is function that modifies an armadaevents.SubmitJob in-place
+	msgProcessor func(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig)
+	// msgProcessor is function that modifies a v1.PodSpec in-place
+	podProcessor func(spec *v1.PodSpec, config configuration.SubmissionConfig)
 )
 
 var (
-	msgLevelProcessors = []msgLevelProcessor{
+	msgLevelProcessors = []msgProcessor{
 		templateMeta,
 		defaultGangNodeUniformityLabel,
 	}
-	podLevelProcessors = []podLevelProcessor{
+	podLevelProcessors = []podProcessor{
 		defaultActiveDeadlineSeconds,
 		defaultPriorityClass,
 		defaultResource,
@@ -31,6 +33,9 @@ var (
 	}
 )
 
+// postProcess modifies an armadaevents.SubmitJob in-place by applying various rules to it.  This allows us
+// to e.g apply default values or template out the jobid.  The rules to be applied are defined above and may act at
+// either the msg level or the podpsec level
 func postProcess(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
 	for _, p := range msgLevelProcessors {
 		p(msg, config)
@@ -44,6 +49,13 @@ func postProcess(msg *armadaevents.SubmitJob, config configuration.SubmissionCon
 	}
 }
 
+// defaultActiveDeadlineSeconds will modify  the ActiveDeadlineSeconds field on the podspec according to the following
+// rules:
+//   - If the podspec already  contains a non-nil ActiveDeadlineSeconds then no modification will occur.
+//   - If the podpec's resources match a  per-resource default defined in config.DefaultActiveDeadlineByResourceRequest
+//     then that value will be applied.  If multiple resources match, then the resource with the highest defaultActiveDeadline
+//     will be chosen
+//   - If no per-resource request defaults were found, then the podspec's ActiveDeadlineSeconds will be set to config.DefaultActiveDeadline.Seconds()
 func defaultActiveDeadlineSeconds(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.ActiveDeadlineSeconds != nil {
 		return
@@ -66,12 +78,16 @@ func defaultActiveDeadlineSeconds(spec *v1.PodSpec, config configuration.Submiss
 	}
 }
 
+// Defaults the podspec's PriorityClassName to config.DefaultPriorityClassName if empty
 func defaultPriorityClass(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.PriorityClassName == "" {
 		spec.PriorityClassName = config.DefaultPriorityClassName
 	}
 }
 
+// Adds resources defined in config.DefaultJobLimits to all containers in the podspect if that container is missing
+// requests/limits for that particular resource. This can be used to e.g. ensure that lal jobs define at least some
+// ephemeral storage.
 func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	for i := range spec.Containers {
 		c := &spec.Containers[i]
@@ -92,6 +108,13 @@ func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	}
 }
 
+// Adds tolerations to the podspec.  The tolerations added depenbd on three properties:
+//   - config.DefaultJobTolerations: These tolerations are added to  all jobs
+//   - config.DefaultJobTolerationsByPriorityClass: These tolerations are added to jobs based on the priority class of the
+//     job. Typically this allows pre-emptible jobs to run ina greater number of places.
+//   - config.DefaultJobTolerationsByResourceRequest: The se tolerations are added to tjobs based on the resources they
+//     request.  This is used to allow jobs requesting special hardware (e.g. gpu) to be able to run on machines containing
+//     that hardware.
 func defaultTolerations(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	spec.Tolerations = append(spec.Tolerations, config.DefaultJobTolerations...)
 	if config.DefaultJobTolerationsByPriorityClass != nil {
@@ -113,6 +136,7 @@ func defaultTolerations(spec *v1.PodSpec, config configuration.SubmissionConfig)
 	}
 }
 
+// Defaults the pod's TerminationGracePeriod if not filled in.
 func defaultTerminationGracePeriod(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if config.MinTerminationGracePeriod.Seconds() == 0 {
 		return
@@ -129,6 +153,7 @@ func defaultTerminationGracePeriod(spec *v1.PodSpec, config configuration.Submis
 	}
 }
 
+// Default's the jobs's GangNodeUniformityLabelAnnotation for gang jobs that do not define one.
 func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
 	annotations := msg.MainObject.GetObjectMeta().GetAnnotations()
 	if annotations == nil {
@@ -141,6 +166,8 @@ func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configur
 	}
 }
 
+// Templates the JobId in labels and annotations. This allows users to define labels and annotations containing the string
+// {JobId} andhave it populated with the actual id of the job.
 func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig) {
 	template := func(labels map[string]string, jobId string) {
 		for key, value := range labels {
