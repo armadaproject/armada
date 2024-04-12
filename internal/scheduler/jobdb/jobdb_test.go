@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -27,7 +28,7 @@ func NewTestJobDb() *JobDb {
 			"bar": {},
 		},
 		"foo",
-		1024,
+		stringinterner.New(1024),
 	)
 }
 

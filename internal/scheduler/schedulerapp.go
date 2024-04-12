@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -240,6 +241,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
+	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
 	schedulingAlgo, err := NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
@@ -248,6 +250,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		nodeQuarantiner,
 		queueQuarantiner,
+		stringInterner,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -255,7 +258,7 @@ func Run(config schedulerconfig.Configuration) error {
 	jobDb := jobdb.NewJobDb(
 		config.Scheduling.PriorityClasses,
 		config.Scheduling.DefaultPriorityClassName,
-		config.InternedStringsCacheSize,
+		stringInterner,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
 	if err := prometheus.Register(schedulingRoundMetrics); err != nil {

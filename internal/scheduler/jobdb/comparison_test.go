@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 )
 
@@ -51,7 +52,7 @@ func TestJobPriorityComparer(t *testing.T) {
 		},
 		"Running jobs come before queued jobs": {
 			a:        &Job{id: "a", priority: 1},
-			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", 1)}).WithNewRun("", "", "", 0),
+			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1))}).WithNewRun("", "", "", 0),
 			expected: 1,
 		},
 		"Running jobs are ordered third by runtime": {

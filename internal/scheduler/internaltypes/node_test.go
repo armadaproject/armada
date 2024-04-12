@@ -98,13 +98,23 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, index, node.GetIndex())
 	assert.Equal(t, executor, node.GetExecutor())
 	assert.Equal(t, name, node.GetName())
-	assert.Equal(t, taints, node.Taints)
-	assert.Equal(t, labels, node.Labels)
+	assert.Equal(t, taints, node.GetTaints())
+	assert.Equal(t, labels, node.GetLabels())
 	assert.Equal(t, totalResources, node.TotalResources)
 	assert.Equal(t, allocatableByPriority, node.AllocatableByPriority)
 	assert.Equal(t, allocatedByQueue, node.AllocatedByQueue)
 	assert.Equal(t, allocatedByJobId, node.AllocatedByJobId)
 	assert.Equal(t, keys, node.Keys)
+
+	val, ok := node.GetLabelValue("key")
+	assert.True(t, ok)
+	assert.Equal(t, "value", val)
+
+	val, ok = node.GetLabelValue("missing")
+	assert.False(t, ok)
+
+	tolerations := node.GetTolerationsForTaints()
+	assert.Equal(t, []v1.Toleration{{Key: "foo", Value: "bar"}}, tolerations)
 
 	nodeCopy := node.UnsafeCopy()
 	node.Keys = nil // UnsafeCopy() sets Keys to nil
