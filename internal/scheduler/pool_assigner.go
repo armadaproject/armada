@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -160,6 +161,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 		p.indexedTaints,
 		p.indexedNodeLabels,
 		p.wellKnownNodeTypes,
+		stringinterner.New(1024),
 	)
 	if err != nil {
 		return nil, err

@@ -10,75 +10,114 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-func TestNodeUnsafeCopy(t *testing.T) {
-	node := &Node{
-		Id:       "id",
-		Index:    1,
-		Executor: "executor",
-		Name:     "name",
-		Taints: []v1.Taint{
-			{
-				Key:   "foo",
-				Value: "bar",
+func TestNode(t *testing.T) {
+	const id = "id"
+	const nodeTypeId = uint64(123)
+	const index = uint64(1)
+	const executor = "executor"
+	const name = "name"
+	taints := []v1.Taint{
+		{
+			Key:   "foo",
+			Value: "bar",
+		},
+	}
+	labels := map[string]string{
+		"key": "value",
+	}
+	totalResources := schedulerobjects.ResourceList{
+		Resources: map[string]resource.Quantity{
+			"cpu":    resource.MustParse("16"),
+			"memory": resource.MustParse("32Gi"),
+		},
+	}
+	allocatableByPriority := schedulerobjects.AllocatableByPriorityAndResourceType{
+		1: {
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("0"),
+				"memory": resource.MustParse("0Gi"),
 			},
 		},
-		Labels: map[string]string{
-			"key": "value",
+		2: {
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("8"),
+				"memory": resource.MustParse("16Gi"),
+			},
 		},
-		TotalResources: schedulerobjects.ResourceList{
+		3: {
 			Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
 				"memory": resource.MustParse("32Gi"),
 			},
 		},
-		Keys: [][]byte{
-			{
-				0, 1, 255,
+	}
+	allocatedByQueue := map[string]schedulerobjects.ResourceList{
+		"queue": {
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("8"),
+				"memory": resource.MustParse("16Gi"),
 			},
-		},
-		NodeTypeId: 123,
-		AllocatableByPriority: schedulerobjects.AllocatableByPriorityAndResourceType{
-			1: {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("0"),
-					"memory": resource.MustParse("0Gi"),
-				},
-			},
-			2: {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("8"),
-					"memory": resource.MustParse("16Gi"),
-				},
-			},
-			3: {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("16"),
-					"memory": resource.MustParse("32Gi"),
-				},
-			},
-		},
-		AllocatedByQueue: map[string]schedulerobjects.ResourceList{
-			"queue": {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("8"),
-					"memory": resource.MustParse("16Gi"),
-				},
-			},
-		},
-		AllocatedByJobId: map[string]schedulerobjects.ResourceList{
-			"jobId": {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("8"),
-					"memory": resource.MustParse("16Gi"),
-				},
-			},
-		},
-		EvictedJobRunIds: map[string]bool{
-			"jobId":        false,
-			"evictedJobId": true,
 		},
 	}
+	allocatedByJobId := map[string]schedulerobjects.ResourceList{
+		"jobId": {
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("8"),
+				"memory": resource.MustParse("16Gi"),
+			},
+		},
+	}
+	evictedJobRunIds := map[string]bool{
+		"jobId":        false,
+		"evictedJobId": true,
+	}
+	keys := [][]byte{
+		{
+			0, 1, 255,
+		},
+	}
+
+	node := CreateNode(
+		id,
+		nodeTypeId,
+		index,
+		executor,
+		name,
+		taints,
+		labels,
+		totalResources,
+		allocatableByPriority,
+		allocatedByQueue,
+		allocatedByJobId,
+		evictedJobRunIds,
+		keys,
+	)
+
+	assert.Equal(t, id, node.GetId())
+	assert.Equal(t, nodeTypeId, node.GetNodeTypeId())
+	assert.Equal(t, index, node.GetIndex())
+	assert.Equal(t, executor, node.GetExecutor())
+	assert.Equal(t, name, node.GetName())
+	assert.Equal(t, taints, node.GetTaints())
+	assert.Equal(t, labels, node.GetLabels())
+	assert.Equal(t, totalResources, node.TotalResources)
+	assert.Equal(t, allocatableByPriority, node.AllocatableByPriority)
+	assert.Equal(t, allocatedByQueue, node.AllocatedByQueue)
+	assert.Equal(t, allocatedByJobId, node.AllocatedByJobId)
+	assert.Equal(t, keys, node.Keys)
+
+	val, ok := node.GetLabelValue("key")
+	assert.True(t, ok)
+	assert.Equal(t, "value", val)
+
+	val, ok = node.GetLabelValue("missing")
+	assert.False(t, ok)
+	assert.Empty(t, val)
+
+	tolerations := node.GetTolerationsForTaints()
+	assert.Equal(t, []v1.Toleration{{Key: "foo", Value: "bar"}}, tolerations)
+
 	nodeCopy := node.UnsafeCopy()
-	// TODO(albin): Add more tests here.
-	assert.Equal(t, node.Id, nodeCopy.Id)
+	node.Keys = nil // UnsafeCopy() sets Keys to nil
+	assert.Equal(t, node, nodeCopy)
 }
