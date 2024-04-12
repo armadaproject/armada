@@ -140,7 +140,6 @@ func ReadConfigFromPath(cfgFilePath string) (CtlConfig, error) {
 // value, and writes the config back into the file.
 func ModifyCurrentContextInConfig(cfgFilePath string, newContext string) error {
 	cfg, err := ReadConfigFromPath(cfgFilePath)
-
 	if err != nil {
 		return err
 	}
@@ -152,7 +151,7 @@ func ModifyCurrentContextInConfig(cfgFilePath string, newContext string) error {
 		return fmt.Errorf("error marshalling config: %s", err)
 	}
 
-	err = os.WriteFile(cfgFilePath, modifiedCfg, 0644)
+	err = os.WriteFile(cfgFilePath, modifiedCfg, 0o644)
 	if err != nil {
 		return fmt.Errorf("error writing modified config: %s", err)
 	}

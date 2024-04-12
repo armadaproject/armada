@@ -2,14 +2,16 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/client"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
-	"strings"
 )
 
 func configCmd(a *armadactl.App) *cobra.Command {

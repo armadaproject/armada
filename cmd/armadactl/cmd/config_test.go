@@ -3,16 +3,19 @@ package cmd
 import (
 	"bufio"
 	"bytes"
-	"github.com/armadaproject/armada/pkg/client"
 	"io"
 	"os"
 	"testing"
 
+	"github.com/armadaproject/armada/pkg/client"
+
 	"github.com/stretchr/testify/require"
 )
 
-var configPath = "./testdata/test_config.yaml"
-var configCopyPath = "./testdata/test_config_copy.yaml"
+var (
+	configPath     = "./testdata/test_config.yaml"
+	configCopyPath = "./testdata/test_config_copy.yaml"
+)
 
 func setUp(tb testing.TB) func(testing.TB) {
 	srcFile, err := os.Open(configPath)
@@ -40,7 +43,6 @@ func setUp(tb testing.TB) func(testing.TB) {
 			tb.Errorf("failed to delete copied configuration file: %s", err)
 		}
 	}
-
 }
 
 func TestUseContext(t *testing.T) {
