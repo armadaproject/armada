@@ -5,6 +5,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
+	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -22,8 +24,8 @@ type Node struct {
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
-	Taints []v1.Taint
-	Labels map[string]string
+	taints []v1.Taint
+	labels map[string]string
 
 	TotalResources schedulerobjects.ResourceList
 
@@ -57,8 +59,8 @@ func CreateNode(
 		index:                 index,
 		executor:              executor,
 		name:                  name,
-		Taints:                taints,
-		Labels:                labels,
+		taints:                koTaint.DeepCopyTaints(taints),
+		labels:                deepCopyLabels(labels),
 		TotalResources:        totalResources,
 		AllocatableByPriority: allocatableByPriority,
 		AllocatedByQueue:      allocatedByQueue,
@@ -88,6 +90,35 @@ func (node *Node) GetNodeTypeId() uint64 {
 	return node.nodeTypeId
 }
 
+func (node *Node) GetLabels() map[string]string {
+	return deepCopyLabels(node.labels)
+}
+
+func (node *Node) GetLabelValue(key string) (string, bool) {
+	val, ok := node.labels[key]
+	return val, ok
+}
+
+func (node *Node) GetTaints() []v1.Taint {
+	return koTaint.DeepCopyTaints(node.taints)
+}
+
+func (node *Node) FindMatchingUntoleratedTaint(tolerations ...[]v1.Toleration) (v1.Taint, bool) {
+	return koTaint.FindMatchingUntoleratedTaint(node.taints, tolerations...)
+}
+
+func (node *Node) MatchNodeSelectorTerms(nodeSelector *v1.NodeSelector) (bool, error) {
+	return label.MatchNodeSelectorTerms(node.labels, nodeSelector)
+}
+
+func (node *Node) GetTolerationsForTaints() []v1.Toleration {
+	var tolerations []v1.Toleration
+	for _, taint := range node.taints {
+		tolerations = append(tolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
+	}
+	return tolerations
+}
+
 // UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
 // shallow copies of fields that are not mutated by methods of NodeDb.
 func (node *Node) UnsafeCopy() *Node {
@@ -97,9 +128,8 @@ func (node *Node) UnsafeCopy() *Node {
 		executor:   node.executor,
 		name:       node.name,
 		nodeTypeId: node.nodeTypeId,
-
-		Taints: node.Taints,
-		Labels: node.Labels,
+		taints:     node.taints,
+		labels:     node.labels,
 
 		TotalResources: node.TotalResources,
 
@@ -110,4 +140,12 @@ func (node *Node) UnsafeCopy() *Node {
 		AllocatedByJobId:      armadamaps.DeepCopy(node.AllocatedByJobId),
 		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
 	}
+}
+
+func deepCopyLabels(labels map[string]string) map[string]string {
+	result := make(map[string]string, len(labels))
+	for k, v := range labels {
+		result[k] = v
+	}
+	return result
 }
