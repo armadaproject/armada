@@ -202,6 +202,102 @@
         }
       }
     },
+    "/v1/job/jobdetails": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobDetails",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobDetailsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobDetailsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/jobrundetails": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobRunDetails",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobRunDetailsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobRunDetailsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/jobstatus": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobStatus",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job/reprioritize": {
       "post": {
         "tags": [
@@ -812,6 +908,84 @@
         }
       }
     },
+    "apiJobDetails": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "cancelReason": {
+          "type": "string"
+        },
+        "cancelTs": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobRuns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiJobRunDetails"
+          }
+        },
+        "jobSpec": {
+          "$ref": "#/definitions/apiJob"
+        },
+        "jobset": {
+          "type": "string"
+        },
+        "lastTransitionTs": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "latestRunId": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/apiJobState"
+        },
+        "submittedTs": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "apiJobDetailsRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "expandJobRun": {
+          "type": "boolean"
+        },
+        "expandJobSpec": {
+          "type": "boolean"
+        },
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiJobDetailsResponse": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobDetails": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/apiJobDetails"
+          }
+        }
+      }
+    },
     "apiJobDuplicateFoundEvent": {
       "type": "object",
       "properties": {
@@ -1181,6 +1355,83 @@
         }
       }
     },
+    "apiJobRunDetails": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "finishedTs": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "leasedTs": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "node": {
+          "type": "string"
+        },
+        "pendingTs": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "startedTs": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "$ref": "#/definitions/apiJobRunState"
+        }
+      }
+    },
+    "apiJobRunDetailsRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "runIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiJobRunDetailsResponse": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobRunDetails": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/apiJobRunDetails"
+          }
+        }
+      }
+    },
+    "apiJobRunState": {
+      "type": "string",
+      "default": "RUN_STATE_UNKNOWN",
+      "enum": [
+        "RUN_STATE_UNKNOWN",
+        "RUN_STATE_LEASED",
+        "RUN_STATE_PENDING",
+        "RUN_STATE_RUNNING",
+        "RUN_STATE_SUCCEEDED",
+        "RUN_STATE_FAILED",
+        "RUN_STATE_PREEMPTED",
+        "RUN_STATE_CANCELLED",
+        "RUN_STATE_LEASE_EXPIRED",
+        "RUNS_STATE_LEASE_RETURNED"
+      ]
+    },
     "apiJobRunningEvent": {
       "type": "object",
       "properties": {
@@ -1291,6 +1542,30 @@
         "PREEMPTED",
         "CANCELLED"
       ]
+    },
+    "apiJobStatusRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiJobStatusResponse": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobStates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/apiJobState"
+          }
+        }
+      }
     },
     "apiJobSubmitRequest": {
       "type": "object",
