@@ -112,6 +112,7 @@ func TestNode(t *testing.T) {
 
 	val, ok = node.GetLabelValue("missing")
 	assert.False(t, ok)
+	assert.Empty(t, val)
 
 	tolerations := node.GetTolerationsForTaints()
 	assert.Equal(t, []v1.Toleration{{Key: "foo", Value: "bar"}}, tolerations)
