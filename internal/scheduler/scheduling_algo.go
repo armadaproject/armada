@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -63,8 +64,9 @@ type FairSchedulingAlgo struct {
 	// Function that is called every time an executor is scheduled. Useful for testing.
 	onExecutorScheduled func(executor *schedulerobjects.Executor)
 	// rand and clock injected here for repeatable testing.
-	rand  *rand.Rand
-	clock clock.Clock
+	rand           *rand.Rand
+	clock          clock.Clock
+	stringInterner *stringinterner.StringInterner
 }
 
 func NewFairSchedulingAlgo(
@@ -75,6 +77,7 @@ func NewFairSchedulingAlgo(
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
+	stringInterner *stringinterner.StringInterner,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -95,6 +98,7 @@ func NewFairSchedulingAlgo(
 		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
+		stringInterner:              stringInterner,
 	}, nil
 }
 
@@ -352,6 +356,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
 		l.schedulingConfig.WellKnownNodeTypes,
+		l.stringInterner,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -483,7 +488,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		result.ScheduledJobs[i].Job = jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
-			WithNewRun(node.Executor, node.Id, node.Name, priority)
+			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
 	}
 	for i, jctx := range result.FailedJobs {
 		jobDbJob := jctx.Job.(*jobdb.Job)

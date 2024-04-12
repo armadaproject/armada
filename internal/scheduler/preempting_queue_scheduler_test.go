@@ -19,11 +19,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -40,14 +42,16 @@ func TestEvictOversubscribed(t *testing.T) {
 		testfixtures.N1Cpu4GiJobs("A", config.DefaultPriorityClassName, 20)...,
 	)
 
+	stringInterner := stringinterner.New(1024)
+
 	node := testfixtures.Test32CpuNode(priorities)
-	nodeDb, err := NewNodeDb(config)
+	nodeDb, err := NewNodeDb(config, stringInterner)
 	require.NoError(t, err)
 	nodeDbTxn := nodeDb.Txn(true)
 	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, 1024)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -1747,7 +1751,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig, stringinterner.New(1024))
 			require.NoError(t, err)
 			nodeDbTxn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -1758,7 +1762,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, 1024)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024))
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.
@@ -1829,8 +1833,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for _, j := range round.NodeIndicesToCordon {
 					node, err := nodeDb.GetNode(tc.Nodes[j].Id)
 					require.NoError(t, err)
-					node = node.UnsafeCopy()
-					node.Taints = append(slices.Clone(node.Taints), nodedb.UnschedulableTaint())
+					taints := append(slices.Clone(node.GetTaints()), nodedb.UnschedulableTaint())
+					node = testNodeWithTaints(node, taints)
 					err = nodeDb.Upsert(node)
 					require.NoError(t, err)
 				}
@@ -1943,7 +1947,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					assert.NotEmpty(t, node)
 
 					// Check that the job can actually go onto this node.
-					matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+					matches, reason, err := nodedb.StaticJobRequirementsMet(node, jctx)
 					require.NoError(t, err)
 					assert.Empty(t, reason)
 					assert.True(t, matches)
@@ -2006,7 +2010,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
 						for resourceType, q := range node.AllocatableByPriority[p].Resources {
-							assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), node.Id)
+							assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), node.GetId())
 						}
 					}
 				}
@@ -2056,7 +2060,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						scheduledJobs,
 						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
-							WithNewRun(node.Executor, node.Id, node.Name, priority),
+							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority),
 					)
 				}
 				err = jobDbTxn.Upsert(scheduledJobs)
@@ -2172,7 +2176,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				priorityFactorByQueue[queue] = float64(rand.Intn(tc.MaxPriorityFactor-tc.MinPriorityFactor+1) + tc.MinPriorityFactor)
 			}
 
-			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig, stringinterner.New(1024))
 			require.NoError(b, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -2181,7 +2185,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, 1024)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024))
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {
@@ -2265,7 +2269,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}
-			nodeDb, err = NewNodeDb(tc.SchedulingConfig)
+			nodeDb, err = NewNodeDb(tc.SchedulingConfig, stringinterner.New(1024))
 			require.NoError(b, err)
 			txn = nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -2313,4 +2317,22 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 		})
 	}
+}
+
+func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {
+	return internaltypes.CreateNode(
+		node.GetId(),
+		node.GetNodeTypeId(),
+		node.GetIndex(),
+		node.GetExecutor(),
+		node.GetName(),
+		taints,
+		node.GetLabels(),
+		node.TotalResources,
+		node.AllocatableByPriority,
+		node.AllocatedByQueue,
+		node.AllocatedByJobId,
+		node.EvictedJobRunIds,
+		node.Keys,
+	)
 }
