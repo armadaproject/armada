@@ -85,7 +85,6 @@ func (JobRunState) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_e45f6b75bfad87a4, []int{0}
 }
 
-// swagger:model
 type JobRunDetails struct {
 	RunId      string      `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"runId,omitempty"`
 	JobId      string      `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
@@ -193,7 +192,6 @@ func (m *JobRunDetails) GetFinishedTs() *time.Time {
 	return nil
 }
 
-// swagger:model
 type JobDetails struct {
 	JobId            string           `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	Queue            string           `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
@@ -325,7 +323,6 @@ func (m *JobDetails) GetJobRuns() []*JobRunDetails {
 	return nil
 }
 
-// swagger:model
 type JobDetailsRequest struct {
 	JobIds        []string `protobuf:"bytes,1,rep,name=job_ids,json=jobIds,proto3" json:"jobIds,omitempty"`
 	ExpandJobSpec bool     `protobuf:"varint,2,opt,name=expand_job_spec,json=expandJobSpec,proto3" json:"expandJobSpec,omitempty"`
@@ -385,7 +382,6 @@ func (m *JobDetailsRequest) GetExpandJobRun() bool {
 	return false
 }
 
-// swagger:model
 type JobDetailsResponse struct {
 	JobDetails map[string]*JobDetails `protobuf:"bytes,1,rep,name=job_details,json=jobDetails,proto3" json:"jobDetails,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
@@ -429,7 +425,6 @@ func (m *JobDetailsResponse) GetJobDetails() map[string]*JobDetails {
 	return nil
 }
 
-// swagger:model
 type JobRunDetailsResponse struct {
 	JobRunDetails map[string]*JobRunDetails `protobuf:"bytes,1,rep,name=job_run_details,json=jobRunDetails,proto3" json:"jobRunDetails,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
@@ -473,7 +468,6 @@ func (m *JobRunDetailsResponse) GetJobRunDetails() map[string]*JobRunDetails {
 	return nil
 }
 
-// swagger:model
 type JobRunDetailsRequest struct {
 	RunIds []string `protobuf:"bytes,1,rep,name=run_ids,json=runIds,proto3" json:"runIds,omitempty"`
 }
@@ -517,7 +511,6 @@ func (m *JobRunDetailsRequest) GetRunIds() []string {
 	return nil
 }
 
-// swagger:model
 type JobStatusRequest struct {
 	JobIds []string `protobuf:"bytes,1,rep,name=job_ids,json=jobIds,proto3" json:"jobIds,omitempty"`
 }
@@ -561,7 +554,6 @@ func (m *JobStatusRequest) GetJobIds() []string {
 	return nil
 }
 
-// swagger:model
 type JobStatusResponse struct {
 	JobStates map[string]JobState `protobuf:"bytes,1,rep,name=job_states,json=jobStates,proto3" json:"jobStates,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3,enum=api.JobState"`
 }
