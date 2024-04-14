@@ -707,8 +707,8 @@ func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
-func SingleQueuePriorityOne(name string) []queue.Queue {
-	return []queue.Queue{{Name: name, PriorityFactor: 1.0}}
+func SingleQueuePriorityOne(name string) []*api.Queue {
+	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
 }
 
 func TestNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {

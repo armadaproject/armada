@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -49,7 +50,7 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
 	jobDb              *jobdb.JobDb
-	queueCache         QueueCache
+	queueCache         queue.QueueCache
 	executorRepository database.ExecutorRepository
 	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
@@ -59,7 +60,7 @@ type MetricsCollector struct {
 
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
-	queueCache QueueCache,
+	queueCache queue.QueueCache,
 	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
@@ -128,7 +129,7 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 }
 
 func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
-	queues, err := c.queueCache.Get(ctx)
+	queues, err := c.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}

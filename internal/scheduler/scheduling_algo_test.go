@@ -381,15 +381,15 @@ func TestSchedule(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
-			mockQueueRepo.EXPECT().GetAllQueues(ctx).Return(tc.queues, nil).AnyTimes()
+			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
 
 			schedulingContextRepo := reports.NewSchedulingContextRepository()
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
 				0,
 				mockExecutorRepo,
-				mockQueueRepo,
+				mockQueueCache,
 				schedulingContextRepo,
 				nil,
 				nil,

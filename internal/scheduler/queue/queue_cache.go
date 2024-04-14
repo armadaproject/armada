@@ -1,4 +1,4 @@
-package scheduler
+package queue
 
 import (
 	"fmt"
@@ -7,14 +7,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // QueueCache is an in-memory cache of available queues
 type QueueCache interface {
-
 	// Get returns all available queues
-	Get(ctx *armadacontext.Context) ([]queue.Queue, error)
+	GetAll(ctx *armadacontext.Context) ([]*api.Queue, error)
 }
 
 // ApiQueueCache is an implementation of QueueCache that fetches queues from the Armada API.
@@ -22,19 +20,24 @@ type QueueCache interface {
 type ApiQueueCache struct {
 	updateFrequency time.Duration
 	apiClient       api.SubmitClient
-	queues          atomic.Pointer[[]queue.Queue]
+	queues          atomic.Pointer[[]*api.Queue]
 }
 
 func NewQueueCache(apiClient api.SubmitClient, updateFrequency time.Duration) *ApiQueueCache {
 	return &ApiQueueCache{
 		updateFrequency: updateFrequency,
 		apiClient:       apiClient,
-		queues:          atomic.Pointer[[]queue.Queue]{},
+		queues:          atomic.Pointer[[]*api.Queue]{},
 	}
 }
 
 func (c *ApiQueueCache) Run(ctx *armadacontext.Context) error {
-	c.fetchQueues(ctx)
+	queues, err := c.fetchQueues(ctx)
+	if err == nil {
+		c.queues.Store(&queues)
+	} else {
+		ctx.Warnf("Error fetching queues: %v", err)
+	}
 	ticker := time.NewTicker(c.updateFrequency)
 	for {
 		select {
@@ -51,7 +54,7 @@ func (c *ApiQueueCache) Run(ctx *armadacontext.Context) error {
 	}
 }
 
-func (c *ApiQueueCache) Get(ctx *armadacontext.Context) ([]queue.Queue, error) {
+func (c *ApiQueueCache) GetAll(_ *armadacontext.Context) ([]*api.Queue, error) {
 	queues := c.queues.Load()
 	if queues == nil {
 		return nil, fmt.Errorf("no queues available")
@@ -59,12 +62,12 @@ func (c *ApiQueueCache) Get(ctx *armadacontext.Context) ([]queue.Queue, error) {
 	return *queues, nil
 }
 
-func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
+func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) ([]*api.Queue, error) {
 	stream, err := c.apiClient.GetQueues(ctx, &api.StreamingQueueGetRequest{})
 	if err != nil {
 		return nil, err
 	}
-	queues := make([]queue.Queue, 0)
+	queues := make([]*api.Queue, 0)
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -72,11 +75,7 @@ func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) ([]queue.Queue, 
 		}
 		switch msg.GetEvent().(type) {
 		case *api.StreamingQueueMessage_Queue:
-			q, err := queue.NewQueue(msg.GetQueue())
-			if err != nil {
-				return nil, err
-			}
-			queues = append(queues, q)
+			queues = append(queues, msg.GetQueue())
 		case *api.StreamingQueueMessage_End:
 			return queues, nil
 		default:

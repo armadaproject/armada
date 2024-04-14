@@ -199,7 +199,6 @@ func (r *PostgresQueueRepository) GetQueue(ctx *armadacontext.Context, name stri
 }
 
 func (r *PostgresQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
 		return errors.WithStack(err)
@@ -220,7 +219,6 @@ func (r *PostgresQueueRepository) CreateQueue(ctx *armadacontext.Context, queue 
 }
 
 func (r *PostgresQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
 		return errors.WithStack(err)
@@ -288,6 +286,7 @@ func (r *DualQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.
 func (r *DualQueueRepository) GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error) {
 	return r.primaryRepo.GetQueue(ctx, name)
 }
+
 func (r *DualQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
 	err := r.primaryRepo.CreateQueue(ctx, queue)
 	if err != nil {
