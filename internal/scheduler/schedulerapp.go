@@ -115,7 +115,8 @@ func Run(config schedulerconfig.Configuration) error {
 		}
 	}()
 	armadaClient := api.NewSubmitClient(conn)
-	queueCache := NewQueueCache(armadaClient, 1*time.Minute)
+	queueCache := NewQueueCache(armadaClient, config.QueueRefreshPeriod)
+	services = append(services, func() error { return queueCache.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
