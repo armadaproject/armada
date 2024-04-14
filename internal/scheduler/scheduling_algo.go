@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -46,7 +45,7 @@ type SchedulingAlgo interface {
 type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
-	queueRepository             repository.QueueRepository
+	queueCache                  QueueCache
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -73,7 +72,7 @@ func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
-	queueRepository repository.QueueRepository,
+	queueCache QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
@@ -88,7 +87,7 @@ func NewFairSchedulingAlgo(
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
 		executorRepository:          executorRepository,
-		queueRepository:             queueRepository,
+		queueCache:                  queueCache,
 		schedulingContextRepository: schedulingContextRepository,
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
@@ -259,7 +258,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	executors = l.filterStaleExecutors(executors)
 
 	// TODO(albin): Skip queues with a high failure rate.
-	queues, err := l.queueRepository.GetAllQueues(ctx)
+	queues, err := l.queueCache.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
