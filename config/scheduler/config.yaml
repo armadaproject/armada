@@ -42,6 +42,9 @@ redis:
   password: ""
   db: 0
   poolSize: 1000
+armadaApi:
+  armadaUrl: "server:50051"
+  forceNoTls: true
 postgres:
   connection:
     host: postgres

@@ -22,8 +22,10 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Comnfig
+	// Redis Config
 	Redis config.RedisConfig
+	// Armada Api Connection.  Used to fetch queues.
+	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election

@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -17,7 +19,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -96,8 +97,25 @@ func Run(config schedulerconfig.Configuration) error {
 				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
-	queueRepository := repository.NewRedisQueueRepository(redisClient)
 	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Queue Cache
+	// ////////////////////////////////////////////////////////////////////////
+	conn, err := client.CreateApiConnection(&config.ArmadaApi)
+	if err != nil {
+		return errors.WithMessage(err, "error creating armada api client")
+	}
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			logging.
+				WithStacktrace(ctx, err).
+				Warnf("Armada api client didn't close down cleanly")
+		}
+	}()
+	armadaClient := api.NewSubmitClient(conn)
+	queueCache := NewQueueCache(armadaClient, 1*time.Minute)
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -246,7 +264,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling,
 		config.MaxSchedulingDuration,
 		executorRepository,
-		queueRepository,
+		queueCache,
 		schedulingContextRepository,
 		nodeQuarantiner,
 		queueQuarantiner,
@@ -306,7 +324,7 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
-		queueRepository,
+		queueCache,
 		executorRepository,
 		poolAssigner,
 		config.Metrics.RefreshInterval,

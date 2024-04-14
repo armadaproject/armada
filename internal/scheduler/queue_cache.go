@@ -10,10 +10,15 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
+// QueueCache is an in-memory cache of available queues
 type QueueCache interface {
+
+	// Get returns all available queues
 	Get(ctx *armadacontext.Context) ([]queue.Queue, error)
 }
 
+// ApiQueueCache is an implementation of QueueCache that fetches queues from the Armada API.
+// We cache the queues in memory so that we can continue scheduling even if the API is unavailable
 type ApiQueueCache struct {
 	updateFrequency time.Duration
 	apiClient       api.SubmitClient
