@@ -11,19 +11,20 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -38,71 +39,13 @@ const (
 
 var empty struct{}
 
-type Node struct {
-	// Unique id and index of this node.
-	// TODO(albin): Having both id and index is redundant.
-	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
-	Id    string
-	Index uint64
-
-	// Executor this node belongs to and node name, which must be unique per executor.
-	Executor string
-	Name     string
-
-	// We need to store taints and labels separately from the node type: the latter only includes
-	// indexed taints and labels, but we need all of them when checking pod requirements.
-	Taints []v1.Taint
-	Labels map[string]string
-
-	TotalResources schedulerobjects.ResourceList
-
-	// This field is set when inserting the Node into a NodeDb.
-	Keys [][]byte
-
-	NodeTypeId uint64
-
-	AllocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType
-	AllocatedByQueue      map[string]schedulerobjects.ResourceList
-	AllocatedByJobId      map[string]schedulerobjects.ResourceList
-	EvictedJobRunIds      map[string]bool
-}
-
-// UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
-// shallow copies of fields that are not mutated by methods of NodeDb.
-func (node *Node) UnsafeCopy() *Node {
-	return &Node{
-		Id:    node.Id,
-		Index: node.Index,
-
-		Executor: node.Executor,
-		Name:     node.Name,
-
-		Taints: node.Taints,
-		Labels: node.Labels,
-
-		TotalResources: node.TotalResources,
-
-		Keys: nil,
-
-		NodeTypeId: node.NodeTypeId,
-
-		AllocatableByPriority: armadamaps.DeepCopy(node.AllocatableByPriority),
-		AllocatedByQueue:      armadamaps.DeepCopy(node.AllocatedByQueue),
-		AllocatedByJobId:      armadamaps.DeepCopy(node.AllocatedByJobId),
-		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
-	}
-}
-
-func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
+func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, error) {
 	taints := node.GetTaints()
 	if node.Unschedulable {
-		taints = append(slices.Clone(taints), UnschedulableTaint())
+		taints = append(koTaint.DeepCopyTaintsInternStrings(taints, nodeDb.stringInterner.Intern), UnschedulableTaint())
 	}
 
-	labels := maps.Clone(node.GetLabels())
-	if labels == nil {
-		labels = make(map[string]string)
-	}
+	labels := nodeDb.copyMapWithIntern(node.GetLabels())
 	labels[schedulerconfig.NodeIdLabel] = node.Id
 
 	totalResources := node.TotalResources
@@ -154,27 +97,28 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 	nodeDb.nodeTypes[nodeType.Id] = nodeType
 	nodeDb.mu.Unlock()
 
-	return &Node{
-		Id:    node.Id,
-		Index: index,
+	return internaltypes.CreateNode(
+		node.Id,
+		nodeType.Id,
+		index,
+		node.Executor,
+		node.Name,
+		taints,
+		labels,
+		totalResources,
+		allocatableByPriority,
+		allocatedByQueue,
+		allocatedByJobId,
+		evictedJobRunIds,
+		nil), nil
+}
 
-		Executor: node.Executor,
-		Name:     node.Name,
-
-		Taints: taints,
-		Labels: labels,
-
-		TotalResources: totalResources,
-
-		Keys: nil,
-
-		NodeTypeId: nodeType.Id,
-
-		AllocatableByPriority: allocatableByPriority,
-		AllocatedByQueue:      allocatedByQueue,
-		AllocatedByJobId:      allocatedByJobId,
-		EvictedJobRunIds:      evictedJobRunIds,
-	}, nil
+func (nodeDb *NodeDb) copyMapWithIntern(labels map[string]string) map[string]string {
+	result := make(map[string]string, len(labels))
+	for k, v := range labels {
+		result[nodeDb.stringInterner.Intern(k)] = nodeDb.stringInterner.Intern(v)
+	}
+	return result
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithApiJobsWithTxn(txn *memdb.Txn, jobs []*api.Job, node *schedulerobjects.Node) error {
@@ -315,6 +259,8 @@ type NodeDb struct {
 	// delete entries from scheduledAtPriorityByJobId in general) and every
 	// scheduling round uses a fresh NodeDb.
 	scheduledAtPriorityByJobId map[string]int32
+
+	stringInterner *stringinterner.StringInterner
 }
 
 func NewNodeDb(
@@ -324,6 +270,7 @@ func NewNodeDb(
 	indexedTaints []string,
 	indexedNodeLabels []string,
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
+	stringInterner *stringinterner.StringInterner,
 ) (*NodeDb, error) {
 	nodeDbPriorities := []int32{evictedPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
@@ -384,6 +331,7 @@ func NewNodeDb(
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 
 		scheduledAtPriorityByJobId: make(map[string]int32),
+		stringInterner:             stringInterner,
 	}
 
 	for _, wellKnownNodeType := range wellKnownNodeTypes {
@@ -459,13 +407,13 @@ func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
 }
 
 // GetNode returns a node in the db with given id.
-func (nodeDb *NodeDb) GetNode(id string) (*Node, error) {
+func (nodeDb *NodeDb) GetNode(id string) (*internaltypes.Node, error) {
 	return nodeDb.GetNodeWithTxn(nodeDb.Txn(false), id)
 }
 
 // GetNodeWithTxn returns a node in the db with given id,
 // within the provided transactions.
-func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*Node, error) {
+func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.Node, error) {
 	it, err := txn.Get("nodes", "id", id)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -474,16 +422,16 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*Node, error) {
 	if obj == nil {
 		return nil, nil
 	}
-	return obj.(*Node), nil
+	return obj.(*internaltypes.Node), nil
 }
 
 // NodeJobDiff compares two snapshots of the NodeDb memdb and returns
 // - a map from job ids of all preempted jobs to the node they used to be on
 // - a map from job ids of all scheduled jobs to the node they were scheduled on
 // that happened between the two snapshots.
-func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*Node, map[string]*Node, error) {
-	preempted := make(map[string]*Node)
-	scheduled := make(map[string]*Node)
+func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*internaltypes.Node, map[string]*internaltypes.Node, error) {
+	preempted := make(map[string]*internaltypes.Node)
+	scheduled := make(map[string]*internaltypes.Node)
 	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
 	if err != nil {
 		return nil, nil, err
@@ -572,7 +520,7 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 }
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
+func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
 	req := jctx.PodRequirements
 	priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, nodeDb.defaultPriorityClass, jctx.Job)
 
@@ -645,7 +593,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
 	awayNodeType types.AwayNodeType,
-) (node *Node, err error) {
+) (node *internaltypes.Node, err error) {
 	// Save the number of additional tolerations that the job originally had; we
 	// use this value to restore the slice of additional toleration at the end
 	// of each loop iteration.
@@ -677,7 +625,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
-) (*Node, error) {
+) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 
 	matchingNodeTypeIds, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingJob(jctx)
@@ -734,13 +682,13 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	return nil, nil
 }
 
-func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext, node *Node) error {
+func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext, node *internaltypes.Node) error {
 	if node != nil {
 		if pctx.NodeId == "" {
 			return errors.New("pctx.NodeId not set")
 		}
-		if node.Id != pctx.NodeId {
-			return errors.Errorf("pctx.NodeId %s does not match node.Id %s", pctx.NodeId, node.Id)
+		if node.GetId() != pctx.NodeId {
+			return errors.Errorf("pctx.NodeId %s does not match node.Id %s", pctx.NodeId, node.GetId())
 		}
 	} else if pctx.NodeId != "" {
 		return errors.New("pctx.NodeId is set, but no node was returned")
@@ -752,7 +700,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 	txn *memdb.Txn,
 	jctx *schedulercontext.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
-) (*Node, error) {
+) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
 	for _, priority := range nodeDb.nodeDbPriorities {
@@ -788,7 +736,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	jctx *schedulercontext.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
 	priority int32,
-) (*Node, error) {
+) (*internaltypes.Node, error) {
 	req := jctx.PodRequirements
 
 	indexResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
@@ -831,8 +779,8 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	jctx *schedulercontext.JobSchedulingContext,
 	priority int32,
 	onlyCheckDynamicRequirements bool,
-) (*Node, error) {
-	var selectedNode *Node
+) (*internaltypes.Node, error) {
+	var selectedNode *internaltypes.Node
 	var selectedNodeScore int
 	var numExtraNodes uint
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -843,7 +791,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			}
 		}
 
-		node := obj.(*Node)
+		node := obj.(*internaltypes.Node)
 		if node == nil {
 			return nil, nil
 		}
@@ -855,7 +803,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 		if onlyCheckDynamicRequirements {
 			matches, score, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 		} else {
-			matches, score, reason, err = JobRequirementsMet(node.Taints, node.Labels, node.TotalResources, node.AllocatableByPriority[priority], jctx)
+			matches, score, reason, err = jobRequirementsMet(node, priority, jctx)
 		}
 		if err != nil {
 			return nil, err
@@ -876,7 +824,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	}
 
 	if selectedNode != nil {
-		jctx.PodSchedulingContext.NodeId = selectedNode.Id
+		jctx.PodSchedulingContext.NodeId = selectedNode.GetId()
 		jctx.PodSchedulingContext.PreemptedAtPriority = priority
 	}
 	return selectedNode, nil
@@ -887,11 +835,11 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 //
 // It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
 // from being re-scheduled the jobs that would be scheduled last.
-func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
+func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 
-	var selectedNode *Node
-	nodesById := make(map[string]*Node)
+	var selectedNode *internaltypes.Node
+	nodesById := make(map[string]*internaltypes.Node)
 	evictedJobSchedulingContextsByNodeId := make(map[string][]*EvictedJobSchedulingContext)
 	it, err := txn.ReverseLowerBound("evictedJobs", "index", math.MaxInt)
 	if err != nil {
@@ -911,12 +859,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
+			node = node.UnsafeCopy()
+			nodesById[nodeId] = node
 		}
-		node, err = nodeDb.UnbindJobFromNode(nodeDb.priorityClasses, evictedJctx.Job, node)
+
+		err = nodeDb.unbindJobFromNodeInPlace(nodeDb.priorityClasses, evictedJctx.Job, node)
 		if err != nil {
 			return nil, err
 		}
-		nodesById[nodeId] = node
 		evictedJobSchedulingContextsByNodeId[nodeId] = append(evictedJobSchedulingContextsByNodeId[nodeId], evictedJobSchedulingContext)
 
 		priority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
@@ -926,14 +876,12 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		if priority > maxPriority {
 			maxPriority = priority
 		}
-		matches, _, reason, err := JobRequirementsMet(
-			node.Taints,
-			node.Labels,
-			node.TotalResources,
+		matches, _, reason, err := jobRequirementsMet(
+			node,
 			// At this point, we've unbound the jobs running on the node.
 			// Hence, we should check if the job is schedulable at evictedPriority,
 			// since that indicates the job can be scheduled without causing further preemptions.
-			node.AllocatableByPriority[evictedPriority],
+			evictedPriority,
 			jctx,
 		)
 		if err != nil {
@@ -947,9 +895,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		}
 	}
 	if selectedNode != nil {
-		pctx.NodeId = selectedNode.Id
+		pctx.NodeId = selectedNode.GetId()
 		pctx.PreemptedAtPriority = maxPriority
-		for _, evictedJobSchedulingContext := range evictedJobSchedulingContextsByNodeId[selectedNode.Id] {
+		for _, evictedJobSchedulingContext := range evictedJobSchedulingContextsByNodeId[selectedNode.GetId()] {
 			if err := txn.Delete("evictedJobs", evictedJobSchedulingContext); err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -959,7 +907,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 }
 
 // bindJobToNode returns a copy of node with job bound to it.
-func (nodeDb *NodeDb) bindJobToNode(node *Node, job interfaces.LegacySchedulerJob, priority int32) (*Node, error) {
+func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job interfaces.LegacySchedulerJob, priority int32) (*internaltypes.Node, error) {
 	node = node.UnsafeCopy()
 	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
 		return nil, err
@@ -968,7 +916,7 @@ func (nodeDb *NodeDb) bindJobToNode(node *Node, job interfaces.LegacySchedulerJo
 }
 
 // bindJobToNodeInPlace is like bindJobToNode, but doesn't make a copy of node.
-func (nodeDb *NodeDb) bindJobToNodeInPlace(node *Node, job interfaces.LegacySchedulerJob, priority int32) error {
+func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job interfaces.LegacySchedulerJob, priority int32) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
 
@@ -980,7 +928,7 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *Node, job interfaces.LegacySche
 			node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
 		}
 		if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
-			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
+			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		} else {
 			allocatedToJob.AddV1ResourceList(requests)
 			node.AllocatedByJobId[jobId] = allocatedToJob
@@ -1019,8 +967,8 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 	priorityClasses map[string]types.PriorityClass,
 	jobFilter func(interfaces.LegacySchedulerJob) bool,
 	jobs []interfaces.LegacySchedulerJob,
-	node *Node,
-) ([]interfaces.LegacySchedulerJob, *Node, error) {
+	node *internaltypes.Node,
+) ([]interfaces.LegacySchedulerJob, *internaltypes.Node, error) {
 	evicted := make([]interfaces.LegacySchedulerJob, 0)
 	node = node.UnsafeCopy()
 	for _, job := range jobs {
@@ -1036,22 +984,22 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
-func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *internaltypes.Node) error {
 	jobId := job.GetId()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
-		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
 	queue := job.GetQueue()
 	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
 	}
 
 	if node.EvictedJobRunIds == nil {
 		node.EvictedJobRunIds = make(map[string]bool)
 	}
 	if _, ok := node.EvictedJobRunIds[jobId]; ok {
-		return errors.Errorf("job %s is already evicted from node %s", jobId, node.Id)
+		return errors.Errorf("job %s is already evicted from node %s", jobId, node.GetId())
 	}
 	node.EvictedJobRunIds[jobId] = true
 
@@ -1068,7 +1016,7 @@ func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.P
 }
 
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
-func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.UnsafeCopy()
 	for _, job := range jobs {
 		if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
@@ -1079,7 +1027,7 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.Priori
 }
 
 // UnbindJobFromNode returns a copy of node with job unbound from it.
-func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.UnsafeCopy()
 	if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 		return nil, err
@@ -1088,7 +1036,7 @@ func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.Priorit
 }
 
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
-func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *internaltypes.Node) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
 
@@ -1104,7 +1052,7 @@ func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.
 
 	queue := job.GetQueue()
 	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
 	} else {
 		allocatedToQueue.SubV1ResourceList(requests)
 		if allocatedToQueue.IsZero() {
@@ -1147,7 +1095,7 @@ func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *schedulercontext.JobSchedulingC
 	return matchingNodeTypeIds, numExcludedNodesByReason, nil
 }
 
-func (nodeDb *NodeDb) UpsertMany(nodes []*Node) error {
+func (nodeDb *NodeDb) UpsertMany(nodes []*internaltypes.Node) error {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	if err := nodeDb.UpsertManyWithTxn(txn, nodes); err != nil {
@@ -1157,7 +1105,7 @@ func (nodeDb *NodeDb) UpsertMany(nodes []*Node) error {
 	return nil
 }
 
-func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*Node) error {
+func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*internaltypes.Node) error {
 	for _, node := range nodes {
 		if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
 			return err
@@ -1166,7 +1114,7 @@ func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*Node) error {
 	return nil
 }
 
-func (nodeDb *NodeDb) Upsert(node *Node) error {
+func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
@@ -1176,10 +1124,10 @@ func (nodeDb *NodeDb) Upsert(node *Node) error {
 	return nil
 }
 
-func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *Node) error {
+func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
 	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
 	for i, p := range nodeDb.nodeDbPriorities {
-		keys[i] = nodeDb.nodeDbKey(keys[i], node.NodeTypeId, node.AllocatableByPriority[p], node.Index)
+		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableByPriority[p], node.GetIndex())
 	}
 	node.Keys = keys
 
@@ -1197,7 +1145,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	if err != nil {
 		return err
 	}
-	newNodes := make([]*Node, 0)
+	newNodes := make([]*internaltypes.Node, 0)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.UnsafeCopy()
 		node.AllocatableByPriority = schedulerobjects.NewAllocatableByPriorityAndResourceType(
@@ -1241,7 +1189,7 @@ func nodesTableSchema(priorities []int32, resources []string) (*memdb.TableSchem
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",
 		Unique:  true,
-		Indexer: &memdb.StringFieldIndex{Field: "Id"},
+		Indexer: createNodeIdIndex(),
 	}
 	indexNameByPriority := make(map[int32]string, len(priorities))
 	keyIndexByPriority := make(map[int32]int, len(priorities))
