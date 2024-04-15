@@ -309,7 +309,7 @@ func validateTerminationGracePeriod(j *api.JobSubmitRequestItem, config configur
 	if spec == nil {
 		return nil
 	}
-	if spec.TerminationGracePeriodSeconds != nil {
+	if spec.TerminationGracePeriodSeconds != nil && *spec.TerminationGracePeriodSeconds != 0 {
 		terminationGracePeriodSeconds := *spec.TerminationGracePeriodSeconds
 		if terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
 			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()) {
