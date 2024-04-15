@@ -12,7 +12,11 @@ type UpdateAPI func(queue Queue) error
 
 func Update(getConnectionDetails client.ConnectionDetails) UpdateAPI {
 	return func(queue Queue) error {
-		conn, err := client.CreateApiConnection(getConnectionDetails())
+		connectionDetails, err := getConnectionDetails()
+		if err != nil {
+			return fmt.Errorf("failed to obtain api connection details: %s", err)
+		}
+		conn, err := client.CreateApiConnection(connectionDetails)
 		if err != nil {
 			return fmt.Errorf("failed to connect to api because %s", err)
 		}

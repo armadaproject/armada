@@ -5,6 +5,7 @@
     <envs>
       <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
       <env name="ARMADA_REDIS_ADDRS" value="localhost:6379" />
+      <env name="ARMADA_METRICSPORT" value="9011" />
     </envs>
     <kind value="FILE" />
     <package value="github.com/armadaproject/armada" />
