@@ -271,18 +271,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		jobRepository,
 	)
 
-	if config.QueryApi.Enabled {
-		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
-		if err != nil {
-			return errors.WithMessage(err, "error creating QueryApi postgres pool")
-		}
-		queryapiServer := queryapi.New(
-			queryDb,
-			config.QueryApi.MaxQueryItems,
-			func() compress.Decompressor { return compress.NewZlibDecompressor() })
-		api.RegisterJobsServer(grpcServer, queryapiServer)
-	}
-
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 
