@@ -276,6 +276,70 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	}, nil
 }
 
+func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	if req.Queue == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   req.Queue,
+			Message: "queue cannot be empty when preempting jobs",
+		}
+	}
+	if req.JobSetId == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "JobSetId",
+			Value:   req.JobSetId,
+			Message: "jobset cannot be empty when preempting jobs",
+		}
+	}
+
+	userId, groups, err := s.authorize(ctx, req.Queue, permissions.PreemptAnyJobs, queue.PermissionVerbPreempt)
+	if err != nil {
+		return nil, err
+	}
+
+	sequence, err := preemptJobEventSequenceForJobIds(req.JobIds, req.Queue, req.JobSetId, userId, groups)
+	if err != nil {
+		return nil, err
+	}
+
+	// send the message to both schedulers because jobs may be on either
+	err = s.publisher.PublishMessages(ctx, sequence)
+	if err != nil {
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
+	}
+
+	return &types.Empty{}, nil
+}
+
+func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, error) {
+	sequence := &armadaevents.EventSequence{
+		Queue:      q,
+		JobSetName: jobSet,
+		UserId:     userId,
+		Groups:     groups,
+		Events:     []*armadaevents.EventSequence_Event{},
+	}
+	for _, jobIdStr := range jobIds {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
+		if err != nil {
+			log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
+			return nil, fmt.Errorf("could not convert job id to uuid: %s", jobIdStr)
+		}
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: pointer.Now(),
+			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+					JobId: jobId,
+				},
+			},
+		})
+	}
+	return sequence, nil
+}
+
 func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
