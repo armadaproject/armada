@@ -6,3 +6,4 @@ package schedulermocks
 //go:generate mockgen -destination=./executor_repository.go -package=schedulermocks "github.com/armadaproject/armada/internal/scheduler/database" ExecutorRepository
 //go:generate mockgen -destination=./grpc.go -package=schedulermocks "github.com/armadaproject/armada/pkg/executorapi" ExecutorApi_LeaseJobRunsServer
 //go:generate mockgen -destination=./queue_cache.go -package=schedulermocks "github.com/armadaproject/armada/internal/scheduler/queue" QueueCache
+//go:generate mockgen -destination=./api.go -package=schedulermocks "github.com/armadaproject/armada/pkg/api" SubmitClient,Submit_GetQueuesClient

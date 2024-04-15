@@ -32,10 +32,7 @@ func NewQueueCache(apiClient api.SubmitClient, updateFrequency time.Duration) *A
 }
 
 func (c *ApiQueueCache) Run(ctx *armadacontext.Context) error {
-	queues, err := c.fetchQueues(ctx)
-	if err == nil {
-		c.queues.Store(&queues)
-	} else {
+	if err := c.fetchQueues(ctx); err != nil {
 		ctx.Warnf("Error fetching queues: %v", err)
 	}
 	ticker := time.NewTicker(c.updateFrequency)
@@ -44,10 +41,7 @@ func (c *ApiQueueCache) Run(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			queues, err := c.fetchQueues(ctx)
-			if err == nil {
-				c.queues.Store(&queues)
-			} else {
+			if err := c.fetchQueues(ctx); err != nil {
 				ctx.Warnf("Error fetching queues: %v", err)
 			}
 		}
@@ -62,24 +56,26 @@ func (c *ApiQueueCache) GetAll(_ *armadacontext.Context) ([]*api.Queue, error) {
 	return *queues, nil
 }
 
-func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) ([]*api.Queue, error) {
+func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) error {
 	stream, err := c.apiClient.GetQueues(ctx, &api.StreamingQueueGetRequest{})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	queues := make([]*api.Queue, 0)
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		switch msg.GetEvent().(type) {
 		case *api.StreamingQueueMessage_Queue:
 			queues = append(queues, msg.GetQueue())
 		case *api.StreamingQueueMessage_End:
-			return queues, nil
+			c.queues.Store(&queues)
+			return nil
 		default:
-			return nil, fmt.Errorf("unknown event of type %T", msg.GetEvent())
+			fmt.Errorf("unknown event of type %T", msg.GetEvent())
 		}
 	}
+
 }
