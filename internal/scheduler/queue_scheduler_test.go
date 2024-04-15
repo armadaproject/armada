@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -516,7 +517,7 @@ func TestQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig, stringinterner.New(1024))
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -696,7 +697,7 @@ func TestQueueScheduler(t *testing.T) {
 				assert.NotEmpty(t, node)
 
 				// Check that the job can actually go onto this node.
-				matches, reason, err := nodedb.StaticJobRequirementsMet(node.Taints, node.Labels, node.TotalResources, jctx)
+				matches, reason, err := nodedb.StaticJobRequirementsMet(node, jctx)
 				require.NoError(t, err)
 				assert.Empty(t, reason)
 				assert.True(t, matches)
@@ -728,7 +729,7 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
-func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
+func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinterner.StringInterner) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		config.PriorityClasses,
 		config.MaxExtraNodesToConsider,
@@ -736,6 +737,7 @@ func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		config.IndexedTaints,
 		config.IndexedNodeLabels,
 		config.WellKnownNodeTypes,
+		stringInterner,
 	)
 	if err != nil {
 		return nil, err

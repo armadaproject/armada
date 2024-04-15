@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/stringinterner"
+
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -307,6 +309,7 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 		srv.indexedTaints,
 		srv.indexedNodeLabels,
 		srv.wellKnownNodeTypes,
+		stringinterner.New(512),
 	)
 	if err != nil {
 		return nil, err

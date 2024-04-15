@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -96,7 +97,7 @@ func NewJobDb() *jobdb.JobDb {
 	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		SchedulingKeyGenerator,
-		1024,
+		stringinterner.New(1024),
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())

@@ -59,7 +59,22 @@ var (
 		Version: 1,
 	}
 	failFastSchedulingInfoBytes = protoutil.MustMarshall(failFastSchedulingInfo)
-	schedulingInfo              = &schedulerobjects.JobSchedulingInfo{
+	preemptibleSchedulingInfo   = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		Preemptible:       true,
+		PriorityClassName: testfixtures.PriorityClass1,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Priority: int32(10),
+					},
+				},
+			},
+		},
+		Version: 1,
+	}
+	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -173,6 +188,20 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
+var preemptibleLeasedJob = testfixtures.JobDb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	preemptibleSchedulingInfo,
+	false,
+	1,
+	false,
+	false,
+	false,
+	1,
+).WithNewRun("testExecutor", "test-node", "node", 5)
+
 var cancelledJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
@@ -207,6 +236,7 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	"testNodeId",
 	"testNodeName",
 	&scheduledAtPriority,
+	false,
 	false,
 	false,
 	false,
@@ -292,6 +322,7 @@ var (
 		false,
 		false,
 		false,
+		false,
 		true,
 		false,
 		nil,
@@ -320,6 +351,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunErrors             []string                          // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
 		expectedJobsToFail               []string                          // ids of jobs we expect to fail without having failed the overall scheduling cycle
+		expectedJobsRunsToPreempt        []string                          // ids of jobs we expect to be preempted by the scheduler
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled             []string                          // ids of jobs we expect to have  produced cancelled messages
 		expectedJobRequestCancel         []string                          // ids of jobs we expect to have produced request cancel
@@ -589,6 +621,39 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"Job Run preemption requested": {
+			initialJobs: []*jobdb.Job{preemptibleLeasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:            preemptibleLeasedJob.LatestRun().Id(),
+					JobID:            preemptibleLeasedJob.Id(),
+					JobSet:           "testJobSet",
+					Executor:         "testExecutor",
+					PreemptRequested: true,
+					Serial:           1,
+				},
+			},
+			expectedJobRunPreempted: []string{preemptibleLeasedJob.Id()},
+			expectedJobErrors:       []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:    []string{preemptibleLeasedJob.Id()},
+			expectedTerminal:        []string{preemptibleLeasedJob.Id()},
+			expectedQueuedVersion:   preemptibleLeasedJob.QueuedVersion(),
+		},
+		"Job Run preemption requested - job not pre-emptible - no action expected": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:            leasedJob.LatestRun().Id(),
+					JobID:            leasedJob.Id(),
+					JobSet:           "testJobSet",
+					Executor:         "testExecutor",
+					PreemptRequested: true,
+					Serial:           1,
+				},
+			},
+			expectedLeased:        []string{leasedJob.Id()},
+			expectedQueuedVersion: leasedJob.QueuedVersion(),
+		},
 		"New job from postgres with expired queue ttl is cancel requested": {
 			jobUpdates: []database.Job{
 				{
@@ -758,12 +823,13 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Job preempted": {
-			initialJobs:             []*jobdb.Job{leasedJob},
-			expectedJobRunPreempted: []string{leasedJob.Id()},
-			expectedJobErrors:       []string{leasedJob.Id()},
-			expectedJobRunErrors:    []string{leasedJob.Id()},
-			expectedTerminal:        []string{leasedJob.Id()},
-			expectedQueuedVersion:   leasedJob.QueuedVersion(),
+			initialJobs:               []*jobdb.Job{leasedJob},
+			expectedJobsRunsToPreempt: []string{leasedJob.Id()},
+			expectedJobRunPreempted:   []string{leasedJob.Id()},
+			expectedJobErrors:         []string{leasedJob.Id()},
+			expectedJobRunErrors:      []string{leasedJob.Id()},
+			expectedTerminal:          []string{leasedJob.Id()},
+			expectedQueuedVersion:     leasedJob.QueuedVersion(),
 		},
 		"Fetch fails": {
 			initialJobs:           []*jobdb.Job{leasedJob},
@@ -798,7 +864,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{
 				jobsToSchedule: tc.expectedJobRunLeased,
-				jobsToPreempt:  tc.expectedJobRunPreempted,
+				jobsToPreempt:  tc.expectedJobsRunsToPreempt,
 				jobsToFail:     tc.expectedJobsToFail,
 				shouldError:    tc.scheduleError,
 			}
@@ -956,7 +1022,7 @@ func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.Ev
 			key := fmt.Sprintf("%T", event.Event)
 			_, ok := outstandingEventsByType[key][jobId]
 			if !ok {
-				return errors.Errorf("received unexpected event for job %s: %v", jobId, event.Event)
+				return errors.Errorf("received unexpected event for job %s: %T - %v", jobId, event.Event, event.Event)
 			}
 			delete(outstandingEventsByType[key], jobId)
 		}
@@ -1115,6 +1181,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						"test-executor-test-node",
 						"test-node",
 						pointerFromValue(int32(5)),
+						false,
 						false,
 						false,
 						false,

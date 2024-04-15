@@ -53,18 +53,18 @@ func (_ RealUUIDProvider) New() uuid.UUID {
 	return uuid.New()
 }
 
-func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
+func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInterner *stringinterner.StringInterner) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
 		schedulerobjects.NewSchedulingKeyGenerator(),
-		stringInternerCacheSize,
+		stringInterner,
 	)
 }
 
 func NewJobDbWithSchedulingKeyGenerator(
 	priorityClasses map[string]types.PriorityClass,
 	skg *schedulerobjects.SchedulingKeyGenerator,
-	stringInternerCacheSize uint32,
+	stringInterner *stringinterner.StringInterner,
 ) *JobDb {
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
@@ -73,7 +73,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
 		priorityClasses:        priorityClasses,
 		schedulingKeyGenerator: skg,
-		stringInterner:         stringinterner.New(stringInternerCacheSize),
+		stringInterner:         stringInterner,
 		clock:                  clock.RealClock{},
 		uuidProvider:           RealUUIDProvider{},
 	}

@@ -52,8 +52,8 @@ func TestQueue(t *testing.T) {
 	}
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands
-	f := func() *client.ApiConnectionDetails {
-		return app.Params.ApiConnectionDetails
+	f := func() (*client.ApiConnectionDetails, error) {
+		return app.Params.ApiConnectionDetails, nil
 	}
 	app.Params.QueueAPI.Create = cq.Create(f)
 	app.Params.QueueAPI.Delete = cq.Delete(f)
@@ -146,8 +146,8 @@ func TestJob(t *testing.T) {
 	}
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands
-	f := func() *client.ApiConnectionDetails {
-		return app.Params.ApiConnectionDetails
+	f := func() (*client.ApiConnectionDetails, error) {
+		return app.Params.ApiConnectionDetails, nil
 	}
 	app.Params.QueueAPI.Create = cq.Create(f)
 	app.Params.QueueAPI.Delete = cq.Delete(f)

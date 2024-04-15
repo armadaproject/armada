@@ -39,6 +39,7 @@ func TestSuite() error {
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
+		"--config", "e2e/config/armadactl_config.yaml",
 	)
 	if err2 != nil {
 		fmt.Println(out)
