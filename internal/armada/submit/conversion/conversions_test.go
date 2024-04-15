@@ -159,7 +159,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 							TLS: []networking.IngressTLS{},
 							Rules: []networking.IngressRule{
 								{
-									Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.testHostNameSuffix",
+									Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}",
 									IngressRuleValue: networking.IngressRuleValue{
 										HTTP: &networking.HTTPIngressRuleValue{
 											Paths: []networking.HTTPIngressPath{
@@ -219,7 +219,7 @@ func TestCreateIngressFromService(t *testing.T) {
 	}
 
 	defaultIngressRule := networking.IngressRule{
-		Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.testHostNameSuffix",
+		Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}",
 		IngressRuleValue: networking.IngressRuleValue{
 			HTTP: &networking.HTTPIngressRuleValue{
 				Paths: []networking.HTTPIngressPath{
@@ -275,8 +275,8 @@ func TestCreateIngressFromService(t *testing.T) {
 					Ingress: &networking.IngressSpec{
 						TLS: []networking.IngressTLS{
 							{
-								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace.testHostNameSuffix"},
-								SecretName: "testNamespace-testHostNameSuffix",
+								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}"},
+								SecretName: "testNamespace-${CertNameSuffix}",
 							},
 						},
 						Rules: []networking.IngressRule{defaultIngressRule},
@@ -299,7 +299,7 @@ func TestCreateIngressFromService(t *testing.T) {
 					Ingress: &networking.IngressSpec{
 						TLS: []networking.IngressTLS{
 							{
-								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace.testHostNameSuffix"},
+								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}"},
 								SecretName: "testCustomCert",
 							},
 						},
@@ -346,16 +346,11 @@ func TestCreateIngressFromService(t *testing.T) {
 		},
 	}
 	for name, tc := range tests {
-		ingressConfig := testfixtures.DefaultSubmissionConfig().IngressConfig
-		if tc.submissionConfigAnnotations != nil {
-			ingressConfig.Annotations = tc.submissionConfigAnnotations
-		}
 		t.Run(name, func(t *testing.T) {
 			generatedIngress := createIngressFromService(
 				defaultServiceSpec,
 				1,
 				tc.ingressConfig,
-				ingressConfig,
 				"testService",
 				testfixtures.DefaultNamespace,
 				"00000000000000000000000001")

@@ -24,7 +24,6 @@ var (
 	DefaultPrincipal     = authorization.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
 	DefaultContainerPort = v1.ContainerPort{
 		Name:          "testContainerPort",
-		HostPort:      8080,
 		ContainerPort: 8080,
 		Protocol:      "TCP",
 	}
@@ -72,10 +71,6 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
-		IngressConfig: configuration.IngressConfiguration{
-			HostnameSuffix: DefaultHostNameSuffix,
-			CertNameSuffix: DefaultCertNameSuffix,
-		},
 	}
 }
 
