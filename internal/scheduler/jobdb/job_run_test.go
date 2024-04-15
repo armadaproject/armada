@@ -95,6 +95,12 @@ func TestJobRun_TestCancelled(t *testing.T) {
 	assert.True(t, cancelledRun.Cancelled())
 }
 
+func TestJobRun_TestPreemptRequested(t *testing.T) {
+	preemptRequestedRun := baseJobRun.WithPreemptRequested(true)
+	assert.False(t, baseJobRun.PreemptRequested())
+	assert.True(t, preemptRequestedRun.PreemptRequested())
+}
+
 func TestJobRun_TestReturned(t *testing.T) {
 	returnedRun := baseJobRun.WithReturned(true)
 	assert.False(t, baseJobRun.Returned())
