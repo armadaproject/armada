@@ -69,7 +69,6 @@ message JobPreemptRequest {
   string queue = 1;
   string job_set_id = 2;
   repeated string job_ids = 3;
-  string reason = 4;
 }
 
 // swagger:model

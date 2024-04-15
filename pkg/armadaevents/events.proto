@@ -548,5 +548,4 @@ message JobRunPreemptionRequested {
 // Indicates that a user has requested for the job to be pre-empted.
 message JobPreemptionRequested {
   Uuid job_id = 1;
-  string reason = 2;
 }
