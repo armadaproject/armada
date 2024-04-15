@@ -26,25 +26,21 @@ func TestTemplateProcessor(t *testing.T) {
 		"Test Template Annotations": {
 			input: &armadaevents.SubmitJob{
 				JobId: jobIdProto,
-				MainObject: &armadaevents.KubernetesMainObject{
-					ObjectMeta: &armadaevents.ObjectMeta{
-						Annotations: map[string]string{
-							"foo": "http://foo.com/{{JobId}}",
-							"bar": "http://foo.com/{JobId}",
-							"baz": "http://foo.com",
-						},
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Annotations: map[string]string{
+						"foo": "http://foo.com/{{JobId}}",
+						"bar": "http://foo.com/{JobId}",
+						"baz": "http://foo.com",
 					},
 				},
 			},
 			expected: &armadaevents.SubmitJob{
 				JobId: jobIdProto,
-				MainObject: &armadaevents.KubernetesMainObject{
-					ObjectMeta: &armadaevents.ObjectMeta{
-						Annotations: map[string]string{
-							"foo": "http://foo.com/JobId",
-							"bar": fmt.Sprintf("http://foo.com/%s", jobId),
-							"baz": "http://foo.com",
-						},
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Annotations: map[string]string{
+						"foo": "http://foo.com/JobId",
+						"bar": fmt.Sprintf("http://foo.com/%s", jobId),
+						"baz": "http://foo.com",
 					},
 				},
 			},
@@ -52,25 +48,21 @@ func TestTemplateProcessor(t *testing.T) {
 		"Test Template Labels": {
 			input: &armadaevents.SubmitJob{
 				JobId: jobIdProto,
-				MainObject: &armadaevents.KubernetesMainObject{
-					ObjectMeta: &armadaevents.ObjectMeta{
-						Labels: map[string]string{
-							"foo": "http://foo.com/{{JobId}}",
-							"bar": "http://foo.com/{JobId}",
-							"baz": "http://foo.com",
-						},
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Labels: map[string]string{
+						"foo": "http://foo.com/{{JobId}}",
+						"bar": "http://foo.com/{JobId}",
+						"baz": "http://foo.com",
 					},
 				},
 			},
 			expected: &armadaevents.SubmitJob{
 				JobId: jobIdProto,
-				MainObject: &armadaevents.KubernetesMainObject{
-					ObjectMeta: &armadaevents.ObjectMeta{
-						Labels: map[string]string{
-							"foo": "http://foo.com/JobId",
-							"bar": fmt.Sprintf("http://foo.com/%s", jobId),
-							"baz": "http://foo.com",
-						},
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Labels: map[string]string{
+						"foo": "http://foo.com/JobId",
+						"bar": fmt.Sprintf("http://foo.com/%s", jobId),
+						"baz": "http://foo.com",
 					},
 				},
 			},

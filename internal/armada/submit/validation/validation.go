@@ -248,7 +248,11 @@ type jobAdapter struct {
 
 // GetPriorityClassName is needed to fulfil the MinimalJob interface
 func (j jobAdapter) GetPriorityClassName() string {
-	return j.GetMainPodSpec().PriorityClassName
+	podSpec := j.GetMainPodSpec()
+	if podSpec != nil {
+		return j.GetMainPodSpec().PriorityClassName
+	}
+	return ""
 }
 
 // Ensures that any gang jobs defined in the request are consistent.  This checks that all jobs in the same gang have
