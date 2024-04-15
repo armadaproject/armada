@@ -6,10 +6,10 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/component-helpers/scheduling/corev1"
 
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -136,26 +136,32 @@ func NodeTypeJobRequirementsMet(nodeType *schedulerobjects.NodeType, jctx *sched
 		return matches, reason
 	}
 
-	matches, reason = NodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetIndexedLabels(), jctx.AdditionalNodeSelectors)
+	nodeTypeLabels := nodeType.GetLabels()
+	nodeTypeLabelGetter := func(key string) (string, bool) {
+		val, ok := nodeTypeLabels[key]
+		return val, ok
+	}
+
+	matches, reason = NodeSelectorRequirementsMet(nodeTypeLabelGetter, nodeType.GetUnsetIndexedLabels(), jctx.AdditionalNodeSelectors)
 	if !matches {
 		return matches, reason
 	}
 
-	return NodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetIndexedLabels(), jctx.PodRequirements.GetNodeSelector())
+	return NodeSelectorRequirementsMet(nodeTypeLabelGetter, nodeType.GetUnsetIndexedLabels(), jctx.PodRequirements.GetNodeSelector())
 }
 
-// JobRequirementsMet determines whether a job can be scheduled onto this node.
+// jobRequirementsMet determines whether a job can be scheduled onto this node.
 // If the pod can be scheduled, the returned score indicates how well the node fits:
 // - 0: Pod can be scheduled by preempting running pods.
 // - 1: Pod can be scheduled without preempting any running pods.
 // If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
-func JobRequirementsMet(taints []v1.Taint, labels map[string]string, totalResources schedulerobjects.ResourceList, allocatableResources schedulerobjects.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason, error) {
-	matches, reason, err := StaticJobRequirementsMet(taints, labels, totalResources, jctx)
+func jobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason, error) {
+	matches, reason, err := StaticJobRequirementsMet(node, jctx)
 	if !matches || err != nil {
 		return matches, 0, reason, err
 	}
-	matches, score, reason := DynamicJobRequirementsMet(allocatableResources, jctx)
+	matches, score, reason := DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 	if !matches {
 		return matches, 0, reason, nil
 	}
@@ -164,28 +170,28 @@ func JobRequirementsMet(taints []v1.Taint, labels map[string]string, totalResour
 
 // StaticJobRequirementsMet checks if a job can be scheduled onto this node,
 // accounting for taints, node selectors, node affinity, and total resources available on the node.
-func StaticJobRequirementsMet(taints []v1.Taint, labels map[string]string, totalResources schedulerobjects.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
-	matches, reason := TolerationRequirementsMet(taints, jctx.AdditionalTolerations, jctx.PodRequirements.GetTolerations())
+func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
+	matches, reason := NodeTolerationRequirementsMet(node, jctx.AdditionalTolerations, jctx.PodRequirements.GetTolerations())
 	if !matches {
 		return matches, reason, nil
 	}
 
-	matches, reason = NodeSelectorRequirementsMet(labels, nil, jctx.AdditionalNodeSelectors)
+	matches, reason = NodeSelectorRequirementsMet(node.GetLabelValue, nil, jctx.AdditionalNodeSelectors)
 	if !matches {
 		return matches, reason, nil
 	}
 
-	matches, reason = NodeSelectorRequirementsMet(labels, nil, jctx.PodRequirements.GetNodeSelector())
+	matches, reason = NodeSelectorRequirementsMet(node.GetLabelValue, nil, jctx.PodRequirements.GetNodeSelector())
 	if !matches {
 		return matches, reason, nil
 	}
 
-	matches, reason, err := NodeAffinityRequirementsMet(labels, jctx.PodRequirements.GetAffinityNodeSelector())
+	matches, reason, err := NodeAffinityRequirementsMet(node, jctx.PodRequirements.GetAffinityNodeSelector())
 	if !matches || err != nil {
 		return matches, reason, err
 	}
 
-	matches, reason = ResourceRequirementsMet(totalResources, jctx.PodRequirements.ResourceRequirements.Requests)
+	matches, reason = ResourceRequirementsMet(node.TotalResources, jctx.PodRequirements.ResourceRequirements.Requests)
 	if !matches {
 		return matches, reason, nil
 	}
@@ -201,37 +207,25 @@ func DynamicJobRequirementsMet(allocatableResources schedulerobjects.ResourceLis
 }
 
 func TolerationRequirementsMet(taints []v1.Taint, tolerations ...[]v1.Toleration) (bool, PodRequirementsNotMetReason) {
-	untoleratedTaint, hasUntoleratedTaint := findMatchingUntoleratedTaint(taints, tolerations...)
+	untoleratedTaint, hasUntoleratedTaint := koTaint.FindMatchingUntoleratedTaint(taints, tolerations...)
 	if hasUntoleratedTaint {
 		return false, &UntoleratedTaint{Taint: untoleratedTaint}
 	}
 	return true, nil
 }
 
-// findMatchingUntoleratedTaint checks if the given tolerations tolerates
-// all the taints, and returns the first taint without a toleration.
-// Returns true if there is an untolerated taint.
-// Returns false if all taints are tolerated.
-func findMatchingUntoleratedTaint(taints []v1.Taint, tolerations ...[]v1.Toleration) (v1.Taint, bool) {
-	for _, taint := range taints {
-		taintTolerated := false
-		for _, ts := range tolerations {
-			taintTolerated = taintTolerated || corev1.TolerationsTolerateTaint(ts, &taint)
-			if taintTolerated {
-				break
-			}
-		}
-		if !taintTolerated {
-			return taint, true
-		}
+func NodeTolerationRequirementsMet(node *internaltypes.Node, tolerations ...[]v1.Toleration) (bool, PodRequirementsNotMetReason) {
+	untoleratedTaint, hasUntoleratedTaint := node.FindMatchingUntoleratedTaint(tolerations...)
+	if hasUntoleratedTaint {
+		return false, &UntoleratedTaint{Taint: untoleratedTaint}
 	}
-	return v1.Taint{}, false
+	return true, nil
 }
 
-func NodeSelectorRequirementsMet(nodeLabels, unsetIndexedLabels, nodeSelector map[string]string) (bool, PodRequirementsNotMetReason) {
+func NodeSelectorRequirementsMet(nodeLabelGetter func(string) (string, bool), unsetIndexedLabels, nodeSelector map[string]string) (bool, PodRequirementsNotMetReason) {
 	for label, podValue := range nodeSelector {
 		// If the label value differs between nodeLabels and the pod, always return false.
-		if nodeValue, ok := nodeLabels[label]; ok {
+		if nodeValue, ok := nodeLabelGetter(label); ok {
 			if nodeValue != podValue {
 				return false, &UnmatchedLabel{
 					Label:     label,
@@ -255,16 +249,9 @@ func NodeSelectorRequirementsMet(nodeLabels, unsetIndexedLabels, nodeSelector ma
 	return true, nil
 }
 
-func NodeAffinityRequirementsMet(nodeLabels map[string]string, nodeSelector *v1.NodeSelector) (bool, PodRequirementsNotMetReason, error) {
+func NodeAffinityRequirementsMet(node *internaltypes.Node, nodeSelector *v1.NodeSelector) (bool, PodRequirementsNotMetReason, error) {
 	if nodeSelector != nil {
-		matchesNodeSelector, err := corev1.MatchNodeSelectorTerms(
-			&v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: nodeLabels,
-				},
-			},
-			nodeSelector,
-		)
+		matchesNodeSelector, err := node.MatchNodeSelectorTerms(nodeSelector)
 		if err != nil {
 			return false, nil, err
 		}

@@ -21,13 +21,56 @@ Clone [this](https://github.com/armadaproject/armada) repository:
 git clone https://github.com/armadaproject/armada.git
 cd armada
 ```
-
 All commands are intended to be run from the root of the repository.
+
+## Armadactl configuration
+Armadactl config files are structured as follows:
+```yaml
+currentContext: main # Default context to be used by Armadactl
+contexts:
+  main:
+    armadaUrl: <Your Armada API endpoint>
+    execAuth:
+      cmd: <Your auth command>
+      args:
+        - <Arg>
+  test:
+    armadaUrl: <Your Armada API endpoint>
+    execAuth:
+      cmd: <Your auth command>
+      args:
+          - <Arg>
+```
+
+By default, armadactl assumes that a configuration file exists at `$HOME/.armadactl.yaml`. You can provide your own 
+config file by specifying `--config $CONFIG_FILE_PATH` when running armadactl. 
+
+We also support a legacy armadactl config structure, although this will soon be deprecated:
+```yaml
+armadaUrl: <Your Armada API endpoint>
+execAuth:
+  cmd: <Your auth command>
+  args:
+      - <Arg>
+```
+
+Under both structures, BasicAuth and various oidc auth methods are also supported. 
+See ApiConnectionDetails under pkg/client/connection.go for all supported auth methods.
+
+### Using contexts
+It's quite common for Armada users to interact with multiple Armada instances, which we refer to as _contexts_. We have various 
+armadactl commands that allow users to get, set and view contexts. 
+```bash
+armadactl config use-context test # Sets the context for future armadactl calls to "test"
+armadactl config get-contexts # Gets all contexts defined in the current config
+armadactl config current-context # Returns the current context
+```
+Contexts are not supported with the legacy armadactl configuration.
 
 ## Setup an easy-to-use alias
 If you are on a Windows System, use a linux-supported terminal to run this command, for example [Git Bash](https://git-scm.com/downloads) or [Hyper](https://hyper.is/)
 ```bash
-alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproject.io:443'
+alias armadactl='go run cmd/armadactl/main.go'
 ```
 
 ## Create queues and jobs

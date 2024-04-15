@@ -105,7 +105,7 @@ func (it *NodePairIterator) NextItem() (rv *NodePairIteratorItem) {
 			NodeB: it.nodeB,
 		}
 	}
-	cmp := bytes.Compare([]byte(it.nodeA.Id), []byte(it.nodeB.Id))
+	cmp := bytes.Compare([]byte(it.nodeA.GetId()), []byte(it.nodeB.GetId()))
 	if cmp == 0 {
 		return &NodePairIteratorItem{
 			NodeA: it.nodeA,
@@ -126,7 +126,7 @@ func (it *NodePairIterator) Next() interface{} {
 	return it.NextItem()
 }
 
-// NodeIndex is an index for schedulerobjects.Node that returns node.NodeDbKeys[KeyIndex].
+// NodeIndex is an index for internaltypes.Node that returns node.NodeDbKeys[KeyIndex].
 type NodeIndex struct {
 	KeyIndex int
 }
@@ -259,7 +259,7 @@ func (it *nodeTypesIteratorPQ) less(a, b *internaltypes.Node) bool {
 		}
 	}
 	// Tie-break by id.
-	return a.Id < b.Id
+	return a.GetId() < b.GetId()
 }
 
 func (pq *nodeTypesIteratorPQ) Swap(i, j int) {
@@ -399,7 +399,7 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 		}
 		node := v.(*internaltypes.Node)
 		if it.keyIndex >= len(node.Keys) {
-			return nil, errors.Errorf("keyIndex is %d, but node %s has only %d keys", it.keyIndex, node.Id, len(node.Keys))
+			return nil, errors.Errorf("keyIndex is %d, but node %s has only %d keys", it.keyIndex, node.GetId(), len(node.Keys))
 		}
 		nodeKey := node.Keys[it.keyIndex]
 		if it.previousKey != nil && bytes.Compare(it.previousKey, nodeKey) != -1 {
@@ -410,13 +410,13 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 		}
 		it.previousKey = nodeKey
 		it.previousNode = node
-		if node.NodeTypeId != it.nodeTypeId {
+		if node.GetNodeTypeId() != it.nodeTypeId {
 			// There are no more nodes of this nodeType.
 			return nil, nil
 		}
 		allocatableByPriority := node.AllocatableByPriority[it.priority]
 		if len(allocatableByPriority.Resources) == 0 {
-			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriority)
+			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
 			nodeQuantity := allocatableByPriority.Get(t).DeepCopy()

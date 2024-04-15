@@ -78,7 +78,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
-	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec)
+	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec, out)
 	if err = sbmtr.Run(ctx); err != nil {
 		return err
 	}

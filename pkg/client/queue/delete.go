@@ -12,7 +12,11 @@ type DeleteAPI func(string) error
 
 func Delete(getConnectionDetails client.ConnectionDetails) DeleteAPI {
 	return func(queueName string) error {
-		conn, err := client.CreateApiConnection(getConnectionDetails())
+		connectionDetails, err := getConnectionDetails()
+		if err != nil {
+			return fmt.Errorf("failed to obtain api connection details: %s", err)
+		}
+		conn, err := client.CreateApiConnection(connectionDetails)
 		if err != nil {
 			return fmt.Errorf("failed to connect to api because %s", err)
 		}

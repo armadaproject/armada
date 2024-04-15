@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -647,16 +646,16 @@ func (sch *PreemptingQueueScheduler) assertions(
 	// and that jobs are preempted/scheduled on the nodes we expect them to.
 	for jobId, node := range preempted {
 		if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-			if expectedNodeId != node.Id {
+			if expectedNodeId != node.GetId() {
 				return errors.Errorf(
 					"inconsistent NodeDb: expected job %s to be preempted from node %s, but got %s",
-					jobId, expectedNodeId, node.Id,
+					jobId, expectedNodeId, node.GetId(),
 				)
 			}
 		} else {
 			return errors.Errorf(
 				"inconsistent NodeDb: expected job %s to be mapped to node %s, but found none",
-				jobId, node.Id,
+				jobId, node.GetId(),
 			)
 		}
 		if _, ok := preemptedJobsById[jobId]; !ok {
@@ -665,16 +664,16 @@ func (sch *PreemptingQueueScheduler) assertions(
 	}
 	for jobId, node := range scheduled {
 		if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-			if expectedNodeId != node.Id {
+			if expectedNodeId != node.GetId() {
 				return errors.Errorf(
 					"inconsistent NodeDb: expected job %s to be on node %s, but got %s",
-					jobId, expectedNodeId, node.Id,
+					jobId, expectedNodeId, node.GetId(),
 				)
 			}
 		} else {
 			return errors.Errorf(
 				"inconsistent NodeDb: expected job %s to be mapped to node %s, but found none",
-				jobId, node.Id,
+				jobId, node.GetId(),
 			)
 		}
 		if _, ok := scheduledJobsById[jobId]; !ok {
@@ -743,7 +742,7 @@ func NewFilteredEvictor(
 		nodeDb:          nodeDb,
 		priorityClasses: priorityClasses,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
-			shouldEvict := nodeIdsToEvict[node.Id]
+			shouldEvict := nodeIdsToEvict[node.GetId()]
 			return shouldEvict
 		},
 		jobFilter: func(_ *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
@@ -863,16 +862,14 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			// TODO(albin): We can remove the checkOnlyDynamicRequirements flag in the nodeDb now that we've added the tolerations.
 			jctx := schedulercontext.JobSchedulingContextFromJob(evi.priorityClasses, job)
 			jctx.IsEvicted = true
-			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.Id)
+			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.GetId())
 			evictedJctxsByJobId[job.GetId()] = jctx
-			for _, taint := range node.Taints {
-				jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
-			}
+			jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, node.GetTolerationsForTaints()...)
 
-			nodeIdByJobId[job.GetId()] = node.Id
+			nodeIdByJobId[job.GetId()] = node.GetId()
 		}
 		if len(evictedJobs) > 0 {
-			affectedNodesById[node.Id] = node
+			affectedNodesById[node.GetId()] = node
 		}
 	}
 	result := &EvictorResult{

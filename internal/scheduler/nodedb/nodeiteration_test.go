@@ -62,7 +62,7 @@ func TestNodesIterator(t *testing.T) {
 
 			actual := make([]int, 0)
 			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, indexById[node.Id])
+				actual = append(actual, indexById[node.GetId()])
 			}
 
 			assert.Equal(t, expected, actual)
@@ -430,7 +430,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeType.Id
+				entry = testWithNodeTypeId(entry, node.NodeType.Id)
 
 				entries[i] = entry
 			}
@@ -470,7 +470,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
@@ -821,7 +821,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeType.Id
+				entry = testWithNodeTypeId(entry, node.NodeType.Id)
 
 				entries[i] = entry
 			}
@@ -854,7 +854,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
@@ -917,4 +917,22 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			}
 		}
 	}
+}
+
+func testWithNodeTypeId(node *internaltypes.Node, nodeTypeId uint64) *internaltypes.Node {
+	return internaltypes.CreateNode(
+		node.GetId(),
+		nodeTypeId,
+		node.GetIndex(),
+		node.GetExecutor(),
+		node.GetName(),
+		node.GetTaints(),
+		node.GetLabels(),
+		node.TotalResources,
+		node.AllocatableByPriority,
+		node.AllocatedByQueue,
+		node.AllocatedByJobId,
+		node.EvictedJobRunIds,
+		node.Keys,
+	)
 }
