@@ -129,17 +129,6 @@ type SubmissionConfig struct {
 	// will have activeDeadlineSeconds set to 1.
 	// Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
-	// Sets default configuration to be added to user-created ingresses
-	IngressConfig IngressConfiguration
-}
-
-type IngressConfiguration struct {
-	// Suffix to add to the ingress's hostname
-	HostnameSuffix string
-	// Suffix to add to the tls cert name
-	CertNameSuffix string
-	// Annotations to be added to all ingresses
-	Annotations map[string]string
 }
 
 // SchedulingConfig contains config controlling the Armada scheduler.

@@ -98,9 +98,6 @@ submission:
   defaultActiveDeadline: "72h" # 3 days.
   defaultActiveDeadlineByResourceRequest:
     nvidia.com/gpu: "336h" # 14 days.
-  ingress:
-    hostnameSuffix: "svc"
-    certNameSuffix: "ingress-tls-certificate"
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"

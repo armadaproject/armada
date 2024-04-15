@@ -27,7 +27,7 @@ func SubmitJobFromApiRequest(
 	jobId := idGen()
 	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
 	priority := priorityAsInt32(jobReq.GetPriority())
-	ingressesAndServices := convertIngressesAndServices(jobReq, config.IngressConfig, jobIdStr, jobSetId, queue, owner)
+	ingressesAndServices := convertIngressesAndServices(jobReq, jobIdStr, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
@@ -57,7 +57,6 @@ func SubmitJobFromApiRequest(
 // An ingress will have  a corresponding service created for it.
 func convertIngressesAndServices(
 	jobReq *api.JobSubmitRequestItem,
-	ingressInfo configuration.IngressConfiguration,
 	jobId, jobsetId, queue, owner string,
 ) []*armadaevents.KubernetesObject {
 	objects := make([]*armadaevents.KubernetesObject, 0, 2*len(jobReq.Ingress)+len(jobReq.Services))
@@ -89,7 +88,6 @@ func convertIngressesAndServices(
 				serviceObject.GetService(),
 				serviceIdx,
 				ingressConfig,
-				ingressInfo,
 				serviceObject.ObjectMeta.Name,
 				jobReq.Namespace,
 				jobId)
@@ -168,7 +166,6 @@ func createIngressFromService(
 	service *v1.ServiceSpec,
 	serviceIdx int,
 	ingressConfig *api.IngressConfig,
-	ingressInfo configuration.IngressConfiguration,
 	serviceName, namespace, jobId string,
 ) *armadaevents.KubernetesObject {
 	rules := make([]networking.IngressRule, 0, len(service.Ports))
@@ -176,7 +173,7 @@ func createIngressFromService(
 
 	// Rest of the hosts are generated off port information
 	for _, servicePort := range service.Ports {
-		host := fmt.Sprintf("%s-%s.%s.%s", servicePort.Name, common.PodName(jobId), namespace, ingressInfo.HostnameSuffix)
+		host := fmt.Sprintf("%s-%s.%s.%s", servicePort.Name, common.PodName(jobId), namespace, "${HostNameSuffix}")
 		tlsHosts = append(tlsHosts, host)
 
 		// Workaround to get constant's address
@@ -210,7 +207,7 @@ func createIngressFromService(
 	if ingressConfig.TlsEnabled {
 		certName := ingressConfig.CertName
 		if certName == "" {
-			certName = fmt.Sprintf("%s-%s", namespace, ingressInfo.CertNameSuffix)
+			certName = fmt.Sprintf("%s-%s", namespace, "${CertNameSuffix}")
 		}
 		tls = append(tls, networking.IngressTLS{
 			Hosts:      tlsHosts,
@@ -221,7 +218,7 @@ func createIngressFromService(
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
 			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId), serviceIdx),
-			Annotations: util.MergeMaps(ingressInfo.Annotations, ingressConfig.Annotations),
+			Annotations: util.MergeMaps(map[string]string{}, ingressConfig.Annotations),
 			Labels:      map[string]string{},
 		},
 		Object: &armadaevents.KubernetesObject_Ingress{
