@@ -386,7 +386,7 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 	return sequence, validIds
 }
 
-func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string, reason string) (*armadaevents.EventSequence, error) {
+func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      q,
 		JobSetName: jobSet,
@@ -404,8 +404,7 @@ func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string,
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId:  jobId,
-					Reason: util.Truncate(reason, 512),
+					JobId: jobId,
 				},
 			},
 		})
@@ -622,7 +621,7 @@ func (srv *PulsarSubmitServer) PreemptJobs(grpcCtx context.Context, req *api.Job
 		return nil, err
 	}
 
-	sequence, err := preemptJobEventSequenceForJobIds(req.JobIds, req.Queue, req.JobSetId, userId, groups, req.Reason)
+	sequence, err := preemptJobEventSequenceForJobIds(req.JobIds, req.Queue, req.JobSetId, userId, groups)
 	if err != nil {
 		return nil, err
 	}
