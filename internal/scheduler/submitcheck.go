@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/stringinterner"
-
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -17,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -88,6 +87,8 @@ func NewSubmitChecker(
 	}
 }
 
+var stringInterner = stringinterner.New(1000)
+
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	srv.updateExecutors(ctx)
 
@@ -142,7 +143,7 @@ func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
 }
 
 func (srv *SubmitChecker) CheckApiJobs(es *armadaevents.EventSequence) (bool, string) {
-	jobDb := jobdb.NewJobDb(srv.priorityClasses, "", 100)
+	jobDb := jobdb.NewJobDb(srv.priorityClasses, "", stringInterner)
 	jobs := make([]*jobdb.Job, 0, len(es.Events))
 	for _, event := range es.Events {
 		submitMsg := event.GetSubmitJob()
