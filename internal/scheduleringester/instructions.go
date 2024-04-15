@@ -207,6 +207,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				JobID:                  jobId,
 				Created:                eventTime.UnixNano(),
 				JobSet:                 meta.jobset,
+				Queue:                  meta.queue,
 				Executor:               jobRunLeased.GetExecutorId(),
 				Node:                   jobRunLeased.GetNodeId(),
 				ScheduledAtPriority:    scheduledAtPriority,

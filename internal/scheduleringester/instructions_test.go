@@ -58,6 +58,7 @@ func TestConvertSequence(t *testing.T) {
 					RunID:                  f.RunIdUuid,
 					JobID:                  f.JobIdString,
 					JobSet:                 f.JobSetName,
+					Queue:                  f.Queue,
 					Executor:               f.ExecutorId,
 					Node:                   f.NodeName,
 					ScheduledAtPriority:    &f.ScheduledAtPriority,
