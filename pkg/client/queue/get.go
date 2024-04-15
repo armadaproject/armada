@@ -13,7 +13,11 @@ type GetAPI func(string) (*api.Queue, error)
 
 func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
 	return func(queueName string) (*api.Queue, error) {
-		conn, err := client.CreateApiConnection(getConnectionDetails())
+		connectionDetails, err := getConnectionDetails()
+		if err != nil {
+			return nil, fmt.Errorf("failed to obtain api connection details: %s", err)
+		}
+		conn, err := client.CreateApiConnection(connectionDetails)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to api because %s", err)
 		}
