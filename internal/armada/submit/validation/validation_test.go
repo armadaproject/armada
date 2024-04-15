@@ -833,7 +833,7 @@ func TestValidateResources(t *testing.T) {
 	}
 }
 
-func TestValidateerminationGracePeriod(t *testing.T) {
+func TestValidateTerminationGracePeriod(t *testing.T) {
 	defaultMinPeriod := 30 * time.Second
 	defaultMaxPeriod := 300 * time.Second
 
@@ -845,6 +845,14 @@ func TestValidateerminationGracePeriod(t *testing.T) {
 	}{
 		"no period specified": {
 			req:            &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{}},
+			minGracePeriod: defaultMinPeriod,
+			maxGracePeriod: defaultMaxPeriod,
+			expectSuccess:  true,
+		},
+		"zero period specified": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				TerminationGracePeriodSeconds: pointer.Int64(0),
+			}},
 			minGracePeriod: defaultMinPeriod,
 			maxGracePeriod: defaultMaxPeriod,
 			expectSuccess:  true,
