@@ -42,6 +42,8 @@ type JobRun struct {
 	running bool
 	// The time at which the run was reported as running by the executor.
 	runningTime *time.Time
+	// True if a user has requested this run be preempted.
+	preemptRequested bool
 	// True if the run has been reported as preempted by the executor.
 	preempted bool
 	// The time at which the run was reported as preempted by the executor.
@@ -219,6 +221,7 @@ func (jobDb *JobDb) CreateRun(
 	leased bool,
 	pending bool,
 	running bool,
+	preemptRequested bool,
 	preempted bool,
 	succeeded bool,
 	failed bool,
@@ -242,6 +245,7 @@ func (jobDb *JobDb) CreateRun(
 		leased:              leased,
 		pending:             pending,
 		running:             running,
+		preemptRequested:    preemptRequested,
 		preempted:           preempted,
 		succeeded:           succeeded,
 		failed:              failed,
@@ -389,6 +393,18 @@ func (run *JobRun) WithRunningTime(runningTime *time.Time) *JobRun {
 	return run
 }
 
+// PreemptRequested Returns true if there has been a request this run is preempted
+func (run *JobRun) PreemptRequested() bool {
+	return run.preemptRequested
+}
+
+// WithPreemptRequested returns a copy of the job run with the preemptRequested status updated.
+func (run *JobRun) WithPreemptRequested(preemptRequested bool) *JobRun {
+	run = run.DeepCopy()
+	run.preemptRequested = preemptRequested
+	return run
+}
+
 // Preempted Returns true if the executor has reported the job run as preempted
 func (run *JobRun) Preempted() bool {
 	return run.preempted
@@ -398,7 +414,7 @@ func (run *JobRun) PreemptedTime() *time.Time {
 	return run.preemptedTime
 }
 
-// WithRunning returns a copy of the job run with the running status updated.
+// WithPreempted returns a copy of the job run with the preempted status updated.
 func (run *JobRun) WithPreempted(preempted bool) *JobRun {
 	run = run.DeepCopy()
 	run.preempted = preempted

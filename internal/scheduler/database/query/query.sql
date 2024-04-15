@@ -37,6 +37,9 @@ SELECT run_id FROM runs;
 -- name: SelectNewRunsForJobs :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
+-- name: MarkJobRunsPreemptRequestedByJobId :exec
+UPDATE runs SET preempt_requested = true WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]);
+
 -- name: MarkJobRunsSucceededById :exec
 UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 
