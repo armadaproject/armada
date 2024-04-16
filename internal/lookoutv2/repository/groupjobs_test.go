@@ -962,8 +962,8 @@ func TestGroupByAnnotation(t *testing.T) {
 			},
 		}, converter, store)
 		manyJobs(3, &createJobsOpts{
-			queue:  queue,
-			jobSet: jobSet,
+			queue:       queue,
+			jobSet:      jobSet,
 			annotations: map[string]string{
 				// Note the absence of the key "test-annotation-1".
 			},
