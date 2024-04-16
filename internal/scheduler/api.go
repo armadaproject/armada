@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -9,6 +10,7 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -17,12 +19,15 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
+	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
+
+const armadaJobPreemptibleLabel = "armada_preemptible"
 
 // ExecutorApi is the gRPC service executors use to synchronise their state with that of the scheduler.
 type ExecutorApi struct {
@@ -36,6 +41,8 @@ type ExecutorApi struct {
 	legacyExecutorRepository database.ExecutorRepository
 	// Allowed priority class priorities.
 	allowedPriorities []int32
+	// Known priority classes
+	priorityClasses map[string]priorityTypes.PriorityClass
 	// Max size of Pulsar messages produced.
 	maxPulsarMessageSizeBytes uint
 	// See scheduling schedulingConfig.
@@ -52,6 +59,7 @@ func NewExecutorApi(producer pulsar.Producer,
 	allowedPriorities []int32,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
+	priorityClasses map[string]priorityTypes.PriorityClass,
 	maxPulsarMessageSizeBytes uint,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
@@ -66,6 +74,7 @@ func NewExecutorApi(producer pulsar.Producer,
 		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
+		priorityClasses:           priorityClasses,
 		clock:                     clock.RealClock{},
 	}, nil
 }
@@ -131,10 +140,6 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			return err
 		}
 
-		if srv.priorityClassNameOverride != nil {
-			srv.setPriorityClassName(submitMsg, *srv.priorityClassNameOverride)
-		}
-
 		srv.addNodeIdSelector(submitMsg, lease.Node)
 
 		if len(lease.PodRequirementsOverlay) > 0 {
@@ -144,6 +149,13 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			}
 			addTolerations(submitMsg, PodRequirementsOverlay.Tolerations)
 			addAnnotations(submitMsg, PodRequirementsOverlay.Annotations)
+		}
+
+		srv.addPreemptibleLabel(submitMsg)
+
+		// This must happen after anything that relies on the priorityClassName
+		if srv.priorityClassNameOverride != nil {
+			srv.setPriorityClassName(submitMsg, *srv.priorityClassNameOverride)
 		}
 
 		var groups []string
@@ -202,6 +214,40 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 	podSpec.PodSpec.PriorityClassName = priorityClassName
 }
 
+func (srv *ExecutorApi) addPreemptibleLabel(job *armadaevents.SubmitJob) {
+	isPremptible := srv.isPreemptible(job)
+	labels := map[string]string{armadaJobPreemptibleLabel: strconv.FormatBool(isPremptible)}
+	addLabels(job, labels)
+}
+
+func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
+	priorityClassName := ""
+
+	if job.MainObject != nil {
+		switch typed := job.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			if typed.PodSpec != nil && typed.PodSpec.PodSpec != nil {
+				priorityClassName = typed.PodSpec.PodSpec.PriorityClassName
+			}
+		default:
+			return false
+		}
+	}
+
+	priority, known := srv.priorityClasses[priorityClassName]
+	if priorityClassName == "" {
+		log.Errorf("priority class name not set on pod %s", job.JobId.String())
+		return false
+	}
+
+	if !known {
+		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobId.String())
+		return false
+	}
+
+	return priority.Preemptible
+}
+
 func (srv *ExecutorApi) addNodeIdSelector(job *armadaevents.SubmitJob, nodeId string) {
 	if job == nil || nodeId == "" {
 		return
@@ -236,6 +282,21 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
 				typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, tolerations...)
 			}
 		}
+	}
+}
+
+func addLabels(job *armadaevents.SubmitJob, labels map[string]string) {
+	if job == nil || len(labels) == 0 {
+		return
+	}
+	if job.ObjectMeta == nil {
+		job.ObjectMeta = &armadaevents.ObjectMeta{}
+	}
+	if job.ObjectMeta.Labels == nil {
+		job.ObjectMeta.Labels = make(map[string]string, len(labels))
+	}
+	for k, v := range labels {
+		job.ObjectMeta.Labels[k] = v
 	}
 }
 
