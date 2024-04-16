@@ -925,6 +925,35 @@ func TestConvertIngressInfo(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertJobPreemptionRequested(t *testing.T) {
+	preemptRequest := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+			JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+				JobId: jobIdProto,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempting{
+				Preempting: &api.JobPreemptingEvent{
+					JobId:     jobIdString,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   baseTime,
+					Requestor: userId,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(preemptRequest))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
 func TestConvertJobRunPreempted(t *testing.T) {
 	preempted := &armadaevents.EventSequence_Event{
 		Created: &baseTime,

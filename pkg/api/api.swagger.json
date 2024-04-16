@@ -298,6 +298,36 @@
         }
       }
     },
+    "/v1/job/preempt": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "PreemptJobs",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobPreemptRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job/reprioritize": {
       "post": {
         "tags": [
@@ -646,6 +676,9 @@
         },
         "preempted": {
           "$ref": "#/definitions/apiJobPreemptedEvent"
+        },
+        "preempting": {
+          "$ref": "#/definitions/apiJobPreemptingEvent"
         },
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
@@ -1220,6 +1253,24 @@
         }
       }
     },
+    "apiJobPreemptRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
     "apiJobPreemptedEvent": {
       "type": "object",
       "properties": {
@@ -1246,6 +1297,27 @@
           "type": "string"
         },
         "runId": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobPreemptingEvent": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "requestor": {
           "type": "string"
         }
       }

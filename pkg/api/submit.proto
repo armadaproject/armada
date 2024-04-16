@@ -65,6 +65,13 @@ message JobSubmitRequest {
 }
 
 // swagger:model
+message JobPreemptRequest {
+  string queue = 1;
+  string job_set_id = 2;
+  repeated string job_ids = 3;
+}
+
+// swagger:model
 message JobCancelRequest {
     string job_id = 1;
     string job_set_id = 2;
@@ -286,6 +293,12 @@ service Submit {
             post: "/v1/job/reprioritize"
             body: "*"
         };
+    }
+    rpc PreemptJobs (JobPreemptRequest) returns (google.protobuf.Empty) {
+      option (google.api.http) = {
+        post: "/v1/job/preempt"
+        body: "*"
+      };
     }
     rpc CreateQueue (Queue) returns (google.protobuf.Empty) {
         option (google.api.http) = {
