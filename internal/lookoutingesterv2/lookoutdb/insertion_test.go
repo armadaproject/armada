@@ -324,6 +324,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				LastTransitionTimeSeconds: baseTime.Unix(),
 				JobProto:                  []byte(jobProto),
 				PriorityClass:             pointer.String(priorityClass),
+				Annotations:               map[string]string{},
 			},
 			{
 				JobId:                     "job2",
@@ -341,6 +342,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				LastTransitionTimeSeconds: baseTime.Unix(),
 				JobProto:                  []byte(jobProto),
 				PriorityClass:             pointer.String(priorityClass),
+				Annotations:               map[string]string{},
 			},
 			{
 				JobId:                     "job3",
@@ -358,6 +360,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				LastTransitionTimeSeconds: baseTime.Unix(),
 				JobProto:                  []byte(jobProto),
 				PriorityClass:             pointer.String(priorityClass),
+				Annotations:               map[string]string{},
 			},
 		}
 
