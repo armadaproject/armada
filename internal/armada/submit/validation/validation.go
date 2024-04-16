@@ -179,7 +179,7 @@ func validateAffinity(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 	return nil
 }
 
-// Ensures that if a request specifies a PriorityCVlass, that priority class is supported by Armada.
+// Ensures that if a request specifies a PriorityClass, that priority class is supported by Armada.
 func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	if spec == nil {
@@ -303,7 +303,7 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 	return nil
 }
 
-// Validates the the job request doesn't define a TerminationGracePeriod outside the range allowed in configuration
+// Validates the job request doesn't define a TerminationGracePeriod outside the range allowed in configuration
 func validateTerminationGracePeriod(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	if spec == nil {

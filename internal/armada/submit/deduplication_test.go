@@ -39,13 +39,13 @@ func (m *InMemoryKeyValueStore) Load(_ *armadacontext.Context, keys []string) (m
 
 func TestDeduplicator(t *testing.T) {
 	tests := map[string]struct {
-		intitialKeys []deduplicationIdsWithQueue
+		initialKeys  []deduplicationIdsWithQueue
 		queueToFetch string
 		jobsToFetch  []*api.JobSubmitRequestItem
 		expectedKeys map[string]string
 	}{
 		"empty": {
-			intitialKeys: []deduplicationIdsWithQueue{},
+			initialKeys:  []deduplicationIdsWithQueue{},
 			queueToFetch: "testQueue",
 			jobsToFetch: []*api.JobSubmitRequestItem{
 				{ClientId: "a"},
@@ -53,7 +53,7 @@ func TestDeduplicator(t *testing.T) {
 			expectedKeys: map[string]string{},
 		},
 		"all keys exist": {
-			intitialKeys: []deduplicationIdsWithQueue{
+			initialKeys: []deduplicationIdsWithQueue{
 				{
 					queue: "testQueue",
 					kvs:   map[string]string{"foo": "bar", "fish": "chips"},
@@ -67,7 +67,7 @@ func TestDeduplicator(t *testing.T) {
 			expectedKeys: map[string]string{"foo": "bar", "fish": "chips"},
 		},
 		"some keys exist": {
-			intitialKeys: []deduplicationIdsWithQueue{
+			initialKeys: []deduplicationIdsWithQueue{
 				{
 					queue: "testQueue",
 					kvs:   map[string]string{"fish": "chips"},
@@ -81,7 +81,7 @@ func TestDeduplicator(t *testing.T) {
 			expectedKeys: map[string]string{"fish": "chips"},
 		},
 		"consider queue to be part of  the key": {
-			intitialKeys: []deduplicationIdsWithQueue{
+			initialKeys: []deduplicationIdsWithQueue{
 				{
 					queue: "testQueue",
 					kvs:   map[string]string{"foo": "bar"},
@@ -94,7 +94,7 @@ func TestDeduplicator(t *testing.T) {
 			expectedKeys: map[string]string{},
 		},
 		"Don't fetch when clienmt id empty": {
-			intitialKeys: []deduplicationIdsWithQueue{
+			initialKeys: []deduplicationIdsWithQueue{
 				{
 					queue: "testQueue",
 					kvs:   map[string]string{"": "bar"},
@@ -113,7 +113,7 @@ func TestDeduplicator(t *testing.T) {
 			deduplicator := NewDeduplicator(&InMemoryKeyValueStore{kvs: map[string][]byte{}})
 
 			// Store
-			for _, keys := range tc.intitialKeys {
+			for _, keys := range tc.initialKeys {
 				err := deduplicator.StoreOriginalJobIds(ctx, keys.queue, keys.kvs)
 				require.NoError(t, err)
 			}

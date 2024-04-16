@@ -34,8 +34,8 @@ var (
 )
 
 // postProcess modifies an armadaevents.SubmitJob in-place by applying various rules to it.  This allows us
-// to e.g apply default values or template out the jobid.  The rules to be applied are defined above and may act at
-// either the msg level or the podpsec level
+// to e.g. apply default values or template out the jobid.  The rules to be applied are defined above and may act at
+// either the msg level or the podspec level
 func postProcess(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
 	for _, p := range msgLevelProcessors {
 		p(msg, config)
@@ -85,7 +85,7 @@ func defaultPriorityClass(spec *v1.PodSpec, config configuration.SubmissionConfi
 	}
 }
 
-// Adds resources defined in config.DefaultJobLimits to all containers in the podspect if that container is missing
+// Adds resources defined in config.DefaultJobLimits to all containers in the podspec if that container is missing
 // requests/limits for that particular resource. This can be used to e.g. ensure that lal jobs define at least some
 // ephemeral storage.
 func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
@@ -108,11 +108,11 @@ func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	}
 }
 
-// Adds tolerations to the podspec.  The tolerations added depenbd on three properties:
+// Adds tolerations to the podspec.  The tolerations added depend on three properties:
 //   - config.DefaultJobTolerations: These tolerations are added to  all jobs
 //   - config.DefaultJobTolerationsByPriorityClass: These tolerations are added to jobs based on the priority class of the
-//     job. Typically this allows pre-emptible jobs to run ina greater number of places.
-//   - config.DefaultJobTolerationsByResourceRequest: The se tolerations are added to tjobs based on the resources they
+//     job. Typically, this allows preemptible jobs to run ina greater number of places.
+//   - config.DefaultJobTolerationsByResourceRequest: These tolerations are added to jobs based on the resources they
 //     request.  This is used to allow jobs requesting special hardware (e.g. gpu) to be able to run on machines containing
 //     that hardware.
 func defaultTolerations(spec *v1.PodSpec, config configuration.SubmissionConfig) {
@@ -153,7 +153,7 @@ func defaultTerminationGracePeriod(spec *v1.PodSpec, config configuration.Submis
 	}
 }
 
-// Default's the jobs's GangNodeUniformityLabelAnnotation for gang jobs that do not define one.
+// Default's the job's GangNodeUniformityLabelAnnotation for gang jobs that do not define one.
 func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
 	annotations := msg.MainObject.GetObjectMeta().GetAnnotations()
 	if annotations == nil {
@@ -167,7 +167,7 @@ func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configur
 }
 
 // Templates the JobId in labels and annotations. This allows users to define labels and annotations containing the string
-// {JobId} andhave it populated with the actual id of the job.
+// {JobId} and have it populated with the actual id of the job.
 func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig) {
 	template := func(labels map[string]string, jobId string) {
 		for key, value := range labels {
