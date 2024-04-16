@@ -1,0 +1,1 @@
+ALTER TABLE job ALTER COLUMN annotations SET NOT NULL;
