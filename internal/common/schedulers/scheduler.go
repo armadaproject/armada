@@ -48,15 +48,3 @@ func MsgPropertyFromScheduler(s Scheduler) string {
 	log.Warnf("Unknown scheduler [%d]. Defaulting to legacy scheduler", s)
 	return LegacySchedulerAttribute
 }
-
-// ForPulsarScheduler returns true if this message should be processed by the pulsar scheduler
-func ForPulsarScheduler(msg pulsar.Message) bool {
-	s := SchedulerFromMsg(msg)
-	return s == Pulsar || s == All
-}
-
-// ForLegacyScheduler returns true if this message should be processed by the legacy scheduler
-func ForLegacyScheduler(msg pulsar.Message) bool {
-	s := SchedulerFromMsg(msg)
-	return s == Legacy || s == All
-}
