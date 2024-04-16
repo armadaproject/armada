@@ -10,7 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/interfaces"
 )
 
-// PartitionToLen partitions the elements of s into non-overlapping slices,
+// PartitionToMaxLen partitions the elements of s into non-overlapping slices,
 // such that each such slice contains at most maxLen elements.
 func PartitionToMaxLen[S ~[]E, E any](s S, maxLen int) []S {
 	n := int(math.Ceil(float64(len(s)) / float64(maxLen)))
