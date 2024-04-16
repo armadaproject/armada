@@ -961,6 +961,13 @@ func TestGroupByAnnotation(t *testing.T) {
 				"test-annotation-1": "test-value-3",
 			},
 		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			annotations: map[string]string{
+				// Note the absence of the key "test-annotation-1".
+			},
+		}, converter, store)
 
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
