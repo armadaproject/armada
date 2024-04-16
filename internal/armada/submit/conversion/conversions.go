@@ -173,7 +173,7 @@ func createIngressFromService(
 
 	// Rest of the hosts are generated off port information
 	for _, servicePort := range service.Ports {
-		host := fmt.Sprintf("%s-%s.%s.%s", servicePort.Name, common.PodName(jobId), namespace, "${HostNameSuffix}")
+		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, common.PodName(jobId), namespace)
 		tlsHosts = append(tlsHosts, host)
 
 		// Workaround to get constant's address
@@ -207,7 +207,7 @@ func createIngressFromService(
 	if ingressConfig.TlsEnabled {
 		certName := ingressConfig.CertName
 		if certName == "" {
-			certName = fmt.Sprintf("%s-%s", namespace, "${CertNameSuffix}")
+			certName = fmt.Sprintf("%s-", namespace)
 		}
 		tls = append(tls, networking.IngressTLS{
 			Hosts:      tlsHosts,

@@ -159,7 +159,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 							TLS: []networking.IngressTLS{},
 							Rules: []networking.IngressRule{
 								{
-									Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}",
+									Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.",
 									IngressRuleValue: networking.IngressRuleValue{
 										HTTP: &networking.HTTPIngressRuleValue{
 											Paths: []networking.HTTPIngressPath{
@@ -219,7 +219,7 @@ func TestCreateIngressFromService(t *testing.T) {
 	}
 
 	defaultIngressRule := networking.IngressRule{
-		Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}",
+		Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.",
 		IngressRuleValue: networking.IngressRuleValue{
 			HTTP: &networking.HTTPIngressRuleValue{
 				Paths: []networking.HTTPIngressPath{
@@ -275,8 +275,8 @@ func TestCreateIngressFromService(t *testing.T) {
 					Ingress: &networking.IngressSpec{
 						TLS: []networking.IngressTLS{
 							{
-								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}"},
-								SecretName: "testNamespace-${CertNameSuffix}",
+								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace."},
+								SecretName: "testNamespace-",
 							},
 						},
 						Rules: []networking.IngressRule{defaultIngressRule},
@@ -299,7 +299,7 @@ func TestCreateIngressFromService(t *testing.T) {
 					Ingress: &networking.IngressSpec{
 						TLS: []networking.IngressTLS{
 							{
-								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace.${HostNameSuffix}"},
+								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace."},
 								SecretName: "testCustomCert",
 							},
 						},
