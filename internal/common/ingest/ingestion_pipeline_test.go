@@ -294,7 +294,6 @@ func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simp
 		metricsPort:            8080,
 		metrics:                testMetrics,
 		consumer:               consumer,
-		msgFilter:              func(msg pulsar.Message) bool { return true },
 	}
 }
 
