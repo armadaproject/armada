@@ -62,7 +62,6 @@ type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarBatchSize        int
 	pulsarBatchDuration    time.Duration
 	pulsarSubscriptionType pulsar.SubscriptionType
-	msgFilter              func(msg pulsar.Message) bool
 	converter              InstructionConverter[T]
 	sink                   Sink[T]
 	consumer               pulsar.Consumer // for test purposes only
@@ -80,34 +79,6 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 	metricsPort uint16,
 	metrics *commonmetrics.Metrics,
 ) *IngestionPipeline[T] {
-	return NewFilteredMsgIngestionPipeline[T](
-		pulsarConfig,
-		pulsarSubscriptionName,
-		pulsarBatchSize,
-		pulsarBatchDuration,
-		pulsarSubscriptionType,
-		func(_ pulsar.Message) bool { return true },
-		converter,
-		sink,
-		metricsPort,
-		metrics,
-	)
-}
-
-// NewFilteredMsgIngestionPipeline creates an IngestionPipeline that processes only messages corresponding to the
-// supplied message filter
-func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
-	pulsarConfig configuration.PulsarConfig,
-	pulsarSubscriptionName string,
-	pulsarBatchSize int,
-	pulsarBatchDuration time.Duration,
-	pulsarSubscriptionType pulsar.SubscriptionType,
-	msgFilter func(msg pulsar.Message) bool,
-	converter InstructionConverter[T],
-	sink Sink[T],
-	metricsPort uint16,
-	metrics *commonmetrics.Metrics,
-) *IngestionPipeline[T] {
 	return &IngestionPipeline[T]{
 		pulsarConfig:           pulsarConfig,
 		metricsPort:            metricsPort,
@@ -116,7 +87,6 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 		pulsarBatchSize:        pulsarBatchSize,
 		pulsarBatchDuration:    pulsarBatchDuration,
 		pulsarSubscriptionType: pulsarSubscriptionType,
-		msgFilter:              msgFilter,
 		converter:              converter,
 		sink:                   sink,
 	}
@@ -166,7 +136,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	eventSequences := make(chan *EventSequencesWithIds)
 	go func() {
 		for msg := range batchedMsgs {
-			converted := unmarshalEventSequences(msg, ingester.msgFilter, ingester.metrics)
+			converted := unmarshalEventSequences(msg, ingester.metrics)
 			eventSequences <- converted
 		}
 		close(eventSequences)
@@ -245,7 +215,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 	}, nil
 }
 
-func unmarshalEventSequences(batch []pulsar.ConsumerMessage, msgFilter func(msg pulsar.Message) bool, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
+func unmarshalEventSequences(batch []pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
 	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
 	messageIds := make([]pulsar.MessageID, len(batch))
 	for i, msg := range batch {
@@ -253,11 +223,6 @@ func unmarshalEventSequences(batch []pulsar.ConsumerMessage, msgFilter func(msg 
 		// Record the messageId- we need to record all message Ids, even if the event they contain is invalid
 		// As they must be acked at the end
 		messageIds[i] = msg.ID()
-
-		// If we're not interested in this then continue
-		if !msgFilter(msg) {
-			continue
-		}
 
 		// Try and unmarshall the proto
 		es, err := eventutil.UnmarshalEventSequence(armadacontext.Background(), msg.Payload())
