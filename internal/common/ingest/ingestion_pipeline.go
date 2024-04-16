@@ -139,15 +139,9 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 		ingester.consumer = consumer
 		defer closePulsar()
 	}
-	pulsarMsgs := pulsarutils.Receive(
-		ctx,
-		ingester.consumer,
-		ingester.pulsarConfig.ReceiveTimeout,
-		ingester.pulsarConfig.BackoffTime,
-		ingester.metrics)
+	pulsarMsgs := ingester.consumer.Chan()
 
-	// Set up a context that n seconds after ctx
-	// This gives the rest of the pipeline a chance to flush pending messages
+	// TODO: This looks incorrect- we should respect the passed-in context here
 	pipelineShutdownContext, cancel := armadacontext.WithCancel(armadacontext.Background())
 	go func() {
 		for {
@@ -161,8 +155,8 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	}()
 
 	// Batch up messages
-	batchedMsgs := make(chan []pulsar.Message)
-	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
+	batchedMsgs := make(chan []pulsar.ConsumerMessage)
+	batcher := NewBatcher[pulsar.ConsumerMessage](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.ConsumerMessage) { batchedMsgs <- b })
 	go func() {
 		batcher.Run(pipelineShutdownContext)
 		close(batchedMsgs)
@@ -251,7 +245,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 	}, nil
 }
 
-func unmarshalEventSequences(batch []pulsar.Message, msgFilter func(msg pulsar.Message) bool, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
+func unmarshalEventSequences(batch []pulsar.ConsumerMessage, msgFilter func(msg pulsar.Message) bool, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
 	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
 	messageIds := make([]pulsar.MessageID, len(batch))
 	for i, msg := range batch {

@@ -13,7 +13,7 @@ import (
 // Batcher batches up events from a channel.  Batches are created whenever maxItems have been
 // received or maxTimeout has elapsed since the last batch was created (whichever occurs first).
 type Batcher[T any] struct {
-	input      chan T
+	input      <-chan T
 	maxItems   int
 	maxTimeout time.Duration
 	clock      clock.Clock
@@ -22,7 +22,7 @@ type Batcher[T any] struct {
 	mutex      sync.Mutex
 }
 
-func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, callback func([]T)) *Batcher[T] {
+func NewBatcher[T any](input <-chan T, maxItems int, maxTimeout time.Duration, callback func([]T)) *Batcher[T] {
 	return &Batcher[T]{
 		input:      input,
 		maxItems:   maxItems,
