@@ -93,48 +93,29 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 }
 
 // Run will run the ingestion pipeline until the supplied context is shut down
-func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
-	shutdownMetricServer := common.ServeMetrics(ingester.metricsPort)
+func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
+	shutdownMetricServer := common.ServeMetrics(i.metricsPort)
 	defer shutdownMetricServer()
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	if ingester.consumer == nil {
-		consumer, closePulsar, err := ingester.subscribe()
+	if i.consumer == nil {
+		consumer, closePulsar, err := i.subscribe()
 		if err != nil {
 			return err
 		}
-		ingester.consumer = consumer
+		i.consumer = consumer
 		defer closePulsar()
 	}
-	pulsarMsgs := pulsarutils.Receive(
-		ctx,
-		ingester.consumer,
-		ingester.pulsarConfig.ReceiveTimeout,
-		ingester.pulsarConfig.BackoffTime,
-		ingester.metrics)
-
-	// Set up a context that n seconds after ctx
-	// This gives the rest of the pipeline a chance to flush pending messages
-	pipelineShutdownContext, cancel := armadacontext.WithCancel(armadacontext.Background())
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				time.Sleep(2 * ingester.pulsarBatchDuration)
-				log.Infof("Waited for %v: forcing cancel", 2*ingester.pulsarBatchDuration)
-				cancel()
-			}
-		}
-	}()
+	pulsarMsgs := i.consumer.Chan()
 
 	// Batch up messages
-	batchedMsgs := make(chan []pulsar.Message)
-	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
+	batchedMsgs := make(chan []pulsar.ConsumerMessage)
+	batcher := NewBatcher[pulsar.ConsumerMessage](pulsarMsgs, i.pulsarBatchSize, i.pulsarBatchDuration, func(b []pulsar.ConsumerMessage) { batchedMsgs <- b })
 	go func() {
-		batcher.Run(pipelineShutdownContext)
+		batcher.Run(ctx)
 		close(batchedMsgs)
 	}()
 
@@ -142,7 +123,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	eventSequences := make(chan *EventSequencesWithIds)
 	go func() {
 		for msg := range batchedMsgs {
-			converted := unmarshalEventSequences(msg, ingester.metrics)
+			converted := unmarshalEventSequences(msg, i.metrics)
 			eventSequences <- converted
 		}
 		close(eventSequences)
@@ -152,7 +133,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	instructions := make(chan T)
 	go func() {
 		for msg := range eventSequences {
-			converted := ingester.converter.Convert(pipelineShutdownContext, msg)
+			converted := i.converter.Convert(ctx, msg)
 			instructions <- converted
 		}
 		close(instructions)
@@ -164,7 +145,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 			// The sink is responsible for retrying any messages so if we get a message here we know we can give up
 			// and just ACK the ids
 			start := time.Now()
-			err := ingester.sink.Store(pipelineShutdownContext, msg)
+			err := i.sink.Store(ctx, msg)
 			taken := time.Now().Sub(start)
 			if err != nil {
 				log.WithError(err).Warn("Error inserting messages")
@@ -178,10 +159,10 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 				for _, msgId := range msg.GetMessageIDs() {
 					util.RetryUntilSuccess(
 						armadacontext.Background(),
-						func() error { return ingester.consumer.AckID(msgId) },
+						func() error { return i.consumer.AckID(msgId) },
 						func(err error) {
-							log.WithError(err).Warnf("Pulsar ack failed; backing off for %s", ingester.pulsarConfig.BackoffTime)
-							time.Sleep(ingester.pulsarConfig.BackoffTime)
+							log.WithError(err).Warnf("Pulsar ack failed; backing off for %s", i.pulsarConfig.BackoffTime)
+							time.Sleep(i.pulsarConfig.BackoffTime)
 						},
 					)
 				}
@@ -197,18 +178,18 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	return nil
 }
 
-func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
+func (i *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
 	// Subscribe to Pulsar and receive messages
-	pulsarClient, err := pulsarutils.NewPulsarClient(&ingester.pulsarConfig)
+	pulsarClient, err := pulsarutils.NewPulsarClient(&i.pulsarConfig)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "Error creating pulsar client")
 	}
 
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:                       ingester.pulsarConfig.JobsetEventsTopic,
-		SubscriptionName:            ingester.pulsarSubscriptionName,
-		Type:                        ingester.pulsarSubscriptionType,
-		ReceiverQueueSize:           ingester.pulsarConfig.ReceiverQueueSize,
+		Topic:                       i.pulsarConfig.JobsetEventsTopic,
+		SubscriptionName:            i.pulsarSubscriptionName,
+		Type:                        i.pulsarSubscriptionType,
+		ReceiverQueueSize:           i.pulsarConfig.ReceiverQueueSize,
 		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {
@@ -221,7 +202,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 	}, nil
 }
 
-func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
+func unmarshalEventSequences(batch []pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
 	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
 	messageIds := make([]pulsar.MessageID, len(batch))
 	for i, msg := range batch {
