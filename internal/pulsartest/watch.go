@@ -9,7 +9,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 )
 
 // Watch for Pulsar events
@@ -23,15 +22,13 @@ func (a *App) Watch() error {
 		}
 
 		ctx := armadacontext.Background()
-		msgId := pulsarutils.New(msg.ID().LedgerID(), msg.ID().EntryID(),
-			msg.ID().PartitionIdx(), msg.ID().BatchIdx())
 
 		es, err := eventutil.UnmarshalEventSequence(ctx, msg.Payload())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Could not unmarshal proto for msg %s\n", msgId.String())
+			fmt.Fprintf(os.Stderr, "Could not unmarshal proto for msg %s\n", msg.ID())
 		}
 
-		fmt.Printf("Id: %s\nMessage: %s\n", msgId.String(), litter.Sdump(es))
+		fmt.Printf("Id: %s\nMessage: %s\n", msg.ID().String(), litter.Sdump(es))
 	}
 	return nil
 }
