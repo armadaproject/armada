@@ -35,6 +35,10 @@ func TODO() *Context {
 // FromGrpcCtx creates a context where the logger is extracted via ctxlogrus's Extract() method.
 // Note that this will result in a no-op logger if a logger hasn't already been inserted into the context via ctxlogrus
 func FromGrpcCtx(ctx context.Context) *Context {
+	armadaCtx, ok := ctx.(*Context)
+	if ok {
+		return armadaCtx
+	}
 	log := ctxlogrus.Extract(ctx)
 	return New(ctx, log)
 }

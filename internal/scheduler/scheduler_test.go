@@ -1318,7 +1318,7 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) CheckApiJobs(_ []*api.Job) (bool, string) {
+func (t *testSubmitChecker) CheckApiJobs(_ *armadaevents.EventSequence, _ string) (bool, string) {
 	reason := ""
 	if !t.checkSuccess {
 		reason = "CheckApiJobs failed"

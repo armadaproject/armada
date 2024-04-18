@@ -1,16 +1,18 @@
 package adapters
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/types"
-
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // PodRequirementsFromPod function creates the schedulerobjects and creates a value for the
@@ -44,4 +46,47 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 		PreemptionPolicy:     preemptionPolicy,
 		ResourceRequirements: api.SchedulingResourceRequirementsFromPodSpec(podSpec),
 	}
+}
+
+// SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
+func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time, priorityClasses map[string]types.PriorityClass) (*schedulerobjects.JobSchedulingInfo, error) {
+	// Component common to all jobs.
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		Lifetime:        submitJob.Lifetime,
+		AtMostOnce:      submitJob.AtMostOnce,
+		Preemptible:     submitJob.Preemptible,
+		ConcurrencySafe: submitJob.ConcurrencySafe,
+		SubmitTime:      submitTime,
+		Priority:        submitJob.Priority,
+		Version:         0,
+		QueueTtlSeconds: submitJob.QueueTtlSeconds,
+	}
+
+	// Scheduling requirements specific to the objects that make up this job.
+	switch object := submitJob.MainObject.Object.(type) {
+	case *armadaevents.KubernetesMainObject_PodSpec:
+		podSpec := object.PodSpec.PodSpec
+		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
+		podRequirements := PodRequirementsFromPodSpec(podSpec, priorityClasses)
+		if submitJob.ObjectMeta != nil {
+			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
+		}
+		if submitJob.MainObject.ObjectMeta != nil {
+			if podRequirements.Annotations == nil {
+				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
+			}
+			maps.Copy(podRequirements.Annotations, submitJob.MainObject.ObjectMeta.Annotations)
+		}
+		schedulingInfo.ObjectRequirements = append(
+			schedulingInfo.ObjectRequirements,
+			&schedulerobjects.ObjectRequirements{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: podRequirements,
+				},
+			},
+		)
+	default:
+		return nil, errors.Errorf("unsupported object type %T", object)
+	}
+	return schedulingInfo, nil
 }
