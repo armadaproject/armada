@@ -23,7 +23,7 @@ jobs:
               echo "job id: ${JOB_ID}"
               echo "namespace: ${NAMESPACE}"
               sleep 5 # give 5 seconds for services to be created
-              kubectl get service -n ${NAMESPACE} armada-${JOB_ID}-0-headless
+              kubectl get service -n ${NAMESPACE} armada-${JOB_ID}-0-service-0
           env:
             - name: JOB_ID
               valueFrom:
