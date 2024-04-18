@@ -578,7 +578,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 }
 
 func TestSortExecutorGroups(t *testing.T) {
-
 	tests := map[string]struct {
 		groups          []string
 		groupToPriority map[string]int
