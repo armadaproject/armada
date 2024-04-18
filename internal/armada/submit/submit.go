@@ -149,7 +149,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		Groups:     groups,
 		Events:     submitMsgs,
 	}
-	if canSchedule, reason := s.submitChecker.CheckApiJobs(es); !canSchedule {
+	if canSchedule, reason := s.submitChecker.CheckApiJobs(es, s.submissionConfig.DefaultPriorityClassName); !canSchedule {
 		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 

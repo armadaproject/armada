@@ -36,18 +36,18 @@ func (m *MockSubmitScheduleChecker) EXPECT() *MockSubmitScheduleCheckerMockRecor
 }
 
 // CheckApiJobs mocks base method.
-func (m *MockSubmitScheduleChecker) CheckApiJobs(arg0 *armadaevents.EventSequence) (bool, string) {
+func (m *MockSubmitScheduleChecker) CheckApiJobs(arg0 *armadaevents.EventSequence, arg1 string) (bool, string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckApiJobs", arg0)
+	ret := m.ctrl.Call(m, "CheckApiJobs", arg0, arg1)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(string)
 	return ret0, ret1
 }
 
 // CheckApiJobs indicates an expected call of CheckApiJobs.
-func (mr *MockSubmitScheduleCheckerMockRecorder) CheckApiJobs(arg0 interface{}) *gomock.Call {
+func (mr *MockSubmitScheduleCheckerMockRecorder) CheckApiJobs(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckApiJobs", reflect.TypeOf((*MockSubmitScheduleChecker)(nil).CheckApiJobs), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckApiJobs", reflect.TypeOf((*MockSubmitScheduleChecker)(nil).CheckApiJobs), arg0, arg1)
 }
 
 // CheckJobDbJobs mocks base method.

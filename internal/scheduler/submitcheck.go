@@ -40,7 +40,7 @@ type schedulingResult struct {
 const maxJobSchedulingResults = 10000
 
 type SubmitScheduleChecker interface {
-	CheckApiJobs(es *armadaevents.EventSequence) (bool, string)
+	CheckApiJobs(es *armadaevents.EventSequence, defaultPriorityClass string) (bool, string)
 	CheckJobDbJobs(jobs []*jobdb.Job) (bool, string)
 }
 
@@ -142,8 +142,8 @@ func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
 	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 
-func (srv *SubmitChecker) CheckApiJobs(es *armadaevents.EventSequence) (bool, string) {
-	jobDb := jobdb.NewJobDb(srv.priorityClasses, "", stringInterner)
+func (srv *SubmitChecker) CheckApiJobs(es *armadaevents.EventSequence, defaultPriorityClass string) (bool, string) {
+	jobDb := jobdb.NewJobDb(srv.priorityClasses, defaultPriorityClass, stringInterner)
 	jobs := make([]*jobdb.Job, 0, len(es.Events))
 	for _, event := range es.Events {
 		submitMsg := event.GetSubmitJob()

@@ -27,9 +27,11 @@ var (
 		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
 		PriorityClass3:               {Priority: 3, Preemptible: false},
 	}
-	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
-	jobDb                  = NewJobDbWithSchedulingKeyGenerator(
+	TestDefaultPriorityClass = PriorityClass3
+	SchedulingKeyGenerator   = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	jobDb                    = NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
+		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 	)

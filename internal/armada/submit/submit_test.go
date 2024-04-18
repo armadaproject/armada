@@ -105,7 +105,7 @@ func TestSubmit_Success(t *testing.T) {
 
 			mockedObjects.submitChecker.
 				EXPECT().
-				CheckApiJobs(gomock.Any()).
+				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
 				Return(true, "").
 				Times(1)
 
@@ -235,7 +235,7 @@ func TestSubmit_SubmitCheckFailed(t *testing.T) {
 
 			mockedObjects.submitChecker.
 				EXPECT().
-				CheckApiJobs(gomock.Any()).
+				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
 				Return(false, "").
 				Times(1)
 

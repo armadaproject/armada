@@ -190,7 +190,7 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 				}
 			})
 			es := &armadaevents.EventSequence{Events: events}
-			result, msg := submitCheck.CheckApiJobs(es)
+			result, msg := submitCheck.CheckApiJobs(es, testfixtures.TestDefaultPriorityClass)
 			assert.Equal(t, tc.expectPass, result)
 			if !tc.expectPass {
 				assert.NotEqual(t, "", msg)

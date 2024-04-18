@@ -96,6 +96,7 @@ func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
 func NewJobDb() *jobdb.JobDb {
 	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
+		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 	)
