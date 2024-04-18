@@ -94,6 +94,7 @@ func main() {
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,
 		api.RegisterEventHandler,
+		api.RegisterJobsHandler,
 	)
 	defer shutdownGateway()
 
