@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -28,6 +29,16 @@ import (
 )
 
 const nodeIdName = "kubernetes.io/hostname"
+
+const (
+	armadaDefaultPriorityClassName     = "armada-default"
+	armadaPreemptiblePriorityClassName = "armada-preemptible"
+)
+
+var priorityClasses = map[string]types.PriorityClass{
+	armadaDefaultPriorityClassName:     {Preemptible: false},
+	armadaPreemptiblePriorityClassName: {Preemptible: true},
+}
 
 func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	const maxJobsPerCall = uint(100)
@@ -83,7 +94,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 	submit, compressedSubmit := submitMsg(
 		t,
-		nil,
+		&armadaevents.ObjectMeta{
+			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
 		},
@@ -98,7 +111,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		SubmitMessage: compressedSubmit,
 	}
 
-	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, nil, nil)
+	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t,
+		&armadaevents.ObjectMeta{
+			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+		},
+		nil,
+	)
 	leaseWithoutNode := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
@@ -106,6 +124,26 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		UserID:        "test-user",
 		Groups:        compressedGroups,
 		SubmitMessage: compressedSubmitNoNodeSelector,
+	}
+
+	preemptibleSubmit, preemptibleCompressedSubmit := submitMsg(
+		t,
+		&armadaevents.ObjectMeta{
+			Labels: map[string]string{armadaJobPreemptibleLabel: "true"},
+		},
+		&v1.PodSpec{
+			PriorityClassName: armadaPreemptiblePriorityClassName,
+			NodeSelector:      map[string]string{nodeIdName: "node-id"},
+		},
+	)
+	preemptibleLease := &database.JobRunLease{
+		RunID:         uuid.New(),
+		Queue:         "test-queue",
+		JobSet:        "test-jobset",
+		UserID:        "test-user",
+		Node:          "node-id",
+		Groups:        compressedGroups,
+		SubmitMessage: preemptibleCompressedSubmit,
 	}
 
 	tolerations := []v1.Toleration{
@@ -137,6 +175,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t,
 		&armadaevents.ObjectMeta{
 			Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
 		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
@@ -218,6 +257,26 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				},
 			},
 		},
+		"preemptible job lease": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{preemptibleLease},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: armadaevents.ProtoUuidFromUuid(preemptibleLease.RunID),
+						Queue:    preemptibleLease.Queue,
+						Jobset:   preemptibleLease.JobSet,
+						User:     preemptibleLease.UserID,
+						Groups:   groups,
+						Job:      preemptibleSubmit,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
 		"do nothing": {
 			request:          defaultRequest,
 			expectedExecutor: defaultExpectedExecutor,
@@ -270,6 +329,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				[]int32{1000, 2000},
 				"kubernetes.io/hostname",
 				nil,
+				priorityClasses,
 				4*1024*1024,
 			)
 			require.NoError(t, err)
@@ -397,6 +457,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				[]int32{1000, 2000},
 				"kubernetes.io/hostname",
 				nil,
+				priorityClasses,
 				4*1024*1024,
 			)
 
