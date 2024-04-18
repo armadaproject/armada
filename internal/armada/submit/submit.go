@@ -77,7 +77,7 @@ func NewServer(
 //   - The request is validated to make sure it is well formed.  If this fails then an error is returned
 //   - Each JobRequestItem inside the request is checked to see if it is a duplicate
 //   - Each non-duplicate is converted into an armadaevents.SubmitMessage
-//   - All SubmitMessages are checked to see if the job they define can be scheduled (an example of a job tht cannot
+//   - All SubmitMessages are checked to see if the job they define can be scheduled (an example of a job that cannot
 //     be scheduled would be a job that requires more resources than exists on any node).  If any message fails this
 //     check then an error is returned.
 //   - The SubmitMessages are published to Pulsar.
