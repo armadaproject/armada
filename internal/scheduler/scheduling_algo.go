@@ -663,6 +663,9 @@ func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(
 // If a group's priority is not specified in the map, the defaultPriority is used. The groups are primarily
 // sorted by descending priority. If two groups have the same priority, they are sorted alphabetically by their names.
 func sortExecutorGroups(groups []string, groupToPriority map[string]int, defaultPriority int) {
+	if groupToPriority == nil {
+		groupToPriority = map[string]int{}
+	}
 	// Sort the groups using a custom comparison function
 	sort.Slice(groups, func(i, j int) bool {
 		// Retrieve or default the priority for the i-th group

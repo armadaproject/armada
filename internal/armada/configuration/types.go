@@ -254,9 +254,9 @@ type SchedulingConfig struct {
 	// Controls queue quarantining, i.e., rate-limiting scheduling from misbehaving queues.
 	QueueQuarantining QueueQuarantinerConfig
 	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first
-	PoolSchedulePriority map[string]int `validate:"required"`
+	PoolSchedulePriority map[string]int
 	// Default priority for pools that are not in the above list
-	DefaultPoolSchedulePriority int `validate:"required"`
+	DefaultPoolSchedulePriority int
 }
 
 const (
