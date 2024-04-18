@@ -133,3 +133,5 @@ scheduling:
   queueQuarantining:
     quarantineFactorMultiplier: 0.5 # At most halve the scheduling rate of misbehaving queues.
     failureProbabilityEstimateTimeout: "10m"
+  poolSchedulePriority:
+  defaultPoolSchedulePriority: 0
