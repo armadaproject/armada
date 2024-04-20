@@ -401,6 +401,8 @@ type QueueCandidateGangIteratorItem struct {
 	gctx *schedulercontext.GangSchedulingContext
 	// Cost associated with the queue if the topmost gang in the queue were to be scheduled.
 	// Used to order queues fairly.
+	//TODO:  renametofractionOfFairShare
+	// we  also need tostore here the PC prioority of the topmostjob of the queue
 	queueCost float64
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
@@ -409,6 +411,12 @@ type QueueCandidateGangIteratorItem struct {
 
 func (pq QueueCandidateGangIteratorPQ) Len() int { return len(pq) }
 
+// This function controls the orderingofjobs between queues
+// Currently oqueues are ordered first by  "fraction of fair share the queue would have if topmostjob were scheduled"
+// and secondly by "queue name"
+// We  should change this to first order by "PC priority of topmost job in queue"
+// Then by "fraction of fair share the queue would have if topmostjob were scheduled "
+// Finally by "queue name"
 func (pq QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	// Tie-break by queue name.
 	if pq[i].queueCost == pq[j].queueCost {
