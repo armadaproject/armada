@@ -198,6 +198,26 @@ func (mr *MockSubmitClientMockRecorder) Health(arg0, arg1 interface{}, arg2 ...i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Health", reflect.TypeOf((*MockSubmitClient)(nil).Health), varargs...)
 }
 
+// PreemptJobs mocks base method.
+func (m *MockSubmitClient) PreemptJobs(arg0 context.Context, arg1 *api.JobPreemptRequest, arg2 ...grpc.CallOption) (*types.Empty, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PreemptJobs", varargs...)
+	ret0, _ := ret[0].(*types.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PreemptJobs indicates an expected call of PreemptJobs.
+func (mr *MockSubmitClientMockRecorder) PreemptJobs(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PreemptJobs", reflect.TypeOf((*MockSubmitClient)(nil).PreemptJobs), varargs...)
+}
+
 // ReprioritizeJobs mocks base method.
 func (m *MockSubmitClient) ReprioritizeJobs(arg0 context.Context, arg1 *api.JobReprioritizeRequest, arg2 ...grpc.CallOption) (*api.JobReprioritizeResponse, error) {
 	m.ctrl.T.Helper()
