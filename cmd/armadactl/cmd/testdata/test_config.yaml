@@ -1,0 +1,14 @@
+currentContext: main
+contexts:
+  main:
+    armadaUrl: main.armadaproject.io
+    execAuth:
+      cmd: auth
+      args:
+        - armada
+  test:
+    armadaUrl: test.armadaproject.io
+    execAuth:
+      cmd: auth
+      args:
+        - armada

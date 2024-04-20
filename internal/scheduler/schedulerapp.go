@@ -181,6 +181,7 @@ func Run(config schedulerconfig.Configuration) error {
 		types.AllowedPriorities(config.Scheduling.PriorityClasses),
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
+		config.Scheduling.PriorityClasses,
 		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {

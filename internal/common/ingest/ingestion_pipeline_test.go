@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -113,36 +112,35 @@ var failed = &armadaevents.EventSequence{
 }
 
 type mockPulsarConsumer struct {
-	messages   []pulsar.Message
-	messageIdx int
-	acked      map[pulsar.MessageID]bool
-	received   int
-	cancelFn   func()
-	t          *testing.T
+	messages    []pulsar.Message
+	receiveChan chan pulsar.ConsumerMessage
+	acked       map[pulsar.MessageID]bool
+	received    int
+	cancelFn    func()
+	t           *testing.T
 	pulsar.Consumer
 }
 
 func newMockPulsarConsumer(t *testing.T, messages []pulsar.Message, cancelFn func()) *mockPulsarConsumer {
-	return &mockPulsarConsumer{
-		messages: messages,
-		acked:    make(map[pulsar.MessageID]bool),
-		cancelFn: cancelFn,
-		t:        t,
+	receiveChan := make(chan pulsar.ConsumerMessage, len(messages))
+	consumer := &mockPulsarConsumer{
+		messages:    messages,
+		acked:       make(map[pulsar.MessageID]bool),
+		cancelFn:    cancelFn,
+		t:           t,
+		receiveChan: receiveChan,
 	}
-}
-
-func (p *mockPulsarConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
-	if p.messageIdx < len(p.messages) {
-		msg := p.messages[p.messageIdx]
-		p.messageIdx++
-		return msg, nil
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, context.DeadlineExceeded
+	for _, m := range messages {
+		receiveChan <- pulsar.ConsumerMessage{
+			Consumer: consumer,
+			Message:  m,
 		}
 	}
+	return consumer
+}
+
+func (p *mockPulsarConsumer) Chan() <-chan pulsar.ConsumerMessage {
+	return p.receiveChan
 }
 
 func (p *mockPulsarConsumer) AckID(messageId pulsar.MessageID) error {
@@ -294,7 +292,6 @@ func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simp
 		metricsPort:            8080,
 		metrics:                testMetrics,
 		consumer:               consumer,
-		msgFilter:              func(msg pulsar.Message) bool { return true },
 	}
 }
 

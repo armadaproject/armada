@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/benbjohnson/immutable"
@@ -10,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -135,7 +135,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	if len(l.executorGroupsToSchedule) == 0 {
 		// Cycle over groups in a consistent order.
 		l.executorGroupsToSchedule = maps.Keys(executorGroups)
-		slices.Sort(l.executorGroupsToSchedule)
+		sortExecutorGroups(l.executorGroupsToSchedule, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
 		select {
@@ -657,4 +657,32 @@ func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(
 		}
 	}
 	return rv
+}
+
+// sortExecutorGroups sorts the given list of groups based on priorities defined in groupToPriority map.
+// If a group's priority is not specified in the map, the defaultPriority is used. The groups are primarily
+// sorted by descending priority. If two groups have the same priority, they are sorted alphabetically by their names.
+func sortExecutorGroups(groups []string, groupToPriority map[string]int, defaultPriority int) {
+	if groupToPriority == nil {
+		groupToPriority = map[string]int{}
+	}
+	// Sort the groups using a custom comparison function
+	sort.Slice(groups, func(i, j int) bool {
+		// Retrieve or default the priority for the i-th group
+		priI, okI := groupToPriority[groups[i]]
+		if !okI {
+			priI = defaultPriority
+		}
+		// Retrieve or default the priority for the j-th group
+		priJ, okJ := groupToPriority[groups[j]]
+		if !okJ {
+			priJ = defaultPriority
+		}
+		// Sort primarily by priority (descending)
+		if priI != priJ {
+			return priI > priJ
+		}
+		// If priorities are equal, sort by name (ascending)
+		return groups[i] < groups[j]
+	})
 }

@@ -406,6 +406,17 @@ func (qb *QueryBuilder) GroupByJsonb(
 		return nil, err
 	}
 
+	if groupedField.IsAnnotation {
+		// scanGroup expects values in the grouped-by field not to be null. In
+		// the case where we are grouping by an annotation key, we end up with
+		// a `GROUP BY` clause like:
+		//
+		//     GROUP BY annotations->>'host_instance_id'
+		//
+		// This evaluates to null if the annotations object does not contain
+		// the key in question, so we need to filter out such rows.
+		filters = append(filters, &model.Filter{Field: groupedField.Field, Match: model.MatchExists, IsAnnotation: true})
+	}
 	where, err := qb.makeWhereJsonb(filters)
 	if err != nil {
 		return nil, err

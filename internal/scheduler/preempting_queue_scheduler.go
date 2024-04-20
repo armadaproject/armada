@@ -123,6 +123,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.schedulingContext.PriorityClasses,
 			sch.nodeEvictionProbability,
 			func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
+				priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(sch.schedulingContext.PriorityClasses, sch.schedulingContext.DefaultPriorityClass, job)
+				if !priorityClass.Preemptible {
+					return false
+				}
 				if job.GetAnnotations() == nil {
 					ctx.Errorf("can't evict job %s: annotations not initialised", job.GetId())
 					return false
@@ -139,8 +143,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 						return false
 					}
 				}
-				priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(sch.schedulingContext.PriorityClasses, sch.schedulingContext.DefaultPriorityClass, job)
-				return priorityClass.Preemptible
+				return true
 			},
 			nil,
 		),

@@ -112,10 +112,11 @@ func protoGenerate() error {
 		}
 	}
 
-	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
+	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto", "pkg/api/job.proto")
 	if err != nil {
 		return err
 	}
+
 	err = protoProtocRun(false, true, "./pkg/api/binoculars/api", "pkg/api/binoculars/binoculars.proto")
 	if err != nil {
 		return err

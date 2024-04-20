@@ -10,7 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/interfaces"
 )
 
-// PartitionToLen partitions the elements of s into non-overlapping slices,
+// PartitionToMaxLen partitions the elements of s into non-overlapping slices,
 // such that each such slice contains at most maxLen elements.
 func PartitionToMaxLen[S ~[]E, E any](s S, maxLen int) []S {
 	n := int(math.Ceil(float64(len(s)) / float64(maxLen)))
@@ -107,6 +107,18 @@ func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[
 		rv[k] = e
 	}
 	return rv
+}
+
+// Map Returns a slice consisting of the results of applying the given function to the elements of the input slice
+func Map[S ~[]E, E any, V any](s S, f func(E) V) []V {
+	if s == nil {
+		return nil
+	}
+	out := make([]V, len(s))
+	for i, s := range s {
+		out[i] = f(s)
+	}
+	return out
 }
 
 // MapAndGroupByFuncs groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e)

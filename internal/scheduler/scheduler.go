@@ -513,53 +513,57 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(),
-			Events: []*armadaevents.EventSequence_Event{
-				{
-					Created: &time,
-					Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-						JobRunPreempted: &armadaevents.JobRunPreempted{
-							PreemptedRunId: armadaevents.ProtoUuidFromUuid(run.Id()),
-							PreemptedJobId: jobId,
-						},
-					},
+			Events:     createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(run.Id()), time),
+		})
+	}
+	return eventSequences, nil
+}
+
+func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.Uuid, time time.Time) []*armadaevents.EventSequence_Event {
+	return []*armadaevents.EventSequence_Event{
+		{
+			Created: &time,
+			Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+				JobRunPreempted: &armadaevents.JobRunPreempted{
+					PreemptedRunId: runId,
+					PreemptedJobId: jobId,
 				},
-				{
-					Created: &time,
-					Event: &armadaevents.EventSequence_Event_JobRunErrors{
-						JobRunErrors: &armadaevents.JobRunErrors{
-							RunId: armadaevents.ProtoUuidFromUuid(run.Id()),
-							JobId: jobId,
-							Errors: []*armadaevents.Error{
-								{
-									Terminal: true,
-									Reason: &armadaevents.Error_JobRunPreemptedError{
-										JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
-									},
-								},
-							},
-						},
-					},
-				},
-				{
-					Created: &time,
-					Event: &armadaevents.EventSequence_Event_JobErrors{
-						JobErrors: &armadaevents.JobErrors{
-							JobId: jobId,
-							Errors: []*armadaevents.Error{
-								{
-									Terminal: true,
-									Reason: &armadaevents.Error_JobRunPreemptedError{
-										JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
-									},
-								},
+			},
+		},
+		{
+			Created: &time,
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: runId,
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_JobRunPreemptedError{
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
 							},
 						},
 					},
 				},
 			},
-		})
+		},
+		{
+			Created: &time,
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_JobRunPreemptedError{
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
-	return eventSequences, nil
 }
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
@@ -803,6 +807,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 
 				events = append(events, jobErrors)
 			}
+		} else if lastRun.PreemptRequested() && job.GetPriorityClass().Preemptible {
+			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
+			events = append(events, createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(lastRun.Id()), s.clock.Now())...)
 		}
 	}
 

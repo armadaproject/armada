@@ -1,6 +1,7 @@
 package queryapi
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -283,6 +284,7 @@ func TestGetJobStatus(t *testing.T) {
 }
 
 func newJob(jobId string, state int16) database.Job {
+	annotations, _ := json.Marshal(map[string]string{})
 	return database.Job{
 		JobID:            jobId,
 		Queue:            "testQueue",
@@ -310,7 +312,7 @@ func newJob(jobId string, state int16) database.Job {
 		LatestRunID:               nil,
 		CancelReason:              nil,
 		Namespace:                 pointer.String("testNamespace"),
-		Annotations:               nil,
+		Annotations:               annotations,
 	}
 }
 
