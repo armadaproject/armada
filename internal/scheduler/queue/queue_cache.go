@@ -77,5 +77,4 @@ func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) error {
 			fmt.Errorf("unknown event of type %T", msg.GetEvent())
 		}
 	}
-
 }

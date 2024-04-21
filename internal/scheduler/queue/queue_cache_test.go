@@ -14,7 +14,6 @@ import (
 )
 
 func TestFetch(t *testing.T) {
-
 	tests := map[string]struct {
 		queues      []*api.Queue
 		streamError bool
