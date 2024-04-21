@@ -15,14 +15,16 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type minimalExecutor struct {
@@ -38,7 +40,7 @@ type schedulingResult struct {
 const maxJobSchedulingResults = 10000
 
 type SubmitScheduleChecker interface {
-	CheckApiJobs(jobs []*api.Job) (bool, string)
+	CheckApiJobs(es *armadaevents.EventSequence, defaultPriorityClass string) (bool, string)
 	CheckJobDbJobs(jobs []*jobdb.Job) (bool, string)
 }
 
@@ -84,6 +86,8 @@ func NewSubmitChecker(
 		ExecutorUpdateFrequency:   schedulingConfig.ExecutorUpdateFrequency,
 	}
 }
+
+var stringInterner = stringinterner.New(1000)
 
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	srv.updateExecutors(ctx)
@@ -134,11 +138,35 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	srv.jobSchedulingResultsCache.Purge()
 }
 
-func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
+func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
 	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 
-func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
+func (srv *SubmitChecker) CheckApiJobs(es *armadaevents.EventSequence, defaultPriorityClass string) (bool, string) {
+	jobDb := jobdb.NewJobDb(srv.priorityClasses, defaultPriorityClass, stringInterner)
+	jobs := make([]*jobdb.Job, 0, len(es.Events))
+	for _, event := range es.Events {
+		submitMsg := event.GetSubmitJob()
+		if submitMsg != nil {
+			schedInfo, err := adapters.SchedulingInfoFromSubmitJob(submitMsg, time.Now(), srv.priorityClasses)
+			if err != nil {
+				return false, err.Error()
+			}
+			job := jobDb.NewJob(
+				armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId),
+				es.JobSetName,
+				es.Queue,
+				submitMsg.Priority,
+				schedInfo,
+				true,
+				0,
+				false,
+				false,
+				false,
+				0)
+			jobs = append(jobs, job)
+		}
+	}
 	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
 }
 
@@ -282,6 +310,7 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 		srv.indexedTaints,
 		srv.indexedNodeLabels,
 		srv.wellKnownNodeTypes,
+		stringinterner.New(512),
 	)
 	if err != nil {
 		return nil, err

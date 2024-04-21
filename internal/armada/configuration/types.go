@@ -72,9 +72,6 @@ type PulsarConfig struct {
 	CompressionLevel pulsar.CompressionLevel
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
-	// Log all pulsar events
-	EventsPrinterSubscription string
-	EventsPrinter             bool
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
 	// Timeout when polling pulsar for messages
@@ -253,6 +250,10 @@ type SchedulingConfig struct {
 	NodeQuarantining NodeQuarantinerConfig
 	// Controls queue quarantining, i.e., rate-limiting scheduling from misbehaving queues.
 	QueueQuarantining QueueQuarantinerConfig
+	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first
+	PoolSchedulePriority map[string]int
+	// Default priority for pools that are not in the above list
+	DefaultPoolSchedulePriority int
 }
 
 const (

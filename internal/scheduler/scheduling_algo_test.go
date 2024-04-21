@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -392,6 +393,7 @@ func TestSchedule(t *testing.T) {
 				schedulingContextRepo,
 				nil,
 				nil,
+				stringinterner.New(1024),
 			)
 			require.NoError(t, err)
 
@@ -544,6 +546,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				b.StopTimer()
+				stringInterner := stringinterner.New(1024)
 				algo, err := NewFairSchedulingAlgo(
 					schedulingConfig,
 					time.Second*5,
@@ -552,6 +555,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					nil,
 					nil,
+					stringInterner,
 				)
 				require.NoError(b, err)
 				b.StartTimer()
@@ -563,11 +567,54 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
 					schedulingConfig.WellKnownNodeTypes,
+					stringInterner,
 				)
 				require.NoError(b, err)
 				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)
 				require.NoError(b, err)
 			}
+		})
+	}
+}
+
+func TestSortExecutorGroups(t *testing.T) {
+	tests := map[string]struct {
+		groups          []string
+		groupToPriority map[string]int
+		defaultPriority int
+		expected        []string
+	}{
+		"All groups have defined priority": {
+			groups:          []string{"pool1", "pool2", "pool3"},
+			groupToPriority: map[string]int{"pool1": 3, "pool2": 1, "pool3": 2},
+			expected:        []string{"pool1", "pool3", "pool2"},
+		},
+		"Use default Priority": {
+			groups:          []string{"pool1", "pool2", "pool3"},
+			groupToPriority: map[string]int{"pool1": 3, "pool2": 1},
+			defaultPriority: 2,
+			expected:        []string{"pool1", "pool3", "pool2"},
+		},
+		"Tie break on alphabetical": {
+			groups:          []string{"pool1", "pool2", "pool3"},
+			groupToPriority: map[string]int{"pool1": 2, "pool2": 2, "pool3": 3},
+			defaultPriority: 2,
+			expected:        []string{"pool3", "pool1", "pool2"},
+		},
+		"Empty priority yields alphabetical": {
+			groups:   []string{"pool2", "pool3", "pool1"},
+			expected: []string{"pool1", "pool2", "pool3"},
+		},
+		"Empty input": {
+			groups:   []string{},
+			expected: []string{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			sortExecutorGroups(tc.groups, tc.groupToPriority, tc.defaultPriority)
+			assert.Equal(t, tc.expected, tc.groups)
 		})
 	}
 }

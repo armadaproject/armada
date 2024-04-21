@@ -47,7 +47,7 @@ type ApiConnectionDetails struct {
 	ExecAuth                    exec.CommandDetails
 }
 
-type ConnectionDetails func() *ApiConnectionDetails
+type ConnectionDetails func() (*ApiConnectionDetails, error)
 
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
 	return CreateApiConnectionWithCallOptions(config, []grpc.CallOption{}, additionalDialOptions...)

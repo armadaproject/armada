@@ -101,3 +101,7 @@ func ProtoUuidFromUuidString(uuidString string) (*Uuid, error) {
 	}
 	return ProtoUuidFromUuid(id), nil
 }
+
+func MustUlidStringFromProtoUuid(id *Uuid) string {
+	return strings.ToLower(UlidFromProtoUuid(id).String())
+}

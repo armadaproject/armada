@@ -23,20 +23,6 @@ func NewMessageId(id int) pulsar.MessageID {
 	return MockMessageId{id: id}
 }
 
-func NewConsumerMessageId(id int) *ConsumerMessageId {
-	return &ConsumerMessageId{
-		MessageId:  MockMessageId{id: id},
-		ConsumerId: id,
-	}
-}
-
-func EmptyPulsarMessage(id int, publishTime time.Time) MockPulsarMessage {
-	return MockPulsarMessage{
-		messageId:   NewMessageId(id),
-		publishTime: publishTime,
-	}
-}
-
 func NewPulsarMessage(id int, publishTime time.Time, payload []byte) MockPulsarMessage {
 	return MockPulsarMessage{
 		messageId:   NewMessageId(id),

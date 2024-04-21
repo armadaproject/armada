@@ -27,6 +27,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalCancelled(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelledJob)
 		case *armadaevents.EventSequence_Event_CancelJob:
 			convertedEvents, err = FromInternalCancel(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelJob)
+		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+			convertedEvents, err = FromInternalPreemptionRequested(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.JobPreemptionRequested)
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
 			convertedEvents, err = FromInternalReprioritiseJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritiseJob)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
@@ -106,6 +108,27 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 		{
 			Events: &api.EventMessage_Queued{
 				Queued: queuedEvent,
+			},
+		},
+	}, nil
+}
+
+func FromInternalPreemptionRequested(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.JobPreemptionRequested) ([]*api.EventMessage, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempting{
+				Preempting: &api.JobPreemptingEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queueName,
+					Created:   time,
+					Requestor: userId,
+				},
 			},
 		},
 	}, nil

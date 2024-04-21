@@ -15,7 +15,10 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	if err != nil {
 		return err
 	}
-	params.ApiConnectionDetails = client.ExtractCommandlineArmadaApiConnectionDetails()
+	params.ApiConnectionDetails, err = client.ExtractCommandlineArmadaApiConnectionDetails()
+	if err != nil {
+		return err
+	}
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands
 	params.QueueAPI.Create = cq.Create(client.ExtractCommandlineArmadaApiConnectionDetails)

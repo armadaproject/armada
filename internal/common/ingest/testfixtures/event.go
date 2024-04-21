@@ -384,6 +384,15 @@ var JobReprioritised = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobPreemptionRequested = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+		JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+			JobId: JobIdProto,
+		},
+	},
+}
+
 var JobPreempted = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
