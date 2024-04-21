@@ -294,7 +294,7 @@ func (r *DualQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queu
 	}
 	err = r.secondaryRepo.CreateQueue(ctx, queue)
 	if err != nil {
-		ctx.Warnf("Could not create queue %s on backup repo", queue.Name)
+		ctx.Warnf("Could not create queue %s on secondaryd repo", queue.Name)
 	}
 	return nil
 }
@@ -306,7 +306,7 @@ func (r *DualQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queu
 	}
 	err = r.secondaryRepo.UpdateQueue(ctx, queue)
 	if err != nil {
-		ctx.Warnf("Could not update queue %s on backup repo", queue.Name)
+		ctx.Warnf("Could not update queue %s on secondary repo", queue.Name)
 	}
 	return nil
 }
@@ -318,7 +318,7 @@ func (r *DualQueueRepository) DeleteQueue(ctx *armadacontext.Context, name strin
 	}
 	err = r.secondaryRepo.DeleteQueue(ctx, name)
 	if err != nil {
-		ctx.Warnf("Could not delete queue %s on backup repo", name)
+		ctx.Warnf("Could not delete queue %s on secondary repo", name)
 	}
 	return nil
 }
