@@ -84,7 +84,11 @@ var loadtestCmd = &cobra.Command{
 		if timeout != defaultTimeout {
 			loadTestTimeout, _ = context.WithTimeout(context.Background(), timeout)
 		}
-		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
+		apiConnectionDetails, err := client.ExtractCommandlineArmadaApiConnectionDetails()
+		if err != nil {
+			log.Errorf("Could not retrieve Armada API connection details: %s", err)
+			os.Exit(1)
+		}
 		loadTester := client.NewArmadaLoadTester(apiConnectionDetails)
 		result := loadTester.RunSubmissionTest(loadTestTimeout, *loadTestSpec, watchEvents)
 

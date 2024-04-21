@@ -213,6 +213,132 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/job/jobdetails\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobDetails\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobDetailsRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobDetailsResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/jobrundetails\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobRunDetails\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobRunDetailsRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobRunDetailsResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/jobstatus\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobStatus\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobStatusRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobStatusResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/preempt\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"PreemptJobs\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobPreemptRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/job/reprioritize\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -562,6 +688,9 @@ func SwaggerJsonTemplate() string {
 		"        \"preempted\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobPreemptedEvent\"\n" +
 		"        },\n" +
+		"        \"preempting\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobPreemptingEvent\"\n" +
+		"        },\n" +
 		"        \"queued\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
 		"        },\n" +
@@ -823,6 +952,81 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobDetails\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cancelReason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"cancelTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobRuns\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobRunDetails\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobSpec\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJob\"\n" +
+		"        },\n" +
+		"        \"jobset\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"lastTransitionTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"latestRunId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"state\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobState\"\n" +
+		"        },\n" +
+		"        \"submittedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobDetailsRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"expandJobRun\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"expandJobSpec\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"jobIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobDetailsResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobDetails\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobDetails\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobDuplicateFoundEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1060,6 +1264,24 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobPreemptRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobPreemptedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1086,6 +1308,27 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobPreemptingEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"requestor\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -1191,6 +1434,80 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunDetails\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cluster\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"finishedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"leasedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"node\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"pendingTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"startedTs\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"state\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobRunState\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunDetailsRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"runIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunDetailsResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobRunDetails\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobRunDetails\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobRunState\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"RUN_STATE_UNKNOWN\",\n" +
+		"      \"enum\": [\n" +
+		"        \"RUN_STATE_UNKNOWN\",\n" +
+		"        \"RUN_STATE_LEASED\",\n" +
+		"        \"RUN_STATE_PENDING\",\n" +
+		"        \"RUN_STATE_RUNNING\",\n" +
+		"        \"RUN_STATE_SUCCEEDED\",\n" +
+		"        \"RUN_STATE_FAILED\",\n" +
+		"        \"RUN_STATE_PREEMPTED\",\n" +
+		"        \"RUN_STATE_CANCELLED\",\n" +
+		"        \"RUN_STATE_LEASE_EXPIRED\",\n" +
+		"        \"RUNS_STATE_LEASE_RETURNED\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"apiJobRunningEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -1302,6 +1619,28 @@ func SwaggerJsonTemplate() string {
 		"        \"PREEMPTED\",\n" +
 		"        \"CANCELLED\"\n" +
 		"      ]\n" +
+		"    },\n" +
+		"    \"apiJobStatusRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobStatusResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobStates\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobState\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +
 		"      \"type\": \"object\",\n" +

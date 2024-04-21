@@ -12,11 +12,13 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -25,79 +27,6 @@ import (
 func TestNodeDbSchema(t *testing.T) {
 	schema, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
 	assert.NoError(t, schema.Validate())
-}
-
-func TestNodeUnsafeCopy(t *testing.T) {
-	node := &Node{
-		Id:       "id",
-		Index:    1,
-		Executor: "executor",
-		Name:     "name",
-		Taints: []v1.Taint{
-			{
-				Key:   "foo",
-				Value: "bar",
-			},
-		},
-		Labels: map[string]string{
-			"key": "value",
-		},
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("16"),
-				"memory": resource.MustParse("32Gi"),
-			},
-		},
-		Keys: [][]byte{
-			{
-				0, 1, 255,
-			},
-		},
-		NodeTypeId: 123,
-		AllocatableByPriority: schedulerobjects.AllocatableByPriorityAndResourceType{
-			1: {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("0"),
-					"memory": resource.MustParse("0Gi"),
-				},
-			},
-			2: {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("8"),
-					"memory": resource.MustParse("16Gi"),
-				},
-			},
-			3: {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("16"),
-					"memory": resource.MustParse("32Gi"),
-				},
-			},
-		},
-		AllocatedByQueue: map[string]schedulerobjects.ResourceList{
-			"queue": {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("8"),
-					"memory": resource.MustParse("16Gi"),
-				},
-			},
-		},
-		AllocatedByJobId: map[string]schedulerobjects.ResourceList{
-			"jobId": {
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("8"),
-					"memory": resource.MustParse("16Gi"),
-				},
-			},
-		},
-		EvictedJobRunIds: map[string]bool{
-			"jobId":        false,
-			"evictedJobId": true,
-		},
-	}
-	nodeCopy := node.UnsafeCopy()
-	// TODO(albin): Add more tests here.
-	assert.Equal(t, node.Id, nodeCopy.Id)
 }
 
 // Test the accounting of total resources across all nodes.
@@ -155,7 +84,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 		require.NoError(t, err)
 		pctx := jctx.PodSchedulingContext
 		if assert.NotNil(t, node) {
-			assert.Equal(t, nodeId, node.Id)
+			assert.Equal(t, nodeId, node.GetId())
 		}
 		if assert.NotNil(t, pctx) {
 			assert.Equal(t, nodeId, pctx.NodeId)
@@ -280,7 +209,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
-func assertNodeAccountingEqual(t *testing.T, node1, node2 *Node) {
+func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 	allocatable1 := schedulerobjects.QuantityByTAndResourceType[int32](node1.AllocatableByPriority)
 	allocatable2 := schedulerobjects.QuantityByTAndResourceType[int32](node2.AllocatableByPriority)
 	assert.True(
@@ -662,6 +591,7 @@ func TestAwayNodeTypes(t *testing.T) {
 				},
 			},
 		},
+		stringinterner.New(1024),
 	)
 	require.NoError(t, err)
 
@@ -712,10 +642,11 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
+		stringinterner.New(1024),
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
-	entries := make([]*Node, len(nodes))
+	entries := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
 		require.NoError(b, err)
@@ -751,6 +682,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
+		stringinterner.New(1024),
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -876,6 +808,7 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
+		stringinterner.New(1024),
 	)
 	if err != nil {
 		return nil, err

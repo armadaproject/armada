@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -101,7 +102,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	jobDb := jobdb.NewJobDb(
 		schedulingConfig.PriorityClasses,
 		schedulingConfig.DefaultPriorityClassName,
-		1024,
+		stringinterner.New(1024),
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
@@ -229,6 +230,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
+				stringinterner.New(1024),
 			)
 			if err != nil {
 				return err
@@ -539,7 +541,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					if !ok {
 						return errors.Errorf("job %s not mapped to a priority", job.Id())
 					}
-					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name, priority)
+					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
 				}
 			}
 			for i, job := range failedJobs {

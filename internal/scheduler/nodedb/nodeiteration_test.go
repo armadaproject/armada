@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -61,7 +62,7 @@ func TestNodesIterator(t *testing.T) {
 
 			actual := make([]int, 0)
 			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, indexById[node.Id])
+				actual = append(actual, indexById[node.GetId()])
 			}
 
 			assert.Equal(t, expected, actual)
@@ -76,7 +77,7 @@ func TestNodePairIterator(t *testing.T) {
 	}
 	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	entries := make([]*Node, len(nodes))
+	entries := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		entry, err := nodeDb.GetNode(node.Id)
 		require.NoError(t, err)
@@ -420,7 +421,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			entries := make([]*Node, len(tc.nodes))
+			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
@@ -429,7 +430,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeType.Id
+				entry = testWithNodeTypeId(entry, node.NodeType.Id)
 
 				entries[i] = entry
 			}
@@ -469,7 +470,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
@@ -811,7 +812,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			entries := make([]*Node, len(tc.nodes))
+			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
@@ -820,7 +821,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				require.NoError(t, err)
 
 				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry.NodeTypeId = node.NodeType.Id
+				entry = testWithNodeTypeId(entry, node.NodeType.Id)
 
 				entries[i] = entry
 			}
@@ -853,7 +854,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				if node == nil {
 					break
 				}
-				actual = append(actual, node.Id)
+				actual = append(actual, node.GetId())
 			}
 			assert.Equal(t, expected, actual)
 
@@ -916,4 +917,22 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			}
 		}
 	}
+}
+
+func testWithNodeTypeId(node *internaltypes.Node, nodeTypeId uint64) *internaltypes.Node {
+	return internaltypes.CreateNode(
+		node.GetId(),
+		nodeTypeId,
+		node.GetIndex(),
+		node.GetExecutor(),
+		node.GetName(),
+		node.GetTaints(),
+		node.GetLabels(),
+		node.TotalResources,
+		node.AllocatableByPriority,
+		node.AllocatedByQueue,
+		node.AllocatedByJobId,
+		node.EvictedJobRunIds,
+		node.Keys,
+	)
 }

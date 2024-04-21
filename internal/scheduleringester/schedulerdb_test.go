@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -86,6 +87,23 @@ func TestWriteOps(t *testing.T) {
 				jobIds[0]: 1,
 				jobIds[1]: 3,
 			},
+		}},
+		"MarkRunsForJobPreemptRequested": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"},
+				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"},
+				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: "queue-2", JobSet: "set1"},
+				jobIds[4]: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set2"},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], Queue: testQueueName, JobSet: "set1"}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1], Queue: testQueueName, JobSet: "set1"}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2], Queue: testQueueName, JobSet: "set2"}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], Queue: "queue-2", JobSet: "set1"}},
+				runIds[4]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[4], RunID: runIds[4], Queue: "queue-2", JobSet: "set2"}},
+			},
+			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[0], jobIds[1]}},
 		}},
 		"MarkJobSetsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
@@ -479,6 +497,32 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, len(expected), numChanged)
+	case MarkRunsForJobPreemptRequested:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		runsChanged := 0
+		for _, job := range jobs {
+			if req, ok := expected[JobSetKey{queue: job.Queue, jobSet: job.JobSet}]; ok {
+				runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+					Serial: serials["runs"],
+					JobIds: []string{job.JobID},
+				})
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				for _, run := range runs {
+					if slices.Contains(req, run.JobID) {
+						assert.True(t, run.PreemptRequested)
+						runsChanged++
+					}
+				}
+			}
+		}
+
+		assert.Greater(t, runsChanged, 0)
 	case MarkJobsCancelled:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {

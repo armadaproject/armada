@@ -79,4 +79,6 @@ type Run struct {
 	Pending                bool       `db:"pending"`
 	PreemptedTimestamp     *time.Time `db:"preempted_timestamp"`
 	PodRequirementsOverlay []byte     `db:"pod_requirements_overlay"`
+	PreemptRequested       bool       `db:"preempt_requested"`
+	Queue                  string     `db:"queue"`
 }

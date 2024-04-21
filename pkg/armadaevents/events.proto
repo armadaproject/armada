@@ -90,6 +90,7 @@ message EventSequence {
             PartitionMarker partitionMarker = 20;
             JobRunPreemptionRequested jobRunPreemptionRequested = 21;
             JobRequeued jobRequeued = 22;
+            JobPreemptionRequested jobPreemptionRequested = 23;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -542,4 +543,9 @@ message PartitionMarker {
 message JobRunPreemptionRequested {
     Uuid run_id = 1;
     Uuid job_id = 2;
+}
+
+// Indicates that a user has requested for the job to be pre-empted.
+message JobPreemptionRequested {
+  Uuid job_id = 1;
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -32,7 +33,7 @@ var (
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
-		1024,
+		stringinterner.New(1024),
 	)
 	scheduledAtPriority = int32(5)
 )
@@ -45,6 +46,7 @@ var baseJobRun = jobDb.CreateRun(
 	"test-nodeId",
 	"test-nodeName",
 	&scheduledAtPriority,
+	false,
 	false,
 	false,
 	false,
@@ -93,6 +95,12 @@ func TestJobRun_TestCancelled(t *testing.T) {
 	assert.True(t, cancelledRun.Cancelled())
 }
 
+func TestJobRun_TestPreemptRequested(t *testing.T) {
+	preemptRequestedRun := baseJobRun.WithPreemptRequested(true)
+	assert.False(t, baseJobRun.PreemptRequested())
+	assert.True(t, preemptRequestedRun.PreemptRequested())
+}
+
 func TestJobRun_TestReturned(t *testing.T) {
 	returnedRun := baseJobRun.WithReturned(true)
 	assert.False(t, baseJobRun.Returned())
@@ -121,6 +129,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
+		true,
 		nil,
 		nil,
 		nil,
@@ -137,6 +146,7 @@ func TestDeepCopy(t *testing.T) {
 		"nodeName",
 		"nodeId",
 		&scheduledAtPriority,
+		true,
 		true,
 		true,
 		true,

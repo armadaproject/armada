@@ -11,11 +11,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
@@ -97,77 +98,77 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 		executorTimout time.Duration
 		config         configuration.SchedulingConfig
 		executors      []*schedulerobjects.Executor
-		jobs           []*api.Job
+		jobs           []*armadaevents.SubmitJob
 		expectPass     bool
 	}{
 		"one job schedules": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           []*api.Job{testfixtures.Test1CoreCpuApiJob()},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test1CoreSubmitMsg()},
 			expectPass:     true,
 		},
 		"multiple jobs schedule": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           []*api.Job{testfixtures.Test1CoreCpuApiJob(), testfixtures.Test1CoreCpuApiJob()},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test1CoreSubmitMsg(), testfixtures.Test1CoreSubmitMsg()},
 			expectPass:     true,
 		},
 		"first job schedules, second doesn't": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           []*api.Job{testfixtures.Test1CoreCpuApiJob(), testfixtures.Test100CoreCpuApiJob()},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test1CoreSubmitMsg(), testfixtures.Test100CoreSubmitMsg()},
 			expectPass:     false,
 		},
 		"no jobs schedule due to resources": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           []*api.Job{testfixtures.Test100CoreCpuApiJob()},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test100CoreSubmitMsg()},
 			expectPass:     false,
 		},
 		"no jobs schedule due to selector": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           []*api.Job{testfixtures.Test1CoreCpuApiJobWithNodeSelector(map[string]string{"foo": "bar"})},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test1CoreSubmitMsgWithNodeSelector(map[string]string{"foo": "bar"})},
 			expectPass:     false,
 		},
 		"no jobs schedule due to executor timeout": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(expiredTime)},
-			jobs:           []*api.Job{testfixtures.Test1CoreCpuApiJob()},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test1CoreSubmitMsg()},
 			expectPass:     false,
 		},
 		"multiple executors, 1 expired": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(expiredTime), testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           []*api.Job{testfixtures.Test1CoreCpuApiJob()},
+			jobs:           []*armadaevents.SubmitJob{testfixtures.Test1CoreSubmitMsg()},
 			expectPass:     true,
 		},
 		"gang job all jobs fit": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           testfixtures.TestNApiJobGang(5),
+			jobs:           testfixtures.TestNSubmitMsgGang(5),
 			expectPass:     true,
 		},
 		"gang job all jobs don't fit": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           testfixtures.TestNApiJobGang(100),
+			jobs:           testfixtures.TestNSubmitMsgGang(100),
 			expectPass:     false,
 		},
 		"Less than min cardinality gang jobs in a batch skips submit check": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			jobs:           testfixtures.TestNApiJobGangLessThanMinCardinality(5),
+			jobs:           testfixtures.TestNSubmitMsgGangLessThanMinCardinality(5),
 			expectPass:     true,
 		},
 	}
@@ -183,7 +184,13 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
-			result, msg := submitCheck.CheckApiJobs(tc.jobs)
+			events := armadaslices.Map(tc.jobs, func(s *armadaevents.SubmitJob) *armadaevents.EventSequence_Event {
+				return &armadaevents.EventSequence_Event{
+					Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: s},
+				}
+			})
+			es := &armadaevents.EventSequence{Events: events}
+			result, msg := submitCheck.CheckApiJobs(es, testfixtures.TestDefaultPriorityClass)
 			assert.Equal(t, tc.expectPass, result)
 			if !tc.expectPass {
 				assert.NotEqual(t, "", msg)

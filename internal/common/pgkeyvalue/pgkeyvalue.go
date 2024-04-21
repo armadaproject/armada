@@ -21,6 +21,11 @@ type KeyValue struct {
 	Inserted time.Time `db:"inserted"`
 }
 
+type KeyValueStore interface {
+	Store(ctx *armadacontext.Context, kvs map[string][]byte) error
+	Load(ctx *armadacontext.Context, keys []string) (map[string][]byte, error)
+}
+
 // PGKeyValueStore is a time-limited key-value store backed by postgres with a local LRU cache.
 // The store is write-only, i.e., writing to an existing key will return an error (of type *armadaerrors.ErrAlreadyExists).
 // Keys can only be deleted by running the cleanup function.
