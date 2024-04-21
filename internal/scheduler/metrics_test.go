@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/pkg/api"
 	"testing"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {

@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/pkg/api"
 	"math"
 	"testing"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestSchedule(t *testing.T) {
