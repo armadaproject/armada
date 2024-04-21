@@ -24,7 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const (
@@ -783,8 +782,8 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	}
 }
 
-func MakeTestQueue() queue.Queue {
-	return queue.Queue{
+func MakeTestQueue() *api.Queue {
+	return &api.Queue{
 		Name:           TestQueue,
 		PriorityFactor: 100,
 	}

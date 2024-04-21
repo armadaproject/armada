@@ -1,10 +1,9 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/pkg/api"
 	"testing"
 	"time"
-
-	"github.com/armadaproject/armada/pkg/client/queue"
 
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,12 +34,12 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
 		poolMappings map[string]string
-		queues       []queue.Queue
+		queues       []*api.Queue
 		expected     []prometheus.Metric
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
-			queues:      []queue.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
@@ -64,7 +63,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		},
 		"running metrics": {
 			initialJobs: runningJobs,
-			queues:      []queue.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
@@ -248,7 +247,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			txn.Commit()
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
-			queueCache.EXPECT().GetAll(ctx).Return([]queue.Queue{}, nil).Times(1)
+			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
 			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
