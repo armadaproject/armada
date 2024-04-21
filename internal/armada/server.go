@@ -117,7 +117,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
-	queueRepository := repository.NewDualQueueRepository(db, queryDb, false)
+	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
 	healthChecks.Add(repository.NewRedisHealth(db))
 
 	eventRepository := repository.NewEventRepository(eventDb)

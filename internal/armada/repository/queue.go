@@ -158,7 +158,7 @@ func (r *PostgresQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]qu
 
 	defer rows.Close()
 
-	var queues = make([]queue.Queue, 0)
+	queues := make([]queue.Queue, 0)
 	for rows.Next() {
 		var definitionBytes []byte
 		err := rows.Scan(&definitionBytes)
