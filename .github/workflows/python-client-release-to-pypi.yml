@@ -6,12 +6,12 @@ on:
 jobs:
   run-python-tests:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        go: [ '1.20' ]
     steps:
       - uses: actions/checkout@v3.3.0
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
-        with:
-          cache-prefix: run-python-tests
+      - uses: ./.github/workflows/go-setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
