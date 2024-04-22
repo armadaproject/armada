@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'failure' 
     steps:
-      - uses: actions/checkout@v3.3.0
+      - uses: actions/checkout@v4
       - name: "Send Notification"
         uses: Mo-Fatah/ci-alerts@v2
         env: 

@@ -20,7 +20,7 @@ runs:
   using: "composite"
   steps:
     - id: setup-go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go-version }}
         check-latest: true
@@ -30,7 +30,7 @@ runs:
       shell: bash
       run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: ${{ steps.cache-info.outputs.path }}
         key: ${{ inputs.cache-prefix }}-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
@@ -43,7 +43,7 @@ runs:
 
     - name: Setup tools cache
       if: ${{ inputs.cache-tools == 'true' }}
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: tools-cache
       with:
         path: ${{ steps.tools-cache-info.outputs.path }}
