@@ -315,11 +315,11 @@ func RegisterJobsHandlerClient(ctx context.Context, mux *runtime.ServeMux, clien
 }
 
 var (
-	pattern_Jobs_GetJobStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "job", "jobstatus"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Jobs_GetJobStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "job", "status"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_Jobs_GetJobDetails_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "job", "jobdetails"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Jobs_GetJobDetails_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "job", "details"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_Jobs_GetJobRunDetails_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "job", "jobrundetails"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Jobs_GetJobRunDetails_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "run", "details"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

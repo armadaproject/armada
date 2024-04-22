@@ -213,7 +213,7 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"/v1/job/jobdetails\": {\n" +
+		"    \"/v1/job/details\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Jobs\"\n" +
@@ -234,70 +234,6 @@ func SwaggerJsonTemplate() string {
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
 		"              \"$ref\": \"#/definitions/apiJobDetailsResponse\"\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"/v1/job/jobrundetails\": {\n" +
-		"      \"post\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Jobs\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"GetJobRunDetails\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"name\": \"body\",\n" +
-		"            \"in\": \"body\",\n" +
-		"            \"required\": true,\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobRunDetailsRequest\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobRunDetailsResponse\"\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"/v1/job/jobstatus\": {\n" +
-		"      \"post\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Jobs\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"GetJobStatus\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"name\": \"body\",\n" +
-		"            \"in\": \"body\",\n" +
-		"            \"required\": true,\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobStatusRequest\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobStatusResponse\"\n" +
 		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
@@ -360,6 +296,38 @@ func SwaggerJsonTemplate() string {
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
 		"              \"$ref\": \"#/definitions/apiJobReprioritizeResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/status\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobStatus\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobStatusRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobStatusResponse\"\n" +
 		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
@@ -543,6 +511,38 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/run/details\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Jobs\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobRunDetails\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobRunDetailsRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobRunDetailsResponse\"\n" +
+		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
 		"            \"description\": \"An unexpected error response.\",\n" +
