@@ -2,11 +2,8 @@ package repository
 
 import (
 	"fmt"
-
 	"github.com/gogo/protobuf/proto"
-	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -199,47 +196,30 @@ func (r *PostgresQueueRepository) GetQueue(ctx *armadacontext.Context, name stri
 }
 
 func (r *PostgresQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	data, err := proto.Marshal(queue.ToAPI())
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	query := "INSERT INTO queue (name, definition) VALUES ($1, $2)"
-	_, err = r.db.Exec(ctx, query, queue.Name, data)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			if pgErr.Code == pgerrcode.UniqueViolation {
-				return &ErrQueueAlreadyExists{QueueName: queue.Name}
-			}
-		}
-		return errors.WithStack(err)
-	}
-	return nil
+	return r.upsertQueue(ctx, queue)
 }
 
 func (r *PostgresQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	data, err := proto.Marshal(queue.ToAPI())
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	query := "UPDATE queue SET definition = $2 WHERE name = $1"
-	cmdTag, err := r.db.Exec(ctx, query, queue.Name, data)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	if cmdTag.RowsAffected() == 0 {
-		return &ErrQueueNotFound{QueueName: queue.Name}
-	}
-
-	return nil
+	return r.upsertQueue(ctx, queue)
 }
 
 func (r *PostgresQueueRepository) DeleteQueue(ctx *armadacontext.Context, name string) error {
 	query := "DELETE FROM queue WHERE name = $1"
 	_, err := r.db.Exec(ctx, query, name)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func (r *PostgresQueueRepository) upsertQueue(ctx *armadacontext.Context, queue queue.Queue) error {
+	data, err := proto.Marshal(queue.ToAPI())
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	query := "INSERT INTO queue (name, definition) VALUES ($1, $2) ON CONFLICT(name) DO UPDATE SET definition = EXCLUDED.definition"
+	_, err = r.db.Exec(ctx, query, queue.Name, data)
 	if err != nil {
 		return errors.WithStack(err)
 	}

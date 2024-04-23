@@ -27,53 +27,6 @@ var (
 	twoQueues = []queue.Queue{queueA, queueB}
 )
 
-func TestGetQueue(t *testing.T) {
-	tests := map[string]struct {
-		intialQueues  []queue.Queue
-		queueToFetch  string
-		expectSuccess bool
-		desiredQueue  queue.Queue
-	}{
-		"Empty Database": {
-			queueToFetch:  "queueA",
-			expectSuccess: false,
-		},
-		"Queue Found": {
-			intialQueues:  twoQueues,
-			queueToFetch:  "queueA",
-			expectSuccess: true,
-			desiredQueue:  queueA,
-		},
-		"Queue Not Found": {
-			intialQueues:  twoQueues,
-			queueToFetch:  "queueC",
-			expectSuccess: false,
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				repo := NewPostgresQueueRepository(db)
-				for _, q := range tc.intialQueues {
-					err := repo.CreateQueue(ctx, q)
-					require.NoError(t, err)
-				}
-				fetched, err := repo.GetQueue(ctx, tc.queueToFetch)
-				if tc.expectSuccess {
-					assert.NoError(t, err)
-				} else {
-					assert.Error(t, err)
-					assert.Equal(t, tc.desiredQueue, fetched)
-				}
-				return nil
-			})
-			assert.NoError(t, err)
-			cancel()
-		})
-	}
-}
-
 func TestGetAllQueues(t *testing.T) {
 	tests := map[string]struct {
 		queues []queue.Queue
@@ -147,22 +100,21 @@ func TestDeleteQueue(t *testing.T) {
 	}
 }
 
-func TestUpdateQueue(t *testing.T) {
+func TestGetAndUpdateQueue(t *testing.T) {
 	tests := map[string]struct {
 		intialQueues  []queue.Queue
 		queueToUpdate queue.Queue
-		expectSuccess bool
 	}{
 		"Empty Database": {
 			queueToUpdate: queueA,
-			expectSuccess: false,
 		},
 		"Queue Doesn't Exist": {
 			intialQueues: twoQueues,
 			queueToUpdate: queue.Queue{
-				Name: "queueC",
+				Name:           "queueC",
+				PriorityFactor: 1,
+				Permissions:    []queue.Permissions{},
 			},
-			expectSuccess: false,
 		},
 		"Queue Does Exist": {
 			intialQueues: twoQueues,
@@ -171,7 +123,6 @@ func TestUpdateQueue(t *testing.T) {
 				PriorityFactor: queueA.PriorityFactor + 100,
 				Permissions:    []queue.Permissions{},
 			},
-			expectSuccess: true,
 		},
 	}
 	for name, tc := range tests {
@@ -184,14 +135,10 @@ func TestUpdateQueue(t *testing.T) {
 					require.NoError(t, err)
 				}
 				err := repo.UpdateQueue(ctx, tc.queueToUpdate)
-				if tc.expectSuccess {
-					assert.NoError(t, err)
-					fetched, err := repo.GetQueue(ctx, tc.queueToUpdate.Name)
-					require.NoError(t, err)
-					assert.Equal(t, tc.queueToUpdate, fetched)
-				} else {
-					assert.Error(t, err)
-				}
+				assert.NoError(t, err)
+				fetched, err := repo.GetQueue(ctx, tc.queueToUpdate.Name)
+				require.NoError(t, err)
+				assert.Equal(t, tc.queueToUpdate, fetched)
 				return nil
 			})
 			assert.NoError(t, err)
