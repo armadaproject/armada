@@ -77,7 +77,6 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.15.2
-	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.5.4
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
