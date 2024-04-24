@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	util2 "github.com/armadaproject/armada/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
@@ -17,12 +18,17 @@ import (
 
 type SyncFakeClusterContext struct {
 	Pods             map[string]*v1.Pod
+	Events           map[string][]*v1.Event
 	AnnotationsAdded map[string]map[string]string
 	podEventHandlers []*cache.ResourceEventHandlerFuncs
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
-	c := &SyncFakeClusterContext{Pods: map[string]*v1.Pod{}, AnnotationsAdded: map[string]map[string]string{}}
+	c := &SyncFakeClusterContext{
+		Pods:             map[string]*v1.Pod{},
+		Events:           map[string][]*v1.Event{},
+		AnnotationsAdded: map[string]map[string]string{},
+	}
 	return c
 }
 
@@ -57,7 +63,8 @@ func (c *SyncFakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 }
 
 func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
-	return []*v1.Event{}, nil
+	jobId := util2.ExtractJobId(pod)
+	return c.Events[jobId], nil
 }
 
 func (c *SyncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
