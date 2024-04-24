@@ -91,5 +91,6 @@
   "resolutions": {
     "@types/react": "17.0.1",
     "@types/react-dom": "17.0.1"
-  }
+  },
+  "version": "0.0.0"
 }
