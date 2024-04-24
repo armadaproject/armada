@@ -32,6 +32,10 @@ type Job struct {
 	// Format: date-time
 	Cancelled *strfmt.DateTime `json:"cancelled,omitempty"`
 
+	// cluster
+	// Required: true
+	Cluster string `json:"cluster"`
+
 	// cpu
 	// Required: true
 	CPU int64 `json:"cpu"`
@@ -43,6 +47,9 @@ type Job struct {
 	// ephemeral storage
 	// Required: true
 	EphemeralStorage int64 `json:"ephemeralStorage"`
+
+	// exit code
+	ExitCode *int64 `json:"exitCode,omitempty"`
 
 	// gpu
 	// Required: true
@@ -73,6 +80,9 @@ type Job struct {
 
 	// namespace
 	Namespace *string `json:"namespace,omitempty"`
+
+	// node
+	Node *string `json:"node,omitempty"`
 
 	// owner
 	// Required: true
@@ -105,18 +115,6 @@ type Job struct {
 	// Min Length: 1
 	// Format: date-time
 	Submitted strfmt.DateTime `json:"submitted"`
-
-	// node
-	// Required: false
-	Node *string `json:"node,omitempty"`
-
-	// cluster
-	// Required: true
-	Cluster string `json:"cluster"`
-
-	//exitCode
-	// Required: false
-	ExitCode *int32 `json:"exitCode,omitempty"`
 }
 
 // Validate validates this job
@@ -128,6 +126,10 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateCancelled(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateCluster(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -208,6 +210,15 @@ func (m *Job) validateCancelled(formats strfmt.Registry) error {
 	}
 
 	if err := validate.FormatOf("cancelled", "body", "date-time", m.Cancelled.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Job) validateCluster(formats strfmt.Registry) error {
+
+	if err := validate.RequiredString("cluster", "body", m.Cluster); err != nil {
 		return err
 	}
 
