@@ -5,7 +5,7 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { UserManager, WebStorageStateStore, UserManagerSettings } from "oidc-client-ts"
+import { UserManager, WebStorageStateStore, UserManagerSettings, User } from "oidc-client-ts"
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -147,6 +147,7 @@ export function createUserManager(config: OidcConfig): UserManager {
     redirect_uri: `${window.location.origin}/oidc`,
     scope: config.scope,
     userStore: new WebStorageStateStore({ store: window.localStorage }),
+    loadUserInfo: true
   }
 
   return new UserManager(userManagerSettings)
@@ -159,11 +160,18 @@ const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location
 export function App(props: AppProps): JSX.Element {
   const [userManager, setUserManager] = useState<UserManager | undefined>(undefined)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [username, setUsername] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!userManager && props.oidcConfig) {
       const userManagerInstance = createUserManager(props.oidcConfig)
       setUserManager(userManagerInstance)
+
+      userManagerInstance.getUser().then((user: User | null) => {
+        if (user) {
+          setUsername(user.profile.sub)
+        }
+      })
     }
   }, [props.oidcConfig])
 
@@ -186,7 +194,7 @@ export function App(props: AppProps): JSX.Element {
               <UserManagerProvider value={userManager}>
                 <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
                   <div className="app-container">
-                    <NavBar customTitle={props.customTitle} />
+                    <NavBar customTitle={props.customTitle} username={username}/>
                     <div className="app-content">
                       <Routes>
                         <Route

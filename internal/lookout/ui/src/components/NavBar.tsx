@@ -44,9 +44,10 @@ function locationFromIndex(pages: Page[], index: number): string {
 interface NavBarProps {
   customTitle: string
   router: Router
+  username?: string
 }
 
-function NavBar({ customTitle, router }: NavBarProps) {
+function NavBar({ customTitle, router, username }: NavBarProps) {
   const currentLocation = router.location.pathname
   const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
   return (
@@ -76,6 +77,11 @@ function NavBar({ customTitle, router }: NavBarProps) {
             ))}
           </Tabs>
         </div>
+        {username && (
+          <Typography variant="h6" className="username" style={{ marginLeft: 'auto' }}>
+            Welcome, {username}!
+          </Typography>
+        )}
       </Toolbar>
     </AppBar>
   )
