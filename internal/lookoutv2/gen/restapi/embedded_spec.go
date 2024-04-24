@@ -496,7 +496,7 @@ func init() {
         },
         "exitCode": {
           "type": "integer",
-          "format": "int64",
+          "format": "int32",
           "x-nullable": true
         },
         "gpu": {
@@ -1197,7 +1197,7 @@ func init() {
         },
         "exitCode": {
           "type": "integer",
-          "format": "int64",
+          "format": "int32",
           "x-nullable": true
         },
         "gpu": {

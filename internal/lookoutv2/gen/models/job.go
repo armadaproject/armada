@@ -49,7 +49,7 @@ type Job struct {
 	EphemeralStorage int64 `json:"ephemeralStorage"`
 
 	// exit code
-	ExitCode *int64 `json:"exitCode,omitempty"`
+	ExitCode *int32 `json:"exitCode,omitempty"`
 
 	// gpu
 	// Required: true
