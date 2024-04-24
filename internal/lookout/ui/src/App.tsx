@@ -147,7 +147,7 @@ export function createUserManager(config: OidcConfig): UserManager {
     redirect_uri: `${window.location.origin}/oidc`,
     scope: config.scope,
     userStore: new WebStorageStateStore({ store: window.localStorage }),
-    loadUserInfo: true
+    loadUserInfo: true,
   }
 
   return new UserManager(userManagerSettings)
@@ -160,7 +160,7 @@ const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location
 export function App(props: AppProps): JSX.Element {
   const [userManager, setUserManager] = useState<UserManager | undefined>(undefined)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [username, setUsername] = useState<string | undefined>(undefined);
+  const [username, setUsername] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (!userManager && props.oidcConfig) {
@@ -194,7 +194,7 @@ export function App(props: AppProps): JSX.Element {
               <UserManagerProvider value={userManager}>
                 <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
                   <div className="app-container">
-                    <NavBar customTitle={props.customTitle} username={username}/>
+                    <NavBar customTitle={props.customTitle} username={username} />
                     <div className="app-content">
                       <Routes>
                         <Route
