@@ -23,7 +23,7 @@ import (
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
 	for _, useJsonbBackend := range []bool{false, true} {
 		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
+			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 			repo := NewSqlGroupJobsRepository(db, useJsonbBackend)
 			return f(converter, store, repo)
@@ -1482,7 +1482,7 @@ func makeLeased(opts *createJobsOpts, converter *instructions.InstructionConvert
 		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
-		Lease(uuid.NewString(), lastTransitionTime).
+		Lease(uuid.NewString(), cluster, node, lastTransitionTime).
 		Build()
 }
 

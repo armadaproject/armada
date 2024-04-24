@@ -514,14 +514,3 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, maxSequenceSize
 	}
 	return sequences, nil
 }
-
-// LEGACY_RUN_ID is used for messages for which we can't use the kubernetesId.
-const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
-
-func LegacyJobRunId() *armadaevents.Uuid {
-	jobRunId, err := armadaevents.ProtoUuidFromUuidString(LEGACY_RUN_ID)
-	if err != nil {
-		panic(err)
-	}
-	return jobRunId
-}
