@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -113,6 +112,8 @@ func (c *InstructionConverter) convertSequence(
 			}
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
+		case *armadaevents.EventSequence_Event_JobRunCancelled:
+			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
@@ -337,24 +338,29 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 		return err
 	}
 
-	isTerminal := false
-
 	for _, e := range event.GetErrors() {
-		if e.Terminal {
-			isTerminal = true
-			break
+		if !e.Terminal {
+			continue
 		}
-	}
 
-	if isTerminal {
+		state := lookout.JobFailedOrdinal
+		switch e.Reason.(type) {
+		// We should have a JobPreempted event rather than relying on type of JobErrors
+		// For now this is how we can identify if the job was preempted or failed
+		case *armadaevents.Error_JobRunPreemptedError:
+			state = lookout.JobPreemptedOrdinal
+		}
+
 		jobUpdate := model.UpdateJobInstruction{
 			JobId:                     jobId,
-			State:                     pointer.Int32(int32(lookout.JobFailedOrdinal)),
+			State:                     pointer.Int32(int32(state)),
 			LastTransitionTime:        &ts,
 			LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+		break
 	}
+
 	return nil
 }
 
@@ -519,6 +525,22 @@ func (c *InstructionConverter) handleLegacyJobRunAssigned(ts time.Time, event *a
 	return nil
 }
 
+func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return errors.WithStack(err)
+	}
+
+	jobRun := model.UpdateJobRunInstruction{
+		RunId:       runId,
+		Finished:    &ts,
+		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
 func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
@@ -589,6 +611,10 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.ExitCode = pointer.Int32(exitCode)
 		case *armadaevents.Error_PodTerminated:
 			continue
+		case *armadaevents.Error_JobRunPreemptedError:
+			// This case is already handled by the JobRunPreempted event
+			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
+			continue
 		case *armadaevents.Error_PodUnschedulable:
 			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 		case *armadaevents.Error_PodLeaseReturned:
@@ -621,49 +647,14 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 		return err
 	}
 
-	// Update Job
-	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
-		State:                     pointer.Int32(int32(lookout.JobPreemptedOrdinal)),
-		LastTransitionTime:        &ts,
-		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
-	}
-
-	update.JobsToUpdate = append(update.JobsToUpdate, &job)
-
-	// Update job run
-	errorString := "preempted by non armada pod"
-	preemptiveJobId, err := parseUlidString(event.PreemptiveJobId)
-	if err != nil {
-		log.WithError(err).Debug("failed to convert preemptive job id")
-	} else {
-		errorString = fmt.Sprintf("preempted by job %s", preemptiveJobId)
-	}
-
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       runId,
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
-		Error:       tryCompressError(jobId, errorString, c.compressor),
+		Error:       tryCompressError(jobId, "preempted", c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
-}
-
-func parseUlidString(id *armadaevents.Uuid) (string, error) {
-	if id == nil {
-		return "", errors.New("uuid is nil")
-	}
-	// Likely wrong if it is zeroed
-	if id.High64 == 0 && id.Low64 == 0 {
-		return "", errors.New("")
-	}
-	stringId, err := armadaevents.UlidStringFromProtoUuid(id)
-	if err != nil {
-		return "", errors.Wrap(err, "could not convert non-nil preemptive job id")
-	}
-	return stringId, nil
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
