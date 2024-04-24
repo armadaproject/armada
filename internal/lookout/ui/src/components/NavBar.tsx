@@ -78,7 +78,7 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
           </Tabs>
         </div>
         {username && (
-          <Typography variant="h6" className="username" style={{ marginLeft: 'auto' }}>
+          <Typography variant="h6" className="username" style={{ marginLeft: "auto" }}>
             Welcome, {username}!
           </Typography>
         )}
