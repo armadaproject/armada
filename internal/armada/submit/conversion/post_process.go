@@ -155,7 +155,7 @@ func defaultTerminationGracePeriod(spec *v1.PodSpec, config configuration.Submis
 
 // Default's the job's GangNodeUniformityLabelAnnotation for gang jobs that do not define one.
 func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
-	annotations := msg.MainObject.GetObjectMeta().GetAnnotations()
+	annotations := msg.GetObjectMeta().GetAnnotations()
 	if annotations == nil {
 		return
 	}
