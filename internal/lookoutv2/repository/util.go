@@ -454,23 +454,34 @@ func (js *JobSimulator) Failed(node string, exitCode int32, message string, time
 
 func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
-	jobIdProto, err := armadaevents.ProtoUuidFromUlidString(util.NewULID())
-	if err != nil {
-		log.WithError(err).Errorf("Could not convert job ID to UUID: %s", util.NewULID())
-	}
 
-	preempted := &armadaevents.EventSequence_Event{
+	preemptedJob := &armadaevents.EventSequence_Event{
 		Created: &ts,
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId:  js.jobId,
-				PreemptiveJobId: jobIdProto,
-				PreemptedRunId:  armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
-				PreemptiveRunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: js.jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_JobRunPreemptedError{
+							JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+						},
+					},
+				},
 			},
 		},
 	}
-	js.events = append(js.events, preempted)
+
+	preemptedRun := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId: js.jobId,
+				PreemptedRunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+			},
+		},
+	}
+	js.events = append(js.events, preemptedJob, preemptedRun)
 
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobPreempted)
