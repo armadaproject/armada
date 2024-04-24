@@ -446,7 +446,6 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 			p.clusterContext.GetClusterId(),
 			jobRunAttempted,
 		)
-
 		if err != nil {
 			log.Errorf("Failed to create return lease event for job %s because %s", issue.RunIssue.JobId, err)
 			return
