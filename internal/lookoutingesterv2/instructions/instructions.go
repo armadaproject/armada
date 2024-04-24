@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -605,20 +604,6 @@ func tryCompressError(jobId string, errorString string, compressor compress.Comp
 	return compressedError
 }
 
-func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
-	switch err := e.Reason.(type) {
-	case *armadaevents.Error_PodError:
-		return err.PodError.ObjectMeta
-	case *armadaevents.Error_PodTerminated:
-		return err.PodTerminated.ObjectMeta
-	case *armadaevents.Error_PodUnschedulable:
-		return err.PodUnschedulable.ObjectMeta
-	case *armadaevents.Error_PodLeaseReturned:
-		return err.PodLeaseReturned.ObjectMeta
-	}
-	return nil
-}
-
 func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 	for _, r := range resources {
 		node := extractNodeName(r.GetPodInfo())
@@ -627,17 +612,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 		}
 	}
 	return pointer.String("UNKNOWN")
-}
-
-func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
-	runId := uuid.New().String()
-	return &model.CreateJobRunInstruction{
-		RunId:       runId,
-		JobId:       jobId,
-		Cluster:     "UNKNOWN",
-		Pending:     &ts,
-		JobRunState: lookout.JobRunPendingOrdinal,
-	}
 }
 
 func extractNodeName(x HasNodeName) *string {
