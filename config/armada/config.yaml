@@ -8,6 +8,7 @@ corsAllowedOrigins:
 grpcGatewayPath: "/"
 cancelJobsBatchSize: 1000
 QueueRepositoryUsesPostgres: false
+QueueCacheRefreshPeriod: 10s
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
 grpc:

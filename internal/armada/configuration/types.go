@@ -44,6 +44,9 @@ type ArmadaConfig struct {
 	// True if we use postgres for the primary queue store.False means we use redis
 	QueueRepositoryUsesPostgres bool
 
+	// Period At which the Queue cache will be refreshed
+	QueueCacheRefreshPeriod time.Duration
+
 	// Config relating to job submission.
 	Submission SubmissionConfig
 	// Scheduling config used by the submitChecker.

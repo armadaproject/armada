@@ -118,7 +118,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	jobRepository := repository.NewRedisJobRepository(db)
 	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
-	queueCache := repository.NewCachedQueueRepository(queueRepository, 10*time.Second)
+	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
 	services = append(services, func() error {
 		return queueCache.Run(ctx)
 	})
