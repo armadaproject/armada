@@ -474,16 +474,3 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	}
 	return false
 }
-
-// definesRunForJob returns true if b is an InsertRuns operation
-// that inserts at least one run with job id equal to any of the keys of a.
-func definesRunForJob[M ~map[string]V, V any](a M, b DbOperation) bool {
-	if op, ok := b.(InsertRuns); ok {
-		for _, run := range op {
-			if _, ok := a[run.DbRun.JobID]; ok {
-				return true
-			}
-		}
-	}
-	return false
-}
