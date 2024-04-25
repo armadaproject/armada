@@ -118,6 +118,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	jobRepository := repository.NewRedisJobRepository(db)
 	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
+	queueCache := repository.NewCachedQueueRepository(queueRepository, 10*time.Second)
+	services = append(services, func() error {
+		return queueCache.Run(ctx)
+	})
 	healthChecks.Add(repository.NewRedisHealth(db))
 
 	eventRepository := repository.NewEventRepository(eventDb)
@@ -181,6 +185,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	pulsarSubmitServer := submit.NewServer(
 		publisher,
 		queueRepository,
+		queueCache,
 		jobRepository,
 		config.Submission,
 		submit.NewDeduplicator(store),
@@ -219,7 +224,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	eventServer := server.NewEventServer(
 		authorizer,
 		eventRepository,
-		queueRepository,
+		queueCache,
 		jobRepository,
 	)
 

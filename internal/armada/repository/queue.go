@@ -40,6 +40,11 @@ type QueueRepository interface {
 	DeleteQueue(ctx *armadacontext.Context, name string) error
 }
 
+type ReadOnlyQueueRepository interface {
+	GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error)
+	GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error)
+}
+
 type RedisQueueRepository struct {
 	db redis.UniversalClient
 }

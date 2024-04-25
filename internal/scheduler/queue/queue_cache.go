@@ -57,6 +57,7 @@ func (c *ApiQueueCache) GetAll(_ *armadacontext.Context) ([]*api.Queue, error) {
 }
 
 func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) error {
+	start := time.Now()
 	stream, err := c.apiClient.GetQueues(ctx, &api.StreamingQueueGetRequest{})
 	if err != nil {
 		return err
@@ -72,9 +73,10 @@ func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) error {
 			queues = append(queues, msg.GetQueue())
 		case *api.StreamingQueueMessage_End:
 			c.queues.Store(&queues)
+			ctx.Infof("Refreshed Queues in %s", time.Since(start))
 			return nil
 		default:
-			fmt.Errorf("unknown event of type %T", msg.GetEvent())
+			return fmt.Errorf("unknown event of type %T", msg.GetEvent())
 		}
 	}
 }
