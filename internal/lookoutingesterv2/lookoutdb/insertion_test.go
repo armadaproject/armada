@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
