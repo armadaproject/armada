@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -46,6 +47,9 @@ func TestFetch(t *testing.T) {
 			// Assert that getting all queues worked as expected
 			queues, getErr := cache.GetAllQueues(ctx)
 			require.NoError(t, fetchErr)
+			sort.Slice(queues, func(i, j int) bool {
+				return queues[i].Name < queues[j].Name
+			})
 			assert.NoError(t, getErr)
 			assert.Equal(t, tc.queues, queues)
 
