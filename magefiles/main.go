@@ -221,7 +221,7 @@ func LocalDev(arg string) error {
 
 	switch arg {
 	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler,lookoutv2-migration")
+		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
 		mg.Deps(StartComponents)
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
