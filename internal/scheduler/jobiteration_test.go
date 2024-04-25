@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -69,7 +71,8 @@ func TestInMemoryJobRepository(t *testing.T) {
 	actual := make([]string, 0)
 	it := repo.GetJobIterator("A")
 	for {
-		jctx := it.Next()
+		jctx, err := it.Next()
+		require.NoError(t, err)
 		if jctx == nil {
 			break
 		}
@@ -94,23 +97,26 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
+	ctx := armadacontext.Background()
 	its := make([]JobIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
-		it := NewQueuedJobsIterator(queue, repo, nil)
+		it := NewQueuedJobsIterator(ctx, queue, repo, nil)
 		its[i] = it
 	}
 	it := NewMultiJobsIterator(its...)
 
 	actual := make([]string, 0)
 	for {
-		jctx := it.Next()
+		jctx, err := it.Next()
+		require.NoError(t, err)
 		if jctx == nil {
 			break
 		}
 		actual = append(actual, jctx.Job.GetId())
 	}
 	assert.Equal(t, expected, actual)
-	v := it.Next()
+	v, err := it.Next()
+	require.NoError(t, err)
 	require.Nil(t, v)
 }
 
@@ -123,11 +129,12 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
-
-	it := NewQueuedJobsIterator("A", repo, nil)
+	ctx := armadacontext.Background()
+	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx := it.Next()
+		jctx, err := it.Next()
+		require.NoError(t, err)
 		if jctx == nil {
 			break
 		}
@@ -145,11 +152,12 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
-
-	it := NewQueuedJobsIterator("A", repo, nil)
+	ctx := armadacontext.Background()
+	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx := it.Next()
+		jctx, err := it.Next()
+		require.NoError(t, err)
 		if jctx == nil {
 			break
 		}
@@ -167,11 +175,12 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
-
-	it := NewQueuedJobsIterator("A", repo, nil)
+	ctx := armadacontext.Background()
+	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx := it.Next()
+		jctx, err := it.Next()
+		require.NoError(t, err)
 		if jctx == nil {
 			break
 		}
@@ -193,17 +202,40 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
 		repo.Enqueue(job)
 	}
-
-	it := NewQueuedJobsIterator("A", repo, nil)
+	ctx := armadacontext.Background()
+	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx := it.Next()
+		jctx, err := it.Next()
+		require.NoError(t, err)
 		if jctx == nil {
 			break
 		}
 		actual = append(actual, jctx.Job.GetId())
 	}
 	assert.Equal(t, expected, actual)
+}
+
+func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
+	repo := newMockJobRepository()
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
+		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
+		job.Queue = "A"
+		repo.Enqueue(job)
+	}
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	defer cancel()
+	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
+	job, err := it.Next()
+	assert.Nil(t, job)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// Calling again should produce the same error.
+	job, err = it.Next()
+	assert.Nil(t, job)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
@@ -213,13 +245,14 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 		job.Queue = "A"
 		repo.Enqueue(job)
 	}
-
-	it := NewQueuedJobsIterator("A", repo, nil)
-	for job := it.Next(); job != nil; job = it.Next() {
-		// Do nothing
+	ctx := armadacontext.Background()
+	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
+	for job, err := it.Next(); job != nil; job, err = it.Next() {
+		require.NoError(t, err)
 	}
-	job := it.Next()
+	job, err := it.Next()
 	assert.Nil(t, job)
+	assert.NoError(t, err)
 }
 
 // TODO: Deprecate in favour of InMemoryRepo.
@@ -250,8 +283,8 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(queue string) JobIterator {
-	return NewQueuedJobsIterator(queue, repo, nil)
+func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) JobIterator {
+	return NewQueuedJobsIterator(ctx, queue, repo, nil)
 }
 
 func (repo *mockJobRepository) GetQueueJobIds(queue string) []string {
