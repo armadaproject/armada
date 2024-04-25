@@ -2,12 +2,13 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/pkg/client/queue"
-	"golang.org/x/exp/maps"
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // CachedQueueRepository is an implementation of ReadOnlyQueueRepository that fetches ques periodically and caches them.

@@ -1,16 +1,16 @@
 package repository
 
 import (
-	"github.com/armadaproject/armada/internal/armada/mocks"
-	"github.com/armadaproject/armada/pkg/client/queue"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/armada/mocks"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestFetch(t *testing.T) {
