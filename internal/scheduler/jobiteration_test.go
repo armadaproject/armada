@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -71,8 +69,7 @@ func TestInMemoryJobRepository(t *testing.T) {
 	actual := make([]string, 0)
 	it := repo.GetJobIterator("A")
 	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
+		jctx := it.Next()
 		if jctx == nil {
 			break
 		}
@@ -97,29 +94,23 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := armadacontext.Background()
 	its := make([]JobIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
-		it, err := NewQueuedJobsIterator(ctx, queue, repo, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
+		it := NewQueuedJobsIterator(queue, repo, nil)
 		its[i] = it
 	}
 	it := NewMultiJobsIterator(its...)
 
 	actual := make([]string, 0)
 	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
+		jctx := it.Next()
 		if jctx == nil {
 			break
 		}
 		actual = append(actual, jctx.Job.GetId())
 	}
 	assert.Equal(t, expected, actual)
-	v, err := it.Next()
-	require.NoError(t, err)
+	v := it.Next()
 	require.Nil(t, v)
 }
 
@@ -133,15 +124,10 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
-	if !assert.NoError(t, err) {
-		return
-	}
+	it := NewQueuedJobsIterator("A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
+		jctx := it.Next()
 		if jctx == nil {
 			break
 		}
@@ -160,15 +146,10 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
-	if !assert.NoError(t, err) {
-		return
-	}
+	it := NewQueuedJobsIterator("A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
+		jctx := it.Next()
 		if jctx == nil {
 			break
 		}
@@ -187,15 +168,10 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
-	if !assert.NoError(t, err) {
-		return
-	}
+	it := NewQueuedJobsIterator("A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
+		jctx := it.Next()
 		if jctx == nil {
 			break
 		}
@@ -218,46 +194,16 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		repo.Enqueue(job)
 	}
 
-	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
-	if !assert.NoError(t, err) {
-		return
-	}
+	it := NewQueuedJobsIterator("A", repo, nil)
 	actual := make([]string, 0)
 	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
+		jctx := it.Next()
 		if jctx == nil {
 			break
 		}
 		actual = append(actual, jctx.Job.GetId())
 	}
 	assert.Equal(t, expected, actual)
-}
-
-func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
-	repo := newMockJobRepository()
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-	}
-
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
-	time.Sleep(20 * time.Millisecond)
-	defer cancel()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
-	if !assert.NoError(t, err) {
-		return
-	}
-	job, err := it.Next()
-	assert.Nil(t, job)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
-
-	// Calling again should produce the same error.
-	job, err = it.Next()
-	assert.Nil(t, job)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
@@ -268,19 +214,12 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 		repo.Enqueue(job)
 	}
 
-	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
-	if !assert.NoError(t, err) {
-		return
+	it := NewQueuedJobsIterator("A", repo, nil)
+	for job := it.Next(); job != nil; job = it.Next() {
+		// Do nothing
 	}
-	for job, err := it.Next(); job != nil; job, err = it.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-	}
-	job, err := it.Next()
+	job := it.Next()
 	assert.Nil(t, job)
-	assert.NoError(t, err)
 }
 
 // TODO: Deprecate in favour of InMemoryRepo.
@@ -311,11 +250,11 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
-	return NewQueuedJobsIterator(ctx, queue, repo, nil)
+func (repo *mockJobRepository) GetJobIterator(queue string) JobIterator {
+	return NewQueuedJobsIterator(queue, repo, nil)
 }
 
-func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {
+func (repo *mockJobRepository) GetQueueJobIds(queue string) []string {
 	time.Sleep(repo.getQueueJobIdsDelay)
 	if jobs, ok := repo.jobsByQueue[queue]; ok {
 		rv := make([]string, 0, len(jobs))
@@ -324,31 +263,20 @@ func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {
 				rv = append(rv, job.Id)
 			}
 		}
-		return rv, nil
+		return rv
 	} else {
-		return make([]string, 0), nil
+		return make([]string, 0)
 	}
 }
 
-func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
+func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) []interfaces.LegacySchedulerJob {
 	rv := make([]interfaces.LegacySchedulerJob, len(jobIds))
 	for i, jobId := range jobIds {
 		if job, ok := repo.jobsById[jobId]; ok {
 			rv[i] = job
 		}
 	}
-	return rv, nil
-}
-
-func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	successfullyLeasedJobs := make([]*api.Job, 0, len(jobs))
-	for _, job := range jobs {
-		if !repo.leasedJobs[job.Id] {
-			successfullyLeasedJobs = append(successfullyLeasedJobs, job)
-			repo.leasedJobs[job.Id] = true
-		}
-	}
-	return successfullyLeasedJobs, nil
+	return rv
 }
 
 func apiJobFromPodSpec(queue string, podSpec *v1.PodSpec) *api.Job {

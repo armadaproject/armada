@@ -189,10 +189,8 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	// 1. get a job that isn't part of a gang, in which case we yield it immediately, or
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
-		jctx, err := it.queuedJobsIterator.Next()
-		if err != nil {
-			return nil, err
-		} else if jctx == nil || reflect.ValueOf(jctx).IsNil() {
+		jctx := it.queuedJobsIterator.Next()
+		if jctx == nil || reflect.ValueOf(jctx).IsNil() {
 			return nil, nil
 		}
 
