@@ -83,7 +83,7 @@ func TestJobEventReporter_SendsAllEventsInBuffer_EachBatchTickInterval(t *testin
 }
 
 func createFailedEvent(t *testing.T, pod *v1.Pod) *armadaevents.EventSequence {
-	event, err := CreateSimpleJobFailedEvent(pod, "failed", "cluster1", armadaevents.KubernetesReason_AppError)
+	event, err := CreateSimpleJobFailedEvent(pod, "failed", "", "cluster1", armadaevents.KubernetesReason_AppError)
 	require.NoError(t, err)
 	return event
 }
