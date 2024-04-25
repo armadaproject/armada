@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 

@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/util"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/util"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 const testQueueName = "test"
