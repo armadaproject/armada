@@ -60,7 +60,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		}()
 	}
 
-	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor, config.UseLegacyEventConversion)
+	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet](
 		config.Pulsar,

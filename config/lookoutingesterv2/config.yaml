@@ -19,4 +19,3 @@ batchDuration: 500ms
 minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"
 maxBackoff: 60
-useLegacyEventConversion: true
