@@ -139,7 +139,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(ctx, q)
+				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -161,7 +161,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(ctx, q)
+				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -180,7 +180,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(ctx, q)
+				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -224,7 +224,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.CreateQueue(ctx, q)
+				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -291,7 +291,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			t,
 			func(s *EventServer) {
 				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.CreateQueue(ctx, q)
+				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{})
@@ -316,7 +316,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			t,
 			func(s *EventServer) {
 				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.CreateQueue(ctx, q)
+				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
@@ -338,7 +338,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("queue permission", func(t *testing.T) {
 		withEventServer(ctx, t, func(s *EventServer) {
 			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-			err := s.queueRepository.CreateQueue(ctx, q)
+			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
 			principal := authorization.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})

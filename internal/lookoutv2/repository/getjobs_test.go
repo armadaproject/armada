@@ -55,7 +55,7 @@ var (
 func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository) error) error {
 	for _, useJsonbBackend := range []bool{false, true} {
 		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 			repo := NewSqlGetJobsRepository(db, useJsonbBackend)
 			return f(converter, store, repo)
@@ -82,6 +82,7 @@ func TestGetJobsSingle(t *testing.T) {
 					"hello":     "world",
 				},
 			}).
+			Lease(runId, cluster, node, baseTime).
 			Pending(runId, cluster, baseTime).
 			Running(runId, node, baseTime).
 			RunSucceeded(runId, baseTime).
@@ -100,10 +101,16 @@ func TestGetJobsSingle(t *testing.T) {
 
 func TestGetJobsMultipleRuns(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+		firstRunId := uuid.NewString()
+		secondRunId := uuid.NewString()
+
 		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), cluster, baseTime).
-			Pending(uuid.NewString(), cluster, baseTime.Add(time.Second)).
+			Lease(firstRunId, cluster, node, baseTime).
+			Pending(firstRunId, cluster, baseTime).
+			Lease(secondRunId, cluster, node, baseTime.Add(time.Second)).
+			Pending(secondRunId, cluster, baseTime.Add(time.Second)).
+			Lease(runId, cluster, node, baseTime.Add(2*time.Second)).
 			Pending(runId, cluster, baseTime.Add(2*time.Second)).
 			Running(runId, node, baseTime.Add(2*time.Second)).
 			RunSucceeded(runId, baseTime.Add(2*time.Second)).
@@ -297,14 +304,17 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 		runId1 := uuid.NewString()
 		third := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId1, cluster, node, baseTime).
 			Pending(runId1, cluster, baseTime).
-			Running(runId1, cluster, baseTime.Add(3*time.Minute)).
+			Running(runId1, node, baseTime.Add(3*time.Minute)).
 			Build().
 			Job()
 
+		runId2 := uuid.NewString()
 		second := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), cluster, baseTime.Add(2*time.Minute)).
+			Lease(runId2, cluster, node, baseTime.Add(2*time.Minute)).
+			Pending(runId2, cluster, baseTime.Add(2*time.Minute)).
 			Build().
 			Job()
 
@@ -737,15 +747,18 @@ func TestGetJobsByState(t *testing.T) {
 			Build().
 			Job()
 
+		runId1 := uuid.NewString()
 		pending := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), cluster, baseTime).
+			Lease(runId1, cluster, node, baseTime).
+			Pending(runId1, cluster, baseTime).
 			Build().
 			Job()
 
 		runId2 := uuid.NewString()
 		running := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId2, cluster, node, baseTime).
 			Pending(runId2, cluster, baseTime).
 			Running(runId2, node, baseTime).
 			Build().
@@ -754,6 +767,7 @@ func TestGetJobsByState(t *testing.T) {
 		runId3 := uuid.NewString()
 		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId3, cluster, node, baseTime).
 			Pending(runId3, cluster, baseTime).
 			Running(runId3, node, baseTime).
 			Succeeded(baseTime).
@@ -2002,10 +2016,13 @@ func TestGetJobsWithLatestRunDetails(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		runIdLatest := uuid.NewString()
 		// Simulate job submission and multiple runs, with the latest run being successful
+		firstRunId := uuid.NewString()
 		NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), "first-cluster", baseTime).
-			Running(uuid.NewString(), "first-node", baseTime.Add(time.Minute)).
+			Lease(firstRunId, "first-cluster", "first-node", baseTime).
+			Pending(firstRunId, "first-cluster", baseTime).
+			Running(firstRunId, "first-node", baseTime.Add(time.Minute)).
+			Lease(runIdLatest, "latest-cluster", "latest-node", baseTime.Add(2*time.Minute)).
 			Pending(runIdLatest, "latest-cluster", baseTime.Add(2*time.Minute)).
 			Running(runIdLatest, "latest-node", baseTime.Add(3*time.Minute)).
 			RunSucceeded(runIdLatest, baseTime.Add(4*time.Minute)).
@@ -2038,6 +2055,7 @@ func TestGetJobsWithSpecificRunDetails(t *testing.T) {
 		// Simulate job submission and a specific failed run
 		NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runIdSpecific, "specific-cluster", "specific-node", baseTime).
 			Pending(runIdSpecific, "specific-cluster", baseTime).
 			Running(runIdSpecific, "specific-node", baseTime.Add(time.Minute)).
 			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", baseTime.Add(2*time.Minute)).

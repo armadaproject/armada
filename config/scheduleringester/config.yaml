@@ -4,7 +4,7 @@ postgres:
     port: 5432
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: scheduler
     sslmode: disable
 metrics:
   port: 9003
