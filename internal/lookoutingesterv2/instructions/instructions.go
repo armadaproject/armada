@@ -579,6 +579,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(jobId, reason.PodError.GetMessage(), c.compressor)
+			jobRunUpdate.Debug = tryCompressError(jobId, reason.PodError.DebugMessage, c.compressor)
 			var exitCode int32 = 0
 			for _, containerError := range reason.PodError.ContainerErrors {
 				if containerError.ExitCode != 0 {
@@ -594,6 +595,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		case *armadaevents.Error_PodLeaseReturned:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
 			jobRunUpdate.Error = tryCompressError(jobId, reason.PodLeaseReturned.GetMessage(), c.compressor)
+			jobRunUpdate.Debug = tryCompressError(jobId, reason.PodLeaseReturned.GetDebugMessage(), c.compressor)
 		case *armadaevents.Error_LeaseExpired:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
 			jobRunUpdate.Error = tryCompressError(jobId, "Lease expired", c.compressor)

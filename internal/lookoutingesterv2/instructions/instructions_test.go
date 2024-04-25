@@ -140,6 +140,7 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
 	Error:       []byte(testfixtures.ErrMsg),
+	Debug:       []byte(testfixtures.DebugMsg),
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
@@ -653,6 +654,7 @@ func TestFailedWithMissingRunId(t *testing.T) {
 				Finished:    &testfixtures.BaseTime,
 				JobRunState: pointer.Int32(lookout.JobRunLeaseReturnedOrdinal),
 				Error:       []byte(testfixtures.LeaseReturnedMsg),
+				Debug:       []byte(testfixtures.DebugMsg),
 			},
 		},
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
