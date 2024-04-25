@@ -120,7 +120,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 }
 
 func (allocationService *ClusterAllocationService) sendReturnLeaseEvent(details *job.FailedSubmissionDetails, message string) error {
-	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), true)
+	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, "", allocationService.clusterId.GetClusterId(), true)
 	if err != nil {
 		return fmt.Errorf("failed to create return lease event %s", err)
 	}
@@ -128,7 +128,7 @@ func (allocationService *ClusterAllocationService) sendReturnLeaseEvent(details 
 }
 
 func (allocationService *ClusterAllocationService) sendFailedEvent(details *job.FailedSubmissionDetails, message string) error {
-	failEvent, err := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), armadaevents.KubernetesReason_AppError)
+	failEvent, err := reporter.CreateSimpleJobFailedEvent(details.Pod, message, "", allocationService.clusterId.GetClusterId(), armadaevents.KubernetesReason_AppError)
 	if err != nil {
 		return fmt.Errorf("failed to create return lease event %s", err)
 	}
