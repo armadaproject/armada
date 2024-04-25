@@ -3,96 +3,62 @@ package scheduler
 import (
 	"fmt"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-type minimalExecutor struct {
-	nodeDb     *nodedb.NodeDb
-	updateTime time.Time
-}
 
 type schedulingResult struct {
 	isSchedulable bool
 	reason        string
 }
 
-const maxJobSchedulingResults = 10000
+type executorState struct {
+	nodeDb                    *nodedb.NodeDb
+	jobSchedulingResultsCache *lru.Cache
+}
 
 type SubmitScheduleChecker interface {
-	CheckApiJobs(es *armadaevents.EventSequence, defaultPriorityClass string) (bool, string)
-	CheckJobDbJobs(jobs []*jobdb.Job) (bool, string)
+	Check(jobs []*jobdb.Job) (map[string]schedulingResult, error)
 }
 
 type SubmitChecker struct {
-	executorTimeout           time.Duration
-	priorityClasses           map[string]types.PriorityClass
-	executorById              map[string]minimalExecutor
-	priorities                []int32
-	indexedResources          []configuration.IndexedResource
-	indexedTaints             []string
-	indexedNodeLabels         []string
-	wellKnownNodeTypes        []configuration.WellKnownNodeType
-	executorRepository        database.ExecutorRepository
-	clock                     clock.Clock
-	mu                        sync.Mutex
-	schedulingKeyGenerator    *schedulerobjects.SchedulingKeyGenerator
-	jobSchedulingResultsCache *lru.Cache
-	ExecutorUpdateFrequency   time.Duration
+	schedulingConfig       configuration.SchedulingConfig
+	executorRepository     database.ExecutorRepository
+	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	state                  atomic.Pointer[executorState]
+	clock                  clock.Clock // can  be  overridden for testing
 }
 
 func NewSubmitChecker(
-	executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
 ) *SubmitChecker {
-	jobSchedulingResultsCache, err := lru.New(maxJobSchedulingResults)
-	if err != nil {
-		panic(errors.WithStack(err))
-	}
 	return &SubmitChecker{
-		executorTimeout:           executorTimeout,
-		priorityClasses:           schedulingConfig.PriorityClasses,
-		executorById:              map[string]minimalExecutor{},
-		priorities:                types.AllowedPriorities(schedulingConfig.PriorityClasses),
-		indexedResources:          schedulingConfig.IndexedResources,
-		indexedTaints:             schedulingConfig.IndexedTaints,
-		indexedNodeLabels:         schedulingConfig.IndexedNodeLabels,
-		wellKnownNodeTypes:        schedulingConfig.WellKnownNodeTypes,
-		executorRepository:        executorRepository,
-		clock:                     clock.RealClock{},
-		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
-		jobSchedulingResultsCache: jobSchedulingResultsCache,
-		ExecutorUpdateFrequency:   schedulingConfig.ExecutorUpdateFrequency,
+		schedulingConfig:       schedulingConfig,
+		executorRepository:     executorRepository,
+		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
+		clock:                  clock.RealClock{},
 	}
 }
 
-var stringInterner = stringinterner.New(1000)
-
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	srv.updateExecutors(ctx)
-
-	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
+	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
 	for {
 		select {
 		case <-ctx.Done():
@@ -111,76 +77,44 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			Error("Error fetching executors")
 		return
 	}
-	for _, executor := range executors {
-		nodeDb, err := srv.constructNodeDb(executor.Nodes)
-		if err == nil {
-			srv.mu.Lock()
-			srv.executorById[executor.Id] = minimalExecutor{
-				nodeDb:     nodeDb,
-				updateTime: executor.LastUpdateTime,
-			}
-			srv.mu.Unlock()
-			if err != nil {
-				logging.
-					WithStacktrace(ctx, err).
-					Errorf("Error constructing node db for executor %s", executor.Id)
-			}
-		} else {
-			logging.
-				WithStacktrace(ctx, err).
-				Warnf("Error clearing nodedb for executor %s", executor.Id)
+	jobSchedulingResultsCache, err := lru.New(10000)
+	if err != nil {
+		// This should never happen as lru.New only returns errors
+		// if it is initialised with an incorrect size
+		panic(err)
+	}
+	nodeDb, err := srv.constructNodeDb(executors)
+	if err == nil {
+		newState := executorState{
+			nodeDb:                    nodeDb,
+			jobSchedulingResultsCache: jobSchedulingResultsCache,
 		}
+		srv.state.Store(&newState)
+	} else {
+		logging.
+			WithStacktrace(ctx, err).
+			Warnf("Error constructing nodedb")
+	}
+}
+
+func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+
+	state := srv.state.Load()
+	if state == nil {
+		return nil, fmt.Errorf("executor state not loaded")
 	}
 
-	// Reset cache as the executors may have updated, changing what can be scheduled.
-	// Create a new schedulingKeyGenerator to get a new initial state.
-	srv.schedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
-	srv.jobSchedulingResultsCache.Purge()
-}
+	jobContexts := schedulercontext.JobSchedulingContextsFromJobs(srv.schedulingConfig.PriorityClasses, jobs)
+	results := make(map[string]schedulingResult, len(jobs))
 
-func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
-}
-
-func (srv *SubmitChecker) CheckApiJobs(es *armadaevents.EventSequence, defaultPriorityClass string) (bool, string) {
-	jobDb := jobdb.NewJobDb(srv.priorityClasses, defaultPriorityClass, stringInterner)
-	jobs := make([]*jobdb.Job, 0, len(es.Events))
-	for _, event := range es.Events {
-		submitMsg := event.GetSubmitJob()
-		if submitMsg != nil {
-			schedInfo, err := adapters.SchedulingInfoFromSubmitJob(submitMsg, time.Now(), srv.priorityClasses)
-			if err != nil {
-				return false, err.Error()
-			}
-			job := jobDb.NewJob(
-				armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId),
-				es.JobSetName,
-				es.Queue,
-				submitMsg.Priority,
-				schedInfo,
-				true,
-				0,
-				false,
-				false,
-				false,
-				0)
-			jobs = append(jobs, job)
-		}
-	}
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
-}
-
-func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) (bool, string) {
 	// First, check if all jobs can be scheduled individually.
-	for i, jctx := range jctxs {
-		schedulingResult := srv.getIndividualSchedulingResult(jctx)
-		if !schedulingResult.isSchedulable {
-			return schedulingResult.isSchedulable, fmt.Sprintf("%d-th job unschedulable:\n%s", i, schedulingResult.reason)
-		}
+	for _, jctx := range jobContexts {
+		results[jctx.JobId] = srv.getIndividualSchedulingResult(jctx, state)
 	}
+
 	// Then, check if all gangs can be scheduled.
 	for gangId, jctxs := range armadaslices.GroupByFunc(
-		jctxs,
+		jobContexts,
 		func(jctx *schedulercontext.JobSchedulingContext) string {
 			return jctx.GangInfo.Id
 		},
@@ -189,22 +123,23 @@ func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) 
 			continue
 		}
 		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
-		if schedulingResult := srv.getSchedulingResult(gctx); !schedulingResult.isSchedulable {
-			return schedulingResult.isSchedulable, fmt.Sprintf("gang %s is unschedulable:\n%s", gangId, schedulingResult.reason)
+		if result := srv.getSchedulingResult(gctx, state); !result.isSchedulable {
+			for _, jctx := range gctx.JobSchedulingContexts {
+				results[jctx.JobId] = result
+			}
 		}
 	}
-	return true, ""
+	return results, nil
 }
 
-func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext) schedulingResult {
+func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext, state *executorState) schedulingResult {
+
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
-		srv.mu.Lock()
 		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
-		srv.mu.Unlock()
 	}
 
-	if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
+	if obj, ok := state.jobSchedulingResultsCache.Get(schedulingKey); ok {
 		return obj.(schedulingResult)
 	}
 
@@ -216,15 +151,15 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 	}()
 
 	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
-	result := srv.getSchedulingResult(gctx)
+	result := srv.getSchedulingResult(gctx, state)
 
-	srv.jobSchedulingResultsCache.Add(schedulingKey, result)
+	state.jobSchedulingResultsCache.Add(schedulingKey, result)
 
 	return result
 }
 
 // Check if a set of jobs can be scheduled onto some cluster.
-func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext) schedulingResult {
+func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext, state *executorState) schedulingResult {
 	// Skip submit checks if this batch contains less than the min cardinality jobs.
 	// Reason:
 	//  - We need to support submitting gang jobs across batches and allow for gang jobs to queue until min cardinality is satisfied.
@@ -234,98 +169,77 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 		return schedulingResult{isSchedulable: true, reason: ""}
 	}
 
-	// Make a shallow copy to avoid holding the lock and
-	// preventing updating NodeDbs while checking if jobs can be scheduled
-	srv.mu.Lock()
-	executorById := maps.Clone(srv.executorById)
-	srv.mu.Unlock()
-	executorById = srv.filterStaleExecutors(executorById)
-	if len(executorById) == 0 {
-		return schedulingResult{isSchedulable: false, reason: "no executor clusters available"}
+	txn := state.nodeDb.Txn(true)
+	ok, err := state.nodeDb.ScheduleManyWithTxn(txn, gctx)
+	txn.Abort()
+
+	if err != nil {
+		return schedulingResult{
+			false,
+			err.Error(),
+		}
 	}
 
-	isSchedulable := false
+	if ok {
+		return schedulingResult{isSchedulable: true}
+	}
+
+	numSuccessfullyScheduled := 0
+	for _, jctx := range gctx.JobSchedulingContexts {
+		if jctx.PodSchedulingContext.IsSuccessful() {
+			numSuccessfullyScheduled++
+		}
+	}
 	var sb strings.Builder
-	for id, executor := range executorById {
-		nodeDb := executor.nodeDb
-		txn := nodeDb.Txn(true)
-		// TODO: This doesn't account for per-queue limits or the NodeUniformityLabel.
-		// We should create a GangScheduler for this instead.
-		ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
-		txn.Abort()
-
-		isSchedulable = isSchedulable || ok
-
-		sb.WriteString(id)
-		if err != nil {
-			sb.WriteString(err.Error())
-			sb.WriteString("\n")
-			continue
-		}
-
-		numSuccessfullyScheduled := 0
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if jctx.PodSchedulingContext.IsSuccessful() {
-				numSuccessfullyScheduled++
+	if len(gctx.JobSchedulingContexts) == 1 {
+		sb.WriteString(":\n")
+		pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
+		if pctx == nil {
+			return schedulingResult{
+				isSchedulable: false,
+				reason:        fmt.Sprintf("No PodSchedulingContext could be resolved"),
 			}
 		}
-
-		if len(gctx.JobSchedulingContexts) == 1 {
-			sb.WriteString(":\n")
-			pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
-			if pctx == nil {
-				continue
-			}
-			sb.WriteString(pctx.String())
-			sb.WriteString("\n")
-			sb.WriteString("---")
-			sb.WriteString("\n")
-		} else {
-			sb.WriteString(
-				fmt.Sprintf(
-					": %d out of %d pods schedulable (minCardinality %d)\n",
-					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
-				),
-			)
-		}
+		sb.WriteString(pctx.String())
+		sb.WriteString("\n")
+		sb.WriteString("---")
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString(
+			fmt.Sprintf(
+				": %d out of %d pods schedulable (minCardinality %d)\n",
+				numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
+			),
+		)
 	}
-	return schedulingResult{isSchedulable: isSchedulable, reason: sb.String()}
+
+	return schedulingResult{isSchedulable: false, reason: sb.String()}
+
 }
 
-func (srv *SubmitChecker) filterStaleExecutors(executorsById map[string]minimalExecutor) map[string]minimalExecutor {
-	rv := make(map[string]minimalExecutor)
-	for id, executor := range executorsById {
-		if srv.clock.Since(executor.updateTime) < srv.executorTimeout {
-			rv[id] = executor
-		}
-	}
-	return rv
-}
-
-func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+func (srv *SubmitChecker) constructNodeDb(executors []*schedulerobjects.Executor) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		srv.priorityClasses,
+		srv.schedulingConfig.PriorityClasses,
 		0,
-		srv.indexedResources,
-		srv.indexedTaints,
-		srv.indexedNodeLabels,
-		srv.wellKnownNodeTypes,
-		stringinterner.New(512),
+		srv.schedulingConfig.IndexedResources,
+		srv.schedulingConfig.IndexedTaints,
+		srv.schedulingConfig.IndexedNodeLabels,
+		srv.schedulingConfig.WellKnownNodeTypes,
+		stringinterner.New(10000),
 	)
 	if err != nil {
 		return nil, err
 	}
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
-	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
-			return nil, err
+	for _, executor := range executors {
+		for _, node := range executor.Nodes {
+			if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+				return nil, err
+			}
 		}
 	}
 	txn.Commit()
-	if err != nil {
-		return nil, err
-	}
 	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err

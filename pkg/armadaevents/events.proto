@@ -91,6 +91,7 @@ message EventSequence {
             JobRunPreemptionRequested jobRunPreemptionRequested = 21;
             JobRequeued jobRequeued = 22;
             JobPreemptionRequested jobPreemptionRequested = 23;
+            JobSubmitChecked jobSubmitChecked = 24;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -547,5 +548,10 @@ message JobRunPreemptionRequested {
 
 // Indicates that a user has requested for the job to be pre-empted.
 message JobPreemptionRequested {
+  Uuid job_id = 1;
+}
+
+// Indicates that the scheduler has confirmed that the job can be run on at least one node
+message JobSubmitChecked {
   Uuid job_id = 1;
 }

@@ -112,6 +112,9 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 	} else if job != nil && jobRepoJob == nil {
 		// No direct updates to the job; just process any updated runs below.
 	} else if job != nil && jobRepoJob != nil {
+		if jobRepoJob.Validated && !job.Validated() {
+			job = job.WithValidated(true)
+		}
 		if jobRepoJob.CancelRequested && !job.CancelRequested() {
 			job = job.WithCancelRequested(true)
 		}

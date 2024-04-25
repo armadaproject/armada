@@ -325,6 +325,8 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	events = append(events, queueTtlCancelEvents...)
 
+	// Perform a submit check on any jobs that require it
+
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
@@ -385,7 +387,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
-	// This is to make sure that preempttion is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
+	// This is to make sure that preemption is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
 }
 
@@ -965,6 +967,67 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 	return events, nil
 }
 
+func (s *Scheduler) submitCheck(jobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+
+	jobsToCheck := make([]*jobdb.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if !job.Validated() && !job.InTerminalState() {
+			jobsToCheck = append(jobsToCheck, job)
+		}
+	}
+
+	results, err := s.submitChecker.Check(jobsToCheck)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]*armadaevents.EventSequence, 0)
+	jobsToFail := make([]*jobdb.Job, 0)
+	for _, job := range jobsToCheck {
+
+		result := results[job.Id()]
+
+		if !result.isSchedulable {
+			job = job.WithFailed(true).WithQueued(false)
+			jobsToFail = append(jobsToFail, job)
+			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+			if err != nil {
+				return nil, err
+			}
+
+			es := &armadaevents.EventSequence{
+				Queue:      job.Queue(),
+				JobSetName: job.Jobset(),
+				Events: []*armadaevents.EventSequence_Event{
+					{
+						Created: s.now(),
+						Event: &armadaevents.EventSequence_Event_JobErrors{
+							JobErrors: &armadaevents.JobErrors{
+								JobId: jobId,
+								Errors: []*armadaevents.Error{
+									{
+										Terminal: true,
+										Reason: &armadaevents.Error_PodUnschedulable{
+											PodUnschedulable: &armadaevents.PodUnschedulable{
+												Message: result.reason,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			events = append(events, es)
+		}
+	}
+	if err := txn.Upsert(jobsToFail); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
 // now is a convenience function for generating a pointer to a time.Time (as required by armadaevents).
 // It exists because Go won't let you do &s.clock.Now().
 func (s *Scheduler) now() *time.Time {
@@ -981,7 +1044,6 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			// TODO(albin): This doesn't need to be separate; we'd anyway load everything in the first scheduling cycle.
 			if _, _, err := s.syncState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)

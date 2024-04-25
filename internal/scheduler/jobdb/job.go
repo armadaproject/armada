@@ -39,6 +39,9 @@ type Job struct {
 	submittedTime int64
 	// Hash of the scheduling requirements of the job.
 	schedulingKey schedulerobjects.SchedulingKey
+	// True if the job has been validated by the scheduler.
+	// Any job that fails validation will be rejected.
+	validated bool
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling.
 	queued bool
@@ -313,6 +316,9 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.queuedVersion != other.queuedVersion {
+		return false
+	}
+	if job.validated != other.validated {
 		return false
 	}
 	if job.cancelRequested != other.cancelRequested {
@@ -751,6 +757,18 @@ func (job *Job) WithCreated(created int64) *Job {
 	j := copyJob(*job)
 	j.submittedTime = created
 	return j
+}
+
+// WithValidated returns a copy of the job with the validated updated.
+func (job *Job) WithValidated(validated bool) *Job {
+	j := copyJob(*job)
+	j.validated = validated
+	return j
+}
+
+// Validated returns true if the job has been validated
+func (job *Job) Validated() bool {
+	return job.validated
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.

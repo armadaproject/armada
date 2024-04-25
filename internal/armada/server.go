@@ -30,8 +30,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/scheduler"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -126,16 +124,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer dbPool.Close()
 
-	// Executor Repositories for pulsar scheduler
-	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
-	submitChecker := scheduler.NewSubmitChecker(
-		30*time.Minute,
-		config.Scheduling,
-		pulsarExecutorRepo,
-	)
-	services = append(services, func() error {
-		return submitChecker.Run(ctx)
-	})
 	serverId := uuid.New()
 	var pulsarClient pulsar.Client
 	// API endpoints that generate Pulsar messages.
@@ -166,13 +154,12 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
 	})
 
-	pulsarSubmitServer := submit.NewServer(
+	submitServer := submit.NewServer(
 		publisher,
 		queueRepository,
 		jobRepository,
 		config.Submission,
 		submit.NewDeduplicator(store),
-		submitChecker,
 		authorizer)
 
 	// Consumer that's used for deleting pulsarJob details
@@ -223,7 +210,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		api.RegisterJobsServer(grpcServer, queryapiServer)
 	}
 
-	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
+	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
