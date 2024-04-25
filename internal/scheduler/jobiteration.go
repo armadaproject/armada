@@ -3,10 +3,9 @@ package scheduler
 import (
 	"sync"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
