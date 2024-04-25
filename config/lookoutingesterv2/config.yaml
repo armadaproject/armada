@@ -4,7 +4,7 @@ postgres:
     port: 5433
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: lookout
     sslmode: disable
 metricsPort: 9002
 pulsar:
