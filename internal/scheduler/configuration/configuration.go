@@ -22,8 +22,10 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Comnfig
+	// Redis Config
 	Redis config.RedisConfig
+	// Armada Api Connection.  Used to fetch queues.
+	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
@@ -56,6 +58,8 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
+	// Frequency at which queues will be fetched from the API
+	QueueRefreshPeriod time.Duration `validate:"required"`
 }
 
 func (c Configuration) Validate() error {

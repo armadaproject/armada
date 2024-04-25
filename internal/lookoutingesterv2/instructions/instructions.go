@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -40,10 +39,9 @@ type HasNodeName interface {
 }
 
 type InstructionConverter struct {
-	metrics                  *metrics.Metrics
-	userAnnotationPrefix     string
-	compressor               compress.Compressor
-	useLegacyEventConversion bool
+	metrics              *metrics.Metrics
+	userAnnotationPrefix string
+	compressor           compress.Compressor
 }
 
 type jobResources struct {
@@ -53,17 +51,12 @@ type jobResources struct {
 	Gpu              int64
 }
 
-func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor, useLegacyEventConversion bool) *InstructionConverter {
+func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor) *InstructionConverter {
 	return &InstructionConverter{
-		metrics:                  m,
-		userAnnotationPrefix:     userAnnotationPrefix,
-		compressor:               compressor,
-		useLegacyEventConversion: useLegacyEventConversion,
+		metrics:              m,
+		userAnnotationPrefix: userAnnotationPrefix,
+		compressor:           compressor,
 	}
-}
-
-func (c *InstructionConverter) IsLegacy() bool {
-	return c.useLegacyEventConversion
 }
 
 func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
@@ -105,11 +98,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobErrors:
 			err = c.handleJobErrors(ts, event.GetJobErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			if c.useLegacyEventConversion {
-				err = c.handleLegacyJobRunAssigned(ts, event.GetJobRunAssigned(), update)
-			} else {
-				err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
-			}
+			err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunCancelled:
@@ -125,9 +114,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			if !c.useLegacyEventConversion {
-				err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
-			}
+			err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
@@ -444,8 +431,8 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 	jobRun := model.CreateJobRunInstruction{
 		RunId:       runId,
 		JobId:       jobId,
-		Cluster:     event.ExecutorId,
-		Node:        pointer.String(event.NodeId),
+		Cluster:     util.Truncate(event.ExecutorId, maxClusterLen),
+		Node:        pointer.String(util.Truncate(event.NodeId, maxNodeLen)),
 		Leased:      &ts,
 		JobRunState: lookout.JobRunLeasedOrdinal,
 	}
@@ -482,46 +469,6 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 		JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
-	return nil
-}
-
-func (c *InstructionConverter) handleLegacyJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
-	// Update Job
-	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
-		State:                     pointer.Int32(int32(lookout.JobPendingOrdinal)),
-		LastTransitionTime:        &ts,
-		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
-	}
-
-	update.JobsToUpdate = append(update.JobsToUpdate, &job)
-	cluster := ""
-	if len(event.GetResourceInfos()) > 0 {
-		cluster = util.Truncate(event.GetResourceInfos()[0].GetObjectMeta().GetExecutorId(), maxClusterLen)
-	}
-	// Now create a job run
-	jobRun := model.CreateJobRunInstruction{
-		RunId:       runId,
-		JobId:       jobId,
-		Cluster:     cluster,
-		Leased:      &ts,
-		Pending:     &ts,
-		JobRunState: lookout.JobRunPendingOrdinal,
-	}
-	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
 	return nil
 }
 
@@ -572,28 +519,11 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	}
 
 	for _, e := range event.GetErrors() {
-		// Certain legacy events mean we don't have a valid run id
-		// In this case we have to invent a fake run
-		// TODO: remove this when the legacy messages go away!
-		isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
-		if isLegacyEvent {
-			jobRun := createFakeJobRun(jobId, ts)
-			runId = jobRun.RunId
-			objectMeta := extractMetaFromError(e)
-			if objectMeta != nil && objectMeta.ExecutorId != "" {
-				jobRun.Cluster = util.Truncate(objectMeta.ExecutorId, maxClusterLen)
-			}
-			update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
-		}
-
 		jobRunUpdate := &model.UpdateJobRunInstruction{
 			RunId: runId,
 		}
 		if e.Terminal {
 			jobRunUpdate.Finished = &ts
-		}
-		if isLegacyEvent {
-			jobRunUpdate.Started = &ts
 		}
 
 		switch reason := e.Reason.(type) {
@@ -665,20 +595,6 @@ func tryCompressError(jobId string, errorString string, compressor compress.Comp
 	return compressedError
 }
 
-func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
-	switch err := e.Reason.(type) {
-	case *armadaevents.Error_PodError:
-		return err.PodError.ObjectMeta
-	case *armadaevents.Error_PodTerminated:
-		return err.PodTerminated.ObjectMeta
-	case *armadaevents.Error_PodUnschedulable:
-		return err.PodUnschedulable.ObjectMeta
-	case *armadaevents.Error_PodLeaseReturned:
-		return err.PodLeaseReturned.ObjectMeta
-	}
-	return nil
-}
-
 func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 	for _, r := range resources {
 		node := extractNodeName(r.GetPodInfo())
@@ -687,17 +603,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 		}
 	}
 	return pointer.String("UNKNOWN")
-}
-
-func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
-	runId := uuid.New().String()
-	return &model.CreateJobRunInstruction{
-		RunId:       runId,
-		JobId:       jobId,
-		Cluster:     "UNKNOWN",
-		Pending:     &ts,
-		JobRunState: lookout.JobRunPendingOrdinal,
-	}
 }
 
 func extractNodeName(x HasNodeName) *string {

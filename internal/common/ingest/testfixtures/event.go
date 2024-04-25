@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -530,7 +529,7 @@ var JobLeaseReturned = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
-			RunId: eventutil.LegacyJobRunId(),
+			RunId: RunIdProto,
 			Errors: []*armadaevents.Error{
 				{
 					Terminal: true,

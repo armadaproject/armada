@@ -78,7 +78,7 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 	if err != nil {
 		return fmt.Errorf("failed creating preempted event because - %s", err)
 	}
-	failedEvent, err := reporter.CreateSimpleJobFailedEvent(pod, "Run preempted", j.clusterContext.GetClusterId(), armadaevents.KubernetesReason_AppError)
+	failedEvent, err := reporter.CreateSimpleJobFailedEvent(pod, "Run preempted", "", j.clusterContext.GetClusterId(), armadaevents.KubernetesReason_AppError)
 	if err != nil {
 		return fmt.Errorf("failed creating failed event because - %s", err)
 	}

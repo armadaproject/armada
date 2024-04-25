@@ -455,6 +455,7 @@ message PodError {
     int32 pod_number = 4;
     repeated ContainerError containerErrors = 5;
     KubernetesReason  kubernetes_reason = 6;
+    string debugMessage = 7;
 }
 
 message ContainerError {
@@ -476,6 +477,7 @@ message PodLeaseReturned {
     string message = 2;
     int32 pod_number = 3;
     bool run_attempted =4;
+    string debugMessage = 5;
 }
 
 // Indicates that the lease on the job that the pod was part of could not be renewed.

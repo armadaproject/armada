@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -12,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -302,10 +300,6 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
 	_, annotationPresent := pod.Annotations[string(podPhase)]
 	return annotationPresent
-}
-
-func IsArmadaJobPod(name string) bool {
-	return strings.HasPrefix(name, common.PodNamePrefix)
 }
 
 func CountPodsByPhase(pods []*v1.Pod) map[string]uint32 {

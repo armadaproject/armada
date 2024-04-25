@@ -170,14 +170,16 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 	return js
 }
 
-func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) Lease(runId string, cluster string, node string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leasedEvent := &armadaevents.EventSequence_Event{
 		Created: &ts,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
-				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
-				JobId: js.jobId,
+				RunId:      armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
+				JobId:      js.jobId,
+				ExecutorId: cluster,
+				NodeId:     node,
 			},
 		},
 	}
@@ -186,9 +188,13 @@ func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobLeased)
+	js.job.Cluster = cluster
+	js.job.Node = &node
 	updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunLeased,
+		cluster:     &cluster,
+		node:        &node,
 		leased:      &ts,
 	})
 	return js
@@ -231,9 +237,6 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 		cluster:     &cluster,
 		jobRunState: lookout.JobRunPending,
 		pending:     &ts,
-	}
-	if js.converter.IsLegacy() {
-		rp.leased = &ts
 	}
 	updateRun(js.job, rp)
 	return js
@@ -562,14 +565,14 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	return js
 }
 
-func (js *JobSimulator) LeaseExpired(timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: &ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
-				RunId: eventutil.LegacyJobRunId(),
+				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -584,7 +587,7 @@ func (js *JobSimulator) LeaseExpired(timestamp time.Time) *JobSimulator {
 	js.events = append(js.events, leaseReturned)
 
 	updateRun(js.job, &runPatch{
-		runId:       eventutil.LEGACY_RUN_ID,
+		runId:       runId,
 		finished:    &ts,
 		jobRunState: lookout.JobRunLeaseExpired,
 	})
