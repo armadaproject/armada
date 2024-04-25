@@ -31,7 +31,7 @@ require (
 	github.com/jackc/pgtype v1.14.2
 	github.com/jackc/pgx/v4 v4.17.2 // indirect
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
-	github.com/jstemmer/go-junit-report/v2 v2.0.0
+	github.com/jstemmer/go-junit-report/v2 v2.1.0
 	github.com/lib/pq v1.10.7 // indirect
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mitchellh/go-homedir v1.1.0
