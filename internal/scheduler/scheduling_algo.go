@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -29,9 +28,10 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
@@ -46,7 +46,7 @@ type SchedulingAlgo interface {
 type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
-	queueRepository             repository.QueueRepository
+	queueCache                  queue.QueueCache
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -73,7 +73,7 @@ func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
-	queueRepository repository.QueueRepository,
+	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
@@ -88,7 +88,7 @@ func NewFairSchedulingAlgo(
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
 		executorRepository:          executorRepository,
-		queueRepository:             queueRepository,
+		queueCache:                  queueCache,
 		schedulingContextRepository: schedulingContextRepository,
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
@@ -238,7 +238,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []queue.Queue
+	queues                                   []*api.Queue
 	priorityFactorByQueue                    map[string]float64
 	isActiveByQueueName                      map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
@@ -259,7 +259,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	executors = l.filterStaleExecutors(executors)
 
 	// TODO(albin): Skip queues with a high failure rate.
-	queues, err := l.queueRepository.GetAllQueues(ctx)
+	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -512,25 +512,25 @@ func NewSchedulerJobRepositoryAdapter(txn *jobdb.Txn) *SchedulerJobRepositoryAda
 
 // GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
 // to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) []string {
 	rv := make([]string, 0)
 	it := repo.txn.QueuedJobs(queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
 		rv = append(rv, v.Id())
 	}
-	return rv, nil
+	return rv
 }
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) []interfaces.LegacySchedulerJob {
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
 		if job := repo.txn.GetById(id); job != nil {
 			rv = append(rv, job)
 		}
 	}
-	return rv, nil
+	return rv
 }
 
 // addExecutorToNodeDb adds all the nodes and jobs associated with a particular executor to the nodeDb.
