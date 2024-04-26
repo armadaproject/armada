@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -29,10 +30,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
-	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
@@ -47,7 +47,7 @@ type SchedulingAlgo interface {
 type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
-	queueCache                  queue.QueueCache
+	queueRepository             repository.QueueRepository
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -74,7 +74,7 @@ func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
-	queueCache queue.QueueCache,
+	queueRepository repository.QueueRepository,
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
@@ -89,7 +89,7 @@ func NewFairSchedulingAlgo(
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
 		executorRepository:          executorRepository,
-		queueCache:                  queueCache,
+		queueRepository:             queueRepository,
 		schedulingContextRepository: schedulingContextRepository,
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
@@ -252,7 +252,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []*api.Queue
+	queues                                   []queue.Queue
 	priorityFactorByQueue                    map[string]float64
 	isActiveByQueueName                      map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
@@ -273,7 +273,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	executors = l.filterStaleExecutors(ctx, executors)
 
 	// TODO(albin): Skip queues with a high failure rate.
-	queues, err := l.queueCache.GetAll(ctx)
+	queues, err := l.queueRepository.GetAllQueues(ctx)
 	if err != nil {
 		return nil, err
 	}

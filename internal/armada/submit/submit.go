@@ -39,7 +39,6 @@ import (
 type Server struct {
 	publisher        pulsarutils.Publisher
 	queueRepository  repository.QueueRepository
-	queueCache       repository.ReadOnlyQueueRepository
 	jobRepository    repository.JobRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
@@ -53,7 +52,6 @@ type Server struct {
 func NewServer(
 	publisher pulsarutils.Publisher,
 	queueRepository repository.QueueRepository,
-	queueCache repository.ReadOnlyQueueRepository,
 	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
@@ -63,7 +61,6 @@ func NewServer(
 	return &Server{
 		publisher:        publisher,
 		queueRepository:  queueRepository,
-		queueCache:       queueCache,
 		jobRepository:    jobRepository,
 		submissionConfig: submissionConfig,
 		deduplicator:     deduplicator,
@@ -806,7 +803,7 @@ func (s *Server) authorize(
 	principal := authorization.GetPrincipal(ctx)
 	userId := principal.GetName()
 	groups := principal.GetGroupNames()
-	q, err := s.queueCache.GetQueue(ctx, queueName)
+	q, err := s.queueRepository.GetQueue(ctx, queueName)
 	if err != nil {
 		return userId, groups, err
 	}

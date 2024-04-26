@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 
@@ -38,11 +36,6 @@ type QueueRepository interface {
 	CreateQueue(*armadacontext.Context, queue.Queue) error
 	UpdateQueue(*armadacontext.Context, queue.Queue) error
 	DeleteQueue(ctx *armadacontext.Context, name string) error
-}
-
-type ReadOnlyQueueRepository interface {
-	GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error)
-	GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error)
 }
 
 type RedisQueueRepository struct {
@@ -140,171 +133,6 @@ func (r *RedisQueueRepository) DeleteQueue(ctx *armadacontext.Context, name stri
 	result := r.db.HDel(ctx, queueHashKey, name)
 	if err := result.Err(); err != nil {
 		return fmt.Errorf("[RedisQueueRepository.DeleteQueue] error deleting queue: %s", err)
-	}
-	return nil
-}
-
-type PostgresQueueRepository struct {
-	// pool of database connections
-	db *pgxpool.Pool
-}
-
-func NewPostgresQueueRepository(db *pgxpool.Pool) *PostgresQueueRepository {
-	return &PostgresQueueRepository{db: db}
-}
-
-func (r *PostgresQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
-	rows, err := r.db.Query(ctx, "SELECT definition FROM queue")
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	defer rows.Close()
-
-	queues := make([]queue.Queue, 0)
-	for rows.Next() {
-		var definitionBytes []byte
-		err := rows.Scan(&definitionBytes)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		q, err := r.unmarshalQueue(definitionBytes)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		queues = append(queues, q)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return queues, nil
-}
-
-func (r *PostgresQueueRepository) GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error) {
-	var definitionBytes []byte
-	query := "SELECT definition FROM queue WHERE name = $1"
-
-	err := r.db.QueryRow(ctx, query, name).Scan(&definitionBytes)
-	if err != nil {
-		q := queue.Queue{}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return q, &ErrQueueNotFound{QueueName: name}
-		}
-		return q, errors.WithStack(err)
-	}
-
-	q, err := r.unmarshalQueue(definitionBytes)
-	if err != nil {
-		return queue.Queue{}, errors.WithStack(err)
-	}
-	return q, nil
-}
-
-func (r *PostgresQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	return r.upsertQueue(ctx, queue)
-}
-
-func (r *PostgresQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	return r.upsertQueue(ctx, queue)
-}
-
-func (r *PostgresQueueRepository) DeleteQueue(ctx *armadacontext.Context, name string) error {
-	query := "DELETE FROM queue WHERE name = $1"
-	_, err := r.db.Exec(ctx, query, name)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
-}
-
-func (r *PostgresQueueRepository) upsertQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	data, err := proto.Marshal(queue.ToAPI())
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	query := "INSERT INTO queue (name, definition) VALUES ($1, $2) ON CONFLICT(name) DO UPDATE SET definition = EXCLUDED.definition"
-	_, err = r.db.Exec(ctx, query, queue.Name, data)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
-}
-
-func (r *PostgresQueueRepository) unmarshalQueue(definitionBytes []byte) (queue.Queue, error) {
-	apiQueue := &api.Queue{}
-	if err := proto.Unmarshal(definitionBytes, apiQueue); err != nil {
-		return queue.Queue{}, err
-	}
-	q, err := queue.NewQueue(apiQueue)
-	if err != nil {
-		return queue.Queue{}, err
-	}
-	return q, nil
-}
-
-type DualQueueRepository struct {
-	primaryRepo   QueueRepository
-	secondaryRepo QueueRepository
-}
-
-func NewDualQueueRepository(redis redis.UniversalClient, postgres *pgxpool.Pool, usePostgresForPrimary bool) *DualQueueRepository {
-	redisRepo := NewRedisQueueRepository(redis)
-	postgresRepo := NewPostgresQueueRepository(postgres)
-	if usePostgresForPrimary {
-		return &DualQueueRepository{
-			primaryRepo:   postgresRepo,
-			secondaryRepo: redisRepo,
-		}
-	} else {
-		return &DualQueueRepository{
-			primaryRepo:   redisRepo,
-			secondaryRepo: postgresRepo,
-		}
-	}
-}
-
-func (r *DualQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
-	return r.primaryRepo.GetAllQueues(ctx)
-}
-
-func (r *DualQueueRepository) GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error) {
-	return r.primaryRepo.GetQueue(ctx, name)
-}
-
-func (r *DualQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	err := r.primaryRepo.CreateQueue(ctx, queue)
-	if err != nil {
-		return err
-	}
-	err = r.secondaryRepo.CreateQueue(ctx, queue)
-	if err != nil {
-		ctx.Warnf("Could not create queue %s on secondaryd repo", queue.Name)
-	}
-	return nil
-}
-
-func (r *DualQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	err := r.primaryRepo.UpdateQueue(ctx, queue)
-	if err != nil {
-		return err
-	}
-	err = r.secondaryRepo.UpdateQueue(ctx, queue)
-	if err != nil {
-		ctx.Warnf("Could not update queue %s on secondary repo", queue.Name)
-	}
-	return nil
-}
-
-func (r *DualQueueRepository) DeleteQueue(ctx *armadacontext.Context, name string) error {
-	err := r.primaryRepo.DeleteQueue(ctx, name)
-	if err != nil {
-		return err
-	}
-	err = r.secondaryRepo.DeleteQueue(ctx, name)
-	if err != nil {
-		ctx.Warnf("Could not delete queue %s on secondary repo", name)
 	}
 	return nil
 }
