@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/client/queue"
+
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +19,6 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
@@ -34,12 +35,12 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
 		poolMappings map[string]string
-		queues       []*api.Queue
+		queues       []queue.Queue
 		expected     []prometheus.Metric
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []queue.Queue{testfixtures.MakeTestQueue()},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
@@ -63,7 +64,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		},
 		"running metrics": {
 			initialJobs: runningJobs,
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []queue.Queue{testfixtures.MakeTestQueue()},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
@@ -96,8 +97,8 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			queueCache := schedulermocks.NewMockQueueCache(ctrl)
-			queueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).Times(1)
+			queueRepository := schedulermocks.NewMockQueueRepository(ctrl)
+			queueRepository.EXPECT().GetAllQueues(ctx).Return(tc.queues, nil).Times(1)
 			poolAssigner := &MockPoolAssigner{tc.defaultPool, tc.poolMappings}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -105,7 +106,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 
 			collector := NewMetricsCollector(
 				jobDb,
-				queueCache,
+				queueRepository,
 				executorRepository,
 				poolAssigner,
 				2*time.Second,
@@ -246,8 +247,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			queueCache := schedulermocks.NewMockQueueCache(ctrl)
-			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
+			queueRepository := schedulermocks.NewMockQueueRepository(ctrl)
+			queueRepository.EXPECT().GetAllQueues(ctx).Return([]queue.Queue{}, nil).Times(1)
 			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -255,7 +256,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 			collector := NewMetricsCollector(
 				jobDb,
-				queueCache,
+				queueRepository,
 				executorRepository,
 				poolAssigner,
 				2*time.Second,

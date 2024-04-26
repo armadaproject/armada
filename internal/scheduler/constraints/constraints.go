@@ -10,7 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const (
@@ -90,7 +90,7 @@ func NewSchedulingConstraints(
 	totalResources schedulerobjects.ResourceList,
 	minimumJobSize schedulerobjects.ResourceList,
 	config configuration.SchedulingConfig,
-	queues []*api.Queue,
+	queues []queue.Queue,
 ) SchedulingConstraints {
 	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]PriorityClassSchedulingConstraints, len(config.PriorityClasses))
 	for name, priorityClass := range config.PriorityClasses {
