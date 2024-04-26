@@ -115,6 +115,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 	// Evict preemptible jobs.
 	totalCost := sch.schedulingContext.TotalCost()
+	ctx.WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")
 	evictorResult, inMemoryJobRepo, err := sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict for resource balancing"),
 		NewNodeEvictor(
@@ -151,12 +152,14 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
+	ctx.WithField("stage", "scheduling-algo").Info("Finished evicting preemptible jobs")
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
 		preemptedJobsById[jctx.JobId] = jctx
 	}
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
+	ctx.WithField("stage", "scheduling-algo").Info("Performing initial scheduling jobs onto nodes")
 	schedulerResult, err := sch.schedule(
 		armadacontext.WithLogField(ctx, "stage", "re-schedule after balancing eviction"),
 		inMemoryJobRepo,
@@ -165,6 +168,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
+	ctx.WithField("stage", "scheduling-algo").Info("Finished initial scheduling of jobs onto nodes")
 	for _, jctx := range schedulerResult.ScheduledJobs {
 		if _, ok := preemptedJobsById[jctx.JobId]; ok {
 			delete(preemptedJobsById, jctx.JobId)
@@ -176,6 +180,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	maps.Copy(additionalAnnotationsByJobId, schedulerResult.AdditionalAnnotationsByJobId)
 
 	// Evict jobs on oversubscribed nodes.
+	ctx.WithField("stage", "scheduling-algo").Info("Evicting jobs from oversubscribed nodes")
 	evictorResult, inMemoryJobRepo, err = sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict oversubscribed"),
 		NewOversubscribedEvictor(
@@ -190,6 +195,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
+	ctx.WithField("stage", "scheduling-algo").Info("Finished evicting jobs from oversubscribed nodes")
 	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
 		scheduledJobsById,
 		func(jobId string) bool {
@@ -211,6 +217,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if len(evictorResult.EvictedJctxsByJobId) > 0 {
 		// Since no new jobs are considered in this round, the scheduling key check brings no benefit.
 		sch.SkipUnsuccessfulSchedulingKeyCheck()
+		ctx.WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
 		schedulerResult, err = sch.schedule(
 			armadacontext.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
@@ -220,6 +227,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		if err != nil {
 			return nil, err
 		}
+		ctx.WithField("stage", "scheduling-algo").Info("Finished second scheduling pass")
 		for _, jctx := range schedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
 				delete(preemptedJobsById, jctx.JobId)
@@ -234,12 +242,15 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
+	ctx.WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
 	if err := sch.unbindJobs(append(
 		slices.Clone(preemptedJobs),
 		maps.Values(scheduledAndEvictedJobsById)...),
 	); err != nil {
 		return nil, err
 	}
+	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
+
 	if s := JobsSummary(preemptedJobs); s != "" {
 		ctx.Infof("preempting running jobs; %s", s)
 	}
@@ -248,6 +259,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	}
 	// TODO: Show failed jobs.
 	if sch.enableAssertions {
+		ctx.WithField("stage", "scheduling-algo").Infof("Performing assertions after scheduling round")
 		err := sch.assertions(
 			snapshot,
 			preemptedJobsById,
@@ -257,6 +269,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		if err != nil {
 			return nil, err
 		}
+		ctx.WithField("stage", "scheduling-algo").Infof("Finished running assertions after scheduling round")
 	}
 	return &SchedulerResult{
 		PreemptedJobs:                preemptedJobs,
