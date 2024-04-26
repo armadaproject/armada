@@ -175,6 +175,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
 			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+			if !shouldSchedule {
+				ctx.Info("Won't schedule this cycle as still within schedulePeriod")
+			}
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
@@ -240,6 +243,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Only the leader may make decisions; exit if not leader.
 	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
+		ctx.Info("Not the leader so will not attempt to schedule")
 		s.schedulerMetrics.Disable()
 		return overallSchedulerResult, err
 	} else {

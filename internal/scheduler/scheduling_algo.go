@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/benbjohnson/immutable"
@@ -137,6 +138,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		l.executorGroupsToSchedule = maps.Keys(executorGroups)
 		sortExecutorGroups(l.executorGroupsToSchedule, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
 	}
+
+	ctx.Infof("Looping over executor groups %s", strings.Join(maps.Keys(executorGroups), " "))
 	for len(l.executorGroupsToSchedule) > 0 {
 		select {
 		case <-ctx.Done():
@@ -148,6 +151,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		executorGroupLabel := armadaslices.Pop(&l.executorGroupsToSchedule)
 		executorGroup := executorGroups[executorGroupLabel]
 		if len(executorGroup) == 0 {
+			ctx.Infof("Skipping executor group %s as it has no executors", executorGroupLabel)
 			continue
 		}
 		for _, executor := range executorGroup {
@@ -164,6 +168,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			"scheduling on executor group %s with capacity %s",
 			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
+
+		start := time.Now()
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
 			ctx,
 			fsctx,
@@ -171,6 +177,14 @@ func (l *FairSchedulingAlgo) Schedule(
 			minimumJobSize,
 			executorGroup,
 		)
+
+		ctx.Infof(
+			"Scheduled on executor group %s in %v with error %v",
+			executorGroupLabel,
+			time.Now().Sub(start),
+			err,
+		)
+
 		if err == context.DeadlineExceeded {
 			// We've reached the scheduling time limit;
 			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
@@ -256,7 +270,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	if err != nil {
 		return nil, err
 	}
-	executors = l.filterStaleExecutors(executors)
+	executors = l.filterStaleExecutors(ctx, executors)
 
 	// TODO(albin): Skip queues with a high failure rate.
 	queues, err := l.queueCache.GetAll(ctx)
@@ -576,14 +590,14 @@ func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*
 
 // filterStaleExecutors returns all executors which have sent a lease request within the duration given by l.schedulingConfig.ExecutorTimeout.
 // This ensures that we don't continue to assign jobs to executors that are no longer active.
-func (l *FairSchedulingAlgo) filterStaleExecutors(executors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
+func (l *FairSchedulingAlgo) filterStaleExecutors(ctx *armadacontext.Context, executors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
 	cutoff := l.clock.Now().Add(-l.schedulingConfig.ExecutorTimeout)
 	for _, executor := range executors {
 		if executor.LastUpdateTime.After(cutoff) {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
-			logrus.Debugf("Ignoring executor %s because it hasn't heartbeated since %s", executor.Id, executor.LastUpdateTime)
+			ctx.Infof("Ignoring executor %s because it hasn't heartbeated since %s", executor.Id, executor.LastUpdateTime)
 		}
 	}
 	return activeExecutors
