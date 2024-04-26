@@ -5,7 +5,6 @@ executorTimeout: 1h
 databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
-queueRefreshPeriod: 1s
 metrics:
   port: 9000
   refreshInterval: 30s
@@ -43,16 +42,13 @@ redis:
   password: ""
   db: 0
   poolSize: 1000
-armadaApi:
-  armadaUrl: "server:50051"
-  forceNoTls: true
 postgres:
   connection:
     host: postgres
     port: 5432
     user: postgres
     password: psw
-    dbname: scheduler
+    dbname: postgres
     sslmode: disable
 leader:
   mode: standalone
