@@ -251,13 +251,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	}
 	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
-	if s := JobsSummary(preemptedJobs); s != "" {
-		ctx.Infof("preempting running jobs; %s", s)
-	}
-	if s := JobsSummary(scheduledJobs); s != "" {
-		ctx.Infof("scheduling new jobs; %s", s)
-	}
+	PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
+	PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
+
 	if sch.enableAssertions {
 		ctx.WithField("stage", "scheduling-algo").Infof("Performing assertions after scheduling round")
 		err := sch.assertions(
