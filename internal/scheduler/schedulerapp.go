@@ -392,9 +392,10 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 
 // This changes the default logrus grpc logging to log OK messages at trace level
 // The reason for doing this are:
-// - Clearer logs
-// - Armada components are the only clients, so we don't need these logs to tell us who is calling the executor api
-// We could make this configurable in future - although is equivalently is via setting Trace level logging
+//   - Reduced logging
+//   - We only care about failures, so lets only log failures
+//   - We normally use these logs to work out who is calling us, however the Executor API is not public
+//     and is only called by other Armada components
 func createLogrusLoggingOption() grpc_logrus.Option {
 	return grpc_logrus.WithLevels(func(code codes.Code) log.Level {
 		switch code {
