@@ -233,6 +233,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := SchedulerResult{}
+
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
 	updatedJobs, jsts, err := s.syncState(ctx)
