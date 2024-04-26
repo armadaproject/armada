@@ -541,7 +541,10 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo, sch.schedulingContext.PriorityClasses)
+			queueIt, err := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo, sch.schedulingContext.PriorityClasses)
+			if err != nil {
+				return nil, err
+			}
 			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
 		}
 	}
@@ -846,7 +849,10 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 				jobIds = append(jobIds, jobId)
 			}
 		}
-		jobs := evi.jobRepo.GetExistingJobsByIds(jobIds)
+		jobs, err := evi.jobRepo.GetExistingJobsByIds(jobIds)
+		if err != nil {
+			return nil, err
+		}
 		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(evi.priorityClasses, jobFilter, jobs, node)
 		if err != nil {
 			return nil, err
