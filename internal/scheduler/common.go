@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -12,16 +13,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-type JobSummary struct {
-	Summary string
-	Verbose string
-}
-
-// JobsSummary returns a string giving an overview of the provided jobs meant for logging.
-// For example: "affected queues [A, B]; resources {A: {cpu: 1}, B: {cpu: 2}}; jobs [jobAId, jobBId]".
-func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) *JobSummary {
+// PrintJobSummary logs a summary of the job scheduling context
+// It will log a high level summary at Info level, and a list of all queues + jobs affected at debug level
+func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*schedulercontext.JobSchedulingContext) {
 	if len(jctxs) == 0 {
-		return nil
+		return
 	}
 	jobsByQueue := armadaslices.MapAndGroupByFuncs(
 		jctxs,
@@ -58,18 +54,19 @@ func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) *JobSummary {
 			return rv
 		},
 	)
-	return &JobSummary{
-		Summary: fmt.Sprintf(
-			"affected queues %v; resources %v; jobs per queue %v",
-			maps.Keys(jobsByQueue),
-			armadamaps.MapValues(
-				resourcesByQueue,
-				func(rl schedulerobjects.ResourceList) string {
-					return rl.CompactString()
-				},
-			),
-			jobCountPerQueue,
+	summary := fmt.Sprintf(
+		"affected queues %v; resources %v; jobs per queue %v",
+		maps.Keys(jobsByQueue),
+		armadamaps.MapValues(
+			resourcesByQueue,
+			func(rl schedulerobjects.ResourceList) string {
+				return rl.CompactString()
+			},
 		),
-		Verbose: fmt.Sprintf("affected jobs %v", jobIdsByQueue),
-	}
+		jobCountPerQueue,
+	)
+	verbose := fmt.Sprintf("affected jobs %v", jobIdsByQueue)
+
+	ctx.Infof("%s %s", prefix, summary)
+	ctx.Debugf("%s %s", prefix, verbose)
 }

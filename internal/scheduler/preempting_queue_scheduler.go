@@ -240,15 +240,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	); err != nil {
 		return nil, err
 	}
-	if s := JobsSummary(preemptedJobs); s != nil {
-		ctx.Infof("Preempting running jobs; %s", s.Summary)
-		ctx.Debug("Preempting running jobs; %s", s.Verbose)
-	}
-	if s := JobsSummary(scheduledJobs); s != nil {
-		ctx.Infof("Scheduling new jobs; %s", s.Summary)
-		ctx.Debug("Scheduling new jobs; %s", s.Verbose)
-	}
+
+	PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
+	PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
+
 	if sch.enableAssertions {
 		err := sch.assertions(
 			snapshot,
