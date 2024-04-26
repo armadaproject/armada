@@ -12,11 +12,16 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+type JobSummary struct {
+	Summary string
+	Verbose string
+}
+
 // JobsSummary returns a string giving an overview of the provided jobs meant for logging.
 // For example: "affected queues [A, B]; resources {A: {cpu: 1}, B: {cpu: 2}}; jobs [jobAId, jobBId]".
-func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) string {
+func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) *JobSummary {
 	if len(jctxs) == 0 {
-		return ""
+		return nil
 	}
 	jobsByQueue := armadaslices.MapAndGroupByFuncs(
 		jctxs,
@@ -37,6 +42,12 @@ func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) string {
 			return rv
 		},
 	)
+	jobCountPerQueue := armadamaps.MapValues(
+		jobsByQueue,
+		func(jobs []interfaces.LegacySchedulerJob) int {
+			return len(jobs)
+		},
+	)
 	jobIdsByQueue := armadamaps.MapValues(
 		jobsByQueue,
 		func(jobs []interfaces.LegacySchedulerJob) []string {
@@ -47,15 +58,18 @@ func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) string {
 			return rv
 		},
 	)
-	return fmt.Sprintf(
-		"affected queues %v; resources %v; jobs %v",
-		maps.Keys(jobsByQueue),
-		armadamaps.MapValues(
-			resourcesByQueue,
-			func(rl schedulerobjects.ResourceList) string {
-				return rl.CompactString()
-			},
+	return &JobSummary{
+		Summary: fmt.Sprintf(
+			"affected queues %v; resources %v; jobs per queue %v",
+			maps.Keys(jobsByQueue),
+			armadamaps.MapValues(
+				resourcesByQueue,
+				func(rl schedulerobjects.ResourceList) string {
+					return rl.CompactString()
+				},
+			),
+			jobCountPerQueue,
 		),
-		jobIdsByQueue,
-	)
+		Verbose: fmt.Sprintf("affected jobs %v", jobIdsByQueue),
+	}
 }
