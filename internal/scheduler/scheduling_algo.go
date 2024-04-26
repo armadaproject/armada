@@ -526,25 +526,25 @@ func NewSchedulerJobRepositoryAdapter(txn *jobdb.Txn) *SchedulerJobRepositoryAda
 
 // GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
 // to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) []string {
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
 	it := repo.txn.QueuedJobs(queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
 		rv = append(rv, v.Id())
 	}
-	return rv
+	return rv, nil
 }
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) []interfaces.LegacySchedulerJob {
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
 		if job := repo.txn.GetById(id); job != nil {
 			rv = append(rv, job)
 		}
 	}
-	return rv
+	return rv, nil
 }
 
 // addExecutorToNodeDb adds all the nodes and jobs associated with a particular executor to the nodeDb.
