@@ -675,7 +675,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 			},
 		}
 	}
-	actual, err = LimitSequenceByteSize(sequence, 65, true)
+	actual, err = LimitSequenceByteSize(sequence, 60, true)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -710,7 +710,7 @@ func TestLimitSequencesByteSize(t *testing.T) {
 		sequences = append(sequences, sequence)
 	}
 
-	actual, err := LimitSequencesByteSize(sequences, 65, true)
+	actual, err := LimitSequencesByteSize(sequences, 60, true)
 	if !assert.NoError(t, err) {
 		return
 	}
