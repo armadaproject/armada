@@ -646,10 +646,10 @@ func TestSequenceEventListSizeBytes(t *testing.T) {
 	}
 
 	sequenceSizeBytes := uint(proto.Size(sequence))
-	// If this fails, it means that the sequenceEventListSizeBytes constant is possibly too small
+	// If this fails, it means that the sequenceEventListOverheadSizeBytes constant is possibly too small
 	// We are showing our safe estimate of the byte overhead added by the event list in proto is definitely large enough
 	//  by showing it is larger than a sequence with a single event (as that sequence contains the overhead added by the event list)
-	assert.True(t, sequenceSizeBytes < sequenceEventListSizeBytes)
+	assert.True(t, sequenceSizeBytes < sequenceEventListOverheadSizeBytes)
 }
 
 func TestLimitSequenceByteSize(t *testing.T) {
@@ -704,7 +704,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 			},
 		}
 	}
-	actual, err = LimitSequenceByteSize(sequence, 65+sequenceEventListSizeBytes, true)
+	actual, err = LimitSequenceByteSize(sequence, 65+sequenceEventListOverheadSizeBytes, true)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -739,7 +739,7 @@ func TestLimitSequencesByteSize(t *testing.T) {
 		sequences = append(sequences, sequence)
 	}
 
-	actual, err := LimitSequencesByteSize(sequences, 65+sequenceEventListSizeBytes, true)
+	actual, err := LimitSequencesByteSize(sequences, 65+sequenceEventListOverheadSizeBytes, true)
 	if !assert.NoError(t, err) {
 		return
 	}

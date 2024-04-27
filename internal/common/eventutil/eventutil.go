@@ -459,11 +459,11 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 	return rv, nil
 }
 
-// This is an (over)estimate of the bytes used by the EventSequence.Event list when empty
+// This is an (over)estimate of the byte overhead used to represent the list EventSequence.Events
 // We need this get a safe estimate for the headerSize in LimitSequenceByteSize
 // We cannot simply rely on proto.Size on an EventSequence with an empty Event list,
 // as proto is smart enough to realise it is empty and just nils it out for 0 bytes
-const sequenceEventListSizeBytes = 100
+const sequenceEventListOverheadSizeBytes = 100
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events into separate sequences
 // If strict is true, each sequence will be at most sizeInBytes bytes in size
@@ -472,7 +472,7 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uin
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
-	headerSize := uint(proto.Size(sequence)) + sequenceEventListSizeBytes
+	headerSize := uint(proto.Size(sequence)) + sequenceEventListOverheadSizeBytes
 	sequence.Events = events
 
 	sequences := make([]*armadaevents.EventSequence, 0, 1)
