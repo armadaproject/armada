@@ -462,8 +462,7 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 // This is an (over)estimate of the bytes used by the EventSequence.Event list when empty
 // We need this get a safe estimate for the headerSize in LimitSequenceByteSize
 // We cannot simply rely on proto.Size on an EventSequence with an empty Event list,
-//
-//	as proto is smart enough to realise it is empty and just nils it out for 0 bytes
+// as proto is smart enough to realise it is empty and just nils it out for 0 bytes
 const sequenceEventListSizeBytes = 100
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events into separate sequences
