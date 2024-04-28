@@ -2,17 +2,18 @@ package configuration
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/types"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/go-playground/validator/v10"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	apiconfiguration "github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
@@ -27,11 +28,11 @@ const (
 
 type Configuration struct {
 	// Database configuration
-	Postgres configuration.PostgresConfig
+	Postgres apiconfiguration.PostgresConfig
 	// Redis Comnfig
 	Redis config.RedisConfig
 	// General Pulsar configuration
-	Pulsar configuration.PulsarConfig
+	Pulsar apiconfiguration.PulsarConfig
 	// Configuration controlling leader election
 	Leader LeaderConfig
 	// Configuration controlling metrics

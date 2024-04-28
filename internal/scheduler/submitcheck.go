@@ -103,7 +103,6 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 }
 
 func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult, error) {
-
 	state := srv.state.Load()
 	if state == nil {
 		return nil, fmt.Errorf("executor state not loaded")
@@ -138,7 +137,6 @@ func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult,
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext, state *executorState) schedulingResult {
-
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
 		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)

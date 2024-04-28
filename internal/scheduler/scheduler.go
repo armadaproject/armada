@@ -962,7 +962,6 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 }
 
 func (s *Scheduler) submitCheck(jobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-
 	jobsToCheck := make([]*jobdb.Job, 0, len(jobs))
 	for _, job := range jobs {
 		if !job.Validated() && !job.InTerminalState() {

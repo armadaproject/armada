@@ -1,12 +1,12 @@
 package scheduler
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -20,7 +20,7 @@ import (
 func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	defaultTimeout := 15 * time.Minute
 	baseTime := time.Now().UTC()
-	//expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
+	// expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
 	smallJob1 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	largeJob1 := testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1)

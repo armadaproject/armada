@@ -4,12 +4,13 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/redis/go-redis/v9"
+	v1 "k8s.io/api/core/v1"
+
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/client"
-	"github.com/redis/go-redis/v9"
-	v1 "k8s.io/api/core/v1"
 )
 
 type ArmadaConfig struct {

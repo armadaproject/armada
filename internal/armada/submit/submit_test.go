@@ -21,23 +21,21 @@ import (
 )
 
 type mockObjects struct {
-	publisher     *mocks.MockPublisher
-	queueRepo     *mocks.MockQueueRepository
-	jobRep        *mocks.MockJobRepository
-	deduplicator  *mocks.MockDeduplicator
-	submitChecker *mocks.MockSubmitScheduleChecker
-	authorizer    *mocks.MockActionAuthorizer
+	publisher    *mocks.MockPublisher
+	queueRepo    *mocks.MockQueueRepository
+	jobRep       *mocks.MockJobRepository
+	deduplicator *mocks.MockDeduplicator
+	authorizer   *mocks.MockActionAuthorizer
 }
 
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:     mocks.NewMockPublisher(ctrl),
-		queueRepo:     mocks.NewMockQueueRepository(ctrl),
-		jobRep:        mocks.NewMockJobRepository(ctrl),
-		deduplicator:  mocks.NewMockDeduplicator(ctrl),
-		submitChecker: mocks.NewMockSubmitScheduleChecker(ctrl),
-		authorizer:    mocks.NewMockActionAuthorizer(ctrl),
+		publisher:    mocks.NewMockPublisher(ctrl),
+		queueRepo:    mocks.NewMockQueueRepository(ctrl),
+		jobRep:       mocks.NewMockJobRepository(ctrl),
+		deduplicator: mocks.NewMockDeduplicator(ctrl),
+		authorizer:   mocks.NewMockActionAuthorizer(ctrl),
 	}
 }
 
@@ -101,12 +99,6 @@ func TestSubmit_Success(t *testing.T) {
 			mockedObjects.deduplicator.
 				EXPECT().
 				StoreOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, gomock.Any()).
-				Times(1)
-
-			mockedObjects.submitChecker.
-				EXPECT().
-				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
-				Return(true, "").
 				Times(1)
 
 			mockedObjects.jobRep.
@@ -233,12 +225,6 @@ func TestSubmit_SubmitCheckFailed(t *testing.T) {
 				Return(nil, nil).
 				Times(1)
 
-			mockedObjects.submitChecker.
-				EXPECT().
-				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
-				Return(false, "").
-				Times(1)
-
 			resp, err := server.SubmitJobs(ctx, tc.req)
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -314,7 +300,6 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 		m.jobRep,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,
-		m.submitChecker,
 		m.authorizer)
 	server.clock = clock.NewFakeClock(testfixtures.DefaultTime)
 	server.idGenerator = testfixtures.TestUlidGenerator()
