@@ -14,10 +14,11 @@ import (
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	apiconfiguration "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -480,7 +481,7 @@ func TestSchedule(t *testing.T) {
 			}
 			// Sanity check: we've set `GangNumJobsScheduledAnnotation` for all scheduled jobs.
 			for _, job := range scheduledJobs {
-				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], configuration.GangNumJobsScheduledAnnotation)
+				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], apiconfiguration.GangNumJobsScheduledAnnotation)
 			}
 
 			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality

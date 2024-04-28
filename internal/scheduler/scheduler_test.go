@@ -1318,20 +1318,16 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) CheckApiJobs(_ *armadaevents.EventSequence, _ string) (bool, string) {
-	reason := ""
-	if !t.checkSuccess {
-		reason = "CheckApiJobs failed"
+func (t *testSubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+	result := make(map[string]schedulingResult)
+	for _, job := range jobs {
+		if t.checkSuccess {
+			result[job.Id()] = schedulingResult{isSchedulable: true}
+		} else {
+			result[job.Id()] = schedulingResult{isSchedulable: false, reason: "job not schedulable"}
+		}
 	}
-	return t.checkSuccess, reason
-}
-
-func (t *testSubmitChecker) CheckJobDbJobs(_ []*jobdb.Job) (bool, string) {
-	reason := ""
-	if !t.checkSuccess {
-		reason = "CheckJobDbJobs failed"
-	}
-	return t.checkSuccess, reason
+	return result, nil
 }
 
 // Test implementations of the interfaces needed by the Scheduler

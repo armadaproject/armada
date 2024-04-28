@@ -28,7 +28,7 @@ type schedulingResult struct {
 }
 
 type executorState struct {
-	nodeDb                    *nodedb.NodeDb
+	executorsById             map[string]*nodedb.NodeDb
 	jobSchedulingResultsCache *lru.Cache
 }
 
@@ -79,22 +79,27 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	}
 	jobSchedulingResultsCache, err := lru.New(10000)
 	if err != nil {
-		// This should never happen as lru.New only returns errors
-		// if it is initialised with an incorrect size
+		// This should never happen as lru.New only returns an error if it is initialised with a negative size
 		panic(err)
 	}
-	nodeDb, err := srv.constructNodeDb(executors)
-	if err == nil {
-		newState := executorState{
-			nodeDb:                    nodeDb,
-			jobSchedulingResultsCache: jobSchedulingResultsCache,
+
+	executorsById := map[string]*nodedb.NodeDb{}
+	for _, executor := range executors {
+		// TODO: filter out stale executors here. We don't do this now because if the scheduler has been down we mayf
+		// have all our executors as stale and therefore will reject all jobs.
+		nodeDb, err := srv.constructNodeDb(executor)
+		if err == nil {
+			executorsById[executor.Id] = nodeDb
+		} else {
+			logging.
+				WithStacktrace(ctx, err).
+				Warnf("Error constructing nodedb for executor: %s", executor.Id)
 		}
-		srv.state.Store(&newState)
-	} else {
-		logging.
-			WithStacktrace(ctx, err).
-			Warnf("Error constructing nodedb")
 	}
+	srv.state.Store(&executorState{
+		executorsById:             executorsById,
+		jobSchedulingResultsCache: jobSchedulingResultsCache,
+	})
 }
 
 func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult, error) {
@@ -159,6 +164,10 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 }
 
 // Check if a set of jobs can be scheduled onto some cluster.
+// TODO: there are a number of things this won't catch:
+//   - Minimum Job Size
+//   - Node Uniformity Label (although it will work if this is per cluster)
+//   - Gang jobs that will use more thanthe allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext, state *executorState) schedulingResult {
 	// Skip submit checks if this batch contains less than the min cardinality jobs.
 	// Reason:
@@ -168,56 +177,53 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 	if len(gctx.JobSchedulingContexts) < gctx.GangInfo.MinimumCardinality {
 		return schedulingResult{isSchedulable: true, reason: ""}
 	}
-
-	txn := state.nodeDb.Txn(true)
-	ok, err := state.nodeDb.ScheduleManyWithTxn(txn, gctx)
-	txn.Abort()
-
-	if err != nil {
-		return schedulingResult{
-			false,
-			err.Error(),
-		}
-	}
-
-	if ok {
-		return schedulingResult{isSchedulable: true}
-	}
-
-	numSuccessfullyScheduled := 0
-	for _, jctx := range gctx.JobSchedulingContexts {
-		if jctx.PodSchedulingContext.IsSuccessful() {
-			numSuccessfullyScheduled++
-		}
-	}
 	var sb strings.Builder
-	if len(gctx.JobSchedulingContexts) == 1 {
-		sb.WriteString(":\n")
-		pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
-		if pctx == nil {
-			return schedulingResult{
-				isSchedulable: false,
-				reason:        fmt.Sprintf("No PodSchedulingContext could be resolved"),
+	for id, nodeDb := range state.executorsById {
+		txn := nodeDb.Txn(true)
+		ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+		txn.Abort()
+
+		sb.WriteString(id)
+		if err != nil {
+			sb.WriteString(err.Error())
+			sb.WriteString("\n")
+			continue
+		}
+
+		if ok {
+			return schedulingResult{isSchedulable: true}
+		}
+
+		numSuccessfullyScheduled := 0
+		for _, jctx := range gctx.JobSchedulingContexts {
+			if jctx.PodSchedulingContext.IsSuccessful() {
+				numSuccessfullyScheduled++
 			}
 		}
-		sb.WriteString(pctx.String())
-		sb.WriteString("\n")
-		sb.WriteString("---")
-		sb.WriteString("\n")
-	} else {
-		sb.WriteString(
-			fmt.Sprintf(
-				": %d out of %d pods schedulable (minCardinality %d)\n",
-				numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
-			),
-		)
+
+		if len(gctx.JobSchedulingContexts) == 1 {
+			sb.WriteString(":\n")
+			pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
+			if pctx == nil {
+				continue
+			}
+			sb.WriteString(pctx.String())
+			sb.WriteString("\n")
+			sb.WriteString("---")
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString(
+				fmt.Sprintf(
+					": %d out of %d pods schedulable (minCardinality %d)\n",
+					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
+				),
+			)
+		}
 	}
-
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
-
 }
 
-func (srv *SubmitChecker) constructNodeDb(executors []*schedulerobjects.Executor) (*nodedb.NodeDb, error) {
+func (srv *SubmitChecker) constructNodeDb(executor *schedulerobjects.Executor) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
 		0,
@@ -232,11 +238,9 @@ func (srv *SubmitChecker) constructNodeDb(executors []*schedulerobjects.Executor
 	}
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
-	for _, executor := range executors {
-		for _, node := range executor.Nodes {
-			if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
-				return nil, err
-			}
+	for _, node := range executor.Nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
 		}
 	}
 	txn.Commit()

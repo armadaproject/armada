@@ -190,7 +190,6 @@ func Run(config schedulerconfig.Configuration) error {
 	ctx.Infof("setting up scheduling loop")
 
 	submitChecker := NewSubmitChecker(
-		30*time.Minute,
 		config.Scheduling,
 		executorRepository,
 	)

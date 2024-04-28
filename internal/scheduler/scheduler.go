@@ -469,14 +469,13 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	return newSchedulingInfo, nil
 }
 
-func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobdb.Job) (*jobdb.Job, bool, error) {
+func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobdb.Job) (*jobdb.Job, error) {
 	schedulingInfoWithNodeAntiAffinity, err := s.createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
-	isSchedulable, _ := s.submitChecker.CheckJobDbJobs([]*jobdb.Job{job})
-	return job, isSchedulable, nil
+	return job, nil
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
@@ -735,16 +734,11 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
-				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
+				jobWithAntiAffinity, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
 				if err != nil {
 					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.GetId(), err)
 				} else {
-					if schedulable {
-						job = jobWithAntiAffinity
-					} else {
-						// If job is not schedulable with anti-affinity added. Do not requeue it and let it fail.
-						requeueJob = false
-					}
+					job = jobWithAntiAffinity
 				}
 			}
 
