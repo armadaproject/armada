@@ -57,7 +57,7 @@ type Scheduler struct {
 	// The label used when setting node anti affinities.
 	nodeIdLabel string
 	// If an executor fails to report in for this amount of time,
-	// all jobs assigne to that executor are cancelled.
+	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
 	// The time the previous scheduling round ended
 	previousSchedulingRoundEnd time.Time
@@ -324,8 +324,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		return overallSchedulerResult, err
 	}
 	events = append(events, queueTtlCancelEvents...)
-
-	// Perform a submit check on any jobs that require it
 
 	// Schedule jobs.
 	if shouldSchedule {
@@ -651,6 +649,13 @@ func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.
 			events = append(events, jobEvents)
 		}
 	}
+
+	// Check that all updated jobs can be scheduled. We cannot do this job by job as we need to consider gang jobs
+	checkEvents, err := s.submitCheck(updatedJobs, txn)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, checkEvents...)
 	return events, nil
 }
 
