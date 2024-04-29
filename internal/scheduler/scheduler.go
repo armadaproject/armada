@@ -311,6 +311,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		return overallSchedulerResult, err
 	}
 
+	// Validate that any new jobs can be scheduled
+	validationEvents, err := s.submitCheck(ctx, txn)
+	if err != nil {
+		return overallSchedulerResult, err
+	}
+	events = append(events, validationEvents...)
+
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
@@ -650,12 +657,6 @@ func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.
 		}
 	}
 
-	// Check that all updated jobs can be scheduled. We cannot do this job by job as we need to consider gang jobs
-	checkEvents, err := s.submitCheck(updatedJobs, txn)
-	if err != nil {
-		return nil, err
-	}
-	events = append(events, checkEvents...)
 	return events, nil
 }
 
@@ -839,7 +840,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	if err != nil {
 		return nil, err
 	}
-	staleExecutors := make(map[string]bool, 0)
+	staleExecutors := make(map[string]bool)
 	cutOff := s.clock.Now().Add(-s.executorTimeout)
 
 	jobsToUpdate := make([]*jobdb.Job, 0)
@@ -966,9 +967,12 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 	return events, nil
 }
 
-func (s *Scheduler) submitCheck(jobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	jobsToCheck := make([]*jobdb.Job, 0, len(jobs))
-	for _, job := range jobs {
+func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	jobsToCheck := make([]*jobdb.Job, 0)
+
+	it := txn.UnvalidatedJobs()
+
+	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
 		if !job.Validated() && !job.InTerminalState() {
 			jobsToCheck = append(jobsToCheck, job)
 		}

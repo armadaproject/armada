@@ -9,7 +9,20 @@ import (
 type (
 	JobPriorityComparer struct{}
 	JobQueueTtlComparer struct{}
+	JobIdHasher         struct{}
 )
+
+func (JobIdHasher) Hash(j *Job) uint32 {
+	var hash uint32
+	for _, c := range j.id {
+		hash = 31*hash + uint32(c)
+	}
+	return hash
+}
+
+func (JobIdHasher) Equal(a, b *Job) bool {
+	return a == b
+}
 
 // Compare jobs by their remaining queue time before expiry
 // Invariants:
