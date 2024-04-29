@@ -16,10 +16,7 @@ import (
 const (
 	// NodeIdLabel maps to a unique id associated with each node.
 	// This label is automatically added to nodes within the NodeDb.
-	NodeIdLabel                                = "armadaproject.io/nodeId"
-	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+	NodeIdLabel = "armadaproject.io/nodeId"
 )
 
 type Configuration struct {
