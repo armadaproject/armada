@@ -22,14 +22,14 @@ import (
 type EventServer struct {
 	authorizer      ActionAuthorizer
 	eventRepository repository.EventRepository
-	queueRepository repository.QueueRepository
+	queueRepository repository.ReadOnlyQueueRepository
 	jobRepository   repository.JobRepository
 }
 
 func NewEventServer(
 	authorizer ActionAuthorizer,
 	eventRepository repository.EventRepository,
-	queueRepository repository.QueueRepository,
+	queueRepository repository.ReadOnlyQueueRepository,
 	jobRepository repository.JobRepository,
 ) *EventServer {
 	return &EventServer{
