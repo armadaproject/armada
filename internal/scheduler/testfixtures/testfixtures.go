@@ -15,11 +15,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	apiconfiguration "github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -278,7 +277,7 @@ func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*j
 		if req.Annotations == nil {
 			req.Annotations = make(map[string]string)
 		}
-		req.Annotations[apiconfiguration.GangNodeUniformityLabelAnnotation] = label
+		req.Annotations[configuration.GangNodeUniformityLabelAnnotation] = label
 	}
 	return jobs
 }
@@ -307,7 +306,7 @@ func WithGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*sch
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))
 	return WithAnnotationsPodReqs(
-		map[string]string{apiconfiguration.GangIdAnnotation: gangId, apiconfiguration.GangCardinalityAnnotation: gangCardinality},
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
 		reqs,
 	)
 }
@@ -354,7 +353,7 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	return WithAnnotationsJobs(
-		map[string]string{apiconfiguration.GangIdAnnotation: gangId, apiconfiguration.GangCardinalityAnnotation: gangCardinality, apiconfiguration.GangMinimumCardinalityAnnotation: gangCardinality},
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangMinimumCardinalityAnnotation: gangCardinality},
 		jobs,
 	)
 }
@@ -365,9 +364,9 @@ func WithGangAnnotationsAndMinCardinalityJobs(minimumCardinality int, jobs []*jo
 	gangMinCardinality := fmt.Sprintf("%d", minimumCardinality)
 	return WithAnnotationsJobs(
 		map[string]string{
-			apiconfiguration.GangIdAnnotation:                 gangId,
-			apiconfiguration.GangCardinalityAnnotation:        gangCardinality,
-			apiconfiguration.GangMinimumCardinalityAnnotation: gangMinCardinality,
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        gangCardinality,
+			configuration.GangMinimumCardinalityAnnotation: gangMinCardinality,
 		},
 		jobs,
 	)
@@ -886,9 +885,9 @@ func TestNSubmitMsgGang(n int) []*armadaevents.SubmitJob {
 	for i := 0; i < n; i++ {
 		job := Test1CoreSubmitMsg()
 		job.MainObject.ObjectMeta.Annotations = map[string]string{
-			apiconfiguration.GangIdAnnotation:                 gangId,
-			apiconfiguration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
-			apiconfiguration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
 		}
 		gang[i] = job
 	}
@@ -901,9 +900,9 @@ func TestNSubmitMsgGangLessThanMinCardinality(n int) []*armadaevents.SubmitJob {
 	for i := 0; i < n; i++ {
 		job := Test1CoreSubmitMsg()
 		job.MainObject.ObjectMeta.Annotations = map[string]string{
-			apiconfiguration.GangIdAnnotation:                 gangId,
-			apiconfiguration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
-			apiconfiguration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
 		}
 		gang[i] = job
 	}
