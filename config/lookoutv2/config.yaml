@@ -13,7 +13,7 @@ postgres:
     port: 5433
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: lookout
     sslmode: disable
 prunerConfig:
   expireAfter: 1008h  # 42 days, 6 weeks

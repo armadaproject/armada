@@ -95,6 +95,18 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "redis", db))
 
+	// Create database connection. This is used for the query api and also to store queues
+	// In a subsequent pr we will move deduplication here too and move the config out of the `queryapi` namespace
+	queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+	if err != nil {
+		return errors.WithMessage(err, "error creating QueryApi postgres pool")
+	}
+	queryapiServer := queryapi.New(
+		queryDb,
+		config.QueryApi.MaxQueryItems,
+		func() compress.Decompressor { return compress.NewZlibDecompressor() })
+	api.RegisterJobsServer(grpcServer, queryapiServer)
+
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
 		if err := eventDb.Close(); err != nil {
@@ -105,7 +117,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
-	queueRepository := repository.NewRedisQueueRepository(db)
+	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
+	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
+	services = append(services, func() error {
+		return queueCache.Run(ctx)
+	})
 	healthChecks.Add(repository.NewRedisHealth(db))
 
 	eventRepository := repository.NewEventRepository(eventDb)
@@ -169,6 +185,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	pulsarSubmitServer := submit.NewServer(
 		publisher,
 		queueRepository,
+		queueCache,
 		jobRepository,
 		config.Submission,
 		submit.NewDeduplicator(store),
@@ -207,21 +224,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	eventServer := server.NewEventServer(
 		authorizer,
 		eventRepository,
-		queueRepository,
+		queueCache,
 		jobRepository,
 	)
-
-	if config.QueryApi.Enabled {
-		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
-		if err != nil {
-			return errors.WithMessage(err, "error creating QueryApi postgres pool")
-		}
-		queryapiServer := queryapi.New(
-			queryDb,
-			config.QueryApi.MaxQueryItems,
-			func() compress.Decompressor { return compress.NewZlibDecompressor() })
-		api.RegisterJobsServer(grpcServer, queryapiServer)
-	}
 
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)

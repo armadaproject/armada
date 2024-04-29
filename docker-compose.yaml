@@ -61,6 +61,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
+      - lookoutv2-migration
       - eventingester
     working_dir: /app
     env_file:

@@ -493,7 +493,7 @@ func (q MinimalQueue) GetWeight() float64 {
 
 // addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
 // Needed to enable the nodeDb accounting for these when preempting.
-func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(

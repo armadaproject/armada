@@ -403,7 +403,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
-	// This is to make sure that preempttion is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
+	// This is to make sure that preemption is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
 }
 

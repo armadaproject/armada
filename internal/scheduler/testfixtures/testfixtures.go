@@ -22,8 +22,8 @@ import (
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const (
@@ -706,8 +706,8 @@ func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
-func SingleQueuePriorityOne(name string) []queue.Queue {
-	return []queue.Queue{{Name: name, PriorityFactor: 1.0}}
+func SingleQueuePriorityOne(name string) []*api.Queue {
+	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
 }
 
 func TestNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
@@ -782,8 +782,8 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	}
 }
 
-func MakeTestQueue() queue.Queue {
-	return queue.Queue{
+func MakeTestQueue() *api.Queue {
+	return &api.Queue{
 		Name:           TestQueue,
 		PriorityFactor: 100,
 	}
