@@ -215,7 +215,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		jobRepository,
 	)
 
-	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
+	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
