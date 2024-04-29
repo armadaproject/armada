@@ -7,6 +7,8 @@ corsAllowedOrigins:
   - http://localhost:10000
 grpcGatewayPath: "/"
 cancelJobsBatchSize: 1000
+QueueRepositoryUsesPostgres: false
+QueueCacheRefreshPeriod: 10s
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
 grpc:
@@ -89,7 +91,7 @@ postgres:
     port: 5432
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: lookout
     sslmode: disable
 queryapi:
   enabled: false
@@ -100,6 +102,5 @@ queryapi:
       port: 5432
       user: postgres
       password: psw
-      dbname: postgres
+      dbname: lookout
       sslmode: disable
-

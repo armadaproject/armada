@@ -10,14 +10,16 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
+	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -40,8 +42,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -96,8 +101,26 @@ func Run(config schedulerconfig.Configuration) error {
 				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
-	queueRepository := repository.NewRedisQueueRepository(redisClient)
 	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Queue Cache
+	// ////////////////////////////////////////////////////////////////////////
+	conn, err := client.CreateApiConnection(&config.ArmadaApi)
+	if err != nil {
+		return errors.WithMessage(err, "error creating armada api client")
+	}
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			logging.
+				WithStacktrace(ctx, err).
+				Warnf("Armada api client didn't close down cleanly")
+		}
+	}()
+	armadaClient := api.NewSubmitClient(conn)
+	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
+	services = append(services, func() error { return queueCache.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -147,7 +170,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls, createLogrusLoggingOption())
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
@@ -246,7 +269,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling,
 		config.MaxSchedulingDuration,
 		executorRepository,
-		queueRepository,
+		queueCache,
 		schedulingContextRepository,
 		nodeQuarantiner,
 		queueQuarantiner,
@@ -306,7 +329,7 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
-		queueRepository,
+		queueCache,
 		executorRepository,
 		poolAssigner,
 		config.Metrics.RefreshInterval,
@@ -364,4 +387,21 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	}
 	ctx.Info("Running with in cluster client configuration")
 	return config, err
+}
+
+// This changes the default logrus grpc logging to log OK messages at trace level
+// The reason for doing this are:
+//   - Reduced logging
+//   - We only care about failures, so lets only log failures
+//   - We normally use these logs to work out who is calling us, however the Executor API is not public
+//     and is only called by other Armada components
+func createLogrusLoggingOption() grpc_logrus.Option {
+	return grpc_logrus.WithLevels(func(code codes.Code) log.Level {
+		switch code {
+		case codes.OK:
+			return log.TraceLevel
+		default:
+			return grpc_logrus.DefaultCodeToLevel(code)
+		}
+	})
 }

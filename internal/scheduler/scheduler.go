@@ -175,6 +175,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
 			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+			if !shouldSchedule {
+				ctx.Info("Won't schedule this cycle as still within schedulePeriod")
+			}
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
@@ -232,14 +235,17 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	overallSchedulerResult := SchedulerResult{}
 
 	// Update job state.
+	ctx.Info("Syncing internal state with database")
 	updatedJobs, jsts, err := s.syncState(ctx)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Info("Finished syncing state")
 
 	// Only the leader may make decisions; exit if not leader.
 	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
+		ctx.Info("Not the leader so will not attempt to schedule")
 		s.schedulerMetrics.Disable()
 		return overallSchedulerResult, err
 	} else {
@@ -267,10 +273,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			failedRunIds = append(failedRunIds, run.Id())
 		}
 	}
+	ctx.Info("Fetching job run errors")
 	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
 	// Update metrics.
 	if !s.schedulerMetrics.IsDisabled() {
@@ -306,10 +314,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
+	ctx.Info("Generating update messages based on reconciliation changes")
 	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Finished generating updates messages, generating %d events", len(events))
 
 	// Validate that any new jobs can be scheduled
 	validationEvents, err := s.submitCheck(ctx, txn)
@@ -319,17 +329,21 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	events = append(events, validationEvents...)
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
+	ctx.Info("Looking for jobs to expire")
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
 	// Request cancel for any jobs that exceed queueTtl
+	ctx.Info("Cancelling queued jobs exceeding their queue ttl")
 	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Finished cancelling queued jobs exceeding their queue ttl, generating %d events", len(queueTtlCancelEvents))
 	events = append(events, queueTtlCancelEvents...)
 
 	// Schedule jobs.
@@ -356,18 +370,22 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		return s.leaderController.ValidateToken(leaderToken)
 	}
 	start := s.clock.Now()
+	ctx.Infof("Starting to publish %d eventSequences to pulsar", len(events))
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return overallSchedulerResult, err
 	}
-	ctx.Infof("published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
+	ctx.Infof("Published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
 
 	// Optionally assert that the jobDb is in a valid state and then commit.
 	if s.enableAssertions {
+		ctx.Infof("Performing assertions on current state")
 		if err := txn.Assert(false); err != nil {
 			return overallSchedulerResult, err
 		}
 	}
+	ctx.Info("Committing cycle transaction")
 	txn.Commit()
+	ctx.Info("Completed committing cycle transaction")
 
 	// Update metrics based on overallSchedulerResult.
 	if err := s.updateMetricsFromSchedulerResult(ctx, overallSchedulerResult); err != nil {

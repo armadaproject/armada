@@ -82,6 +82,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			pod,
 			util.ExtractPodFailedReason(pod),
 			util.ExtractPodFailureCause(pod),
+			"",
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),
 			clusterId)
 	case v1.PodSucceeded:
@@ -241,11 +242,11 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
-	return CreateJobFailedEvent(pod, reason, cause, []*armadaevents.ContainerError{}, clusterId)
+func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
+	return CreateJobFailedEvent(pod, reason, cause, debugMessage, []*armadaevents.ContainerError{}, clusterId)
 }
 
-func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason,
+func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason, debugMessage string,
 	containerStatuses []*armadaevents.ContainerError, clusterId string,
 ) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
@@ -277,6 +278,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 								PodNumber:        getPodNumber(pod),
 								ContainerErrors:  containerStatuses,
 								KubernetesReason: cause,
+								DebugMessage:     debugMessage,
 							},
 						},
 					},
@@ -331,7 +333,7 @@ func CreateMinimalJobFailedEvent(jobIdStr string, runIdStr string, jobSet string
 	return sequence, nil
 }
 
-func CreateReturnLeaseEvent(pod *v1.Pod, reason string, clusterId string, runAttempted bool) (*armadaevents.EventSequence, error) {
+func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, runAttempted bool) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
 	if err != nil {
@@ -359,6 +361,7 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, clusterId string, runAtt
 								PodNumber:    getPodNumber(pod),
 								Message:      reason,
 								RunAttempted: runAttempted,
+								DebugMessage: debugMessage,
 							},
 						},
 					},

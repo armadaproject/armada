@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -622,6 +623,35 @@ func TestCompactSequences_Groups(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestSequenceEventListSizeBytes(t *testing.T) {
+	jobId, err := armadaevents.ProtoUuidFromUlidString(util.ULID().String())
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	sequence := &armadaevents.EventSequence{
+		Queue:      "",
+		UserId:     "",
+		JobSetName: "",
+		Groups:     []string{},
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_CancelledJob{
+					CancelledJob: &armadaevents.CancelledJob{
+						JobId: jobId,
+					},
+				},
+			},
+		},
+	}
+
+	sequenceSizeBytes := uint(proto.Size(sequence))
+	// If this fails, it means that the sequenceEventListOverheadSizeBytes constant is possibly too small
+	// We are showing our safe estimate of the byte overhead added by the event list in proto is definitely large enough
+	//  by showing it is larger than a sequence with a single event (as that sequence contains the overhead added by the event list)
+	assert.True(t, sequenceSizeBytes < sequenceEventListOverheadSizeBytes)
+}
+
 func TestLimitSequenceByteSize(t *testing.T) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      "queue1",
@@ -655,7 +685,6 @@ func TestLimitSequenceByteSize(t *testing.T) {
 
 	_, err = LimitSequenceByteSize(sequence, 1, false)
 	assert.NoError(t, err)
-	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
 
 	expected := make([]*armadaevents.EventSequence, numEvents)
 	for i := 0; i < numEvents; i++ {
@@ -675,7 +704,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 			},
 		}
 	}
-	actual, err = LimitSequenceByteSize(sequence, 65, true)
+	actual, err = LimitSequenceByteSize(sequence, 65+sequenceEventListOverheadSizeBytes, true)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -710,7 +739,7 @@ func TestLimitSequencesByteSize(t *testing.T) {
 		sequences = append(sequences, sequence)
 	}
 
-	actual, err := LimitSequencesByteSize(sequences, 65, true)
+	actual, err := LimitSequencesByteSize(sequences, 65+sequenceEventListOverheadSizeBytes, true)
 	if !assert.NoError(t, err) {
 		return
 	}

@@ -459,18 +459,39 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 	return rv, nil
 }
 
-// LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
-// into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, maxSequenceSizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
+// This is an (over)estimate of the byte overhead used to represent the list EventSequence.Events
+// We need this get a safe estimate for the headerSize in LimitSequenceByteSize
+// We cannot simply rely on proto.Size on an EventSequence with an empty Event list,
+// as proto is smart enough to realise it is empty and just nils it out for 0 bytes
+const sequenceEventListOverheadSizeBytes = 100
+
+// LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events into separate sequences
+// If strict is true, each sequence will be at most sizeInBytes bytes in size
+// If strict is false, sizeInBytes can be exceeded by at most the size of a single sequence.Event
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
+	headerSize := uint(proto.Size(sequence)) + sequenceEventListOverheadSizeBytes
 	sequence.Events = events
 
-	// var currentSequence *armadaevents.EventSequence
 	sequences := make([]*armadaevents.EventSequence, 0, 1)
+	lastSequenceEventSize := uint(0)
 	for _, event := range sequence.Events {
-		if len(sequences) == 0 {
+		eventSize := uint(proto.Size(event))
+		if eventSize+headerSize > sizeInBytes && strict {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:  "sequence",
+				Value: sequence,
+				Message: fmt.Sprintf(
+					"event of %d bytes is too large, when combined with a header of size %d is larger than the sequence size limit of %d",
+					eventSize,
+					headerSize,
+					sizeInBytes,
+				),
+			})
+		}
+		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {
 			sequences = append(sequences, &armadaevents.EventSequence{
 				Queue:      sequence.Queue,
 				JobSetName: sequence.JobSetName,
@@ -478,50 +499,11 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, maxSequenceSize
 				Groups:     sequence.Groups,
 				Events:     nil,
 			})
+			lastSequenceEventSize = 0
 		}
 		lastSequence := sequences[len(sequences)-1]
 		lastSequence.Events = append(lastSequence.Events, event)
-		sequenceSizeInBytes := uint(proto.Size(lastSequence))
-
-		if sequenceSizeInBytes > maxSequenceSizeInBytes {
-			// Event makes sequence too large, remove event and make a new sequence
-			lastSequence.Events = lastSequence.Events[:len(lastSequence.Events)-1]
-			sequences = append(sequences, &armadaevents.EventSequence{
-				Queue:      sequence.Queue,
-				JobSetName: sequence.JobSetName,
-				UserId:     sequence.UserId,
-				Groups:     sequence.Groups,
-				Events:     nil,
-			})
-
-			lastSequence = sequences[len(sequences)-1]
-			lastSequence.Events = append(lastSequence.Events, event)
-			sequenceSizeInBytes = uint(proto.Size(lastSequence))
-
-			if sequenceSizeInBytes > maxSequenceSizeInBytes && strict {
-				eventSize := uint(proto.Size(event))
-				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-					Name:  "sequence",
-					Value: sequence,
-					Message: fmt.Sprintf(
-						"event of %d bytes is too large, preventing the creation of a sequence with size limit %d",
-						eventSize,
-						maxSequenceSizeInBytes,
-					),
-				})
-			}
-		}
+		lastSequenceEventSize += eventSize
 	}
 	return sequences, nil
-}
-
-// LEGACY_RUN_ID is used for messages for which we can't use the kubernetesId.
-const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
-
-func LegacyJobRunId() *armadaevents.Uuid {
-	jobRunId, err := armadaevents.ProtoUuidFromUuidString(LEGACY_RUN_ID)
-	if err != nil {
-		panic(err)
-	}
-	return jobRunId
 }

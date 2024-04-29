@@ -14,7 +14,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type constraintTest struct {
@@ -34,14 +33,14 @@ func TestConstraints(t *testing.T) {
 			makeResourceList("1000", "1000Gi"),
 			makeResourceList("0", "0"),
 			makeSchedulingConfig(),
-			[]queue.Queue{},
+			[]*api.Queue{},
 		)),
 		"empty-queue-constraints": makeConstraintsTest(NewSchedulingConstraints(
 			"pool-1",
 			makeResourceList("1000", "1000Gi"),
 			makeResourceList("0", "0"),
 			makeSchedulingConfig(),
-			[]queue.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{}}},
+			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{}}},
 		)),
 		"within-constraints": makeConstraintsTest(NewSchedulingConstraints(
 			"pool-1",
@@ -52,7 +51,7 @@ func TestConstraints(t *testing.T) {
 				MaxQueueLookback:                  1000,
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
 			},
-			[]queue.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
+			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
 		)),
 		"exceeds-queue-priority-class-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints(
@@ -60,7 +59,7 @@ func TestConstraints(t *testing.T) {
 				makeResourceList("1000", "1000Gi"),
 				makeResourceList("0", "0"),
 				makeSchedulingConfig(),
-				[]queue.Queue{
+				[]*api.Queue{
 					{
 						Name: "queue-1",
 						ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{
@@ -80,7 +79,7 @@ func TestConstraints(t *testing.T) {
 				makeResourceList("1000", "1000Gi"),
 				makeResourceList("0", "0"),
 				makeSchedulingConfig(),
-				[]queue.Queue{
+				[]*api.Queue{
 					{
 						Name: "queue-1",
 						ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{
@@ -108,7 +107,7 @@ func TestConstraints(t *testing.T) {
 					MaxQueueLookback:                  1000,
 					PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 				},
-				[]queue.Queue{},
+				[]*api.Queue{},
 			))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
@@ -122,7 +121,7 @@ func TestConstraints(t *testing.T) {
 				MaxQueueLookback:                  1000,
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 			},
-			[]queue.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
+			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
 		)),
 		"below-minimum-job-size": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints(
@@ -130,7 +129,7 @@ func TestConstraints(t *testing.T) {
 				makeResourceList("1000", "1000Gi"),
 				makeResourceList("5", "1Mi"),
 				makeSchedulingConfig(),
-				[]queue.Queue{},
+				[]*api.Queue{},
 			))
 			t.expectedCheckConstraintsReason = "job requests 1 cpu, but the minimum is 5"
 			return t
@@ -144,7 +143,7 @@ func TestConstraints(t *testing.T) {
 					MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.00001, "memory": 0.1},
 					MaxQueueLookback:                  1000,
 				},
-				[]queue.Queue{},
+				[]*api.Queue{},
 			))
 			t.expectedCheckRoundConstraintsReason = "maximum resources scheduled"
 			return t
