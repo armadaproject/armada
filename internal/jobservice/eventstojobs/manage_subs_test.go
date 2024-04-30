@@ -220,7 +220,7 @@ func TestJobSetSubscriptionExecutor(t *testing.T) {
 		&mockJobEventReader,
 		&mockJobRepo,
 		jobSubChan,
-		time.Duration(time.Second),
+		time.Second,
 	)
 
 	go executor.Manage()

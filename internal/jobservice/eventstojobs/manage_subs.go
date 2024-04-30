@@ -2,9 +2,9 @@ package eventstojobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -306,10 +306,10 @@ func (js *JobSetSubscription) Subscribe() error {
 
 				msg, err := stream.Recv()
 				if err != nil {
-					if strings.Contains(err.Error(), io.EOF.Error()) {
+					if err == io.EOF {
 						log.WithFields(requestFields).Info("Reached stream end for JobSetSubscription")
 						return nil
-					} else if strings.Contains(err.Error(), "context canceled") {
+					} else if errors.Is(err, context.Canceled) {
 						// The select case will handle context being done/canceled.
 						continue
 					}
