@@ -541,7 +541,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		// When a lease is returned and the run was attempted, a node anti affinity is added
 		// If this node anti-affinity makes the job unschedulable, it should be failed.
 		"Lease returned and failed": {
-			initialJobs: []*jobdb.Job{leasedJob},
+			initialJobs: []*jobdb.Job{leasedJob.WithValidated(true)},
 			runUpdates: []database.Run{
 				{
 					RunID:        leasedJob.LatestRun().Id(),
