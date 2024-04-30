@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -82,9 +83,16 @@ func TestJobDb_TestGetUnvalidated(t *testing.T) {
 	err := txn.Upsert([]*Job{job1, job2, job3})
 	require.NoError(t, err)
 
-	//txn.Commit()
-	//txn.unvalidatedJobs()
+	expected := []*Job{job1, job3}
 
+	var actual []*Job
+	it := txn.UnvalidatedJobs()
+	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
+		actual = append(actual, job)
+	}
+	sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
+	sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
+	assert.Equal(t, expected, actual)
 }
 
 func TestJobDb_TestGetByRunId(t *testing.T) {

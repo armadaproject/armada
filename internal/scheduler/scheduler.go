@@ -503,7 +503,7 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 		return nil, false, err
 	}
 	result, ok := results[job.Id()]
-	var isSchedulable = false
+	isSchedulable := false
 	if ok {
 		isSchedulable = result.isSchedulable
 	}
