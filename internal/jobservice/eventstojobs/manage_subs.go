@@ -276,13 +276,42 @@ func (js *JobSetSubscription) Subscribe() error {
 			log.WithFields(requestFields).Debugf("Called cancel")
 		}()
 
+		reconnectionAttempt := 0
+		shouldReconnect := false
+
 		// this loop will run until the context is canceled
 		for {
+
 			select {
 			case <-js.ctx.Done():
 				log.WithFields(requestFields).Debug("context is done")
 				return nil
 			case <-nextRecv:
+
+				if shouldReconnect {
+					stream, err = js.eventReader.GetJobEventMessage(js.ctx, &api.JobSetRequest{
+						Id:            js.JobSetId,
+						Queue:         js.Queue,
+						Watch:         true,
+						FromMessageId: js.fromMessageId,
+					})
+					if err != nil {
+						log.WithFields(log.Fields{
+							"job_set_id":               js.JobSetId,
+							"queue":                    js.Queue,
+							"from_message_id":          js.fromMessageId,
+							"stream_reconnect_attempt": reconnectionAttempt + 1,
+						}).WithError(err).Error("failed to reestablish stream for GetJobEventMessage")
+
+						nextRecv = time.After(5 * time.Second)
+						reconnectionAttempt++
+						continue
+					} else {
+						shouldReconnect = false
+						reconnectionAttempt = 0
+					}
+				}
+
 				msg, err := stream.Recv()
 				if err != nil {
 					if strings.Contains(err.Error(), io.EOF.Error()) {
@@ -300,6 +329,8 @@ func (js *JobSetSubscription) Subscribe() error {
 						log.WithFields(requestFields).WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
 					nextRecv = time.After(5 * time.Second)
+					// Consider this stream dead
+					shouldReconnect = true
 					continue
 				}
 
