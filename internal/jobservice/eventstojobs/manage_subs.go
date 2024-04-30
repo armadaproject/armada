@@ -276,7 +276,6 @@ func (js *JobSetSubscription) Subscribe() error {
 			log.WithFields(requestFields).Debugf("Called cancel")
 		}()
 
-		reconnectionAttempt := 0
 		shouldReconnect := false
 
 		// this loop will run until the context is canceled
@@ -295,21 +294,14 @@ func (js *JobSetSubscription) Subscribe() error {
 						Watch:         true,
 						FromMessageId: js.fromMessageId,
 					})
-					if err != nil {
-						log.WithFields(log.Fields{
-							"job_set_id":               js.JobSetId,
-							"queue":                    js.Queue,
-							"from_message_id":          js.fromMessageId,
-							"stream_reconnect_attempt": reconnectionAttempt + 1,
-						}).WithError(err).Error("failed to reestablish stream for GetJobEventMessage")
 
-						nextRecv = time.After(5 * time.Second)
-						reconnectionAttempt++
-						continue
-					} else {
-						shouldReconnect = false
-						reconnectionAttempt = 0
+					// Treat stream creation errors as terminal, like we do in Subscribe()
+					if err != nil {
+						log.WithFields(requestFields).WithError(err).Error("error from GetJobEventMessage")
+						return err
 					}
+
+					shouldReconnect = false
 				}
 
 				msg, err := stream.Recv()
