@@ -22,7 +22,6 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -541,7 +540,7 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.GetId()] = i
 			}
-			legacySchedulerJobs := make([]interfaces.LegacySchedulerJob, len(tc.Jobs))
+			legacySchedulerJobs := make([]*jobdb.Job, len(tc.Jobs))
 			for i, job := range tc.Jobs {
 				legacySchedulerJobs[i] = job
 			}

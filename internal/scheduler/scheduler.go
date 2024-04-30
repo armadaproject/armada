@@ -398,7 +398,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
+		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job, nil); err != nil {
 			return err
 		}
 	}
@@ -503,7 +503,7 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +511,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -586,7 +586,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
 	for _, jctx := range jctxs {
-		job := jctx.Job.(*jobdb.Job)
+		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err

@@ -7,59 +7,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestInMemoryJobRepository(t *testing.T) {
-	T := time.Now()
-	jobs := []*api.Job{
-		{
-			Queue:    "A",
-			Id:       "3",
-			Priority: 1,
-			Created:  T.Add(3 * time.Second),
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "1",
-			Priority: 1,
-			Created:  T.Add(1 * time.Second),
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "2",
-			Priority: 1,
-			Created:  T.Add(2 * time.Second),
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "5",
-			Priority: 3,
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "0",
-			Priority: 0,
-			PodSpec:  &v1.PodSpec{},
-		},
-		{
-			Queue:    "A",
-			Id:       "4",
-			Priority: 2,
-			PodSpec:  &v1.PodSpec{},
-		},
+	jobs := []*jobdb.Job{
+		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(3).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(1).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(2).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(3),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(0),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(2),
 	}
 	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
@@ -67,8 +31,11 @@ func TestInMemoryJobRepository(t *testing.T) {
 	}
 	repo := NewInMemoryJobRepository()
 	repo.EnqueueMany(jctxs)
-	expected := []string{"0", "1", "2", "3", "4", "5"}
-	actual := make([]string, 0)
+	// expected := []string{"0", "1", "2", "3", "4", "5"}
+	expected := []*jobdb.Job{
+		jobs[4], jobs[1], jobs[2], jobs[0], jobs[5], jobs[3],
+	}
+	actual := make([]*jobdb.Job, 0)
 	it := repo.GetJobIterator("A")
 	for {
 		jctx, err := it.Next()
@@ -76,7 +43,7 @@ func TestInMemoryJobRepository(t *testing.T) {
 		if jctx == nil {
 			break
 		}
-		actual = append(actual, jctx.Job.GetId())
+		actual = append(actual, jctx.Job)
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -85,16 +52,14 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 5) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
-		expected = append(expected, job.Id)
+		expected = append(expected, job.Id())
 	}
 	for _, req := range testfixtures.N1CpuPodReqs("B", 0, 5) {
-		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
-		job.Queue = "B"
+		job := jobFromPodSpec("B", req)
 		repo.Enqueue(job)
-		expected = append(expected, job.Id)
+		expected = append(expected, job.Id())
 	}
 
 	ctx := armadacontext.Background()
@@ -124,10 +89,9 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
-		expected = append(expected, job.Id)
+		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
 	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
@@ -147,10 +111,9 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 17) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
-		expected = append(expected, job.Id)
+		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
 	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
@@ -170,10 +133,9 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 113) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
-		expected = append(expected, job.Id)
+		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
 	it := NewQueuedJobsIterator(ctx, "A", repo, nil)
@@ -193,13 +155,13 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
-		expected = append(expected, job.Id)
+		expected = append(expected, job.Id())
 	}
 
 	for _, req := range testfixtures.N1CpuPodReqs("B", 0, 10) {
-		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
+		job := jobFromPodSpec("B", req)
 		repo.Enqueue(job)
 	}
 	ctx := armadacontext.Background()
@@ -219,8 +181,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	repo := newMockJobRepository()
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 	}
 
@@ -241,8 +202,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	repo := newMockJobRepository()
 	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
+		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 	}
 	ctx := armadacontext.Background()
@@ -257,8 +217,8 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 
 // TODO: Deprecate in favour of InMemoryRepo.
 type mockJobRepository struct {
-	jobsByQueue map[string][]*api.Job
-	jobsById    map[string]*api.Job
+	jobsByQueue map[string][]*jobdb.Job
+	jobsById    map[string]*jobdb.Job
 	// Ids of all jobs hat were leased to an executor.
 	leasedJobs          map[string]bool
 	getQueueJobIdsDelay time.Duration
@@ -266,21 +226,21 @@ type mockJobRepository struct {
 
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
-		jobsByQueue: make(map[string][]*api.Job),
-		jobsById:    make(map[string]*api.Job),
+		jobsByQueue: make(map[string][]*jobdb.Job),
+		jobsById:    make(map[string]*jobdb.Job),
 		leasedJobs:  make(map[string]bool),
 	}
 }
 
-func (repo *mockJobRepository) EnqueueMany(jobs []*api.Job) {
+func (repo *mockJobRepository) EnqueueMany(jobs []*jobdb.Job) {
 	for _, job := range jobs {
 		repo.Enqueue(job)
 	}
 }
 
-func (repo *mockJobRepository) Enqueue(job *api.Job) {
-	repo.jobsByQueue[job.Queue] = append(repo.jobsByQueue[job.Queue], job)
-	repo.jobsById[job.Id] = job
+func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
+	repo.jobsByQueue[job.GetQueue()] = append(repo.jobsByQueue[job.GetQueue()], job)
+	repo.jobsById[job.Id()] = job
 }
 
 func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) JobIterator {
@@ -292,8 +252,8 @@ func (repo *mockJobRepository) GetQueueJobIds(queue string) []string {
 	if jobs, ok := repo.jobsByQueue[queue]; ok {
 		rv := make([]string, 0, len(jobs))
 		for _, job := range jobs {
-			if !repo.leasedJobs[job.Id] {
-				rv = append(rv, job.Id)
+			if !repo.leasedJobs[job.Id()] {
+				rv = append(rv, job.Id())
 			}
 		}
 		return rv
@@ -302,8 +262,8 @@ func (repo *mockJobRepository) GetQueueJobIds(queue string) []string {
 	}
 }
 
-func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) []interfaces.LegacySchedulerJob {
-	rv := make([]interfaces.LegacySchedulerJob, len(jobIds))
+func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) []*jobdb.Job {
+	rv := make([]*jobdb.Job, len(jobIds))
 	for i, jobId := range jobIds {
 		if job, ok := repo.jobsById[jobId]; ok {
 			rv[i] = job
@@ -312,25 +272,6 @@ func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) []interface
 	return rv
 }
 
-func apiJobFromPodSpec(queue string, podSpec *v1.PodSpec) *api.Job {
-	return &api.Job{
-		Id:      util.NewULID(),
-		PodSpec: podSpec,
-		Queue:   queue,
-	}
-}
-
-func podSpecFromPodRequirements(req *schedulerobjects.PodRequirements) *v1.PodSpec {
-	return &v1.PodSpec{
-		NodeSelector:     req.NodeSelector,
-		Affinity:         req.Affinity,
-		Tolerations:      req.Tolerations,
-		Priority:         &req.Priority,
-		PreemptionPolicy: (*v1.PreemptionPolicy)(&req.PreemptionPolicy),
-		Containers: []v1.Container{
-			{
-				Resources: req.ResourceRequirements,
-			},
-		},
-	}
+func jobFromPodSpec(queue string, req *schedulerobjects.PodRequirements) *jobdb.Job {
+	return testfixtures.TestJob(queue, util.ULID(), "armada-default", req)
 }

@@ -13,7 +13,6 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -387,7 +386,7 @@ func (job *Job) GetPriorityClass() types.PriorityClass {
 
 // GetSchedulingKey returns the scheduling key associated with a job.
 // The second return value is always true since scheduling keys are computed at job creation time.
-// This is needed for compatibility with interfaces.LegacySchedulerJob.
+// This is needed for compatibility with *jobdb.Job.
 func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
 	return job.schedulingKey, true
 }
@@ -437,7 +436,7 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 }
 
 // GetAnnotations returns the annotations on the job.
-// This is needed for compatibility with interfaces.LegacySchedulerJob
+// This is needed for compatibility with *jobdb.Job
 func (job *Job) GetAnnotations() map[string]string {
 	if req := job.PodRequirements(); req != nil {
 		return req.Annotations
@@ -445,7 +444,7 @@ func (job *Job) GetAnnotations() map[string]string {
 	return nil
 }
 
-// Needed for compatibility with interfaces.LegacySchedulerJob
+// Needed for compatibility with *jobdb.Job
 func (job *Job) GetPriorityClassName() string {
 	if schedulingInfo := job.JobSchedulingInfo(); schedulingInfo != nil {
 		return schedulingInfo.PriorityClassName
@@ -465,7 +464,7 @@ func (job *Job) GetScheduledAtPriority() (int32, bool) {
 	return *scheduledAtPriority, true
 }
 
-// Needed for compatibility with interfaces.LegacySchedulerJob
+// Needed for compatibility with *jobdb.Job
 func (job *Job) GetNodeSelector() map[string]string {
 	if req := job.PodRequirements(); req != nil {
 		return req.NodeSelector
@@ -473,7 +472,7 @@ func (job *Job) GetNodeSelector() map[string]string {
 	return nil
 }
 
-// Needed for compatibility with interfaces.LegacySchedulerJob
+// Needed for compatibility with *jobdb.Job
 func (job *Job) GetAffinity() *v1.Affinity {
 	if req := job.PodRequirements(); req != nil {
 		return req.Affinity
@@ -481,7 +480,7 @@ func (job *Job) GetAffinity() *v1.Affinity {
 	return nil
 }
 
-// Needed for compatibility with interfaces.LegacySchedulerJob
+// Needed for compatibility with *jobdb.Job
 func (job *Job) GetTolerations() []v1.Toleration {
 	if req := job.PodRequirements(); req != nil {
 		return req.Tolerations
@@ -489,7 +488,7 @@ func (job *Job) GetTolerations() []v1.Toleration {
 	return nil
 }
 
-// Needed for compatibility with interfaces.LegacySchedulerJob
+// Needed for compatibility with *jobdb.Job
 func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
@@ -497,7 +496,7 @@ func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
-// Needed for compatibility with interfaces.LegacySchedulerJob
+// Needed for compatibility with *jobdb.Job
 func (job *Job) GetQueueTtlSeconds() int64 {
 	return job.jobSchedulingInfo.QueueTtlSeconds
 }
@@ -506,7 +505,7 @@ func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 	return job.jobSchedulingInfo.GetPodRequirements()
 }
 
-// GetPodRequirements is needed for compatibility with interfaces.LegacySchedulerJob.
+// GetPodRequirements is needed for compatibility with *jobdb.Job.
 func (job *Job) GetPodRequirements(_ map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
 	return job.PodRequirements()
 }
@@ -760,7 +759,7 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 	j.ensureJobSchedulingInfoFieldsInitialised()
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
-	j.schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(j.jobDb.schedulingKeyGenerator, j)
+	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 	return j
 }
 
@@ -782,4 +781,14 @@ func (job *Job) DeepCopy() *Job {
 // copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
+}
+
+func SchedulingKeyFromJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job) schedulerobjects.SchedulingKey {
+	return skg.Key(
+		job.GetNodeSelector(),
+		job.GetAffinity(),
+		job.GetTolerations(),
+		job.GetResourceRequirements().Requests,
+		job.GetPriorityClassName(),
+	)
 }

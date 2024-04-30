@@ -2020,7 +2020,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				var preemptedJobs []*jobdb.Job
 				for _, jctx := range result.PreemptedJobs {
-					job := jctx.Job.(*jobdb.Job)
+					job := jctx.Job
 					preemptedJobs = append(
 						preemptedJobs,
 						job.
@@ -2049,7 +2049,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				)
 				var scheduledJobs []*jobdb.Job
 				for _, jctx := range result.ScheduledJobs {
-					job := jctx.Job.(*jobdb.Job)
+					job := jctx.Job
 					jobId := job.GetId()
 					node, err := nodeDb.GetNode(result.NodeIdByJobId[jobId])
 					require.NotNil(t, node)
@@ -2265,7 +2265,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range ScheduledJobsFromSchedulerResult[*jobdb.Job](result) {
+			for _, job := range ScheduledJobsFromSchedulerResult(result) {
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}

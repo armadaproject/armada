@@ -279,7 +279,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 }
 
 func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
-	job := jctx.Job.(*jobdb.Job)
+	job := jctx.Job
 	latestRun := job.LatestRun()
 	duration, priorState := stateDuration(job, latestRun, &jctx.Created)
 	labels := m.buffer[0:0]
@@ -381,7 +381,7 @@ func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 }
 
 func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontext.JobSchedulingContext) []string {
-	job := jctx.Job.(*jobdb.Job)
+	job := jctx.Job
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
 	labels = append(labels, job.GetQueue())
 	labels = append(labels, executor)

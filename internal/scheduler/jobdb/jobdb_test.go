@@ -17,7 +17,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -250,7 +249,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 
 	actualSchedulingKey, ok := job.GetSchedulingKey()
 	require.True(t, ok)
-	assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
+	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
 }
 
 func TestJobDb_SchedulingKey(t *testing.T) {
@@ -1244,13 +1243,13 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			jobSchedulingInfoB.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsB}
 			jobB := baseJob.WithJobSchedulingInfo(jobSchedulingInfoB)
 
-			schedulingKeyA := interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobA)
-			schedulingKeyB := interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobB)
+			schedulingKeyA := SchedulingKeyFromJob(skg, jobA)
+			schedulingKeyB := SchedulingKeyFromJob(skg, jobB)
 
 			// Generate the keys several times to check their consistency.
 			for i := 1; i < 10; i++ {
-				assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobA), schedulingKeyA)
-				assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobB), schedulingKeyB)
+				assert.Equal(t, SchedulingKeyFromJob(skg, jobA), schedulingKeyA)
+				assert.Equal(t, SchedulingKeyFromJob(skg, jobB), schedulingKeyB)
 			}
 
 			if tc.equal {

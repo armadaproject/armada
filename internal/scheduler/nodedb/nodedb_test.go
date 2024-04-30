@@ -17,7 +17,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -127,7 +126,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	entry, err := nodeDb.GetNode(node.Id)
 	require.NoError(t, err)
 
-	jobFilter := func(job interfaces.LegacySchedulerJob) bool { return true }
+	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	request := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
 	jobId := job.GetId()
@@ -138,12 +137,12 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	unboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.NoError(t, err)
 
-	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
+	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode(testfixtures.TestPriorityClasses, []*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
+	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
-	assert.Equal(t, []interfaces.LegacySchedulerJob{job}, evictedJobs)
+	assert.Equal(t, []*jobdb.Job{job}, evictedJobs)
 
 	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
@@ -151,7 +150,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, entry)
+	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, entry)
 	require.Error(t, err)
 
 	_, err = nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
@@ -160,7 +159,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = nodeDb.bindJobToNode(boundNode, job, job.PodRequirements().Priority)
 	require.Error(t, err)
 
-	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
+	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, entry, unboundNode)
@@ -253,19 +252,19 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 
 func TestEviction(t *testing.T) {
 	tests := map[string]struct {
-		jobFilter         func(interfaces.LegacySchedulerJob) bool
+		jobFilter         func(*jobdb.Job) bool
 		expectedEvictions []int32
 	}{
 		"jobFilter always returns false": {
-			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return false },
+			jobFilter:         func(_ *jobdb.Job) bool { return false },
 			expectedEvictions: []int32{},
 		},
 		"jobFilter always returns true": {
-			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return true },
+			jobFilter:         func(_ *jobdb.Job) bool { return true },
 			expectedEvictions: []int32{0, 1},
 		},
 		"jobFilter returns true for preemptible jobs": {
-			jobFilter: func(job interfaces.LegacySchedulerJob) bool {
+			jobFilter: func(job *jobdb.Job) bool {
 				priorityClassName := job.GetPriorityClassName()
 				priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
 				return priorityClass.Preemptible
@@ -293,13 +292,13 @@ func TestEviction(t *testing.T) {
 			entry, err := nodeDb.GetNode(node.Id)
 			require.NoError(t, err)
 
-			existingJobs := make([]interfaces.LegacySchedulerJob, len(jobs))
+			existingJobs := make([]*jobdb.Job, len(jobs))
 			for i, job := range jobs {
 				existingJobs[i] = job
 			}
 			actualEvictions, _, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
 			require.NoError(t, err)
-			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
+			expectedEvictions := make([]*jobdb.Job, 0, len(tc.expectedEvictions))
 			for _, i := range tc.expectedEvictions {
 				expectedEvictions = append(expectedEvictions, jobs[i])
 			}

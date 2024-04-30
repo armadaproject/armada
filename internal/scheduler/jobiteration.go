@@ -9,7 +9,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
 type JobIterator interface {
@@ -18,7 +18,7 @@ type JobIterator interface {
 
 type JobRepository interface {
 	GetQueueJobIds(queueName string) []string
-	GetExistingJobsByIds(ids []string) []interfaces.LegacySchedulerJob
+	GetExistingJobsByIds(ids []string) []*jobdb.Job
 }
 
 type InMemoryJobIterator struct {
@@ -86,10 +86,10 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) []string {
 	)
 }
 
-func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) []interfaces.LegacySchedulerJob {
+func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) []*jobdb.Job {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	rv := make([]interfaces.LegacySchedulerJob, 0, len(jobIds))
+	rv := make([]*jobdb.Job, 0, len(jobIds))
 	for _, jobId := range jobIds {
 		if jctx, ok := repo.jctxsById[jobId]; ok {
 			rv = append(rv, jctx.Job)

@@ -20,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -200,7 +199,7 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
 		srv.mu.Lock()
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		schedulingKey = jobdb.SchedulingKeyFromJob(srv.schedulingKeyGenerator, jctx.Job)
 		srv.mu.Unlock()
 	}
 
