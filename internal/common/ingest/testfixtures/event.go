@@ -304,6 +304,15 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobSubmitChecked = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobSubmitChecked{
+		JobSubmitChecked: &armadaevents.JobSubmitChecked{
+			JobId: JobIdProto,
+		},
+	},
+}
+
 var JobRequeued = &armadaevents.EventSequence_Event{
 	Created: &BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRequeued{

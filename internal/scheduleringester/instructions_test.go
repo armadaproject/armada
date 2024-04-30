@@ -187,6 +187,12 @@ func TestConvertSequence(t *testing.T) {
 				}},
 			},
 		},
+		"SubmitChecked": {
+			events: []*armadaevents.EventSequence_Event{f.JobSubmitChecked},
+			expected: []DbOperation{
+				MarkJobsSubmitChecked{f.JobIdString: true},
+			},
+		},
 		"PositionMarker": {
 			events: []*armadaevents.EventSequence_Event{f.PartitionMarker},
 			expected: []DbOperation{
