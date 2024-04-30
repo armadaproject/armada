@@ -113,3 +113,6 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2;
 -- name: SetTerminatedTime :exec
 UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2;
 
+-- name: MarkJobsSubmitCheckedById :exec
+UPDATE jobs SET validated = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
+
