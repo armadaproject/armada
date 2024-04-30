@@ -186,7 +186,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.jobRepo,
 			sch.nodeDb,
 			sch.schedulingContext.PriorityClasses,
-			sch.schedulingContext.DefaultPriorityClass,
 			sch.nodeOversubscriptionEvictionProbability,
 			nil,
 		),
@@ -768,7 +767,6 @@ func NewOversubscribedEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	priorityClasses map[string]types.PriorityClass,
-	defaultPriorityClassName string,
 	perNodeEvictionProbability float64,
 	random *rand.Rand,
 ) *Evictor {

@@ -379,7 +379,7 @@ func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
-// Priority returns the priority class of the job.
+// GetPriorityClass returns the priority class of the job.
 func (job *Job) GetPriorityClass() types.PriorityClass {
 	return job.priorityClass
 }

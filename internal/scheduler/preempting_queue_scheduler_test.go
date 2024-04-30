@@ -60,7 +60,6 @@ func TestEvictOversubscribed(t *testing.T) {
 		NewSchedulerJobRepositoryAdapter(jobDbTxn),
 		nodeDb,
 		config.PriorityClasses,
-		config.DefaultPriorityClassName,
 		1,
 		nil,
 	)
