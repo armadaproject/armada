@@ -72,6 +72,21 @@ func TestJobDb_TestGetById(t *testing.T) {
 	assert.Nil(t, txn.GetById(util.NewULID()))
 }
 
+func TestJobDb_TestGetUnvalidated(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithValidated(false)
+	job2 := newJob().WithValidated(true)
+	job3 := newJob().WithValidated(false)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1, job2, job3})
+	require.NoError(t, err)
+
+	//txn.Commit()
+	//txn.unvalidatedJobs()
+
+}
+
 func TestJobDb_TestGetByRunId(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", 5)

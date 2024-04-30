@@ -244,6 +244,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByRunId = txn.jobsByRunId
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.queuedJobsByTtl = txn.queuedJobsByTtl
+	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
 
 	txn.active = false
 }

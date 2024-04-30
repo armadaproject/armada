@@ -787,6 +787,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"Submit check failed": {
+			initialJobs:          []*jobdb.Job{queuedJob},
+			submitCheckerFailure: true,
+			expectedJobErrors:    []string{queuedJob.Id()},
+			expectedTerminal:     []string{queuedJob.Id()},
+		},
 		"Job failed": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
