@@ -37,6 +37,7 @@ func CreateGrpcServer(
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []authorization.AuthService,
 	tlsConfig configuration.TlsConfig,
+	logrusOptions ...grpc_logrus.Option,
 ) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
@@ -60,13 +61,13 @@ func CreateGrpcServer(
 		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
 		requestid.UnaryServerInterceptor(false),
 		armadaerrors.UnaryServerInterceptor(2000),
-		grpc_logrus.UnaryServerInterceptor(messageDefault),
+		grpc_logrus.UnaryServerInterceptor(messageDefault, logrusOptions...),
 	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
 		requestid.StreamServerInterceptor(false),
 		armadaerrors.StreamServerInterceptor(2000),
-		grpc_logrus.StreamServerInterceptor(messageDefault),
+		grpc_logrus.StreamServerInterceptor(messageDefault, logrusOptions...),
 	)
 
 	// Authentication
