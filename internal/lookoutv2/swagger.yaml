@@ -25,6 +25,7 @@ definitions:
       - duplicate
       - annotations
       - runs
+      - cluster
     properties:
       jobId:
         type: string
@@ -113,6 +114,16 @@ definitions:
       cancelReason:
         type: string
         x-nullable: true
+      node:
+        type: string
+        x-nullable: true
+      cluster:
+        type: string
+        x-nullable: false
+      exitCode:
+        type: integer
+        format: int32
+        x-nullable: true
   run:
     type: object
     required:
@@ -163,6 +174,7 @@ definitions:
           - RUN_LEASE_EXPIRED
           - RUN_MAX_RUNS_EXCEEDED
           - RUN_LEASED
+          - RUN_CANCELLED
         x-nullable: false
       exitCode:
         type: integer
