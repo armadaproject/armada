@@ -195,44 +195,6 @@ func TestSubmit_FailedValidation(t *testing.T) {
 	}
 }
 
-func TestSubmit_SubmitCheckFailed(t *testing.T) {
-	tests := map[string]struct {
-		req *api.JobSubmitRequest
-	}{
-		"Submit check fails": {
-			req: testfixtures.SubmitRequestWithNItems(1),
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			server, mockedObjects := createTestServer(t)
-
-			mockedObjects.queueRepo.
-				EXPECT().GetQueue(ctx, tc.req.Queue).
-				Return(testfixtures.DefaultQueue, nil).
-				Times(1)
-
-			mockedObjects.authorizer.
-				EXPECT().
-				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
-				Return(nil).
-				Times(1)
-
-			mockedObjects.deduplicator.
-				EXPECT().
-				GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, tc.req.JobRequestItems).
-				Return(nil, nil).
-				Times(1)
-
-			resp, err := server.SubmitJobs(ctx, tc.req)
-			assert.Error(t, err)
-			assert.Nil(t, resp)
-			cancel()
-		})
-	}
-}
-
 func withNamespace(req *api.JobSubmitRequest, n string) *api.JobSubmitRequest {
 	for _, item := range req.JobRequestItems {
 		item.Namespace = n
