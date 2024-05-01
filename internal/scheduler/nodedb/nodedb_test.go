@@ -559,7 +559,6 @@ func TestScheduleMany(t *testing.T) {
 }
 
 func TestAwayNodeTypes(t *testing.T) {
-
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,

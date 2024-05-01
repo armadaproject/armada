@@ -571,7 +571,6 @@ func TestGangScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// This is hacktabulous. Essentially the jobs have the wrong priority classes set at this point
 			// because textfixtures.TestJob() initialises the jobs using a jobDb that doesn't know anything about the
 			// priority classes we have defined in this test.  We therefore need to fix the priority classes here.
