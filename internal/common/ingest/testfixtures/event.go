@@ -258,6 +258,16 @@ var JobRunSucceeded = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunCancelled = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+		JobRunCancelled: &armadaevents.JobRunCancelled{
+			RunId: RunIdProto,
+			JobId: JobIdProto,
+		},
+	},
+}
+
 var LeaseReturned = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -392,7 +402,7 @@ var JobPreemptionRequested = &armadaevents.EventSequence_Event{
 	},
 }
 
-var JobPreempted = &armadaevents.EventSequence_Event{
+var JobRunPreempted = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
@@ -467,6 +477,23 @@ var JobRunUnschedulable = &armadaevents.EventSequence_Event{
 							},
 							Message: UnschedulableMsg,
 						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var JobPreempted = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobErrors{
+		JobErrors: &armadaevents.JobErrors{
+			JobId: JobIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_JobRunPreemptedError{
+						JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
 					},
 				},
 			},

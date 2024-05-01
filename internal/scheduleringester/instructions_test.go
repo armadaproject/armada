@@ -89,7 +89,7 @@ func TestConvertSequence(t *testing.T) {
 			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: []string{f.JobIdString}}},
 		},
 		"job run preempted": {
-			events:   []*armadaevents.EventSequence_Event{f.JobPreempted},
+			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
 			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
 		},
 		"lease returned": {
