@@ -703,8 +703,19 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
-		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
+		if job.HasRuns() {
+			lastRun := job.LatestRun()
+			job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
+
+			events = append(events, &armadaevents.EventSequence_Event{
+				Created: s.now(),
+				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+					JobRunCancelled: &armadaevents.JobRunCancelled{
+						RunId: armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						JobId: jobId,
+					},
+				},
+			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
 		cancel := &armadaevents.EventSequence_Event{
@@ -715,9 +726,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
-		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
-		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
@@ -725,13 +733,30 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				CancelJob: &armadaevents.CancelJob{JobId: jobId},
 			},
 		}
+		events = append(events, cancelRequest)
+
+		if job.HasRuns() {
+			lastRun := job.LatestRun()
+			job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
+
+			events = append(events, &armadaevents.EventSequence_Event{
+				Created: s.now(),
+				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+					JobRunCancelled: &armadaevents.JobRunCancelled{
+						RunId: armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						JobId: jobId,
+					},
+				},
+			})
+		}
+
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
 			},
 		}
-		events = append(events, cancelRequest, cancel)
+		events = append(events, cancel)
 	} else if job.HasRuns() {
 		lastRun := job.LatestRun()
 		// InTerminalState states. Can only have one of these
