@@ -1484,18 +1484,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		"home-away preemption, away jobs first": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				config := testfixtures.TestSchedulingConfig()
-				config.PriorityClasses = map[string]types.PriorityClass{
-					"armada-preemptible-away": {
-						Priority:    30000,
-						Preemptible: true,
-
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}},
-					},
-					"armada-preemptible": {
-						Priority:    30000,
-						Preemptible: true,
-					},
-				}
 				config.DefaultPriorityClassName = "armada-preemptible"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{

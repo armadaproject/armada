@@ -46,6 +46,8 @@ var (
 		PriorityClass2:               {Priority: 2, Preemptible: true},
 		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
 		PriorityClass3:               {Priority: 3, Preemptible: false},
+		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
