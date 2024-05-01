@@ -10,10 +10,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -561,35 +559,14 @@ func TestScheduleMany(t *testing.T) {
 }
 
 func TestAwayNodeTypes(t *testing.T) {
-	priorityClasses := map[string]types.PriorityClass{
-		"armada-preemptible-away": {
-			Priority:    30000,
-			Preemptible: true,
-
-			AwayNodeTypes: []types.AwayNodeType{
-				{Priority: 29000, WellKnownNodeTypeName: "whale"},
-			},
-		},
-	}
 
 	nodeDb, err := NewNodeDb(
-		priorityClasses,
+		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
-		[]configuration.WellKnownNodeType{
-			{
-				Name: "whale",
-				Taints: []v1.Taint{
-					{
-						Key:    "whale",
-						Value:  "true",
-						Effect: v1.TaintEffectNoSchedule,
-					},
-				},
-			},
-		},
+		testfixtures.TestWellKnownNodeTypes,
 		stringinterner.New(1024),
 	)
 	require.NoError(t, err)
@@ -599,7 +576,7 @@ func TestAwayNodeTypes(t *testing.T) {
 	node.Taints = append(
 		node.Taints,
 		v1.Taint{
-			Key:    "whale",
+			Key:    "gpu",
 			Value:  "true",
 			Effect: v1.TaintEffectNoSchedule,
 		},
@@ -613,7 +590,7 @@ func TestAwayNodeTypes(t *testing.T) {
 		"armada-preemptible-away",
 		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
 	)
-	jctx := schedulercontext.JobSchedulingContextFromJob(priorityClasses, job)
+	jctx := schedulercontext.JobSchedulingContextFromJob(testfixtures.TestPriorityClasses, job)
 	require.Empty(t, jctx.AdditionalTolerations)
 	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
 
@@ -624,7 +601,7 @@ func TestAwayNodeTypes(t *testing.T) {
 		t,
 		[]v1.Toleration{
 			{
-				Key:    "whale",
+				Key:    "gpu",
 				Value:  "true",
 				Effect: v1.TaintEffectNoSchedule,
 			},

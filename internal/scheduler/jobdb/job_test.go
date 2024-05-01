@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -283,6 +284,16 @@ func TestJob_TestWithJobset(t *testing.T) {
 	newJob := baseJob.WithJobset("fish")
 	assert.Equal(t, "test-jobSet", baseJob.Jobset())
 	assert.Equal(t, "fish", newJob.Jobset())
+}
+
+func TestJob_TestWithPriorityClass(t *testing.T) {
+	pc := types.PriorityClass{
+		Priority:    100,
+		Preemptible: true,
+	}
+	newJob := baseJob.WithPriorityClass(pc)
+	assert.Equal(t, types.PriorityClass{Priority: 3, Preemptible: false}, baseJob.GetPriorityClass())
+	assert.Equal(t, pc, newJob.GetPriorityClass())
 }
 
 func TestJob_TestWithQueue(t *testing.T) {

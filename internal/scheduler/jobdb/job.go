@@ -416,6 +416,13 @@ func (job *Job) WithPriority(priority uint32) *Job {
 	return j
 }
 
+// WithPriorityClass returns a copy of the job with the priority class updated.
+func (job *Job) WithPriorityClass(priorityClass types.PriorityClass) *Job {
+	j := copyJob(*job)
+	j.priorityClass = priorityClass
+	return j
+}
+
 // WithSubmittedTime returns a copy of the job with submittedTime updated.
 func (job *Job) WithSubmittedTime(submittedTime int64) *Job {
 	j := copyJob(*job)
