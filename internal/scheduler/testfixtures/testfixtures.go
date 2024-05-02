@@ -82,7 +82,7 @@ var (
 	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
 	JobDb                   = NewJobDb()
-	TestResourceListFactory = makeTestResourceListFactory()
+	TestResourceListFactory = MakeTestResourceListFactory()
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
@@ -144,6 +144,7 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
+		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
 	}
 }
 
@@ -966,11 +967,15 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 	panic("Not implemented")
 }
 
-func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.MakeResourceListFactory([]configuration.ResourceType{
+func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	return result
+}
+
+func GetTestSupportedResourceTypes() []configuration.ResourceType {
+	return []configuration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
 		{Name: "gpu", Resolution: resource.MustParse("1m")},
-	})
-	return result
+	}
 }
