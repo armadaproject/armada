@@ -509,7 +509,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				var jobId ulid.ULID
 				jobId = util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{
+					testfixtures.
+						TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)),
+				})
 				jobId = util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away-both", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
 				return
@@ -568,6 +571,16 @@ func TestGangScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			// This is hacktabulous. Essentially the jobs have the wrong priority classes set at this point
+			// because textfixtures.TestJob() initialises the jobs using a jobDb that doesn't know anything about the
+			// priority classes we have defined in this test.  We therefore need to fix the priority classes here.
+			// The long term strategy is to try and remove the need to have a jobDB for creating jobs.
+			for i, gang := range tc.Gangs {
+				for j, job := range gang {
+					tc.Gangs[i][j] = job.WithPriorityClass(tc.SchedulingConfig.PriorityClasses[job.PriorityClassName()])
+				}
+			}
+
 			nodesById := make(map[string]*schedulerobjects.Node, len(tc.Nodes))
 			for _, node := range tc.Nodes {
 				nodesById[node.Id] = node
@@ -595,7 +608,7 @@ func TestGangScheduler(t *testing.T) {
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
 				for _, job := range jobs {
-					priorityFactorByQueue[job.GetQueue()] = 1
+					priorityFactorByQueue[job.Queue()] = 1
 				}
 			}
 

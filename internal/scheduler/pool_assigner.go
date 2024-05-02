@@ -15,7 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -110,9 +109,9 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	}
 
 	// See if we have this set of reqs cached.
-	schedulingKey, ok := j.GetSchedulingKey()
+	schedulingKey, ok := j.SchedulingKey()
 	if !ok {
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(p.schedulingKeyGenerator, j)
+		schedulingKey = jobdb.SchedulingKeyFromJob(p.schedulingKeyGenerator, j)
 	}
 	if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
 		return cachedPool.(string), nil
@@ -133,9 +132,9 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 			txn := nodeDb.Txn(true)
 			jctx := &schedulercontext.JobSchedulingContext{
 				Created:         time.Now(),
-				JobId:           j.GetId(),
+				JobId:           j.Id(),
 				Job:             j,
-				PodRequirements: j.GetPodRequirements(p.priorityClasses),
+				PodRequirements: j.PodRequirements(),
 				GangInfo:        schedulercontext.EmptyGangInfo(j),
 			}
 			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)

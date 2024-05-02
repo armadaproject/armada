@@ -9,7 +9,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -22,34 +22,34 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*schedul
 	jobsByQueue := armadaslices.MapAndGroupByFuncs(
 		jctxs,
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return jctx.Job.GetQueue()
+			return jctx.Job.Queue()
 		},
-		func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob {
+		func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job {
 			return jctx.Job
 		},
 	)
 	resourcesByQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []interfaces.LegacySchedulerJob) schedulerobjects.ResourceList {
+		func(jobs []*jobdb.Job) schedulerobjects.ResourceList {
 			rv := schedulerobjects.NewResourceListWithDefaultSize()
 			for _, job := range jobs {
-				rv.AddV1ResourceList(job.GetResourceRequirements().Requests)
+				rv.AddV1ResourceList(job.ResourceRequirements().Requests)
 			}
 			return rv
 		},
 	)
 	jobCountPerQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []interfaces.LegacySchedulerJob) int {
+		func(jobs []*jobdb.Job) int {
 			return len(jobs)
 		},
 	)
 	jobIdsByQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []interfaces.LegacySchedulerJob) []string {
+		func(jobs []*jobdb.Job) []string {
 			rv := make([]string, len(jobs))
 			for i, job := range jobs {
-				rv[i] = job.GetId()
+				rv[i] = job.Id()
 			}
 			return rv
 		},

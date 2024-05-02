@@ -289,7 +289,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 							cluster:       executor.Id,
 							pool:          executor.Pool,
 							queueName:     job.Queue(),
-							priorityClass: job.GetPriorityClassName(),
+							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
