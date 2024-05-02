@@ -25,8 +25,8 @@ func (j JobQueueTtlComparer) Compare(a, b *Job) int {
 	aDuration := timeSeconds - (a.submittedTime / 1_000_000_000)
 	bDuration := timeSeconds - (b.submittedTime / 1_000_000_000)
 
-	aRemaining := max(0, a.GetQueueTtlSeconds()-aDuration)
-	bRemaining := max(0, b.GetQueueTtlSeconds()-bDuration)
+	aRemaining := max(0, a.QueueTtlSeconds()-aDuration)
+	bRemaining := max(0, b.QueueTtlSeconds()-bDuration)
 
 	// If jobs have different ttl remaining, they are ordered by remaining queue ttl - the smallest ttl first.
 	if aRemaining != bRemaining {

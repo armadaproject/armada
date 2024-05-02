@@ -346,20 +346,8 @@ func (job *Job) Id() string {
 	return job.id
 }
 
-// GetId returns the id of the Job.
-// This is needed for the LegacyJob interface.
-func (job *Job) GetId() string {
-	return job.id
-}
-
 // Jobset returns the jobSet the job belongs to.
 func (job *Job) Jobset() string {
-	return job.jobSet
-}
-
-// GetJobSet returns the jobSet the job belongs to.
-// This is needed for compatibility with legacyJob
-func (job *Job) GetJobSet() string {
 	return job.jobSet
 }
 
@@ -368,36 +356,24 @@ func (job *Job) Queue() string {
 	return job.queue
 }
 
-// GetQueue returns the queue this job belongs to.
-// This is needed for the LegacyJob interface.
-func (job *Job) GetQueue() string {
-	return job.queue
-}
-
 // Priority returns the priority of the job.
 func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
-// GetPriorityClass returns the priority class of the job.
-func (job *Job) GetPriorityClass() types.PriorityClass {
+// PriorityClass returns the priority class of the job.
+func (job *Job) PriorityClass() types.PriorityClass {
 	return job.priorityClass
 }
 
-// GetSchedulingKey returns the scheduling key associated with a job.
+// SchedulingKey returns the scheduling key associated with a job.
 // The second return value is always true since scheduling keys are computed at job creation time.
-// This is needed for compatibility with *jobdb.Job.
-func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
+func (job *Job) SchedulingKey() (schedulerobjects.SchedulingKey, bool) {
 	return job.schedulingKey, true
 }
 
-// GetPerQueuePriority exists for compatibility with the LegacyJob interface.
-func (job *Job) GetPerQueuePriority() uint32 {
-	return job.priority
-}
-
-// GetSubmitTime exists for compatibility with the LegacyJob interface.
-func (job *Job) GetSubmitTime() time.Time {
+// SubmitTime exists for compatibility with the LegacyJob interface.
+func (job *Job) SubmitTime() time.Time {
 	if job.jobSchedulingInfo == nil {
 		return time.Time{}
 	}
@@ -442,24 +418,22 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 	return job.jobSchedulingInfo
 }
 
-// GetAnnotations returns the annotations on the job.
-// This is needed for compatibility with *jobdb.Job
-func (job *Job) GetAnnotations() map[string]string {
+// Annotations returns the annotations on the job.
+func (job *Job) Annotations() map[string]string {
 	if req := job.PodRequirements(); req != nil {
 		return req.Annotations
 	}
 	return nil
 }
 
-// Needed for compatibility with *jobdb.Job
-func (job *Job) GetPriorityClassName() string {
+func (job *Job) PriorityClassName() string {
 	if schedulingInfo := job.JobSchedulingInfo(); schedulingInfo != nil {
 		return schedulingInfo.PriorityClassName
 	}
 	return ""
 }
 
-func (job *Job) GetScheduledAtPriority() (int32, bool) {
+func (job *Job) ScheduledAtPriority() (int32, bool) {
 	run := job.LatestRun()
 	if run == nil {
 		return -1, false
@@ -471,50 +445,40 @@ func (job *Job) GetScheduledAtPriority() (int32, bool) {
 	return *scheduledAtPriority, true
 }
 
-// Needed for compatibility with *jobdb.Job
-func (job *Job) GetNodeSelector() map[string]string {
+func (job *Job) NodeSelector() map[string]string {
 	if req := job.PodRequirements(); req != nil {
 		return req.NodeSelector
 	}
 	return nil
 }
 
-// Needed for compatibility with *jobdb.Job
-func (job *Job) GetAffinity() *v1.Affinity {
+func (job *Job) Affinity() *v1.Affinity {
 	if req := job.PodRequirements(); req != nil {
 		return req.Affinity
 	}
 	return nil
 }
 
-// Needed for compatibility with *jobdb.Job
-func (job *Job) GetTolerations() []v1.Toleration {
+func (job *Job) Tolerations() []v1.Toleration {
 	if req := job.PodRequirements(); req != nil {
 		return req.Tolerations
 	}
 	return nil
 }
 
-// Needed for compatibility with *jobdb.Job
-func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
+func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
 	}
 	return v1.ResourceRequirements{}
 }
 
-// Needed for compatibility with *jobdb.Job
-func (job *Job) GetQueueTtlSeconds() int64 {
+func (job *Job) QueueTtlSeconds() int64 {
 	return job.jobSchedulingInfo.QueueTtlSeconds
 }
 
 func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 	return job.jobSchedulingInfo.GetPodRequirements()
-}
-
-// GetPodRequirements is needed for compatibility with *jobdb.Job.
-func (job *Job) GetPodRequirements(_ map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
-	return job.PodRequirements()
 }
 
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
@@ -720,7 +684,7 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 // Invariants:
 //   - job.created < `t`
 func (job *Job) HasQueueTtlExpired() bool {
-	ttlSeconds := job.GetQueueTtlSeconds()
+	ttlSeconds := job.QueueTtlSeconds()
 	if ttlSeconds > 0 {
 		timeSeconds := time.Now().UTC().Unix()
 
@@ -735,7 +699,7 @@ func (job *Job) HasQueueTtlExpired() bool {
 
 // HasQueueTtlSet returns true if the given job has a queueTtl set.
 func (job *Job) HasQueueTtlSet() bool {
-	return job.GetQueueTtlSeconds() > 0
+	return job.QueueTtlSeconds() > 0
 }
 
 // WithJobset returns a copy of the job with the jobSet updated.
@@ -792,10 +756,10 @@ func copyJob(j Job) *Job {
 
 func SchedulingKeyFromJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job) schedulerobjects.SchedulingKey {
 	return skg.Key(
-		job.GetNodeSelector(),
-		job.GetAffinity(),
-		job.GetTolerations(),
-		job.GetResourceRequirements().Requests,
-		job.GetPriorityClassName(),
+		job.NodeSelector(),
+		job.Affinity(),
+		job.Tolerations(),
+		job.ResourceRequirements().Requests,
+		job.PriorityClassName(),
 	)
 }

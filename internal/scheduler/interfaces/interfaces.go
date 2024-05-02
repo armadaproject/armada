@@ -1,6 +1,6 @@
 package interfaces
 
 type MinimalJob interface {
-	GetAnnotations() map[string]string
-	GetPriorityClassName() string
+	Annotations() map[string]string
+	PriorityClassName() string
 }

@@ -89,12 +89,12 @@ func (w *Writer) flattenStateTransition(flattenedStateTransitions []*FlattenedAr
 	for i, event := range events.Events {
 		// Assumes all supported events have an associated job
 		associatedJob := jobsList[i]
-		prevSeenEvent := w.prevSeenEventByJobId[associatedJob.GetId()]
+		prevSeenEvent := w.prevSeenEventByJobId[associatedJob.Id()]
 		// Resource requirements
-		cpuLimit := associatedJob.GetResourceRequirements().Requests[v1.ResourceCPU]
-		memoryLimit := associatedJob.GetResourceRequirements().Requests[v1.ResourceMemory]
-		ephemeralStorageLimit := associatedJob.GetResourceRequirements().Requests[v1.ResourceEphemeralStorage]
-		gpuLimit := associatedJob.GetResourceRequirements().Requests["nvidia.com/gpu"]
+		cpuLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceCPU]
+		memoryLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceMemory]
+		ephemeralStorageLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceEphemeralStorage]
+		gpuLimit := associatedJob.ResourceRequirements().Requests["nvidia.com/gpu"]
 
 		prevEventType := 0
 		prevEventTime := *event.Created
@@ -107,10 +107,10 @@ func (w *Writer) flattenStateTransition(flattenedStateTransitions []*FlattenedAr
 			Time:                  event.Created.Sub(startTime).Milliseconds(),
 			Queue:                 events.Queue,
 			JobSet:                events.JobSetName,
-			JobId:                 associatedJob.GetId(),
+			JobId:                 associatedJob.Id(),
 			RunIndex:              len(associatedJob.AllRuns()) - 1, // Assumed to be related to latest run in simulation
 			NumRuns:               len(associatedJob.AllRuns()),
-			PriorityClass:         associatedJob.GetPriorityClassName(),
+			PriorityClass:         associatedJob.PriorityClassName(),
 			PreviousEventType:     prevEventType,
 			EventType:             w.encodeEvent(event),
 			SecondsSinceLastEvent: event.Created.Sub(prevEventTime).Seconds(),
@@ -120,10 +120,10 @@ func (w *Writer) flattenStateTransition(flattenedStateTransitions []*FlattenedAr
 			EphemeralStorage:      ephemeralStorageLimit.AsApproximateFloat64(),
 			ExitCode:              0,
 		})
-		w.prevSeenEventByJobId[associatedJob.GetId()] = event
+		w.prevSeenEventByJobId[associatedJob.Id()] = event
 
 		if associatedJob.Succeeded() || associatedJob.Failed() || associatedJob.Cancelled() {
-			delete(w.prevSeenEventByJobId, associatedJob.GetId())
+			delete(w.prevSeenEventByJobId, associatedJob.Id())
 		}
 	}
 

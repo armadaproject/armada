@@ -485,7 +485,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	}
 	for i, jctx := range result.ScheduledJobs {
 		jobDbJob := jctx.Job
-		jobId := jobDbJob.GetId()
+		jobId := jobDbJob.Id()
 		nodeId := result.NodeIdByJobId[jobId]
 		if nodeId == "" {
 			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
@@ -666,7 +666,7 @@ func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(
 				allocation = make(schedulerobjects.QuantityByTAndResourceType[string])
 				allocationByQueue[queue] = allocation
 			}
-			allocation.AddV1ResourceList(job.GetPriorityClassName(), job.GetResourceRequirements().Requests)
+			allocation.AddV1ResourceList(job.PriorityClassName(), job.ResourceRequirements().Requests)
 		}
 	}
 	return rv

@@ -577,7 +577,7 @@ func TestGangScheduler(t *testing.T) {
 			// The long term strategy is to try and remove the need to have a jobDB for creating jobs.
 			for i, gang := range tc.Gangs {
 				for j, job := range gang {
-					tc.Gangs[i][j] = job.WithPriorityClass(tc.SchedulingConfig.PriorityClasses[job.GetPriorityClassName()])
+					tc.Gangs[i][j] = job.WithPriorityClass(tc.SchedulingConfig.PriorityClasses[job.PriorityClassName()])
 				}
 			}
 
@@ -608,7 +608,7 @@ func TestGangScheduler(t *testing.T) {
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
 				for _, job := range jobs {
-					priorityFactorByQueue[job.GetQueue()] = 1
+					priorityFactorByQueue[job.Queue()] = 1
 				}
 			}
 

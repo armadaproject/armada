@@ -77,7 +77,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 		if jctx == nil {
 			break
 		}
-		actual = append(actual, jctx.Job.GetId())
+		actual = append(actual, jctx.Job.Id())
 	}
 	assert.Equal(t, expected, actual)
 	v, err := it.Next()
@@ -102,7 +102,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		if jctx == nil {
 			break
 		}
-		actual = append(actual, jctx.Job.GetId())
+		actual = append(actual, jctx.Job.Id())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -124,7 +124,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		if jctx == nil {
 			break
 		}
-		actual = append(actual, jctx.Job.GetId())
+		actual = append(actual, jctx.Job.Id())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -146,7 +146,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		if jctx == nil {
 			break
 		}
-		actual = append(actual, jctx.Job.GetId())
+		actual = append(actual, jctx.Job.Id())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -173,7 +173,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		if jctx == nil {
 			break
 		}
-		actual = append(actual, jctx.Job.GetId())
+		actual = append(actual, jctx.Job.Id())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -239,7 +239,7 @@ func (repo *mockJobRepository) EnqueueMany(jobs []*jobdb.Job) {
 }
 
 func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
-	repo.jobsByQueue[job.GetQueue()] = append(repo.jobsByQueue[job.GetQueue()], job)
+	repo.jobsByQueue[job.Queue()] = append(repo.jobsByQueue[job.Queue()], job)
 	repo.jobsById[job.Id()] = job
 }
 

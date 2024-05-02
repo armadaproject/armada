@@ -125,9 +125,9 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 		return err
 	}
 	for _, job := range jobs {
-		priority, ok := job.GetScheduledAtPriority()
+		priority, ok := job.ScheduledAtPriority()
 		if !ok {
-			priorityClass := job.GetPriorityClass()
+			priorityClass := job.PriorityClass()
 			priority = priorityClass.Priority
 		}
 		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
@@ -495,7 +495,7 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
 	req := jctx.PodRequirements
-	priorityClass := jctx.Job.GetPriorityClass()
+	priorityClass := jctx.Job.PriorityClass()
 
 	// If the job has already been scheduled, get the priority at which it was scheduled.
 	// Otherwise, get the original priority the job was submitted with.
@@ -890,8 +890,8 @@ func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job *jobdb.Job, pr
 
 // bindJobToNodeInPlace is like bindJobToNode, but doesn't make a copy of node.
 func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.Job, priority int32) error {
-	jobId := job.GetId()
-	requests := job.GetResourceRequirements().Requests
+	jobId := job.Id()
+	requests := job.ResourceRequirements().Requests
 
 	_, isEvicted := node.EvictedJobRunIds[jobId]
 	delete(node.EvictedJobRunIds, jobId)
@@ -910,7 +910,7 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 		if node.AllocatedByQueue == nil {
 			node.AllocatedByQueue = make(map[string]schedulerobjects.ResourceList)
 		}
-		queue := job.GetQueue()
+		queue := job.Queue()
 		allocatedToQueue := node.AllocatedByQueue[queue]
 		allocatedToQueue.AddV1ResourceList(requests)
 		node.AllocatedByQueue[queue] = allocatedToQueue
@@ -958,12 +958,12 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
 func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job *jobdb.Job, node *internaltypes.Node) error {
-	jobId := job.GetId()
+	jobId := job.Id()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
-	queue := job.GetQueue()
+	queue := job.Queue()
 	if _, ok := node.AllocatedByQueue[queue]; !ok {
 		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
 	}
@@ -981,7 +981,7 @@ func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.P
 	if !ok {
 		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
-	requests := job.GetResourceRequirements().Requests
+	requests := job.ResourceRequirements().Requests
 	allocatable.MarkAllocatableV1ResourceList(priority, requests)
 	allocatable.MarkAllocatedV1ResourceList(evictedPriority, requests)
 
@@ -1010,8 +1010,8 @@ func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.Priorit
 
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
 func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job *jobdb.Job, node *internaltypes.Node) error {
-	jobId := job.GetId()
-	requests := job.GetResourceRequirements().Requests
+	jobId := job.Id()
+	requests := job.ResourceRequirements().Requests
 
 	_, isEvicted := node.EvictedJobRunIds[jobId]
 	delete(node.EvictedJobRunIds, jobId)
@@ -1023,7 +1023,7 @@ func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.
 		delete(node.AllocatedByJobId, jobId)
 	}
 
-	queue := job.GetQueue()
+	queue := job.Queue()
 	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
 		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
 	} else {

@@ -22,7 +22,7 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*schedul
 	jobsByQueue := armadaslices.MapAndGroupByFuncs(
 		jctxs,
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return jctx.Job.GetQueue()
+			return jctx.Job.Queue()
 		},
 		func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job {
 			return jctx.Job
@@ -33,7 +33,7 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*schedul
 		func(jobs []*jobdb.Job) schedulerobjects.ResourceList {
 			rv := schedulerobjects.NewResourceListWithDefaultSize()
 			for _, job := range jobs {
-				rv.AddV1ResourceList(job.GetResourceRequirements().Requests)
+				rv.AddV1ResourceList(job.ResourceRequirements().Requests)
 			}
 			return rv
 		},
@@ -49,7 +49,7 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*schedul
 		func(jobs []*jobdb.Job) []string {
 			rv := make([]string, len(jobs))
 			for i, job := range jobs {
-				rv[i] = job.GetId()
+				rv[i] = job.Id()
 			}
 			return rv
 		},

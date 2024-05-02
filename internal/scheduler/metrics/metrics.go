@@ -373,7 +373,7 @@ func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int
 
 func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
-	labels = append(labels, job.GetQueue())
+	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	labels = append(labels, "") // No nodeType.
 	labels = append(labels, nodeName)
@@ -383,7 +383,7 @@ func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontext.JobSchedulingContext) []string {
 	job := jctx.Job
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
-	labels = append(labels, job.GetQueue())
+	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	wellKnownNodeType := ""
 	if pctx := jctx.PodSchedulingContext; pctx != nil {
@@ -441,7 +441,7 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 		c.Add(stateDuration.Seconds())
 	}
 
-	requests := job.GetResourceRequirements().Requests
+	requests := job.ResourceRequirements().Requests
 	for _, resource := range m.config.TrackedResourceNames {
 		if r, ok := m.config.ResourceRenaming[resource]; ok {
 			resource = v1.ResourceName(r)

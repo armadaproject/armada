@@ -206,7 +206,7 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Message: "Both PodSpec and PodSpecs are set",
 		})
 	}
-	jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
+	jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id)
 	if err != nil {
 		return nil, err
 	}

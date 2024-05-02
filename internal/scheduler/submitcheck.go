@@ -196,7 +196,7 @@ func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) 
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext) schedulingResult {
-	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	schedulingKey, ok := jctx.Job.SchedulingKey()
 	if !ok {
 		srv.mu.Lock()
 		schedulingKey = jobdb.SchedulingKeyFromJob(srv.schedulingKeyGenerator, jctx.Job)

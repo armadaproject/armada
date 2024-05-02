@@ -53,12 +53,10 @@ var baseRun = &JobRun{
 // Test methods that only have getters
 func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.id, baseJob.Id())
-	assert.Equal(t, baseJob.id, baseJob.GetId())
 	assert.Equal(t, baseJob.queue, baseJob.Queue())
-	assert.Equal(t, baseJob.queue, baseJob.GetQueue())
 	assert.Equal(t, baseJob.submittedTime, baseJob.Created())
 	assert.Equal(t, jobSchedulingInfo, baseJob.JobSchedulingInfo())
-	assert.Equal(t, baseJob.GetAnnotations(), map[string]string{
+	assert.Equal(t, baseJob.Annotations(), map[string]string{
 		"foo": "bar",
 	})
 }
@@ -292,8 +290,8 @@ func TestJob_TestWithPriorityClass(t *testing.T) {
 		Preemptible: true,
 	}
 	newJob := baseJob.WithPriorityClass(pc)
-	assert.Equal(t, types.PriorityClass{Priority: 3, Preemptible: false}, baseJob.GetPriorityClass())
-	assert.Equal(t, pc, newJob.GetPriorityClass())
+	assert.Equal(t, types.PriorityClass{Priority: 3, Preemptible: false}, baseJob.PriorityClass())
+	assert.Equal(t, pc, newJob.PriorityClass())
 }
 
 func TestJob_TestWithQueue(t *testing.T) {
@@ -364,12 +362,12 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
 
 	job := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3)
-	assert.NotNil(t, job.GetNodeSelector())
-	assert.NotNil(t, job.GetAnnotations())
+	assert.NotNil(t, job.NodeSelector())
+	assert.NotNil(t, job.Annotations())
 
 	// Copy again here, as the fields get mutated so we want a clean copy
 	infoWithNilFieldsCopy2 := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
 	updatedJob := baseJob.WithJobSchedulingInfo(infoWithNilFieldsCopy2)
-	assert.NotNil(t, updatedJob.GetNodeSelector())
-	assert.NotNil(t, updatedJob.GetAnnotations())
+	assert.NotNil(t, updatedJob.NodeSelector())
+	assert.NotNil(t, updatedJob.Annotations())
 }

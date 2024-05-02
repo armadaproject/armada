@@ -60,9 +60,9 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 	defer repo.mu.Unlock()
 	updatedQueues := make(map[string]bool)
 	for _, jctx := range jctxs {
-		queue := jctx.Job.GetQueue()
+		queue := jctx.Job.Queue()
 		repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
-		repo.jctxsById[jctx.Job.GetId()] = jctx
+		repo.jctxsById[jctx.Job.Id()] = jctx
 		updatedQueues[queue] = true
 	}
 	for queue := range updatedQueues {
@@ -81,7 +81,7 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) []string {
 	return util.Map(
 		repo.jctxsByQueue[queue],
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return jctx.Job.GetId()
+			return jctx.Job.Id()
 		},
 	)
 }
@@ -132,7 +132,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		}
 		job := it.repo.GetExistingJobsByIds([]string{it.jobIds[it.idx]})
 		it.idx++
-		return schedulercontext.JobSchedulingContextFromJob(it.priorityClasses, job[0]), nil
+		return schedulercontext.JobSchedulingContextFromJob(job[0]), nil
 	}
 }
 

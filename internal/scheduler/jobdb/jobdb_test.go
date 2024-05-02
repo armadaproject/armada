@@ -121,7 +121,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	require.NoError(t, err)
 	collect := func() []*Job {
 		retrieved := make([]*Job, 0)
-		iter := txn.QueuedJobs(jobs[0].GetQueue())
+		iter := txn.QueuedJobs(jobs[0].Queue())
 		for !iter.Done() {
 			j, _ := iter.Next()
 			retrieved = append(retrieved, j)
@@ -247,7 +247,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2)
 
-	actualSchedulingKey, ok := job.GetSchedulingKey()
+	actualSchedulingKey, ok := job.SchedulingKey()
 	require.True(t, ok)
 	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
 }

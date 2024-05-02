@@ -1220,7 +1220,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				{
 					RunID:     leasedJob.LatestRun().Id(),
 					JobID:     leasedJob.LatestRun().JobId(),
-					JobSet:    leasedJob.GetJobSet(),
+					JobSet:    leasedJob.Jobset(),
 					Succeeded: true,
 				},
 			},

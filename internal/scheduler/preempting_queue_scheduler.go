@@ -123,19 +123,19 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.schedulingContext.PriorityClasses,
 			sch.nodeEvictionProbability,
 			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
-				priorityClass := job.GetPriorityClass()
+				priorityClass := job.PriorityClass()
 				if !priorityClass.Preemptible {
 					return false
 				}
-				if job.GetAnnotations() == nil {
-					ctx.Errorf("can't evict job %s: annotations not initialised", job.GetId())
+				if job.Annotations() == nil {
+					ctx.Errorf("can't evict job %s: annotations not initialised", job.Id())
 					return false
 				}
-				if job.GetNodeSelector() == nil {
-					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.GetId())
+				if job.NodeSelector() == nil {
+					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.Id())
 					return false
 				}
-				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
+				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
 					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
 					fractionOfFairShare := actualShare / fairShare
@@ -409,7 +409,7 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 // Otherwise, the evicted gang jobs will not be schedulable, since some gang jobs will be considered missing.
 func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *EvictorResult) {
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
-		gangId, ok := sch.gangIdByJobId[jctx.Job.GetId()]
+		gangId, ok := sch.gangIdByJobId[jctx.Job.Id()]
 		if !ok {
 			// Not a gang job.
 			continue
@@ -601,8 +601,8 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jctxs []*schedulercontext.JobSch
 // Update sch.gangIdByJobId and sch.jobIdsByGangId based on preempted/scheduled jobs.
 func (sch *PreemptingQueueScheduler) updateGangAccounting(preempted []*schedulercontext.JobSchedulingContext, scheduled []*schedulercontext.JobSchedulingContext) error {
 	for _, jctx := range preempted {
-		if gangId, ok := sch.gangIdByJobId[jctx.Job.GetId()]; ok {
-			delete(sch.gangIdByJobId, jctx.Job.GetId())
+		if gangId, ok := sch.gangIdByJobId[jctx.Job.Id()]; ok {
+			delete(sch.gangIdByJobId, jctx.Job.Id())
 			delete(sch.jobIdsByGangId, gangId)
 		}
 	}
@@ -754,7 +754,7 @@ func NewFilteredEvictor(
 			return shouldEvict
 		},
 		jobFilter: func(_ *armadacontext.Context, job *jobdb.Job) bool {
-			shouldEvict := jobIdsToEvict[job.GetId()]
+			shouldEvict := jobIdsToEvict[job.Id()]
 			return shouldEvict
 		},
 	}
@@ -801,13 +801,13 @@ func NewOversubscribedEvictor(
 			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) bool {
-			priorityClass := job.GetPriorityClass()
+			priorityClass := job.PriorityClass()
 			if !priorityClass.Preemptible {
 				return false
 			}
-			priority, ok := nodeDb.GetScheduledAtPriority(job.GetId())
+			priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
 			if !ok {
-				ctx.Warnf("can't evict job %s: not mapped to a priority", job.GetId())
+				ctx.Warnf("can't evict job %s: not mapped to a priority", job.Id())
 				return false
 			}
 			return overSubscribedPriorities[priority]
@@ -862,13 +862,13 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			//    - Adding taints to a node doesn't cause jobs already running on the node to be preempted.
 			//    - Jobs scheduled as away jobs have the necessary tolerations to be re-scheduled.
 			// TODO(albin): We can remove the checkOnlyDynamicRequirements flag in the nodeDb now that we've added the tolerations.
-			jctx := schedulercontext.JobSchedulingContextFromJob(evi.priorityClasses, job)
+			jctx := schedulercontext.JobSchedulingContextFromJob(job)
 			jctx.IsEvicted = true
 			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.GetId())
-			evictedJctxsByJobId[job.GetId()] = jctx
+			evictedJctxsByJobId[job.Id()] = jctx
 			jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, node.GetTolerationsForTaints()...)
 
-			nodeIdByJobId[job.GetId()] = node.GetId()
+			nodeIdByJobId[job.Id()] = node.GetId()
 		}
 		if len(evictedJobs) > 0 {
 			affectedNodesById[node.GetId()] = node

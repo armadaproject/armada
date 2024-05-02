@@ -126,8 +126,8 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
-	request := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
-	jobId := job.GetId()
+	request := schedulerobjects.ResourceListFromV1ResourceList(job.ResourceRequirements().Requests)
+	jobId := job.Id()
 
 	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	expectedAllocatable := boundNode.TotalResources.DeepCopy()
 	expectedAllocatable.Sub(request)
-	priority := testfixtures.TestPriorityClasses[job.GetPriorityClassName()].Priority
+	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
 	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
 
 	assert.Empty(t, unboundNode.AllocatedByJobId)
@@ -263,7 +263,7 @@ func TestEviction(t *testing.T) {
 		},
 		"jobFilter returns true for preemptible jobs": {
 			jobFilter: func(job *jobdb.Job) bool {
-				priorityClassName := job.GetPriorityClassName()
+				priorityClassName := job.PriorityClassName()
 				priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
 				return priorityClass.Preemptible
 			},
@@ -464,8 +464,8 @@ func TestScheduleIndividually(t *testing.T) {
 				node, err := nodeDb.GetNode(nodeId)
 				require.NoError(t, err)
 				require.NotNil(t, node)
-				expected := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
-				actual, ok := node.AllocatedByJobId[job.GetId()]
+				expected := schedulerobjects.ResourceListFromV1ResourceList(job.ResourceRequirements().Requests)
+				actual, ok := node.AllocatedByJobId[job.Id()]
 				require.True(t, ok)
 				assert.True(t, actual.Equal(expected))
 			}
@@ -589,7 +589,7 @@ func TestAwayNodeTypes(t *testing.T) {
 		"armada-preemptible-away",
 		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
 	)
-	jctx := schedulercontext.JobSchedulingContextFromJob(testfixtures.TestPriorityClasses, job)
+	jctx := schedulercontext.JobSchedulingContextFromJob(job)
 	require.Empty(t, jctx.AdditionalTolerations)
 	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
 

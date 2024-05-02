@@ -530,9 +530,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			for i, jctx := range scheduledJobs {
 				job := jctx.Job
-				nodeId := result.NodeIdByJobId[job.GetId()]
+				nodeId := result.NodeIdByJobId[job.Id()]
 				if nodeId == "" {
-					return errors.Errorf("job %s not mapped to a node", job.GetId())
+					return errors.Errorf("job %s not mapped to a node", job.Id())
 				}
 				if node, err := nodeDb.GetNode(nodeId); err != nil {
 					return err
@@ -747,8 +747,8 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	run := job.LatestRun()
 	pool := s.poolByNodeId[run.NodeId()]
 	s.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()].SubV1ResourceList(
-		job.GetPriorityClassName(),
-		job.GetResourceRequirements().Requests,
+		job.PriorityClassName(),
+		job.ResourceRequirements().Requests,
 	)
 
 	// Unbind the job from the node on which it was scheduled.
@@ -759,7 +759,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	// Increase the successful job count for this jobTemplate.
 	// If all jobs created from this template have succeeded, update dependent templates
 	// and submit any templates for which this was the last dependency.
-	jobTemplate := s.jobTemplateByJobId[job.GetId()]
+	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	jobTemplate.NumberSuccessful++
 	if jobTemplate.Number == jobTemplate.NumberSuccessful {
 		delete(s.activeJobTemplatesById, jobTemplate.Id)
@@ -832,7 +832,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.
-	jobTemplate := s.jobTemplateByJobId[job.GetId()]
+	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	retryJobId := util.ULID()
 	resubmitTime := s.time.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.WorkflowManagerDelayDistribution))
 	s.pushEventSequence(
