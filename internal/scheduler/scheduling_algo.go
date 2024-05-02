@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"math/rand"
 	"sort"
 	"strings"
@@ -26,6 +25,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"

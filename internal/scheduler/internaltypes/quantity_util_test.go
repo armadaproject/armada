@@ -1,8 +1,9 @@
 package internaltypes
 
 import (
-	"gopkg.in/inf.v0"
 	"testing"
+
+	"gopkg.in/inf.v0"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"

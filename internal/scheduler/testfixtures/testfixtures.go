@@ -4,7 +4,6 @@ package testfixtures
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -21,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -82,11 +82,7 @@ var (
 	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
 	JobDb                   = NewJobDb()
-	TestResourceListFactory = internaltypes.MakeResourceListFactory([]schedulerconfiguration.ResourceType{
-		{Name: "memory", Resolution: 1},
-		{Name: "cpu", Resolution: 0.001},
-		{Name: "gpu", Resolution: 0.001},
-	})
+	TestResourceListFactory = makeTestResourceListFactory()
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
@@ -968,4 +964,13 @@ func (p *MockPassiveClock) Now() time.Time {
 
 func (p *MockPassiveClock) Since(time.Time) time.Duration {
 	panic("Not implemented")
+}
+
+func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	result, _ := internaltypes.MakeResourceListFactory([]configuration.ResourceType{
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "gpu", Resolution: resource.MustParse("1m")},
+	})
+	return result
 }

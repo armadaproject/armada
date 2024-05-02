@@ -2,7 +2,6 @@ package armada
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"net"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"

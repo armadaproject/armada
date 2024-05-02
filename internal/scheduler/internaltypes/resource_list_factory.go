@@ -2,8 +2,9 @@ package internaltypes
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"math"
+
+	"github.com/pkg/errors"
 
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
