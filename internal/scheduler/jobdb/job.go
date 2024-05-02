@@ -426,6 +426,8 @@ func (job *Job) Annotations() map[string]string {
 	return nil
 }
 
+// PriorityClassName returns the name of the job's Priority Class
+// TODO: this can be inconsistent with job.PriorityClass()
 func (job *Job) PriorityClassName() string {
 	if schedulingInfo := job.JobSchedulingInfo(); schedulingInfo != nil {
 		return schedulingInfo.PriorityClassName
@@ -433,6 +435,8 @@ func (job *Job) PriorityClassName() string {
 	return ""
 }
 
+// ScheduledAtPriority returns the numeric priority at which the job was scheduled
+// This will return false if the job has not been scheduled yet
 func (job *Job) ScheduledAtPriority() (int32, bool) {
 	run := job.LatestRun()
 	if run == nil {
@@ -445,6 +449,7 @@ func (job *Job) ScheduledAtPriority() (int32, bool) {
 	return *scheduledAtPriority, true
 }
 
+// NodeSelector returns the Node Selector requested by the Job
 func (job *Job) NodeSelector() map[string]string {
 	if req := job.PodRequirements(); req != nil {
 		return req.NodeSelector
@@ -452,6 +457,7 @@ func (job *Job) NodeSelector() map[string]string {
 	return nil
 }
 
+// Affinity returns the Affinity requested by the Job
 func (job *Job) Affinity() *v1.Affinity {
 	if req := job.PodRequirements(); req != nil {
 		return req.Affinity
@@ -459,6 +465,7 @@ func (job *Job) Affinity() *v1.Affinity {
 	return nil
 }
 
+// Tolerations returns the Tolerations requested by the Job
 func (job *Job) Tolerations() []v1.Toleration {
 	if req := job.PodRequirements(); req != nil {
 		return req.Tolerations
@@ -466,6 +473,7 @@ func (job *Job) Tolerations() []v1.Toleration {
 	return nil
 }
 
+// ResourceRequirements returns the resource requirements of the Job
 func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
@@ -473,10 +481,13 @@ func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
+// QueueTtlSeconds returns the time in seconds that the job should remain queued
+// 0 means that this field is  unset
 func (job *Job) QueueTtlSeconds() int64 {
 	return job.jobSchedulingInfo.QueueTtlSeconds
 }
 
+// PodRequirements returns the pod requirements of the Job
 func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 	return job.jobSchedulingInfo.GetPodRequirements()
 }
