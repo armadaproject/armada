@@ -76,7 +76,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			fakeClock := clock.NewFakeClock(baseTime)
-			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo)
+			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
 			isSchedulable, reason := submitCheck.CheckJobDbJobs([]*jobdb.Job{tc.job})
@@ -181,7 +181,7 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			fakeClock := clock.NewFakeClock(testfixtures.BaseTime)
-			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo)
+			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
 			events := armadaslices.Map(tc.jobs, func(s *armadaevents.SubmitJob) *armadaevents.EventSequence_Event {

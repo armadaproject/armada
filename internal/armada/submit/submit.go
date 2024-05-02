@@ -320,7 +320,6 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 	}
 
 	err = s.publisher.PublishMessages(ctx, sequence)
-
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
