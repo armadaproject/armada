@@ -31,7 +31,6 @@ func TestInMemoryJobRepository(t *testing.T) {
 	}
 	repo := NewInMemoryJobRepository()
 	repo.EnqueueMany(jctxs)
-	// expected := []string{"0", "1", "2", "3", "4", "5"}
 	expected := []*jobdb.Job{
 		jobs[4], jobs[1], jobs[2], jobs[0], jobs[5], jobs[3],
 	}
