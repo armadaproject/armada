@@ -123,7 +123,6 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			eventClientIndex := 0
 			getEventClientFun := func(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
 				eventClient := tt.eventClients[eventClientIndex]

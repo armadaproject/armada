@@ -280,7 +280,6 @@ func (js *JobSetSubscription) Subscribe() error {
 
 		// this loop will run until the context is canceled
 		for {
-
 			select {
 			case <-js.ctx.Done():
 				log.WithFields(requestFields).Debug("context is done")
@@ -294,7 +293,6 @@ func (js *JobSetSubscription) Subscribe() error {
 						Watch:         true,
 						FromMessageId: js.fromMessageId,
 					})
-
 					// Treat stream creation errors as terminal, like we do in Subscribe()
 					if err != nil {
 						log.WithFields(requestFields).WithError(err).Error("error from GetJobEventMessage")
