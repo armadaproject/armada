@@ -212,7 +212,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"resolution has no impact on jobs of size a multiple of the resolution": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("16")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -233,7 +233,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"jobs of size not a multiple of the resolution blocks scheduling new jobs": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("17")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -252,7 +252,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"consider all nodes in the bucket": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("1")},
 					{Name: "memory", Resolution: resource.MustParse("1Mi")},
 					{Name: "gpu", Resolution: resource.MustParse("1")},
@@ -593,6 +593,7 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.IndexedNodeLabels,
 				tc.SchedulingConfig.WellKnownNodeTypes,
 				stringinterner.New(1024),
+				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)

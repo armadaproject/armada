@@ -393,6 +393,7 @@ func TestSchedule(t *testing.T) {
 				nil,
 				nil,
 				stringinterner.New(1024),
+				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
 
@@ -555,6 +556,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					nil,
 					stringInterner,
+					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
 				b.StartTimer()
@@ -567,6 +569,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedNodeLabels,
 					schedulingConfig.WellKnownNodeTypes,
 					stringInterner,
+					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
 				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)

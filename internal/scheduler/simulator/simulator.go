@@ -26,6 +26,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -79,6 +80,8 @@ type Simulator struct {
 	// If true, scheduler logs are omitted.
 	// This since the logs are very verbose when scheduling large numbers of jobs.
 	SuppressSchedulerLogs bool
+	// For making internaltypes.ResourceList
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
 type StateTransition struct {
@@ -89,6 +92,10 @@ type StateTransition struct {
 func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(schedulingConfig.SupportedResourceTypes)
+	if err != nil {
+		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
 	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
 	workloadSpec = proto.Clone(workloadSpec).(*WorkloadSpec)
 	initialiseClusterSpec(clusterSpec)
@@ -126,8 +133,9 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 			rate.Limit(schedulingConfig.MaximumSchedulingRate),
 			schedulingConfig.MaximumSchedulingBurst,
 		),
-		limiterByQueue: make(map[string]*rate.Limiter),
-		rand:           rand.New(rand.NewSource(randomSeed)),
+		limiterByQueue:      make(map[string]*rate.Limiter),
+		rand:                rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory: resourceListFactory,
 	}
 	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
@@ -231,6 +239,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
 				stringinterner.New(1024),
+				s.resourceListFactory,
 			)
 			if err != nil {
 				return err
