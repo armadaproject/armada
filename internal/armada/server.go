@@ -2,6 +2,7 @@ package armada
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"net"
 	"time"
 
@@ -144,10 +145,17 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	// Executor Repositories for pulsar scheduler
 	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
+
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	if err != nil {
+		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 	submitChecker := scheduler.NewSubmitChecker(
 		30*time.Minute,
 		config.Scheduling,
 		pulsarExecutorRepo,
+		resourceListFactory,
 	)
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)

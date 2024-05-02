@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -36,7 +37,7 @@ type DefaultPoolAssigner struct {
 	executorTimeout        time.Duration
 	priorityClasses        map[string]types.PriorityClass
 	priorities             []int32
-	indexedResources       []configuration.IndexedResource
+	indexedResources       []configuration.ResourceType
 	indexedTaints          []string
 	indexedNodeLabels      []string
 	wellKnownNodeTypes     []configuration.WellKnownNodeType
@@ -46,11 +47,13 @@ type DefaultPoolAssigner struct {
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	poolCache              *lru.Cache
 	clock                  clock.Clock
+	resourceListFactory    *internaltypes.ResourceListFactory
 }
 
 func NewPoolAssigner(executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*DefaultPoolAssigner, error) {
 	poolCache, err := lru.New(maxJobSchedulingResults)
 	if err != nil {
@@ -70,6 +73,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
 		poolCache:              poolCache,
 		clock:                  clock.RealClock{},
+		resourceListFactory:    resourceListFactory,
 	}, nil
 }
 
@@ -161,6 +165,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 		p.indexedNodeLabels,
 		p.wellKnownNodeTypes,
 		stringinterner.New(1024),
+		p.resourceListFactory,
 	)
 	if err != nil {
 		return nil, err

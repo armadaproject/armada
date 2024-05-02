@@ -567,6 +567,7 @@ func TestAwayNodeTypes(t *testing.T) {
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
 		stringinterner.New(1024),
+		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(t, err)
 
@@ -618,6 +619,7 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
 		stringinterner.New(1024),
+		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -658,6 +660,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
 		stringinterner.New(1024),
+		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -784,6 +787,7 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
 		stringinterner.New(1024),
+		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {
 		return nil, err

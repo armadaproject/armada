@@ -4,6 +4,7 @@ package testfixtures
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -52,18 +53,18 @@ var (
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
 	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []configuration.IndexedResource{
+	TestResources                    = []configuration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "gpu", Resolution: resource.MustParse("1")},
 	}
 	TestResourceNames = util.Map(
 		TestResources,
-		func(v configuration.IndexedResource) string { return v.Name },
+		func(v configuration.ResourceType) string { return v.Name },
 	)
 	TestIndexedResourceResolutionMillis = util.Map(
 		TestResources,
-		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
+		func(v configuration.ResourceType) int64 { return v.Resolution.MilliValue() },
 	)
 	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
@@ -80,7 +81,12 @@ var (
 	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
 	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
-	JobDb = NewJobDb()
+	JobDb                   = NewJobDb()
+	TestResourceListFactory = internaltypes.MakeResourceListFactory([]schedulerconfiguration.ResourceType{
+		{Name: "memory", Resolution: 1},
+		{Name: "cpu", Resolution: 0.001},
+		{Name: "gpu", Resolution: 0.001},
+	})
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
@@ -192,7 +198,7 @@ func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config co
 	return config
 }
 
-func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithIndexedResourcesConfig(indexResources []configuration.ResourceType, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.IndexedResources = indexResources
 	return config
 }

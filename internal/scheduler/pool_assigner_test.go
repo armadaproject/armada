@@ -54,7 +54,7 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			fakeClock := clock.NewFakeClock(testfixtures.BaseTime)
-			assigner, err := NewPoolAssigner(tc.executorTimout, tc.config, mockExecutorRepo)
+			assigner, err := NewPoolAssigner(tc.executorTimout, tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			assigner.clock = fakeClock
 
