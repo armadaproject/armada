@@ -234,21 +234,24 @@ type NodeDb struct {
 	scheduledAtPriorityByJobId map[string]int32
 
 	stringInterner *stringinterner.StringInterner
+
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
 func NewNodeDb(
 	priorityClasses map[string]types.PriorityClass,
 	maxExtraNodesToConsider uint,
-	indexedResources []configuration.IndexedResource,
+	indexedResources []configuration.ResourceType,
 	indexedTaints []string,
 	indexedNodeLabels []string,
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
 	stringInterner *stringinterner.StringInterner,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
 	nodeDbPriorities := []int32{evictedPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
-	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexedResource) string { return v.Name })
+	indexedResourceNames := util.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
 	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
@@ -288,7 +291,7 @@ func NewNodeDb(
 		indexedResourcesSet:     mapFromSlice(indexedResourceNames),
 		indexedResourceResolutionMillis: util.Map(
 			indexedResources,
-			func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
+			func(v configuration.ResourceType) int64 { return v.Resolution.MilliValue() },
 		),
 		indexNameByPriority:    indexNameByPriority,
 		keyIndexByPriority:     keyIndexByPriority,
@@ -305,6 +308,7 @@ func NewNodeDb(
 
 		scheduledAtPriorityByJobId: make(map[string]int32),
 		stringInterner:             stringInterner,
+		resourceListFactory:        resourceListFactory,
 	}
 
 	for _, wellKnownNodeType := range wellKnownNodeTypes {

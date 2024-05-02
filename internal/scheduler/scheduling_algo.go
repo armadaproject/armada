@@ -25,6 +25,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
@@ -64,9 +65,10 @@ type FairSchedulingAlgo struct {
 	// Function that is called every time an executor is scheduled. Useful for testing.
 	onExecutorScheduled func(executor *schedulerobjects.Executor)
 	// rand and clock injected here for repeatable testing.
-	rand           *rand.Rand
-	clock          clock.Clock
-	stringInterner *stringinterner.StringInterner
+	rand                *rand.Rand
+	clock               clock.Clock
+	stringInterner      *stringinterner.StringInterner
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
 func NewFairSchedulingAlgo(
@@ -78,6 +80,7 @@ func NewFairSchedulingAlgo(
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
 	stringInterner *stringinterner.StringInterner,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -99,6 +102,7 @@ func NewFairSchedulingAlgo(
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
 		stringInterner:              stringInterner,
+		resourceListFactory:         resourceListFactory,
 	}, nil
 }
 
@@ -370,6 +374,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedNodeLabels,
 		l.schedulingConfig.WellKnownNodeTypes,
 		l.stringInterner,
+		l.resourceListFactory,
 	)
 	if err != nil {
 		return nil, nil, err

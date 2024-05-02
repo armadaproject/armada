@@ -736,6 +736,7 @@ func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinte
 		config.IndexedNodeLabels,
 		config.WellKnownNodeTypes,
 		stringInterner,
+		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {
 		return nil, err

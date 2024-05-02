@@ -32,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -144,10 +145,17 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	// Executor Repositories for pulsar scheduler
 	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
+
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	if err != nil {
+		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 	submitChecker := scheduler.NewSubmitChecker(
 		30*time.Minute,
 		config.Scheduling,
 		pulsarExecutorRepo,
+		resourceListFactory,
 	)
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)

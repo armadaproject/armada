@@ -40,6 +40,15 @@ eventsApiRedis:
 # This config must be consistent with the scheduling config used by the scheduler.
 # You may want to insert the scheduling config used for the scheduler automatically, e.g., using PyYAML, to guarantee consistency.
 scheduling:
+  supportedResourceTypes:
+    - name: memory
+      resolution: "1"
+    - name: cpu
+      resolution: "1m"
+    - name: ephemeral-storage
+      resolution: "1"
+    - name: nvidia.com/gpu
+      resolution: "1"
   executorTimeout: "60m"
   executorUpdateFrequency: "1m"
   priorityClasses:
