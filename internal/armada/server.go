@@ -186,7 +186,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		publisher,
 		queueRepository,
 		queueCache,
-		jobRepository,
 		config.Submission,
 		submit.NewDeduplicator(store),
 		submitChecker,

@@ -312,7 +312,6 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 		m.publisher,
 		m.queueRepo,
 		m.queueRepo,
-		m.jobRep,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,
 		m.submitChecker,
