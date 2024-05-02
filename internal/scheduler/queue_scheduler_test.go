@@ -22,7 +22,6 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -536,12 +535,12 @@ func TestQueueScheduler(t *testing.T) {
 
 			indexByJobId := make(map[string]int)
 			for i, job := range tc.Jobs {
-				if _, ok := queueNameToQueue[job.GetQueue()]; !ok {
+				if _, ok := queueNameToQueue[job.Queue()]; !ok {
 					panic(fmt.Sprintf("queue %s does not exist", job.Queue()))
 				}
-				indexByJobId[job.GetId()] = i
+				indexByJobId[job.Id()] = i
 			}
-			legacySchedulerJobs := make([]interfaces.LegacySchedulerJob, len(tc.Jobs))
+			legacySchedulerJobs := make([]*jobdb.Job, len(tc.Jobs))
 			for i, job := range tc.Jobs {
 				legacySchedulerJobs[i] = job
 			}
@@ -615,7 +614,7 @@ func TestQueueScheduler(t *testing.T) {
 			expectedScheduledIndicesByQueue := armadaslices.GroupByFunc(
 				tc.ExpectedScheduledIndices,
 				func(i int) string {
-					return tc.Jobs[i].GetQueue()
+					return tc.Jobs[i].Queue()
 				},
 			)
 			expectedSuccessfulOrNotAttemptedIndices := armadaslices.MapAndGroupByFuncs(
@@ -632,7 +631,7 @@ func TestQueueScheduler(t *testing.T) {
 			expectedUnsuccessfulIndicesByQueue := armadaslices.GroupByFunc(
 				expectedUnsuccessfulIndices,
 				func(i int) string {
-					return tc.Jobs[i].GetQueue()
+					return tc.Jobs[i].Queue()
 				},
 			)
 			actualSuccessfulIndicesByQueue := make(map[string][]int)

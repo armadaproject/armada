@@ -246,13 +246,18 @@ type jobAdapter struct {
 	*api.JobSubmitRequestItem
 }
 
-// GetPriorityClassName is needed to fulfil the MinimalJob interface
-func (j jobAdapter) GetPriorityClassName() string {
+// PriorityClassName is needed to fulfil the MinimalJob interface
+func (j jobAdapter) PriorityClassName() string {
 	podSpec := j.GetMainPodSpec()
 	if podSpec != nil {
 		return j.GetMainPodSpec().PriorityClassName
 	}
 	return ""
+}
+
+// Annotations is needed to fulfil the MinimalJob interface
+func (j jobAdapter) Annotations() map[string]string {
+	return j.GetAnnotations()
 }
 
 // Ensures that any gang jobs defined in the request are consistent.  This checks that all jobs in the same gang have

@@ -28,7 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -254,7 +254,7 @@ func (s *Simulator) setupClusters() error {
 							),
 						}
 						txn := nodeDb.Txn(true)
-						if err := nodeDb.CreateAndInsertWithApiJobsWithTxn(txn, nil, node); err != nil {
+						if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
 							txn.Abort()
 							return err
 						}
@@ -499,9 +499,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			// Update jobDb to reflect the decisions by the scheduler.
 			// Sort jobs to ensure deterministic event ordering.
-			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult[*jobdb.Job](result)
+			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult(result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
-			failedJobs := scheduler.FailedJobsFromSchedulerResult[*jobdb.Job](result)
+			failedJobs := scheduler.FailedJobsFromSchedulerResult(result)
 			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {
 					return -1
@@ -517,7 +517,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			slices.SortFunc(preemptedJobs, lessJob)
 			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
-				return lessJob(a.Job.(*jobdb.Job), b.Job.(*jobdb.Job))
+				return lessJob(a.Job, b.Job)
 			})
 			slices.SortFunc(failedJobs, lessJob)
 			for i, job := range preemptedJobs {
@@ -529,10 +529,10 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				preemptedJobs[i] = job.WithQueued(false).WithFailed(true)
 			}
 			for i, jctx := range scheduledJobs {
-				job := jctx.Job.(*jobdb.Job)
-				nodeId := result.NodeIdByJobId[job.GetId()]
+				job := jctx.Job
+				nodeId := result.NodeIdByJobId[job.Id()]
 				if nodeId == "" {
-					return errors.Errorf("job %s not mapped to a node", job.GetId())
+					return errors.Errorf("job %s not mapped to a node", job.Id())
 				}
 				if node, err := nodeDb.GetNode(nodeId); err != nil {
 					return err
@@ -553,7 +553,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job.(*jobdb.Job) })); err != nil {
+			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
 				return err
 			}
 			if err := txn.Upsert(failedJobs); err != nil {
@@ -747,8 +747,8 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	run := job.LatestRun()
 	pool := s.poolByNodeId[run.NodeId()]
 	s.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()].SubV1ResourceList(
-		job.GetPriorityClassName(),
-		job.GetResourceRequirements().Requests,
+		job.PriorityClassName(),
+		job.ResourceRequirements().Requests,
 	)
 
 	// Unbind the job from the node on which it was scheduled.
@@ -759,7 +759,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	// Increase the successful job count for this jobTemplate.
 	// If all jobs created from this template have succeeded, update dependent templates
 	// and submit any templates for which this was the last dependency.
-	jobTemplate := s.jobTemplateByJobId[job.GetId()]
+	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	jobTemplate.NumberSuccessful++
 	if jobTemplate.Number == jobTemplate.NumberSuccessful {
 		delete(s.activeJobTemplatesById, jobTemplate.Id)
@@ -832,7 +832,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.
-	jobTemplate := s.jobTemplateByJobId[job.GetId()]
+	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	retryJobId := util.ULID()
 	resubmitTime := s.time.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.WorkflowManagerDelayDistribution))
 	s.pushEventSequence(
