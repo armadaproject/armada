@@ -1029,9 +1029,23 @@ func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*ar
 	it := txn.UnvalidatedJobs()
 
 	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
-		if !job.Validated() && !job.InTerminalState() {
-			jobsToCheck = append(jobsToCheck, job)
+
+		// Don't checkjobs that are terminal
+		if job.InTerminalState() {
+			continue
 		}
+
+		//  Don't check jobs that have already been validated
+		if job.Validated() {
+			continue
+		}
+
+		// Don't check jobs that have an active run
+		if job.HasRuns() && !job.LatestRun().InTerminalState() {
+			continue
+		}
+
+		jobsToCheck = append(jobsToCheck, job)
 	}
 
 	results, err := s.submitChecker.Check(jobsToCheck)
