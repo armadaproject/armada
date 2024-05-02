@@ -34,7 +34,7 @@ type Run struct {
 
 	// job run state
 	// Required: true
-	// Enum: [RUN_PENDING RUN_RUNNING RUN_SUCCEEDED RUN_FAILED RUN_TERMINATED RUN_PREEMPTED RUN_UNABLE_TO_SCHEDULE RUN_LEASE_RETURNED RUN_LEASE_EXPIRED RUN_MAX_RUNS_EXCEEDED RUN_LEASED]
+	// Enum: [RUN_PENDING RUN_RUNNING RUN_SUCCEEDED RUN_FAILED RUN_TERMINATED RUN_PREEMPTED RUN_UNABLE_TO_SCHEDULE RUN_LEASE_RETURNED RUN_LEASE_EXPIRED RUN_MAX_RUNS_EXCEEDED RUN_LEASED RUN_CANCELLED]
 	JobRunState string `json:"jobRunState"`
 
 	// leased
@@ -127,7 +127,7 @@ var runTypeJobRunStatePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED","RUN_LEASED"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED","RUN_LEASED","RUN_CANCELLED"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -169,6 +169,9 @@ const (
 
 	// RunJobRunStateRUNLEASED captures enum value "RUN_LEASED"
 	RunJobRunStateRUNLEASED string = "RUN_LEASED"
+
+	// RunJobRunStateRUNCANCELLED captures enum value "RUN_CANCELLED"
+	RunJobRunStateRUNCANCELLED string = "RUN_CANCELLED"
 )
 
 // prop value enum

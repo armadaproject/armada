@@ -24,7 +24,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -353,6 +352,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobsToFail               []string                          // ids of jobs we expect to fail without having failed the overall scheduling cycle
 		expectedJobsRunsToPreempt        []string                          // ids of jobs we expect to be preempted by the scheduler
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobRunCancelled          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled             []string                          // ids of jobs we expect to have  produced cancelled messages
 		expectedJobRequestCancel         []string                          // ids of jobs we expect to have produced request cancel
 		expectedJobReprioritised         []string                          // ids of jobs we expect to have  produced reprioritised messages
@@ -617,9 +617,10 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:          1,
 				},
 			},
-			expectedJobCancelled:  []string{leasedJob.Id()},
-			expectedTerminal:      []string{leasedJob.Id()},
-			expectedQueuedVersion: leasedJob.QueuedVersion(),
+			expectedJobRunCancelled: []string{leasedJob.Id()},
+			expectedJobCancelled:    []string{leasedJob.Id()},
+			expectedTerminal:        []string{leasedJob.Id()},
+			expectedQueuedVersion:   leasedJob.QueuedVersion(),
 		},
 		"Job Run preemption requested": {
 			initialJobs: []*jobdb.Job{preemptibleLeasedJob},
@@ -921,6 +922,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobErrors{}):        stringSet(tc.expectedJobErrors),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunErrors{}):     stringSet(tc.expectedJobRunErrors),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunPreempted{}):  stringSet(tc.expectedJobRunPreempted),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunCancelled{}):  stringSet(tc.expectedJobRunCancelled),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringSet(tc.expectedJobCancelled),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
@@ -1218,7 +1220,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				{
 					RunID:     leasedJob.LatestRun().Id(),
 					JobID:     leasedJob.LatestRun().JobId(),
-					JobSet:    leasedJob.GetJobSet(),
+					JobSet:    leasedJob.Jobset(),
 					Succeeded: true,
 				},
 			},
@@ -1485,7 +1487,7 @@ func (t *testSchedulingAlgo) Persist() {
 	return
 }
 
-func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
+func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
 	failedJobs S,
@@ -1901,6 +1903,15 @@ func TestCycleConsistency(t *testing.T) {
 					Events: []*armadaevents.EventSequence_Event{
 						{
 							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+								JobRunCancelled: &armadaevents.JobRunCancelled{
+									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
 									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
@@ -1937,6 +1948,15 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+								JobRunCancelled: &armadaevents.JobRunCancelled{
+									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
 									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 								},
 							},
