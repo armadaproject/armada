@@ -169,7 +169,9 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	jobIds := []string{}
 	jobIds = append(jobIds, req.JobIds...)
-	jobIds = append(jobIds, req.JobId)
+	if req.JobId != "" {
+		jobIds = append(jobIds, req.JobId)
+	}
 
 	if len(jobIds) == 0 {
 		log.Warnf("CancelJobs called for queue=%s and jobset=%s but with empty job id. Redirecting to CancelJobSet()", req.Queue, req.JobSetId)
