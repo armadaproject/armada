@@ -109,12 +109,6 @@ func TestSubmit_Success(t *testing.T) {
 				Return(true, "").
 				Times(1)
 
-			mockedObjects.jobRep.
-				EXPECT().
-				StorePulsarSchedulerJobDetails(ctx, gomock.Any()).
-				Return(nil).
-				Times(1)
-
 			expectedEventSequence := &armadaevents.EventSequence{
 				Queue:      testfixtures.DefaultQueue.Name,
 				JobSetName: testfixtures.DefaultJobset,
