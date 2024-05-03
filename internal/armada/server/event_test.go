@@ -391,8 +391,7 @@ func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *Ev
 
 	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	jobRepo := repository.NewRedisJobRepository(client)
-	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo, jobRepo)
+	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
 
 	client.FlushDB(ctx)
 	legacyClient.FlushDB(ctx)

@@ -23,7 +23,6 @@ import (
 type mockObjects struct {
 	publisher     *mocks.MockPublisher
 	queueRepo     *mocks.MockQueueRepository
-	jobRep        *mocks.MockJobRepository
 	deduplicator  *mocks.MockDeduplicator
 	submitChecker *mocks.MockSubmitScheduleChecker
 	authorizer    *mocks.MockActionAuthorizer
@@ -34,7 +33,6 @@ func createMocks(t *testing.T) *mockObjects {
 	return &mockObjects{
 		publisher:     mocks.NewMockPublisher(ctrl),
 		queueRepo:     mocks.NewMockQueueRepository(ctrl),
-		jobRep:        mocks.NewMockJobRepository(ctrl),
 		deduplicator:  mocks.NewMockDeduplicator(ctrl),
 		submitChecker: mocks.NewMockSubmitScheduleChecker(ctrl),
 		authorizer:    mocks.NewMockActionAuthorizer(ctrl),
@@ -107,12 +105,6 @@ func TestSubmit_Success(t *testing.T) {
 				EXPECT().
 				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
 				Return(true, "").
-				Times(1)
-
-			mockedObjects.jobRep.
-				EXPECT().
-				StorePulsarSchedulerJobDetails(ctx, gomock.Any()).
-				Return(nil).
 				Times(1)
 
 			expectedEventSequence := &armadaevents.EventSequence{
