@@ -263,7 +263,8 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 		m.jobRep,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,
-		m.authorizer)
+		m.authorizer,
+		true)
 	server.clock = clock.NewFakeClock(testfixtures.DefaultTime)
 	server.idGenerator = testfixtures.TestUlidGenerator()
 	return server, m

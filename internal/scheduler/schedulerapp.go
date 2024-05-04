@@ -38,6 +38,7 @@ import (
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
@@ -74,6 +75,15 @@ func Run(config schedulerconfig.Configuration) error {
 	health.SetupHttpMux(mux, healthChecks)
 	shutdownHttpServer := common.ServeHttp(uint16(config.Http.Port), mux)
 	defer shutdownHttpServer()
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Resource list factory
+	// ////////////////////////////////////////////////////////////////////////
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	if err != nil {
+		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -215,6 +225,7 @@ func Run(config schedulerconfig.Configuration) error {
 	submitChecker := NewSubmitChecker(
 		config.Scheduling,
 		executorRepository,
+		resourceListFactory,
 	)
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)
@@ -274,6 +285,7 @@ func Run(config schedulerconfig.Configuration) error {
 		nodeQuarantiner,
 		queueQuarantiner,
 		stringInterner,
+		resourceListFactory,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -323,7 +335,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository)
+	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository, resourceListFactory)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pool assigner")
 	}

@@ -304,10 +304,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 				t = time.Now()
 			}
 			if jst.Failed {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), false, t)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.Queue(), run.Executor(), false, t)
 			}
 			if jst.Succeeded {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), true, t)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.Queue(), run.Executor(), true, t)
 			}
 		}
 		s.failureEstimator.Update()
@@ -405,7 +405,7 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 		}
 	}
 	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
+		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job, nil); err != nil {
 			return err
 		}
 	}
@@ -473,7 +473,7 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
 	podRequirements := newSchedulingInfo.GetPodRequirements()
 	if podRequirements == nil {
-		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
+		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.Id())
 	}
 	newAffinity := podRequirements.Affinity
 	if newAffinity == nil {
@@ -518,7 +518,7 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +526,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -601,7 +601,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
 	for _, jctx := range jctxs {
-		job := jctx.Job.(*jobdb.Job)
+		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
@@ -611,7 +611,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 			return nil, errors.Errorf("attempting to generate lease eventSequences for job %s with no associated runs", job.Id())
 		}
 		runCreationTime := time.Unix(0, job.ActiveRunTimestamp())
-		scheduledAtPriority, hasScheduledAtPriority := job.GetScheduledAtPriority()
+		scheduledAtPriority, hasScheduledAtPriority := job.ScheduledAtPriority()
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(), // TODO: Rename to JobSet.
@@ -645,7 +645,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 
 func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
 	for _, job := range jobs {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
 		}
@@ -654,8 +654,8 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 			Reason:   &armadaevents.Error_GangJobUnschedulable{GangJobUnschedulable: &armadaevents.GangJobUnschedulable{Message: "Job did not meet the minimum gang cardinality"}},
 		}
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
-			Queue:      job.GetQueue(),
-			JobSetName: job.GetJobSet(),
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
 				{
 					Created: &time,
@@ -787,13 +787,13 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			failFast := job.GetAnnotations()[configuration.FailFastAnnotation] == "true"
+			failFast := job.Annotations()[configuration.FailFastAnnotation] == "true"
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
 				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
 				if err != nil {
-					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.GetId(), err)
+					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
 				} else {
 					if schedulable {
 						job = jobWithAntiAffinity
@@ -865,7 +865,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 
 				events = append(events, jobErrors)
 			}
-		} else if lastRun.PreemptRequested() && job.GetPriorityClass().Preemptible {
+		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(lastRun.Id()), s.clock.Now())...)
 		}

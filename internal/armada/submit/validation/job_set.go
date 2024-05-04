@@ -1,8 +1,9 @@
-package submit
+package validation
 
 import (
 	"fmt"
 
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -30,5 +31,28 @@ func ValidateJobSetFilter(filter *api.JobSetFilter) error {
 		}
 	}
 
+	return nil
+}
+
+type JobSetRequest interface {
+	GetJobSetId() string
+	GetQueue() string
+}
+
+func ValidateQueueAndJobSet(req JobSetRequest) error {
+	if req.GetQueue() == "" {
+		return &armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   req.GetQueue(),
+			Message: "queue cannot be empty",
+		}
+	}
+	if req.GetJobSetId() == "" {
+		return &armadaerrors.ErrInvalidArgument{
+			Name:    "JobSetId",
+			Value:   req.GetJobSetId(),
+			Message: "jobset cannot be empty",
+		}
+	}
 	return nil
 }
