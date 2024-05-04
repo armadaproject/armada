@@ -348,6 +348,7 @@ func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobd
 }
 
 func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job {
+	job = job.DeepCopy()
 	for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
 		req.GetPodRequirements().NodeSelector = maps.Clone(selector)
 	}
