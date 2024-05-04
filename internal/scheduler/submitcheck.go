@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -26,8 +26,6 @@ type schedulingResult struct {
 	isSchedulable bool
 	reason        string
 }
-
-const maxJobSchedulingResults = 10000
 
 type executorState struct {
 	executorsById             map[string]*nodedb.NodeDb
