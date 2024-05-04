@@ -77,7 +77,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			fakeClock := clock.NewFakeClock(baseTime)
-			submitCheck := NewSubmitChecker(tc.config, mockExecutorRepo)
+			submitCheck := NewSubmitChecker(tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
 			results, err := submitCheck.Check(tc.jobs)

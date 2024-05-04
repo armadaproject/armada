@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -26,6 +26,8 @@ type schedulingResult struct {
 	isSchedulable bool
 	reason        string
 }
+
+const maxJobSchedulingResults = 10000
 
 type executorState struct {
 	executorsById             map[string]*nodedb.NodeDb
@@ -40,6 +42,7 @@ type SubmitChecker struct {
 	schedulingConfig       configuration.SchedulingConfig
 	executorRepository     database.ExecutorRepository
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	resourceListFactory    *internaltypes.ResourceListFactory
 	state                  atomic.Pointer[executorState]
 	clock                  clock.Clock // can  be  overridden for testing
 }
@@ -47,10 +50,12 @@ type SubmitChecker struct {
 func NewSubmitChecker(
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) *SubmitChecker {
 	return &SubmitChecker{
 		schedulingConfig:       schedulingConfig,
 		executorRepository:     executorRepository,
+		resourceListFactory:    resourceListFactory,
 		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
 		clock:                  clock.RealClock{},
 	}
@@ -137,9 +142,9 @@ func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult,
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext, state *executorState) schedulingResult {
-	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	schedulingKey, ok := jctx.Job.SchedulingKey()
 	if !ok {
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		schedulingKey = jobdb.SchedulingKeyFromJob(srv.schedulingKeyGenerator, jctx.Job)
 	}
 
 	if obj, ok := state.jobSchedulingResultsCache.Get(schedulingKey); ok {
@@ -230,6 +235,7 @@ func (srv *SubmitChecker) constructNodeDb(executor *schedulerobjects.Executor) (
 		srv.schedulingConfig.IndexedNodeLabels,
 		srv.schedulingConfig.WellKnownNodeTypes,
 		stringinterner.New(10000),
+		srv.resourceListFactory,
 	)
 	if err != nil {
 		return nil, err
