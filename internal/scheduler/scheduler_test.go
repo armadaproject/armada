@@ -157,6 +157,7 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	false,
 )
 
 var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
@@ -171,6 +172,7 @@ var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	false,
 )
 
 var leasedJob = testfixtures.JobDb.NewJob(
@@ -185,6 +187,7 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	false,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var preemptibleLeasedJob = testfixtures.JobDb.NewJob(
@@ -199,6 +202,7 @@ var preemptibleLeasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	false,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var cancelledJob = testfixtures.JobDb.NewJob(
@@ -213,6 +217,7 @@ var cancelledJob = testfixtures.JobDb.NewJob(
 	false,
 	true,
 	1,
+	false,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
@@ -227,6 +232,7 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	false,
 ).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 	uuid.New(),
 	"01h3w2wtdchtc80hgyp782shrv",
@@ -288,6 +294,7 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	false,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var (
@@ -308,6 +315,7 @@ var (
 		false,
 		false,
 		1,
+		false,
 	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 		uuid.New(),
 		requeuedJobId,
@@ -1558,6 +1566,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	queuedJobWithTTLA = &database.Job{
@@ -1568,6 +1577,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoWithQueueTtlBytes,
 		SchedulingInfoVersion: int32(schedulingInfoWithQueueTtl.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	queuedJobWithFailFastA = &database.Job{
@@ -1578,6 +1588,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        failFastSchedulingInfoBytes,
 		SchedulingInfoVersion: int32(failFastSchedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	queuedJobWithUpdatedPriorityA = &database.Job{
@@ -1588,6 +1599,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
 		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
+		Validated:             true,
 		Serial:                1,
 	}
 	runningJobA = &database.Job{
@@ -1597,6 +1609,7 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	runningJobWithUpdatedPriorityA = &database.Job{
@@ -1606,6 +1619,7 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
 		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
+		Validated:             true,
 		Serial:                1,
 	}
 	failedJobA = &database.Job{
@@ -1616,6 +1630,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	cancelledJobA = &database.Job{
@@ -1626,6 +1641,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	cancelRequestedJobA = &database.Job{
@@ -1637,6 +1653,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	cancelByJobSetRequestedJobA = &database.Job{
@@ -1648,6 +1665,7 @@ var (
 		QueuedVersion:           0,
 		SchedulingInfo:          schedulingInfoBytes,
 		SchedulingInfoVersion:   int32(schedulingInfo.Version),
+		Validated:               true,
 		Serial:                  0,
 	}
 	runningCancelRequestedJobA = &database.Job{
@@ -1659,6 +1677,7 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	runningCancelByJobSetRequestedJobA = &database.Job{
@@ -1669,6 +1688,7 @@ var (
 		QueuedVersion:           1,
 		SchedulingInfo:          schedulingInfoBytes,
 		SchedulingInfoVersion:   int32(schedulingInfo.Version),
+		Validated:               true,
 		Serial:                  0,
 	}
 	newRunA = &database.Run{
@@ -1742,6 +1762,7 @@ func jobDbJobFromDbJob(job *database.Job) *jobdb.Job {
 		job.CancelByJobsetRequested,
 		job.Cancelled,
 		0,
+		job.Validated,
 	)
 }
 
@@ -2445,7 +2466,9 @@ func TestCycleConsistency(t *testing.T) {
 					},
 					leader.NewStandaloneLeaderController(),
 					newTestPublisher(),
-					&testSubmitChecker{},
+					&testSubmitChecker{
+						checkSuccess: true,
+					},
 					1*time.Second,
 					5*time.Second,
 					0,

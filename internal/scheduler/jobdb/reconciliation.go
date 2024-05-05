@@ -270,6 +270,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.CancelByJobsetRequested,
 		dbJob.Cancelled,
 		dbJob.Submitted,
+		dbJob.Validated,
 	)
 	if dbJob.Failed {
 		// TODO(albin): Let's make this an argument to NewJob. Even better: have the state as an enum argument.

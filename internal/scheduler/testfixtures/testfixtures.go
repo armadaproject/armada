@@ -464,6 +464,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		false,
 		false,
 		created,
+		false,
 	)
 }
 
@@ -818,6 +819,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		false,
 		BaseTime.UnixNano(),
+		false,
 	)
 }
 

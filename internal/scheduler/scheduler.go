@@ -1030,7 +1030,7 @@ func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*ar
 
 	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
 
-		// Don't checkjobs that are terminal
+		// Don't check jobs that are terminal
 		if job.InTerminalState() {
 			continue
 		}
@@ -1054,47 +1054,58 @@ func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*ar
 	}
 
 	events := make([]*armadaevents.EventSequence, 0)
-	jobsToFail := make([]*jobdb.Job, 0)
+	jobsToUpdate := make([]*jobdb.Job, 0)
 	for _, job := range jobsToCheck {
-
 		result := results[job.Id()]
 
-		if !result.isSchedulable {
-			job = job.WithFailed(true).WithQueued(false)
-			jobsToFail = append(jobsToFail, job)
-			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
-			if err != nil {
-				return nil, err
-			}
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+		if err != nil {
+			return nil, err
+		}
 
-			es := &armadaevents.EventSequence{
-				Queue:      job.Queue(),
-				JobSetName: job.Jobset(),
-				Events: []*armadaevents.EventSequence_Event{
-					{
-						Created: s.now(),
-						Event: &armadaevents.EventSequence_Event_JobErrors{
-							JobErrors: &armadaevents.JobErrors{
-								JobId: jobId,
-								Errors: []*armadaevents.Error{
-									{
-										Terminal: true,
-										Reason: &armadaevents.Error_PodUnschedulable{
-											PodUnschedulable: &armadaevents.PodUnschedulable{
-												Message: result.reason,
-											},
-										},
-									},
+		es := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+				},
+			},
+		}
+
+		if result.isSchedulable {
+			job = job.WithValidated(true)
+			jobsToUpdate = append(jobsToUpdate, job)
+
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobSubmitChecked{
+				JobSubmitChecked: &armadaevents.JobSubmitChecked{
+					JobId: jobId,
+				},
+			}
+		} else {
+			job = job.WithFailed(true).WithQueued(false)
+			jobsToUpdate = append(jobsToUpdate, job)
+
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_PodUnschedulable{
+								PodUnschedulable: &armadaevents.PodUnschedulable{
+									Message: result.reason,
 								},
 							},
 						},
 					},
 				},
 			}
-			events = append(events, es)
 		}
+		events = append(events, es)
 	}
-	if err := txn.Upsert(jobsToFail); err != nil {
+
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
 	return events, nil

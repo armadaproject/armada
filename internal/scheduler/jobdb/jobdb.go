@@ -129,6 +129,7 @@ func (jobDb *JobDb) NewJob(
 	cancelByJobSetRequested bool,
 	cancelled bool,
 	created int64,
+	validated bool,
 ) *Job {
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
@@ -149,6 +150,7 @@ func (jobDb *JobDb) NewJob(
 		cancelRequested:         cancelRequested,
 		cancelByJobSetRequested: cancelByJobSetRequested,
 		cancelled:               cancelled,
+		validated:               validated,
 		runsById:                map[uuid.UUID]*JobRun{},
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
@@ -360,9 +362,13 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
 				}
-
 				newQueuedJobsByTtl := txn.queuedJobsByTtl.Delete(existingJob)
 				txn.queuedJobsByTtl = &newQueuedJobsByTtl
+
+				if !existingJob.Validated() {
+					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
+					txn.unvalidatedJobs = &newUnvalidatedJobs
+				}
 			}
 		}
 	}
@@ -432,8 +438,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// Unvalidated jobs
 	go func() {
 		defer wg.Done()
-		if hasJobs {
-		}
 		for _, job := range jobs {
 			if !job.Validated() {
 				unvalidatedJobs := txn.unvalidatedJobs.Add(job)
