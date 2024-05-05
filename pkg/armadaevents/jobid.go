@@ -42,6 +42,8 @@ func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
 		return e.JobRunCancelled.JobId, nil
 	case *EventSequence_Event_JobRequeued:
 		return e.JobRequeued.JobId, nil
+	case *EventSequence_Event_JobSubmitChecked:
+		return e.JobSubmitChecked.JobId, nil
 	default:
 		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "event.Event",

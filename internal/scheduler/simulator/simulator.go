@@ -688,6 +688,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		false,
 		false,
 		s.logicalJobCreatedTimestamp.Add(1),
+		false,
 	)
 	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 		return nil, false, err
