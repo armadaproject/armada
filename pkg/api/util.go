@@ -2,26 +2,12 @@ package api
 
 import (
 	"fmt"
-	"math"
 	"strings"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-// IsTerminal returns true if the JobState s corresponds to a state
-// that indicates the job has been terminated.
-func (s JobState) IsTerminal() bool {
-	switch s {
-	case JobState_SUCCEEDED:
-		return true
-	case JobState_FAILED:
-		return true
-	}
-	return false
-}
 
 func NodeIdFromExecutorAndNodeName(executor, nodeName string) string {
 	return fmt.Sprintf("%s-%s", executor, nodeName)
@@ -43,21 +29,6 @@ func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
 		return schedulerobjects.JobRunState_UNKNOWN
 	}
 	return schedulerobjects.JobRunState_UNKNOWN
-}
-
-func (job *Job) GetPerQueuePriority() uint32 {
-	priority := job.Priority
-	if priority < 0 {
-		return 0
-	}
-	if priority > math.MaxUint32 {
-		return math.MaxUint32
-	}
-	return uint32(math.Round(priority))
-}
-
-func (job *Job) GetSubmitTime() time.Time {
-	return job.Created
 }
 
 // SchedulingResourceRequirementsFromPodSpec returns resource requests and limits necessary for scheduling a pod.
