@@ -8,7 +8,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -102,33 +101,6 @@ func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) v1.ResourceR
 		}
 	}
 	return rv
-}
-
-// PriorityFromPodSpec returns the priority in a pod spec.
-// If priority is set directly, that value is returned.
-// Otherwise, it returns the value of the key podSpec.
-// In both cases the value along with true boolean is returned.
-// PriorityClassName in priorityByPriorityClassName map.
-// If no priority is set for the pod spec, 0 along with a false boolean would be returned
-func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.PriorityClass) (int32, bool) {
-	// If there's no podspec there's nothing we can do
-	if podSpec == nil {
-		return 0, false
-	}
-
-	// If a priority is directly specified, use that
-	if podSpec.Priority != nil {
-		return *podSpec.Priority, true
-	}
-
-	// If we find a priority class use that
-	priorityClass, ok := priorityClasses[podSpec.PriorityClassName]
-	if ok {
-		return priorityClass.Priority, true
-	}
-
-	// Couldn't find anything
-	return 0, false
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
