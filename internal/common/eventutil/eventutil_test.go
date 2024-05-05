@@ -1,11 +1,13 @@
 package eventutil
 
 import (
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"testing"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestCompactSequences_Basic(t *testing.T) {
