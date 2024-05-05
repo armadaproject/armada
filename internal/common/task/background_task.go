@@ -19,7 +19,7 @@ type task struct {
 }
 
 // BackgroundTaskManager is used for registering tasks (functions) to be run periodically.
-// Prometehus log names for each task are prepended with metricsPrefix.
+// Prometheus log names for each task are prepended with metricsPrefix.
 // BackgroundTaskManager is not threadsafe; it should only be accessed from a single thread.
 type BackgroundTaskManager struct {
 	tasks         []*task

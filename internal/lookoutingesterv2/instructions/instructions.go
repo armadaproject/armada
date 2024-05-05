@@ -616,7 +616,7 @@ func extractNodeName(x HasNodeName) *string {
 func getJobResources(job *api.Job) jobResources {
 	resources := jobResources{}
 
-	podSpec := util.PodSpecFromJob(job)
+	podSpec := job.GetMainPodSpec()
 
 	for _, container := range podSpec.Containers {
 		resources.Cpu += getResource(container, v1.ResourceCPU, true)
@@ -640,7 +640,7 @@ func getResource(container v1.Container, resourceName v1.ResourceName, useMillis
 }
 
 func getJobPriorityClass(job *api.Job) *string {
-	podSpec := util.PodSpecFromJob(job)
+	podSpec := job.GetMainPodSpec()
 	if podSpec.PriorityClassName != "" {
 		return pointer.String(podSpec.PriorityClassName)
 	}

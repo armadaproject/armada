@@ -2002,7 +2002,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					}
 				}
 
-				err = jobDbTxn.BatchDelete(util.Map(queuedJobs, func(job *jobdb.Job) string { return job.Id() }))
+				err = jobDbTxn.BatchDelete(armadaslices.Map(queuedJobs, func(job *jobdb.Job) string { return job.Id() }))
 				require.NoError(t, err)
 
 				var preemptedJobs []*jobdb.Job
@@ -2242,7 +2242,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				scheduledJobs[jctx.JobId] = true
 			}
 			err = jobDbTxn.BatchDelete(
-				util.Map(
+				armadaslices.Map(
 					result.ScheduledJobs,
 					func(jctx *schedulercontext.JobSchedulingContext) string {
 						return jctx.JobId
