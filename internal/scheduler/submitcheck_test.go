@@ -120,7 +120,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			submitCheck := NewSubmitChecker(tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
-			results, err := submitCheck.Check(tc.jobs)
+			results, err := submitCheck.Check(ctx, tc.jobs)
 			require.NoError(t, err)
 			require.Equal(t, len(tc.expectedResult), len(results))
 			for id, expectedSchedulable := range tc.expectedResult {

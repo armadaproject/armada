@@ -33,7 +33,18 @@ type executorState struct {
 }
 
 type SubmitScheduleChecker interface {
-	Check(jobs []*jobdb.Job) (map[string]schedulingResult, error)
+	Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error)
+}
+
+// DummySubmitChecker  is a  SubmitScheduleChecker that allows every job
+type DummySubmitChecker struct{}
+
+func (srv *DummySubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+	results := make(map[string]schedulingResult, len(jobs))
+	for _, job := range jobs {
+		results[job.Id()] = schedulingResult{isSchedulable: true}
+	}
+	return results, nil
 }
 
 type SubmitChecker struct {
@@ -103,7 +114,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	})
 }
 
-func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+	start := time.Now()
 	state := srv.state.Load()
 	if state == nil {
 		return nil, fmt.Errorf("executor state not loaded")
@@ -134,6 +146,7 @@ func (srv *SubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult,
 			}
 		}
 	}
+	ctx.Infof("Checked %d jobs in %s", len(jobs), time.Since(start))
 	return results, nil
 }
 

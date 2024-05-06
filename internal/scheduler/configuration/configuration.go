@@ -60,6 +60,8 @@ type Configuration struct {
 	PulsarSendTimeout time.Duration `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
+	// If true then submit checks will be skipped
+	DisableSubmitCheck bool `validate:"required"`
 }
 
 func (c Configuration) Validate() error {

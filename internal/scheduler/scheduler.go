@@ -492,13 +492,13 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	return newSchedulingInfo, nil
 }
 
-func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobdb.Job) (*jobdb.Job, bool, error) {
+func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *armadacontext.Context, job *jobdb.Job) (*jobdb.Job, bool, error) {
 	schedulingInfoWithNodeAntiAffinity, err := s.createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job)
 	if err != nil {
 		return nil, false, err
 	}
 	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
-	results, err := s.submitChecker.Check([]*jobdb.Job{job})
+	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
 	if err != nil {
 		return nil, false, err
 	}
@@ -671,11 +671,11 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
-func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors, txn)
+		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -688,7 +688,7 @@ func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.
 
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages
@@ -791,7 +791,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
-				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
+				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx, job)
 				if err != nil {
 					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
 				} else {
@@ -1023,7 +1023,7 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 	return events, nil
 }
 
-func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	jobsToCheck := make([]*jobdb.Job, 0)
 
 	it := txn.UnvalidatedJobs()
@@ -1038,7 +1038,7 @@ func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*ar
 		jobsToCheck = append(jobsToCheck, job)
 	}
 
-	results, err := s.submitChecker.Check(jobsToCheck)
+	results, err := s.submitChecker.Check(ctx, jobsToCheck)
 	if err != nil {
 		return nil, err
 	}
