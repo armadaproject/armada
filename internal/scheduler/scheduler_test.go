@@ -1348,7 +1348,7 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) Check(jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
 	result := make(map[string]schedulingResult)
 	for _, job := range jobs {
 		if t.checkSuccess {
