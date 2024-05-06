@@ -368,6 +368,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobSucceeded             []string                          // ids of jobs we expect to have  produced succeeeded messages
 		expectedLeased                   []string                          // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedRequeued                 []string                          // ids of jobs we expected to be requeued in jobdb at the end of the cycle
+		expectedSubmitChecked            []string                          // ids of jobs we expected to have produced submit checked messages
 		expectedTerminal                 []string                          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
 		expectedJobPriority              map[string]uint32                 // expected priority of jobs at the end of the cycle
 		expectedNodeAntiAffinities       []string                          // list of nodes there is expected to be anti affinities for on job scheduling info
@@ -379,6 +380,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobRunLeased:  []string{queuedJob.Id()},
 			expectedLeased:        []string{queuedJob.Id()},
 			expectedQueuedVersion: 1,
+		},
+		"Submit check a job": {
+			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false)},
+			expectedQueued:        []string{queuedJob.Id()},
+			expectedSubmitChecked: []string{queuedJob.Id()},
+			expectedQueuedVersion: 0,
 		},
 		"Lease a single job from an update": {
 			jobUpdates: []database.Job{
@@ -947,6 +954,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringSet(tc.expectedJobRequestCancel),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSubmitChecked{}): stringSet(tc.expectedSubmitChecked),
 			}
 			err = subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstandingEventsByType)
 			require.NoError(t, err)
