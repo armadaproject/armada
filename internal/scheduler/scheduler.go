@@ -1035,16 +1035,6 @@ func (s *Scheduler) submitCheck(_ *armadacontext.Context, txn *jobdb.Txn) ([]*ar
 			continue
 		}
 
-		//  Don't check jobs that have already been validated
-		if job.Validated() {
-			continue
-		}
-
-		// Don't check jobs that have an active run
-		if job.HasRuns() && !job.LatestRun().InTerminalState() {
-			continue
-		}
-
 		jobsToCheck = append(jobsToCheck, job)
 	}
 

@@ -88,8 +88,6 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 
 	executorsById := map[string]*nodedb.NodeDb{}
 	for _, executor := range executors {
-		// TODO: filter out stale executors here. We don't do this now because if the scheduler has been down we mayf
-		// have all our executors as stale and therefore will reject all jobs.
 		nodeDb, err := srv.constructNodeDb(executor)
 		if err == nil {
 			executorsById[executor.Id] = nodeDb

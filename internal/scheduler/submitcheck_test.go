@@ -25,6 +25,14 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	largeJob1 := testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1)
 
+	// This Gang job will fit
+	smallGangJob := testfixtures.
+		WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 2))
+
+	// This gang job doesn't fit  as we only have room for three of these joobs
+	largeGangJob := testfixtures.
+		WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 4))
+
 	tests := map[string]struct {
 		executorTimout time.Duration
 		config         configuration.SchedulingConfig
@@ -32,40 +40,72 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		jobs           []*jobdb.Job
 		expectedResult map[string]bool
 	}{
-		"one job schedulable": {
+		"One job schedulable": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
 			jobs:           []*jobdb.Job{smallJob1},
 			expectedResult: map[string]bool{smallJob1.Id(): true},
 		},
-		"two jobs schedules": {
+		"Two jobs schedules": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
 			jobs:           []*jobdb.Job{smallJob1, smallJob2},
 			expectedResult: map[string]bool{smallJob1.Id(): true, smallJob2.Id(): true},
 		},
-		"one job schedulable, one not due to resources": {
+		"One job schedulable, one not due to resources": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
 			jobs:           []*jobdb.Job{smallJob1, largeJob1},
 			expectedResult: map[string]bool{smallJob1.Id(): true, largeJob1.Id(): false},
 		},
-		"no jobs schedulable due to resources": {
+		"No jobs schedulable due to resources": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
 			jobs:           []*jobdb.Job{largeJob1},
 			expectedResult: map[string]bool{largeJob1.Id(): false},
 		},
-		"no jobs schedulable due to selector": {
+		"No jobs schedulable due to selector": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
 			jobs:           []*jobdb.Job{testfixtures.WithNodeSelectorJob(map[string]string{"foo": "bar"}, smallJob1)},
 			expectedResult: map[string]bool{smallJob1.Id(): false},
+		},
+		"Gang Schedules": {
+			executorTimout: defaultTimeout,
+			config:         testfixtures.TestSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
+			jobs:           smallGangJob,
+			expectedResult: map[string]bool{smallGangJob[0].Id(): true, smallGangJob[1].Id(): true},
+		},
+		"Individual jobs fit but gang doesn't": {
+			executorTimout: defaultTimeout,
+			config:         testfixtures.TestSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
+			jobs:           largeGangJob,
+			expectedResult: map[string]bool{
+				largeGangJob[0].Id(): false,
+				largeGangJob[1].Id(): false,
+				largeGangJob[2].Id(): false,
+				largeGangJob[3].Id(): false,
+			},
+		},
+		"One job fits, one gang doesn't, out of order": {
+			executorTimout: defaultTimeout,
+			config:         testfixtures.TestSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(baseTime)},
+			jobs:           []*jobdb.Job{largeGangJob[0], smallJob1, largeGangJob[1], largeGangJob[2], largeGangJob[3]},
+			expectedResult: map[string]bool{
+				largeGangJob[0].Id(): false,
+				largeGangJob[1].Id(): false,
+				largeGangJob[2].Id(): false,
+				largeGangJob[3].Id(): false,
+				smallJob1.Id():       true,
+			},
 		},
 	}
 	for name, tc := range tests {
