@@ -22,7 +22,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -428,7 +427,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Message: "JobSetId is empty",
 		}
 	}
-	priority := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
+	priority := conversion.PriorityAsInt32(req.NewPriority)
 
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)

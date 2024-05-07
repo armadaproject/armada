@@ -7,10 +7,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"k8s.io/utils/strings/slices"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
@@ -104,7 +105,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	}
 	normalFilters, annotationFilters := splitFilters(filters)
 
-	fields := util.Map(normalFilters, func(filter *model.Filter) string { return filter.Field })
+	fields := armadaslices.Map(normalFilters, func(filter *model.Filter) string { return filter.Field })
 	if !orderIsNull(order) {
 		fields = append(fields, order.Field)
 	}
@@ -275,8 +276,8 @@ func (qb *QueryBuilder) GroupBy(
 	}
 
 	normalFilters, annotationFilters := splitFilters(filters)
-	fields := util.Concat(
-		util.Map(normalFilters, func(filter *model.Filter) string { return filter.Field }),
+	fields := armadaslices.Concatenate(
+		armadaslices.Map(normalFilters, func(filter *model.Filter) string { return filter.Field }),
 		aggregates,
 	)
 	if !orderIsNull(order) && order.Field != countCol { // count does not correspond to a column in any table

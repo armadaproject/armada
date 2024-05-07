@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
@@ -115,7 +115,7 @@ func scanGroup(rows pgx.Rows, field string, aggregates []string, filters []*mode
 	for i, parser := range aggregateParsers {
 		aggregateRefs[i] = parser.GetVariableRef()
 	}
-	varAddresses := util.Concat([]interface{}{groupParser.GetVariableRef(), &count}, aggregateRefs)
+	varAddresses := slices.Concatenate([]interface{}{groupParser.GetVariableRef(), &count}, aggregateRefs)
 	err := rows.Scan(varAddresses...)
 	if err != nil {
 		return nil, err

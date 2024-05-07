@@ -16,9 +16,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -251,7 +251,7 @@ func NewNodeDb(
 	nodeDbPriorities := []int32{evictedPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
-	indexedResourceNames := util.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
+	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
 	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
@@ -289,7 +289,7 @@ func NewNodeDb(
 		maxExtraNodesToConsider: maxExtraNodesToConsider,
 		indexedResources:        indexedResourceNames,
 		indexedResourcesSet:     mapFromSlice(indexedResourceNames),
-		indexedResourceResolutionMillis: util.Map(
+		indexedResourceResolutionMillis: slices.Map(
 			indexedResources,
 			func(v configuration.ResourceType) int64 { return v.Resolution.MilliValue() },
 		),

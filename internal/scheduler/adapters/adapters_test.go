@@ -10,18 +10,26 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+const (
+	PriorityClass0 = "priority-0"
+	PriorityClass1 = "priority-1"
+	PriorityClass2 = "priority-2"
+	PriorityClass3 = "priority-3"
+)
+
 var (
 	priorityByPriorityClassName = map[string]types.PriorityClass{
-		"priority-0": {Priority: 0, Preemptible: true},
-		"priority-1": {Priority: 1, Preemptible: true},
-		"priority-2": {Priority: 2, Preemptible: true},
-		"priority-3": {Priority: 3, Preemptible: false},
+		PriorityClass0: {Priority: 0, Preemptible: true},
+		PriorityClass1: {Priority: 1, Preemptible: true},
+		PriorityClass2: {Priority: 2, Preemptible: true},
+		PriorityClass3: {Priority: 3, Preemptible: false},
 	}
 
 	priority int32 = 1
@@ -194,4 +202,47 @@ func TestPodRequirementsFromPod(t *testing.T) {
 	// affect the original pod definition. This assertion checks if the length of "pod.Annotation" is altered
 	// in view of the modification made to "rv" above.
 	assert.Len(t, pod.Annotations, 2)
+}
+
+func TestPriorityFromPodSpec(t *testing.T) {
+	tests := map[string]struct {
+		podSpec          *v1.PodSpec
+		expectedPriority int32
+		expectedOk       bool
+	}{
+		"nil podSpec": {
+			podSpec:          nil,
+			expectedPriority: 0,
+			expectedOk:       false,
+		},
+		"priority already set": {
+			podSpec: &v1.PodSpec{
+				Priority:          pointer.Int32(1),
+				PriorityClassName: PriorityClass2,
+			},
+			expectedPriority: 1,
+			expectedOk:       true,
+		},
+		"existing priorityClass": {
+			podSpec: &v1.PodSpec{
+				PriorityClassName: PriorityClass2,
+			},
+			expectedPriority: 2,
+			expectedOk:       true,
+		},
+		"non-existing priorityClass": {
+			podSpec: &v1.PodSpec{
+				PriorityClassName: "does not exist",
+			},
+			expectedPriority: 0,
+			expectedOk:       false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			p, ok := PriorityFromPodSpec(tc.podSpec, priorityByPriorityClassName)
+			assert.Equal(t, tc.expectedPriority, p)
+			assert.Equal(t, tc.expectedOk, ok)
+		})
+	}
 }

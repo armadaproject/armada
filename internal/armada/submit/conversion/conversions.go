@@ -26,7 +26,7 @@ func SubmitJobFromApiRequest(
 ) *armadaevents.SubmitJob {
 	jobId := idGen()
 	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
-	priority := priorityAsInt32(jobReq.GetPriority())
+	priority := PriorityAsInt32(jobReq.GetPriority())
 	ingressesAndServices := convertIngressesAndServices(jobReq, jobIdStr, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
@@ -230,7 +230,7 @@ func createIngressFromService(
 	}
 }
 
-func priorityAsInt32(priority float64) uint32 {
+func PriorityAsInt32(priority float64) uint32 {
 	if priority < 0 {
 		priority = 0
 	}
