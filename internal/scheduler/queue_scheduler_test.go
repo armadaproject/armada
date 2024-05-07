@@ -12,13 +12,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/pkg/api"
-
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -26,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestQueueScheduler(t *testing.T) {
@@ -645,7 +643,7 @@ func TestQueueScheduler(t *testing.T) {
 				qctx := sctx.QueueSchedulingContexts[queue]
 				require.NotNil(t, queue)
 
-				is := util.Map(
+				is := armadaslices.Map(
 					maps.Keys(qctx.SuccessfulJobSchedulingContexts),
 					func(jobId string) int {
 						return indexByJobId[jobId]
@@ -656,7 +654,7 @@ func TestQueueScheduler(t *testing.T) {
 					actualSuccessfulIndicesByQueue[queue] = is
 				}
 
-				is = util.Map(
+				is = armadaslices.Map(
 					maps.Keys(qctx.UnsuccessfulJobSchedulingContexts),
 					func(jobId string) int {
 						return indexByJobId[jobId]
