@@ -1029,12 +1029,10 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 	it := txn.UnvalidatedJobs()
 
 	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
-
 		// Don't check jobs that are terminal
 		if job.InTerminalState() {
 			continue
 		}
-
 		jobsToCheck = append(jobsToCheck, job)
 	}
 
@@ -1067,8 +1065,8 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 			job = job.WithValidated(true)
 			jobsToUpdate = append(jobsToUpdate, job)
 
-			es.Events[0].Event = &armadaevents.EventSequence_Event_JobSubmitChecked{
-				JobSubmitChecked: &armadaevents.JobSubmitChecked{
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobValidated{
+				JobValidated: &armadaevents.JobValidated{
 					JobId: jobId,
 				},
 			}

@@ -113,8 +113,8 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned(), eventTime)
-		case *armadaevents.EventSequence_Event_JobSubmitChecked:
-			operationsFromEvent, err = c.handleJobSubmitChecked(event.GetJobSubmitChecked())
+		case *armadaevents.EventSequence_Event_JobValidated:
+			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
@@ -402,13 +402,13 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 	}}, nil
 }
 
-func (c *InstructionConverter) handleJobSubmitChecked(checked *armadaevents.JobSubmitChecked) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValidated) ([]DbOperation, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(checked.GetJobId())
 	if err != nil {
 		return nil, err
 	}
 	return []DbOperation{
-		MarkJobsSubmitChecked{jobId: true},
+		MarkJobsValidated{jobId: true},
 	}, nil
 }
 

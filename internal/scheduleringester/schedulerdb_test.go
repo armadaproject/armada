@@ -49,7 +49,7 @@ func TestWriteOps(t *testing.T) {
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
 			},
-			MarkJobsSubmitChecked{
+			MarkJobsValidated{
 				jobIds[0]: true,
 				jobIds[1]: true,
 			},
@@ -761,7 +761,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			assert.Equal(t, expectedMarker.PartitionID, actualMarker.PartitionID)
 			assert.Equal(t, expectedMarker.Created, actualMarker.Created)
 		}
-	case MarkJobsSubmitChecked:
+	case MarkJobsValidated:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)

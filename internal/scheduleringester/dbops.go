@@ -134,7 +134,7 @@ type (
 	MarkRunsPending                map[uuid.UUID]time.Time
 	MarkRunsPreempted              map[uuid.UUID]time.Time
 	InsertJobRunErrors             map[uuid.UUID]*schedulerdb.JobRunError
-	MarkJobsSubmitChecked          map[string]bool
+	MarkJobsValidated              map[string]bool
 	InsertPartitionMarker          struct {
 		markers []*schedulerdb.Marker
 	}
@@ -254,7 +254,7 @@ func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
-func (a MarkJobsSubmitChecked) Merge(b DbOperation) bool {
+func (a MarkJobsValidated) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -409,7 +409,7 @@ func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {
 	return true
 }
 
-func (a MarkJobsSubmitChecked) CanBeAppliedBefore(b DbOperation) bool {
+func (a MarkJobsValidated) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 

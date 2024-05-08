@@ -334,7 +334,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 		return nil
-	case MarkJobsSubmitChecked:
+	case MarkJobsValidated:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsSubmitCheckedById(ctx, jobIds)
 		if err != nil {

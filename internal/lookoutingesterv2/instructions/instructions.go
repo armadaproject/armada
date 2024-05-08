@@ -121,7 +121,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 		case *armadaevents.EventSequence_Event_PartitionMarker:
-		case *armadaevents.EventSequence_Event_JobSubmitChecked:
+		case *armadaevents.EventSequence_Event_JobValidated:
 			log.Debugf("Ignoring event type %T", event.GetEvent())
 		default:
 			log.Warnf("Ignoring unknown event type %T", event.GetEvent())
