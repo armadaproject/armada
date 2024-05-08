@@ -40,6 +40,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		Node:               job.Node,
 		Cluster:            job.Cluster,
 		ExitCode:           job.ExitCode,
+		RuntimeSeconds:     job.RuntimeSeconds,
 	}
 }
 

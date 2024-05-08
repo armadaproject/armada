@@ -43,6 +43,7 @@ type Job struct {
 	Node               *string
 	Cluster            string
 	ExitCode           *int32
+	RuntimeSeconds     int32
 }
 
 // PostgreSQLTime is a wrapper around time.Time that converts to UTC when
