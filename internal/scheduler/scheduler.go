@@ -1082,8 +1082,8 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
-							Reason: &armadaevents.Error_PodUnschedulable{
-								PodUnschedulable: &armadaevents.PodUnschedulable{
+							Reason: &armadaevents.Error_JobRejected{
+								JobRejected: &armadaevents.JobRejected{
 									Message: result.reason,
 								},
 							},
