@@ -7,6 +7,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
@@ -15,11 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
