@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	slices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -58,11 +59,11 @@ var (
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "gpu", Resolution: resource.MustParse("1")},
 	}
-	TestResourceNames = util.Map(
+	TestResourceNames = slices.Map(
 		TestResources,
 		func(v configuration.ResourceType) string { return v.Name },
 	)
-	TestIndexedResourceResolutionMillis = util.Map(
+	TestIndexedResourceResolutionMillis = slices.Map(
 		TestResources,
 		func(v configuration.ResourceType) int64 { return v.Resolution.MilliValue() },
 	)

@@ -6,8 +6,8 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
@@ -78,7 +78,7 @@ func (repo *InMemoryJobRepository) sortQueue(queue string) {
 }
 
 func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) []string {
-	return util.Map(
+	return armadaslices.Map(
 		repo.jctxsByQueue[queue],
 		func(jctx *schedulercontext.JobSchedulingContext) string {
 			return jctx.Job.Id()

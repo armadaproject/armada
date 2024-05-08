@@ -9,7 +9,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/slices"
-	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -115,7 +114,7 @@ func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAv
 	// We make the assumption here that JobRunStateStore knows about all job runs and don't reconcile again against kubernetes
 	// This should be a safe assumption - and would be a bug if it was ever not true
 	allJobRuns := r.jobRunStateStore.GetAll()
-	allJobRunIds = append(allJobRunIds, util2.Map(allJobRuns, func(val *job.RunState) string {
+	allJobRunIds = append(allJobRunIds, slices.Map(allJobRuns, func(val *job.RunState) string {
 		return val.Meta.RunId
 	})...)
 
