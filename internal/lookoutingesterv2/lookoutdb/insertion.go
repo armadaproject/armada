@@ -61,10 +61,6 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 		defer wg.Done()
 		l.CreateJobRuns(ctx, instructions.JobRunsToCreate)
 	}()
-	go func() {
-		defer wg.Done()
-		l.CreateUserAnnotations(ctx, instructions.UserAnnotationsToCreate)
-	}()
 
 	wg.Wait()
 
@@ -115,17 +111,6 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 	if err != nil {
 		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
-	}
-}
-
-func (l *LookoutDb) CreateUserAnnotations(ctx *armadacontext.Context, instructions []*model.CreateUserAnnotationInstruction) {
-	if len(instructions) == 0 {
-		return
-	}
-	err := l.CreateUserAnnotationsBatch(ctx, instructions)
-	if err != nil {
-		log.WithError(err).Warn("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).")
-		l.CreateUserAnnotationsScalar(ctx, instructions)
 	}
 }
 
@@ -619,98 +604,6 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job run %s failed", i.RunId)
-		}
-	}
-}
-
-func (l *LookoutDb) CreateUserAnnotationsBatch(ctx *armadacontext.Context, instructions []*model.CreateUserAnnotationInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("user_annotation_lookup")
-
-		createTmp := func(tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s (
-					job_id varchar(32),
-					key    varchar(1024),
-					value  varchar(1024),
-					queue  varchar(512),
-					jobset varchar(1024)
-				) ON COMMIT DROP;`, tmpTable))
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
-			}
-			return err
-		}
-
-		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
-				pgx.Identifier{tmpTable},
-				[]string{
-					"job_id",
-					"key",
-					"value",
-					"queue",
-					"jobset",
-				},
-				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
-					return []interface{}{
-						instructions[i].JobId,
-						instructions[i].Key,
-						instructions[i].Value,
-						instructions[i].Queue,
-						instructions[i].Jobset,
-					}, nil
-				}),
-			)
-			return err
-		}
-
-		copyToDest := func(tx pgx.Tx) error {
-			_, err := tx.Exec(
-				ctx,
-				fmt.Sprintf(`
-					INSERT INTO user_annotation_lookup (
-						job_id,
-						key,
-						value,
-						queue,
-						jobset
-					) SELECT * from %s
-					ON CONFLICT DO NOTHING`, tmpTable))
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		}
-		return batchInsert(ctx, l.db, createTmp, insertTmp, copyToDest)
-	})
-}
-
-func (l *LookoutDb) CreateUserAnnotationsScalar(ctx *armadacontext.Context, instructions []*model.CreateUserAnnotationInstruction) {
-	sqlStatement := `INSERT INTO user_annotation_lookup (
-			job_id,
-			key,
-			value,
-			queue,
-			jobset)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING`
-	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement,
-				i.JobId,
-				i.Key,
-				i.Value,
-				i.Queue,
-				i.Jobset)
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		})
-		// TODO- work out what is a retryable error
-		if err != nil {
-			log.WithError(err).Warnf("Create annotation run for job %s, key %s failed", i.JobId, i.Key)
 		}
 	}
 }
