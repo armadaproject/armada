@@ -73,45 +73,53 @@ func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobsScalar(ctx, instructions)
 	}
+	log.Infof("Inserted %d jobs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	instructions = l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobsScalar(ctx, instructions)
 	}
+	log.Infof("Updated %d jobs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobRunsScalar(ctx, instructions)
 	}
+	log.Infof("Inserted %d job runs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
+	log.Infof("Updated %d job runs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
@@ -755,7 +763,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	for i, instruction := range instructions {
 		jobIds[i] = instruction.JobId
 	}
-
+	queryStart := time.Now()
 	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
 		terminalStates := []int{
 			lookout.JobSucceededOrdinal,
@@ -783,6 +791,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 			terminalJobs[jobId] = int(state)
 		}
 	}
+	log.Infof("Lookup of terminal states for %d jobs took %s and returned  %d results", len(instructions), time.Since(queryStart), len(terminalJobs))
 
 	if len(terminalJobs) > 0 {
 		jobInstructionMap := make(map[string]*updateInstructionsForJob)
