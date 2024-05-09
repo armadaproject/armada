@@ -7,6 +7,8 @@ import (
 	"sort"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
@@ -206,7 +208,7 @@ func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters 
 				job.Node = lastRun.Node
 				job.Cluster = lastRun.Cluster
 				job.ExitCode = lastRun.ExitCode
-
+				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, clock.RealClock{})
 			}
 			jobs = append(jobs, job)
 		}
@@ -263,12 +265,30 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			job.Node = lastRun.Node
 			job.Cluster = lastRun.Cluster
 			job.ExitCode = lastRun.ExitCode
-
+			job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, clock.RealClock{})
 		}
 		jobs[i] = job
 	}
 
 	return jobs, nil
+}
+
+func calculateJobRuntime(started, finished *model.PostgreSQLTime, clock clock.Clock) int32 {
+	if started == nil {
+		return 0
+	}
+
+	if finished == nil {
+		now := clock.Now()
+		return formatDuration(started.Time, now)
+	}
+
+	return formatDuration(started.Time, finished.Time)
+}
+
+func formatDuration(start, end time.Time) int32 {
+	duration := end.Sub(start).Round(time.Second)
+	return int32(duration.Seconds())
 }
 
 func jobRowToModel(row *jobRow) *model.Job {
