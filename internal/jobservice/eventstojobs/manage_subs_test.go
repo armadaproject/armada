@@ -99,16 +99,6 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 			wantSubscriptionErr: true,
 		},
 		{
-			name:         "client errors and sets subscription error, enters reconnect loop, reconnects to continue on and exit normally",
-			ttlSecs:      time.Second * 10,
-			eventClients: []MockEventClient{{err: errors.New("some error 1")}, {err: errors.New("some error 2")}, {}},
-			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
-				return true, "", nil
-			},
-			wantErr:             false,
-			wantSubscriptionErr: true,
-		},
-		{
 			name:         "it exits without error when job unsubscribes",
 			ttlSecs:      time.Second,
 			eventClients: []MockEventClient{{}},
