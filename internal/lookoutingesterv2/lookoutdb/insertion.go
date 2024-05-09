@@ -52,7 +52,7 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 
 	// Now we can job updates, annotations and new job runs
 	wg := sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		l.UpdateJobs(ctx, jobsToUpdate)

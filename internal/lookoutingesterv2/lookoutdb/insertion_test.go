@@ -598,7 +598,6 @@ func TestStoreWithEmptyInstructionSet(t *testing.T) {
 		assert.NoError(t, err)
 		assertNoRows(t, ldb.db, "job")
 		assertNoRows(t, ldb.db, "job_run")
-		assertNoRows(t, ldb.db, "user_annotation_lookup")
 		return nil
 	})
 	assert.NoError(t, err)
