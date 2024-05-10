@@ -30,18 +30,16 @@ type GroupJobsRepository interface {
 }
 
 type SqlGroupJobsRepository struct {
-	db              *pgxpool.Pool
-	lookoutTables   *LookoutTables
-	useJsonbBackend bool
+	db            *pgxpool.Pool
+	lookoutTables *LookoutTables
 }
 
 const stateAggregatePrefix = "state_"
 
-func NewSqlGroupJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGroupJobsRepository {
+func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
-		db:              db,
-		lookoutTables:   NewTables(),
-		useJsonbBackend: useJsonbBackend,
+		db:            db,
+		lookoutTables: NewTables(),
 	}
 }
 
@@ -55,12 +53,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	skip int,
 	take int,
 ) (*GroupByResult, error) {
-	qb := NewQueryBuilder(r.lookoutTables)
-	groupBy := qb.GroupBy
-	if r.useJsonbBackend {
-		groupBy = qb.GroupByJsonb
-	}
-	query, err := groupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
+	query, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 	if err != nil {
 		return nil, err
 	}
