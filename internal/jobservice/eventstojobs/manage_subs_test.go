@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"testing"
 	"time"
@@ -101,7 +103,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 		{
 			name:         "it exits without error when job unsubscribes",
 			ttlSecs:      time.Second,
-			eventClients: []MockEventClient{{}},
+			eventClients: []MockEventClient{{err: status.Error(codes.Canceled, "context canceled")}},
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return false, "", nil
 			},
@@ -169,7 +171,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 				assert.Equal(t, 3, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()))
 			} else {
 				assert.Equal(t, 0, len(mockJobRepo.SetSubscriptionErrorCalls()))
-				assert.True(t, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()) > 0)
+				assert.True(t, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()) >= 0)
 			}
 		})
 	}

@@ -2,8 +2,9 @@ package eventstojobs
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"sync"
 	"time"
@@ -307,7 +308,10 @@ func (js *JobSetSubscription) Subscribe() error {
 					if err == io.EOF {
 						log.WithFields(requestFields).Info("Reached stream end for JobSetSubscription")
 						return nil
-					} else if errors.Is(err, context.Canceled) {
+					}
+
+					st, ok := status.FromError(err)
+					if ok && st.Code() == codes.Canceled {
 						// The select case will handle context being done/canceled.
 						continue
 					}
