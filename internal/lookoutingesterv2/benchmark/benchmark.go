@@ -44,7 +44,7 @@ func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configu
 func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 1000
 	jobIds := makeUlids(n)
-	jobsToCreate := createJobInstructions(jobIds, n)
+	jobsToCreate := createJobInstructions(jobIds, n, 10*n)
 	instructions := &model.InstructionSet{
 		JobsToCreate: jobsToCreate,
 	}
@@ -62,7 +62,7 @@ func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngester
 func benchmarkSubmissions10000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 10000
 	jobIds := makeUlids(n)
-	jobsToCreate := createJobInstructions(jobIds, n)
+	jobsToCreate := createJobInstructions(jobIds, n, 10*n)
 	instructions := &model.InstructionSet{
 		JobsToCreate: jobsToCreate,
 	}
@@ -87,7 +87,7 @@ func benchmarkUpdates1000(b *testing.B, config configuration.LookoutIngesterV2Co
 	jobIds := makeUlids(n)
 	jobRunIds := makeUuids(runsPerJob * n)
 
-	jobsToCreate := createJobInstructions(jobIds, n)
+	jobsToCreate := createJobInstructions(jobIds, n, 10*n)
 	initialInstructions := &model.InstructionSet{
 		JobsToCreate: jobsToCreate,
 	}
@@ -123,7 +123,7 @@ func benchmarkUpdates10000(b *testing.B, config configuration.LookoutIngesterV2C
 	jobIds := makeUlids(n)
 	jobRunIds := makeUuids(runsPerJob * n)
 
-	jobsToCreate := createJobInstructions(jobIds, n)
+	jobsToCreate := createJobInstructions(jobIds, n, 10*n)
 	initialInstructions := &model.InstructionSet{
 		JobsToCreate: jobsToCreate,
 	}
@@ -165,7 +165,7 @@ func makeUuids(n int) []string {
 	return uuids
 }
 
-func createJobInstructions(jobIds []string, numJobs int) []*model.CreateJobInstruction {
+func createJobInstructions(jobIds []string, numJobs int, numUserAnnotations int) []*model.CreateJobInstruction {
 	createJobInstructions := make([]*model.CreateJobInstruction, numJobs)
 	jobBytes := make([]byte, 10000, 10000)
 	rand.Read(jobBytes)
@@ -189,6 +189,12 @@ func createJobInstructions(jobIds []string, numJobs int) []*model.CreateJobInstr
 			PriorityClass:             pointer.String(uuid.NewString()),
 			Annotations:               make(map[string]string),
 		}
+	}
+	for i := 0; i < numUserAnnotations; i++ {
+		job := createJobInstructions[i%len(createJobInstructions)]
+		k := uuid.NewString()
+		v := uuid.NewString()
+		job.Annotations[k] = v
 	}
 	return createJobInstructions
 }
