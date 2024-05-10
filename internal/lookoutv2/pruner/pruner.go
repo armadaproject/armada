@@ -94,7 +94,6 @@ func deleteBatch(ctx *armadacontext.Context, tx pgx.Tx, batchLimit int) (int, er
 	_, err = tx.Exec(ctx, `
 		DELETE FROM job WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_run WHERE job_id in (SELECT job_id from batch);
-		DELETE FROM user_annotation_lookup WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_ids_to_delete WHERE job_id in (SELECT job_id from batch);
 		TRUNCATE TABLE batch;`)
 	if err != nil {
