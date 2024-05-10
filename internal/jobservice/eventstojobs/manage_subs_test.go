@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"io"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"

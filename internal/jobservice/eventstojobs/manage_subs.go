@@ -3,11 +3,12 @@ package eventstojobs
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"io"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
