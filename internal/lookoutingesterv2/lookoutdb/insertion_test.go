@@ -95,14 +95,6 @@ type JobRunRow struct {
 	ExitCode    *int32
 }
 
-type UserAnnotationRow struct {
-	JobId  string
-	Key    string
-	Value  string
-	Queue  string
-	JobSet string
-}
-
 func defaultInstructionSet() *model.InstructionSet {
 	return &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(jobIdString)},
