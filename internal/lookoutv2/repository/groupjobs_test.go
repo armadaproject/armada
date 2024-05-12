@@ -21,17 +21,12 @@ import (
 )
 
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
-	for _, useJsonbBackend := range []bool{false, true} {
-		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
-			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-			repo := NewSqlGroupJobsRepository(db, useJsonbBackend)
-			return f(converter, store, repo)
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		repo := NewSqlGroupJobsRepository(db)
+		return f(converter, store, repo)
+	})
 }
 
 func TestGroupByQueue(t *testing.T) {
