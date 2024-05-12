@@ -21,9 +21,11 @@ func PruneDb(
 	clock clock.Clock,
 ) error {
 	var result *multierror.Error
+
 	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock); err != nil {
 		result = multierror.Append(result, err)
 	}
+
 	if err := deleteDeduplications(ctx, db, deduplicationLifetime, clock); err != nil {
 		result = multierror.Append(result, err)
 	}
@@ -33,8 +35,13 @@ func PruneDb(
 
 func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicationLifetime time.Duration, clock clock.Clock) error {
 	cutOffTime := clock.Now().Add(-deduplicationLifetime)
-	_, err := db.Exec(ctx, "DELETE FROM job_deduplication WHERE inserted <= $1", cutOffTime)
-	return errors.Wrap(err, "error deleting deduplications from postgres")
+	log.Infof("Deleting all rows from job_deduplication older than %s", cutOffTime)
+	cmdTag, err := db.Exec(ctx, "DELETE FROM job_deduplication WHERE inserted <= $1", cutOffTime)
+	if err != nil {
+		return errors.Wrap(err, "error deleting deduplications from postgres")
+	}
+	log.Infof("Deleted %d rows", cmdTag.RowsAffected())
+	return nil
 }
 
 func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock) error {
