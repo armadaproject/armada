@@ -34,6 +34,7 @@ var (
 		validateTerminationGracePeriod,
 		validateIngresses,
 		validatePorts,
+		validateClientId,
 	}
 )
 
@@ -175,6 +176,15 @@ func validateAffinity(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 		if err != nil {
 			return fmt.Errorf("invalid RequiredDuringSchedulingIgnoredDuringExecution node affinity: %v", err)
 		}
+	}
+	return nil
+}
+
+// Ensures that if a request specifies a ClientId, that clientID is not too long
+func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	const maxClientIdChars = 100
+	if len(j.GetClientId()) > maxClientIdChars {
+		return fmt.Errorf("client id of length %d is greater than max allowed lenght of  %d", len(j.ClientId), maxClientIdChars)
 	}
 	return nil
 }
