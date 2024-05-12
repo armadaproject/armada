@@ -16,14 +16,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	slices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const (
@@ -46,22 +48,24 @@ var (
 		PriorityClass2:               {Priority: 2, Preemptible: true},
 		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
 		PriorityClass3:               {Priority: 3, Preemptible: false},
+		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
 	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []configuration.IndexedResource{
+	TestResources                    = []configuration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "gpu", Resolution: resource.MustParse("1")},
 	}
-	TestResourceNames = util.Map(
+	TestResourceNames = slices.Map(
 		TestResources,
-		func(v configuration.IndexedResource) string { return v.Name },
+		func(v configuration.ResourceType) string { return v.Name },
 	)
-	TestIndexedResourceResolutionMillis = util.Map(
+	TestIndexedResourceResolutionMillis = slices.Map(
 		TestResources,
-		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
+		func(v configuration.ResourceType) int64 { return v.Resolution.MilliValue() },
 	)
 	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
@@ -78,7 +82,8 @@ var (
 	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
 	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
-	JobDb = NewJobDb()
+	JobDb                   = NewJobDb()
+	TestResourceListFactory = MakeTestResourceListFactory()
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
@@ -140,6 +145,7 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
+		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
 	}
 }
 
@@ -190,7 +196,7 @@ func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config co
 	return config
 }
 
-func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithIndexedResourcesConfig(indexResources []configuration.ResourceType, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.IndexedResources = indexResources
 	return config
 }
@@ -706,8 +712,8 @@ func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
-func SingleQueuePriorityOne(name string) []queue.Queue {
-	return []queue.Queue{{Name: name, PriorityFactor: 1.0}}
+func SingleQueuePriorityOne(name string) []*api.Queue {
+	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
 }
 
 func TestNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
@@ -782,8 +788,8 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	}
 }
 
-func MakeTestQueue() queue.Queue {
-	return queue.Queue{
+func MakeTestQueue() *api.Queue {
+	return &api.Queue{
 		Name:           TestQueue,
 		PriorityFactor: 100,
 	}
@@ -960,4 +966,17 @@ func (p *MockPassiveClock) Now() time.Time {
 
 func (p *MockPassiveClock) Since(time.Time) time.Duration {
 	panic("Not implemented")
+}
+
+func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	return result
+}
+
+func GetTestSupportedResourceTypes() []configuration.ResourceType {
+	return []configuration.ResourceType{
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "gpu", Resolution: resource.MustParse("1m")},
+	}
 }

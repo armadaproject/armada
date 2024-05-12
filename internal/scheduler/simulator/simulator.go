@@ -26,9 +26,10 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -79,6 +80,8 @@ type Simulator struct {
 	// If true, scheduler logs are omitted.
 	// This since the logs are very verbose when scheduling large numbers of jobs.
 	SuppressSchedulerLogs bool
+	// For making internaltypes.ResourceList
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
 type StateTransition struct {
@@ -89,6 +92,10 @@ type StateTransition struct {
 func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(schedulingConfig.SupportedResourceTypes)
+	if err != nil {
+		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
 	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
 	workloadSpec = proto.Clone(workloadSpec).(*WorkloadSpec)
 	initialiseClusterSpec(clusterSpec)
@@ -126,8 +133,9 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 			rate.Limit(schedulingConfig.MaximumSchedulingRate),
 			schedulingConfig.MaximumSchedulingBurst,
 		),
-		limiterByQueue: make(map[string]*rate.Limiter),
-		rand:           rand.New(rand.NewSource(randomSeed)),
+		limiterByQueue:      make(map[string]*rate.Limiter),
+		rand:                rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory: resourceListFactory,
 	}
 	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
@@ -181,7 +189,7 @@ func (s *Simulator) StateTransitions() <-chan StateTransition {
 }
 
 func validateClusterSpec(clusterSpec *ClusterSpec) error {
-	poolNames := util.Map(clusterSpec.Pools, func(pool *Pool) string { return pool.Name })
+	poolNames := armadaslices.Map(clusterSpec.Pools, func(pool *Pool) string { return pool.Name })
 	if !slices.Equal(poolNames, armadaslices.Unique(poolNames)) {
 		return errors.Errorf("duplicate pool name: %v", poolNames)
 	}
@@ -201,12 +209,12 @@ func validateClusterSpec(clusterSpec *ClusterSpec) error {
 }
 
 func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
-	queueNames := util.Map(workloadSpec.Queues, func(queue *Queue) string { return queue.Name })
+	queueNames := armadaslices.Map(workloadSpec.Queues, func(queue *Queue) string { return queue.Name })
 	if !slices.Equal(queueNames, armadaslices.Unique(queueNames)) {
 		return errors.Errorf("duplicate queue name: %v", queueNames)
 	}
-	jobTemplateIdSlices := util.Map(workloadSpec.Queues, func(queue *Queue) []string {
-		return util.Map(queue.JobTemplates, func(template *JobTemplate) string { return template.Id })
+	jobTemplateIdSlices := armadaslices.Map(workloadSpec.Queues, func(queue *Queue) []string {
+		return armadaslices.Map(queue.JobTemplates, func(template *JobTemplate) string { return template.Id })
 	})
 	jobTemplateIds := make([]string, 0)
 	for _, singleQueueTemplateIds := range jobTemplateIdSlices {
@@ -231,6 +239,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
 				stringinterner.New(1024),
+				s.resourceListFactory,
 			)
 			if err != nil {
 				return err
@@ -254,7 +263,7 @@ func (s *Simulator) setupClusters() error {
 							),
 						}
 						txn := nodeDb.Txn(true)
-						if err := nodeDb.CreateAndInsertWithApiJobsWithTxn(txn, nil, node); err != nil {
+						if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
 							txn.Abort()
 							return err
 						}
@@ -499,9 +508,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			// Update jobDb to reflect the decisions by the scheduler.
 			// Sort jobs to ensure deterministic event ordering.
-			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult[*jobdb.Job](result)
+			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult(result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
-			failedJobs := scheduler.FailedJobsFromSchedulerResult[*jobdb.Job](result)
+			failedJobs := scheduler.FailedJobsFromSchedulerResult(result)
 			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {
 					return -1
@@ -517,7 +526,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			slices.SortFunc(preemptedJobs, lessJob)
 			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
-				return lessJob(a.Job.(*jobdb.Job), b.Job.(*jobdb.Job))
+				return lessJob(a.Job, b.Job)
 			})
 			slices.SortFunc(failedJobs, lessJob)
 			for i, job := range preemptedJobs {
@@ -529,10 +538,10 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				preemptedJobs[i] = job.WithQueued(false).WithFailed(true)
 			}
 			for i, jctx := range scheduledJobs {
-				job := jctx.Job.(*jobdb.Job)
-				nodeId := result.NodeIdByJobId[job.GetId()]
+				job := jctx.Job
+				nodeId := result.NodeIdByJobId[job.Id()]
 				if nodeId == "" {
-					return errors.Errorf("job %s not mapped to a node", job.GetId())
+					return errors.Errorf("job %s not mapped to a node", job.Id())
 				}
 				if node, err := nodeDb.GetNode(nodeId); err != nil {
 					return err
@@ -553,7 +562,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job.(*jobdb.Job) })); err != nil {
+			if err := txn.Upsert(armadaslices.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
 				return err
 			}
 			if err := txn.Upsert(failedJobs); err != nil {
@@ -747,8 +756,8 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	run := job.LatestRun()
 	pool := s.poolByNodeId[run.NodeId()]
 	s.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()].SubV1ResourceList(
-		job.GetPriorityClassName(),
-		job.GetResourceRequirements().Requests,
+		job.PriorityClassName(),
+		job.ResourceRequirements().Requests,
 	)
 
 	// Unbind the job from the node on which it was scheduled.
@@ -759,7 +768,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	// Increase the successful job count for this jobTemplate.
 	// If all jobs created from this template have succeeded, update dependent templates
 	// and submit any templates for which this was the last dependency.
-	jobTemplate := s.jobTemplateByJobId[job.GetId()]
+	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	jobTemplate.NumberSuccessful++
 	if jobTemplate.Number == jobTemplate.NumberSuccessful {
 		delete(s.activeJobTemplatesById, jobTemplate.Id)
@@ -832,7 +841,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.
-	jobTemplate := s.jobTemplateByJobId[job.GetId()]
+	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	retryJobId := util.ULID()
 	resubmitTime := s.time.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.WorkflowManagerDelayDistribution))
 	s.pushEventSequence(

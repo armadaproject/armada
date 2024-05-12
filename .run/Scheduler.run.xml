@@ -4,6 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="run --config $PROJECT_DIR$/developer/config/insecure-armada.yaml" />
     <envs>
+      <env name="ARMADA_ARMADAAPI_ARMADAURL" value="localhost:50051" />
       <env name="ARMADA_HTTP_PORT" value="8084" />
       <env name="ARMADA_METRICS_PORT" value="9004" />
       <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />

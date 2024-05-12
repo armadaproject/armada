@@ -587,10 +587,8 @@ func TestDefaultTerminationGracePeriod(t *testing.T) {
 
 func submitMsgFromAnnotations(annotations map[string]string) *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
-		MainObject: &armadaevents.KubernetesMainObject{
-			ObjectMeta: &armadaevents.ObjectMeta{
-				Annotations: annotations,
-			},
+		ObjectMeta: &armadaevents.ObjectMeta{
+			Annotations: annotations,
 		},
 	}
 }

@@ -1,13 +1,11 @@
 package instructions
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 	"github.com/armadaproject/armada/pkg/api"
@@ -75,15 +72,6 @@ var expectedPendingRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunIdString,
 	Pending:     &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
-}
-
-var expectedLegacyPendingRun = model.CreateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	JobId:       testfixtures.JobIdString,
-	Cluster:     testfixtures.ExecutorId,
-	Leased:      &testfixtures.BaseTime,
-	Pending:     &testfixtures.BaseTime,
-	JobRunState: lookout.JobRunPendingOrdinal,
 }
 
 var expectedRunningRun = model.UpdateJobRunInstruction{
@@ -153,14 +141,19 @@ var expectedPreempted = model.UpdateJobInstruction{
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
-	LatestRunId:               pointer.String(testfixtures.RunIdString),
 }
 
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunIdString,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-	Error:       []byte("preempted by non armada pod"),
+	Error:       []byte("preempted"),
+}
+
+var expectedCancelledRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 }
 
 func TestConvert(t *testing.T) {
@@ -208,49 +201,13 @@ func TestConvert(t *testing.T) {
 		},
 	}
 
-	expectedCreateUserAnnotations := []*model.CreateUserAnnotationInstruction{
-		{
-			JobId:  testfixtures.JobIdString,
-			Key:    "a",
-			Value:  "0",
-			Queue:  testfixtures.Queue,
-			Jobset: testfixtures.JobSetName,
-		},
-		{
-			JobId:  testfixtures.JobIdString,
-			Key:    "b",
-			Value:  "1",
-			Queue:  testfixtures.Queue,
-			Jobset: testfixtures.JobSetName,
-		},
-	}
-
-	otherJobIdUlid := util.ULID()
-	otherJobId := util.StringFromUlid(otherJobIdUlid)
-	otherJobIdProto := armadaevents.ProtoUuidFromUlid(otherJobIdUlid)
-
-	otherRunIdUuid, err := uuid.NewUUID()
-	assert.NoError(t, err)
-	otherRunIdProto := armadaevents.ProtoUuidFromUuid(otherRunIdUuid)
-
-	preempted, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
-	assert.NoError(t, err)
-	preempted.GetJobRunPreempted().PreemptiveJobId = otherJobIdProto
-	preempted.GetJobRunPreempted().PreemptiveRunId = otherRunIdProto
-
-	preemptedWithPrempteeWithZeroId, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
-	assert.NoError(t, err)
-	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveJobId = &armadaevents.Uuid{}
-	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveRunId = &armadaevents.Uuid{}
-
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
 	cancelledWithReason.GetCancelledJob().Reason = "some reason"
 
 	tests := map[string]struct {
-		events                   *ingest.EventSequencesWithIds
-		expected                 *model.InstructionSet
-		useLegacyEventConversion bool
+		events   *ingest.EventSequencesWithIds
+		expected *model.InstructionSet
 	}{
 		"submit": {
 			events: &ingest.EventSequencesWithIds{
@@ -260,11 +217,9 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
-				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
 		"happy path single update": {
 			events: &ingest.EventSequencesWithIds{
@@ -279,14 +234,12 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLeasedRun},
-				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
-				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: false,
 		},
 		"happy path multi update": {
 			events: &ingest.EventSequencesWithIds{
@@ -307,11 +260,10 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLeasedRun},
-				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -320,63 +272,6 @@ func TestConvert(t *testing.T) {
 					pulsarutils.NewMessageId(5),
 				},
 			},
-			useLegacyEventConversion: false,
-		},
-		"happy path single update - legacy": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(
-					submit,
-					testfixtures.Leased,
-					testfixtures.Assigned,
-					testfixtures.Running,
-					testfixtures.JobRunSucceeded,
-					testfixtures.JobSucceeded,
-				)},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLegacyPendingRun},
-				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
-				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			useLegacyEventConversion: true,
-		},
-		"happy path multi update - legacy": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{
-					testfixtures.NewEventSequence(submit),
-					testfixtures.NewEventSequence(testfixtures.Leased),
-					testfixtures.NewEventSequence(testfixtures.Assigned),
-					testfixtures.NewEventSequence(testfixtures.Running),
-					testfixtures.NewEventSequence(testfixtures.JobRunSucceeded),
-					testfixtures.NewEventSequence(testfixtures.JobSucceeded),
-				},
-				MessageIds: []pulsar.MessageID{
-					pulsarutils.NewMessageId(1),
-					pulsarutils.NewMessageId(2),
-					pulsarutils.NewMessageId(3),
-					pulsarutils.NewMessageId(4),
-					pulsarutils.NewMessageId(5),
-				},
-			},
-			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLegacyPendingRun},
-				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
-				MessageIds: []pulsar.MessageID{
-					pulsarutils.NewMessageId(1),
-					pulsarutils.NewMessageId(2),
-					pulsarutils.NewMessageId(3),
-					pulsarutils.NewMessageId(4),
-					pulsarutils.NewMessageId(5),
-				},
-			},
-			useLegacyEventConversion: true,
 		},
 		"requeued": {
 			events: &ingest.EventSequencesWithIds{
@@ -387,9 +282,8 @@ func TestConvert(t *testing.T) {
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobRequeued},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: false,
 		},
-		"cancelled": {
+		"job cancelled": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobCancelled)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
@@ -398,9 +292,8 @@ func TestConvert(t *testing.T) {
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
-		"cancelled with reason": {
+		"job cancelled with reason": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
@@ -416,7 +309,16 @@ func TestConvert(t *testing.T) {
 				}},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
+		},
+		"job run cancelled": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunCancelled)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
 		},
 		"reprioritized": {
 			events: &ingest.EventSequencesWithIds{
@@ -427,7 +329,6 @@ func TestConvert(t *testing.T) {
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
 		"job run failed": {
 			events: &ingest.EventSequencesWithIds{
@@ -438,7 +339,6 @@ func TestConvert(t *testing.T) {
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
 		"job failed": {
 			events: &ingest.EventSequencesWithIds{
@@ -449,7 +349,6 @@ func TestConvert(t *testing.T) {
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedFailed},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
 		"terminated": {
 			events: &ingest.EventSequencesWithIds{
@@ -459,7 +358,6 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
 		"unschedulable": {
 			events: &ingest.EventSequencesWithIds{
@@ -470,7 +368,6 @@ func TestConvert(t *testing.T) {
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
 		"duplicate submit is ignored": {
 			events: &ingest.EventSequencesWithIds{
@@ -480,53 +377,26 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
 		},
-		"preempted": {
+		"job preempted": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreempted)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedPreempted},
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunPreempted)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
-			useLegacyEventConversion: true,
-		},
-		"preempted with preemptee": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preempted)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-					RunId:       testfixtures.RunIdString,
-					Finished:    &testfixtures.BaseTime,
-					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-					Error:       []byte(fmt.Sprintf("preempted by job %s", otherJobId)),
-				}},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			useLegacyEventConversion: true,
-		},
-		"preempted with zeroed preemptee id": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preemptedWithPrempteeWithZeroId)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-					RunId:       testfixtures.RunIdString,
-					Finished:    &testfixtures.BaseTime,
-					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-					Error:       []byte("preempted by non armada pod"),
-				}},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			useLegacyEventConversion: true,
 		},
 		"invalid event without job id or run id": {
 			events: &ingest.EventSequencesWithIds{
@@ -545,14 +415,12 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
 				},
 			},
-			useLegacyEventConversion: true,
 		},
 		"invalid event without created time": {
 			events: &ingest.EventSequencesWithIds{
@@ -583,19 +451,17 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
 				},
 			},
-			useLegacyEventConversion: true,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, tc.useLegacyEventConversion)
+			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
@@ -622,42 +488,9 @@ func TestConvert(t *testing.T) {
 			assert.Equal(t, tc.expected.JobsToUpdate, instructionSet.JobsToUpdate)
 			assert.Equal(t, tc.expected.JobRunsToCreate, instructionSet.JobRunsToCreate)
 			assert.Equal(t, tc.expected.JobRunsToUpdate, instructionSet.JobRunsToUpdate)
-			assert.Equal(t, tc.expected.UserAnnotationsToCreate, instructionSet.UserAnnotationsToCreate)
 			assert.Equal(t, tc.expected.MessageIds, instructionSet.MessageIds)
 		})
 	}
-}
-
-func TestFailedWithMissingRunId(t *testing.T) {
-	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-	instructions := converter.Convert(armadacontext.Background(), &ingest.EventSequencesWithIds{
-		EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobLeaseReturned)},
-		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-	})
-	jobRun := instructions.JobRunsToCreate[0]
-	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
-	expected := &model.InstructionSet{
-		JobRunsToCreate: []*model.CreateJobRunInstruction{
-			{
-				JobId:       testfixtures.JobIdString,
-				RunId:       jobRun.RunId,
-				Cluster:     testfixtures.ExecutorId,
-				Pending:     &testfixtures.BaseTime,
-				JobRunState: lookout.JobRunPendingOrdinal,
-			},
-		},
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{
-			{
-				RunId:       jobRun.RunId,
-				Started:     &testfixtures.BaseTime,
-				Finished:    &testfixtures.BaseTime,
-				JobRunState: pointer.Int32(lookout.JobRunLeaseReturnedOrdinal),
-				Error:       []byte(testfixtures.LeaseReturnedMsg),
-			},
-		},
-		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-	}
-	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
 
 func TestTruncatesStringsThatAreTooLong(t *testing.T) {
@@ -667,9 +500,13 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.NoError(t, err)
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = longString
 
+	leased, err := testfixtures.DeepCopy(testfixtures.Leased)
+	assert.NoError(t, err)
+	leased.GetJobRunLeased().ExecutorId = longString
+	leased.GetJobRunLeased().NodeId = longString
+
 	assigned, err := testfixtures.DeepCopy(testfixtures.Assigned)
 	assert.NoError(t, err)
-	assigned.GetJobRunAssigned().GetResourceInfos()[0].GetObjectMeta().ExecutorId = longString
 
 	running, err := testfixtures.DeepCopy(testfixtures.Running)
 	assert.NoError(t, err)
@@ -682,6 +519,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 			UserId:     longString,
 			Events: []*armadaevents.EventSequence_Event{
 				submit,
+				leased,
 				assigned,
 				running,
 			},
@@ -689,7 +527,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
-	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema
@@ -698,7 +536,8 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.Len(t, actual.JobsToCreate[0].JobSet, 1024)
 	assert.Len(t, *actual.JobsToCreate[0].PriorityClass, 63)
 	assert.Len(t, actual.JobRunsToCreate[0].Cluster, 512)
-	assert.Len(t, *actual.JobRunsToUpdate[0].Node, 512)
+	assert.Len(t, *actual.JobRunsToCreate[0].Node, 512)
+	assert.Len(t, *actual.JobRunsToUpdate[1].Node, 512)
 }
 
 func TestExtractNodeName(t *testing.T) {

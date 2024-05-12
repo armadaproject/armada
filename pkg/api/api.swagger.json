@@ -202,7 +202,7 @@
         }
       }
     },
-    "/v1/job/jobdetails": {
+    "/v1/job/details": {
       "post": {
         "tags": [
           "Jobs"
@@ -223,70 +223,6 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiJobDetailsResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/v1/job/jobrundetails": {
-      "post": {
-        "tags": [
-          "Jobs"
-        ],
-        "operationId": "GetJobRunDetails",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiJobRunDetailsRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiJobRunDetailsResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/v1/job/jobstatus": {
-      "post": {
-        "tags": [
-          "Jobs"
-        ],
-        "operationId": "GetJobStatus",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiJobStatusRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiJobStatusResponse"
             }
           },
           "default": {
@@ -349,6 +285,38 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiJobReprioritizeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/status": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobStatus",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusResponse"
             }
           },
           "default": {
@@ -532,6 +500,38 @@
           "200": {
             "description": "A successful response.",
             "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/run/details": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobRunDetails",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobRunDetailsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobRunDetailsResponse"
+            }
           },
           "default": {
             "description": "An unexpected error response.",

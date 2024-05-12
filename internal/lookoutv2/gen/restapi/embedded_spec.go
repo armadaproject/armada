@@ -456,7 +456,8 @@ func init() {
         "lastTransitionTime",
         "duplicate",
         "annotations",
-        "runs"
+        "runs",
+        "cluster"
       ],
       "properties": {
         "annotations": {
@@ -475,6 +476,10 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "cluster": {
+          "type": "string",
+          "x-nullable": false
+        },
         "cpu": {
           "type": "integer",
           "format": "int64",
@@ -488,6 +493,11 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": true
         },
         "gpu": {
           "type": "integer",
@@ -520,6 +530,10 @@ func init() {
           "x-nullable": false
         },
         "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "node": {
           "type": "string",
           "x-nullable": true
         },
@@ -629,7 +643,8 @@ func init() {
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
             "RUN_MAX_RUNS_EXCEEDED",
-            "RUN_LEASED"
+            "RUN_LEASED",
+            "RUN_CANCELLED"
           ],
           "x-nullable": false
         },
@@ -1142,7 +1157,8 @@ func init() {
         "lastTransitionTime",
         "duplicate",
         "annotations",
-        "runs"
+        "runs",
+        "cluster"
       ],
       "properties": {
         "annotations": {
@@ -1161,6 +1177,10 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "cluster": {
+          "type": "string",
+          "x-nullable": false
+        },
         "cpu": {
           "type": "integer",
           "format": "int64",
@@ -1174,6 +1194,11 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": true
         },
         "gpu": {
           "type": "integer",
@@ -1206,6 +1231,10 @@ func init() {
           "x-nullable": false
         },
         "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "node": {
           "type": "string",
           "x-nullable": true
         },
@@ -1315,7 +1344,8 @@ func init() {
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
             "RUN_MAX_RUNS_EXCEEDED",
-            "RUN_LEASED"
+            "RUN_LEASED",
+            "RUN_CANCELLED"
           ],
           "x-nullable": false
         },

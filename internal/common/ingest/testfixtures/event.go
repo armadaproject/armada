@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -259,6 +258,16 @@ var JobRunSucceeded = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunCancelled = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+		JobRunCancelled: &armadaevents.JobRunCancelled{
+			RunId: RunIdProto,
+			JobId: JobIdProto,
+		},
+	},
+}
+
 var LeaseReturned = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -393,7 +402,7 @@ var JobPreemptionRequested = &armadaevents.EventSequence_Event{
 	},
 }
 
-var JobPreempted = &armadaevents.EventSequence_Event{
+var JobRunPreempted = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
@@ -475,6 +484,23 @@ var JobRunUnschedulable = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobPreempted = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobErrors{
+		JobErrors: &armadaevents.JobErrors{
+			JobId: JobIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_JobRunPreemptedError{
+						JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+					},
+				},
+			},
+		},
+	},
+}
+
 var JobFailed = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobErrors{
@@ -503,7 +529,7 @@ var JobLeaseReturned = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
-			RunId: eventutil.LegacyJobRunId(),
+			RunId: RunIdProto,
 			Errors: []*armadaevents.Error{
 				{
 					Terminal: true,

@@ -32,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -95,6 +96,18 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "redis", db))
 
+	// Create database connection. This is used for the query api and also to store queues
+	// In a subsequent pr we will move deduplication here too and move the config out of the `queryapi` namespace
+	queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+	if err != nil {
+		return errors.WithMessage(err, "error creating QueryApi postgres pool")
+	}
+	queryapiServer := queryapi.New(
+		queryDb,
+		config.QueryApi.MaxQueryItems,
+		func() compress.Decompressor { return compress.NewZlibDecompressor() })
+	api.RegisterJobsServer(grpcServer, queryapiServer)
+
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
 		if err := eventDb.Close(); err != nil {
@@ -105,7 +118,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
-	queueRepository := repository.NewRedisQueueRepository(db)
+	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
+	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
+	services = append(services, func() error {
+		return queueCache.Run(ctx)
+	})
 	healthChecks.Add(repository.NewRedisHealth(db))
 
 	eventRepository := repository.NewEventRepository(eventDb)
@@ -128,10 +145,17 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	// Executor Repositories for pulsar scheduler
 	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
+
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	if err != nil {
+		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 	submitChecker := scheduler.NewSubmitChecker(
 		30*time.Minute,
 		config.Scheduling,
 		pulsarExecutorRepo,
+		resourceListFactory,
 	)
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)
@@ -169,11 +193,13 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	pulsarSubmitServer := submit.NewServer(
 		publisher,
 		queueRepository,
+		queueCache,
 		jobRepository,
 		config.Submission,
 		submit.NewDeduplicator(store),
 		submitChecker,
-		authorizer)
+		authorizer,
+		config.RequireQueueAndJobSet)
 
 	// Consumer that's used for deleting pulsarJob details
 	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
@@ -207,21 +233,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	eventServer := server.NewEventServer(
 		authorizer,
 		eventRepository,
-		queueRepository,
+		queueCache,
 		jobRepository,
 	)
-
-	if config.QueryApi.Enabled {
-		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
-		if err != nil {
-			return errors.WithMessage(err, "error creating QueryApi postgres pool")
-		}
-		queryapiServer := queryapi.New(
-			queryDb,
-			config.QueryApi.MaxQueryItems,
-			func() compress.Decompressor { return compress.NewZlibDecompressor() })
-		api.RegisterJobsServer(grpcServer, queryapiServer)
-	}
 
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
