@@ -1,15 +1,16 @@
 package submit
 
 import (
-	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/pkg/api"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type deduplicationIdsWithQueue struct {

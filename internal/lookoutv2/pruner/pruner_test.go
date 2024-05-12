@@ -134,7 +134,7 @@ func TestPruneDb(t *testing.T) {
 
 				dbConn, err := db.Acquire(ctx)
 				assert.NoError(t, err)
-				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 10, clock.NewFakeClock(baseTime))
+				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 10, clock.NewFakeClock(baseTime))
 				assert.NoError(t, err)
 
 				queriedJobIdsPerTable := []map[string]bool{

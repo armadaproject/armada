@@ -2,8 +2,8 @@ package submit
 
 import (
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"

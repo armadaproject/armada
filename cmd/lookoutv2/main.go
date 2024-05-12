@@ -98,7 +98,13 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 
 	ctxTimeout, cancel := armadacontext.WithTimeout(ctx, config.PrunerConfig.Timeout)
 	defer cancel()
-	err = pruner.PruneDb(ctxTimeout, db, config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, clock.RealClock{})
+	err = pruner.PruneDb(
+		ctxTimeout,
+		db,
+		config.PrunerConfig.ExpireAfter,
+		config.PrunerConfig.DeduplicationExpireAfter,
+		config.PrunerConfig.BatchSize,
+		clock.RealClock{})
 	if err != nil {
 		panic(err)
 	}
