@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// Request IDs are embedded in HTTP headers using this key.
+// MetadataKey is the HTTP header key using this key we use to store request ids.
 // This is the standard key used for request Ids. For example, opentelemetry uses the same one.
 const MetadataKey = "x-request-id"
 

@@ -36,6 +36,7 @@ const (
 	JobRunLeaseExpired     JobRunState = "RUN_LEASE_EXPIRED"
 	JobRunMaxRunsExceeded  JobRunState = "RUN_MAX_RUNS_EXCEEDED"
 	JobRunLeased           JobRunState = "RUN_LEASED"
+	JobRunCancelled        JobRunState = "RUN_CANCELLED"
 
 	JobRunPendingOrdinal          = 1
 	JobRunRunningOrdinal          = 2
@@ -48,6 +49,7 @@ const (
 	JobRunLeaseExpiredOrdinal     = 9
 	JobRunMaxRunsExceededOrdinal  = 10
 	JobRunLeasedOrdinal           = 11
+	JobRunCancelledOrdinal        = 12
 )
 
 var (
@@ -82,6 +84,7 @@ var (
 		JobRunRunningOrdinal:          JobRunRunning,
 		JobRunSucceededOrdinal:        JobRunSucceeded,
 		JobRunFailedOrdinal:           JobRunFailed,
+		JobRunCancelledOrdinal:        JobRunCancelled,
 		JobRunTerminatedOrdinal:       JobRunTerminated,
 		JobRunPreemptedOrdinal:        JobRunPreempted,
 		JobRunUnableToScheduleOrdinal: JobRunUnableToSchedule,

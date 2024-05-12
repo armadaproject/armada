@@ -20,7 +20,6 @@ import (
 //
 // swagger:model job
 type Job struct {
-
 	// annotations
 	// Required: true
 	Annotations map[string]string `json:"annotations"`
@@ -31,6 +30,10 @@ type Job struct {
 	// cancelled
 	// Format: date-time
 	Cancelled *strfmt.DateTime `json:"cancelled,omitempty"`
+
+	// cluster
+	// Required: true
+	Cluster string `json:"cluster"`
 
 	// cpu
 	// Required: true
@@ -43,6 +46,9 @@ type Job struct {
 	// ephemeral storage
 	// Required: true
 	EphemeralStorage int64 `json:"ephemeralStorage"`
+
+	// exit code
+	ExitCode *int32 `json:"exitCode,omitempty"`
 
 	// gpu
 	// Required: true
@@ -74,6 +80,9 @@ type Job struct {
 	// namespace
 	Namespace *string `json:"namespace,omitempty"`
 
+	// node
+	Node *string `json:"node,omitempty"`
+
 	// owner
 	// Required: true
 	// Min Length: 1
@@ -95,6 +104,10 @@ type Job struct {
 	// Required: true
 	Runs []*Run `json:"runs"`
 
+	// runtime
+	// Required: false
+	RuntimeSeconds int32 `json:"runtimeSeconds,omitempty"`
+
 	// state
 	// Required: true
 	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED LEASED]
@@ -105,18 +118,6 @@ type Job struct {
 	// Min Length: 1
 	// Format: date-time
 	Submitted strfmt.DateTime `json:"submitted"`
-
-	// node
-	// Required: false
-	Node *string `json:"node,omitempty"`
-
-	// cluster
-	// Required: true
-	Cluster string `json:"cluster"`
-
-	//exitCode
-	// Required: false
-	ExitCode *int32 `json:"exitCode,omitempty"`
 }
 
 // Validate validates this job
@@ -128,6 +129,10 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateCancelled(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateCluster(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -194,7 +199,6 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateAnnotations(formats strfmt.Registry) error {
-
 	if err := validate.Required("annotations", "body", m.Annotations); err != nil {
 		return err
 	}
@@ -214,8 +218,15 @@ func (m *Job) validateCancelled(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Job) validateCPU(formats strfmt.Registry) error {
+func (m *Job) validateCluster(formats strfmt.Registry) error {
+	if err := validate.RequiredString("cluster", "body", m.Cluster); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func (m *Job) validateCPU(formats strfmt.Registry) error {
 	if err := validate.Required("cpu", "body", int64(m.CPU)); err != nil {
 		return err
 	}
@@ -224,7 +235,6 @@ func (m *Job) validateCPU(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateDuplicate(formats strfmt.Registry) error {
-
 	if err := validate.Required("duplicate", "body", bool(m.Duplicate)); err != nil {
 		return err
 	}
@@ -233,7 +243,6 @@ func (m *Job) validateDuplicate(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateEphemeralStorage(formats strfmt.Registry) error {
-
 	if err := validate.Required("ephemeralStorage", "body", int64(m.EphemeralStorage)); err != nil {
 		return err
 	}
@@ -242,7 +251,6 @@ func (m *Job) validateEphemeralStorage(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateGpu(formats strfmt.Registry) error {
-
 	if err := validate.Required("gpu", "body", int64(m.Gpu)); err != nil {
 		return err
 	}
@@ -251,7 +259,6 @@ func (m *Job) validateGpu(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateJobID(formats strfmt.Registry) error {
-
 	if err := validate.RequiredString("jobId", "body", m.JobID); err != nil {
 		return err
 	}
@@ -264,7 +271,6 @@ func (m *Job) validateJobID(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateJobSet(formats strfmt.Registry) error {
-
 	if err := validate.RequiredString("jobSet", "body", m.JobSet); err != nil {
 		return err
 	}
@@ -277,7 +283,6 @@ func (m *Job) validateJobSet(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateLastTransitionTime(formats strfmt.Registry) error {
-
 	if err := validate.Required("lastTransitionTime", "body", strfmt.DateTime(m.LastTransitionTime)); err != nil {
 		return err
 	}
@@ -294,7 +299,6 @@ func (m *Job) validateLastTransitionTime(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateMemory(formats strfmt.Registry) error {
-
 	if err := validate.Required("memory", "body", int64(m.Memory)); err != nil {
 		return err
 	}
@@ -303,7 +307,6 @@ func (m *Job) validateMemory(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateOwner(formats strfmt.Registry) error {
-
 	if err := validate.RequiredString("owner", "body", m.Owner); err != nil {
 		return err
 	}
@@ -316,7 +319,6 @@ func (m *Job) validateOwner(formats strfmt.Registry) error {
 }
 
 func (m *Job) validatePriority(formats strfmt.Registry) error {
-
 	if err := validate.Required("priority", "body", int64(m.Priority)); err != nil {
 		return err
 	}
@@ -325,7 +327,6 @@ func (m *Job) validatePriority(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateQueue(formats strfmt.Registry) error {
-
 	if err := validate.RequiredString("queue", "body", m.Queue); err != nil {
 		return err
 	}
@@ -338,7 +339,6 @@ func (m *Job) validateQueue(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateRuns(formats strfmt.Registry) error {
-
 	if err := validate.Required("runs", "body", m.Runs); err != nil {
 		return err
 	}
@@ -412,7 +412,6 @@ func (m *Job) validateStateEnum(path, location string, value string) error {
 }
 
 func (m *Job) validateState(formats strfmt.Registry) error {
-
 	if err := validate.RequiredString("state", "body", m.State); err != nil {
 		return err
 	}
@@ -426,7 +425,6 @@ func (m *Job) validateState(formats strfmt.Registry) error {
 }
 
 func (m *Job) validateSubmitted(formats strfmt.Registry) error {
-
 	if err := validate.Required("submitted", "body", strfmt.DateTime(m.Submitted)); err != nil {
 		return err
 	}
@@ -457,9 +455,7 @@ func (m *Job) ContextValidate(ctx context.Context, formats strfmt.Registry) erro
 }
 
 func (m *Job) contextValidateRuns(ctx context.Context, formats strfmt.Registry) error {
-
 	for i := 0; i < len(m.Runs); i++ {
-
 		if m.Runs[i] != nil {
 			if err := m.Runs[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
@@ -470,7 +466,6 @@ func (m *Job) contextValidateRuns(ctx context.Context, formats strfmt.Registry) 
 				return err
 			}
 		}
-
 	}
 
 	return nil

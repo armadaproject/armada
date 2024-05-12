@@ -20,7 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -49,7 +49,7 @@ type SubmitChecker struct {
 	priorityClasses           map[string]types.PriorityClass
 	executorById              map[string]minimalExecutor
 	priorities                []int32
-	indexedResources          []configuration.IndexedResource
+	indexedResources          []configuration.ResourceType
 	indexedTaints             []string
 	indexedNodeLabels         []string
 	wellKnownNodeTypes        []configuration.WellKnownNodeType
@@ -59,12 +59,14 @@ type SubmitChecker struct {
 	schedulingKeyGenerator    *schedulerobjects.SchedulingKeyGenerator
 	jobSchedulingResultsCache *lru.Cache
 	ExecutorUpdateFrequency   time.Duration
+	resourceListFactory       *internaltypes.ResourceListFactory
 }
 
 func NewSubmitChecker(
 	executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) *SubmitChecker {
 	jobSchedulingResultsCache, err := lru.New(maxJobSchedulingResults)
 	if err != nil {
@@ -84,6 +86,7 @@ func NewSubmitChecker(
 		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
 		ExecutorUpdateFrequency:   schedulingConfig.ExecutorUpdateFrequency,
+		resourceListFactory:       resourceListFactory,
 	}
 }
 
@@ -197,10 +200,10 @@ func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) 
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext) schedulingResult {
-	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	schedulingKey, ok := jctx.Job.SchedulingKey()
 	if !ok {
 		srv.mu.Lock()
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		schedulingKey = jobdb.SchedulingKeyFromJob(srv.schedulingKeyGenerator, jctx.Job)
 		srv.mu.Unlock()
 	}
 
@@ -311,6 +314,7 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 		srv.indexedNodeLabels,
 		srv.wellKnownNodeTypes,
 		stringinterner.New(512),
+		srv.resourceListFactory,
 	)
 	if err != nil {
 		return nil, err

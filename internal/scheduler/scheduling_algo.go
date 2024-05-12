@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -26,13 +25,14 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/quarantine"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
@@ -47,7 +47,7 @@ type SchedulingAlgo interface {
 type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
-	queueRepository             repository.QueueRepository
+	queueCache                  queue.QueueCache
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -65,20 +65,22 @@ type FairSchedulingAlgo struct {
 	// Function that is called every time an executor is scheduled. Useful for testing.
 	onExecutorScheduled func(executor *schedulerobjects.Executor)
 	// rand and clock injected here for repeatable testing.
-	rand           *rand.Rand
-	clock          clock.Clock
-	stringInterner *stringinterner.StringInterner
+	rand                *rand.Rand
+	clock               clock.Clock
+	stringInterner      *stringinterner.StringInterner
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
 func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
-	queueRepository repository.QueueRepository,
+	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	nodeQuarantiner *quarantine.NodeQuarantiner,
 	queueQuarantiner *quarantine.QueueQuarantiner,
 	stringInterner *stringinterner.StringInterner,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -89,7 +91,7 @@ func NewFairSchedulingAlgo(
 	return &FairSchedulingAlgo{
 		schedulingConfig:            config,
 		executorRepository:          executorRepository,
-		queueRepository:             queueRepository,
+		queueCache:                  queueCache,
 		schedulingContextRepository: schedulingContextRepository,
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
@@ -100,6 +102,7 @@ func NewFairSchedulingAlgo(
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
 		stringInterner:              stringInterner,
+		resourceListFactory:         resourceListFactory,
 	}, nil
 }
 
@@ -199,9 +202,9 @@ func (l *FairSchedulingAlgo) Schedule(
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
 		}
 
-		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+		failedJobs := FailedJobsFromSchedulerResult(schedulerResult)
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
 		}
@@ -243,7 +246,7 @@ type JobQueueIteratorAdapter struct {
 	it *immutable.SortedSetIterator[*jobdb.Job]
 }
 
-func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error) {
+func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 	if it.it.Done() {
 		return nil, nil
 	}
@@ -252,7 +255,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []queue.Queue
+	queues                                   []*api.Queue
 	priorityFactorByQueue                    map[string]float64
 	isActiveByQueueName                      map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
@@ -273,7 +276,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	executors = l.filterStaleExecutors(ctx, executors)
 
 	// TODO(albin): Skip queues with a high failure rate.
-	queues, err := l.queueRepository.GetAllQueues(ctx)
+	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -371,6 +374,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedNodeLabels,
 		l.schedulingConfig.WellKnownNodeTypes,
 		l.stringInterner,
+		l.resourceListFactory,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -476,7 +480,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		return nil, nil, err
 	}
 	for i, jctx := range result.PreemptedJobs {
-		jobDbJob := jctx.Job.(*jobdb.Job)
+		jobDbJob := jctx.Job
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
@@ -485,8 +489,8 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		result.PreemptedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	for i, jctx := range result.ScheduledJobs {
-		jobDbJob := jctx.Job.(*jobdb.Job)
-		jobId := jobDbJob.GetId()
+		jobDbJob := jctx.Job
+		jobId := jobDbJob.Id()
 		nodeId := result.NodeIdByJobId[jobId]
 		if nodeId == "" {
 			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
@@ -505,7 +509,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
 	}
 	for i, jctx := range result.FailedJobs {
-		jobDbJob := jctx.Job.(*jobdb.Job)
+		jobDbJob := jctx.Job
 		result.FailedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	return result, sctx, nil
@@ -526,25 +530,25 @@ func NewSchedulerJobRepositoryAdapter(txn *jobdb.Txn) *SchedulerJobRepositoryAda
 
 // GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
 // to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) []string {
 	rv := make([]string, 0)
 	it := repo.txn.QueuedJobs(queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
 		rv = append(rv, v.Id())
 	}
-	return rv, nil
+	return rv
 }
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
-	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) []*jobdb.Job {
+	rv := make([]*jobdb.Job, 0, len(ids))
 	for _, id := range ids {
 		if job := repo.txn.GetById(id); job != nil {
 			rv = append(rv, job)
 		}
 	}
-	return rv, nil
+	return rv
 }
 
 // addExecutorToNodeDb adds all the nodes and jobs associated with a particular executor to the nodeDb.
@@ -667,7 +671,7 @@ func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(
 				allocation = make(schedulerobjects.QuantityByTAndResourceType[string])
 				allocationByQueue[queue] = allocation
 			}
-			allocation.AddV1ResourceList(job.GetPriorityClassName(), job.GetResourceRequirements().Requests)
+			allocation.AddV1ResourceList(job.PriorityClassName(), job.ResourceRequirements().Requests)
 		}
 	}
 	return rv

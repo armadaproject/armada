@@ -36,6 +36,7 @@ export enum JobRunState {
   RunLeaseExpired = "RUN_LEASE_EXPIRED",
   RunMaxRunsExceeded = "RUN_MAX_RUNS_EXCEEDED",
   RunLeased = "RUN_LEASED",
+  RunCancelled = "RUN_CANCELLED",
 }
 
 export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }> = {
@@ -50,6 +51,7 @@ export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }
   [JobRunState.RunLeaseExpired]: { displayName: "Lease Expired" },
   [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Exceeded" },
   [JobRunState.RunLeased]: { displayName: "Leased" },
+  [JobRunState.RunCancelled]: { displayName: "Cancelled" },
 }
 
 type ColoredState = {
@@ -81,6 +83,7 @@ export type Job = {
   node?: string
   cluster?: string
   exitCode?: number
+  runtimeSeconds?: number
 }
 
 export type JobKey = keyof Job

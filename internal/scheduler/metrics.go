@@ -9,13 +9,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -50,7 +50,7 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
 	jobDb              *jobdb.JobDb
-	queueRepository    repository.QueueRepository
+	queueCache         queue.QueueCache
 	executorRepository database.ExecutorRepository
 	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
@@ -60,14 +60,14 @@ type MetricsCollector struct {
 
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
-	queueRepository repository.QueueRepository,
+	queueCache queue.QueueCache,
 	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
 ) *MetricsCollector {
 	return &MetricsCollector{
 		jobDb:              jobDb,
-		queueRepository:    queueRepository,
+		queueCache:         queueCache,
 		executorRepository: executorRepository,
 		poolAssigner:       poolAssigner,
 		refreshPeriod:      refreshPeriod,
@@ -129,7 +129,7 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 }
 
 func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
-	queues, err := c.queueRepository.GetAllQueues(ctx)
+	queues, err := c.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +289,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 							cluster:       executor.Id,
 							pool:          executor.Pool,
 							queueName:     job.Queue(),
-							priorityClass: job.GetPriorityClassName(),
+							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))

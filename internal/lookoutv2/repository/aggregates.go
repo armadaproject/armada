@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
@@ -90,7 +91,7 @@ func GetStatesForFilter(filters []*model.Filter) []string {
 			stateFilter = f
 		}
 	}
-	allStates := util.Map(lookout.JobStates, func(jobState lookout.JobState) string { return string(jobState) })
+	allStates := slices.Map(lookout.JobStates, func(jobState lookout.JobState) string { return string(jobState) })
 	if stateFilter == nil {
 		// If no state filter is specified, use all states
 		return allStates

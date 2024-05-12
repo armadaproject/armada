@@ -388,7 +388,7 @@ func TestPriorityAsInt32(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expectedPriority, priorityAsInt32(tc.priority))
+			assert.Equal(t, tc.expectedPriority, PriorityAsInt32(tc.priority))
 		})
 	}
 }
