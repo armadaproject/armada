@@ -28,7 +28,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -181,22 +180,13 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer publisher.Close()
 
-	// KV store where we Automatically clean up keys after two weeks.
-	store, err := pgkeyvalue.New(ctx, dbPool, config.Pulsar.DedupTable)
-	if err != nil {
-		return err
-	}
-	services = append(services, func() error {
-		return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
-	})
-
 	pulsarSubmitServer := submit.NewServer(
 		publisher,
 		queueRepository,
 		queueCache,
 		jobRepository,
 		config.Submission,
-		submit.NewDeduplicator(store),
+		submit.NewDeduplicator(dbPool),
 		submitChecker,
 		authorizer,
 		config.RequireQueueAndJobSet)

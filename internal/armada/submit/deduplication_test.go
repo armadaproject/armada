@@ -1,40 +1,20 @@
 package submit
 
 import (
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type deduplicationIdsWithQueue struct {
 	queue string
 	kvs   map[string]string
-}
-
-type InMemoryKeyValueStore struct {
-	kvs map[string][]byte
-}
-
-func (m *InMemoryKeyValueStore) Store(_ *armadacontext.Context, kvs map[string][]byte) error {
-	maps.Copy(m.kvs, kvs)
-	return nil
-}
-
-func (m *InMemoryKeyValueStore) Load(_ *armadacontext.Context, keys []string) (map[string][]byte, error) {
-	result := make(map[string][]byte, len(keys))
-	for _, k := range keys {
-		v, ok := m.kvs[k]
-		if ok {
-			result[k] = v
-		}
-	}
-	return result, nil
 }
 
 func TestDeduplicator(t *testing.T) {
@@ -110,19 +90,24 @@ func TestDeduplicator(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			deduplicator := NewDeduplicator(&InMemoryKeyValueStore{kvs: map[string][]byte{}})
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				deduplicator := NewDeduplicator(db)
 
-			// Store
-			for _, keys := range tc.initialKeys {
-				err := deduplicator.StoreOriginalJobIds(ctx, keys.queue, keys.kvs)
+				// Store
+				for _, keys := range tc.initialKeys {
+					err := deduplicator.StoreOriginalJobIds(ctx, keys.queue, keys.kvs)
+					require.NoError(t, err)
+				}
+
+				// Fetch
+				keys, err := deduplicator.GetOriginalJobIds(ctx, tc.queueToFetch, tc.jobsToFetch)
 				require.NoError(t, err)
-			}
 
-			// Fetch
-			keys, err := deduplicator.GetOriginalJobIds(ctx, tc.queueToFetch, tc.jobsToFetch)
-			require.NoError(t, err)
+				assert.Equal(t, tc.expectedKeys, keys)
 
-			assert.Equal(t, tc.expectedKeys, keys)
+				return nil
+			})
+			assert.NoError(t, err)
 			cancel()
 		})
 	}
