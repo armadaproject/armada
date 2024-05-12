@@ -40,7 +40,7 @@ var (
 
 // ValidateSubmitRequest ensures that the incoming api.JobSubmitRequest is well-formed. It achieves this
 // by applying a series of validators that each check a single aspect of the request. Validators may
-// chose to validate the whole obSubmitRequest or just a single JobSubmitRequestItem.
+// choose to validate the whole obSubmitRequest or just a single JobSubmitRequestItem.
 // This function will return the error from the first validator that fails, or nil if all  validators pass.
 func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SubmissionConfig) error {
 	for _, validationFunc := range requestValidators {
@@ -184,7 +184,7 @@ func validateAffinity(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	const maxClientIdChars = 100
 	if len(j.GetClientId()) > maxClientIdChars {
-		return fmt.Errorf("client id of length %d is greater than max allowed lenght of  %d", len(j.ClientId), maxClientIdChars)
+		return fmt.Errorf("client id of length %d is greater than max allowed length of  %d", len(j.ClientId), maxClientIdChars)
 	}
 	return nil
 }
