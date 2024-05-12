@@ -26,7 +26,11 @@ func cancelCmd() *cobra.Command {
 	cmd.Flags().String("jobId", "", "job to cancel (optional)")
 	cmd.Flags().String("queue", "", "queue to cancel jobs from")
 	cmd.Flags().String("jobSet", "", "jobSet to cancel")
-	cmd.MarkFlagRequired("queue")
-	cmd.MarkFlagRequired("jobSet")
+	if err := cmd.MarkFlagRequired("queue"); err != nil {
+		panic(err)
+	}
+	if err := cmd.MarkFlagRequired("jobSet"); err != nil {
+		panic(err)
+	}
 	return cmd
 }
