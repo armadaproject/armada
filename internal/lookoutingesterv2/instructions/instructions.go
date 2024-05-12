@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"sort"
 	"strings"
 	"time"
 
@@ -200,9 +199,6 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	annotationInstructions := createUserAnnotationInstructions(jobId, queue, jobSet, annotations)
-	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
-
 	return err
 }
 
@@ -221,31 +217,6 @@ func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[stri
 		result[k] = v
 	}
 	return result
-}
-
-func createUserAnnotationInstructions(jobId string, queue string, jobset string, userAnnotations map[string]string) []*model.CreateUserAnnotationInstruction {
-	// This intermediate variable exists because we want our output to be deterministic
-	// Iteration over a map in go is non-deterministic, so we read everything into annotations
-	// and then sort it.
-	instructions := make([]*model.CreateUserAnnotationInstruction, 0, len(userAnnotations))
-	for k, v := range userAnnotations {
-		if k != "" {
-			instructions = append(instructions, &model.CreateUserAnnotationInstruction{
-				JobId:  jobId,
-				Key:    k,
-				Value:  v,
-				Queue:  queue,
-				Jobset: jobset,
-			})
-		} else {
-			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
-		}
-	}
-	// sort to make output deterministic
-	sort.Slice(instructions, func(i, j int) bool {
-		return instructions[i].Key < instructions[j].Key
-	})
-	return instructions
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
@@ -616,7 +587,7 @@ func extractNodeName(x HasNodeName) *string {
 func getJobResources(job *api.Job) jobResources {
 	resources := jobResources{}
 
-	podSpec := util.PodSpecFromJob(job)
+	podSpec := job.GetMainPodSpec()
 
 	for _, container := range podSpec.Containers {
 		resources.Cpu += getResource(container, v1.ResourceCPU, true)
@@ -640,7 +611,7 @@ func getResource(container v1.Container, resourceName v1.ResourceName, useMillis
 }
 
 func getJobPriorityClass(job *api.Job) *string {
-	podSpec := util.PodSpecFromJob(job)
+	podSpec := job.GetMainPodSpec()
 	if podSpec.PriorityClassName != "" {
 		return pointer.String(podSpec.PriorityClassName)
 	}

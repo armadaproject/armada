@@ -198,7 +198,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		config.Submission,
 		submit.NewDeduplicator(store),
 		submitChecker,
-		authorizer)
+		authorizer,
+		config.RequireQueueAndJobSet)
 
 	// Consumer that's used for deleting pulsarJob details
 	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off

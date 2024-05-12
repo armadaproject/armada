@@ -12,13 +12,11 @@ const (
 	submittedField          = "submitted"
 	lastTransitionTimeField = "lastTransitionTime"
 
-	jobTable                  = "job"
-	jobRunTable               = "job_run"
-	userAnnotationLookupTable = "user_annotation_lookup"
+	jobTable    = "job"
+	jobRunTable = "job_run"
 
-	jobTableAbbrev                  = "j"
-	jobRunTableAbbrev               = "jr"
-	userAnnotationLookupTableAbbrev = "ual"
+	jobTableAbbrev    = "j"
+	jobRunTableAbbrev = "jr"
 
 	jobIdCol              = "job_id"
 	queueCol              = "queue"
@@ -34,9 +32,6 @@ const (
 	submittedCol          = "submitted"
 	lastTransitionTimeCol = "last_transition_time_seconds"
 	priorityClassCol      = "priority_class"
-
-	annotationKeyCol   = "key"
-	annotationValueCol = "value"
 )
 
 type AggregateType int
@@ -52,17 +47,12 @@ const (
 type LookoutTables struct {
 	// field name -> column name
 	fieldColumnMap map[string]string
-	// column name -> set of tables with that column
-	// (the same column could be in multiple tables, either as a foreign key or for denormalization)
-	columnsTableMap map[string]map[string]bool
 	// set of column names that can be ordered
 	orderableColumns map[string]bool
 	// column name -> set of supported matches for column
 	filterableColumns map[string]map[string]bool
 	// table name -> abbreviated table name
 	tableAbbrevs map[string]string
-	// order of precedence for tables - which tables to prioritize querying from
-	tablePrecedence []string
 	// columns that can be grouped by
 	groupableColumns map[string]bool
 	// map from column to aggregate that can be performed on it
@@ -87,22 +77,6 @@ func NewTables() *LookoutTables {
 			"lastTransitionTime": lastTransitionTimeCol,
 			"priorityClass":      priorityClassCol,
 		},
-		columnsTableMap: map[string]map[string]bool{
-			jobIdCol:              util.StringListToSet([]string{jobTable, jobRunTable, userAnnotationLookupTable}),
-			queueCol:              util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
-			jobSetCol:             util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
-			ownerCol:              util.StringListToSet([]string{jobTable}),
-			namespaceCol:          util.StringListToSet([]string{jobTable}),
-			stateCol:              util.StringListToSet([]string{jobTable}),
-			cpuCol:                util.StringListToSet([]string{jobTable}),
-			memoryCol:             util.StringListToSet([]string{jobTable}),
-			ephemeralStorageCol:   util.StringListToSet([]string{jobTable}),
-			gpuCol:                util.StringListToSet([]string{jobTable}),
-			priorityCol:           util.StringListToSet([]string{jobTable}),
-			submittedCol:          util.StringListToSet([]string{jobTable}),
-			lastTransitionTimeCol: util.StringListToSet([]string{jobTable}),
-			priorityClassCol:      util.StringListToSet([]string{jobTable}),
-		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
 			jobSetCol,
@@ -124,14 +98,8 @@ func NewTables() *LookoutTables {
 			priorityClassCol:    util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 		},
 		tableAbbrevs: map[string]string{
-			jobTable:                  jobTableAbbrev,
-			jobRunTable:               jobRunTableAbbrev,
-			userAnnotationLookupTable: userAnnotationLookupTableAbbrev,
-		},
-		tablePrecedence: []string{
-			jobTable,
-			jobRunTable,
-			userAnnotationLookupTable,
+			jobTable:    jobTableAbbrev,
+			jobRunTable: jobRunTableAbbrev,
 		},
 		groupableColumns: util.StringListToSet([]string{
 			queueCol,
@@ -174,24 +142,12 @@ func (c *LookoutTables) SupportsMatch(col, match string) bool {
 	return isSupported
 }
 
-func (c *LookoutTables) TablesForColumn(col string) (map[string]bool, error) {
-	tables, ok := c.columnsTableMap[col]
-	if !ok {
-		return nil, errors.Errorf("cannot find table for column %s", col)
-	}
-	return tables, nil
-}
-
 func (c *LookoutTables) TableAbbrev(table string) (string, error) {
 	abbrev, ok := c.tableAbbrevs[table]
 	if !ok {
 		return "", errors.Errorf("abbreviation for table %s not found", table)
 	}
 	return abbrev, nil
-}
-
-func (c *LookoutTables) TablePrecedence() []string {
-	return c.tablePrecedence
 }
 
 func (c *LookoutTables) IsGroupable(col string) bool {
