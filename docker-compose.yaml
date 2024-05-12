@@ -23,7 +23,7 @@ services:
 
   postgres:
     container_name: postgres
-    image: postgres:12.13-alpine
+    image: postgres:15.6-alpine
     environment:
       - POSTGRES_PASSWORD=psw
     ports:
@@ -61,6 +61,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
+      - lookoutv2-migration
       - eventingester
     working_dir: /app
     env_file:

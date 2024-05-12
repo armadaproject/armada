@@ -202,7 +202,7 @@
         }
       }
     },
-    "/v1/job/jobdetails": {
+    "/v1/job/details": {
       "post": {
         "tags": [
           "Jobs"
@@ -234,60 +234,26 @@
         }
       }
     },
-    "/v1/job/jobrundetails": {
+    "/v1/job/preempt": {
       "post": {
         "tags": [
-          "Jobs"
+          "Submit"
         ],
-        "operationId": "GetJobRunDetails",
+        "operationId": "PreemptJobs",
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiJobRunDetailsRequest"
+              "$ref": "#/definitions/apiJobPreemptRequest"
             }
           }
         ],
         "responses": {
           "200": {
             "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiJobRunDetailsResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/v1/job/jobstatus": {
-      "post": {
-        "tags": [
-          "Jobs"
-        ],
-        "operationId": "GetJobStatus",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiJobStatusRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiJobStatusResponse"
-            }
+            "schema": {}
           },
           "default": {
             "description": "An unexpected error response.",
@@ -319,6 +285,38 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiJobReprioritizeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/status": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobStatus",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusResponse"
             }
           },
           "default": {
@@ -511,6 +509,38 @@
           }
         }
       }
+    },
+    "/v1/run/details": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobRunDetails",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobRunDetailsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobRunDetailsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -646,6 +676,9 @@
         },
         "preempted": {
           "$ref": "#/definitions/apiJobPreemptedEvent"
+        },
+        "preempting": {
+          "$ref": "#/definitions/apiJobPreemptingEvent"
         },
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
@@ -1220,6 +1253,24 @@
         }
       }
     },
+    "apiJobPreemptRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
     "apiJobPreemptedEvent": {
       "type": "object",
       "properties": {
@@ -1246,6 +1297,27 @@
           "type": "string"
         },
         "runId": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobPreemptingEvent": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "requestor": {
           "type": "string"
         }
       }

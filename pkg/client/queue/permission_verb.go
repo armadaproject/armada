@@ -12,6 +12,7 @@ type PermissionVerb string
 const (
 	PermissionVerbSubmit       PermissionVerb = "submit"
 	PermissionVerbCancel       PermissionVerb = "cancel"
+	PermissionVerbPreempt      PermissionVerb = "preempt"
 	PermissionVerbReprioritize PermissionVerb = "reprioritize"
 	PermissionVerbWatch        PermissionVerb = "watch"
 )

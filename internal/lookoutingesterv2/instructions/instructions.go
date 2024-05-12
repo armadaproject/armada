@@ -1,13 +1,10 @@
 package instructions
 
 import (
-	"fmt"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -41,10 +38,9 @@ type HasNodeName interface {
 }
 
 type InstructionConverter struct {
-	metrics                  *metrics.Metrics
-	userAnnotationPrefix     string
-	compressor               compress.Compressor
-	useLegacyEventConversion bool
+	metrics              *metrics.Metrics
+	userAnnotationPrefix string
+	compressor           compress.Compressor
 }
 
 type jobResources struct {
@@ -54,17 +50,12 @@ type jobResources struct {
 	Gpu              int64
 }
 
-func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor, useLegacyEventConversion bool) *InstructionConverter {
+func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor) *InstructionConverter {
 	return &InstructionConverter{
-		metrics:                  m,
-		userAnnotationPrefix:     userAnnotationPrefix,
-		compressor:               compressor,
-		useLegacyEventConversion: useLegacyEventConversion,
+		metrics:              m,
+		userAnnotationPrefix: userAnnotationPrefix,
+		compressor:           compressor,
 	}
-}
-
-func (c *InstructionConverter) IsLegacy() bool {
-	return c.useLegacyEventConversion
 }
 
 func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
@@ -106,13 +97,11 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobErrors:
 			err = c.handleJobErrors(ts, event.GetJobErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			if c.useLegacyEventConversion {
-				err = c.handleLegacyJobRunAssigned(ts, event.GetJobRunAssigned(), update)
-			} else {
-				err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
-			}
+			err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
+		case *armadaevents.EventSequence_Event_JobRunCancelled:
+			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
@@ -124,9 +113,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			if !c.useLegacyEventConversion {
-				err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
-			}
+			err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
@@ -212,9 +199,6 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	annotationInstructions := createUserAnnotationInstructions(jobId, queue, jobSet, annotations)
-	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
-
 	return err
 }
 
@@ -233,31 +217,6 @@ func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[stri
 		result[k] = v
 	}
 	return result
-}
-
-func createUserAnnotationInstructions(jobId string, queue string, jobset string, userAnnotations map[string]string) []*model.CreateUserAnnotationInstruction {
-	// This intermediate variable exists because we want our output to be deterministic
-	// Iteration over a map in go is non-deterministic, so we read everything into annotations
-	// and then sort it.
-	instructions := make([]*model.CreateUserAnnotationInstruction, 0, len(userAnnotations))
-	for k, v := range userAnnotations {
-		if k != "" {
-			instructions = append(instructions, &model.CreateUserAnnotationInstruction{
-				JobId:  jobId,
-				Key:    k,
-				Value:  v,
-				Queue:  queue,
-				Jobset: jobset,
-			})
-		} else {
-			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
-		}
-	}
-	// sort to make output deterministic
-	sort.Slice(instructions, func(i, j int) bool {
-		return instructions[i].Key < instructions[j].Key
-	})
-	return instructions
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
@@ -337,24 +296,29 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 		return err
 	}
 
-	isTerminal := false
-
 	for _, e := range event.GetErrors() {
-		if e.Terminal {
-			isTerminal = true
-			break
+		if !e.Terminal {
+			continue
 		}
-	}
 
-	if isTerminal {
+		state := lookout.JobFailedOrdinal
+		switch e.Reason.(type) {
+		// We should have a JobPreempted event rather than relying on type of JobErrors
+		// For now this is how we can identify if the job was preempted or failed
+		case *armadaevents.Error_JobRunPreemptedError:
+			state = lookout.JobPreemptedOrdinal
+		}
+
 		jobUpdate := model.UpdateJobInstruction{
 			JobId:                     jobId,
-			State:                     pointer.Int32(int32(lookout.JobFailedOrdinal)),
+			State:                     pointer.Int32(int32(state)),
 			LastTransitionTime:        &ts,
 			LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+		break
 	}
+
 	return nil
 }
 
@@ -438,8 +402,8 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 	jobRun := model.CreateJobRunInstruction{
 		RunId:       runId,
 		JobId:       jobId,
-		Cluster:     event.ExecutorId,
-		Node:        pointer.String(event.NodeId),
+		Cluster:     util.Truncate(event.ExecutorId, maxClusterLen),
+		Node:        pointer.String(util.Truncate(event.NodeId, maxNodeLen)),
 		Leased:      &ts,
 		JobRunState: lookout.JobRunLeasedOrdinal,
 	}
@@ -479,43 +443,19 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	return nil
 }
 
-func (c *InstructionConverter) handleLegacyJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
+func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
+		return errors.WithStack(err)
 	}
 
-	// Update Job
-	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
-		State:                     pointer.Int32(int32(lookout.JobPendingOrdinal)),
-		LastTransitionTime:        &ts,
-		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
-	}
-
-	update.JobsToUpdate = append(update.JobsToUpdate, &job)
-	cluster := ""
-	if len(event.GetResourceInfos()) > 0 {
-		cluster = util.Truncate(event.GetResourceInfos()[0].GetObjectMeta().GetExecutorId(), maxClusterLen)
-	}
-	// Now create a job run
-	jobRun := model.CreateJobRunInstruction{
+	jobRun := model.UpdateJobRunInstruction{
 		RunId:       runId,
-		JobId:       jobId,
-		Cluster:     cluster,
-		Leased:      &ts,
-		Pending:     &ts,
-		JobRunState: lookout.JobRunPendingOrdinal,
+		Finished:    &ts,
+		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 	}
-	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
@@ -550,28 +490,11 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	}
 
 	for _, e := range event.GetErrors() {
-		// Certain legacy events mean we don't have a valid run id
-		// In this case we have to invent a fake run
-		// TODO: remove this when the legacy messages go away!
-		isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
-		if isLegacyEvent {
-			jobRun := createFakeJobRun(jobId, ts)
-			runId = jobRun.RunId
-			objectMeta := extractMetaFromError(e)
-			if objectMeta != nil && objectMeta.ExecutorId != "" {
-				jobRun.Cluster = util.Truncate(objectMeta.ExecutorId, maxClusterLen)
-			}
-			update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
-		}
-
 		jobRunUpdate := &model.UpdateJobRunInstruction{
 			RunId: runId,
 		}
 		if e.Terminal {
 			jobRunUpdate.Finished = &ts
-		}
-		if isLegacyEvent {
-			jobRunUpdate.Started = &ts
 		}
 
 		switch reason := e.Reason.(type) {
@@ -588,6 +511,10 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			}
 			jobRunUpdate.ExitCode = pointer.Int32(exitCode)
 		case *armadaevents.Error_PodTerminated:
+			continue
+		case *armadaevents.Error_JobRunPreemptedError:
+			// This case is already handled by the JobRunPreempted event
+			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
 			continue
 		case *armadaevents.Error_PodUnschedulable:
 			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
@@ -621,49 +548,14 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 		return err
 	}
 
-	// Update Job
-	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
-		State:                     pointer.Int32(int32(lookout.JobPreemptedOrdinal)),
-		LastTransitionTime:        &ts,
-		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
-	}
-
-	update.JobsToUpdate = append(update.JobsToUpdate, &job)
-
-	// Update job run
-	errorString := "preempted by non armada pod"
-	preemptiveJobId, err := parseUlidString(event.PreemptiveJobId)
-	if err != nil {
-		log.WithError(err).Debug("failed to convert preemptive job id")
-	} else {
-		errorString = fmt.Sprintf("preempted by job %s", preemptiveJobId)
-	}
-
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       runId,
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
-		Error:       tryCompressError(jobId, errorString, c.compressor),
+		Error:       tryCompressError(jobId, "preempted", c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
-}
-
-func parseUlidString(id *armadaevents.Uuid) (string, error) {
-	if id == nil {
-		return "", errors.New("uuid is nil")
-	}
-	// Likely wrong if it is zeroed
-	if id.High64 == 0 && id.Low64 == 0 {
-		return "", errors.New("")
-	}
-	stringId, err := armadaevents.UlidStringFromProtoUuid(id)
-	if err != nil {
-		return "", errors.Wrap(err, "could not convert non-nil preemptive job id")
-	}
-	return stringId, nil
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
@@ -674,20 +566,6 @@ func tryCompressError(jobId string, errorString string, compressor compress.Comp
 	return compressedError
 }
 
-func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
-	switch err := e.Reason.(type) {
-	case *armadaevents.Error_PodError:
-		return err.PodError.ObjectMeta
-	case *armadaevents.Error_PodTerminated:
-		return err.PodTerminated.ObjectMeta
-	case *armadaevents.Error_PodUnschedulable:
-		return err.PodUnschedulable.ObjectMeta
-	case *armadaevents.Error_PodLeaseReturned:
-		return err.PodLeaseReturned.ObjectMeta
-	}
-	return nil
-}
-
 func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 	for _, r := range resources {
 		node := extractNodeName(r.GetPodInfo())
@@ -696,17 +574,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 		}
 	}
 	return pointer.String("UNKNOWN")
-}
-
-func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
-	runId := uuid.New().String()
-	return &model.CreateJobRunInstruction{
-		RunId:       runId,
-		JobId:       jobId,
-		Cluster:     "UNKNOWN",
-		Pending:     &ts,
-		JobRunState: lookout.JobRunPendingOrdinal,
-	}
 }
 
 func extractNodeName(x HasNodeName) *string {
@@ -720,7 +587,7 @@ func extractNodeName(x HasNodeName) *string {
 func getJobResources(job *api.Job) jobResources {
 	resources := jobResources{}
 
-	podSpec := util.PodSpecFromJob(job)
+	podSpec := job.GetMainPodSpec()
 
 	for _, container := range podSpec.Containers {
 		resources.Cpu += getResource(container, v1.ResourceCPU, true)
@@ -744,7 +611,7 @@ func getResource(container v1.Container, resourceName v1.ResourceName, useMillis
 }
 
 func getJobPriorityClass(job *api.Job) *string {
-	podSpec := util.PodSpecFromJob(job)
+	podSpec := job.GetMainPodSpec()
 	if podSpec.PriorityClassName != "" {
 		return pointer.String(podSpec.PriorityClassName)
 	}

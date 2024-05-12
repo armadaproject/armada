@@ -51,6 +51,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
 	unretryableStuckPod := makeUnretryableStuckPod()
 	addPod(t, fakeClusterContext, unretryableStuckPod)
+	addPodEvents(fakeClusterContext, unretryableStuckPod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
 
 	podIssueService.HandlePodIssues()
 
@@ -69,6 +70,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "unrecoverable problem")
+	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {
@@ -141,6 +143,7 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
 	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
+	addPodEvents(fakeClusterContext, retryableStuckPod, []*v1.Event{{Message: "Some other message", Type: "Warning"}})
 
 	podIssueService.HandlePodIssues()
 
@@ -165,6 +168,7 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 	assert.True(t, ok)
 	assert.Len(t, returnedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned() != nil)
+	assert.Contains(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned().DebugMessage, "Some other message")
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
@@ -446,4 +450,8 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func addPodEvents(fakeClusterContext *fakecontext.SyncFakeClusterContext, pod *v1.Pod, events []*v1.Event) {
+	fakeClusterContext.Events[util.ExtractJobId(pod)] = events
 }

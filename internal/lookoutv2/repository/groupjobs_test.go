@@ -21,17 +21,12 @@ import (
 )
 
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
-	for _, useJsonbBackend := range []bool{false, true} {
-		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-			repo := NewSqlGroupJobsRepository(db, useJsonbBackend)
-			return f(converter, store, repo)
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		repo := NewSqlGroupJobsRepository(db)
+		return f(converter, store, repo)
+	})
 }
 
 func TestGroupByQueue(t *testing.T) {
@@ -961,6 +956,13 @@ func TestGroupByAnnotation(t *testing.T) {
 				"test-annotation-1": "test-value-3",
 			},
 		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:       queue,
+			jobSet:      jobSet,
+			annotations: map[string]string{
+				// Note the absence of the key "test-annotation-1".
+			},
+		}, converter, store)
 
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
@@ -1475,7 +1477,7 @@ func makeLeased(opts *createJobsOpts, converter *instructions.InstructionConvert
 		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
-		Lease(uuid.NewString(), lastTransitionTime).
+		Lease(uuid.NewString(), cluster, node, lastTransitionTime).
 		Build()
 }
 

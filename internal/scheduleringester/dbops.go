@@ -116,24 +116,25 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 }
 
 type (
-	InsertJobs                 map[string]*schedulerdb.Job
-	InsertRuns                 map[uuid.UUID]*JobRunDetails
-	UpdateJobSetPriorities     map[JobSetKey]int64
-	MarkJobSetsCancelRequested map[JobSetKey]*JobSetCancelAction
-	MarkJobsCancelRequested    map[string]bool
-	MarkJobsCancelled          map[string]time.Time
-	MarkJobsSucceeded          map[string]bool
-	MarkJobsFailed             map[string]bool
-	UpdateJobPriorities        map[string]int64
-	UpdateJobSchedulingInfo    map[string]*JobSchedulingInfoUpdate
-	UpdateJobQueuedState       map[string]*JobQueuedStateUpdate
-	MarkRunsSucceeded          map[uuid.UUID]time.Time
-	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
-	MarkRunsRunning            map[uuid.UUID]time.Time
-	MarkRunsPending            map[uuid.UUID]time.Time
-	MarkRunsPreempted          map[uuid.UUID]time.Time
-	InsertJobRunErrors         map[uuid.UUID]*schedulerdb.JobRunError
-	InsertPartitionMarker      struct {
+	InsertJobs                     map[string]*schedulerdb.Job
+	InsertRuns                     map[uuid.UUID]*JobRunDetails
+	UpdateJobSetPriorities         map[JobSetKey]int64
+	MarkJobSetsCancelRequested     map[JobSetKey]*JobSetCancelAction
+	MarkJobsCancelRequested        map[string]bool
+	MarkJobsCancelled              map[string]time.Time
+	MarkJobsSucceeded              map[string]bool
+	MarkJobsFailed                 map[string]bool
+	UpdateJobPriorities            map[string]int64
+	UpdateJobSchedulingInfo        map[string]*JobSchedulingInfoUpdate
+	UpdateJobQueuedState           map[string]*JobQueuedStateUpdate
+	MarkRunsSucceeded              map[uuid.UUID]time.Time
+	MarkRunsFailed                 map[uuid.UUID]*JobRunFailed
+	MarkRunsForJobPreemptRequested map[JobSetKey][]string
+	MarkRunsRunning                map[uuid.UUID]time.Time
+	MarkRunsPending                map[uuid.UUID]time.Time
+	MarkRunsPreempted              map[uuid.UUID]time.Time
+	InsertJobRunErrors             map[uuid.UUID]*schedulerdb.JobRunError
+	InsertPartitionMarker          struct {
 		markers []*schedulerdb.Marker
 	}
 )
@@ -170,6 +171,10 @@ func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
+}
+
+func (a MarkRunsForJobPreemptRequested) Merge(b DbOperation) bool {
+	return mergeListMaps(a, b)
 }
 
 func (a UpdateJobSchedulingInfo) Merge(b DbOperation) bool {
@@ -258,7 +263,7 @@ func (a *InsertPartitionMarker) Merge(b DbOperation) bool {
 }
 
 // mergeInMap merges an op b into a, provided that b is of the same type as a.
-// For example, if a is of type MarkJobSetsCancelRequested, b is only merged if also of type MarkJobsCancelRequested.
+// For example, if a is of type MarkJobSetsCancelRequested, b is only merged if also of type MarkJobSetsCancelRequested.
 // Returns true if the ops were merged and false otherwise.
 func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	// Using a type switch here, since using a type assertion
@@ -266,6 +271,27 @@ func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	switch op := b.(type) {
 	case M:
 		maps.Copy(a, op)
+		return true
+	}
+	return false
+}
+
+// mergeListMaps merges an op b into a, provided that b is of the same type as a.
+// If merged, the resulting map will contain all keys from a and b
+// In case both a and b have the same key, the values for that key will be combined
+// Returns true if the ops were merged and false otherwise.
+func mergeListMaps[M ~map[K][]V, K comparable, V any](a M, b DbOperation) bool {
+	// Using a type switch here, since using a type assertion
+	// (which should also work in theory) crashes the go1.19 compiler.
+	switch op := b.(type) {
+	case M:
+		for k, v := range op {
+			if _, present := a[k]; present {
+				a[k] = append(a[k], v...)
+			} else {
+				a[k] = v
+			}
+		}
 		return true
 	}
 	return false
@@ -316,6 +342,10 @@ func (a MarkJobSetsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a MarkJobsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b) && !definesRunForJob(a, b)
+}
+
+func (a MarkRunsForJobPreemptRequested) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
 }
 
 func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {

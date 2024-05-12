@@ -53,6 +53,41 @@ func TestPartitionFlatten(t *testing.T) {
 	}
 }
 
+func TestMap(t *testing.T) {
+	tests := map[string]struct {
+		input     []int
+		transform func(int) int
+		expected  []int
+	}{
+		"identity": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) int { return i },
+			expected:  []int{1, 2, 3},
+		},
+		"simple function": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) int { return i + 1 },
+			expected:  []int{2, 3, 4},
+		},
+		"empty input": {
+			input:     []int{},
+			transform: func(i int) int { return i + 1 },
+			expected:  []int{},
+		},
+		"nil input": {
+			input:     nil,
+			transform: func(i int) int { return i + 1 },
+			expected:  nil,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := Map(tc.input, tc.transform)
+			assert.Equal(t, tc.expected, output)
+		})
+	}
+}
+
 func TestPartitionToMaxLen(t *testing.T) {
 	tests := map[string]struct {
 		input  []int

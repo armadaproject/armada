@@ -53,6 +53,7 @@ var baseJobRun = jobDb.CreateRun(
 	false,
 	false,
 	false,
+	false,
 	nil,
 	nil,
 	nil,
@@ -94,6 +95,12 @@ func TestJobRun_TestCancelled(t *testing.T) {
 	assert.True(t, cancelledRun.Cancelled())
 }
 
+func TestJobRun_TestPreemptRequested(t *testing.T) {
+	preemptRequestedRun := baseJobRun.WithPreemptRequested(true)
+	assert.False(t, baseJobRun.PreemptRequested())
+	assert.True(t, preemptRequestedRun.PreemptRequested())
+}
+
 func TestJobRun_TestReturned(t *testing.T) {
 	returnedRun := baseJobRun.WithReturned(true)
 	assert.False(t, baseJobRun.Returned())
@@ -122,6 +129,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
+		true,
 		nil,
 		nil,
 		nil,
@@ -138,6 +146,7 @@ func TestDeepCopy(t *testing.T) {
 		"nodeName",
 		"nodeId",
 		&scheduledAtPriority,
+		true,
 		true,
 		true,
 		true,

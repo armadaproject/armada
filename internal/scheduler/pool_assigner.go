@@ -15,7 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -37,7 +37,7 @@ type DefaultPoolAssigner struct {
 	executorTimeout        time.Duration
 	priorityClasses        map[string]types.PriorityClass
 	priorities             []int32
-	indexedResources       []configuration.IndexedResource
+	indexedResources       []configuration.ResourceType
 	indexedTaints          []string
 	indexedNodeLabels      []string
 	wellKnownNodeTypes     []configuration.WellKnownNodeType
@@ -47,11 +47,13 @@ type DefaultPoolAssigner struct {
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	poolCache              *lru.Cache
 	clock                  clock.Clock
+	resourceListFactory    *internaltypes.ResourceListFactory
 }
 
 func NewPoolAssigner(executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*DefaultPoolAssigner, error) {
 	poolCache, err := lru.New(maxJobSchedulingResults)
 	if err != nil {
@@ -71,6 +73,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
 		poolCache:              poolCache,
 		clock:                  clock.RealClock{},
+		resourceListFactory:    resourceListFactory,
 	}, nil
 }
 
@@ -110,9 +113,9 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	}
 
 	// See if we have this set of reqs cached.
-	schedulingKey, ok := j.GetSchedulingKey()
+	schedulingKey, ok := j.SchedulingKey()
 	if !ok {
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(p.schedulingKeyGenerator, j)
+		schedulingKey = jobdb.SchedulingKeyFromJob(p.schedulingKeyGenerator, j)
 	}
 	if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
 		return cachedPool.(string), nil
@@ -133,9 +136,9 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 			txn := nodeDb.Txn(true)
 			jctx := &schedulercontext.JobSchedulingContext{
 				Created:         time.Now(),
-				JobId:           j.GetId(),
+				JobId:           j.Id(),
 				Job:             j,
-				PodRequirements: j.GetPodRequirements(p.priorityClasses),
+				PodRequirements: j.PodRequirements(),
 				GangInfo:        schedulercontext.EmptyGangInfo(j),
 			}
 			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
@@ -162,6 +165,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 		p.indexedNodeLabels,
 		p.wellKnownNodeTypes,
 		stringinterner.New(1024),
+		p.resourceListFactory,
 	)
 	if err != nil {
 		return nil, err

@@ -80,19 +80,19 @@ message JobStatusResponse{
 service Jobs {
   rpc GetJobStatus (JobStatusRequest) returns (JobStatusResponse) {
     option (google.api.http) = {
-      post: "/v1/job/jobstatus"
+      post: "/v1/job/status"
       body: "*"
     };
   }
   rpc GetJobDetails (JobDetailsRequest) returns (JobDetailsResponse){
     option (google.api.http) = {
-      post: "/v1/job/jobdetails"
+      post: "/v1/job/details"
       body: "*"
     };
   }
   rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse){
     option (google.api.http) = {
-      post: "/v1/job/jobrundetails"
+      post: "/v1/run/details"
       body: "*"
     };
   }

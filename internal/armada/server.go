@@ -1,9 +1,7 @@
 package armada
 
 import (
-	"context"
 	"fmt"
-	"math"
 	"net"
 	"time"
 
@@ -11,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
-	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
@@ -23,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
@@ -34,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -97,6 +96,18 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "redis", db))
 
+	// Create database connection. This is used for the query api and also to store queues
+	// In a subsequent pr we will move deduplication here too and move the config out of the `queryapi` namespace
+	queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+	if err != nil {
+		return errors.WithMessage(err, "error creating QueryApi postgres pool")
+	}
+	queryapiServer := queryapi.New(
+		queryDb,
+		config.QueryApi.MaxQueryItems,
+		func() compress.Decompressor { return compress.NewZlibDecompressor() })
+	api.RegisterJobsServer(grpcServer, queryapiServer)
+
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
 		if err := eventDb.Close(); err != nil {
@@ -107,7 +118,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
 	jobRepository := repository.NewRedisJobRepository(db)
-	queueRepository := repository.NewRedisQueueRepository(db)
+	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
+	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
+	services = append(services, func() error {
+		return queueCache.Run(ctx)
+	})
 	healthChecks.Add(repository.NewRedisHealth(db))
 
 	eventRepository := repository.NewEventRepository(eventDb)
@@ -122,23 +137,28 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var dbPool *pgxpool.Pool
-	if len(config.Postgres.Connection) != 0 {
-		dbPool, err = database.OpenPgxPool(config.Postgres)
-		if err != nil {
-			return err
-		}
-		defer dbPool.Close()
+	dbPool, err = database.OpenPgxPool(config.Postgres)
+	if err != nil {
+		return err
 	}
+	defer dbPool.Close()
 
 	// Executor Repositories for pulsar scheduler
 	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
-	pulsarSchedulerSubmitChecker := scheduler.NewSubmitChecker(
+
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	if err != nil {
+		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
+	submitChecker := scheduler.NewSubmitChecker(
 		30*time.Minute,
 		config.Scheduling,
 		pulsarExecutorRepo,
+		resourceListFactory,
 	)
 	services = append(services, func() error {
-		return pulsarSchedulerSubmitChecker.Run(ctx)
+		return submitChecker.Run(ctx)
 	})
 	serverId := uuid.New()
 	var pulsarClient pulsar.Client
@@ -149,67 +169,37 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer pulsarClient.Close()
 
-	serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
-	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-		Name:             serverPulsarProducerName,
+	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+		Name:             fmt.Sprintf("armada-server-%s", serverId),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	})
+	}, config.Pulsar.MaxAllowedMessageSize)
 	if err != nil {
-		return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
+		return errors.Wrapf(err, "error creating pulsar producer")
 	}
-	defer producer.Close()
+	defer publisher.Close()
 
-	poolConfig := pool.ObjectPoolConfig{
-		MaxTotal:                 100,
-		MaxIdle:                  50,
-		MinIdle:                  10,
-		BlockWhenExhausted:       true,
-		MinEvictableIdleTime:     30 * time.Minute,
-		SoftMinEvictableIdleTime: math.MaxInt64,
-		TimeBetweenEvictionRuns:  0,
-		NumTestsPerEvictionRun:   10,
+	// KV store where we Automatically clean up keys after two weeks.
+	store, err := pgkeyvalue.New(ctx, dbPool, config.Pulsar.DedupTable)
+	if err != nil {
+		return err
 	}
+	services = append(services, func() error {
+		return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
+	})
 
-	compressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
-			return compress.NewZlibCompressor(512)
-		}), &poolConfig)
-
-	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:              producer,
-		QueueRepository:       queueRepository,
-		JobRepository:         jobRepository,
-		SubmissionConfig:      config.Submission,
-		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
-		GangIdAnnotation:      configuration.GangIdAnnotation,
-		SubmitChecker:         pulsarSchedulerSubmitChecker,
-		Authorizer:            authorizer,
-		CompressorPool:        compressorPool,
-	}
-
-	// If postgres details were provided, enable deduplication.
-	if config.Pulsar.DedupTable != "" {
-		if dbPool == nil {
-			return errors.New("deduplication is enabled, but no postgres settings are provided")
-		}
-		log.Info("Pulsar submit API deduplication enabled")
-
-		store, err := pgkeyvalue.New(ctx, dbPool, config.Pulsar.DedupTable)
-		if err != nil {
-			return err
-		}
-		pulsarSubmitServer.KVStore = store
-
-		// Automatically clean up keys after two weeks.
-		services = append(services, func() error {
-			return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
-		})
-	} else {
-		log.Info("Pulsar submit API deduplication disabled")
-	}
+	pulsarSubmitServer := submit.NewServer(
+		publisher,
+		queueRepository,
+		queueCache,
+		jobRepository,
+		config.Submission,
+		submit.NewDeduplicator(store),
+		submitChecker,
+		authorizer,
+		config.RequireQueueAndJobSet)
 
 	// Consumer that's used for deleting pulsarJob details
 	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
@@ -225,25 +215,13 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer consumer.Close()
 
-	jobExpirer := &server.PulsarJobExpirer{
+	jobExpirer := &PulsarJobExpirer{
 		Consumer:      consumer,
 		JobRepository: jobRepository,
 	}
 	services = append(services, func() error {
 		return jobExpirer.Run(ctx)
 	})
-
-	// Service that reads from Pulsar and logs events.
-	if config.Pulsar.EventsPrinter {
-		eventsPrinter := server.EventsPrinter{
-			Client:           pulsarClient,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: config.Pulsar.EventsPrinterSubscription,
-		}
-		services = append(services, func() error {
-			return eventsPrinter.Run(ctx)
-		})
-	}
 
 	schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
 	if err != nil {
@@ -255,21 +233,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	eventServer := server.NewEventServer(
 		authorizer,
 		eventRepository,
-		queueRepository,
+		queueCache,
 		jobRepository,
 	)
-
-	if config.QueryApi.Enabled {
-		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
-		if err != nil {
-			return errors.WithMessage(err, "error creating QueryApi postgres pool")
-		}
-		queryapiServer := queryapi.New(
-			queryDb,
-			config.QueryApi.MaxQueryItems,
-			func() compress.Decompressor { return compress.NewZlibDecompressor() })
-		api.RegisterJobsServer(grpcServer, queryapiServer)
-	}
 
 	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
@@ -288,7 +254,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	})
 
 	// Start all services and wait for the context to be cancelled,
-	// which if the parent context is cancelled or if any of the services returns an error.
+	// which occurs when the parent context is cancelled or if any of the services returns an error.
 	// We start all services at the end of the function to ensure all services are ready.
 	for _, service := range services {
 		g.Go(service)

@@ -35,11 +35,19 @@ type ArmadaConfig struct {
 
 	CancelJobsBatchSize int
 
+	RequireQueueAndJobSet bool
+
 	Redis          redis.UniversalOptions
 	EventsApiRedis redis.UniversalOptions
 	Pulsar         PulsarConfig
 	Postgres       PostgresConfig // Used for Pulsar submit API deduplication
 	QueryApi       QueryApiConfig
+
+	// True if we use postgres for the primary queue store.False means we use redis
+	QueueRepositoryUsesPostgres bool
+
+	// Period At which the Queue cache will be refreshed
+	QueueCacheRefreshPeriod time.Duration
 
 	// Config relating to job submission.
 	Submission SubmissionConfig
@@ -72,9 +80,6 @@ type PulsarConfig struct {
 	CompressionLevel pulsar.CompressionLevel
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
-	// Log all pulsar events
-	EventsPrinterSubscription string
-	EventsPrinter             bool
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
 	// Timeout when polling pulsar for messages
@@ -221,10 +226,19 @@ type SchedulingConfig struct {
 	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
 	// TODO(albin): Remove. It's unused.
 	MaxExtraNodesToConsider uint
+	// Resource types (e.g. memory or nvidia.com/gpu) that the scheduler keeps track of.
+	// Resource types not on this list will be ignored if seen on a node, and any jobs requesting them will fail.
+	SupportedResourceTypes []ResourceType
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu", for which the scheduler creates indexes for efficient lookup.
 	// This list must contain at least one resource. Adding more than one resource is not required, but may speed up scheduling.
 	// Ideally, this list contains all resources that frequently constrain which nodes a job can be scheduled onto.
-	IndexedResources []IndexedResource
+	//
+	// In particular, the allocatable resources on each node are rounded to a multiple of the resolution.
+	// Lower resolution speeds up scheduling by improving node lookup speed but may prevent scheduling jobs,
+	// since the allocatable resources may be rounded down to be a multiple of the resolution.
+	//
+	// See NodeDb docs for more details.
+	IndexedResources []ResourceType
 	// Node labels that the scheduler creates indexes for efficient lookup of.
 	// Should include node labels frequently used by node selectors on submitted jobs.
 	//
@@ -253,6 +267,10 @@ type SchedulingConfig struct {
 	NodeQuarantining NodeQuarantinerConfig
 	// Controls queue quarantining, i.e., rate-limiting scheduling from misbehaving queues.
 	QueueQuarantining QueueQuarantinerConfig
+	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first
+	PoolSchedulePriority map[string]int
+	// Default priority for pools that are not in the above list
+	DefaultPoolSchedulePriority int
 }
 
 const (
@@ -288,16 +306,11 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 	}
 }
 
-// IndexedResource represents a resource the scheduler indexes for efficient lookup.
-type IndexedResource struct {
+// ResourceType represents a resource the scheduler indexes for efficient lookup.
+type ResourceType struct {
 	// Resource name, e.g., "cpu", "memory", or "nvidia.com/gpu".
 	Name string
 	// Resolution with which Armada tracks this resource; larger values indicate lower resolution.
-	// In particular, the allocatable resources on each node are rounded to a multiple of the resolution.
-	// Lower resolution speeds up scheduling by improving node lookup speed but may prevent scheduling jobs,
-	// since the allocatable resources may be rounded down to be a multiple of the resolution.
-	//
-	// See NodeDb docs for more details.
 	Resolution resource.Quantity
 }
 
