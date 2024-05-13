@@ -358,13 +358,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		overallSchedulerResult = *result
 	}
 
-	// Publish to Pulsar.
-	isLeader := func() bool {
-		return s.leaderController.ValidateToken(leaderToken)
-	}
 	start := s.clock.Now()
 	ctx.Infof("Starting to publish %d eventSequences to pulsar", len(events))
-	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
+	if err = s.publisher.PublishMessages(ctx, events...); err != nil {
 		return overallSchedulerResult, err
 	}
 	ctx.Infof("Published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))

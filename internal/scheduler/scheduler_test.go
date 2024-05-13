@@ -1512,13 +1512,11 @@ func newTestPublisher() *testPublisher {
 	return &testPublisher{eventSequences: make([]*armadaevents.EventSequence, 0)}
 }
 
-func (t *testPublisher) PublishMessages(_ *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
+func (t *testPublisher) PublishMessages(_ *armadacontext.Context, events ...*armadaevents.EventSequence) error {
 	if t.shouldError {
 		return errors.New("testPublisher error")
 	}
-	if shouldPublish() {
-		t.eventSequences = append(t.eventSequences, events...)
-	}
+	t.eventSequences = append(t.eventSequences, events...)
 	return nil
 }
 
@@ -1533,6 +1531,10 @@ func (t *testPublisher) ReadAll() []*armadaevents.EventSequence {
 
 func (t *testPublisher) Reset() {
 	t.eventSequences = nil
+}
+
+func (t *testPublisher) Close() {
+	// Do nothing
 }
 
 func (t *testPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {

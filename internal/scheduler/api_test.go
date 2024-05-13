@@ -291,7 +291,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := mocks.NewMockProducer(ctrl)
+			mockPublisher := mocks.NewMockPublisher(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -322,7 +322,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				}).AnyTimes()
 
 			server, err := NewExecutorApi(
-				mockPulsarProducer,
+				mockPublisher,
 				mockJobRepository,
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,
@@ -330,7 +330,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
-				4*1024*1024,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -450,7 +449,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				}).AnyTimes()
 
 			server, err := NewExecutorApi(
-				mockPulsarProducer,
+				nil,
 				mockJobRepository,
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,
@@ -458,7 +457,6 @@ func TestExecutorApi_Publish(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
-				4*1024*1024,
 			)
 
 			require.NoError(t, err)

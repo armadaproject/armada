@@ -175,7 +175,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.Pulsar.MaxAllowedMessageSize)
+	}, config.Pulsar.SendTimeout, config.Pulsar.MaxAllowedMessageSize)
 	if err != nil {
 		return errors.Wrapf(err, "error creating pulsar producer")
 	}

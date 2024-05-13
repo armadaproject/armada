@@ -15,13 +15,14 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonmocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type mockObjects struct {
-	publisher     *mocks.MockPublisher
+	publisher     *commonmocks.MockPublisher
 	queueRepo     *mocks.MockQueueRepository
 	jobRep        *mocks.MockJobRepository
 	deduplicator  *mocks.MockDeduplicator
@@ -32,7 +33,7 @@ type mockObjects struct {
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:     mocks.NewMockPublisher(ctrl),
+		publisher:     commonmocks.NewMockPublisher(ctrl),
 		queueRepo:     mocks.NewMockQueueRepository(ctrl),
 		jobRep:        mocks.NewMockJobRepository(ctrl),
 		deduplicator:  mocks.NewMockDeduplicator(ctrl),

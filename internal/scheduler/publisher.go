@@ -3,7 +3,6 @@ package scheduler
 import (
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -12,24 +11,17 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-const (
-	// This is half the default pulsar BatchingMaxSize
-	defaultMaxMessageBatchSize = 64 * 1024
-	explicitPartitionKey       = "armada_pulsar_partition"
-)
+const explicitPartitionKey = "armada_pulsar_partition"
 
 // Publisher is an interface to be implemented by structs that handle publishing messages to pulsar
 type Publisher interface {
-	// PublishMessages will publish the supplied messages. A LeaderToken is provided and the
-	// implementor may decide whether to publish based on the status of this token
-	PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error
-
+	pulsarutils.Publisher
 	// PublishMarkers publishes a single marker message for each Pulsar partition.  Each marker
 	// massage contains the supplied group id, which allows all marker messages for a given call
 	// to be identified.  The uint32 returned is the number of messages published
@@ -38,21 +30,19 @@ type Publisher interface {
 
 // PulsarPublisher is the default implementation of Publisher
 type PulsarPublisher struct {
-	// Used to send messages to pulsar
+	// Used to send event sequences to Pulsar
+	pulsarutils.Publisher
+	// Used to publish event markers to Pulsar
 	producer pulsar.Producer
 	// Number of partitions on the pulsar topic
 	numPartitions int
-	// Timeout after which async messages sends will be considered failed
-	pulsarSendTimeout time.Duration
-	// Maximum size (in bytes) of produced pulsar messages.
-	// This must be below 4MB which is the pulsar message size limit
-	maxMessageBatchSize uint
 }
 
 func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
-	pulsarSendTimeout time.Duration,
+	sendTimeout time.Duration,
+	maxAllowedMessageSize uint,
 ) (*PulsarPublisher, error) {
 	partitions, err := pulsarClient.TopicPartitions(producerOptions.Topic)
 	if err != nil {
@@ -63,69 +53,17 @@ func NewPulsarPublisher(
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	maxMessageBatchSize := producerOptions.BatchingMaxSize / 2
-	if maxMessageBatchSize <= 0 {
-		maxMessageBatchSize = defaultMaxMessageBatchSize
-	}
-	return &PulsarPublisher{
-		producer:            producer,
-		pulsarSendTimeout:   pulsarSendTimeout,
-		maxMessageBatchSize: maxMessageBatchSize,
-		numPartitions:       len(partitions),
-	}, nil
-}
 
-// PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
-// single event sequences up to maxMessageBatchSize.
-func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
-	sequences := eventutil.CompactEventSequences(events)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxMessageBatchSize, true)
+	eventPublisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, producerOptions, sendTimeout, maxAllowedMessageSize)
 	if err != nil {
-		return err
-	}
-	msgs := make([]*pulsar.ProducerMessage, len(sequences))
-	for i, sequence := range sequences {
-		bytes, err := proto.Marshal(sequence)
-		if err != nil {
-			return err
-		}
-		msgs[i] = &pulsar.ProducerMessage{
-			Payload: bytes,
-			Key:     sequences[i].JobSetName,
-			Properties: map[string]string{
-				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
-			},
-		}
+		return nil, err
 	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(len(msgs))
-
-	// Send messages
-	if shouldPublish() {
-		ctx.Debugf("Am leader so will publish")
-		sendCtx, cancel := armadacontext.WithTimeout(ctx, p.pulsarSendTimeout)
-		errored := false
-		for _, msg := range msgs {
-			p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
-				if err != nil {
-					logging.
-						WithStacktrace(ctx, err).
-						Error("error sending message to Pulsar")
-					errored = true
-				}
-				wg.Done()
-			})
-		}
-		wg.Wait()
-		cancel()
-		if errored {
-			return errors.New("One or more messages failed to send to Pulsar")
-		}
-	} else {
-		ctx.Debugf("No longer leader so not publishing")
-	}
-	return nil
+	return &PulsarPublisher{
+		Publisher:     eventPublisher,
+		producer:      producer,
+		numPartitions: len(partitions),
+	}, nil
 }
 
 // PublishMarkers sends one pulsar message (containing an armadaevents.PartitionMarker) to each partition
@@ -141,7 +79,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 			JobSetName: "armada-scheduler",
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: now(),
+					Created: pointer.Now(),
 					Event: &armadaevents.EventSequence_Event_PartitionMarker{
 						PartitionMarker: pm,
 					},
@@ -194,11 +132,6 @@ func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMe
 		}
 		return defaultRouter(msg, md.NumPartitions())
 	}
-}
-
-func now() *time.Time {
-	t := time.Now()
-	return &t
 }
 
 // JavaStringHash is the default hashing algorithm used by Pulsar
