@@ -6,10 +6,10 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
 type JobIterator interface {
@@ -18,7 +18,7 @@ type JobIterator interface {
 
 type JobRepository interface {
 	GetQueueJobIds(queueName string) []string
-	GetExistingJobsByIds(ids []string) []interfaces.LegacySchedulerJob
+	GetExistingJobsByIds(ids []string) []*jobdb.Job
 }
 
 type InMemoryJobIterator struct {
@@ -60,9 +60,9 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 	defer repo.mu.Unlock()
 	updatedQueues := make(map[string]bool)
 	for _, jctx := range jctxs {
-		queue := jctx.Job.GetQueue()
+		queue := jctx.Job.Queue()
 		repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
-		repo.jctxsById[jctx.Job.GetId()] = jctx
+		repo.jctxsById[jctx.Job.Id()] = jctx
 		updatedQueues[queue] = true
 	}
 	for queue := range updatedQueues {
@@ -78,18 +78,18 @@ func (repo *InMemoryJobRepository) sortQueue(queue string) {
 }
 
 func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) []string {
-	return util.Map(
+	return armadaslices.Map(
 		repo.jctxsByQueue[queue],
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return jctx.Job.GetId()
+			return jctx.Job.Id()
 		},
 	)
 }
 
-func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) []interfaces.LegacySchedulerJob {
+func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) []*jobdb.Job {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	rv := make([]interfaces.LegacySchedulerJob, 0, len(jobIds))
+	rv := make([]*jobdb.Job, 0, len(jobIds))
 	for _, jobId := range jobIds {
 		if jctx, ok := repo.jctxsById[jobId]; ok {
 			rv = append(rv, jctx.Job)
@@ -132,7 +132,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		}
 		job := it.repo.GetExistingJobsByIds([]string{it.jobIds[it.idx]})
 		it.idx++
-		return schedulercontext.JobSchedulingContextFromJob(it.priorityClasses, job[0]), nil
+		return schedulercontext.JobSchedulingContextFromJob(job[0]), nil
 	}
 }
 

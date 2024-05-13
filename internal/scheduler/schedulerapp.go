@@ -10,9 +10,12 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
+	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -35,6 +38,7 @@ import (
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
@@ -71,6 +75,15 @@ func Run(config schedulerconfig.Configuration) error {
 	health.SetupHttpMux(mux, healthChecks)
 	shutdownHttpServer := common.ServeHttp(uint16(config.Http.Port), mux)
 	defer shutdownHttpServer()
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Resource list factory
+	// ////////////////////////////////////////////////////////////////////////
+	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	if err != nil {
+		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -167,7 +180,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls, createLogrusLoggingOption())
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
@@ -209,16 +222,23 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
 
-	submitChecker := NewSubmitChecker(
-		30*time.Minute,
-		config.Scheduling,
-		executorRepository,
-	)
-	services = append(services, func() error {
-		return submitChecker.Run(ctx)
-	})
-	if err != nil {
-		return errors.WithMessage(err, "error creating submit checker")
+	var submitChecker SubmitScheduleChecker
+	if !config.DisableSubmitCheck {
+		submitCheckerImpl := NewSubmitChecker(
+			config.Scheduling,
+			executorRepository,
+			resourceListFactory,
+		)
+		services = append(services, func() error {
+			return submitCheckerImpl.Run(ctx)
+		})
+		if err != nil {
+			return errors.WithMessage(err, "error creating submit checker")
+		}
+		submitChecker = submitCheckerImpl
+	} else {
+		ctx.Infof("DisableSubmitCheckis true, will use a dummy submit check")
+		submitChecker = &DummySubmitChecker{}
 	}
 
 	// Setup failure estimation and quarantining.
@@ -272,6 +292,7 @@ func Run(config schedulerconfig.Configuration) error {
 		nodeQuarantiner,
 		queueQuarantiner,
 		stringInterner,
+		resourceListFactory,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -321,7 +342,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository)
+	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository, resourceListFactory)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pool assigner")
 	}
@@ -385,4 +406,21 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	}
 	ctx.Info("Running with in cluster client configuration")
 	return config, err
+}
+
+// This changes the default logrus grpc logging to log OK messages at trace level
+// The reason for doing this are:
+//   - Reduced logging
+//   - We only care about failures, so lets only log failures
+//   - We normally use these logs to work out who is calling us, however the Executor API is not public
+//     and is only called by other Armada components
+func createLogrusLoggingOption() grpc_logrus.Option {
+	return grpc_logrus.WithLevels(func(code codes.Code) log.Level {
+		switch code {
+		case codes.OK:
+			return log.TraceLevel
+		default:
+			return grpc_logrus.DefaultCodeToLevel(code)
+		}
+	})
 }

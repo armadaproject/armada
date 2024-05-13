@@ -143,7 +143,8 @@ type (
 		key    JobReprioritiseKey
 		jobIds []string
 	}
-	InsertPartitionMarker struct {
+	MarkJobsValidated              map[string]bool
+	InsertPartitionMarker          struct {
 		markers []*schedulerdb.Marker
 	}
 )
@@ -266,6 +267,10 @@ func (a MarkRunsPreempted) Merge(b DbOperation) bool {
 }
 
 func (a InsertJobRunErrors) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a MarkJobsValidated) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -421,6 +426,10 @@ func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {
 	// Inserting errors before a run has been marked as failed is ok.
 	// We only require that errors are written to the schedulerdb before the run is marked as failed.
 	return true
+}
+
+func (a MarkJobsValidated) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation

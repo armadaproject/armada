@@ -393,6 +393,7 @@ func TestSchedule(t *testing.T) {
 				nil,
 				nil,
 				stringinterner.New(1024),
+				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
 
@@ -441,7 +442,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.
-			preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+			preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
 			actualPreemptedJobsByExecutorIndexAndNodeIndex := make(map[int]map[int][]int)
 			for _, job := range preemptedJobs {
 				executorIndex := executorIndexByJobId[job.Id()]
@@ -466,7 +467,7 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that jobs were scheduled as expected.
-			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 			actualScheduledIndices := make([]int, 0)
 			for _, job := range scheduledJobs {
 				actualScheduledIndices = append(actualScheduledIndices, queueIndexByJobId[job.Id()])
@@ -483,7 +484,7 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality
-			failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+			failedJobs := FailedJobsFromSchedulerResult(schedulerResult)
 			assert.Equal(t, tc.expectedFailedJobCount, len(failedJobs))
 
 			// Check that preempted jobs are marked as such consistently.
@@ -555,6 +556,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					nil,
 					stringInterner,
+					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
 				b.StartTimer()
@@ -567,6 +569,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedNodeLabels,
 					schedulingConfig.WellKnownNodeTypes,
 					stringInterner,
+					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
 				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)

@@ -54,6 +54,7 @@ export enum StandardColumnId {
   Node = "node",
   Cluster = "cluster",
   ExitCode = "exitCode",
+  RuntimeSeconds = "runtimeSeconds",
 }
 
 export const ANNOTATION_COLUMN_PREFIX = "annotation_"
@@ -421,7 +422,24 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       size: 100,
     },
   }),
+  accessorColumn({
+    id: StandardColumnId.RuntimeSeconds,
+    accessor: "runtimeSeconds",
+    displayName: "Runtime",
+    additionalOptions: {
+      size: 100,
+      cell: (cellInfo) => formatSeconds(cellInfo.cell.row.original.runtimeSeconds),
+    },
+  }),
 ]
+
+export function formatSeconds(seconds: number | undefined): string {
+  if (seconds === undefined || seconds === 0) return ""
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = seconds % 60
+  return `${hours ? `${hours}h ` : ""}${hours || minutes ? `${minutes}m ` : ""}${remainingSeconds}s`.trim()
+}
 
 export const DEFAULT_COLUMNS_TO_DISPLAY: Set<ColumnId> = new Set([
   StandardColumnId.SelectorCol,

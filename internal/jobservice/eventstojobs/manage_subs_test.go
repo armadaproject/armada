@@ -42,11 +42,7 @@ func (m *MockEventClient) Recv() (*api.EventStreamMessage, error) {
 		return nil, io.EOF
 	}
 
-	// We only want to return the error once.
-	defer func() {
-		m.err = nil
-	}()
-
+	// Always return the error, they are terminal
 	return msg, m.err
 }
 
@@ -79,23 +75,23 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 		name                 string
 		isJobSetSubscribedFn func(context.Context, string, string) (bool, string, error)
 		ttlSecs              time.Duration
-		err                  error
+		eventClients         []MockEventClient
 		wantErr              bool
 		wantSubscriptionErr  bool
 	}{
 		{
-			name:    "no error after expiration if messages are received",
-			ttlSecs: time.Second,
-			err:     nil,
+			name:         "no error after expiration if messages are received",
+			ttlSecs:      time.Second,
+			eventClients: []MockEventClient{{}},
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return true, "", nil
 			},
 			wantErr: false,
 		},
 		{
-			name:    "client errors and sets subscription error, but can continue on and exit normally",
-			ttlSecs: time.Second * 10,
-			err:     errors.New("some error"),
+			name:         "client errors and sets subscription error, reconnects to continue on and exit normally",
+			ttlSecs:      time.Second * 10,
+			eventClients: []MockEventClient{{err: errors.New("some error")}, {}},
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return true, "", nil
 			},
@@ -103,9 +99,9 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 			wantSubscriptionErr: true,
 		},
 		{
-			name:    "it exits without error when job unsubscribes",
-			ttlSecs: time.Second,
-			err:     nil,
+			name:         "it exits without error when job unsubscribes",
+			ttlSecs:      time.Second,
+			eventClients: []MockEventClient{{}},
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return false, "", nil
 			},
@@ -117,15 +113,16 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			eventClient := MockEventClient{
-				err: tt.err,
+			eventClientIndex := 0
+			getEventClientFun := func(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
+				eventClient := tt.eventClients[eventClientIndex]
+				eventClientIndex++
+				return &eventClient, nil
 			}
 
 			mockJobEventReader := events.JobEventReaderMock{
-				GetJobEventMessageFunc: func(context.Context, *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
-					return &eventClient, nil
-				},
-				CloseFunc: func() {},
+				GetJobEventMessageFunc: getEventClientFun,
+				CloseFunc:              func() {},
 			}
 
 			mockJobRepo := repository.SQLJobServiceMock{
@@ -169,7 +166,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 			}
 			if tt.wantSubscriptionErr {
 				assert.True(t, len(mockJobRepo.SetSubscriptionErrorCalls()) > 0)
-				assert.Equal(t, 2, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()))
+				assert.Equal(t, 3, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()))
 			} else {
 				assert.Equal(t, 0, len(mockJobRepo.SetSubscriptionErrorCalls()))
 				assert.True(t, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()) > 0)
@@ -212,7 +209,7 @@ func TestJobSetSubscriptionExecutor(t *testing.T) {
 		&mockJobEventReader,
 		&mockJobRepo,
 		jobSubChan,
-		time.Duration(time.Second),
+		time.Second,
 	)
 
 	go executor.Manage()

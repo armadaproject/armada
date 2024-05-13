@@ -89,7 +89,7 @@ func TestConvertSequence(t *testing.T) {
 			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: []string{f.JobIdString}}},
 		},
 		"job run preempted": {
-			events:   []*armadaevents.EventSequence_Event{f.JobPreempted},
+			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
 			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
 		},
 		"lease returned": {
@@ -191,6 +191,12 @@ func TestConvertSequence(t *testing.T) {
 					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetJobRequeued().SchedulingInfo),
 					JobSchedulingInfoVersion: int32(f.JobRequeued.GetJobRequeued().SchedulingInfo.Version),
 				}},
+			},
+		},
+		"SubmitChecked": {
+			events: []*armadaevents.EventSequence_Event{f.JobValidated},
+			expected: []DbOperation{
+				MarkJobsValidated{f.JobIdString: true},
 			},
 		},
 		"PositionMarker": {
