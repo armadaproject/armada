@@ -44,6 +44,16 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 		}},
+		"Submit Check": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+			},
+			MarkJobsValidated{
+				jobIds[0]: true,
+				jobIds[1]: true,
+			},
+		}},
 		"InsertRuns": {Ops: []DbOperation{
 			InsertJobs{
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
@@ -751,6 +761,21 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			assert.Equal(t, expectedMarker.PartitionID, actualMarker.PartitionID)
 			assert.Equal(t, expectedMarker.Created, actualMarker.Created)
 		}
+	case MarkJobsValidated:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			if _, ok := expected[job.JobID]; ok {
+				assert.True(t, job.Validated)
+				numChanged++
+				jobIds = append(jobIds, job.JobID)
+			}
+		}
+		assert.Equal(t, len(expected), numChanged)
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

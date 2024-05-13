@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -63,7 +63,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *schedulerco
 func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool, unschedulableReason string) error {
 	// If the job was added to the context, remove it first.
 	if gangAddedToSchedulingContext {
-		failedJobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })
+		failedJobs := slices.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })
 		if _, err := sch.schedulingContext.EvictGang(failedJobs); err != nil {
 			return err
 		}

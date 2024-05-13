@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -69,6 +70,28 @@ func TestJobDb_TestGetById(t *testing.T) {
 	assert.Equal(t, job1, txn.GetById(job1.Id()))
 	assert.Equal(t, job2, txn.GetById(job2.Id()))
 	assert.Nil(t, txn.GetById(util.NewULID()))
+}
+
+func TestJobDb_TestGetUnvalidated(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithValidated(false)
+	job2 := newJob().WithValidated(true)
+	job3 := newJob().WithValidated(false)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1, job2, job3})
+	require.NoError(t, err)
+
+	expected := []*Job{job1, job3}
+
+	var actual []*Job
+	it := txn.UnvalidatedJobs()
+	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
+		actual = append(actual, job)
+	}
+	sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
+	sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
+	assert.Equal(t, expected, actual)
 }
 
 func TestJobDb_TestGetByRunId(t *testing.T) {
@@ -245,7 +268,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		},
 	}
 	jobDb := NewTestJobDb()
-	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2)
+	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false)
 
 	actualSchedulingKey, ok := job.SchedulingKey()
 	require.True(t, ok)

@@ -74,6 +74,74 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 	}
 }
 
+func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
+	for i, jobId := range jobIds {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &DefaultTime,
+			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+					JobId: armadaevents.MustProtoUuidFromUlidString(jobId),
+				},
+			},
+		}
+	}
+	return events
+}
+
+func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
+	for i, jobId := range jobIds {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &DefaultTime,
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{
+					JobId: armadaevents.MustProtoUuidFromUlidString(jobId),
+				},
+			},
+		}
+	}
+	return events
+}
+
+func CreateCancelJobSetSequenceEvent() *armadaevents.EventSequence_Event {
+	return &armadaevents.EventSequence_Event{
+		Created: &DefaultTime,
+		Event: &armadaevents.EventSequence_Event_CancelJobSet{
+			CancelJobSet: &armadaevents.CancelJobSet{
+				States: []armadaevents.JobState{},
+			},
+		},
+	}
+}
+
+func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
+	for i, jobId := range jobIds {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &DefaultTime,
+			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
+				ReprioritiseJob: &armadaevents.ReprioritiseJob{
+					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
+					Priority: uint32(newPriority),
+				},
+			},
+		}
+	}
+	return events
+}
+
+func CreateReprioritizedJobSetSequenceEvent(newPriority float64) *armadaevents.EventSequence_Event {
+	return &armadaevents.EventSequence_Event{
+		Created: &DefaultTime,
+		Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
+			ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
+				Priority: uint32(newPriority),
+			},
+		},
+	}
+}
+
 func NEventSequenceEvents(n int) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, n)
 	for i := 0; i < n; i++ {

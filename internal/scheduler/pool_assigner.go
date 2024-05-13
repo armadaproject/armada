@@ -55,7 +55,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 	executorRepository database.ExecutorRepository,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*DefaultPoolAssigner, error) {
-	poolCache, err := lru.New(maxJobSchedulingResults)
+	poolCache, err := lru.New(10000)
 	if err != nil {
 		return nil, errors.Wrap(err, "error  creating PoolAssigner pool cache")
 	}
