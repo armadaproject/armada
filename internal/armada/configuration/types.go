@@ -51,8 +51,6 @@ type ArmadaConfig struct {
 
 	// Config relating to job submission.
 	Submission SubmissionConfig
-	// Scheduling config used by the submitChecker.
-	Scheduling SchedulingConfig
 }
 
 type PulsarConfig struct {
