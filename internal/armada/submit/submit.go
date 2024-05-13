@@ -26,7 +26,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -42,7 +41,6 @@ type Server struct {
 	jobRepository         repository.JobRepository
 	submissionConfig      configuration.SubmissionConfig
 	deduplicator          Deduplicator
-	submitChecker         scheduler.SubmitScheduleChecker
 	authorizer            server.ActionAuthorizer
 	requireQueueAndJobSet bool
 	// Below are used only for testing
@@ -57,7 +55,6 @@ func NewServer(
 	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
-	submitChecker scheduler.SubmitScheduleChecker,
 	authorizer server.ActionAuthorizer,
 	requireQueueAndJobSet bool,
 ) *Server {
@@ -68,7 +65,6 @@ func NewServer(
 		jobRepository:         jobRepository,
 		submissionConfig:      submissionConfig,
 		deduplicator:          deduplicator,
-		submitChecker:         submitChecker,
 		authorizer:            authorizer,
 		requireQueueAndJobSet: requireQueueAndJobSet,
 		clock:                 clock.RealClock{},
@@ -153,9 +149,6 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		UserId:     userId,
 		Groups:     groups,
 		Events:     submitMsgs,
-	}
-	if canSchedule, reason := s.submitChecker.CheckApiJobs(es, s.submissionConfig.DefaultPriorityClassName); !canSchedule {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
 	pulsarJobDetails := armadaslices.Map(

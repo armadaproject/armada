@@ -113,6 +113,8 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned(), eventTime)
+		case *armadaevents.EventSequence_Event_JobValidated:
+			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
@@ -398,6 +400,16 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 			},
 		},
 	}}, nil
+}
+
+func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValidated) ([]DbOperation, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(checked.GetJobId())
+	if err != nil {
+		return nil, err
+	}
+	return []DbOperation{
+		MarkJobsValidated{jobId: true},
+	}, nil
 }
 
 // schedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
