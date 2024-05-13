@@ -55,29 +55,12 @@ var (
 )
 
 func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository) error) error {
-	if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-		repo := NewSqlGetJobsRepository(db, true)
+		repo := NewSqlGetJobsRepository(db)
 		return f(converter, store, repo)
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func withGetJobsSetupWithClock(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository, clock.Clock) error, clk clock.Clock) error {
-	for _, useJsonbBackend := range []bool{false, true} {
-		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
-			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-			repo := NewSqlGetJobsRepository(db, useJsonbBackend)
-			return f(converter, store, repo, clk)
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+	})
 }
 
 func TestGetJobsSingle(t *testing.T) {
@@ -2120,7 +2103,8 @@ func TestJobRuntimeWhenNoStartOrEnd(t *testing.T) {
 }
 
 func TestJobRuntimeWhenStartedButNotFinishedWithClock(t *testing.T) {
-	err := withGetJobsSetupWithClock(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, clk clock.Clock) error {
+	clk := clock.NewFakeClock(time.Now())
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		runId := uuid.NewString()
 		startTime := clk.Now()
 
@@ -2140,12 +2124,13 @@ func TestJobRuntimeWhenStartedButNotFinishedWithClock(t *testing.T) {
 		assert.Equal(t, expectedRuntime, actualRuntime)
 
 		return nil
-	}, clock.NewFakeClock(time.Now()))
+	})
 	require.NoError(t, err)
 }
 
 func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
-	err := withGetJobsSetupWithClock(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, clk clock.Clock) error {
+	clk := clock.NewFakeClock(time.Now())
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
 		runId := uuid.NewString()
 		startTime := clk.Now()
 		endTime := startTime.Add(5 * time.Minute)
@@ -2169,6 +2154,6 @@ func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
 		assert.Equal(t, expectedRuntime, actualRuntime)
 
 		return nil
-	}, clock.NewFakeClock(time.Now()))
+	})
 	require.NoError(t, err)
 }

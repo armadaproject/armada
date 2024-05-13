@@ -349,6 +349,7 @@ func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobd
 }
 
 func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job {
+	job = job.DeepCopy()
 	for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
 		req.GetPodRequirements().NodeSelector = maps.Clone(selector)
 	}
@@ -464,6 +465,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		false,
 		false,
 		created,
+		false,
 	)
 }
 
@@ -818,6 +820,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		false,
 		BaseTime.UnixNano(),
+		false,
 	)
 }
 
