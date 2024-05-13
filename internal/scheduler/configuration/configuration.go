@@ -56,8 +56,6 @@ type Configuration struct {
 	ExecutorTimeout time.Duration `validate:"required"`
 	// Maximum number of rows to fetch in a given query
 	DatabaseFetchSize int `validate:"required"`
-	// Timeout to use when sending messages to pulsar
-	PulsarSendTimeout time.Duration `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
 }

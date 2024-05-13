@@ -118,9 +118,9 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
-  eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
-  maxAllowedMessageSize: 4194304 # 4MB
+  maxAllowedMessageSize: 4194304 # 1MB
+  sendTimeout: 5s
   receiverQueueSize: 100
 postgres:
   connection:

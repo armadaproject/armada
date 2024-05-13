@@ -3,7 +3,6 @@ schedulePeriod: 10s
 maxSchedulingDuration: 5s
 executorTimeout: 1h
 databaseFetchSize: 1000
-pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 queueRefreshPeriod: 1s
 metrics:
@@ -37,6 +36,7 @@ pulsar:
   compressionType: zlib
   compressionLevel: faster
   maxAllowedMessageSize: 4194304 #4Mi
+  sendTimeout: 5s
 redis:
   addrs:
     - redis:6379

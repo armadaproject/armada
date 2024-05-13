@@ -147,7 +147,7 @@ func Run(config schedulerconfig.Configuration) error {
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.PulsarSendTimeout, config.Pulsar.MaxAllowedMessageSize)
+	}, config.Pulsar.SendTimeout, config.Pulsar.MaxAllowedMessageSize)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
@@ -171,7 +171,7 @@ func Run(config schedulerconfig.Configuration) error {
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.PulsarSendTimeout, config.Pulsar.MaxAllowedMessageSize)
+	}, config.Pulsar.SendTimeout, config.Pulsar.MaxAllowedMessageSize)
 	if err != nil {
 		return errors.Wrapf(err, "error creating pulsar publisher for executor api")
 	}
