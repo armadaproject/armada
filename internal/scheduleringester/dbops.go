@@ -143,8 +143,8 @@ type (
 		key    JobReprioritiseKey
 		jobIds []string
 	}
-	MarkJobsValidated              map[string]bool
-	InsertPartitionMarker          struct {
+	MarkJobsValidated     map[string]bool
+	InsertPartitionMarker struct {
 		markers []*schedulerdb.Marker
 	}
 )
