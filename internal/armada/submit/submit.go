@@ -36,7 +36,6 @@ type Server struct {
 	publisher        pulsarutils.Publisher
 	queueRepository  repository.QueueRepository
 	queueCache       repository.ReadOnlyQueueRepository
-	jobRepository    repository.JobRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
 	authorizer       server.ActionAuthorizer
