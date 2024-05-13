@@ -22,11 +22,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -38,9 +36,9 @@ type Server struct {
 	publisher        pulsarutils.Publisher
 	queueRepository  repository.QueueRepository
 	queueCache       repository.ReadOnlyQueueRepository
+	jobRepository    repository.JobRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
-	submitChecker    scheduler.SubmitScheduleChecker
 	authorizer       server.ActionAuthorizer
 	// Below are used only for testing
 	clock       clock.Clock
@@ -53,7 +51,6 @@ func NewServer(
 	queueCache repository.ReadOnlyQueueRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
-	submitChecker scheduler.SubmitScheduleChecker,
 	authorizer server.ActionAuthorizer,
 ) *Server {
 	return &Server{
@@ -62,7 +59,6 @@ func NewServer(
 		queueCache:       queueCache,
 		submissionConfig: submissionConfig,
 		deduplicator:     deduplicator,
-		submitChecker:    submitChecker,
 		authorizer:       authorizer,
 		clock:            clock.RealClock{},
 		idGenerator: func() *armadaevents.Uuid {
@@ -146,9 +142,6 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		UserId:     userId,
 		Groups:     groups,
 		Events:     submitMsgs,
-	}
-	if canSchedule, reason := s.submitChecker.CheckApiJobs(es, s.submissionConfig.DefaultPriorityClassName); !canSchedule {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
 	err = s.publisher.PublishMessages(ctx, es)
@@ -280,7 +273,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)
-	priority := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
+	priority := conversion.PriorityAsInt32(req.NewPriority)
 
 	sequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,

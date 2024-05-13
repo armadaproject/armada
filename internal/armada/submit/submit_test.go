@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -17,29 +15,29 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type mockObjects struct {
-	publisher     *mocks.MockPublisher
-	queueRepo     *mocks.MockQueueRepository
-	jobRep        *mocks.MockJobRepository
-	deduplicator  *mocks.MockDeduplicator
-	submitChecker *mocks.MockSubmitScheduleChecker
-	authorizer    *mocks.MockActionAuthorizer
+	publisher    *mocks.MockPublisher
+	queueRepo    *mocks.MockQueueRepository
+	jobRep       *mocks.MockJobRepository
+	deduplicator *mocks.MockDeduplicator
+	authorizer   *mocks.MockActionAuthorizer
 }
 
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:     mocks.NewMockPublisher(ctrl),
-		queueRepo:     mocks.NewMockQueueRepository(ctrl),
-		jobRep:        mocks.NewMockJobRepository(ctrl),
-		deduplicator:  mocks.NewMockDeduplicator(ctrl),
-		submitChecker: mocks.NewMockSubmitScheduleChecker(ctrl),
-		authorizer:    mocks.NewMockActionAuthorizer(ctrl),
+		publisher:    mocks.NewMockPublisher(ctrl),
+		queueRepo:    mocks.NewMockQueueRepository(ctrl),
+		jobRep:       mocks.NewMockJobRepository(ctrl),
+		deduplicator: mocks.NewMockDeduplicator(ctrl),
+		authorizer:   mocks.NewMockActionAuthorizer(ctrl),
 	}
 }
 
@@ -103,12 +101,6 @@ func TestSubmit_Success(t *testing.T) {
 			mockedObjects.deduplicator.
 				EXPECT().
 				StoreOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, gomock.Any()).
-				Times(1)
-
-			mockedObjects.submitChecker.
-				EXPECT().
-				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
-				Return(true, "").
 				Times(1)
 
 			expectedEventSequence := &armadaevents.EventSequence{
@@ -189,50 +181,6 @@ func TestSubmit_FailedValidation(t *testing.T) {
 				EXPECT().
 				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
 				Return(nil).
-				Times(1)
-
-			resp, err := server.SubmitJobs(ctx, tc.req)
-			assert.Error(t, err)
-			assert.Nil(t, resp)
-			cancel()
-		})
-	}
-}
-
-func TestSubmit_SubmitCheckFailed(t *testing.T) {
-	tests := map[string]struct {
-		req *api.JobSubmitRequest
-	}{
-		"Submit check fails": {
-			req: testfixtures.SubmitRequestWithNItems(1),
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			server, mockedObjects := createTestServer(t)
-
-			mockedObjects.queueRepo.
-				EXPECT().GetQueue(ctx, tc.req.Queue).
-				Return(testfixtures.DefaultQueue, nil).
-				Times(1)
-
-			mockedObjects.authorizer.
-				EXPECT().
-				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
-				Return(nil).
-				Times(1)
-
-			mockedObjects.deduplicator.
-				EXPECT().
-				GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, tc.req.JobRequestItems).
-				Return(nil, nil).
-				Times(1)
-
-			mockedObjects.submitChecker.
-				EXPECT().
-				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
-				Return(false, "").
 				Times(1)
 
 			resp, err := server.SubmitJobs(ctx, tc.req)
@@ -571,7 +519,6 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 		m.queueRepo,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,
-		m.submitChecker,
 		m.authorizer)
 	server.clock = clock.NewFakeClock(testfixtures.DefaultTime)
 	server.idGenerator = testfixtures.TestUlidGenerator()

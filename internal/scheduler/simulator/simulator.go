@@ -189,7 +189,7 @@ func (s *Simulator) StateTransitions() <-chan StateTransition {
 }
 
 func validateClusterSpec(clusterSpec *ClusterSpec) error {
-	poolNames := util.Map(clusterSpec.Pools, func(pool *Pool) string { return pool.Name })
+	poolNames := armadaslices.Map(clusterSpec.Pools, func(pool *Pool) string { return pool.Name })
 	if !slices.Equal(poolNames, armadaslices.Unique(poolNames)) {
 		return errors.Errorf("duplicate pool name: %v", poolNames)
 	}
@@ -209,12 +209,12 @@ func validateClusterSpec(clusterSpec *ClusterSpec) error {
 }
 
 func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
-	queueNames := util.Map(workloadSpec.Queues, func(queue *Queue) string { return queue.Name })
+	queueNames := armadaslices.Map(workloadSpec.Queues, func(queue *Queue) string { return queue.Name })
 	if !slices.Equal(queueNames, armadaslices.Unique(queueNames)) {
 		return errors.Errorf("duplicate queue name: %v", queueNames)
 	}
-	jobTemplateIdSlices := util.Map(workloadSpec.Queues, func(queue *Queue) []string {
-		return util.Map(queue.JobTemplates, func(template *JobTemplate) string { return template.Id })
+	jobTemplateIdSlices := armadaslices.Map(workloadSpec.Queues, func(queue *Queue) []string {
+		return armadaslices.Map(queue.JobTemplates, func(template *JobTemplate) string { return template.Id })
 	})
 	jobTemplateIds := make([]string, 0)
 	for _, singleQueueTemplateIds := range jobTemplateIdSlices {
@@ -562,7 +562,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := txn.Upsert(util.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
+			if err := txn.Upsert(armadaslices.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
 				return err
 			}
 			if err := txn.Upsert(failedJobs); err != nil {
@@ -688,6 +688,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		false,
 		false,
 		s.logicalJobCreatedTimestamp.Add(1),
+		false,
 	)
 	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 		return nil, false, err

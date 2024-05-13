@@ -27,7 +27,7 @@ func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]
 // An error is logged if the podSpec uses an unknown priority class.
 // This function may mutate podSpec.
 func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
-	priority, ok := api.PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
+	priority, ok := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
 	if priorityByPriorityClassName != nil && !ok {
 		// Ignore this error if priorityByPriorityClassName is explicitly set to nil.
 		// We assume that in this case the caller is sure the priority does not need to be set.
@@ -89,4 +89,31 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		return nil, errors.Errorf("unsupported object type %T", object)
 	}
 	return schedulingInfo, nil
+}
+
+// PriorityFromPodSpec returns the priority in a pod spec.
+// If priority is set directly, that value is returned.
+// Otherwise, it returns the value of the key podSpec.
+// In both cases the value along with true boolean is returned.
+// PriorityClassName in priorityByPriorityClassName map.
+// If no priority is set for the pod spec, 0 along with a false boolean would be returned
+func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.PriorityClass) (int32, bool) {
+	// If there's no podspec there's nothing we can do
+	if podSpec == nil {
+		return 0, false
+	}
+
+	// If a priority is directly specified, use that
+	if podSpec.Priority != nil {
+		return *podSpec.Priority, true
+	}
+
+	// If we find a priority class use that
+	priorityClass, ok := priorityClasses[podSpec.PriorityClassName]
+	if ok {
+		return priorityClass.Priority, true
+	}
+
+	// Couldn't find anything
+	return 0, false
 }

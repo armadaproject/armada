@@ -11,12 +11,12 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	protoutil "github.com/armadaproject/armada/internal/common/grpc/protoutils"
-	"github.com/armadaproject/armada/internal/common/util"
 )
 
 // CreateGatewayHandler configures the gRPC API gateway
@@ -83,7 +83,7 @@ func logRestRequests(h http.Handler) http.Handler {
 
 func allowCORS(h http.Handler, corsAllowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" && util.ContainsString(corsAllowedOrigins, origin) {
+		if origin := r.Header.Get("Origin"); origin != "" && slices.Contains(corsAllowedOrigins, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			if r.Method == "OPTIONS" && r.Header.Get("Access-Control-Request-Method") != "" {
