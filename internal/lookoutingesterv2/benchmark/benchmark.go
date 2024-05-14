@@ -217,7 +217,6 @@ func updateJobInstructions(n int, jobIds []string) []*model.UpdateJobInstruction
 			Cancelled:                 pointerTime(time.Now()),
 			LastTransitionTime:        pointerTime(time.Now()),
 			LastTransitionTimeSeconds: pointer.Int64(rand.Int63()),
-			Duplicate:                 pointer.Bool(false),
 			LatestRunId:               pointer.String(uuid.NewString()),
 		}
 	}

@@ -89,16 +89,6 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 							fmt.Printf("\t\tObject %d: %T\n", i, object.GetObject())
 							fmt.Printf("\t\t\tObjectMeta: %v\n", object.GetObjectMeta())
 						}
-					} else if duplicateDetected, ok := event.Event.(*armadaevents.EventSequence_Event_JobDuplicateDetected); ok {
-						newId, err := armadaevents.UlidStringFromProtoUuid(duplicateDetected.JobDuplicateDetected.NewJobId)
-						if err != nil {
-							panic(err)
-						}
-						oldId, err := armadaevents.UlidStringFromProtoUuid(duplicateDetected.JobDuplicateDetected.OldJobId)
-						if err != nil {
-							panic(err)
-						}
-						fmt.Printf("\t\tNew job %s is a duplicate of existing job %s\n", newId, oldId)
 					} else if jobRunErrors, ok := event.Event.(*armadaevents.EventSequence_Event_JobRunErrors); ok {
 						for _, e := range jobRunErrors.JobRunErrors.Errors {
 							fmt.Printf("\t\t%T\n", e.Reason)

@@ -36,7 +36,6 @@ type UpdateJobInstruction struct {
 	CancelReason              *string
 	LastTransitionTime        *time.Time
 	LastTransitionTimeSeconds *int64
-	Duplicate                 *bool
 	LatestRunId               *string
 }
 

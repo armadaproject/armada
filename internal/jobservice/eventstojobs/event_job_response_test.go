@@ -26,10 +26,6 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUBMITTED},
 		},
 		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_DuplicateFound{}},
-			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
-		},
-		{
 			eventMessage: api.EventMessage{Events: &api.EventMessage_Running{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING},
 		},
@@ -111,10 +107,6 @@ func TestIsTerminalEvent(t *testing.T) {
 		{
 			eventMessage:    api.EventMessage{Events: &api.EventMessage_Submitted{}},
 			jobServiceEvent: false,
-		},
-		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_DuplicateFound{}},
-			jobServiceEvent: true,
 		},
 		{
 			eventMessage:    api.EventMessage{Events: &api.EventMessage_Running{}},

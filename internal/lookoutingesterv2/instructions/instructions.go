@@ -106,8 +106,6 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
-		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			err = c.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_JobRequeued:
@@ -230,21 +228,6 @@ func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armada
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:    jobId,
 		Priority: pointer.Int64(int64(event.Priority)),
-	}
-	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
-	return nil
-}
-
-func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
-	jobUpdate := model.UpdateJobInstruction{
-		JobId:     jobId,
-		Duplicate: pointer.Bool(true),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil

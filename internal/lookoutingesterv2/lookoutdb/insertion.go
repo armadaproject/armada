@@ -336,7 +336,6 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].Cancelled,
 						instructions[i].LastTransitionTime,
 						instructions[i].LastTransitionTimeSeconds,
-						instructions[i].Duplicate,
 						instructions[i].LatestRunId,
 						instructions[i].CancelReason,
 					}, nil
@@ -391,7 +390,6 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.Cancelled,
 				i.LastTransitionTime,
 				i.LastTransitionTimeSeconds,
-				i.Duplicate,
 				i.LatestRunId,
 				i.CancelReason)
 			if err != nil {
@@ -684,9 +682,6 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 			}
 			if update.LastTransitionTimeSeconds != nil {
 				existing.LastTransitionTimeSeconds = update.LastTransitionTimeSeconds
-			}
-			if update.Duplicate != nil {
-				existing.Duplicate = update.Duplicate
 			}
 			if update.LatestRunId != nil {
 				existing.LatestRunId = update.LatestRunId
