@@ -5,7 +5,7 @@
 <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a></p>
 </div>
 
-# Armada
+# Armada - Test guithub sync one
 
 Armada is a system built on top of [Kubernetes](https://kubernetes.io/docs/concepts/overview/) for running batch workloads. With Armada as middleware for batch, Kubernetes can be a common substrate for batch and service workloads.  Armada is used in production and can run millions of jobs per day across tens of thousands of nodes. 
 
