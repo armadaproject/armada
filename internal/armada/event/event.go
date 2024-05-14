@@ -1,7 +1,9 @@
-package server
+package event
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/armada/event/sequence"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -12,7 +14,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/armada/repository/sequence"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/pkg/api"
@@ -20,23 +21,20 @@ import (
 )
 
 type EventServer struct {
-	authorizer      ActionAuthorizer
-	eventRepository repository.EventRepository
+	authorizer      auth.ActionAuthorizer
+	eventRepository EventRepository
 	queueRepository repository.ReadOnlyQueueRepository
-	jobRepository   repository.JobRepository
 }
 
 func NewEventServer(
-	authorizer ActionAuthorizer,
-	eventRepository repository.EventRepository,
+	authorizer auth.ActionAuthorizer,
+	eventRepository EventRepository,
 	queueRepository repository.ReadOnlyQueueRepository,
-	jobRepository repository.JobRepository,
 ) *EventServer {
 	return &EventServer{
 		authorizer:      authorizer,
 		eventRepository: eventRepository,
 		queueRepository: queueRepository,
-		jobRepository:   jobRepository,
 	}
 }
 
@@ -86,7 +84,7 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 	return s.GetJobSetEvents(request, stream)
 }
 
-func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, eventRepository repository.EventRepository,
+func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, eventRepository EventRepository,
 	stream api.Event_GetJobSetEventsServer,
 ) error {
 	ctx := armadacontext.FromGrpcCtx(stream.Context())
@@ -150,7 +148,7 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	}
 }
 
-func validateUserHasWatchPermissions(ctx *armadacontext.Context, authorizer ActionAuthorizer, q queue.Queue, jobSetId string) error {
+func validateUserHasWatchPermissions(ctx *armadacontext.Context, authorizer auth.ActionAuthorizer, q queue.Queue, jobSetId string) error {
 	err := authorizer.AuthorizeQueueAction(ctx, q, permissions.WatchAllEvents, queue.PermissionVerbWatch)
 	var permErr *armadaerrors.ErrUnauthorized
 	if errors.As(err, &permErr) {

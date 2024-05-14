@@ -1,4 +1,4 @@
-package server
+package event
 
 import (
 	"context"
@@ -19,13 +19,50 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
+
+type FakeActionAuthorizer struct{}
+
+func (c *FakeActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
+	return nil
+}
+
+func (c *FakeActionAuthorizer) AuthorizeQueueAction(
+	_ *armadacontext.Context,
+	_ queue.Queue,
+	_ permission.Permission,
+	_ queue.PermissionVerb,
+) error {
+	return nil
+}
+
+type FakeDenyAllActionAuthorizer struct{}
+
+func (c *FakeDenyAllActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
+	return &armadaerrors.ErrUnauthorized{
+		Principal: auth.GetPrincipal(ctx).GetName(),
+		Message:   "permission denied",
+	}
+}
+
+func (c *FakeDenyAllActionAuthorizer) AuthorizeQueueAction(
+	ctx *armadacontext.Context,
+	_ queue.Queue,
+	_ permission.Permission,
+	_ queue.PermissionVerb,
+) error {
+	return &armadaerrors.ErrUnauthorized{
+		Principal: auth.GetPrincipal(ctx).GetName(),
+		Message:   "permission denied",
+	}
+}
 
 func TestEventServer_Health(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
@@ -290,12 +327,12 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
+				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
-				principal := authorization.NewStaticPrincipal("alice", []string{})
-				ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
+				principal := auth.NewStaticPrincipal("alice", []string{})
+				ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -315,12 +352,12 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
+				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
-				principal := authorization.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
-				ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
+				principal := auth.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
+				ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -337,12 +374,12 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 
 	t.Run("queue permission", func(t *testing.T) {
 		withEventServer(ctx, t, func(s *EventServer) {
-			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
+			s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
-			principal := authorization.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
-			ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
+			principal := auth.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
+			ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 			stream := &eventStreamMock{ctx: ctx}
 
 			err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -389,10 +426,9 @@ func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *Ev
 	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
-	eventRepo := repository.NewEventRepository(client)
+	eventRepo := NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	jobRepo := repository.NewRedisJobRepository(client)
-	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo, jobRepo)
+	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
 
 	client.FlushDB(ctx)
 	legacyClient.FlushDB(ctx)

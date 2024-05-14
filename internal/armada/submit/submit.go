@@ -3,6 +3,7 @@ package submit
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"math"
 
 	"github.com/gogo/protobuf/types"
@@ -15,12 +16,10 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/armada/submit/conversion"
 	"github.com/armadaproject/armada/internal/armada/submit/validation"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -41,7 +40,7 @@ type Server struct {
 	jobRepository         repository.JobRepository
 	submissionConfig      configuration.SubmissionConfig
 	deduplicator          Deduplicator
-	authorizer            server.ActionAuthorizer
+	authorizer            auth.ActionAuthorizer
 	requireQueueAndJobSet bool
 	// Below are used only for testing
 	clock       clock.Clock
@@ -55,7 +54,7 @@ func NewServer(
 	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
-	authorizer server.ActionAuthorizer,
+	authorizer auth.ActionAuthorizer,
 	requireQueueAndJobSet bool,
 ) *Server {
 	return &Server{
@@ -632,7 +631,7 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 	}
 
 	if len(req.UserOwners) == 0 {
-		principal := authorization.GetPrincipal(ctx)
+		principal := auth.GetPrincipal(ctx)
 		req.UserOwners = []string{principal.GetName()}
 	}
 
@@ -789,7 +788,7 @@ func (s *Server) authorize(
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
 ) (string, []string, error) {
-	principal := authorization.GetPrincipal(ctx)
+	principal := auth.GetPrincipal(ctx)
 	userId := principal.GetName()
 	groups := principal.GetGroupNames()
 	q, err := s.queueCache.GetQueue(ctx, queueName)
@@ -801,7 +800,7 @@ func (s *Server) authorize(
 }
 
 func (s *Server) GetUser(ctx *armadacontext.Context) string {
-	principal := authorization.GetPrincipal(ctx)
+	principal := auth.GetPrincipal(ctx)
 	return principal.GetName()
 }
 

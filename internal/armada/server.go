@@ -17,13 +17,12 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/event"
 	"github.com/armadaproject/armada/internal/armada/queryapi"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
@@ -122,10 +121,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	})
 	healthChecks.Add(repository.NewRedisHealth(db))
 
-	eventRepository := repository.NewEventRepository(eventDb)
+	eventRepository := event.NewEventRepository(eventDb)
 
-	authorizer := server.NewAuthorizer(
-		authorization.NewPrincipalPermissionChecker(
+	authorizer := auth.NewAuthorizer(
+		auth.NewPrincipalPermissionChecker(
 			config.Auth.PermissionGroupMapping,
 			config.Auth.PermissionScopeMapping,
 			config.Auth.PermissionClaimMapping,
@@ -209,11 +208,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
 	schedulingReportsServer := reports.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 
-	eventServer := server.NewEventServer(
+	eventServer := event.NewEventServer(
 		authorizer,
 		eventRepository,
 		queueCache,
-		jobRepository,
 	)
 
 	api.RegisterSubmitServer(grpcServer, submitServer)
