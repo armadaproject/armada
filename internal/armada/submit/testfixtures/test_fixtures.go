@@ -9,7 +9,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -21,7 +21,7 @@ var (
 	DefaultOwner         = "testUser"
 	DefaultJobset        = "testJobset"
 	DefaultQueue         = queue.Queue{Name: "testQueue"}
-	DefaultPrincipal     = authorization.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
+	DefaultPrincipal     = auth.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
 	DefaultContainerPort = v1.ContainerPort{
 		Name:          "testContainerPort",
 		ContainerPort: 8080,

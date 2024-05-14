@@ -3,7 +3,6 @@ package submit
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/auth"
 	"math"
 
 	"github.com/gogo/protobuf/types"
@@ -20,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/submit/validation"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
