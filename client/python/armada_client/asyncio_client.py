@@ -54,7 +54,8 @@ class _AsyncResilientArmadaEventStream(AsyncIterator[event_pb2.EventStreamMessag
             if self._timeout_iterator is None:
                 self._timeout_iterator = self._re_connect()
             try:
-                message = await anext(self._timeout_iterator)
+                # we can't use anext here, as it requires python 3.10+
+                message = await self._timeout_iterator.__anext__()
                 self._last_message_id = message.id
                 return message
             except IteratorTimeoutException:
@@ -92,9 +93,14 @@ class ArmadaAsyncIOClient:
     :return: an Armada client instance
     """
 
-    def __init__(self, channel: grpc.aio.Channel) -> None:
+    def __init__(
+        self,
+        channel: grpc.aio.Channel,
+        event_timeout: timedelta = timedelta(minutes=15),
+    ) -> None:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.event_timeout = event_timeout
 
     async def get_job_events_stream(
         self,
@@ -121,19 +127,13 @@ class ArmadaAsyncIOClient:
         :param from_message_id: The from message id.
         :return: A job events stream for the job_set_id provided.
         """
-
-        if from_message_id is None:
-            from_message_id = ""
-
-        jsr = event_pb2.JobSetRequest(
+        return _AsyncResilientArmadaEventStream(
             queue=queue,
-            id=job_set_id,
+            job_set_id=job_set_id,
             from_message_id=from_message_id,
-            watch=True,
-            errorIfMissing=True,
+            event_stub=self.event_stub,
+            event_timeout=self.event_timeout,
         )
-        response = self.event_stub.GetJobSetEvents(jsr)
-        return response
 
     @staticmethod
     def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
