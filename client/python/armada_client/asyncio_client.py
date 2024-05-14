@@ -5,6 +5,7 @@ For the api definitions:
 https://armadaproject.io/api
 """
 
+from datetime import timedelta
 from typing import Dict, List, Optional, AsyncIterator
 
 import grpc
@@ -21,6 +22,64 @@ from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions
 from armada_client.typings import JobState
+from armada_client.iterators import AsyncTimeoutIterator, IteratorTimeoutException
+
+
+class _AsyncResilientArmadaEventStream(AsyncIterator[event_pb2.EventStreamMessage]):
+    def __init__(
+        self,
+        *,
+        queue: str,
+        job_set_id: str,
+        from_message_id: Optional[str] = None,
+        event_stub: event_pb2_grpc.EventStub,
+        event_timeout: timedelta,
+    ):
+        self._queue = queue
+        self._job_set_id = job_set_id
+        self._last_message_id = from_message_id or ""
+        self._stream = None
+        self._cancelled = False
+        self._event_stub = event_stub
+        self._event_timeout = event_timeout
+        self._timeout_iterator = None
+
+    def __aiter__(self) -> AsyncIterator[event_pb2.EventStreamMessage]:
+        return self
+
+    async def __anext__(self) -> event_pb2.EventStreamMessage:
+        while True:
+            if self._cancelled:
+                raise StopAsyncIteration()
+            if self._timeout_iterator is None:
+                self._timeout_iterator = self._re_connect()
+            try:
+                message = await anext(self._timeout_iterator)
+                self._last_message_id = message.id
+                return message
+            except IteratorTimeoutException:
+                self._timeout_iterator = None
+
+    def _re_connect(self):
+        self._close_connection()
+        jsr = event_pb2.JobSetRequest(
+            queue=self._queue,
+            id=self._job_set_id,
+            from_message_id=self._last_message_id,
+            watch=True,
+            errorIfMissing=True,
+        )
+        self._stream = self._event_stub.GetJobSetEvents(jsr)
+        return AsyncTimeoutIterator(self._stream, timeout=self._event_timeout)
+
+    def _close_connection(self):
+        if self._stream is not None:
+            self._stream.cancel()
+            self._stream = None
+
+    def cancel(self):
+        self._cancelled = True
+        self._close_connection()
 
 
 class ArmadaAsyncIOClient:

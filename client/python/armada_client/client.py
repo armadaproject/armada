@@ -5,6 +5,7 @@ For the api definitions:
 https://armadaproject.io/api
 """
 
+from datetime import timedelta
 from typing import Dict, Iterator, List, Optional
 
 from google.protobuf import empty_pb2
@@ -20,6 +21,67 @@ from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions
 from armada_client.typings import JobState
+from armada_client.iterators import (
+    IteratorTimeoutException,
+    TimeoutIterator,
+)
+
+
+class _ResilientArmadaEventStream(Iterator[event_pb2.EventStreamMessage]):
+    def __init__(
+        self,
+        *,
+        queue: str,
+        job_set_id: str,
+        from_message_id: Optional[str] = None,
+        event_stub: event_pb2_grpc.EventStub,
+        event_timeout: timedelta,
+    ):
+        self._queue = queue
+        self._job_set_id = job_set_id
+        self._last_message_id = from_message_id or ""
+        self._stream = None
+        self._cancelled = False
+        self._event_stub = event_stub
+        self._event_timeout = event_timeout
+        self._timeout_iterator = None
+
+    def __iter__(self) -> Iterator[event_pb2.EventStreamMessage]:
+        return self
+
+    def __next__(self) -> event_pb2.EventStreamMessage:
+        while True:
+            if self._cancelled:
+                raise StopIteration()
+            if self._timeout_iterator is None:
+                self._timeout_iterator = self._re_connect()
+            try:
+                message = next(self._timeout_iterator)
+                self._last_message_id = message.id
+                return message
+            except IteratorTimeoutException:
+                self._timeout_iterator = None
+
+    def _re_connect(self):
+        self._close_connection()
+        jsr = event_pb2.JobSetRequest(
+            queue=self._queue,
+            id=self._job_set_id,
+            from_message_id=self._last_message_id,
+            watch=True,
+            errorIfMissing=True,
+        )
+        self._stream = self._event_stub.GetJobSetEvents(jsr)
+        return TimeoutIterator(self._stream, timeout=self._event_timeout)
+
+    def _close_connection(self):
+        if self._stream is not None:
+            self._stream.cancel()
+            self._stream = None
+
+    def cancel(self):
+        self._cancelled = True
+        self._close_connection()
 
 
 class ArmadaClient:
@@ -32,9 +94,10 @@ class ArmadaClient:
     :return: an Armada client instance
     """
 
-    def __init__(self, channel):
+    def __init__(self, channel, event_timeout: timedelta = timedelta(minutes=15)):
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.event_timeout = event_timeout
 
     def get_job_events_stream(
         self,
@@ -61,18 +124,13 @@ class ArmadaClient:
         :param from_message_id: The from message id.
         :return: A job events stream for the job_set_id provided.
         """
-
-        if from_message_id is None:
-            from_message_id = ""
-
-        jsr = event_pb2.JobSetRequest(
+        return _ResilientArmadaEventStream(
             queue=queue,
-            id=job_set_id,
+            job_set_id=job_set_id,
             from_message_id=from_message_id,
-            watch=True,
-            errorIfMissing=True,
+            event_stub=self.event_stub,
+            event_timeout=self.event_timeout,
         )
-        return self.event_stub.GetJobSetEvents(jsr)
 
     @staticmethod
     def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
