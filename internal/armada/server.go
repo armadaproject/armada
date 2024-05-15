@@ -111,7 +111,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
-	jobRepository := repository.NewRedisJobRepository(db)
 	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
 	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
 	services = append(services, func() error {
@@ -175,28 +174,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		submit.NewDeduplicator(store),
 		authorizer)
 
-	// Consumer that's used for deleting pulsarJob details
-	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
-	// TODO: delete this when we finally remove redis
-	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:             config.Pulsar.JobsetEventsTopic,
-		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
-		Type:              pulsar.KeyShared,
-		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
-	})
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer consumer.Close()
-
-	jobExpirer := &PulsarJobExpirer{
-		Consumer:      consumer,
-		JobRepository: jobRepository,
-	}
-	services = append(services, func() error {
-		return jobExpirer.Run(ctx)
-	})
-
 	schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
 	if err != nil {
 		return errors.Wrapf(err, "error creating connection to scheduler api")
@@ -208,7 +185,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		authorizer,
 		eventRepository,
 		queueCache,
-		jobRepository,
 	)
 
 	api.RegisterSubmitServer(grpcServer, submitServer)

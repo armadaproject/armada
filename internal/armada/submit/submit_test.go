@@ -25,7 +25,6 @@ import (
 type mockObjects struct {
 	publisher    *mocks.MockPublisher
 	queueRepo    *mocks.MockQueueRepository
-	jobRep       *mocks.MockJobRepository
 	deduplicator *mocks.MockDeduplicator
 	authorizer   *mocks.MockActionAuthorizer
 }
@@ -35,7 +34,6 @@ func createMocks(t *testing.T) *mockObjects {
 	return &mockObjects{
 		publisher:    mocks.NewMockPublisher(ctrl),
 		queueRepo:    mocks.NewMockQueueRepository(ctrl),
-		jobRep:       mocks.NewMockJobRepository(ctrl),
 		deduplicator: mocks.NewMockDeduplicator(ctrl),
 		authorizer:   mocks.NewMockActionAuthorizer(ctrl),
 	}
