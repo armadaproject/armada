@@ -2,6 +2,7 @@ package validation
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -718,6 +719,40 @@ func TestValidatePriorityClasses(t *testing.T) {
 			err := validatePriorityClasses(tc.req, configuration.SubmissionConfig{
 				AllowedPriorityClassNames: tc.priorityClasses,
 			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateClientId(t *testing.T) {
+	tests := map[string]struct {
+		req           *api.JobSubmitRequestItem
+		expectSuccess bool
+	}{
+		"no client id": {
+			req:           &api.JobSubmitRequestItem{},
+			expectSuccess: true,
+		},
+		"client id of  100 chars is fine": {
+			req: &api.JobSubmitRequestItem{
+				ClientId: strings.Repeat("a", 100),
+			},
+			expectSuccess: true,
+		},
+		"client id over 100 chars is forbidden": {
+			req: &api.JobSubmitRequestItem{
+				ClientId: strings.Repeat("a", 101),
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateClientId(tc.req, configuration.SubmissionConfig{})
 			if tc.expectSuccess {
 				assert.NoError(t, err)
 			} else {
