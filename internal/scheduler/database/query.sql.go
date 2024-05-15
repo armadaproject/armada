@@ -133,11 +133,17 @@ func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []uuid.UU
 }
 
 const markJobsCancelRequestedById = `-- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true WHERE job_id = ANY($1::text[])
+UPDATE jobs SET cancel_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[])
 `
 
-func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, jobIds []string) error {
-	_, err := q.db.Exec(ctx, markJobsCancelRequestedById, jobIds)
+type MarkJobsCancelRequestedByIdParams struct {
+	Queue  string   `db:"queue"`
+	JobSet string   `db:"job_set"`
+	JobIds []string `db:"job_ids"`
+}
+
+func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, arg MarkJobsCancelRequestedByIdParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedById, arg.Queue, arg.JobSet, arg.JobIds)
 	return err
 }
 
@@ -708,16 +714,23 @@ func (q *Queries) SetTerminatedTime(ctx context.Context, arg SetTerminatedTimePa
 }
 
 const updateJobPriorityById = `-- name: UpdateJobPriorityById :exec
-UPDATE jobs SET priority = $1 WHERE job_id = $2
+UPDATE jobs SET priority = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[])
 `
 
 type UpdateJobPriorityByIdParams struct {
-	Priority int64  `db:"priority"`
-	JobID    string `db:"job_id"`
+	Priority int64    `db:"priority"`
+	Queue    string   `db:"queue"`
+	JobSet   string   `db:"job_set"`
+	JobIds   []string `db:"job_ids"`
 }
 
 func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriorityByIdParams) error {
-	_, err := q.db.Exec(ctx, updateJobPriorityById, arg.Priority, arg.JobID)
+	_, err := q.db.Exec(ctx, updateJobPriorityById,
+		arg.Priority,
+		arg.Queue,
+		arg.JobSet,
+		arg.JobIds,
+	)
 	return err
 }
 
