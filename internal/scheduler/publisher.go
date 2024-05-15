@@ -13,7 +13,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -92,8 +91,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 		}
 		msg := &pulsar.ProducerMessage{
 			Properties: map[string]string{
-				explicitPartitionKey:    fmt.Sprintf("%d", i),
-				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
+				explicitPartitionKey: fmt.Sprintf("%d", i),
 			},
 			Payload: bytes,
 		}
