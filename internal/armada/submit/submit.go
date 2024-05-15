@@ -221,7 +221,6 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, err
 	}
 
-	// send the message to both schedulers because jobs may be on either
 	err = s.publisher.PublishMessages(ctx, sequence)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
