@@ -277,6 +277,7 @@ enum Cause {
     Evicted = 1;
     OOM = 2;
     DeadlineExceeded = 3;
+    Rejected  = 4;
 }
 
 message ContainerStatus {

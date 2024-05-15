@@ -23,20 +23,17 @@ type EventServer struct {
 	authorizer      ActionAuthorizer
 	eventRepository repository.EventRepository
 	queueRepository repository.ReadOnlyQueueRepository
-	jobRepository   repository.JobRepository
 }
 
 func NewEventServer(
 	authorizer ActionAuthorizer,
 	eventRepository repository.EventRepository,
 	queueRepository repository.ReadOnlyQueueRepository,
-	jobRepository repository.JobRepository,
 ) *EventServer {
 	return &EventServer{
 		authorizer:      authorizer,
 		eventRepository: eventRepository,
 		queueRepository: queueRepository,
-		jobRepository:   jobRepository,
 	}
 }
 
