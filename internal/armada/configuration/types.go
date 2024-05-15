@@ -33,10 +33,6 @@ type ArmadaConfig struct {
 
 	SchedulerApiConnection client.ApiConnectionDetails
 
-	CancelJobsBatchSize int
-
-	RequireQueueAndJobSet bool
-
 	Redis          redis.UniversalOptions
 	EventsApiRedis redis.UniversalOptions
 	Pulsar         PulsarConfig
@@ -51,8 +47,6 @@ type ArmadaConfig struct {
 
 	// Config relating to job submission.
 	Submission SubmissionConfig
-	// Scheduling config used by the submitChecker.
-	Scheduling SchedulingConfig
 }
 
 type PulsarConfig struct {

@@ -57,7 +57,7 @@ type Scheduler struct {
 	// The label used when setting node anti affinities.
 	nodeIdLabel string
 	// If an executor fails to report in for this amount of time,
-	// all jobs assigne to that executor are cancelled.
+	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
 	// The time the previous scheduling round ended
 	previousSchedulingRoundEnd time.Time
@@ -321,6 +321,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("Finished generating updates messages, generating %d events", len(events))
 
+	// Validate that any new jobs can be scheduled
+	validationEvents, err := s.submitCheck(ctx, txn)
+	if err != nil {
+		return overallSchedulerResult, err
+	}
+	events = append(events, validationEvents...)
+
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	ctx.Info("Looking for jobs to expire")
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
@@ -485,13 +492,21 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	return newSchedulingInfo, nil
 }
 
-func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobdb.Job) (*jobdb.Job, bool, error) {
+func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *armadacontext.Context, job *jobdb.Job) (*jobdb.Job, bool, error) {
 	schedulingInfoWithNodeAntiAffinity, err := s.createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job)
 	if err != nil {
 		return nil, false, err
 	}
 	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
-	isSchedulable, _ := s.submitChecker.CheckJobDbJobs([]*jobdb.Job{job})
+	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
+	if err != nil {
+		return nil, false, err
+	}
+	result, ok := results[job.Id()]
+	isSchedulable := false
+	if ok {
+		isSchedulable = result.isSchedulable
+	}
 	return job, isSchedulable, nil
 }
 
@@ -656,11 +671,11 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
-func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors, txn)
+		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -673,7 +688,7 @@ func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.
 
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages
@@ -776,7 +791,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
-				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
+				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx, job)
 				if err != nil {
 					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
 				} else {
@@ -1008,6 +1023,82 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 	return events, nil
 }
 
+func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	jobsToCheck := make([]*jobdb.Job, 0)
+
+	it := txn.UnvalidatedJobs()
+
+	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
+		// Don't check jobs that are terminal
+		if job.InTerminalState() {
+			continue
+		}
+		jobsToCheck = append(jobsToCheck, job)
+	}
+
+	results, err := s.submitChecker.Check(ctx, jobsToCheck)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]*armadaevents.EventSequence, 0)
+	jobsToUpdate := make([]*jobdb.Job, 0)
+	for _, job := range jobsToCheck {
+		result := results[job.Id()]
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+		if err != nil {
+			return nil, err
+		}
+
+		es := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+				},
+			},
+		}
+
+		if result.isSchedulable {
+			job = job.WithValidated(true)
+			jobsToUpdate = append(jobsToUpdate, job)
+
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobValidated{
+				JobValidated: &armadaevents.JobValidated{
+					JobId: jobId,
+				},
+			}
+		} else {
+			job = job.WithFailed(true).WithQueued(false)
+			jobsToUpdate = append(jobsToUpdate, job)
+
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_JobRejected{
+								JobRejected: &armadaevents.JobRejected{
+									Message: result.reason,
+								},
+							},
+						},
+					},
+				},
+			}
+		}
+		events = append(events, es)
+	}
+
+	if err := txn.Upsert(jobsToUpdate); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
 // now is a convenience function for generating a pointer to a time.Time (as required by armadaevents).
 // It exists because Go won't let you do &s.clock.Now().
 func (s *Scheduler) now() *time.Time {
@@ -1024,7 +1115,6 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			// TODO(albin): This doesn't need to be separate; we'd anyway load everything in the first scheduling cycle.
 			if _, _, err := s.syncState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)

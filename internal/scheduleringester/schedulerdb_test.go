@@ -32,7 +32,8 @@ func TestWriteOps(t *testing.T) {
 	}
 	scheduledAtPriorities := []int32{5, 10}
 	tests := map[string]struct {
-		Ops []DbOperation
+		Ops             []DbOperation
+		ExpectNoUpdates bool
 	}{
 		"InsertJobs": {Ops: []DbOperation{
 			InsertJobs{
@@ -42,6 +43,16 @@ func TestWriteOps(t *testing.T) {
 			InsertJobs{
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+			},
+		}},
+		"Submit Check": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+			},
+			MarkJobsValidated{
+				jobIds[0]: true,
+				jobIds[1]: true,
 			},
 		}},
 		"InsertRuns": {Ops: []DbOperation{
@@ -78,14 +89,20 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"UpdateJobPriorities": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
+				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
+				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
 			},
 			UpdateJobPriorities{
-				jobIds[0]: 1,
-				jobIds[1]: 3,
+				key: JobReprioritiseKey{
+					JobSetKey: JobSetKey{
+						queue:  testQueueName,
+						jobSet: "set1",
+					},
+					Priority: 3,
+				},
+				jobIds: []string{jobIds[0], jobIds[2]},
 			},
 		}},
 		"MarkRunsForJobPreemptRequested": {Ops: []DbOperation{
@@ -135,14 +152,14 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
+				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
+				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
 			},
 			MarkJobsCancelRequested{
-				jobIds[0]: true,
-				jobIds[1]: true,
+				JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[0]},
+				JobSetKey{queue: testQueueName, jobSet: "set2"}: []string{jobIds[1]},
 			},
 		}},
 		"MarkJobsCancelled": {Ops: []DbOperation{
@@ -490,7 +507,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		numChanged := 0
 		jobIds := make([]string, 0)
 		for _, job := range jobs {
-			if _, ok := expected[job.JobID]; ok {
+			if _, ok := expected[JobSetKey{queue: job.Queue, jobSet: job.JobSet}]; ok {
 				assert.True(t, job.CancelRequested)
 				numChanged++
 				jobIds = append(jobIds, job.JobID)
@@ -588,12 +605,13 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		numChanged := 0
 		for _, job := range jobs {
-			if priority, ok := expected[job.JobID]; ok {
-				assert.Equal(t, priority, job.Priority)
+			jobSetKey := JobSetKey{queue: job.Queue, jobSet: job.JobSet}
+			if expected.key.JobSetKey == jobSetKey {
+				assert.Equal(t, expected.key.Priority, job.Priority)
 				numChanged++
 			}
 		}
-		assert.Equal(t, len(expected), numChanged)
+		assert.Equal(t, len(expected.jobIds), numChanged)
 	case MarkRunsSucceeded:
 		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
@@ -751,6 +769,21 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			assert.Equal(t, expectedMarker.PartitionID, actualMarker.PartitionID)
 			assert.Equal(t, expectedMarker.Created, actualMarker.Created)
 		}
+	case MarkJobsValidated:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			if _, ok := expected[job.JobID]; ok {
+				assert.True(t, job.Validated)
+				numChanged++
+				jobIds = append(jobIds, job.JobID)
+			}
+		}
+		assert.Equal(t, len(expected), numChanged)
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

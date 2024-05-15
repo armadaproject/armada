@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
@@ -95,7 +96,7 @@ func TestPruneDb(t *testing.T) {
 		{
 			testName:    "expire many jobs",
 			expireAfter: 100 * time.Hour,
-			jobs: util.Concat(
+			jobs: slices.Concatenate(
 				manyJobs(0, 10, baseTime.Add(-300*time.Hour)),
 				manyJobs(10, 20, baseTime.Add(-200*time.Hour)),
 				manyJobs(20, 50, baseTime.Add(-(100*time.Hour+5*time.Minute))),
@@ -139,7 +140,6 @@ func TestPruneDb(t *testing.T) {
 				queriedJobIdsPerTable := []map[string]bool{
 					selectStringSet(t, db, "SELECT job_id FROM job"),
 					selectStringSet(t, db, "SELECT DISTINCT job_id FROM job_run"),
-					selectStringSet(t, db, "SELECT DISTINCT job_id FROM user_annotation_lookup"),
 				}
 				for _, queriedJobs := range queriedJobIdsPerTable {
 					assert.Equal(t, len(tc.jobIdsLeft), len(queriedJobs))

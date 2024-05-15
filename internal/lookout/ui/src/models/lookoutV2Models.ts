@@ -83,6 +83,7 @@ export type Job = {
   node?: string
   cluster?: string
   exitCode?: number
+  runtimeSeconds?: number
 }
 
 export type JobKey = keyof Job

@@ -57,6 +57,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobRequeued,
+			*armadaevents.EventSequence_Event_JobValidated,
 			*armadaevents.EventSequence_Event_PartitionMarker:
 			// These events have no api analog right now, so we ignore
 			log.Debugf("ignoring event type %T", esEvent)
@@ -432,6 +433,20 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						Queue:    queueName,
 						Created:  time,
 						Reason:   reason.GangJobUnschedulable.Message,
+					},
+				},
+			}
+			events = append(events, event)
+		case *armadaevents.Error_JobRejected:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+						Reason:   reason.JobRejected.Message,
+						Cause:    api.Cause_Rejected,
 					},
 				},
 			}

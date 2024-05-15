@@ -1,6 +1,8 @@
 package util
 
 import (
+	"golang.org/x/exp/slices"
+
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -29,7 +31,7 @@ type IngressServiceConfig struct {
 func deepCopy(config *IngressServiceConfig) *IngressServiceConfig {
 	return &IngressServiceConfig{
 		Type:         config.Type,
-		Ports:        util.DeepCopyListUint32(config.Ports),
+		Ports:        slices.Clone(config.Ports),
 		Annotations:  util.DeepCopy(config.Annotations),
 		TlsEnabled:   config.TlsEnabled,
 		CertName:     config.CertName,
@@ -45,7 +47,7 @@ func CombineIngressService(ingresses []*api.IngressConfig, services []*api.Servi
 			result,
 			&IngressServiceConfig{
 				Type:         Ingress,
-				Ports:        util.DeepCopyListUint32(ing.Ports),
+				Ports:        slices.Clone(ing.Ports),
 				Annotations:  util.DeepCopy(ing.Annotations),
 				TlsEnabled:   ing.TlsEnabled,
 				CertName:     ing.CertName,
@@ -65,7 +67,7 @@ func CombineIngressService(ingresses []*api.IngressConfig, services []*api.Servi
 			result,
 			&IngressServiceConfig{
 				Type:         svcType,
-				Ports:        util.DeepCopyListUint32(svc.Ports),
+				Ports:        slices.Clone(svc.Ports),
 				UseClusterIp: useClusterIP,
 			},
 		)
