@@ -32,10 +32,10 @@ type mockObjects struct {
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:     mocks.NewMockPublisher(ctrl),
-		queueRepo:     mocks.NewMockQueueRepository(ctrl),
-		deduplicator:  mocks.NewMockDeduplicator(ctrl),
-		authorizer:    mocks.NewMockActionAuthorizer(ctrl),
+		publisher:    mocks.NewMockPublisher(ctrl),
+		queueRepo:    mocks.NewMockQueueRepository(ctrl),
+		deduplicator: mocks.NewMockDeduplicator(ctrl),
+		authorizer:   mocks.NewMockActionAuthorizer(ctrl),
 	}
 }
 
