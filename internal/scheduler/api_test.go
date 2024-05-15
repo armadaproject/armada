@@ -1,11 +1,9 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
@@ -18,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -430,26 +427,25 @@ func TestExecutorApi_Publish(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := mocks.NewMockProducer(ctrl)
+			mockPublisher := mocks.NewMockPublisher(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
-			mockPulsarProducer.
+			mockPublisher.
 				EXPECT().
-				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ context.Context, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
-					es := &armadaevents.EventSequence{}
-					err := proto.Unmarshal(msg.Payload, es)
-					require.NoError(t, err)
-					capturedEvents = append(capturedEvents, es)
-					callback(pulsarutils.NewMessageId(1), msg, nil)
+				PublishMessages(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ *armadacontext.Context, sequences ...*armadaevents.EventSequence) error {
+					for _, es := range sequences {
+						capturedEvents = append(capturedEvents, es)
+					}
+					return nil
 				}).AnyTimes()
 
 			server, err := NewExecutorApi(
-				nil,
+				mockPublisher,
 				mockJobRepository,
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,

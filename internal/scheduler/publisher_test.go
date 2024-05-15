@@ -150,7 +150,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockPulsarClient := mocks.NewMockClient(ctrl)
 			mockPulsarProducer := mocks.NewMockProducer(ctrl)
-			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
+			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(2)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			numPublished := 0
 			capturedPartitions := make(map[string]bool)
