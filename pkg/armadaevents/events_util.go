@@ -141,12 +141,6 @@ func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
 				return err
 			}
 			ev.Event = &jobRunErrors
-		case "jobDuplicateDetected":
-			var jobDuplicateDetected EventSequence_Event_JobDuplicateDetected
-			if err = json.Unmarshal(rawEvent.EventBytes, &jobDuplicateDetected); err != nil {
-				return err
-			}
-			ev.Event = &jobDuplicateDetected
 		case "standaloneIngressInfo":
 			var standaloneIngressInfo EventSequence_Event_StandaloneIngressInfo
 			if err = json.Unmarshal(rawEvent.EventBytes, &standaloneIngressInfo); err != nil {

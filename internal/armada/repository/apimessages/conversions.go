@@ -33,8 +33,6 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalReprioritiseJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritiseJob)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			convertedEvents, err = FromInternalReprioritisedJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritisedJob)
-		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			convertedEvents, err = FromInternalLogDuplicateDetected(es.Queue, es.JobSetName, *event.Created, esEvent.JobDuplicateDetected)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunLeased)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
@@ -213,30 +211,6 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					Created:     time,
 					NewPriority: float64(e.Priority),
 					Requestor:   userId,
-				},
-			},
-		},
-	}, nil
-}
-
-func FromInternalLogDuplicateDetected(queueName string, jobSetName string, time time.Time, e *armadaevents.JobDuplicateDetected) ([]*api.EventMessage, error) {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(e.NewJobId)
-	if err != nil {
-		return nil, err
-	}
-	originalJobId, err := armadaevents.UlidStringFromProtoUuid(e.OldJobId)
-	if err != nil {
-		return nil, err
-	}
-	return []*api.EventMessage{
-		{
-			Events: &api.EventMessage_DuplicateFound{
-				DuplicateFound: &api.JobDuplicateFoundEvent{
-					JobId:         jobId,
-					JobSetId:      jobSetName,
-					Queue:         queueName,
-					Created:       time,
-					OriginalJobId: originalJobId,
 				},
 			},
 		},

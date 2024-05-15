@@ -30,14 +30,6 @@ message JobQueuedEvent {
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
-message JobDuplicateFoundEvent {
-    string job_id = 1;
-    string job_set_id = 2;
-    string queue = 3;
-    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string original_job_id = 5;
-}
-
 message JobLeasedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -249,7 +241,6 @@ message EventMessage {
     oneof events {
         JobSubmittedEvent submitted = 1;
         JobQueuedEvent queued = 2;
-        JobDuplicateFoundEvent duplicate_found = 16;
         JobLeasedEvent leased = 3;
         JobLeaseReturnedEvent lease_returned = 4;
         JobLeaseExpiredEvent lease_expired = 5;
