@@ -15,29 +15,27 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type mockObjects struct {
-	publisher     *mocks.MockPublisher
-	queueRepo     *mocks.MockQueueRepository
-	jobRep        *mocks.MockJobRepository
-	deduplicator  *mocks.MockDeduplicator
-	submitChecker *mocks.MockSubmitScheduleChecker
-	authorizer    *mocks.MockActionAuthorizer
+	publisher    *mocks.MockPublisher
+	queueRepo    *mocks.MockQueueRepository
+	deduplicator *mocks.MockDeduplicator
+	authorizer   *mocks.MockActionAuthorizer
 }
 
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:     mocks.NewMockPublisher(ctrl),
-		queueRepo:     mocks.NewMockQueueRepository(ctrl),
-		jobRep:        mocks.NewMockJobRepository(ctrl),
-		deduplicator:  mocks.NewMockDeduplicator(ctrl),
-		submitChecker: mocks.NewMockSubmitScheduleChecker(ctrl),
-		authorizer:    mocks.NewMockActionAuthorizer(ctrl),
+		publisher:    mocks.NewMockPublisher(ctrl),
+		queueRepo:    mocks.NewMockQueueRepository(ctrl),
+		deduplicator: mocks.NewMockDeduplicator(ctrl),
+		authorizer:   mocks.NewMockActionAuthorizer(ctrl),
 	}
 }
 
@@ -101,18 +99,6 @@ func TestSubmit_Success(t *testing.T) {
 			mockedObjects.deduplicator.
 				EXPECT().
 				StoreOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, gomock.Any()).
-				Times(1)
-
-			mockedObjects.submitChecker.
-				EXPECT().
-				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
-				Return(true, "").
-				Times(1)
-
-			mockedObjects.jobRep.
-				EXPECT().
-				StorePulsarSchedulerJobDetails(ctx, gomock.Any()).
-				Return(nil).
 				Times(1)
 
 			expectedEventSequence := &armadaevents.EventSequence{
@@ -203,43 +189,260 @@ func TestSubmit_FailedValidation(t *testing.T) {
 	}
 }
 
-func TestSubmit_SubmitCheckFailed(t *testing.T) {
+func TestCancelJobs(t *testing.T) {
+	jobId1 := util.ULID().String()
+	jobId2 := util.ULID().String()
 	tests := map[string]struct {
-		req *api.JobSubmitRequest
+		req            *api.JobCancelRequest
+		expectedEvents []*armadaevents.EventSequence_Event
 	}{
-		"Submit check fails": {
-			req: testfixtures.SubmitRequestWithNItems(1),
+		"Cancel job using JobId": {
+			req:            &api.JobCancelRequest{JobId: jobId1, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
+			expectedEvents: testfixtures.CreateCancelJobSequenceEvents([]string{jobId1}),
+		},
+		"Cancel jobs using JobIds": {
+			req:            &api.JobCancelRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
+			expectedEvents: testfixtures.CreateCancelJobSequenceEvents([]string{jobId1, jobId2}),
+		},
+		"Cancel jobs using both JobId and JobIds": {
+			req:            &api.JobCancelRequest{JobId: jobId1, JobIds: []string{jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
+			expectedEvents: testfixtures.CreateCancelJobSequenceEvents([]string{jobId2, jobId1}),
+		},
+		"Cancel jobs using both JobId and JobIds - overlapping ids": {
+			req:            &api.JobCancelRequest{JobId: jobId1, JobIds: []string{jobId1}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
+			expectedEvents: testfixtures.CreateCancelJobSequenceEvents([]string{jobId1}),
+		},
+		"Cancel jobSet": {
+			req:            &api.JobCancelRequest{Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
+			expectedEvents: []*armadaevents.EventSequence_Event{testfixtures.CreateCancelJobSetSequenceEvent()},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+
 			server, mockedObjects := createTestServer(t)
 
 			mockedObjects.queueRepo.
-				EXPECT().GetQueue(ctx, tc.req.Queue).
+				EXPECT().
+				GetQueue(ctx, tc.req.Queue).
 				Return(testfixtures.DefaultQueue, nil).
 				Times(1)
 
 			mockedObjects.authorizer.
 				EXPECT().
-				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permission.Permission(permissions.CancelAnyJobs), queue.PermissionVerbCancel).
 				Return(nil).
 				Times(1)
 
-			mockedObjects.deduplicator.
+			expectedEventSequence := &armadaevents.EventSequence{
+				Queue:      testfixtures.DefaultQueue.Name,
+				JobSetName: testfixtures.DefaultJobset,
+				UserId:     testfixtures.DefaultOwner,
+				Groups:     []string{"everyone", "groupA"},
+				Events:     tc.expectedEvents,
+			}
+
+			var capturedEventSequence *armadaevents.EventSequence
+			mockedObjects.publisher.EXPECT().
+				PublishMessages(ctx, gomock.Any()).
+				Times(1).
+				Do(func(_ interface{}, es *armadaevents.EventSequence) {
+					capturedEventSequence = es
+				})
+
+			_, err := server.CancelJobs(ctx, tc.req)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedEventSequence, capturedEventSequence)
+			cancel()
+		})
+	}
+}
+
+func TestCancelJobs_FailedValidation(t *testing.T) {
+	jobId1 := util.ULID().String()
+	tests := map[string]struct {
+		req *api.JobCancelRequest
+	}{
+		"Queue is empty": {
+			req: &api.JobCancelRequest{JobId: jobId1, JobSetId: testfixtures.DefaultJobset},
+		},
+		"Job set is empty": {
+			req: &api.JobCancelRequest{JobId: jobId1, Queue: testfixtures.DefaultQueue.Name},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			server, _ := createTestServer(t)
+
+			resp, err := server.CancelJobs(ctx, tc.req)
+			assert.Error(t, err)
+			assert.Nil(t, resp)
+			cancel()
+		})
+	}
+}
+
+func TestPreemptJobs(t *testing.T) {
+	jobId1 := util.ULID().String()
+	jobId2 := util.ULID().String()
+	tests := map[string]struct {
+		req            *api.JobPreemptRequest
+		expectedEvents []*armadaevents.EventSequence_Event
+	}{
+		"Preempt jobs using JobIds": {
+			req:            &api.JobPreemptRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
+			expectedEvents: testfixtures.CreatePreemptJobSequenceEvents([]string{jobId1, jobId2}),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+
+			server, mockedObjects := createTestServer(t)
+
+			mockedObjects.queueRepo.
 				EXPECT().
-				GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, tc.req.JobRequestItems).
-				Return(nil, nil).
+				GetQueue(ctx, tc.req.Queue).
+				Return(testfixtures.DefaultQueue, nil).
 				Times(1)
 
-			mockedObjects.submitChecker.
+			mockedObjects.authorizer.
 				EXPECT().
-				CheckApiJobs(gomock.Any(), testfixtures.DefaultPriorityClass).
-				Return(false, "").
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permission.Permission(permissions.PreemptAnyJobs), queue.PermissionVerbPreempt).
+				Return(nil).
 				Times(1)
 
-			resp, err := server.SubmitJobs(ctx, tc.req)
+			expectedEventSequence := &armadaevents.EventSequence{
+				Queue:      testfixtures.DefaultQueue.Name,
+				JobSetName: testfixtures.DefaultJobset,
+				UserId:     testfixtures.DefaultOwner,
+				Groups:     []string{"everyone", "groupA"},
+				Events:     tc.expectedEvents,
+			}
+
+			var capturedEventSequence *armadaevents.EventSequence
+			mockedObjects.publisher.EXPECT().
+				PublishMessages(ctx, gomock.Any()).
+				Times(1).
+				Do(func(_ interface{}, es *armadaevents.EventSequence) {
+					capturedEventSequence = es
+				})
+
+			_, err := server.PreemptJobs(ctx, tc.req)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedEventSequence, capturedEventSequence)
+			cancel()
+		})
+	}
+}
+
+func TestPreemptJobs_FailedValidation(t *testing.T) {
+	jobId1 := util.ULID().String()
+	tests := map[string]struct {
+		req *api.JobPreemptRequest
+	}{
+		"Queue is empty": {
+			req: &api.JobPreemptRequest{JobIds: []string{jobId1}, JobSetId: testfixtures.DefaultJobset},
+		},
+		"Job set is empty": {
+			req: &api.JobPreemptRequest{JobIds: []string{jobId1}, Queue: testfixtures.DefaultQueue.Name},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			server, _ := createTestServer(t)
+
+			resp, err := server.PreemptJobs(ctx, tc.req)
+			assert.Error(t, err)
+			assert.Nil(t, resp)
+			cancel()
+		})
+	}
+}
+
+func TestReprioritizeJobs(t *testing.T) {
+	jobId1 := util.ULID().String()
+	jobId2 := util.ULID().String()
+	newPriority := float64(5)
+	tests := map[string]struct {
+		req            *api.JobReprioritizeRequest
+		expectedEvents []*armadaevents.EventSequence_Event
+	}{
+		"Reprioritize jobs using JobIds": {
+			req:            &api.JobReprioritizeRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, NewPriority: newPriority},
+			expectedEvents: testfixtures.CreateReprioritizeJobSequenceEvents([]string{jobId1, jobId2}, newPriority),
+		},
+		"Reprioritize jobSet": {
+			req:            &api.JobReprioritizeRequest{Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, NewPriority: newPriority},
+			expectedEvents: []*armadaevents.EventSequence_Event{testfixtures.CreateReprioritizedJobSetSequenceEvent(newPriority)},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+
+			server, mockedObjects := createTestServer(t)
+
+			mockedObjects.queueRepo.
+				EXPECT().
+				GetQueue(ctx, tc.req.Queue).
+				Return(testfixtures.DefaultQueue, nil).
+				Times(1)
+
+			mockedObjects.authorizer.
+				EXPECT().
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permission.Permission(permissions.ReprioritizeAnyJobs), queue.PermissionVerbReprioritize).
+				Return(nil).
+				Times(1)
+
+			expectedEventSequence := &armadaevents.EventSequence{
+				Queue:      testfixtures.DefaultQueue.Name,
+				JobSetName: testfixtures.DefaultJobset,
+				UserId:     testfixtures.DefaultOwner,
+				Groups:     []string{"everyone", "groupA"},
+				Events:     tc.expectedEvents,
+			}
+
+			var capturedEventSequence *armadaevents.EventSequence
+			mockedObjects.publisher.EXPECT().
+				PublishMessages(ctx, gomock.Any()).
+				Times(1).
+				Do(func(_ interface{}, es *armadaevents.EventSequence) {
+					capturedEventSequence = es
+				})
+
+			_, err := server.ReprioritizeJobs(ctx, tc.req)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedEventSequence, capturedEventSequence)
+			cancel()
+		})
+	}
+}
+
+func TestReprioritizeJobs_FailedValidation(t *testing.T) {
+	jobId1 := util.ULID().String()
+	tests := map[string]struct {
+		req *api.JobReprioritizeRequest
+	}{
+		"Queue is empty": {
+			req: &api.JobReprioritizeRequest{JobIds: []string{jobId1}, JobSetId: testfixtures.DefaultJobset},
+		},
+		"Job set is empty": {
+			req: &api.JobReprioritizeRequest{JobIds: []string{jobId1}, Queue: testfixtures.DefaultQueue.Name},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			server, _ := createTestServer(t)
+
+			resp, err := server.ReprioritizeJobs(ctx, tc.req)
 			assert.Error(t, err)
 			assert.Nil(t, resp)
 			cancel()
@@ -312,12 +515,9 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 		m.publisher,
 		m.queueRepo,
 		m.queueRepo,
-		m.jobRep,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,
-		m.submitChecker,
-		m.authorizer,
-		true)
+		m.authorizer)
 	server.clock = clock.NewFakeClock(testfixtures.DefaultTime)
 	server.idGenerator = testfixtures.TestUlidGenerator()
 	return server, m
