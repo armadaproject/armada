@@ -24,7 +24,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v1.20.0
+          version: v1.24.0
           args: release  --snapshot --skip-sbom --skip-sign --clean
         env:
           DOCKER_REPO: "gresearch"

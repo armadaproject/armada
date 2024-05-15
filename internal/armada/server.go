@@ -55,9 +55,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	if err := validateCancelJobsBatchSizeConfig(config); err != nil {
-		return err
-	}
 	if err := validateSubmissionConfig(config.Submission); err != nil {
 		return err
 	}
@@ -174,11 +171,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		publisher,
 		queueRepository,
 		queueCache,
-		jobRepository,
 		config.Submission,
 		submit.NewDeduplicator(store),
-		authorizer,
-		config.RequireQueueAndJobSet)
+		authorizer)
 
 	// Consumer that's used for deleting pulsarJob details
 	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
@@ -245,14 +240,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
-}
-
-// TODO: Is this all validation that needs to be done?
-func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error {
-	if config.CancelJobsBatchSize <= 0 {
-		return errors.WithStack(fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize))
-	}
-	return nil
 }
 
 func validateSubmissionConfig(config configuration.SubmissionConfig) error {
