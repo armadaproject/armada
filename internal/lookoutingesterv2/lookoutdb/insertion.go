@@ -522,6 +522,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					finished      timestamp,
 				    job_run_state smallint,
 					error         bytea,
+					debug         bytea,
 				    exit_code     int
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
@@ -541,6 +542,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"finished",
 					"job_run_state",
 					"error",
+					"debug",
 					"exit_code",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
@@ -552,6 +554,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Finished,
 						instructions[i].JobRunState,
 						instructions[i].Error,
+						instructions[i].Debug,
 						instructions[i].ExitCode,
 					}, nil
 				}),
@@ -570,6 +573,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						finished      = coalesce(tmp.finished, job_run.finished),
 						job_run_state = coalesce(tmp.job_run_state, job_run.job_run_state),
 						error         = coalesce(tmp.error, job_run.error),
+						debug         = coalesce(tmp.debug, job_run.debug),
 						exit_code     = coalesce(tmp.exit_code, job_run.exit_code)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
@@ -592,7 +596,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			job_run_state = coalesce($5, job_run_state),
 			error         = coalesce($6, error),
 			exit_code     = coalesce($7, exit_code),
-			pending       = coalesce($8, pending)
+			pending       = coalesce($8, pending),
+			debug         = coalesce($9, debug)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -604,7 +609,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.JobRunState,
 				i.Error,
 				i.ExitCode,
-				i.Pending)
+				i.Pending,
+				i.Debug)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
@@ -720,6 +726,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.Error != nil {
 				existing.Error = update.Error
+			}
+			if update.Debug != nil {
+				existing.Debug = update.Debug
 			}
 			if update.JobRunState != nil {
 				existing.JobRunState = update.JobRunState

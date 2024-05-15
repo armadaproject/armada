@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
@@ -92,6 +93,7 @@ type JobRunRow struct {
 	Finished    *time.Time
 	JobRunState int32
 	Error       []byte
+	Debug       []byte
 	ExitCode    *int32
 }
 
@@ -126,6 +128,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			Node:        pointer.String(nodeName),
 			Started:     &startTime,
 			Finished:    &finishedTime,
+			Debug:       []byte(testfixtures.DebugMsg),
 			JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 			ExitCode:    pointer.Int32(0),
 		}},
@@ -191,6 +194,7 @@ var expectedJobRunAfterUpdate = JobRunRow{
 	Finished:    &finishedTime,
 	JobRunState: lookout.JobRunSucceededOrdinal,
 	ExitCode:    pointer.Int32(0),
+	Debug:       []byte(testfixtures.DebugMsg),
 }
 
 func TestCreateJobsBatch(t *testing.T) {
@@ -733,12 +737,12 @@ func TestConflateJobRunUpdates(t *testing.T) {
 	// Non-Empty
 	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
 		{RunId: runIdString, Started: &baseTime},
-		{RunId: runIdString, Node: pointer.String(nodeName)},
+		{RunId: runIdString, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	})
 
 	expected := []*model.UpdateJobRunInstruction{
-		{RunId: runIdString, Started: &baseTime, Node: pointer.String(nodeName)},
+		{RunId: runIdString, Started: &baseTime, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	}
 
@@ -768,9 +772,11 @@ func TestStoreNullValue(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		jobProto := []byte("hello \000 world \000")
 		errorMsg := []byte("some \000 error \000")
+		debugMsg := []byte("some \000 debug \000")
 		instructions := defaultInstructionSet()
 		instructions.JobsToCreate[0].JobProto = jobProto
 		instructions.JobRunsToUpdate[0].Error = errorMsg
+		instructions.JobRunsToUpdate[0].Debug = debugMsg
 
 		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Do the update
@@ -782,6 +788,7 @@ func TestStoreNullValue(t *testing.T) {
 
 		assert.Equal(t, jobProto, job.JobProto)
 		assert.Equal(t, errorMsg, jobRun.Error)
+		assert.Equal(t, debugMsg, jobRun.Debug)
 		return nil
 	})
 	assert.NoError(t, err)
@@ -937,7 +944,8 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			finished,
 			job_run_state,
 			error,
-			exit_code
+			exit_code,
+			debug
 		FROM job_run WHERE run_id = $1`,
 		runId)
 	err := r.Scan(
@@ -951,6 +959,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.JobRunState,
 		&run.Error,
 		&run.ExitCode,
+		&run.Debug,
 	)
 	assert.NoError(t, err)
 	return run
