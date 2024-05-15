@@ -29,8 +29,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			Created: &now,
 			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 				JobRunAssigned: &armadaevents.JobRunAssigned{
-					RunId: runId,
-					JobId: jobId,
+					RunId:    runId,
+					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -55,8 +57,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			Created: &now,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId: runId,
-					JobId: jobId,
+					RunId:    runId,
+					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -90,8 +94,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			Created: &now,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: runId,
-					JobId: jobId,
+					RunId:    runId,
+					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -138,8 +144,10 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:    runId,
+				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+				JobId:    jobId,
+				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: false, // EventMessage_UnableToSchedule indicates an issue with job to start up - info only
@@ -204,8 +212,10 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
-				RunId: runId,
-				JobId: jobId,
+				RunId:    runId,
+				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+				JobId:    jobId,
+				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				ObjectMeta: &armadaevents.ObjectMeta{
 					KubernetesId: string(pod.ObjectMeta.UID),
 					Namespace:    pod.Namespace,
@@ -234,8 +244,10 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId: preemptedJobId,
-				PreemptedRunId: preemptedRunId,
+				PreemptedJobId:    preemptedJobId,
+				PreemptedJobIdStr: armadaevents.MustUlidStringFromProtoUuid(preemptedJobId),
+				PreemptedRunId:    preemptedRunId,
+				PreemptedRunIdStr: armadaevents.MustUuidStringFromProtoUuid(preemptedRunId),
 			},
 		},
 	})
@@ -260,8 +272,10 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:    runId,
+				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+				JobId:    jobId,
+				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -309,8 +323,10 @@ func CreateMinimalJobFailedEvent(jobIdStr string, runIdStr string, jobSet string
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:    runId,
+				RunIdStr: runIdStr,
+				JobId:    jobId,
+				JobIdStr: jobIdStr,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -345,8 +361,10 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:    runId,
+				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+				JobId:    jobId,
+				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
@@ -384,8 +402,10 @@ func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationD
 		Created: &now,
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
 			ResourceUtilisation: &armadaevents.ResourceUtilisation{
-				RunId: runId,
-				JobId: jobId,
+				RunId:    runId,
+				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+				JobId:    jobId,
+				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				ResourceInfo: &armadaevents.KubernetesResourceInfo{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						KubernetesId: string(pod.ObjectMeta.UID),

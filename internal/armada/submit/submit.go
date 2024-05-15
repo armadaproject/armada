@@ -265,8 +265,9 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 				Created: pointer.Now(),
 				Event: &armadaevents.EventSequence_Event_CancelJob{
 					CancelJob: &armadaevents.CancelJob{
-						JobId:  jobId,
-						Reason: util.Truncate(req.Reason, 512),
+						JobId:    jobId,
+						JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+						Reason:   util.Truncate(req.Reason, 512),
 					},
 				},
 			},
@@ -341,7 +342,8 @@ func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string,
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId: jobId,
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				},
 			},
 		})
@@ -458,6 +460,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    jobId,
+					JobIdStr: jobIdString,
 					Priority: priority,
 				},
 			},
@@ -595,8 +598,9 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId:  jobId,
-					Reason: util.Truncate(reason, 512),
+					JobId:    jobId,
+					JobIdStr: jobIdStr,
+					Reason:   util.Truncate(reason, 512),
 				},
 			},
 		})
