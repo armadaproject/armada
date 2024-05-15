@@ -5,7 +5,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -46,8 +45,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, es *armada
 		ctx,
 		[]*armadaevents.EventSequence{es},
 		p.producer,
-		p.maxAllowedMessageSize,
-		schedulers.Pulsar)
+		p.maxAllowedMessageSize)
 }
 
 func (p *PulsarPublisher) Close() {
