@@ -128,6 +128,7 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
 	Error:       []byte(testfixtures.ErrMsg),
+	Debug:       []byte(testfixtures.DebugMsg),
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
