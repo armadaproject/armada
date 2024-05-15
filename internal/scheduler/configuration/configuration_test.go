@@ -6,14 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 )
 
 func TestSchedulingConfigValidate(t *testing.T) {
 	c := Configuration{
-		Scheduling: configuration.SchedulingConfig{
-			WellKnownNodeTypes: []configuration.WellKnownNodeType{
+		Scheduling: SchedulingConfig{
+			WellKnownNodeTypes: []WellKnownNodeType{
 				{
 					Name:   "gpu",
 					Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
@@ -38,9 +37,9 @@ func TestSchedulingConfigValidate(t *testing.T) {
 		},
 	}
 	expected := []string{
-		configuration.DuplicateWellKnownNodeTypeErrorMessage,
-		configuration.AwayNodeTypesWithoutPreemptionErrorMessage,
-		configuration.UnknownWellKnownNodeTypeErrorMessage,
+		DuplicateWellKnownNodeTypeErrorMessage,
+		AwayNodeTypesWithoutPreemptionErrorMessage,
+		UnknownWellKnownNodeTypeErrorMessage,
 	}
 
 	err := c.Validate()
