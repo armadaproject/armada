@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
@@ -30,18 +30,16 @@ type GroupJobsRepository interface {
 }
 
 type SqlGroupJobsRepository struct {
-	db              *pgxpool.Pool
-	lookoutTables   *LookoutTables
-	useJsonbBackend bool
+	db            *pgxpool.Pool
+	lookoutTables *LookoutTables
 }
 
 const stateAggregatePrefix = "state_"
 
-func NewSqlGroupJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGroupJobsRepository {
+func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
-		db:              db,
-		lookoutTables:   NewTables(),
-		useJsonbBackend: useJsonbBackend,
+		db:            db,
+		lookoutTables: NewTables(),
 	}
 }
 
@@ -55,12 +53,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	skip int,
 	take int,
 ) (*GroupByResult, error) {
-	qb := NewQueryBuilder(r.lookoutTables)
-	groupBy := qb.GroupBy
-	if r.useJsonbBackend {
-		groupBy = qb.GroupByJsonb
-	}
-	query, err := groupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
+	query, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +108,7 @@ func scanGroup(rows pgx.Rows, field string, aggregates []string, filters []*mode
 	for i, parser := range aggregateParsers {
 		aggregateRefs[i] = parser.GetVariableRef()
 	}
-	varAddresses := util.Concat([]interface{}{groupParser.GetVariableRef(), &count}, aggregateRefs)
+	varAddresses := slices.Concatenate([]interface{}{groupParser.GetVariableRef(), &count}, aggregateRefs)
 	err := rows.Scan(varAddresses...)
 	if err != nil {
 		return nil, err

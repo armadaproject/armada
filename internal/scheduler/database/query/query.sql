@@ -5,7 +5,7 @@ SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 SELECT job_id FROM jobs;
 
 -- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: UpdateJobPriorityByJobSet :exec
 UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3;
@@ -17,7 +17,7 @@ UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = sqlc.arg(job_s
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
+UPDATE jobs SET cancel_requested = true WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsCancelledById :exec
 UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
@@ -26,7 +26,7 @@ UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: UpdateJobPriorityById :exec
-UPDATE jobs SET priority = $1 WHERE job_id = $2;
+UPDATE jobs SET priority = $1 WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: SelectNewRuns :many
 SELECT * FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2;
@@ -112,4 +112,7 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2;
 
 -- name: SetTerminatedTime :exec
 UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2;
+
+-- name: MarkJobsSubmitCheckedById :exec
+UPDATE jobs SET validated = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
