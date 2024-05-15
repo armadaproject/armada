@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -17,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -72,6 +72,28 @@ func TestJobDb_TestGetById(t *testing.T) {
 	assert.Nil(t, txn.GetById(util.NewULID()))
 }
 
+func TestJobDb_TestGetUnvalidated(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithValidated(false)
+	job2 := newJob().WithValidated(true)
+	job3 := newJob().WithValidated(false)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1, job2, job3})
+	require.NoError(t, err)
+
+	expected := []*Job{job1, job3}
+
+	var actual []*Job
+	it := txn.UnvalidatedJobs()
+	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
+		actual = append(actual, job)
+	}
+	sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
+	sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
+	assert.Equal(t, expected, actual)
+}
+
 func TestJobDb_TestGetByRunId(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", 5)
@@ -122,7 +144,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	require.NoError(t, err)
 	collect := func() []*Job {
 		retrieved := make([]*Job, 0)
-		iter := txn.QueuedJobs(jobs[0].GetQueue())
+		iter := txn.QueuedJobs(jobs[0].Queue())
 		for !iter.Done() {
 			j, _ := iter.Next()
 			retrieved = append(retrieved, j)
@@ -246,11 +268,11 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		},
 	}
 	jobDb := NewTestJobDb()
-	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2)
+	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false)
 
-	actualSchedulingKey, ok := job.GetSchedulingKey()
+	actualSchedulingKey, ok := job.SchedulingKey()
 	require.True(t, ok)
-	assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
+	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
 }
 
 func TestJobDb_SchedulingKey(t *testing.T) {
@@ -1244,13 +1266,13 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			jobSchedulingInfoB.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsB}
 			jobB := baseJob.WithJobSchedulingInfo(jobSchedulingInfoB)
 
-			schedulingKeyA := interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobA)
-			schedulingKeyB := interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobB)
+			schedulingKeyA := SchedulingKeyFromJob(skg, jobA)
+			schedulingKeyB := SchedulingKeyFromJob(skg, jobB)
 
 			// Generate the keys several times to check their consistency.
 			for i := 1; i < 10; i++ {
-				assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobA), schedulingKeyA)
-				assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobB), schedulingKeyB)
+				assert.Equal(t, SchedulingKeyFromJob(skg, jobA), schedulingKeyA)
+				assert.Equal(t, SchedulingKeyFromJob(skg, jobB), schedulingKeyB)
 			}
 
 			if tc.equal {

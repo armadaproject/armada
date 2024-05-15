@@ -2,9 +2,9 @@ package eventstojobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -276,6 +276,8 @@ func (js *JobSetSubscription) Subscribe() error {
 			log.WithFields(requestFields).Debugf("Called cancel")
 		}()
 
+		shouldReconnect := false
+
 		// this loop will run until the context is canceled
 		for {
 			select {
@@ -283,12 +285,29 @@ func (js *JobSetSubscription) Subscribe() error {
 				log.WithFields(requestFields).Debug("context is done")
 				return nil
 			case <-nextRecv:
+
+				if shouldReconnect {
+					stream, err = js.eventReader.GetJobEventMessage(js.ctx, &api.JobSetRequest{
+						Id:            js.JobSetId,
+						Queue:         js.Queue,
+						Watch:         true,
+						FromMessageId: js.fromMessageId,
+					})
+					// Treat stream creation errors as terminal, like we do in Subscribe()
+					if err != nil {
+						log.WithFields(requestFields).WithError(err).Error("error from GetJobEventMessage")
+						return err
+					}
+
+					shouldReconnect = false
+				}
+
 				msg, err := stream.Recv()
 				if err != nil {
-					if strings.Contains(err.Error(), io.EOF.Error()) {
+					if err == io.EOF {
 						log.WithFields(requestFields).Info("Reached stream end for JobSetSubscription")
 						return nil
-					} else if strings.Contains(err.Error(), "context canceled") {
+					} else if errors.Is(err, context.Canceled) {
 						// The select case will handle context being done/canceled.
 						continue
 					}
@@ -300,6 +319,8 @@ func (js *JobSetSubscription) Subscribe() error {
 						log.WithFields(requestFields).WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
 					nextRecv = time.After(5 * time.Second)
+					// Consider this stream dead
+					shouldReconnect = true
 					continue
 				}
 

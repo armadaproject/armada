@@ -24,7 +24,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -158,6 +157,7 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	true,
 )
 
 var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
@@ -172,6 +172,7 @@ var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	true,
 )
 
 var leasedJob = testfixtures.JobDb.NewJob(
@@ -186,6 +187,7 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	true,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var preemptibleLeasedJob = testfixtures.JobDb.NewJob(
@@ -200,6 +202,7 @@ var preemptibleLeasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	true,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var cancelledJob = testfixtures.JobDb.NewJob(
@@ -214,6 +217,7 @@ var cancelledJob = testfixtures.JobDb.NewJob(
 	false,
 	true,
 	1,
+	true,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
@@ -228,6 +232,7 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	true,
 ).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 	uuid.New(),
 	"01h3w2wtdchtc80hgyp782shrv",
@@ -289,6 +294,7 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
+	true,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var (
@@ -309,6 +315,7 @@ var (
 		false,
 		false,
 		1,
+		true,
 	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 		uuid.New(),
 		requeuedJobId,
@@ -361,6 +368,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobSucceeded             []string                          // ids of jobs we expect to have  produced succeeeded messages
 		expectedLeased                   []string                          // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedRequeued                 []string                          // ids of jobs we expected to be requeued in jobdb at the end of the cycle
+		expectedValidated                []string                          // ids of jobs we expected to have produced submit checked messages
 		expectedTerminal                 []string                          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
 		expectedJobPriority              map[string]uint32                 // expected priority of jobs at the end of the cycle
 		expectedNodeAntiAffinities       []string                          // list of nodes there is expected to be anti affinities for on job scheduling info
@@ -373,6 +381,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedLeased:        []string{queuedJob.Id()},
 			expectedQueuedVersion: 1,
 		},
+		"Submit check a job": {
+			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false)},
+			expectedQueued:        []string{queuedJob.Id()},
+			expectedValidated:     []string{queuedJob.Id()},
+			expectedQueuedVersion: 0,
+		},
 		"Lease a single job from an update": {
 			jobUpdates: []database.Job{
 				{
@@ -384,6 +398,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
+					Validated:             true,
 				},
 			},
 			expectedJobRunLeased:  []string{queuedJob.Id()},
@@ -401,6 +416,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
+					Validated:             true,
 				},
 				{
 					JobID:                 "01h434g4hxww2pknb2q1nfmfph",
@@ -411,6 +427,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
+					Validated:             true,
 				},
 			},
 			expectedJobRunLeased:  []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
@@ -482,6 +499,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
+					Validated:             true,
 				},
 			},
 			runUpdates: []database.Run{
@@ -542,7 +560,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		// When a lease is returned and the run was attempted, a node anti affinity is added
 		// If this node anti-affinity makes the job unschedulable, it should be failed.
 		"Lease returned and failed": {
-			initialJobs: []*jobdb.Job{leasedJob},
+			initialJobs: []*jobdb.Job{leasedJob.WithValidated(true)},
 			runUpdates: []database.Run{
 				{
 					RunID:        leasedJob.LatestRun().Id(),
@@ -667,6 +685,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:         1,
 					Submitted:      queuedJobWithExpiredTtl.Created(),
 					SchedulingInfo: schedulingInfoWithQueueTtlBytes,
+					Validated:      true,
 				},
 			},
 
@@ -788,6 +807,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobErrors:     []string{leasedJob.Id()},
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
+		},
+		"Submit check failed": {
+			initialJobs:          []*jobdb.Job{queuedJob.WithValidated(false)},
+			submitCheckerFailure: true,
+			expectedJobErrors:    []string{queuedJob.Id()},
+			expectedTerminal:     []string{queuedJob.Id()},
 		},
 		"Job failed": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -929,6 +954,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringSet(tc.expectedJobRequestCancel),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobValidated{}):     stringSet(tc.expectedValidated),
 			}
 			err = subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstandingEventsByType)
 			require.NoError(t, err)
@@ -1079,7 +1105,7 @@ func TestRun(t *testing.T) {
 		wg.Add(1)
 		sched.onCycleCompleted = func() { wg.Done() }
 		jobId := util.NewULID()
-		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue", Queued: true}}
+		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true}}
 		schedulingAlgo.jobsToSchedule = []string{jobId}
 		testClock.Step(10 * time.Second)
 		wg.Wait()
@@ -1125,6 +1151,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Priority:       int64(queuedJob.Priority()),
 					SchedulingInfo: schedulingInfoBytes,
 					Serial:         1,
+					Validated:      true,
 				},
 			},
 			expectedUpdatedJobs: []*jobdb.Job{queuedJob},
@@ -1221,7 +1248,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				{
 					RunID:     leasedJob.LatestRun().Id(),
 					JobID:     leasedJob.LatestRun().JobId(),
-					JobSet:    leasedJob.GetJobSet(),
+					JobSet:    leasedJob.Jobset(),
 					Succeeded: true,
 				},
 			},
@@ -1321,20 +1348,16 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) CheckApiJobs(_ *armadaevents.EventSequence, _ string) (bool, string) {
-	reason := ""
-	if !t.checkSuccess {
-		reason = "CheckApiJobs failed"
+func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+	result := make(map[string]schedulingResult)
+	for _, job := range jobs {
+		if t.checkSuccess {
+			result[job.Id()] = schedulingResult{isSchedulable: true}
+		} else {
+			result[job.Id()] = schedulingResult{isSchedulable: false, reason: "job not schedulable"}
+		}
 	}
-	return t.checkSuccess, reason
-}
-
-func (t *testSubmitChecker) CheckJobDbJobs(_ []*jobdb.Job) (bool, string) {
-	reason := ""
-	if !t.checkSuccess {
-		reason = "CheckJobDbJobs failed"
-	}
-	return t.checkSuccess, reason
+	return result, nil
 }
 
 // Test implementations of the interfaces needed by the Scheduler
@@ -1488,7 +1511,7 @@ func (t *testSchedulingAlgo) Persist() {
 	return
 }
 
-func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
+func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
 	failedJobs S,
@@ -1557,6 +1580,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	queuedJobWithTTLA = &database.Job{
@@ -1567,6 +1591,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoWithQueueTtlBytes,
 		SchedulingInfoVersion: int32(schedulingInfoWithQueueTtl.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	queuedJobWithFailFastA = &database.Job{
@@ -1577,6 +1602,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        failFastSchedulingInfoBytes,
 		SchedulingInfoVersion: int32(failFastSchedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	queuedJobWithUpdatedPriorityA = &database.Job{
@@ -1587,6 +1613,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
 		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
+		Validated:             true,
 		Serial:                1,
 	}
 	runningJobA = &database.Job{
@@ -1596,6 +1623,7 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	runningJobWithUpdatedPriorityA = &database.Job{
@@ -1605,6 +1633,7 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
 		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
+		Validated:             true,
 		Serial:                1,
 	}
 	failedJobA = &database.Job{
@@ -1615,6 +1644,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	cancelledJobA = &database.Job{
@@ -1625,6 +1655,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	cancelRequestedJobA = &database.Job{
@@ -1636,6 +1667,7 @@ var (
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	cancelByJobSetRequestedJobA = &database.Job{
@@ -1647,6 +1679,7 @@ var (
 		QueuedVersion:           0,
 		SchedulingInfo:          schedulingInfoBytes,
 		SchedulingInfoVersion:   int32(schedulingInfo.Version),
+		Validated:               true,
 		Serial:                  0,
 	}
 	runningCancelRequestedJobA = &database.Job{
@@ -1658,6 +1691,7 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
 		Serial:                0,
 	}
 	runningCancelByJobSetRequestedJobA = &database.Job{
@@ -1668,6 +1702,7 @@ var (
 		QueuedVersion:           1,
 		SchedulingInfo:          schedulingInfoBytes,
 		SchedulingInfoVersion:   int32(schedulingInfo.Version),
+		Validated:               true,
 		Serial:                  0,
 	}
 	newRunA = &database.Run{
@@ -1741,6 +1776,7 @@ func jobDbJobFromDbJob(job *database.Job) *jobdb.Job {
 		job.CancelByJobsetRequested,
 		job.Cancelled,
 		0,
+		job.Validated,
 	)
 }
 
@@ -1776,6 +1812,9 @@ func TestCycleConsistency(t *testing.T) {
 		expectedEventSequencesCycleOne   []*armadaevents.EventSequence
 		expectedEventSequencesCycleTwo   []*armadaevents.EventSequence
 		expectedEventSequencesCycleThree []*armadaevents.EventSequence
+
+		// If true then will jobs will fail submit check
+		failSubmitCheck bool
 	}{
 		"Load a queued job": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
@@ -2238,6 +2277,7 @@ func TestCycleConsistency(t *testing.T) {
 				}(),
 			},
 			expectedJobDbCycleThree: []*jobdb.Job{},
+			failSubmitCheck:         true,
 		},
 		"Schedule a new job that then fails to start with fail-fast set to true": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
@@ -2444,7 +2484,9 @@ func TestCycleConsistency(t *testing.T) {
 					},
 					leader.NewStandaloneLeaderController(),
 					newTestPublisher(),
-					&testSubmitChecker{},
+					&testSubmitChecker{
+						checkSuccess: !tc.failSubmitCheck,
+					},
 					1*time.Second,
 					5*time.Second,
 					0,

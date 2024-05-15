@@ -22,12 +22,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -37,14 +35,14 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
-	publisher        pulsarutils.Publisher
-	queueRepository  repository.QueueRepository
-	queueCache       repository.ReadOnlyQueueRepository
-	jobRepository    repository.JobRepository
-	submissionConfig configuration.SubmissionConfig
-	deduplicator     Deduplicator
-	submitChecker    scheduler.SubmitScheduleChecker
-	authorizer       server.ActionAuthorizer
+	publisher             pulsarutils.Publisher
+	queueRepository       repository.QueueRepository
+	queueCache            repository.ReadOnlyQueueRepository
+	jobRepository         repository.JobRepository
+	submissionConfig      configuration.SubmissionConfig
+	deduplicator          Deduplicator
+	authorizer            server.ActionAuthorizer
+	requireQueueAndJobSet bool
 	// Below are used only for testing
 	clock       clock.Clock
 	idGenerator func() *armadaevents.Uuid
@@ -57,19 +55,19 @@ func NewServer(
 	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
-	submitChecker scheduler.SubmitScheduleChecker,
 	authorizer server.ActionAuthorizer,
+	requireQueueAndJobSet bool,
 ) *Server {
 	return &Server{
-		publisher:        publisher,
-		queueRepository:  queueRepository,
-		queueCache:       queueCache,
-		jobRepository:    jobRepository,
-		submissionConfig: submissionConfig,
-		deduplicator:     deduplicator,
-		submitChecker:    submitChecker,
-		authorizer:       authorizer,
-		clock:            clock.RealClock{},
+		publisher:             publisher,
+		queueRepository:       queueRepository,
+		queueCache:            queueCache,
+		jobRepository:         jobRepository,
+		submissionConfig:      submissionConfig,
+		deduplicator:          deduplicator,
+		authorizer:            authorizer,
+		requireQueueAndJobSet: requireQueueAndJobSet,
+		clock:                 clock.RealClock{},
 		idGenerator: func() *armadaevents.Uuid {
 			return armadaevents.MustProtoUuidFromUlidString(util.NewULID())
 		},
@@ -152,9 +150,6 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		Groups:     groups,
 		Events:     submitMsgs,
 	}
-	if canSchedule, reason := s.submitChecker.CheckApiJobs(es, s.submissionConfig.DefaultPriorityClassName); !canSchedule {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
-	}
 
 	pulsarJobDetails := armadaslices.Map(
 		jobResponses,
@@ -216,26 +211,38 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 		}, nil
 	}
 
-	// resolve the queue and jobset of the job: we can't trust what the user has given us
-	resolvedQueue, resolvedJobset, err := s.resolveQueueAndJobsetForJob(ctx, req.JobId)
-	if err != nil {
-		return nil, err
-	}
+	resolvedQueue := ""
+	resolvedJobSet := ""
 
-	// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-	// since the job could not be found for the provided queue/jobSetId.
-	if req.Queue != "" && req.Queue != resolvedQueue {
-		return nil, &armadaerrors.ErrNotFound{
-			Type:    "job",
-			Value:   req.JobId,
-			Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
+	if s.requireQueueAndJobSet {
+		err := validation.ValidateQueueAndJobSet(req)
+		if err != nil {
+			return nil, err
 		}
-	}
-	if req.JobSetId != "" && req.JobSetId != resolvedJobset {
-		return nil, &armadaerrors.ErrNotFound{
-			Type:    "job",
-			Value:   req.JobId,
-			Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
+		resolvedQueue = req.Queue
+		resolvedJobSet = req.JobSetId
+	} else {
+		// resolve the queue and jobset of the job: we can't trust what the user has given us
+		resolvedQueue, resolvedJobSet, err := s.resolveQueueAndJobsetForJob(ctx, req.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+		// since the job could not be found for the provided queue/jobSetId.
+		if req.Queue != "" && req.Queue != resolvedQueue {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:    "job",
+				Value:   req.JobId,
+				Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
+			}
+		}
+		if req.JobSetId != "" && req.JobSetId != resolvedJobSet {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:    "job",
+				Value:   req.JobId,
+				Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
+			}
 		}
 	}
 
@@ -251,7 +258,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 
 	sequence := &armadaevents.EventSequence{
 		Queue:      resolvedQueue,
-		JobSetName: resolvedJobset,
+		JobSetName: resolvedJobSet,
 		UserId:     userId,
 		Groups:     groups,
 		Events: []*armadaevents.EventSequence_Event{
@@ -346,44 +353,51 @@ func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string,
 func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
-	if req.JobSetId == "" || req.Queue == "" {
-		ctx.
-			WithField("apidatamissing", "true").
-			Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, s.GetUser(ctx))
-	}
-
-	// If either queue or jobSetId is missing, we get the job set and queue associated
-	// with the first job id in the request.
-	//
-	// This must be done before checking auth, since the auth check expects a queue.
-	if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
-		firstJobId := req.JobIds[0]
-
-		resolvedQueue, resolvedJobset, err := s.resolveQueueAndJobsetForJob(ctx, firstJobId)
+	if s.requireQueueAndJobSet {
+		err := validation.ValidateQueueAndJobSet(req)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		if req.JobSetId == "" || req.Queue == "" {
+			ctx.
+				WithField("apidatamissing", "true").
+				Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, s.GetUser(ctx))
+		}
 
-		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-		// since the job could not be found for the provided queue/jobSetId.
-		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-		// since the job could not be found for the provided queue/jobSetId.
-		if req.Queue != "" && req.Queue != resolvedQueue {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:    "job",
-				Value:   firstJobId,
-				Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
+		// If either queue or jobSetId is missing, we get the job set and queue associated
+		// with the first job id in the request.
+		//
+		// This must be done before checking auth, since the auth check expects a queue.
+		if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
+			firstJobId := req.JobIds[0]
+
+			resolvedQueue, resolvedJobset, err := s.resolveQueueAndJobsetForJob(ctx, firstJobId)
+			if err != nil {
+				return nil, err
 			}
-		}
-		if req.JobSetId != "" && req.JobSetId != resolvedJobset {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:    "job",
-				Value:   firstJobId,
-				Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
+
+			// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+			// since the job could not be found for the provided queue/jobSetId.
+			// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+			// since the job could not be found for the provided queue/jobSetId.
+			if req.Queue != "" && req.Queue != resolvedQueue {
+				return nil, &armadaerrors.ErrNotFound{
+					Type:    "job",
+					Value:   firstJobId,
+					Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
+				}
 			}
+			if req.JobSetId != "" && req.JobSetId != resolvedJobset {
+				return nil, &armadaerrors.ErrNotFound{
+					Type:    "job",
+					Value:   firstJobId,
+					Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
+				}
+			}
+			req.Queue = resolvedQueue
+			req.JobSetId = resolvedJobset
 		}
-		req.Queue = resolvedQueue
-		req.JobSetId = resolvedJobset
 	}
 
 	// TODO: this is incorrect we only validate the permissions on the first job but the other jobs may belong to different queues
@@ -406,7 +420,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Message: "JobSetId is empty",
 		}
 	}
-	priority := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
+	priority := conversion.PriorityAsInt32(req.NewPriority)
 
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)
@@ -454,7 +468,6 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 	}
 
 	err = s.publisher.PublishMessages(ctx, sequence)
-
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
@@ -482,7 +495,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 		}
 	}
 
-	err := validateJobSetFilter(req.Filter)
+	err := validation.ValidateJobSetFilter(req.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -606,33 +619,6 @@ func (s *Server) resolveQueueAndJobsetForJob(ctx *armadacontext.Context, jobId s
 		Type:  "job",
 		Value: jobId,
 	}
-}
-
-func validateJobSetFilter(filter *api.JobSetFilter) error {
-	if filter == nil {
-		return nil
-	}
-	providedStatesSet := map[string]bool{}
-	for _, state := range filter.States {
-		providedStatesSet[state.String()] = true
-	}
-	for _, state := range filter.States {
-		if state == api.JobState_PENDING {
-			if _, present := providedStatesSet[api.JobState_RUNNING.String()]; !present {
-				return fmt.Errorf("unsupported state combination - state %s and %s must always be used together",
-					api.JobState_PENDING, api.JobState_RUNNING)
-			}
-		}
-
-		if state == api.JobState_RUNNING {
-			if _, present := providedStatesSet[api.JobState_PENDING.String()]; !present {
-				return fmt.Errorf("unsupported state combination - state %s and %s must always be used together",
-					api.JobState_PENDING, api.JobState_RUNNING)
-			}
-		}
-	}
-
-	return nil
 }
 
 func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {

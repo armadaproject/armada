@@ -613,7 +613,8 @@
         "Error",
         "Evicted",
         "OOM",
-        "DeadlineExceeded"
+        "DeadlineExceeded",
+        "Rejected"
       ]
     },
     "apiContainerStatus": {
