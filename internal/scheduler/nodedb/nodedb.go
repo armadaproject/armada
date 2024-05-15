@@ -14,12 +14,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -44,7 +43,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 
 	labels := nodeDb.copyMapWithIntern(node.GetLabels())
-	labels[schedulerconfig.NodeIdLabel] = node.Id
+	labels[configuration.NodeIdLabel] = node.Id
 
 	totalResources := node.TotalResources
 
@@ -532,7 +531,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}()
 
 	// If the nodeIdLabel selector is set, consider only that node.
-	if nodeId, ok := jctx.GetNodeSelector(schedulerconfig.NodeIdLabel); ok {
+	if nodeId, ok := jctx.GetNodeSelector(configuration.NodeIdLabel); ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -826,7 +825,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
-		nodeId, ok := evictedJctx.GetNodeSelector(schedulerconfig.NodeIdLabel)
+		nodeId, ok := evictedJctx.GetNodeSelector(configuration.NodeIdLabel)
 		if !ok {
 			return nil, errors.Errorf("evicted job %s does not have a nodeIdLabel", evictedJctx.JobId)
 		}

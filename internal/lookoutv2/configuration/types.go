@@ -28,9 +28,10 @@ type TlsConfig struct {
 }
 
 type PrunerConfig struct {
-	ExpireAfter time.Duration
-	Timeout     time.Duration
-	BatchSize   int
+	ExpireAfter              time.Duration
+	DeduplicationExpireAfter time.Duration
+	Timeout                  time.Duration
+	BatchSize                int
 }
 
 type CommandSpec struct {
