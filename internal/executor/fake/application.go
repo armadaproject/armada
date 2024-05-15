@@ -16,7 +16,7 @@ func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSp
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	return executor.StartUpWithContext(
-		logrus.NewEntry(logrus.New()),
+		logrus.NewEntry(logrus.StandardLogger()),
 		config,
 		context.NewFakeClusterContext(config.Application, config.Kubernetes.NodeIdLabel, nodes),
 		nil,
