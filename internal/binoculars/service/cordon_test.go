@@ -21,7 +21,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -38,7 +38,7 @@ var (
 )
 
 func TestCordonNode(t *testing.T) {
-	principal := authorization.NewStaticPrincipal("principle", []string{})
+	principal := auth.NewStaticPrincipal("principle", []string{})
 	tests := map[string]struct {
 		additionalLabels map[string]string
 		expectedLabels   map[string]string
@@ -80,7 +80,7 @@ func TestCordonNode(t *testing.T) {
 			}
 			cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
-			ctx := authorization.WithPrincipal(context.Background(), principal)
+			ctx := auth.WithPrincipal(context.Background(), principal)
 			err := cordonService.CordonNode(armadacontext.New(ctx, logrus.NewEntry(logrus.New())), &binoculars.CordonRequest{
 				NodeName: defaultNode.Name,
 			})
@@ -129,7 +129,7 @@ func TestCordonNode_Unauthenticated(t *testing.T) {
 	assert.Equal(t, statusError.Code(), codes.PermissionDenied)
 }
 
-func setupTest(t *testing.T, config configuration.CordonConfiguration, permissionChecker authorization.PermissionChecker) (CordonService, *fake.Clientset) {
+func setupTest(t *testing.T, config configuration.CordonConfiguration, permissionChecker auth.PermissionChecker) (CordonService, *fake.Clientset) {
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
 
@@ -145,7 +145,7 @@ type FakePermissionChecker struct {
 	ReturnValue bool
 }
 
-func (c FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) (owned bool, ownershipGroups []string) {
+func (c FakePermissionChecker) UserOwns(ctx context.Context, obj auth.Owned) (owned bool, ownershipGroups []string) {
 	return c.ReturnValue, []string{}
 }
 
