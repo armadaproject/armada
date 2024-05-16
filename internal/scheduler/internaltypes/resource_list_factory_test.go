@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

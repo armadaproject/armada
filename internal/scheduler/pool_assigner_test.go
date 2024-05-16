@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
