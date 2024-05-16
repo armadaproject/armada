@@ -3,6 +3,7 @@ package pruner
 import (
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -11,9 +12,41 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func PruneDb(ctx *armadacontext.Context, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
+func PruneDb(
+	ctx *armadacontext.Context,
+	db *pgx.Conn,
+	jobLifetime time.Duration,
+	deduplicationLifetime time.Duration,
+	batchLimit int,
+	clock clock.Clock,
+) error {
+	var result *multierror.Error
+
+	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	if err := deleteDeduplications(ctx, db, deduplicationLifetime, clock); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	return result.ErrorOrNil()
+}
+
+func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicationLifetime time.Duration, clock clock.Clock) error {
+	cutOffTime := clock.Now().Add(-deduplicationLifetime)
+	log.Infof("Deleting all rows from job_deduplication older than %s", cutOffTime)
+	cmdTag, err := db.Exec(ctx, "DELETE FROM job_deduplication WHERE inserted <= $1", cutOffTime)
+	if err != nil {
+		return errors.Wrap(err, "error deleting deduplications from postgres")
+	}
+	log.Infof("Deleted %d rows", cmdTag.RowsAffected())
+	return nil
+}
+
+func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock) error {
 	now := clock.Now()
-	cutOffTime := now.Add(-keepAfterCompletion)
+	cutOffTime := now.Add(-jobLifetime)
 	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime)
 	if err != nil {
 		return errors.WithStack(err)

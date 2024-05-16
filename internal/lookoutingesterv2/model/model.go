@@ -60,6 +60,7 @@ type UpdateJobRunInstruction struct {
 	Finished    *time.Time
 	JobRunState *int32
 	Error       []byte
+	Debug       []byte
 	ExitCode    *int32
 }
 

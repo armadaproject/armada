@@ -17,6 +17,7 @@ postgres:
     sslmode: disable
 prunerConfig:
   expireAfter: 1008h  # 42 days, 6 weeks
+  deduplicationExpireAfter: 168 # 7 days
   timeout: 1h
   batchSize: 1000
 uiConfig:
