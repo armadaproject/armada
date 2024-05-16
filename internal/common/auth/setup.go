@@ -5,25 +5,24 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
-func ConfigureAuth(config configuration.AuthConfig) ([]authorization.AuthService, error) {
-	var authServices []authorization.AuthService
+func ConfigureAuth(config configuration.AuthConfig) ([]AuthService, error) {
+	var authServices []AuthService
 
 	if len(config.BasicAuth.Users) > 0 {
 		authServices = append(authServices,
-			authorization.NewBasicAuthService(config.BasicAuth.Users))
+			NewBasicAuthService(config.BasicAuth.Users))
 	}
 
 	if config.KubernetesAuth.KidMappingFileLocation != "" {
-		kubernetesAuthService := authorization.NewKubernetesNativeAuthService(config.KubernetesAuth)
+		kubernetesAuthService := NewKubernetesNativeAuthService(config.KubernetesAuth)
 		authServices = append(authServices, &kubernetesAuthService)
 	}
 
 	if config.OpenIdAuth.ProviderUrl != "" {
-		openIdAuthService, err := authorization.NewOpenIdAuthServiceForProvider(context.Background(), &config.OpenIdAuth)
+		openIdAuthService, err := NewOpenIdAuthServiceForProvider(context.Background(), &config.OpenIdAuth)
 		if err != nil {
 			return nil, errors.WithMessage(err, "error initialising openId auth")
 		}
@@ -31,7 +30,7 @@ func ConfigureAuth(config configuration.AuthConfig) ([]authorization.AuthService
 	}
 
 	if config.AnonymousAuth {
-		authServices = append(authServices, &authorization.AnonymousAuthService{})
+		authServices = append(authServices, &AnonymousAuthService{})
 	}
 
 	if len(authServices) == 0 {
