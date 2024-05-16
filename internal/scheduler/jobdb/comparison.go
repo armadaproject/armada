@@ -2,14 +2,25 @@ package jobdb
 
 import (
 	"time"
-
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
 type (
 	JobPriorityComparer struct{}
 	JobQueueTtlComparer struct{}
+	JobIdHasher         struct{}
 )
+
+func (JobIdHasher) Hash(j *Job) uint32 {
+	var hash uint32
+	for _, c := range j.id {
+		hash = 31*hash + uint32(c)
+	}
+	return hash
+}
+
+func (JobIdHasher) Equal(a, b *Job) bool {
+	return a == b
+}
 
 // Compare jobs by their remaining queue time before expiry
 // Invariants:
@@ -27,8 +38,8 @@ func (j JobQueueTtlComparer) Compare(a, b *Job) int {
 	aDuration := timeSeconds - (a.submittedTime / 1_000_000_000)
 	bDuration := timeSeconds - (b.submittedTime / 1_000_000_000)
 
-	aRemaining := max(0, a.GetQueueTtlSeconds()-aDuration)
-	bRemaining := max(0, b.GetQueueTtlSeconds()-bDuration)
+	aRemaining := max(0, a.QueueTtlSeconds()-aDuration)
+	bRemaining := max(0, b.QueueTtlSeconds()-bDuration)
 
 	// If jobs have different ttl remaining, they are ordered by remaining queue ttl - the smallest ttl first.
 	if aRemaining != bRemaining {
@@ -60,10 +71,10 @@ func (JobPriorityComparer) Compare(job, other *Job) int {
 }
 
 // SchedulingOrderCompare defines the order in which jobs in a particular queue should be scheduled,
-func (job *Job) SchedulingOrderCompare(other interfaces.LegacySchedulerJob) int {
+func (job *Job) SchedulingOrderCompare(other *Job) int {
 	// We need this cast for now to expose this method via an interface.
 	// This is safe since we only ever compare jobs of the same type.
-	return SchedulingOrderCompare(job, other.(*Job))
+	return SchedulingOrderCompare(job, other)
 }
 
 // SchedulingOrderCompare defines the order in which jobs in a queue should be scheduled

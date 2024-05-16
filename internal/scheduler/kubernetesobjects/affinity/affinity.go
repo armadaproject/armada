@@ -2,9 +2,8 @@ package affinity
 
 import (
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/armadaproject/armada/internal/common/util"
 )
 
 func AddNodeAntiAffinity(affinity *v1.Affinity, labelName string, labelValue string) error {
@@ -51,7 +50,7 @@ func addAvoidNodeAffinityToNodeSelectorTerm(term *v1.NodeSelectorTerm, labelName
 		mexp = &term.MatchExpressions[len(term.MatchExpressions)-1]
 	}
 
-	if !util.ContainsString(mexp.Values, labelValue) {
+	if !slices.Contains(mexp.Values, labelValue) {
 		mexp.Values = append(mexp.Values, labelValue)
 	}
 }

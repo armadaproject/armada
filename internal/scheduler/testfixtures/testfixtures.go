@@ -16,10 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -46,26 +48,28 @@ var (
 		PriorityClass2:               {Priority: 2, Preemptible: true},
 		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
 		PriorityClass3:               {Priority: 3, Preemptible: false},
+		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
 	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []configuration.IndexedResource{
+	TestResources                    = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "gpu", Resolution: resource.MustParse("1")},
 	}
-	TestResourceNames = util.Map(
+	TestResourceNames = slices.Map(
 		TestResources,
-		func(v configuration.IndexedResource) string { return v.Name },
+		func(v schedulerconfiguration.ResourceType) string { return v.Name },
 	)
-	TestIndexedResourceResolutionMillis = util.Map(
+	TestIndexedResourceResolutionMillis = slices.Map(
 		TestResources,
-		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
+		func(v schedulerconfiguration.ResourceType) int64 { return v.Resolution.MilliValue() },
 	)
 	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
-	TestWellKnownNodeTypes = []configuration.WellKnownNodeType{
+	TestWellKnownNodeTypes = []schedulerconfiguration.WellKnownNodeType{
 		{
 			Name:   "gpu",
 			Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
@@ -78,7 +82,8 @@ var (
 	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
 	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
-	JobDb = NewJobDb()
+	JobDb                   = NewJobDb()
+	TestResourceListFactory = MakeTestResourceListFactory()
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
@@ -122,8 +127,8 @@ func Repeat[T any](v T, n int) []T {
 	return rv
 }
 
-func TestSchedulingConfig() configuration.SchedulingConfig {
-	return configuration.SchedulingConfig{
+func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
+	return schedulerconfiguration.SchedulingConfig{
 		PriorityClasses:                             maps.Clone(TestPriorityClasses),
 		DefaultPriorityClassName:                    TestDefaultPriorityClass,
 		NodeEvictionProbability:                     1.0,
@@ -140,40 +145,41 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
+		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
 	}
 }
 
-func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaxUnacknowledgedJobsPerExecutor = v
 	return config
 }
 
-func WithProtectedFractionOfFairShareConfig(v float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithProtectedFractionOfFairShareConfig(v float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.ProtectedFractionOfFairShare = v
 	return config
 }
 
-func WithNodeEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithNodeEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.NodeEvictionProbability = p
 	return config
 }
 
-func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.NodeOversubscriptionEvictionProbability = p
 	return config
 }
 
-func WithRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithRoundLimitsConfig(limits map[string]float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaximumResourceFractionToSchedule = limits
 	return config
 }
 
-func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaximumResourceFractionToScheduleByPool = limits
 	return config
 }
 
-func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for priorityClassName, limit := range limits {
 		priorityClass, ok := config.PriorityClasses[priorityClassName]
 		if !ok {
@@ -190,39 +196,39 @@ func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config co
 	return config
 }
 
-func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithIndexedResourcesConfig(indexResources []schedulerconfiguration.ResourceType, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.IndexedResources = indexResources
 	return config
 }
 
-func WithGlobalSchedulingRateLimiterConfig(maximumSchedulingRate float64, maximumSchedulingBurst int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithGlobalSchedulingRateLimiterConfig(maximumSchedulingRate float64, maximumSchedulingBurst int, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaximumSchedulingRate = maximumSchedulingRate
 	config.MaximumSchedulingBurst = maximumSchedulingBurst
 	return config
 }
 
-func WithPerQueueSchedulingLimiterConfig(maximumPerQueueSchedulingRate float64, maximumPerQueueSchedulingBurst int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithPerQueueSchedulingLimiterConfig(maximumPerQueueSchedulingRate float64, maximumPerQueueSchedulingBurst int, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaximumPerQueueSchedulingRate = maximumPerQueueSchedulingRate
 	config.MaximumPerQueueSchedulingBurst = maximumPerQueueSchedulingBurst
 	return config
 }
 
-func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithMaxLookbackPerQueueConfig(n uint, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaxQueueLookback = n
 	return config
 }
 
-func WithIndexedTaintsConfig(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithIndexedTaintsConfig(indexedTaints []string, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.IndexedTaints = append(config.IndexedTaints, indexedTaints...)
 	return config
 }
 
-func WithIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithIndexedNodeLabelsConfig(indexedNodeLabels []string, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.IndexedNodeLabels = append(config.IndexedNodeLabels, indexedNodeLabels...)
 	return config
 }
 
-func WithMaxQueueLookbackConfig(maxQueueLookback uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaxQueueLookback = maxQueueLookback
 	return config
 }
@@ -343,6 +349,7 @@ func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobd
 }
 
 func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job {
+	job = job.DeepCopy()
 	for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
 		req.GetPodRequirements().NodeSelector = maps.Clone(selector)
 	}
@@ -458,6 +465,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		false,
 		false,
 		created,
+		false,
 	)
 }
 
@@ -812,6 +820,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		false,
 		BaseTime.UnixNano(),
+		false,
 	)
 }
 
@@ -960,4 +969,17 @@ func (p *MockPassiveClock) Now() time.Time {
 
 func (p *MockPassiveClock) Since(time.Time) time.Duration {
 	panic("Not implemented")
+}
+
+func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	return result
+}
+
+func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
+	return []schedulerconfiguration.ResourceType{
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "gpu", Resolution: resource.MustParse("1m")},
+	}
 }

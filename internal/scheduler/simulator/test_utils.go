@@ -9,9 +9,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -62,7 +62,7 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 			"cpu":    0.025,
 		},
 		DominantResourceFairnessResourcesToConsider: []string{"cpu", "memory", "nvidia.com/gpu", "ephemeral-storage"},
-		IndexedResources: []configuration.IndexedResource{
+		IndexedResources: []configuration.ResourceType{
 			{
 				Name:       "cpu",
 				Resolution: resource.MustParse("1"),

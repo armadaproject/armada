@@ -1,13 +1,11 @@
 package instructions
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 	"github.com/armadaproject/armada/pkg/api"
@@ -131,6 +128,7 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
 	Error:       []byte(testfixtures.ErrMsg),
+	Debug:       []byte(testfixtures.DebugMsg),
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
@@ -144,14 +142,19 @@ var expectedPreempted = model.UpdateJobInstruction{
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
-	LatestRunId:               pointer.String(testfixtures.RunIdString),
 }
 
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunIdString,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-	Error:       []byte("preempted by non armada pod"),
+	Error:       []byte("preempted"),
+}
+
+var expectedCancelledRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 }
 
 func TestConvert(t *testing.T) {
@@ -199,41 +202,6 @@ func TestConvert(t *testing.T) {
 		},
 	}
 
-	expectedCreateUserAnnotations := []*model.CreateUserAnnotationInstruction{
-		{
-			JobId:  testfixtures.JobIdString,
-			Key:    "a",
-			Value:  "0",
-			Queue:  testfixtures.Queue,
-			Jobset: testfixtures.JobSetName,
-		},
-		{
-			JobId:  testfixtures.JobIdString,
-			Key:    "b",
-			Value:  "1",
-			Queue:  testfixtures.Queue,
-			Jobset: testfixtures.JobSetName,
-		},
-	}
-
-	otherJobIdUlid := util.ULID()
-	otherJobId := util.StringFromUlid(otherJobIdUlid)
-	otherJobIdProto := armadaevents.ProtoUuidFromUlid(otherJobIdUlid)
-
-	otherRunIdUuid, err := uuid.NewUUID()
-	assert.NoError(t, err)
-	otherRunIdProto := armadaevents.ProtoUuidFromUuid(otherRunIdUuid)
-
-	preempted, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
-	assert.NoError(t, err)
-	preempted.GetJobRunPreempted().PreemptiveJobId = otherJobIdProto
-	preempted.GetJobRunPreempted().PreemptiveRunId = otherRunIdProto
-
-	preemptedWithPrempteeWithZeroId, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
-	assert.NoError(t, err)
-	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveJobId = &armadaevents.Uuid{}
-	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveRunId = &armadaevents.Uuid{}
-
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
 	cancelledWithReason.GetCancelledJob().Reason = "some reason"
@@ -250,9 +218,8 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
-				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"happy path single update": {
@@ -268,12 +235,11 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLeasedRun},
-				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
-				MessageIds:              []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"happy path multi update": {
@@ -295,11 +261,10 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				JobsToUpdate:            []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
-				JobRunsToCreate:         []*model.CreateJobRunInstruction{&expectedLeasedRun},
-				JobRunsToUpdate:         []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedPending, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPendingRun, &expectedRunningRun, &expectedJobRunSucceeded},
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -319,7 +284,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"cancelled": {
+		"job cancelled": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobCancelled)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
@@ -329,7 +294,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"cancelled with reason": {
+		"job cancelled with reason": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
@@ -344,6 +309,16 @@ func TestConvert(t *testing.T) {
 					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 				}},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run cancelled": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunCancelled)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"reprioritized": {
@@ -404,47 +379,24 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"preempted": {
+		"job preempted": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreempted)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedPreempted},
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunPreempted)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
-		"preempted with preemptee": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preempted)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-					RunId:       testfixtures.RunIdString,
-					Finished:    &testfixtures.BaseTime,
-					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-					Error:       []byte(fmt.Sprintf("preempted by job %s", otherJobId)),
-				}},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
-		"preempted with zeroed preemptee id": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preemptedWithPrempteeWithZeroId)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-					RunId:       testfixtures.RunIdString,
-					Finished:    &testfixtures.BaseTime,
-					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-					Error:       []byte("preempted by non armada pod"),
-				}},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"invalid event without job id or run id": {
@@ -464,8 +416,7 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -501,8 +452,7 @@ func TestConvert(t *testing.T) {
 				},
 			},
 			expected: &model.InstructionSet{
-				JobsToCreate:            []*model.CreateJobInstruction{expectedSubmit},
-				UserAnnotationsToCreate: expectedCreateUserAnnotations,
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
 				MessageIds: []pulsar.MessageID{
 					pulsarutils.NewMessageId(1),
 					pulsarutils.NewMessageId(2),
@@ -539,7 +489,6 @@ func TestConvert(t *testing.T) {
 			assert.Equal(t, tc.expected.JobsToUpdate, instructionSet.JobsToUpdate)
 			assert.Equal(t, tc.expected.JobRunsToCreate, instructionSet.JobRunsToCreate)
 			assert.Equal(t, tc.expected.JobRunsToUpdate, instructionSet.JobRunsToUpdate)
-			assert.Equal(t, tc.expected.UserAnnotationsToCreate, instructionSet.UserAnnotationsToCreate)
 			assert.Equal(t, tc.expected.MessageIds, instructionSet.MessageIds)
 		})
 	}

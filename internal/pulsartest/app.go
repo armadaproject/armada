@@ -37,7 +37,6 @@ func New(params Params, cmdType string) (*App, error) {
 			Name:  producerName,
 			Topic: params.Pulsar.JobsetEventsTopic,
 		})
-
 		if err != nil {
 			return nil, errors.Wrapf(err, "error creating pulsar producer %s", producerName)
 		}
@@ -47,7 +46,6 @@ func New(params Params, cmdType string) (*App, error) {
 			Topic:          params.Pulsar.JobsetEventsTopic,
 			StartMessageID: pulsar.EarliestMessageID(),
 		})
-
 		if err != nil {
 			return nil, errors.Wrapf(err, "error creating pulsar reader")
 		}

@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -54,7 +54,7 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			fakeClock := clock.NewFakeClock(testfixtures.BaseTime)
-			assigner, err := NewPoolAssigner(tc.executorTimout, tc.config, mockExecutorRepo)
+			assigner, err := NewPoolAssigner(tc.executorTimout, tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			assigner.clock = fakeClock
 

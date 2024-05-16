@@ -89,7 +89,7 @@ func TestConvertSequence(t *testing.T) {
 			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: []string{f.JobIdString}}},
 		},
 		"job run preempted": {
-			events:   []*armadaevents.EventSequence_Event{f.JobPreempted},
+			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
 			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
 		},
 		"lease returned": {
@@ -129,7 +129,13 @@ func TestConvertSequence(t *testing.T) {
 		"reprioritise job": {
 			events: []*armadaevents.EventSequence_Event{f.JobReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobPriorities{f.JobIdString: f.NewPriority},
+				UpdateJobPriorities{
+					key: JobReprioritiseKey{
+						JobSetKey: JobSetKey{queue: f.Queue, jobSet: f.JobSetName},
+						Priority:  f.NewPriority,
+					},
+					jobIds: []string{f.JobIdString},
+				},
 			},
 		},
 		"reprioritise jobset": {
@@ -141,7 +147,7 @@ func TestConvertSequence(t *testing.T) {
 		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelRequested{f.JobIdString: true},
+				MarkJobsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: {f.JobIdString}},
 			},
 		},
 		"JobSetCancelRequested": {
@@ -185,6 +191,12 @@ func TestConvertSequence(t *testing.T) {
 					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetJobRequeued().SchedulingInfo),
 					JobSchedulingInfoVersion: int32(f.JobRequeued.GetJobRequeued().SchedulingInfo.Version),
 				}},
+			},
+		},
+		"SubmitChecked": {
+			events: []*armadaevents.EventSequence_Event{f.JobValidated},
+			expected: []DbOperation{
+				MarkJobsValidated{f.JobIdString: true},
 			},
 		},
 		"PositionMarker": {

@@ -83,7 +83,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v1.19.2
+          version: v1.24.0
           args: "-f ./.goreleaser.yml release --clean"
         env:
           FULL_RELEASE: true

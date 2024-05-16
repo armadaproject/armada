@@ -174,10 +174,16 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	case MarkJobsCancelRequested:
-		jobIds := maps.Keys(o)
-		err := queries.MarkJobsCancelRequestedById(ctx, jobIds)
-		if err != nil {
-			return errors.WithStack(err)
+		for key, value := range o {
+			params := schedulerdb.MarkJobsCancelRequestedByIdParams{
+				Queue:  key.queue,
+				JobSet: key.jobSet,
+				JobIds: value,
+			}
+			err := queries.MarkJobsCancelRequestedById(ctx, params)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	case MarkJobsCancelled:
 		jobIds := maps.Keys(o)
@@ -220,16 +226,14 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case UpdateJobPriorities:
-		// TODO: This will be slow if there's a large number of ids.
-		// Could be addressed by using a separate table for priority + upsert.
-		for jobId, priority := range o {
-			err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
-				JobID:    jobId,
-				Priority: priority,
-			})
-			if err != nil {
-				return errors.WithStack(err)
-			}
+		err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
+			Queue:    o.key.queue,
+			JobSet:   o.key.jobSet,
+			Priority: o.key.Priority,
+			JobIds:   o.jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	case MarkRunsSucceeded:
 		successTimes := make([]interface{}, 0, len(o))
@@ -334,6 +338,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 		return nil
+	case MarkJobsValidated:
+		jobIds := maps.Keys(o)
+		err := queries.MarkJobsSubmitCheckedById(ctx, jobIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

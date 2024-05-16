@@ -624,7 +624,8 @@ func SwaggerJsonTemplate() string {
 		"        \"Error\",\n" +
 		"        \"Evicted\",\n" +
 		"        \"OOM\",\n" +
-		"        \"DeadlineExceeded\"\n" +
+		"        \"DeadlineExceeded\",\n" +
+		"        \"Rejected\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiContainerStatus\": {\n" +

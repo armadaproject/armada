@@ -11,12 +11,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -212,7 +212,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"resolution has no impact on jobs of size a multiple of the resolution": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("16")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -233,7 +233,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"jobs of size not a multiple of the resolution blocks scheduling new jobs": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("17")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -252,7 +252,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"consider all nodes in the bucket": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("1")},
 					{Name: "memory", Resolution: resource.MustParse("1Mi")},
 					{Name: "gpu", Resolution: resource.MustParse("1")},
@@ -509,7 +509,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				var jobId ulid.ULID
 				jobId = util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{
+					testfixtures.
+						TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)),
+				})
 				jobId = util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away-both", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
 				return
@@ -568,6 +571,16 @@ func TestGangScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			// This is hacktabulous. Essentially the jobs have the wrong priority classes set at this point
+			// because textfixtures.TestJob() initialises the jobs using a jobDb that doesn't know anything about the
+			// priority classes we have defined in this test.  We therefore need to fix the priority classes here.
+			// The long term strategy is to try and remove the need to have a jobDB for creating jobs.
+			for i, gang := range tc.Gangs {
+				for j, job := range gang {
+					tc.Gangs[i][j] = job.WithPriorityClass(tc.SchedulingConfig.PriorityClasses[job.PriorityClassName()])
+				}
+			}
+
 			nodesById := make(map[string]*schedulerobjects.Node, len(tc.Nodes))
 			for _, node := range tc.Nodes {
 				nodesById[node.Id] = node
@@ -580,6 +593,7 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.IndexedNodeLabels,
 				tc.SchedulingConfig.WellKnownNodeTypes,
 				stringinterner.New(1024),
+				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
@@ -595,7 +609,7 @@ func TestGangScheduler(t *testing.T) {
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
 				for _, job := range jobs {
-					priorityFactorByQueue[job.GetQueue()] = 1
+					priorityFactorByQueue[job.Queue()] = 1
 				}
 			}
 

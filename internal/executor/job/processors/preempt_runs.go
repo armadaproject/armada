@@ -96,7 +96,6 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 		domain.JobPreemptedAnnotation: time.Now().String(),
 		string(v1.PodFailed):          time.Now().String(),
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to annotate pod as preempted - %s", err)
 	}

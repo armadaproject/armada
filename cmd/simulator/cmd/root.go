@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -84,8 +84,8 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 
 	ctx := armadacontext.Background()
 	ctx.Info("Armada simulator")
-	ctx.Infof("ClusterSpecs: %v", util.Map(clusterSpecs, func(clusperSpec *simulator.ClusterSpec) string { return clusperSpec.Name }))
-	ctx.Infof("WorkloadSpecs: %v", util.Map(workloadSpecs, func(workloadSpec *simulator.WorkloadSpec) string { return workloadSpec.Name }))
+	ctx.Infof("ClusterSpecs: %v", slices.Map(clusterSpecs, func(clusperSpec *simulator.ClusterSpec) string { return clusperSpec.Name }))
+	ctx.Infof("WorkloadSpecs: %v", slices.Map(workloadSpecs, func(workloadSpec *simulator.WorkloadSpec) string { return workloadSpec.Name }))
 	ctx.Infof("SchedulingConfigs: %v", maps.Keys(schedulingConfigsByFilePath))
 
 	var fileWriter *simulator.Writer
