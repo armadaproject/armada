@@ -64,6 +64,8 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	var failedJobs []*schedulercontext.JobSchedulingContext
 	nodeIdByJobId := make(map[string]string)
 	additionalAnnotationsByJobId := make(map[string]map[string]string)
+	ctx.Info("Looping through candidate gangs...")
+	candidateGangCount := 0
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -89,6 +91,8 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
+
+		candidateGangCount++
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
@@ -118,6 +122,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		}
 	}
+	ctx.Infof("Finished looping through %d candidate gangs", candidateGangCount)
 	if sch.schedulingContext.TerminationReason == "" {
 		sch.schedulingContext.TerminationReason = "no remaining candidate jobs"
 	}
