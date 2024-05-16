@@ -1,4 +1,4 @@
-package server
+package auth
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -72,8 +71,8 @@ func TestAuthorizer_AuthorizeQueueAction(t *testing.T) {
 		PriorityFactor: 1,
 	}
 
-	authorizedPrincipal := authorization.NewStaticPrincipal("alice", []string{"submit-job-group"})
-	unauthorizedPrincipcal := authorization.NewStaticPrincipal("alice", []string{})
+	authorizedPrincipal := NewStaticPrincipal("alice", []string{"submit-job-group"})
+	unauthorizedPrincipcal := NewStaticPrincipal("alice", []string{})
 
 	tests := map[string]struct {
 		ctx                     *armadacontext.Context
@@ -81,22 +80,22 @@ func TestAuthorizer_AuthorizeQueueAction(t *testing.T) {
 		expectAuthorized        bool
 	}{
 		"no permissions": {
-			ctx:                     armadacontext.FromGrpcCtx(authorization.WithPrincipal(context.Background(), unauthorizedPrincipcal)),
+			ctx:                     armadacontext.FromGrpcCtx(WithPrincipal(context.Background(), unauthorizedPrincipcal)),
 			permissionCheckerResult: false,
 			expectAuthorized:        false,
 		},
 		"only has global permission": {
-			ctx:                     armadacontext.FromGrpcCtx(authorization.WithPrincipal(context.Background(), unauthorizedPrincipcal)),
+			ctx:                     armadacontext.FromGrpcCtx(WithPrincipal(context.Background(), unauthorizedPrincipcal)),
 			permissionCheckerResult: true,
 			expectAuthorized:        true,
 		},
 		"only has queue permission": {
-			ctx:                     armadacontext.FromGrpcCtx(authorization.WithPrincipal(context.Background(), authorizedPrincipal)),
+			ctx:                     armadacontext.FromGrpcCtx(WithPrincipal(context.Background(), authorizedPrincipal)),
 			permissionCheckerResult: false,
 			expectAuthorized:        true,
 		},
 		"has both queue and global permissions": {
-			ctx:                     armadacontext.FromGrpcCtx(authorization.WithPrincipal(context.Background(), authorizedPrincipal)),
+			ctx:                     armadacontext.FromGrpcCtx(WithPrincipal(context.Background(), authorizedPrincipal)),
 			permissionCheckerResult: true,
 			expectAuthorized:        true,
 		},
@@ -115,47 +114,11 @@ func TestAuthorizer_AuthorizeQueueAction(t *testing.T) {
 	}
 }
 
-type FakeActionAuthorizer struct{}
-
-func (c *FakeActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
-	return nil
-}
-
-func (c *FakeActionAuthorizer) AuthorizeQueueAction(
-	ctx *armadacontext.Context,
-	queue queue.Queue,
-	anyPerm permission.Permission,
-	perm queue.PermissionVerb,
-) error {
-	return nil
-}
-
-type FakeDenyAllActionAuthorizer struct{}
-
-func (c *FakeDenyAllActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
-	return &armadaerrors.ErrUnauthorized{
-		Principal: authorization.GetPrincipal(ctx).GetName(),
-		Message:   "permission denied",
-	}
-}
-
-func (c *FakeDenyAllActionAuthorizer) AuthorizeQueueAction(
-	ctx *armadacontext.Context,
-	queue queue.Queue,
-	anyPerm permission.Permission,
-	perm queue.PermissionVerb,
-) error {
-	return &armadaerrors.ErrUnauthorized{
-		Principal: authorization.GetPrincipal(ctx).GetName(),
-		Message:   "permission denied",
-	}
-}
-
 type FakePermissionChecker struct {
 	ReturnValue bool
 }
 
-func (c FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) (owned bool, ownershipGroups []string) {
+func (c FakePermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string) {
 	return c.ReturnValue, []string{}
 }
 

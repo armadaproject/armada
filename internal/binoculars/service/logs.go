@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -20,7 +20,7 @@ type LogService interface {
 }
 
 type LogParams struct {
-	Principal  authorization.Principal
+	Principal  auth.Principal
 	Namespace  string
 	PodName    string
 	SinceTime  string

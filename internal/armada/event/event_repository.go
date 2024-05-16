@@ -1,4 +1,4 @@
-package repository
+package event
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
-	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/armada/event/conversion"
+	"github.com/armadaproject/armada/internal/armada/event/sequence"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/api"
@@ -157,7 +157,7 @@ func (repo *RedisEventRepository) extractEvents(ctx *armadacontext.Context, msg 
 	// These fields are not present in the db messages, so we add them back here
 	es.Queue = queue
 	es.JobSetName = jobSetId
-	return apimessages.FromEventSequence(es)
+	return conversion.FromEventSequence(es)
 }
 
 func getJobSetEventsKey(queue, jobSetId string) string {
