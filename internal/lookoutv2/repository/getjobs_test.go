@@ -337,7 +337,6 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 			assert.Equal(t, first.JobId, result.Jobs[0].JobId)
 			assert.Equal(t, second.JobId, result.Jobs[1].JobId)
 			assert.Equal(t, third.JobId, result.Jobs[2].JobId)
-
 		})
 
 		t.Run("descending order", func(t *testing.T) {
