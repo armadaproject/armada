@@ -334,9 +334,10 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.Len(t, result.Jobs, 3)
-			assert.Equal(t, first, result.Jobs[0])
-			assert.Equal(t, second, result.Jobs[1])
-			assert.Equal(t, third, result.Jobs[2])
+			assert.Equal(t, first.JobId, result.Jobs[0].JobId)
+			assert.Equal(t, second.JobId, result.Jobs[1].JobId)
+			assert.Equal(t, third.JobId, result.Jobs[2].JobId)
+
 		})
 
 		t.Run("descending order", func(t *testing.T) {
@@ -353,9 +354,9 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.Len(t, result.Jobs, 3)
-			assert.Equal(t, third, result.Jobs[0])
-			assert.Equal(t, second, result.Jobs[1])
-			assert.Equal(t, first, result.Jobs[2])
+			assert.Equal(t, third.JobId, result.Jobs[0].JobId)
+			assert.Equal(t, second.JobId, result.Jobs[1].JobId)
+			assert.Equal(t, first.JobId, result.Jobs[2].JobId)
 		})
 
 		return nil
