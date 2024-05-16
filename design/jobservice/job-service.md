@@ -1,5 +1,9 @@
 # Armada Job Service
 
+## Depracation Warning
+
+The Job Service is being depracated in favor of the new Query API as of May 2024. Users are encouraged to use the new API, and this component will be removed from future versions of Armada.
+
 ## Problem Description
 Armada’s API is event driven, preventing it from integrating with tools, such as Apache Airflow, written with the expectation that it can easily fetch status of a running job. It is not scalable to have Airflow subscribe to the event stream to observe status, so we must implement a caching layer which will expose a friendlier API for individual job querying.
 
@@ -87,9 +91,7 @@ I have a PR that implements this [plan](https://github.com/armadaproject/armada/
 
 ### Subscription
 
-After talking with Chris Martin, I found out that we will be implementing our own redis cache for the events.  We will not be using pulsar, nats, or jetstream to stream events.
-
-The logic for this service should be as follows:
+The logic for this service is as follows:
 
 - When a request comes in, check if we already have a subscription to that jobset.
 If we don't have a subscription, create one using the armada go client (grpc api).

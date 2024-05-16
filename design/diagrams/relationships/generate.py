@@ -92,15 +92,15 @@ with Diagram(
     # client sends requests to the server
     client >> Edge(color="black") >> server
 
-    # submit api talks to pulsar
+    # submit api talks to Pulsar
     server >> Edge(color="red") >> pulsar
 
-    # pulsar talks to each of the ingesters
+    # Pulsar talks to each of the ingesters
     pulsar >> Edge(color="red") >> lookout_ingester
     pulsar >> Edge(color="red") >> scheduler_ingester
     pulsar >> Edge(color="red") >> event_ingerster
 
-    # make postgres blue, redis orange
+    # make Postgres blue, redis orange
     # lookout and scheduler ingesters talk to postgres
     # the other ingesters talk to redis
     lookout_ingester >> Edge(color="blue") >> postgres_lookout
@@ -108,10 +108,10 @@ with Diagram(
 
     event_ingerster >> Edge(color="orange") >> redis_events
 
-    # the postgres scheduler talks to the scheduler and executor api
+    # the Postgres scheduler talks to the scheduler and executor api
     postgres_scheduler >> Edge(color="blue") >> scheduler
 
-    # the scheduler talks to pulsar
+    # the scheduler talks to Pulsar
     scheduler >> Edge(color="red") >> pulsar
 
     executor >> Edge(color="blue") >> k8s_api
@@ -137,7 +137,7 @@ with Diagram(
     scheduler >> Edge(color="blue") >> executor
     scheduler >> Edge(color="blue") >> executor2
 
-    # pulsar talks to the server
+    # Pulsar talks to the server
     pulsar >> Edge(color="red") >> server
 
     # redis events are given back to the server

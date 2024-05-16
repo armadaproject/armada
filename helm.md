@@ -249,7 +249,7 @@ The applicationConfig section of the values file is purely used to override the 
 
 It can override any value found in /config/armada/config.yaml
 
-Commonly this will involve overriding the redis url for example
+Commonly this will involve overriding the Redis url for example
 
 As an example, this section is formatted as:
 
@@ -433,7 +433,7 @@ If you have many tiny jobs or very small clusters, you may want to decrease this
 
 `maximalClusterFractionToSchedule` This is the maximum percentage of resource to schedule for a cluster per round.
 
-If a cluster had 1000 cpu, the above settings would mean only 250 cpu would be scheduled each scheduling round.
+If a cluster had 1000 CPUs, the above settings would mean only 250 CPUs would be scheduled each scheduling round.
  
 #### Queue resource limits 
 
@@ -455,7 +455,7 @@ scheduling:
 
 All limits are proportional to overall amount of resources in the system. 
 
-In this example, a queue can use at most 25% of all available cpu **and** memory.
+In this example, a queue can use at most 25% of all available CPU **and** memory.
 
 `maximalResourceFractionPerQueue` Is the maximum resource a queue can hold as a percentage of the total resource of this type over all clusters.
 
@@ -465,11 +465,11 @@ Currently scheduling is done in parallel, so it can happen that we exceed the re
 
 To mitigate this, `maximalResourceFractionToSchedulePerQueue` specifies how much can be scheduled in a single round and can be thought of as the margin for error.
 
-Using an example of having 1000 cpu over all your clusters:
-`maximalResourceFractionPerQueue` Limits a queue to 250 cpu
-`maximalResourceFractionToSchedulePerQueue` Limits the amount of resource a queue can be allocated in a single round to 50 cpu.
+Using an example of having 1000 CPUs over all your clusters:
+`maximalResourceFractionPerQueue` Limits a queue to 250 CPUs
+`maximalResourceFractionToSchedulePerQueue` Limits the amount of resource a queue can be allocated in a single round to 50 CPUs.
 
-So in the extreme case two clusters request resource at the exact same time a queue could in theory get to 300 cpu.
+So in the extreme case two clusters request resource at the exact same time a queue could in theory get to 300 CPUs.
 
 We have tested this with many extremely large clusters and even when empty, it is pretty safe to assume the resource limit in the worst case is:
 

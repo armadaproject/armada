@@ -5,15 +5,15 @@ This document describes priority calculation algorithm in detail.
 ## How is priority calculated
 
 ### Resource usage
-Armada schedules jobs which can use multiple types of resources (cpu, memory, gpu, ...).
+Armada schedules jobs which can use multiple types of resources (CPU, memory, GPU, ...).
 To get one number which represents the share of a resource by a particular queue, Armada firstly calculates how much of particular
-resource is available for one cpu `resource factor`.
-Then queue usage can be calculated as `usage = # of cpu + # gpu / gpu factor + # memory / memory factor + ...` 
+resource is available for one CPU `resource factor`.
+Then queue usage can be calculated as `usage = # of CPU + # GPU / GPU factor + # memory / memory factor + ...` 
 
 In example:
-If our cluster has 10 cpus, 20Gb of memory and 5 gpus. <br />
-Gpu factor will be `0.5` and memory factor `2`.<br />
-Queue using 5 cpu, 2 Gb memory and 1 gpu will have usage `5 + 2 / 2 + 1 / 0.5 = 8` . 
+If our cluster has 10 CPUs, 20Gb of memory and 5 GPUs. <br />
+GPU factor will be `0.5` and memory factor `2`.<br />
+Queue using 5 CPUs, 2 Gb memory and 1 GPU will have usage `5 + 2 / 2 + 1 / 0.5 = 8` . 
 
 ### Queue priority
 Queue priority is calculated based on current resource usage; if a particular queue usage is constant, the queue priority will approach this number and eventually stabilize on this value.

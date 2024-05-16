@@ -22,7 +22,7 @@ All state relating to the Armada server is stored in [Redis](https://redis.io/),
 
 ### Job leasing
 
-To avoid jobs being lost if a cluster (or cluster executor) becomes unavailable, each job assigned to an executor has an associated timeout. Armada executors are required to check in with the server regularly and, if an executor responsible for running a particular job fails to check in within that timeout, the server will re-schedule the job over another executor.
+To avoid jobs being lost if a cluster or its executor becomes unavailable, each job assigned to an executor has an associated timeout. Armada executors are required to check in with the server regularly and if an executor responsible for running a particular job fails to check in within that timeout, the server will re-schedule the job on another cluster.
 
 ## Jobs and job sets
 

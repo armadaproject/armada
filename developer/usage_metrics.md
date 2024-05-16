@@ -1,6 +1,6 @@
 ## Usage metrics
 
-Some functionality the executor has is to report how much cpu/memory jobs are using.
+Some functionality the executor has is to report how much CPU/memory jobs are using.
 
 This is turned on by changing the executor config file to include:
 ``` yaml
