@@ -6,6 +6,7 @@ https://armadaproject.io/api
 """
 
 from datetime import timedelta
+import logging
 from typing import Dict, Iterator, List, Optional
 
 from google.protobuf import empty_pb2
@@ -82,6 +83,9 @@ class _ResilientArmadaEventStream(Iterator[event_pb2.EventStreamMessage]):
     def cancel(self):
         self._cancelled = True
         self._close_connection()
+
+
+logger = logging.getLogger("armada_client.asyncio_client")
 
 
 class ArmadaClient:
@@ -178,36 +182,31 @@ class ArmadaClient:
 
     def cancel_jobs(
         self,
-        queue: Optional[str] = None,
+        queue: str,
+        job_set_id: str,
         job_id: Optional[str] = None,
-        job_set_id: Optional[str] = None,
     ) -> submit_pb2.CancellationResult:
         """Cancel jobs in a given queue.
 
-        Uses the CancelJobs RPC to cancel jobs. Either job_id or
-        job_set_id is required.
+        Uses the CancelJobs RPC to cancel jobs.
 
         :param queue: The name of the queue
-        :param job_id: The name of the job id (this or job_set_id required)
-        :param job_set_id: An array of JobSubmitRequestItems. (this or job_id required)
+        :param job_set_id: The name of the job set id
+        :param job_id: The name of the job id (optional), if empty - cancel all jobs
         :return: A CancellationResult object.
         """
+        if not queue or not job_set_id:
+            raise ValueError("Both queue and job_set_id must be provided.")
 
-        # Checks to ensure that either job_id is provided,
-        # or job_set_id AND queue is provided.
-        # ensure that the others have appropriate empty values.
-
-        if job_id and not queue and not job_set_id:
+        if job_id and queue and job_set_id:
             request = submit_pb2.JobCancelRequest(job_id=job_id)
-
-        elif job_set_id and queue and not job_id:
-            request = submit_pb2.JobCancelRequest(queue=queue, job_set_id=job_set_id)
-
+            return self.submit_stub.CancelJobs(request)
         else:
-            raise ValueError("Either job_id or job_set_id and queue must be provided.")
-
-        response = self.submit_stub.CancelJobs(request)
-        return response
+            logger.warning(
+                "cancelling all jobs within a jobset via cancel_jobs is deprecated. "
+                "Use cancel_jobset instead."
+            )
+            return self.cancel_jobset(queue, job_set_id, [])  # type: ignore
 
     def cancel_jobset(
         self,
@@ -240,14 +239,14 @@ class ArmadaClient:
     def reprioritize_jobs(
         self,
         new_priority: float,
-        job_ids: Optional[List[str]] = None,
-        job_set_id: Optional[str] = None,
-        queue: Optional[str] = None,
+        job_ids: Optional[List[str]],
+        job_set_id: str,
+        queue: str,
     ) -> submit_pb2.JobReprioritizeResponse:
         """Reprioritize jobs with new_priority value.
 
         Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
-        or job set.
+        or job set (if job_ids are set to None or empty).
 
         :param new_priority: The new priority value for the jobs
         :param job_ids: A list of job ids to change priority of
@@ -255,28 +254,25 @@ class ArmadaClient:
         :param queue: The queue the jobs are in
         :return: JobReprioritizeResponse object. It is a map of strings.
         """
+        if not queue or not job_set_id:
+            raise ValueError("Both queue and job_set_id must be provided.")
 
-        # Same as in cancel_jobs, ensure that either
-        # job_ids or job_set_id and queue is provided.
-
-        if job_ids and not job_set_id and not queue:
+        if job_ids:
             request = submit_pb2.JobReprioritizeRequest(
+                queue=queue,
+                job_set_id=job_set_id,
                 job_ids=job_ids,
                 new_priority=new_priority,
             )
 
-        elif job_set_id and queue and not job_ids:
+        else:
             request = submit_pb2.JobReprioritizeRequest(
-                job_set_id=job_set_id,
                 queue=queue,
+                job_set_id=job_set_id,
                 new_priority=new_priority,
             )
 
-        else:
-            raise ValueError("Either job_ids or job_set_id and queue must be provided.")
-
-        response = self.submit_stub.ReprioritizeJobs(request)
-        return response
+        return self.submit_stub.ReprioritizeJobs(request)
 
     def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
