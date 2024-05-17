@@ -54,7 +54,6 @@ def wait_for(client: ArmadaClient, queue, job_set_id=None):
             # queue active test
             print("Checking if queue was created")
             print(client.get_queue(name=queue))
-            time.sleep(10)
 
             if job_set_id:
                 events = client.get_job_events_stream(
@@ -150,7 +149,11 @@ def test_submit_job_and_cancel_by_id(client: ArmadaClient, queue_name):
 
     wait_for(client, queue=queue_name, job_set_id=job_set_name)
 
-    cancelled_message = client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
+    cancelled_message = client.cancel_jobs(
+        queue=queue_name,
+        job_set_id=job_set_name,
+        job_id=jobs.job_response_items[0].job_id,
+    )
 
     assert cancelled_message.cancelled_ids[0] == jobs.job_response_items[0].job_id
 
@@ -167,7 +170,9 @@ def test_submit_job_and_cancel_by_job_id(client: ArmadaClient, queue_name):
 
     wait_for(client, queue=queue_name, job_set_id=job_set_name)
 
-    cancelled_message = client.cancel_jobs(job_id=job_id)
+    cancelled_message = client.cancel_jobs(
+        queue=queue_name, job_set_id=job_set_name, job_id=job_id
+    )
 
     assert cancelled_message.cancelled_ids[0] == job_id
 
