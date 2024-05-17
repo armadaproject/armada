@@ -132,7 +132,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		stats.jobCount += gctx.Cardinality()
 		stats.time += duration
 		statsPerQueue[gctx.Queue] = stats
-		if duration.Seconds() > 0 {
+		if duration.Seconds() > 1 {
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, first job id %s", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0])
 		}
 
