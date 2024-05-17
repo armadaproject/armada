@@ -86,7 +86,6 @@ require (
 	github.com/prometheus/common v0.39.0
 	github.com/redis/go-redis/extra/redisprometheus/v9 v9.0.5
 	github.com/redis/go-redis/v9 v9.5.1
-	github.com/sanity-io/litter v1.5.5
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/time v0.3.0
