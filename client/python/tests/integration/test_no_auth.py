@@ -53,6 +53,7 @@ def wait_for(client: ArmadaClient, queue, job_set_id=None):
         try:
             # queue active test
             client.get_queue(name=queue)
+            time.sleep(10)
 
             if job_set_id:
                 events = client.get_job_events_stream(
