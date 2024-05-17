@@ -105,6 +105,7 @@ def get_queue():
 def create_queue(client: ArmadaClient, queue_name):
     queue = client.create_queue_request(name=queue_name, priority_factor=1)
     client.create_queue(queue)
+    time.sleep(30)
     wait_for(client, queue=queue_name)
 
 
