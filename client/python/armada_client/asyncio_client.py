@@ -204,7 +204,9 @@ class ArmadaAsyncIOClient:
             raise ValueError("Both queue and job_set_id must be provided.")
 
         if job_id and queue and job_set_id:
-            request = submit_pb2.JobCancelRequest(job_id=job_id)
+            request = submit_pb2.JobCancelRequest(
+                queue=queue, job_set_id=job_set_id, job_id=job_id
+            )
             return await self.submit_stub.CancelJobs(request)
         else:
             logger.warning(
