@@ -52,7 +52,8 @@ def wait_for(client: ArmadaClient, queue, job_set_id=None):
     while True:
         try:
             # queue active test
-            client.get_queue(name=queue)
+            print("Checking if queue was created")
+            print(client.get_queue(name=queue))
             time.sleep(10)
 
             if job_set_id:
