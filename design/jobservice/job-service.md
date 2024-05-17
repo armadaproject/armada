@@ -2,7 +2,7 @@
 
 ## Deprecation Warning
 
-The Job Service is being depracated in favor of the new Query API as of May 2024. Users are encouraged to use the new API, and this component will be removed from future versions of Armada.
+The Job Service is being deprecated in favor of the new Query API as of May 2024. Users are encouraged to use the new API, and this component will be removed from future versions of Armada.
 
 ## Problem Description
 Armada’s API is event driven, preventing it from integrating with tools, such as Apache Airflow, written with the expectation that it can easily fetch status of a running job. It is not scalable to have Airflow subscribe to the event stream to observe status, so we must implement a caching layer which will expose a friendlier API for individual job querying.
