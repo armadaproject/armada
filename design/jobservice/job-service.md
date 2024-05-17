@@ -1,6 +1,6 @@
 # Armada Job Service
 
-## Depracation Warning
+## Deprecation Warning
 
 The Job Service is being depracated in favor of the new Query API as of May 2024. Users are encouraged to use the new API, and this component will be removed from future versions of Armada.
 
