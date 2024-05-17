@@ -7,7 +7,7 @@ corsAllowedOrigins:
   - http://localhost:10000
 grpcGatewayPath: "/"
 queueRepositoryUsesPostgres: false
-queueCacheRefreshPeriod: 10s
+queueCacheRefreshPeriod: 1s
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
 grpc:
