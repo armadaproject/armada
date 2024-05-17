@@ -12,10 +12,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaconfiguration "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -419,16 +420,16 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "1",
+					armadaconfiguration.GangIdAnnotation:                 "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation:        "2",
+					armadaconfiguration.GangMinimumCardinalityAnnotation: "1",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "1",
+					armadaconfiguration.GangIdAnnotation:                 "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation:        "2",
+					armadaconfiguration.GangMinimumCardinalityAnnotation: "1",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			),
@@ -447,16 +448,16 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "2",
+					armadaconfiguration.GangIdAnnotation:                 "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation:        "2",
+					armadaconfiguration.GangMinimumCardinalityAnnotation: "2",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "2",
+					armadaconfiguration.GangIdAnnotation:                 "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation:        "2",
+					armadaconfiguration.GangMinimumCardinalityAnnotation: "2",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			),
