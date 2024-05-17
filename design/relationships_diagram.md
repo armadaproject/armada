@@ -15,18 +15,18 @@ This is the comonent that is used by users to submit jobs to Armada, using gRPC.
 
 ### Ingester Loops
 
-All data-flows in armada are controlled by pulsar. This means that all data is first written to pulsar, and then ingested into the appropriate database. The ingester loops are the components that read data from pulsar and write it to the appropriate database.
+All data-flows in armada are controlled by Pulsar. This means that all data is first written to Pulsar, and then ingested into the appropriate database. The ingester loops are the components that read data from Pulsar and write it to the appropriate database.
 
 There are 3 ingester loops:
-- **Event Ingester**: This ingests data from pulsar into redis.
-- **Lookout Ingester**: This ingests data from pulsar into postgres.
-- **Scheduler Ingester**: This ingests data from pulsar into postgres.
+- **Event Ingester**: This ingests data from Pulsar into Redis.
+- **Lookout Ingester**: This ingests data from Pulsar into Postgres.
+- **Scheduler Ingester**: This ingests data from Pulsar into Postgres.
 
 ### Scheduler
 
-The scheduler is the component that is responsible for scheduling jobs.
+The [scheduler](./scheduler.md) is the component that is responsible for scheduling jobs.
 
-It receives data from the ingester loops, and then uses that data to schedule jobs. Its decisions are then fed back to pulsar, allowing the process to repeat.
+It receives data from the ingester loops, and then uses that data to schedule jobs. Its decisions are then fed back to Pulsar, allowing the process to repeat.
 
 ### Armada Executor Components
 

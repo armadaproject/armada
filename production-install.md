@@ -70,7 +70,7 @@ helm install ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./server-val
 ```
 
 #### Using NATS Streaming
-You can optionally setup Armada to route all job events through persistent NATS Streaming subject before saving them to redis. This is useful if additional application needs to consume events from Armada as NATS subject contains job events from all job sets.
+You can optionally setup Armada to route all job events through persistent NATS Streaming subject before saving them to Redis. This is useful if additional application needs to consume events from Armada as NATS subject contains job events from all job sets.
 
 Required additional server configuration is:
 

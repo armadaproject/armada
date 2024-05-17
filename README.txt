@@ -78,7 +78,3 @@ Testing via github
 If you push the contents of gh-pages branch to your fork's gh-pages branch,
 the page will be published at the following URL:
 https://{ghusername}.github.io/armada. 
-
-Currently this testing method does not work for images or some other assets,
-because we currently use static URLs that are not relative to the root path.
-This is being addressed in https://github.com/G-Research/armada/issues/1105.
