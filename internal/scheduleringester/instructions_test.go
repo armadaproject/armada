@@ -129,7 +129,13 @@ func TestConvertSequence(t *testing.T) {
 		"reprioritise job": {
 			events: []*armadaevents.EventSequence_Event{f.JobReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobPriorities{f.JobIdString: f.NewPriority},
+				UpdateJobPriorities{
+					key: JobReprioritiseKey{
+						JobSetKey: JobSetKey{queue: f.Queue, jobSet: f.JobSetName},
+						Priority:  f.NewPriority,
+					},
+					jobIds: []string{f.JobIdString},
+				},
 			},
 		},
 		"reprioritise jobset": {
@@ -141,7 +147,7 @@ func TestConvertSequence(t *testing.T) {
 		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelRequested{f.JobIdString: true},
+				MarkJobsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: {f.JobIdString}},
 			},
 		},
 		"JobSetCancelRequested": {

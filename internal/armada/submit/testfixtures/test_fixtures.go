@@ -9,7 +9,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -21,7 +21,7 @@ var (
 	DefaultOwner         = "testUser"
 	DefaultJobset        = "testJobset"
 	DefaultQueue         = queue.Queue{Name: "testQueue"}
-	DefaultPrincipal     = authorization.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
+	DefaultPrincipal     = auth.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
 	DefaultContainerPort = v1.ContainerPort{
 		Name:          "testContainerPort",
 		ContainerPort: 8080,
@@ -71,6 +71,74 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
+	}
+}
+
+func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
+	for i, jobId := range jobIds {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &DefaultTime,
+			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+					JobId: armadaevents.MustProtoUuidFromUlidString(jobId),
+				},
+			},
+		}
+	}
+	return events
+}
+
+func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
+	for i, jobId := range jobIds {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &DefaultTime,
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{
+					JobId: armadaevents.MustProtoUuidFromUlidString(jobId),
+				},
+			},
+		}
+	}
+	return events
+}
+
+func CreateCancelJobSetSequenceEvent() *armadaevents.EventSequence_Event {
+	return &armadaevents.EventSequence_Event{
+		Created: &DefaultTime,
+		Event: &armadaevents.EventSequence_Event_CancelJobSet{
+			CancelJobSet: &armadaevents.CancelJobSet{
+				States: []armadaevents.JobState{},
+			},
+		},
+	}
+}
+
+func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
+	for i, jobId := range jobIds {
+		events[i] = &armadaevents.EventSequence_Event{
+			Created: &DefaultTime,
+			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
+				ReprioritiseJob: &armadaevents.ReprioritiseJob{
+					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
+					Priority: uint32(newPriority),
+				},
+			},
+		}
+	}
+	return events
+}
+
+func CreateReprioritizedJobSetSequenceEvent(newPriority float64) *armadaevents.EventSequence_Event {
+	return &armadaevents.EventSequence_Event{
+		Created: &DefaultTime,
+		Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
+			ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
+				Priority: uint32(newPriority),
+			},
+		},
 	}
 }
 

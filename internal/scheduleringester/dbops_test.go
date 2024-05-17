@@ -19,17 +19,17 @@ func TestMerge(t *testing.T) {
 	jobId1 := util.NewULID()
 	jobId2 := util.NewULID()
 	jobId3 := util.NewULID()
-	markJobsCancelled1 := MarkJobsCancelRequested{jobId1: false, jobId2: false}
-	markJobsCancelled2 := MarkJobsCancelRequested{jobId2: true, jobId3: true}
-	ok := markJobsCancelled1.Merge(markJobsCancelled2)
+	markJobsFailed1 := MarkJobsFailed{jobId1: false, jobId2: false}
+	markJobsFailed2 := MarkJobsFailed{jobId2: true, jobId3: true}
+	ok := markJobsFailed1.Merge(markJobsFailed2)
 	assert.True(t, ok)
-	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
+	assert.Equal(t, MarkJobsFailed{jobId1: false, jobId2: true, jobId3: true}, markJobsFailed1)
 
 	jobId4 := util.NewULID()
 	markJobsSucceeded1 := MarkJobsSucceeded{jobId1: true, jobId4: true}
-	ok = markJobsCancelled1.Merge(markJobsSucceeded1)
+	ok = markJobsFailed1.Merge(markJobsSucceeded1)
 	assert.False(t, ok)
-	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
+	assert.Equal(t, MarkJobsFailed{jobId1: false, jobId2: true, jobId3: true}, markJobsFailed1)
 }
 
 func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
@@ -159,15 +159,15 @@ func TestDbOperationOptimisation(t *testing.T) {
 			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set2"}: 2},                      // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}, // 3
 		}},
-		"UpdateJobSetPriorities, UpdateJobPriorities": {N: 4, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}, // 1
-			UpdateJobPriorities{jobIds[0]: 1},                                                               // 2
-			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set1"}: 2},                      // 3
-			UpdateJobPriorities{jobIds[1]: 3},                                                               // 4
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"}}, // 4
-			UpdateJobPriorities{jobIds[1]: 4},                                                               // 4
-			UpdateJobPriorities{jobIds[2]: 5},                                                               // 4
+		"UpdateJobSetPriorities, UpdateJobPriorities": {N: 5, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                  // 1
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                  // 1
+			UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 1}, []string{jobIds[0]}}, // 2                                                            // 2
+			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set1"}: 2},                                       // 3
+			UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 3}, []string{jobIds[1]}}, // 4
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"}},                  // 1
+			UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 4}, []string{jobIds[1]}}, // 5
+			UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 4}, []string{jobIds[2]}}, // 5
 		}},
 		"MarkJobSetsCancelRequested": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                          // 1
@@ -179,11 +179,11 @@ func TestDbOperationOptimisation(t *testing.T) {
 		"MarkJobSetsCancelRequested, MarkJobsCancelRequested": {N: 4, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                          // 1
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                                          // 1
-			MarkJobsCancelRequested{jobIds[0]: true},                                                                                                 // 2
+			MarkJobsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[0]}},                                            // 2                                                     // 2
 			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                                          // 4
-			MarkJobsCancelRequested{jobIds[1]: true},                                                                                                 // 4
-			MarkJobsCancelRequested{jobIds[2]: true},                                                                                                 // 4
+			MarkJobsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[1]}},                                            // 4                                              // 4
+			MarkJobsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[2]}},                                            // 4                                                 // 4
 		}},
 		"MarkRunsForJobPreemptRequested": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},      // 1
@@ -421,11 +421,15 @@ func (db *mockDb) apply(op DbOperation) error {
 			}
 		}
 	case MarkJobsCancelRequested:
-		for jobId := range o {
-			if job, ok := db.Jobs[jobId]; ok {
-				job.CancelRequested = true
-			} else {
-				return errors.Errorf("job %s not in db", jobId)
+		for jobSetKey, jobIds := range o {
+			for _, jobId := range jobIds {
+				job, ok := db.Jobs[jobId]
+				if !ok {
+					return errors.Errorf("job %s not in db", jobId)
+				}
+				if job.JobSet == jobSetKey.jobSet && job.Queue == jobSetKey.queue {
+					job.CancelRequested = true
+				}
 			}
 		}
 	case MarkJobsSucceeded:
@@ -445,11 +449,13 @@ func (db *mockDb) apply(op DbOperation) error {
 			}
 		}
 	case UpdateJobPriorities:
-		for jobId, priority := range o {
-			if job, ok := db.Jobs[jobId]; ok {
-				job.Priority = priority
-			} else {
+		for _, jobId := range o.jobIds {
+			job, ok := db.Jobs[jobId]
+			if !ok {
 				return errors.Errorf("job %s not in db", jobId)
+			}
+			if job.JobSet == o.key.jobSet && job.Queue == o.key.queue {
+				job.Priority = o.key.Priority
 			}
 		}
 	case MarkRunsSucceeded:

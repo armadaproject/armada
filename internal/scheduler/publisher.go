@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -92,9 +91,6 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 		msgs[i] = &pulsar.ProducerMessage{
 			Payload: bytes,
 			Key:     sequences[i].JobSetName,
-			Properties: map[string]string{
-				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
-			},
 		}
 	}
 
@@ -154,8 +150,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 		}
 		msg := &pulsar.ProducerMessage{
 			Properties: map[string]string{
-				explicitPartitionKey:    fmt.Sprintf("%d", i),
-				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
+				explicitPartitionKey: fmt.Sprintf("%d", i),
 			},
 			Payload: bytes,
 		}

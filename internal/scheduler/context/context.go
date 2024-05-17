@@ -26,13 +26,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// defaultSchedulingKeyGenerator is used for computing scheduling keys for legacy api.Job where one is not pre-computed.
-var defaultSchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
-
-func init() {
-	defaultSchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
-}
-
 // SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
 type SchedulingContext struct {
 	// Time at which the scheduling cycle started.
@@ -664,11 +657,7 @@ func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKe
 	if len(jctx.AdditionalNodeSelectors) != 0 || len(jctx.AdditionalTolerations) != 0 {
 		return schedulerobjects.EmptySchedulingKey, false
 	}
-	schedulingKey, ok := jctx.Job.SchedulingKey()
-	if !ok {
-		schedulingKey = jobdb.SchedulingKeyFromJob(defaultSchedulingKeyGenerator, jctx.Job)
-	}
-	return schedulingKey, true
+	return jctx.Job.SchedulingKey(), true
 }
 
 func (jctx *JobSchedulingContext) IsSuccessful() bool {

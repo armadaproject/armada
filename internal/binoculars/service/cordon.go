@@ -14,7 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
@@ -28,13 +28,13 @@ type CordonService interface {
 
 type KubernetesCordonService struct {
 	clientProvider    cluster.KubernetesClientProvider
-	permissionChecker authorization.PermissionChecker
+	permissionChecker auth.PermissionChecker
 	config            configuration.CordonConfiguration
 }
 
 func NewKubernetesCordonService(
 	cordonConfig configuration.CordonConfiguration,
-	permissionsChecker authorization.PermissionChecker,
+	permissionsChecker auth.PermissionChecker,
 	clientProvider cluster.KubernetesClientProvider,
 ) *KubernetesCordonService {
 	return &KubernetesCordonService{
@@ -50,7 +50,7 @@ func (c *KubernetesCordonService) CordonNode(ctx *armadacontext.Context, request
 		return status.Errorf(codes.PermissionDenied, err.Error())
 	}
 
-	additionalLabels := templateLabels(c.config.AdditionalLabels, authorization.GetPrincipal(ctx).GetName())
+	additionalLabels := templateLabels(c.config.AdditionalLabels, auth.GetPrincipal(ctx).GetName())
 	patch := createCordonPatch(additionalLabels)
 	patchBytes, err := GetPatchBytes(patch)
 
@@ -91,9 +91,9 @@ func GetPatchBytes(patchData *nodePatch) ([]byte, error) {
 	return json.Marshal(patchData)
 }
 
-func checkPermission(p authorization.PermissionChecker, ctx *armadacontext.Context, permission permission.Permission) error {
+func checkPermission(p auth.PermissionChecker, ctx *armadacontext.Context, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
-		return fmt.Errorf("user %s does not have permission %s", authorization.GetPrincipal(ctx).GetName(), permission)
+		return fmt.Errorf("user %s does not have permission %s", auth.GetPrincipal(ctx).GetName(), permission)
 	}
 	return nil
 }
