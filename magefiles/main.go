@@ -203,6 +203,8 @@ func LocalDev(arg string) error {
 
 	// Set the Executor Update Frequency to 1 second for local development
 	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
+	os.Setenv("ARMADA_QUEUEREFRESHPERIOD", "1s")
+	os.Setenv("ARMADA_QUEUECACHEREFRESHPERIOD", "1s")
 
 	switch arg {
 	case "minimal":
