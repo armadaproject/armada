@@ -133,7 +133,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		stats.time += duration
 		statsPerQueue[gctx.Queue] = stats
 		if duration.Seconds() > 1 {
-			 ctx.Infof("Slow schedule: queue %s, gang cardinality %d, first job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
+			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, first job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
 		}
 
 		// Clear() to get the next gang in order of smallest fair share.
