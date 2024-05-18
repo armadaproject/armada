@@ -202,9 +202,9 @@ func LocalDev(arg string) error {
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
 	// Set All Update Frequencies to 1 second for local development to make the system responsive
-	os.Setenv("ARMADA_SCHEDULING_EXECUTOR_UPDATE_FREQUENCY", "1s")
-	os.Setenv("ARMADA_QUEUE_REFRESH_PERIOD", "1s")
-	os.Setenv("ARMADA_QUEUE_CACHE_REFRESH_PERIOD", "1s")
+	os.Setenv("ARMADA_SCHEDULINGEXECUTORUPDATEFREQUENCY", "1s")
+	os.Setenv("ARMADA_QUEUEREFRESHPERIOD", "1s")
+	os.Setenv("ARMADA_QUEUECACHEREFRESHPERIOD", "1s")
 
 	switch arg {
 	case "minimal":

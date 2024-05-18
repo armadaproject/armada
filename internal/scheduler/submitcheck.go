@@ -69,7 +69,7 @@ func NewSubmitChecker(
 }
 
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
-	ctx.Infof("Will Refresh execuotr state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
+	ctx.Infof("Will refresh executor state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
 	srv.updateExecutors(ctx)
 	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
 	for {
