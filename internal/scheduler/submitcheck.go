@@ -90,6 +90,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			Error("Error fetching executors")
 		return
 	}
+	ctx.Infof("Retrieved %d executors", len(executors))
 	jobSchedulingResultsCache, err := lru.New(10000)
 	if err != nil {
 		// This should never happen as lru.New only returns an error if it is initialised with a negative size
