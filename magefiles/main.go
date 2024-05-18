@@ -201,11 +201,6 @@ func LocalDev(arg string) error {
 	mg.Deps(BootstrapTools)
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
-	// Set All Update Frequencies to 1 second for local development to make the system responsive
-	os.Setenv("ARMADA_SCHEDULINGEXECUTORUPDATEFREQUENCY", "1s")
-	os.Setenv("ARMADA_QUEUEREFRESHPERIOD", "1s")
-	os.Setenv("ARMADA_QUEUECACHEREFRESHPERIOD", "1s")
-
 	switch arg {
 	case "minimal":
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)

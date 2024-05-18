@@ -134,7 +134,7 @@ scheduling:
   executorTimeout: "10m"
   maxUnacknowledgedJobsPerExecutor: 2500
   alwaysAttemptScheduling: false
-  executorUpdateFrequency: "1s"
+  executorUpdateFrequency: "60s"
   failureProbabilityEstimation:
     # Optimised default parameters.
     numInnerIterations: 10
