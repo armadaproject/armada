@@ -201,8 +201,10 @@ func LocalDev(arg string) error {
 	mg.Deps(BootstrapTools)
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
-	// Set the Executor Update Frequency to 1 second for local development
+	// Set All Update Frequencis to 1 second for local development to make the system responsive
 	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
+	os.Setenv("ARMADA_QUEUEREFRESHPERIOD", "1s")
+	os.Setenv("ARMADA_QUEUECACHEREFRESHPERIOD", "1s")
 
 	switch arg {
 	case "minimal":
