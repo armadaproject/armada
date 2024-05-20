@@ -9,6 +9,7 @@ import { FakeCordonService } from "../../../services/lookoutV2/mocks/FakeCordonS
 import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
+import {FakeGetRunDebugMessageService} from "../../../services/lookoutV2/mocks/FakeGetRunDebugMessageService";
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
@@ -44,6 +45,7 @@ describe("Sidebar", () => {
         <Sidebar
           job={job}
           runErrorService={new FakeGetRunErrorService()}
+          runDebugMessageService={new FakeGetRunDebugMessageService()}
           jobSpecService={new FakeGetJobSpecService()}
           logService={new FakeLogService()}
           cordonService={new FakeCordonService()}

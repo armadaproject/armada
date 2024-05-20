@@ -75,6 +75,7 @@ import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
+import {IGetRunDebugMessageService} from "../../services/lookoutV2/GetRunDebugMessageService";
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
@@ -83,6 +84,7 @@ interface JobsTableContainerProps {
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
   runErrorService: IGetRunErrorService
+  runDebugMessageService: IGetRunDebugMessageService
   jobSpecService: IGetJobSpecService
   logService: ILogService
   cordonService: ICordonService
@@ -128,6 +130,7 @@ export const JobsTableContainer = ({
   groupJobsService,
   updateJobsService,
   runErrorService,
+  runDebugMessageService,
   jobSpecService,
   logService,
   cordonService,
@@ -855,6 +858,7 @@ export const JobsTableContainer = ({
         <Sidebar
           job={sidebarJobDetails}
           runErrorService={runErrorService}
+          runDebugMessageService={runDebugMessageService}
           jobSpecService={jobSpecService}
           logService={logService}
           cordonService={cordonService}

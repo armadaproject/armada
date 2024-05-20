@@ -35,6 +35,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
+	getJobRunDebugMessageRepo := repository.NewSqlGetJobRunDebugMessageRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
 
 	// create new service API
@@ -102,6 +103,19 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobRunErrorOK().WithPayload(&operations.GetJobRunErrorOKBody{
+				ErrorString: result,
+			})
+		},
+	)
+
+	api.GetJobRunDebugMessageHandler = operations.GetJobRunDebugMessageHandlerFunc(
+		func(params operations.GetJobRunDebugMessageParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobRunDebugMessageRepo.GetJobRunDebugMessage(ctx, params.GetJobRunDebugMessageRequest.RunID)
+			if err != nil {
+				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobRunDebugMessageOK().WithPayload(&operations.GetJobRunDebugMessageOKBody{
 				ErrorString: result,
 			})
 		},

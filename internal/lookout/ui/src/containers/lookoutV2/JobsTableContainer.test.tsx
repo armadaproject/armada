@@ -18,6 +18,8 @@ import { FakeCordonService } from "../../services/lookoutV2/mocks/FakeCordonServ
 import FakeGetJobSpecService from "../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "../../services/lookoutV2/mocks/FakeLogService"
+import {FakeGetRunDebugMessageService} from "../../services/lookoutV2/mocks/FakeGetRunDebugMessageService";
+import {IGetRunDebugMessageService} from "../../services/lookoutV2/GetRunDebugMessageService";
 
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(30_000)
@@ -57,6 +59,7 @@ describe("JobsTableContainer", () => {
   let getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
     runErrorService: IGetRunErrorService,
+    runDebugMessageService: IGetRunDebugMessageService,
     jobSpecService: IGetJobSpecService,
     logService: ILogService,
     updateJobsService: UpdateJobsService
@@ -69,6 +72,7 @@ describe("JobsTableContainer", () => {
   beforeEach(() => {
     setUp([])
     runErrorService = new FakeGetRunErrorService(false)
+    runDebugMessageService = new FakeGetRunDebugMessageService(false)
     jobSpecService = new FakeGetJobSpecService(false)
     logService = new FakeLogService()
     localStorage.clear()
@@ -86,6 +90,7 @@ describe("JobsTableContainer", () => {
           groupJobsService={groupJobsService}
           updateJobsService={updateJobsService}
           runErrorService={runErrorService}
+          runDebugMessageService={runDebugMessageService}
           jobSpecService={jobSpecService}
           logService={logService}
           cordonService={new FakeCordonService()}

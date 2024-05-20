@@ -13,10 +13,12 @@ import reportWebVitals from "./reportWebVitals"
 import { CordonService } from "./services/lookoutV2/CordonService"
 import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { GetRunDebugMessageService } from "./services/lookoutV2/GetRunDebugMessageService";
 import { LogService as V2LogService } from "./services/lookoutV2/LogService"
 import { FakeCordonService } from "./services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeGetRunDebugMessageService } from "./services/lookoutV2/mocks/FakeGetRunDebugMessageService";
 import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
 
@@ -40,6 +42,7 @@ import "./index.css"
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(uiConfig.backend)
   const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService()
+  const v2RunDebugMessageService = fakeDataEnabled ? new FakeGetRunDebugMessageService() : new GetRunDebugMessageService()
   const v2LogService = fakeDataEnabled
     ? new FakeLogService()
     : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
@@ -59,6 +62,7 @@ import "./index.css"
       v2UpdateJobsService={v2UpdateJobsService}
       v2UpdateJobSetsService={v2UpdateJobSetsService}
       v2RunErrorService={v2RunErrorService}
+      v2RunDebugMessageService={v2RunDebugMessageService}
       v2JobSpecService={v2JobSpecService}
       v2LogService={v2LogService}
       v2CordonService={v2CordonService}
