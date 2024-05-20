@@ -53,7 +53,6 @@ type MetricsCollector struct {
 	jobDb              *jobdb.JobDb
 	queueCache         queue.QueueCache
 	executorRepository database.ExecutorRepository
-	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
 	clock              clock.Clock
 	state              atomic.Value
@@ -63,14 +62,12 @@ func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueCache queue.QueueCache,
 	executorRepository database.ExecutorRepository,
-	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
 ) *MetricsCollector {
 	return &MetricsCollector{
 		jobDb:              jobDb,
 		queueCache:         queueCache,
 		executorRepository: executorRepository,
-		poolAssigner:       poolAssigner,
 		refreshPeriod:      refreshPeriod,
 		clock:              clock.RealClock{},
 		state:              atomic.Value{},
@@ -148,11 +145,6 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
 	}
 
-	err = c.poolAssigner.Refresh(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	currentTime := c.clock.Now()
 	for _, job := range c.jobDb.ReadTxn().GetAll() {
 		// Don't calculate metrics for dead jobs
@@ -163,11 +155,6 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		if !ok {
 			ctx.Warnf("job %s is in queue %s, but this queue does not exist; skipping", job.Id(), job.Queue())
 			continue
-		}
-
-		pool, err := c.poolAssigner.AssignPool(job)
-		if err != nil {
-			return nil, err
 		}
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
@@ -205,8 +192,10 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.runningJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 		}
-		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
-		recorder.RecordResources(pool, priorityClass, jobResources)
+		for _, pool := range job.Pools() {
+			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
+			recorder.RecordResources(pool, priorityClass, jobResources)
+		}
 	}
 
 	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[schedulerobjects.SchedulingKey]bool) int {

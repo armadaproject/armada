@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -66,6 +67,8 @@ type Job struct {
 	activeRun *JobRun
 	// The timestamp of the currently active run.
 	activeRunTimestamp int64
+	// Pools for which the job is eligable. This is used for metrics reporting and to calculate demand for fair share
+	pools []string
 }
 
 func (job *Job) String() string {
@@ -341,6 +344,9 @@ func (job *Job) Equal(other *Job) bool {
 	if job.activeRunTimestamp != other.activeRunTimestamp {
 		return false
 	}
+	if !slices.Equal(job.pools, other.pools) {
+		return false
+	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}
@@ -390,10 +396,22 @@ func (job *Job) RequestedPriority() uint32 {
 	return job.requestedPriority
 }
 
+// Pools returns the pools associated with the job
+func (job *Job) Pools() []string {
+	return slices.Clone(job.pools)
+}
+
 // WithPriority returns a copy of the job with the priority updated.
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.priority = priority
+	return j
+}
+
+// WithPools returns a copy of the job with the pools updated.
+func (job *Job) WithPools(pools []string) *Job {
+	j := copyJob(*job)
+	j.pools = slices.Clone(pools)
 	return j
 }
 
