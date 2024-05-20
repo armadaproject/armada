@@ -78,6 +78,7 @@ func NewSubmitChecker(
 }
 
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
+	ctx.Infof("Will refresh executor state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
 	srv.updateExecutors(ctx)
 	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
 	for {
@@ -98,6 +99,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			Error("Error fetching executors")
 		return
 	}
+	ctx.Infof("Retrieved %d executors", len(executors))
 	jobSchedulingResultsCache, err := lru.New(10000)
 	if err != nil {
 		// This should never happen as lru.New only returns an error if it is initialised with a negative size
