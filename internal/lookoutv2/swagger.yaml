@@ -128,7 +128,7 @@ definitions:
       RuntimeSeconds:
         type: integer
         format: int32
-        x-nullable: true
+        x-nullable: false
   run:
     type: object
     required:

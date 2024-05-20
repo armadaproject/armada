@@ -12,14 +12,12 @@ import { v4 as uuidv4 } from "uuid"
 
 import { JobsTableContainer } from "./JobsTableContainer"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
-import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
+import { IGetRunInfoService } from "../../services/lookoutV2/GetRunInfoService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { FakeCordonService } from "../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "../../services/lookoutV2/mocks/FakeGetJobSpecService"
-import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeGetRunInfoService } from "../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import { FakeLogService } from "../../services/lookoutV2/mocks/FakeLogService"
-import {FakeGetRunDebugMessageService} from "../../services/lookoutV2/mocks/FakeGetRunDebugMessageService";
-import {IGetRunDebugMessageService} from "../../services/lookoutV2/GetRunDebugMessageService";
 
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(30_000)
@@ -58,8 +56,7 @@ function makeTestJobs(
 describe("JobsTableContainer", () => {
   let getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
-    runErrorService: IGetRunErrorService,
-    runDebugMessageService: IGetRunDebugMessageService,
+    runErrorService: IGetRunInfoService,
     jobSpecService: IGetJobSpecService,
     logService: ILogService,
     updateJobsService: UpdateJobsService
@@ -71,8 +68,7 @@ describe("JobsTableContainer", () => {
 
   beforeEach(() => {
     setUp([])
-    runErrorService = new FakeGetRunErrorService(false)
-    runDebugMessageService = new FakeGetRunDebugMessageService(false)
+    runErrorService = new FakeGetRunInfoService(false)
     jobSpecService = new FakeGetJobSpecService(false)
     logService = new FakeLogService()
     localStorage.clear()
@@ -89,8 +85,7 @@ describe("JobsTableContainer", () => {
           getJobsService={getJobsService}
           groupJobsService={groupJobsService}
           updateJobsService={updateJobsService}
-          runErrorService={runErrorService}
-          runDebugMessageService={runDebugMessageService}
+          runInfoService={runErrorService}
           jobSpecService={jobSpecService}
           logService={logService}
           cordonService={new FakeCordonService()}

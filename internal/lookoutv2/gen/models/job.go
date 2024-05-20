@@ -23,7 +23,7 @@ type Job struct {
 
 	// runtime seconds
 	// Required: true
-	RuntimeSeconds *int32 `json:"RuntimeSeconds"`
+	RuntimeSeconds int32 `json:"RuntimeSeconds"`
 
 	// annotations
 	// Required: true
@@ -205,7 +205,7 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 
 func (m *Job) validateRuntimeSeconds(formats strfmt.Registry) error {
 
-	if err := validate.Required("RuntimeSeconds", "body", m.RuntimeSeconds); err != nil {
+	if err := validate.Required("RuntimeSeconds", "body", int32(m.RuntimeSeconds)); err != nil {
 		return err
 	}
 

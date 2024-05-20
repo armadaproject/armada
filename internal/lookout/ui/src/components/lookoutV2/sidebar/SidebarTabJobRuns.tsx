@@ -22,20 +22,18 @@ import styles from "./SidebarTabJobRuns.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { getAccessToken, useUserManager } from "../../../oidc"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
-import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
+import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
 import { getErrorMessage } from "../../../utils"
-import {IGetRunDebugMessageService} from "../../../services/lookoutV2/GetRunDebugMessageService";
 
 export interface SidebarTabJobRunsProps {
   job: Job
-  runErrorService: IGetRunErrorService
-  runDebugMessageService: IGetRunDebugMessageService
+  runInfoService: IGetRunInfoService
   cordonService: ICordonService
 }
 
 type LoadState = "Idle" | "Loading"
 
-export const SidebarTabJobRuns = ({ job, runErrorService, runDebugMessageService, cordonService }: SidebarTabJobRunsProps) => {
+export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: SidebarTabJobRunsProps) => {
   const mounted = useRef(false)
   const openSnackbar = useCustomSnackbar()
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
@@ -56,7 +54,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, runDebugMessageService
     for (const run of job.runs) {
       results.push({
         runId: run.runId,
-        promise: runErrorService.getRunError(run.runId),
+        promise: runInfoService.getRunError(run.runId),
       })
     }
 
@@ -99,7 +97,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, runDebugMessageService
     for (const run of job.runs) {
       results.push({
         runId: run.runId,
-        promise: runDebugMessageService.getRunDebugMessage(run.runId),
+        promise: runInfoService.getRunDebugMessage(run.runId),
       })
     }
 
@@ -111,7 +109,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, runDebugMessageService
             return
           }
           newRunDebugMessageMap.set(result.runId, debugMessage)
-          setRunErrorMap(new Map(newRunDebugMessageMap))
+          setRunDebugMessageMap(new Map(newRunDebugMessageMap))
         })
         .catch(async (e) => {
           const errMsg = await getErrorMessage(e)

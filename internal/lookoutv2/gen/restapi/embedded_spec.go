@@ -521,7 +521,7 @@ func init() {
         "RuntimeSeconds": {
           "type": "integer",
           "format": "int32",
-          "x-nullable": true
+          "x-nullable": false
         },
         "annotations": {
           "type": "object",
@@ -1285,7 +1285,7 @@ func init() {
         "RuntimeSeconds": {
           "type": "integer",
           "format": "int32",
-          "x-nullable": true
+          "x-nullable": false
         },
         "annotations": {
           "type": "object",
