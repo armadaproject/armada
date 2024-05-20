@@ -67,7 +67,7 @@ type Job struct {
 	activeRun *JobRun
 	// The timestamp of the currently active run.
 	activeRunTimestamp int64
-	// Pools for which the job is eligable. This is used for metrics reporting and to calculate demand for fair share
+	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
 	pools []string
 }
 
