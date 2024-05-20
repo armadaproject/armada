@@ -26,7 +26,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	runningJobs := make([]*jobdb.Job, 3)
 	for i := 0; i < len(queuedJobs); i++ {
 		startTime := testfixtures.BaseTime.Add(-time.Duration(100*i) * time.Second).UnixNano()
-		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime)
+		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime).WithPools([]string{testfixtures.TestPool})
 		runningJobs[i] = testfixtures.TestRunningJobDbJob(startTime)
 	}
 
