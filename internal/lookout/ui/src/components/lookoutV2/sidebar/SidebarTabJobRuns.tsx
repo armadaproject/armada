@@ -40,7 +40,9 @@ export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: Sideba
   const [runErrorMap, setRunErrorMap] = useState<Map<string, string>>(new Map<string, string>())
   const [runErrorLoadingMap, setRunErrorLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
   const [runDebugMessageMap, setRunDebugMessageMap] = useState<Map<string, string>>(new Map<string, string>())
-  const [runDebugMessageLoadingMap, setRunDebugMessageLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
+  const [runDebugMessageLoadingMap, setRunDebugMessageLoadingMap] = useState<Map<string, LoadState>>(
+    new Map<string, LoadState>(),
+  )
   const [open, setOpen] = useState(false)
 
   const fetchRunErrors = useCallback(async () => {
@@ -117,7 +119,10 @@ export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: Sideba
           if (!mounted.current) {
             return
           }
-          openSnackbar("Failed to retrieve Job Run debug message for Run with ID: " + result.runId + ": " + errMsg, "error")
+          openSnackbar(
+            "Failed to retrieve Job Run debug message for Run with ID: " + result.runId + ": " + errMsg,
+            "error",
+          )
         })
         .finally(() => {
           if (!mounted.current) {
