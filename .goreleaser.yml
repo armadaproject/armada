@@ -50,15 +50,6 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
-    id: pulsartest
-    binary: pulsartest
-    main: ./cmd/pulsartest/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
-    goos:
-      - linux
-    goarch:
-      - amd64
-  - env: [CGO_ENABLED=0]
     id: testsuite
     binary: testsuite
     main: ./cmd/testsuite/main.go

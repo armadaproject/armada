@@ -15,6 +15,13 @@ var QueueSizeDesc = prometheus.NewDesc(
 	nil,
 )
 
+var QueueDistinctSchedulingKeysDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_distinct_scheduling_keys",
+	"Number of distinct scheduling keys requested by a queue",
+	[]string{"queueName"},
+	nil,
+)
+
 var QueuePriorityDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_priority",
 	"Priority of a queue",
@@ -202,10 +209,11 @@ func Describe(out chan<- *prometheus.Desc) {
 	}
 }
 
-func CollectQueueMetrics(queueCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
+func CollectQueueMetrics(queueCounts map[string]int, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
 	metrics := make([]prometheus.Metric, 0, len(AllDescs))
 	for q, count := range queueCounts {
 		metrics = append(metrics, NewQueueSizeMetric(count, q))
+		metrics = append(metrics, NewQueueDistinctSchedulingKeyMetric(queueDistinctSchedulingKeyCounts[q], q))
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
 		for _, m := range queuedJobMetrics {
@@ -261,6 +269,10 @@ func CollectQueueMetrics(queueCounts map[string]int, metricsProvider QueueMetric
 
 func NewQueueSizeMetric(value int, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueueSizeDesc, prometheus.GaugeValue, float64(value), queue)
+}
+
+func NewQueueDistinctSchedulingKeyMetric(value int, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueDistinctSchedulingKeysDesc, prometheus.GaugeValue, float64(value), queue)
 }
 
 func NewQueueDuration(count uint64, sum float64, buckets map[float64]uint64, pool string, priorityClass string, queue string) prometheus.Metric {

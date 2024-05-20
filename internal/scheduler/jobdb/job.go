@@ -373,9 +373,8 @@ func (job *Job) PriorityClass() types.PriorityClass {
 }
 
 // SchedulingKey returns the scheduling key associated with a job.
-// The second return value is always true since scheduling keys are computed at job creation time.
-func (job *Job) SchedulingKey() (schedulerobjects.SchedulingKey, bool) {
-	return job.schedulingKey, true
+func (job *Job) SchedulingKey() schedulerobjects.SchedulingKey {
+	return job.schedulingKey
 }
 
 // SubmitTime exists for compatibility with the LegacyJob interface.
