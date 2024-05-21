@@ -70,7 +70,6 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 	var jobs []*model.Job
 	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query.Sql, query.Args...)
