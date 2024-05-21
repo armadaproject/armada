@@ -79,7 +79,12 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 }
 
 func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
-	db, err := database.OpenPgxConn(config.Postgres)
+	dbConfig := config.PrunerConfig.Postgres
+	if dbConfig == &configuration.PostgresConfig{} {
+		dbConfig := config.Postgres
+	}
+
+	db, err := database.OpenPgxConn(dbConfig)
 	if err != nil {
 		panic(err)
 	}

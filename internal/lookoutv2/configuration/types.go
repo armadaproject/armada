@@ -32,6 +32,7 @@ type PrunerConfig struct {
 	DeduplicationExpireAfter time.Duration
 	Timeout                  time.Duration
 	BatchSize                int
+	Postgres                 configuration.PostgresConfig
 }
 
 type CommandSpec struct {
