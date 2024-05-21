@@ -26,14 +26,14 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	runningJobs := make([]*jobdb.Job, 3)
 	for i := 0; i < len(queuedJobs); i++ {
 		startTime := testfixtures.BaseTime.Add(-time.Duration(100*i) * time.Second).UnixNano()
-		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime).WithPools([]string{testfixtures.TestPool})
+		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime)
 		runningJobs[i] = testfixtures.TestRunningJobDbJob(startTime)
 	}
 
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
-		poolMappings map[string]string
+		poolMappings map[string][]string
 		queues       []*api.Queue
 		expected     []prometheus.Metric
 	}{
@@ -100,6 +100,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).Times(1)
+			poolAssigner := &MockPoolAssigner{tc.defaultPool, tc.poolMappings}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
@@ -108,6 +109,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				jobDb,
 				queueCache,
 				executorRepository,
+				poolAssigner,
 				2*time.Second,
 			)
 			collector.clock = testClock
@@ -248,6 +250,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
+			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string][]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(tc.executors, nil)
@@ -256,6 +259,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				jobDb,
 				queueCache,
 				executorRepository,
+				poolAssigner,
 				2*time.Second,
 			)
 			collector.clock = testClock
@@ -294,4 +298,21 @@ func createNode(nodeType string) *schedulerobjects.Node {
 	node.StateByJobRunId = map[string]schedulerobjects.JobRunState{}
 	node.ResourceUsageByQueue = map[string]*schedulerobjects.ResourceList{}
 	return node
+}
+
+type MockPoolAssigner struct {
+	defaultPool string
+	poolsById   map[string][]string
+}
+
+func (m MockPoolAssigner) Refresh(_ *armadacontext.Context) error {
+	return nil
+}
+
+func (m MockPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
+	pools, ok := m.poolsById[j.Id()]
+	if !ok {
+		return []string{m.defaultPool}, nil
+	}
+	return pools, nil
 }
