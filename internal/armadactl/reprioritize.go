@@ -10,9 +10,33 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// Reprioritize sets the priority of the job identified by (jobId, queueName, jobSet) to priorityFactor
-// TODO We should have separate methods to operate on individual jobs and job sets
-func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priorityFactor float64) error {
+// ReprioritizeJobSet sets the priority of the jobSet identified by (queueName, jobSet) to priorityFactor
+func (a *App) ReprioritizeJobSet(queueName string, jobSet string, priorityFactor float64) error {
+	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
+		ctx, cancel := common.ContextWithDefaultTimeout()
+		defer cancel()
+
+		req := api.JobReprioritizeRequest{
+			JobSetId:    jobSet,
+			Queue:       queueName,
+			NewPriority: priorityFactor,
+		}
+		result, err := c.ReprioritizeJobs(ctx, &req)
+		if err != nil {
+			return errors.WithMessagef(err, "error reprioritising jobs matching queue: %s, job set: %s\n", queueName, jobSet)
+		}
+
+		err = a.writeResults(result.ReprioritizationResults)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+// Reprioritize sets the priority of the job identified by (jobId) to priorityFactor
+func (a *App) ReprioritizeJob(jobId string, priorityFactor float64) error {
 	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
 		var jobIds []string
 		if jobId != "" {
@@ -24,13 +48,11 @@ func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priori
 
 		req := api.JobReprioritizeRequest{
 			JobIds:      jobIds,
-			JobSetId:    jobSet,
-			Queue:       queueName,
 			NewPriority: priorityFactor,
 		}
 		result, err := c.ReprioritizeJobs(ctx, &req)
 		if err != nil {
-			return errors.WithMessagef(err, "error reprioritising jobs matching queue: %s, job set: %s, and job ID: %s\n", queueName, jobSet, jobId)
+			return errors.WithMessagef(err, "error reprioritising jobs matching job ID: %s\n", jobId)
 		}
 
 		err = a.writeResults(result.ReprioritizationResults)

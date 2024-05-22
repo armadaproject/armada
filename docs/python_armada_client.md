@@ -15,15 +15,19 @@ For the api definitions:
 [https://armadaproject.io/api](https://armadaproject.io/api)
 
 
-### _class_ armada_client.client.ArmadaClient(channel)
+### _class_ armada_client.client.ArmadaClient(channel, event_timeout=datetime.timedelta(seconds=900))
 Client for accessing Armada over gRPC.
 
 
 * **Parameters**
 
-    **channel** – gRPC channel used for authentication. See
+    
+    * **channel** – gRPC channel used for authentication. See
     [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
     for more information.
+
+
+    * **event_timeout** (*datetime.timedelta*) – 
 
 
 
@@ -33,23 +37,22 @@ Client for accessing Armada over gRPC.
 
 
 
-#### cancel_jobs(queue=None, job_id=None, job_set_id=None)
+#### cancel_jobs(queue, job_set_id, job_id=None)
 Cancel jobs in a given queue.
 
-Uses the CancelJobs RPC to cancel jobs. Either job_id or
-job_set_id is required.
+Uses the CancelJobs RPC to cancel jobs.
 
 
 * **Parameters**
 
     
-    * **queue** (*str** | **None*) – The name of the queue
+    * **queue** (*str*) – The name of the queue
 
 
-    * **job_id** (*str** | **None*) – The name of the job id (this or job_set_id required)
+    * **job_set_id** (*str*) – The name of the job set id
 
 
-    * **job_set_id** (*str** | **None*) – An array of JobSubmitRequestItems. (this or job_id required)
+    * **job_id** (*str** | **None*) – The name of the job id (optional), if empty - cancel all jobs
 
 
 
@@ -317,11 +320,42 @@ Uses the GetQueue RPC to get the queue.
 
 
 
-#### reprioritize_jobs(new_priority, job_ids=None, job_set_id=None, queue=None)
+#### preempt_jobs(queue, job_set_id, job_id)
+Preempt jobs in a given queue.
+
+Uses the PreemptJobs RPC to preempt jobs.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set id
+
+
+    * **job_id** (*str*) – The id the job
+
+
+
+* **Returns**
+
+    An empty response.
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
+
+
+
+#### reprioritize_jobs(new_priority, job_ids, job_set_id, queue)
 Reprioritize jobs with new_priority value.
 
 Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
-or job set.
+or job set (if job_ids are set to None or empty).
 
 
 * **Parameters**
@@ -333,10 +367,10 @@ or job set.
     * **job_ids** (*List**[**str**] **| **None*) – A list of job ids to change priority of
 
 
-    * **job_set_id** (*str** | **None*) – A job set id including jobs to change priority of
+    * **job_set_id** (*str*) – A job set id including jobs to change priority of
 
 
-    * **queue** (*str** | **None*) – The queue the jobs are in
+    * **queue** (*str*) – The queue the jobs are in
 
 
 

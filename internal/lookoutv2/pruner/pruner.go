@@ -99,6 +99,12 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 		CREATE TEMP TABLE job_ids_to_delete AS (
 			SELECT job_id FROM job
 			WHERE last_transition_time < $1
+			AND state in (
+				4, -- Succeeded
+		   		5, -- Failed
+		   		6, -- Cancelled
+		   		7  -- Preempted
+		    )
 		)`, cutOffTime)
 	if err != nil {
 		return -1, errors.WithStack(err)
