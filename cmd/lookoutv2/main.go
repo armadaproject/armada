@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	armada_config "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -79,7 +80,14 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 }
 
 func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
-	db, err := database.OpenPgxConn(config.Postgres)
+	var dbConfig armada_config.PostgresConfig
+	if config.PrunerConfig.Postgres.Connection != nil {
+		dbConfig = config.PrunerConfig.Postgres
+	} else {
+		dbConfig = config.Postgres
+	}
+
+	db, err := database.OpenPgxConn(dbConfig)
 	if err != nil {
 		panic(err)
 	}

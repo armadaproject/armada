@@ -105,6 +105,7 @@ def get_queue():
 def create_queue(client: ArmadaClient, queue_name):
     queue = client.create_queue_request(name=queue_name, priority_factor=1)
     client.create_queue(queue)
+    time.sleep(10)
     wait_for(client, queue=queue_name)
 
 
@@ -148,7 +149,11 @@ def test_submit_job_and_cancel_by_id(client: ArmadaClient, queue_name):
 
     wait_for(client, queue=queue_name, job_set_id=job_set_name)
 
-    cancelled_message = client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
+    cancelled_message = client.cancel_jobs(
+        queue=queue_name,
+        job_id=jobs.job_response_items[0].job_id,
+        job_set_id=job_set_name,
+    )
 
     assert cancelled_message.cancelled_ids[0] == jobs.job_response_items[0].job_id
 
@@ -165,7 +170,9 @@ def test_submit_job_and_cancel_by_job_id(client: ArmadaClient, queue_name):
 
     wait_for(client, queue=queue_name, job_set_id=job_set_name)
 
-    cancelled_message = client.cancel_jobs(job_id=job_id)
+    cancelled_message = client.cancel_jobs(
+        queue=queue_name, job_set_id=job_set_name, job_id=job_id
+    )
 
     assert cancelled_message.cancelled_ids[0] == job_id
 

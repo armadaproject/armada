@@ -12,7 +12,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
@@ -124,7 +123,7 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job")
+		tmpTable := "job_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -293,7 +292,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job")
+		tmpTable := "job_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -407,11 +406,11 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job_run")
+		tmpTable := "job_run_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s (
+				CREATE TEMPORARY TABLE %s (
 					run_id        varchar(36),
 					job_id        varchar(32),
 					cluster       varchar(512),
@@ -510,7 +509,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job_run")
+		tmpTable := "job_run_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
