@@ -9,7 +9,7 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
@@ -26,7 +26,7 @@ func NewBinocularsServer(logService service.LogService, cordonService service.Co
 }
 
 func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
-	principal := authorization.GetPrincipal(ctx)
+	principal := auth.GetPrincipal(ctx)
 
 	logLines, err := b.logService.GetLogs(armadacontext.FromGrpcCtx(ctx), &service.LogParams{
 		Principal:  principal,
