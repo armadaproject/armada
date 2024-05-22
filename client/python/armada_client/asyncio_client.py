@@ -297,10 +297,10 @@ class ArmadaAsyncIOClient:
         :return: An empty response.
         """
         if not queue or not job_set_id or not job_id:
-          raise ValueError("All of queue, job_set_id and job_id must be provided.")
+            raise ValueError("All of queue, job_set_id and job_id must be provided.")
 
         request = submit_pb2.JobPreemptRequest(
-          queue=queue, job_set_id=job_set_id, job_ids=[job_id]
+            queue=queue, job_set_id=job_set_id, job_ids=[job_id]
         )
 
     async def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:

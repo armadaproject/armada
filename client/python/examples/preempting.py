@@ -41,7 +41,9 @@ def create_dummy_job(client: ArmadaClient):
         ],
     )
 
-    return [client.create_job_request_item(priority=1, namespace="default", pod_spec=pod)]
+    return [
+        client.create_job_request_item(priority=1, namespace="default", pod_spec=pod)
+    ]
 
 
 def preempting_jobs_example(client, queue):
