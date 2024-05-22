@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"golang.org/x/exp/slices"
 	"testing"
 	"time"
 
@@ -208,11 +209,15 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			results, err := submitCheck.Check(ctx, tc.jobs)
 			require.NoError(t, err)
 			require.Equal(t, len(tc.expectedResult), len(results))
-			for id, expectedSchedulable := range tc.expectedResult {
+			for id, expected := range tc.expectedResult {
 				actualResult, ok := results[id]
 				require.True(t, ok)
 				actualResult.reason = "" // clear reason as we don't test this
-				assert.Equal(t, expectedSchedulable, actualResult)
+
+				// sort pools as we don't care about order
+				slices.Sort(actualResult.pools)
+				slices.Sort(expected.pools)
+				assert.Equal(t, expected, actualResult)
 			}
 		})
 	}
