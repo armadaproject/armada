@@ -270,9 +270,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false)
 
-	actualSchedulingKey, ok := job.SchedulingKey()
-	require.True(t, ok)
-	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
+	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), job.SchedulingKey())
 }
 
 func TestJobDb_SchedulingKey(t *testing.T) {

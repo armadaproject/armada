@@ -11,7 +11,6 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars/server"
 	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
@@ -39,7 +38,7 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
-	permissionsChecker := authorization.NewPrincipalPermissionChecker(
+	permissionsChecker := auth.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,
 		config.Auth.PermissionScopeMapping,
 		config.Auth.PermissionClaimMapping,

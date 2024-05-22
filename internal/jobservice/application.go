@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
@@ -110,7 +110,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	grpcServer := grpcCommon.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
-		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
+		[]auth.AuthService{&auth.AnonymousAuthService{}},
 		config.Grpc.Tls,
 	)
 

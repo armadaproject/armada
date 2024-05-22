@@ -48,12 +48,11 @@ func (srv *DummySubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job
 }
 
 type SubmitChecker struct {
-	schedulingConfig       configuration.SchedulingConfig
-	executorRepository     database.ExecutorRepository
-	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
-	resourceListFactory    *internaltypes.ResourceListFactory
-	state                  atomic.Pointer[executorState]
-	clock                  clock.Clock // can  be  overridden for testing
+	schedulingConfig    configuration.SchedulingConfig
+	executorRepository  database.ExecutorRepository
+	resourceListFactory *internaltypes.ResourceListFactory
+	state               atomic.Pointer[executorState]
+	clock               clock.Clock // can  be  overridden for testing
 }
 
 func NewSubmitChecker(
@@ -62,15 +61,15 @@ func NewSubmitChecker(
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) *SubmitChecker {
 	return &SubmitChecker{
-		schedulingConfig:       schedulingConfig,
-		executorRepository:     executorRepository,
-		resourceListFactory:    resourceListFactory,
-		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
-		clock:                  clock.RealClock{},
+		schedulingConfig:    schedulingConfig,
+		executorRepository:  executorRepository,
+		resourceListFactory: resourceListFactory,
+		clock:               clock.RealClock{},
 	}
 }
 
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
+	ctx.Infof("Will refresh executor state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
 	srv.updateExecutors(ctx)
 	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
 	for {
@@ -91,6 +90,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			Error("Error fetching executors")
 		return
 	}
+	ctx.Infof("Retrieved %d executors", len(executors))
 	jobSchedulingResultsCache, err := lru.New(10000)
 	if err != nil {
 		// This should never happen as lru.New only returns an error if it is initialised with a negative size
@@ -151,10 +151,7 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext, state *executorState) schedulingResult {
-	schedulingKey, ok := jctx.Job.SchedulingKey()
-	if !ok {
-		schedulingKey = jobdb.SchedulingKeyFromJob(srv.schedulingKeyGenerator, jctx.Job)
-	}
+	schedulingKey := jctx.Job.SchedulingKey()
 
 	if obj, ok := state.jobSchedulingResultsCache.Get(schedulingKey); ok {
 		return obj.(schedulingResult)

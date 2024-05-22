@@ -18,7 +18,7 @@ require (
 	github.com/go-openapi/spec v0.20.14
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/uuid v1.4.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -85,7 +85,6 @@ require (
 	github.com/prometheus/common v0.39.0
 	github.com/redis/go-redis/extra/redisprometheus/v9 v9.0.5
 	github.com/redis/go-redis/v9 v9.5.1
-	github.com/sanity-io/litter v1.5.5
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/time v0.3.0
