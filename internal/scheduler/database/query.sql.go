@@ -180,15 +180,6 @@ func (q *Queries) MarkJobsFailedById(ctx context.Context, jobIds []string) error
 	return err
 }
 
-const markJobsSubmitCheckedById = `-- name: MarkJobsSubmitCheckedById :exec
-UPDATE jobs SET validated = true WHERE job_id = ANY($1::text[])
-`
-
-func (q *Queries) MarkJobsSubmitCheckedById(ctx context.Context, jobIds []string) error {
-	_, err := q.db.Exec(ctx, markJobsSubmitCheckedById, jobIds)
-	return err
-}
-
 const markJobsSucceededById = `-- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY($1::text[])
 `
