@@ -42,9 +42,9 @@ func TestCreate(t *testing.T) {
 		GroupOwners    []string
 	}{
 		"default flags":      {nil, nil, nil, nil},
-		"valid priority":     {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
+		"valid priority":     {[]flag{{"priority-factor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
 		"valid owners":       {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil},
-		"valid group owners": {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
+		"valid group owners": {[]flag{{"group-owners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
 	}
 
 	for name, test := range tests {
@@ -122,9 +122,9 @@ func TestUpdate(t *testing.T) {
 		GroupOwners    []string
 	}{
 		"default flags":      {nil, nil, nil, nil},
-		"valid priority":     {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
+		"valid priority":     {[]flag{{"priority-factor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil},
 		"valid owners":       {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil},
-		"valid group owners": {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
+		"valid group owners": {[]flag{{"group-owners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}},
 	}
 
 	for name, test := range tests {
