@@ -17,7 +17,8 @@ import (
 func configCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Operations on armadactl config. Supported: use-context, get-contexts, current-context",
+		Short: "Operations on armadactl config",
+		Long:  "Operations on armadactl config. Supported: use-context, get-contexts, current-context",
 	}
 
 	cmd.AddCommand(getContextsCmd(a))

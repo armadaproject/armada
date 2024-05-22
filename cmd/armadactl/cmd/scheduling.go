@@ -32,7 +32,7 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 				return a.GetSchedulingReportForQueue(queueName, int32(verbosity))
 			}
 
-			jobId, err := cmd.Flags().GetString("job")
+			jobId, err := cmd.Flags().GetString("job-id")
 			if err != nil {
 				return err
 			}
@@ -47,18 +47,18 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 
 	cmd.Flags().CountP("verbose", "v", "report verbosity; repeat (e.g., -vvv) to increase verbosity")
 
-	cmd.Flags().String("queue", "", "get scheduler reports relevant for this queue; mutually exclusive with --job")
-	cmd.Flags().String("job", "", "get scheduler reports relevant for this job; mutually exclusive with --queue")
-	cmd.MarkFlagsMutuallyExclusive("queue", "job")
+	cmd.Flags().String("queue", "", "get scheduler reports relevant for this queue; mutually exclusive with --job-id")
+	cmd.Flags().String("job-id", "", "get scheduler reports relevant for this job; mutually exclusive with --queue")
+	cmd.MarkFlagsMutuallyExclusive("queue", "job-id")
 
 	return cmd
 }
 
 func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "queue-report",
+		Use:          "queue-report <queue-name>",
 		Short:        "Get queue scheduler reports",
-		Args:         cobra.ExactArgs(0),
+		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
@@ -69,10 +69,7 @@ func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 				return err
 			}
 
-			queueName, err := cmd.Flags().GetString("queue")
-			if err != nil {
-				return err
-			}
+			queueName := args[0]
 			queueName = strings.TrimSpace(queueName)
 
 			return a.GetQueueSchedulingReport(queueName, int32(verbosity))
@@ -81,29 +78,23 @@ func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 
 	cmd.Flags().CountP("verbose", "v", "report verbosity; repeat (e.g., -vvv) to increase verbosity")
 
-	cmd.Flags().String("queue", "", "Queue name to query reports for.")
-
 	return cmd
 }
 
 func getJobSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "job-report",
+		Use:          "job-report <job-id>",
 		Short:        "Get job scheduler reports",
-		Args:         cobra.ExactArgs(0),
+		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			jobId, err := cmd.Flags().GetString("jobId")
-			if err != nil {
-				return err
-			}
+			jobId := args[0]
 			jobId = strings.TrimSpace(jobId)
 			return a.GetJobSchedulingReport(jobId)
 		},
 	}
-	cmd.Flags().String("jobId", "", "Id of job to query reports for.")
 	return cmd
 }
