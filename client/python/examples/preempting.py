@@ -99,9 +99,14 @@ def workflow():
     queue = "test-preempting"
 
     # Ensures that the correct channel type is generated
-
-    channel = grpc.insecure_channel(f"{HOST}:{PORT}")
-
+    if DISABLE_SSL:
+        channel = grpc.insecure_channel(f"{HOST}:{PORT}")
+    else:
+        channel_credentials = grpc.ssl_channel_credentials()
+        channel = grpc.secure_channel(
+            f"{HOST}:{PORT}",
+            channel_credentials,
+        )
 
     client = ArmadaClient(channel)
     quick_create_queue(client, queue)
