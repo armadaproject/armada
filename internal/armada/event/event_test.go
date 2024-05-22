@@ -2,6 +2,8 @@ package event
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"testing"
 	"time"
 
@@ -15,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/armadaproject/armada/internal/armada/mocks"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -25,7 +26,6 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
-	"github.com/golang/mock/gomock"
 )
 
 type FakeActionAuthorizer struct{}
@@ -400,25 +400,19 @@ func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequenc
 
 func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *EventServer)) {
 	t.Helper()
-	ctrl := gomock.NewController(t)
+	_ = lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+		eventRepo := NewEventRepository(client)
+		queueRepo := repository.NewPostgresQueueRepository(db)
+		server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
+		client.FlushDB(ctx)
 
-	eventRepo := NewEventRepository(client)
-	queueRepo := mocks.NewMockQueueRepository(ctrl)
-	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
+		action(server)
 
-	client.FlushDB(ctx)
-
-	queueRepo.EXPECT().GetQueue(gomock.Any(), gomock.Any()).Return(queue.Queue{
-		Name:           "",
-		Permissions:    nil,
-		PriorityFactor: 1,
-	}).AnyTimes()
-
-	action(server)
-
-	client.FlushDB(ctx)
+		client.FlushDB(ctx)
+		return nil
+	})
 }
 
 type eventStreamMock struct {
