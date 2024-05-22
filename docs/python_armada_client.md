@@ -320,6 +320,37 @@ Uses the GetQueue RPC to get the queue.
 
 
 
+#### preempt_jobs(queue, job_set_id, job_id)
+Preempt jobs in a given queue.
+
+Uses the PreemptJobs RPC to preempt jobs.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set id
+
+
+    * **job_id** (*str*) – The id the job
+
+
+
+* **Returns**
+
+    An empty response.
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
+
+
+
 #### reprioritize_jobs(new_priority, job_ids, job_set_id, queue)
 Reprioritize jobs with new_priority value.
 
