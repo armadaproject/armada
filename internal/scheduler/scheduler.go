@@ -1068,6 +1068,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobValidated{
 				JobValidated: &armadaevents.JobValidated{
 					JobId: jobId,
+					Pools: result.pools,
 				},
 			}
 		} else {

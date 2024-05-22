@@ -30,14 +30,15 @@ type schedulingResult struct {
 	reason        string
 }
 
-type executor struct {
+// TODO: rename this to "executor" when we simplify pool assigner
+type executorDetails struct {
 	pool           string
 	nodeDb         *nodedb.NodeDb
 	minimumJobSize schedulerobjects.ResourceList
 }
 
 type executorState struct {
-	executorsById             map[string]*executor
+	executorsById             map[string]*executorDetails
 	jobSchedulingResultsCache *lru.Cache
 }
 
@@ -106,11 +107,11 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 		panic(err)
 	}
 
-	executorsById := map[string]*executor{}
+	executorsById := map[string]*executorDetails{}
 	for _, ex := range executors {
 		nodeDb, err := srv.constructNodeDb(ex)
 		if err == nil {
-			executorsById[ex.Id] = &executor{
+			executorsById[ex.Id] = &executorDetails{
 				pool:           ex.Pool,
 				nodeDb:         nodeDb,
 				minimumJobSize: ex.MinimumJobSize,

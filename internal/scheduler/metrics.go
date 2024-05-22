@@ -165,7 +165,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			continue
 		}
 
-		pools, err := c.poolAssigner.AssignPools(job)
+		pool, err := c.poolAssigner.AssignPool(job)
 		if err != nil {
 			return nil, err
 		}
@@ -205,10 +205,8 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.runningJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 		}
-		for _, pool := range pools {
-			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
-			recorder.RecordResources(pool, priorityClass, jobResources)
-		}
+		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
+		recorder.RecordResources(pool, priorityClass, jobResources)
 	}
 
 	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[schedulerobjects.SchedulingKey]bool) int {

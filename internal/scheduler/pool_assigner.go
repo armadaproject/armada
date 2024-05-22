@@ -1,52 +1,189 @@
 package scheduler
 
 import (
+	"time"
+
+	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/constraints"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// PoolAssigner allows jobs to be assigned to one or more pools
+// PoolAssigner allows jobs to be assigned to a pool
 // Note that this is intended only for use with metrics calculation
 type PoolAssigner interface {
-	AssignPools(j *jobdb.Job) ([]string, error)
 	Refresh(ctx *armadacontext.Context) error
+	AssignPool(j *jobdb.Job) (string, error)
+}
+
+type executor struct {
+	nodeDb         *nodedb.NodeDb
+	minimumJobSize schedulerobjects.ResourceList
 }
 
 type DefaultPoolAssigner struct {
-	executorRepository database.ExecutorRepository
-	poolByExecutorId   map[string]string
+	executorTimeout     time.Duration
+	priorityClasses     map[string]types.PriorityClass
+	priorities          []int32
+	indexedResources    []configuration.ResourceType
+	indexedTaints       []string
+	indexedNodeLabels   []string
+	wellKnownNodeTypes  []configuration.WellKnownNodeType
+	poolByExecutorId    map[string]string
+	executorsByPool     map[string][]*executor
+	executorRepository  database.ExecutorRepository
+	poolCache           *lru.Cache
+	clock               clock.Clock
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
-func NewPoolAssigner(executorRepository database.ExecutorRepository,
+func NewPoolAssigner(executorTimeout time.Duration,
+	schedulingConfig configuration.SchedulingConfig,
+	executorRepository database.ExecutorRepository,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*DefaultPoolAssigner, error) {
+	poolCache, err := lru.New(10000)
+	if err != nil {
+		return nil, errors.Wrap(err, "error  creating PoolAssigner pool cache")
+	}
 	return &DefaultPoolAssigner{
-		executorRepository: executorRepository,
-		poolByExecutorId:   map[string]string{},
+		executorTimeout:     executorTimeout,
+		priorityClasses:     schedulingConfig.PriorityClasses,
+		executorsByPool:     map[string][]*executor{},
+		poolByExecutorId:    map[string]string{},
+		priorities:          types.AllowedPriorities(schedulingConfig.PriorityClasses),
+		indexedResources:    schedulingConfig.IndexedResources,
+		indexedTaints:       schedulingConfig.IndexedTaints,
+		wellKnownNodeTypes:  schedulingConfig.WellKnownNodeTypes,
+		indexedNodeLabels:   schedulingConfig.IndexedNodeLabels,
+		executorRepository:  executorRepository,
+		poolCache:           poolCache,
+		clock:               clock.RealClock{},
+		resourceListFactory: resourceListFactory,
 	}, nil
 }
 
 // Refresh updates executor state
 func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
+	executorsByPool := map[string][]*executor{}
+	poolByExecutorId := map[string]string{}
 	if err != nil {
 		return err
 	}
-	poolByExecutorId := map[string]string{}
 	for _, e := range executors {
-		poolByExecutorId[e.Id] = e.Pool
+		if p.clock.Since(e.LastUpdateTime) < p.executorTimeout {
+			poolByExecutorId[e.Id] = e.Pool
+			nodeDb, err := p.constructNodeDb(e.Nodes)
+			if err != nil {
+				return errors.WithMessagef(err, "could not construct node db for executor %s", e.Id)
+			}
+			executorsByPool[e.Pool] = append(executorsByPool[e.Pool], &executor{
+				nodeDb:         nodeDb,
+				minimumJobSize: e.MinimumJobSize,
+			})
+		}
 	}
+	p.executorsByPool = executorsByPool
 	p.poolByExecutorId = poolByExecutorId
+	p.poolCache.Purge()
 	return nil
 }
 
-// AssignPools returns the pools associated with the job or the empty string if no pool is valid
-func (p *DefaultPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
-	// If Job has an active run then use the pool associated with the executor it was assigned to
+// AssignPool returns the pool associated with the job or the empty string if no pool is valid
+func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
+	// If Job is running then use the pool associated with the executor it was assigned to
 	if !j.Queued() && j.HasRuns() {
-		pool := p.poolByExecutorId[j.LatestRun().Executor()]
-		return []string{pool}, nil
+		return p.poolByExecutorId[j.LatestRun().Executor()], nil
 	}
-	// otherwise use the pools associated with the job
-	return j.Pools(), nil
+
+	// See if we have this set of reqs cached.
+	schedulingKey := j.SchedulingKey()
+	if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
+		return cachedPool.(string), nil
+	}
+
+	req := j.PodRequirements()
+	req = p.clearAnnotations(req)
+
+	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on.
+	// TODO: We should use the real scheduler instead since this check may go out of sync with the scheduler.
+	for pool, executors := range p.executorsByPool {
+		for _, e := range executors {
+			requests := req.GetResourceRequirements().Requests
+			if ok, _ := constraints.RequestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests), e.minimumJobSize); !ok {
+				continue
+			}
+			nodeDb := e.nodeDb
+			txn := nodeDb.Txn(true)
+			jctx := &schedulercontext.JobSchedulingContext{
+				Created:         time.Now(),
+				JobId:           j.Id(),
+				Job:             j,
+				PodRequirements: j.PodRequirements(),
+				GangInfo:        schedulercontext.EmptyGangInfo(j),
+			}
+			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
+			txn.Abort()
+			if err != nil {
+				return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
+			}
+			if node != nil {
+				p.poolCache.Add(schedulingKey, pool)
+				return pool, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	// Nodes to be considered by the scheduler.
+	nodeDb, err := nodedb.NewNodeDb(
+		p.priorityClasses,
+		0,
+		p.indexedResources,
+		p.indexedTaints,
+		p.indexedNodeLabels,
+		p.wellKnownNodeTypes,
+		stringinterner.New(1024),
+		p.resourceListFactory,
+	)
+	if err != nil {
+		return nil, err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
+		}
+	}
+	txn.Commit()
+	err = nodeDb.ClearAllocated()
+	if err != nil {
+		return nil, err
+	}
+	return nodeDb, nil
+}
+
+// clearAnnotations
+func (p *DefaultPoolAssigner) clearAnnotations(reqs *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
+	reqsCopy := proto.Clone(reqs).(*schedulerobjects.PodRequirements)
+	for key := range reqsCopy.GetAnnotations() {
+		reqsCopy.Annotations[key] = "poolassigner"
+	}
+	return reqsCopy
 }
