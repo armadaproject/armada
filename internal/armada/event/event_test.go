@@ -2,6 +2,8 @@ package event
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/armada/mocks"
+	"github.com/golang/mock/gomock"
 	"testing"
 	"time"
 
@@ -19,7 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -30,7 +31,7 @@ import (
 
 type FakeActionAuthorizer struct{}
 
-func (c *FakeActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
+func (c *FakeActionAuthorizer) AuthorizeAction(_ *armadacontext.Context, _ permission.Permission) error {
 	return nil
 }
 
@@ -41,27 +42,6 @@ func (c *FakeActionAuthorizer) AuthorizeQueueAction(
 	_ queue.PermissionVerb,
 ) error {
 	return nil
-}
-
-type FakeDenyAllActionAuthorizer struct{}
-
-func (c *FakeDenyAllActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
-	return &armadaerrors.ErrUnauthorized{
-		Principal: auth.GetPrincipal(ctx).GetName(),
-		Message:   "permission denied",
-	}
-}
-
-func (c *FakeDenyAllActionAuthorizer) AuthorizeQueueAction(
-	ctx *armadacontext.Context,
-	_ queue.Queue,
-	_ permission.Permission,
-	_ queue.PermissionVerb,
-) error {
-	return &armadaerrors.ErrUnauthorized{
-		Principal: auth.GetPrincipal(ctx).GetName(),
-		Message:   "permission denied",
-	}
 }
 
 func TestEventServer_Health(t *testing.T) {
@@ -421,29 +401,25 @@ func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequenc
 
 func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *EventServer)) {
 	t.Helper()
+	ctrl := gomock.NewController(t)
 
-	// using real redis instance as miniredis does not support streams
-	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
 	eventRepo := NewEventRepository(client)
-	queueRepo := repository.NewRedisQueueRepository(client)
+	queueRepo := mocks.NewMockQueueRepository(ctrl)
 	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
 
 	client.FlushDB(ctx)
-	legacyClient.FlushDB(ctx)
 
-	// Create test queue
-	err := queueRepo.CreateQueue(ctx, queue.Queue{
+	queueRepo.EXPECT().GetQueue(gomock.Any(), gomock.Any()).Return(queue.Queue{
 		Name:           "",
 		Permissions:    nil,
 		PriorityFactor: 1,
-	})
-	require.NoError(t, err)
+	}).AnyTimes()
+
 	action(server)
 
 	client.FlushDB(ctx)
-	legacyClient.FlushDB(ctx)
 }
 
 type eventStreamMock struct {

@@ -3,13 +3,14 @@ package repository
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client/queue"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type ErrQueueNotFound struct {
