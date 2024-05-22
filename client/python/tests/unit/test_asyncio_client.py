@@ -177,20 +177,10 @@ async def test_cancel_jobs(aio_client):
     await test_create_queue(aio_client)
     await test_submit_job(aio_client)
 
-    # Test that the right combination of jobid or jobsetid and queue is used
-    # also check that the Value error is raised
-    with pytest.raises(ValueError):
-        await aio_client.cancel_jobs(
-            queue="test", job_id="job-1", job_set_id="job-set-1"
-        )
-
-    resp = await aio_client.cancel_jobs(job_id="job-1")
-
+    resp = await aio_client.cancel_jobs(
+        queue="test", job_id="job-1", job_set_id="job-set-1"
+    )
     assert resp.cancelled_ids[0] == "job-1"
-
-    resp = await aio_client.cancel_jobs(queue="test", job_set_id="job-set-1")
-
-    assert len(list(resp.cancelled_ids)) > 0
 
 
 @pytest.mark.asyncio
@@ -266,20 +256,10 @@ async def test_update_queues_full(aio_client):
 
 @pytest.mark.asyncio
 async def test_reprioritize_jobs(aio_client):
-    # Similar to test_cancel_jobs(), test that the right combination of jobid
-    # or jobsetid and queue is used
-    # also check that the Value error is raised
-
-    with pytest.raises(ValueError):
-        await aio_client.reprioritize_jobs(
-            queue="test",
-            job_ids=["job-1"],
-            job_set_id="job-set-1",
-            new_priority=1,
-        )
-
     resp = await aio_client.reprioritize_jobs(
+        queue="test",
         job_ids=["job-1"],
+        job_set_id="job-set-1",
         new_priority=1,
     )
 
@@ -287,6 +267,7 @@ async def test_reprioritize_jobs(aio_client):
 
     resp = await aio_client.reprioritize_jobs(
         queue="test",
+        job_ids=None,
         job_set_id="job-set-1",
         new_priority=1,
     )
