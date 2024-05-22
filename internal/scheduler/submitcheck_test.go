@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"golang.org/x/exp/slices"
 	"testing"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
