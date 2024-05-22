@@ -33,8 +33,6 @@ func (s *PerformanceTestEventServer) Watch(req *api.WatchRequest, stream api.Eve
 		FromMessageId:  req.FromId,
 		Queue:          req.Queue,
 		ErrorIfMissing: true,
-		ForceLegacy:    req.ForceLegacy,
-		ForceNew:       req.ForceNew,
 	}
 	return s.GetJobSetEvents(request, stream)
 }

@@ -78,8 +78,6 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 		FromMessageId:  req.FromId,
 		Queue:          req.Queue,
 		ErrorIfMissing: true,
-		ForceLegacy:    req.ForceLegacy,
-		ForceNew:       req.ForceNew,
 	}
 	return s.GetJobSetEvents(request, stream)
 }

@@ -58,10 +58,6 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_Updated{}},
-			jobResponse:  nil,
-		},
-		{
 			eventMessage: api.EventMessage{Events: &api.EventMessage_LeaseExpired{}},
 			jobResponse:  nil,
 		},
@@ -138,10 +134,6 @@ func TestIsTerminalEvent(t *testing.T) {
 		},
 		{
 			eventMessage:    api.EventMessage{Events: &api.EventMessage_IngressInfo{}},
-			jobServiceEvent: false,
-		},
-		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_Updated{}},
 			jobServiceEvent: false,
 		},
 		{

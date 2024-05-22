@@ -69,8 +69,6 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Utilisation, nil
 	case *EventMessage_IngressInfo:
 		return event.IngressInfo, nil
-	case *EventMessage_Updated:
-		return event.Updated, nil
 	case *EventMessage_Preempting:
 		return event.Preempting, nil
 	case *EventMessage_Preempted:

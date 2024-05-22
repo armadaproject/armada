@@ -166,8 +166,6 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.IngressInfo.JobId
 	case *EventMessage_Reprioritizing:
 		return e.Reprioritizing.JobId
-	case *EventMessage_Updated:
-		return e.Updated.JobId
 	case *EventMessage_Preempted:
 		return e.Preempted.JobId
 	}
@@ -210,8 +208,6 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.IngressInfo.JobSetId
 	case *EventMessage_Reprioritizing:
 		return e.Reprioritizing.JobSetId
-	case *EventMessage_Updated:
-		return e.Updated.JobSetId
 	case *EventMessage_Preempted:
 		return e.Preempted.JobSetId
 	}
