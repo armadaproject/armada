@@ -161,22 +161,20 @@ def test_delete_queue():
     tester.delete_queue("test")
 
 
+def test_preempt_jobs():
+    test_create_queue()
+    test_submit_job()
+
+    tester.preempt_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
+
+
 def test_cancel_jobs():
     test_create_queue()
     test_submit_job()
 
-    # Test that the right combination of jobid or jobsetid and queue is used
-    # also check that the Value error is raised
-    with pytest.raises(ValueError):
-        tester.cancel_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
-
-    resp = tester.cancel_jobs(job_id="job-1")
+    resp = tester.cancel_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
 
     assert resp.cancelled_ids[0] == "job-1"
-
-    resp = tester.cancel_jobs(queue="test", job_set_id="job-set-1")
-
-    assert len(list(resp.cancelled_ids)) > 0
 
 
 def test_cancel_jobset():
@@ -246,20 +244,10 @@ def test_update_queues_full():
 
 
 def test_reprioritize_jobs():
-    # Similar to test_cancel_jobs(), test that the right combination of jobid
-    # or jobsetid and queue is used
-    # also check that the Value error is raised
-
-    with pytest.raises(ValueError):
-        tester.reprioritize_jobs(
-            queue="test",
-            job_ids=["job-1"],
-            job_set_id="job-set-1",
-            new_priority=1,
-        )
-
     resp = tester.reprioritize_jobs(
+        queue="test",
         job_ids=["job-1"],
+        job_set_id="job-set-1",
         new_priority=1,
     )
 
@@ -267,6 +255,7 @@ def test_reprioritize_jobs():
 
     resp = tester.reprioritize_jobs(
         queue="test",
+        job_ids=None,
         job_set_id="job-set-1",
         new_priority=1,
     )
