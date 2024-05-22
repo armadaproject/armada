@@ -195,6 +195,15 @@ async def test_cancel_jobset(aio_client):
 
 
 @pytest.mark.asyncio
+async def test_preempt_jobs(aio_client):
+    await test_create_queue(aio_client)
+    await test_submit_job(aio_client)
+    await aio_client.preempt_jobs(
+      queue="test", job_id="job-1", job_set_id="job-set-1"
+    )
+
+
+@pytest.mark.asyncio
 async def test_update_queue(aio_client):
     queue = aio_client.create_queue_request(name="test", priority_factor=1)
     await aio_client.update_queue(queue)

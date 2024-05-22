@@ -161,6 +161,13 @@ def test_delete_queue():
     tester.delete_queue("test")
 
 
+def test_preempt_jobs():
+    test_create_queue()
+    test_submit_job()
+
+    tester.preempt_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
+
+
 def test_cancel_jobs():
     test_create_queue()
     test_submit_job()

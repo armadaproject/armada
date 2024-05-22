@@ -276,6 +276,29 @@ class ArmadaClient:
 
         return self.submit_stub.ReprioritizeJobs(request)
 
+    def preempt_jobs(
+        self,
+        queue: str,
+        job_set_id: str,
+        job_id: str,
+    ) -> empty_pb2.Empty:
+        """Preempt jobs in a given queue.
+
+        Uses the PreemptJobs RPC to preempt jobs.
+
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set id
+        :param job_id: The id the job
+        :return: An empty response.
+        """
+        if not queue or not job_set_id or not job_id:
+            raise ValueError("All of queue, job_set_id and job_id must be provided.")
+
+        request = submit_pb2.JobPreemptRequest(
+            queue=queue, job_set_id=job_set_id, job_ids=[job_id]
+        )
+        return self.submit_stub.PreemptJobs(request)
+
     def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
         Uses the CreateQueue RPC to create a queue.
