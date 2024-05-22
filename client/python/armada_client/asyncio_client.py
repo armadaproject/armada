@@ -302,6 +302,8 @@ class ArmadaAsyncIOClient:
         request = submit_pb2.JobPreemptRequest(
             queue=queue, job_set_id=job_set_id, job_ids=[job_id]
         )
+        response = await self.submit_stub.PreemptJobs(request)
+        return response
 
     async def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
