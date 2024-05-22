@@ -20,6 +20,8 @@ var mergedConfigFiles []string
 // path to config file, as given by viper flags
 var cfgFile string
 
+var defaultArmadaConnectionUrl string = "localhost:50051"
+
 // AddArmadaApiConnectionCommandlineArgs adds command-line flags to a cobra command.
 // Arguments given via these flags are later used by LoadCommandlineArgsFromConfigFile.
 // Hence, apps that use the client package to load config should call this function as part of
@@ -31,8 +33,7 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 		panic(err)
 	}
 
-	// This is to be removed eventually
-	rootCmd.PersistentFlags().String("armadaUrl", "", "specify armada server url")
+	rootCmd.PersistentFlags().String("armadaUrl", defaultArmadaConnectionUrl, "specify armada server url")
 	err = viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
 	if err != nil {
 		panic(err)
@@ -190,15 +191,14 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 	var err error
 
 	if context := viper.GetString("currentContext"); context != "" {
-		if viper.GetString("armadaUrl") != "" {
-			fmt.Printf("Provided armadaUrl %s ignored in favour of context derived connection details\n", viper.GetString("armadaUrl"))
-		}
-
 		subTree := viper.Sub(fmt.Sprintf("contexts.%s", context))
 		if subTree == nil {
 			return nil, fmt.Errorf("context %s not found under contexts within the Armada config", context)
 		}
 		err = subTree.Unmarshal(apiConnectionDetails)
+		if viper.GetString("armadaUrl") != defaultArmadaConnectionUrl {
+			apiConnectionDetails.ArmadaUrl = viper.GetString("armadaUrl")
+		}
 
 	} else {
 		fmt.Print("No context defined. This method of providing connection details will soon be deprecated, " +

@@ -9,7 +9,8 @@ import (
 func createCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create Armada resource. Supported: queue",
+		Short: "Create Armada resource",
+		Long:  "Create Armada resource. Supported: queue",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -32,7 +33,8 @@ func createCmd(a *armadactl.App) *cobra.Command {
 func deleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete Armada resource. Supported: queue",
+		Short: "Delete Armada resource",
+		Long:  "Delete Armada resource. Supported: queue",
 	}
 	cmd.AddCommand(queueDeleteCmd())
 	return cmd
@@ -41,7 +43,8 @@ func deleteCmd() *cobra.Command {
 func updateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Update Armada resource. Supported: queue",
+		Short: "Update Armada resource",
+		Long:  "Update Armada resource. Supported: queue",
 	}
 	cmd.AddCommand(queueUpdateCmd())
 	return cmd
@@ -50,8 +53,15 @@ func updateCmd() *cobra.Command {
 func getCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
-		Short: "Retrieve information about armada resource. Supported: queue",
+		Short: "Retrieve information about armada resource",
+		Long:  "Retrieve information about armada resource. Supported: queue, scheduling-report, queue-report, job-report",
 	}
-	cmd.AddCommand(queueGetCmd())
+	cmd.AddCommand(
+		queueGetCmd(),
+		getSchedulingReportCmd(armadactl.New()),
+		getQueueSchedulingReportCmd(armadactl.New()),
+		getJobSchedulingReportCmd(armadactl.New()),
+	)
+
 	return cmd
 }
