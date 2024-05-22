@@ -2,8 +2,6 @@ package event
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/armada/mocks"
-	"github.com/golang/mock/gomock"
 	"testing"
 	"time"
 
@@ -13,11 +11,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/armadaproject/armada/internal/armada/mocks"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -27,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/golang/mock/gomock"
 )
 
 type FakeActionAuthorizer struct{}
