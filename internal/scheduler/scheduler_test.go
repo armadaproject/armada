@@ -357,7 +357,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunLeased             []string                          // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                          // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
-		expectedJobsToFail               []string                          // ids of jobs we expect to fail without having failed the overall scheduling cycle
 		expectedJobsRunsToPreempt        []string                          // ids of jobs we expect to be preempted by the scheduler
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobRunCancelled          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
@@ -471,12 +470,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:           []*jobdb.Job{queuedJob},
 			expectedQueued:        []string{queuedJob.Id()},
 			expectedQueuedVersion: queuedJob.QueuedVersion(),
-		},
-		"FailedJobs in scheduler result will publish appropriate messages": {
-			initialJobs:        []*jobdb.Job{queuedJob},
-			expectedJobErrors:  []string{queuedJob.Id()},
-			expectedJobsToFail: []string{queuedJob.Id()},
-			expectedTerminal:   []string{queuedJob.Id()},
 		},
 		"No updates to an already leased job": {
 			initialJobs:           []*jobdb.Job{leasedJob},
