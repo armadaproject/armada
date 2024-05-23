@@ -65,12 +65,18 @@ func TestEventServer_ForceNew(t *testing.T) {
 		t,
 		func(s *EventServer) {
 			jobSetId := "set1"
-			queue := ""
+			q := queue.Queue{
+				Name:           "test-queue",
+				PriorityFactor: 1,
+			}
 			jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
 			runIdString := "123e4567-e89b-12d3-a456-426614174000"
 			baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 			jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
 			runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+
+			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+			require.NoError(t, err)
 
 			stream := &eventStreamMock{}
 
@@ -84,20 +90,20 @@ func TestEventServer_ForceNew(t *testing.T) {
 				},
 			}
 
-			err := reportPulsarEvent(ctx, &armadaevents.EventSequence{
-				Queue:      queue,
+			err = reportPulsarEvent(ctx, &armadaevents.EventSequence{
+				Queue:      q.Name,
 				JobSetName: jobSetId,
 				Events:     []*armadaevents.EventSequence_Event{assigned},
 			})
 
 			require.NoError(t, err)
-			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
+			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: q.Name, Id: jobSetId, Watch: false, ForceNew: true}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
 			expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
 				JobId:    jobIdString,
 				JobSetId: jobSetId,
-				Queue:    queue,
+				Queue:    q.Name,
 				Created:  baseTime,
 			}}
 			assert.Equal(t, expected, stream.sendMessages[len(stream.sendMessages)-1].Message.Events)
