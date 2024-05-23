@@ -118,8 +118,14 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 		ctx,
 		t,
 		func(s *EventServer) {
+			q := queue.Queue{
+				Name:           "test-queue",
+				PriorityFactor: 1,
+			}
+			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+			require.NoError(t, err)
 			stream := &eventStreamMock{}
-			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
+			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Queue: q.Name, Watch: false}, stream)
 			require.NoError(t, e)
 			assert.Equal(t, 0, len(stream.sendMessages))
 		},
