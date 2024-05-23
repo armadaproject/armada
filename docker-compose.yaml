@@ -1,5 +1,3 @@
-version: "3.8"
-
 networks:
   kind:
     external: true
@@ -34,7 +32,7 @@ services:
       - kind
 
   pulsar:
-    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.4}
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:3.0.2}
     container_name: pulsar
     volumes:
       - ./developer/dependencies/pulsar.conf:/conf/pulsar.conf
