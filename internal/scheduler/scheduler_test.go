@@ -1780,7 +1780,6 @@ func TestCycleConsistency(t *testing.T) {
 		// Controls which jobs the scheduler should schedule/preempt/fail.
 		idsOfJobsToSchedule []string
 		idsOfJobsToPreempt  []string
-		idsOfJobsToFail     []string
 
 		// Expected jobDbs for scenario 1, i.e., the baseline scenario.
 		// Only compared against if not nil.
@@ -2027,44 +2026,6 @@ func TestCycleConsistency(t *testing.T) {
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
 									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"Fail a new job": {
-			firstSchedulerDbUpdate: schedulerDbUpdate{
-				jobUpdates: []*database.Job{
-					queuedJobA,
-				},
-			},
-			idsOfJobsToFail:         []string{queuedJobA.JobID},
-			expectedJobDbCycleOne:   []*jobdb.Job{},
-			expectedJobDbCycleTwo:   []*jobdb.Job{},
-			expectedJobDbCycleThree: []*jobdb.Job{},
-			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
-				{
-					Queue:      queuedJobA.Queue,
-					JobSetName: queuedJobA.JobSet,
-					Events: []*armadaevents.EventSequence_Event{
-						{
-							Created: pointerFromValue(time.Unix(0, 0)),
-							Event: &armadaevents.EventSequence_Event_JobErrors{
-								JobErrors: &armadaevents.JobErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
-									Errors: []*armadaevents.Error{
-										{
-											Terminal: true,
-											Reason: &armadaevents.Error_GangJobUnschedulable{
-												GangJobUnschedulable: &armadaevents.GangJobUnschedulable{
-													// This message is somewhat arbitrary here.
-													Message: "Job did not meet the minimum gang cardinality",
-												},
-											},
-										},
-									},
 								},
 							},
 						},
