@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/magefile/mage/mg"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/magefile/mage/mg"
 
 	semver "github.com/Masterminds/semver/v3"
 	"github.com/magefile/mage/sh"
@@ -170,10 +171,13 @@ func kindSetup() error {
 	mg.Deps(kindInitCluster)
 
 	buildConfig, err := getBuildConfig()
+	if err != nil {
+		return err
+	}
 
 	err = kindSetupExternalImages(buildConfig, getImagesUsedInTestsOrControllers())
 	if err != nil {
-		return nil
+		return err
 	}
 
 	resources := []string{
