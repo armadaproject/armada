@@ -226,18 +226,9 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 			} else {
 				unschedulableReason = "job does not fit on any node"
 			}
-		} else {
-			// When a gang schedules successfully, update state for failed jobs if they exist.
-			for _, jctx := range gctx.JobSchedulingContexts {
-				if jctx.ShouldFail {
-					jctx.Fail("job does not fit on any node")
-				}
-			}
 		}
-
 		return
 	}
-
 	return
 }
 

@@ -892,7 +892,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{
 				jobsToSchedule: tc.expectedJobRunLeased,
 				jobsToPreempt:  tc.expectedJobsRunsToPreempt,
-				jobsToFail:     tc.expectedJobsToFail,
 				shouldError:    tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
@@ -1424,7 +1423,6 @@ type testSchedulingAlgo struct {
 	numberOfScheduleCalls int
 	jobsToPreempt         []string
 	jobsToSchedule        []string
-	jobsToFail            []string
 	shouldError           bool
 	// Set to true to indicate that preemption/scheduling/failure decisions have been persisted.
 	// Until persisted is set to true, the same jobs are preempted/scheduled/failed on every call.
@@ -1442,7 +1440,6 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
-	failedJobs := make([]*jobdb.Job, 0, len(t.jobsToFail))
 	for _, id := range t.jobsToPreempt {
 		job := txn.GetById(id)
 		if job == nil {
@@ -1479,27 +1476,13 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 		)
 		scheduledJobs = append(scheduledJobs, job)
 	}
-	for _, id := range t.jobsToFail {
-		job := txn.GetById(id)
-		if job == nil {
-			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
-		}
-		if !job.Queued() {
-			return nil, errors.Errorf("was asked to lease %s but job is not queued", job.Id())
-		}
-		job = job.WithQueued(false).WithFailed(true)
-		failedJobs = append(failedJobs, job)
-	}
 	if err := txn.Upsert(preemptedJobs); err != nil {
 		return nil, err
 	}
 	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	if err := txn.Upsert(failedJobs); err != nil {
-		return nil, err
-	}
-	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, nil), nil
 }
 
 func (t *testSchedulingAlgo) Persist() {
@@ -1514,13 +1497,11 @@ func (t *testSchedulingAlgo) Persist() {
 func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
-	failedJobs S,
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
 	return &SchedulerResult{
 		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs),
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs),
-		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs),
 		NodeIdByJobId: nodeIdByJobId,
 	}
 }
@@ -2480,7 +2461,6 @@ func TestCycleConsistency(t *testing.T) {
 					&testSchedulingAlgo{
 						jobsToSchedule: tc.idsOfJobsToSchedule,
 						jobsToPreempt:  tc.idsOfJobsToPreempt,
-						jobsToFail:     tc.idsOfJobsToFail,
 					},
 					leader.NewStandaloneLeaderController(),
 					newTestPublisher(),
