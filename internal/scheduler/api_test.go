@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"testing"
 	"time"
 
@@ -332,6 +334,72 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			err = server.LeaseJobRuns(mockStream)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedMsgs, capturedEvents)
+			cancel()
+		})
+	}
+}
+
+func TestExecutorApi_LeaseJobRunsValidation(t *testing.T) {
+	const maxJobsPerCall = uint(100)
+	testClock := clock.NewFakeClock(time.Now())
+	runId2 := uuid.New()
+	runId3 := uuid.New()
+
+	tests := map[string]struct {
+		request     *executorapi.LeaseRequest
+		expectedErr error
+	}{
+		"invalid run id in run ids by state for node": {
+			request: &executorapi.LeaseRequest{
+				ExecutorId: "test-executor",
+				Pool:       "test-pool",
+				Nodes: []*executorapi.NodeInfo{
+					{
+						Name: "test-node",
+						RunIdsByState: map[string]api.JobState{
+							"":              api.JobState_RUNNING, // invalid job run id
+							runId2.String(): api.JobState_RUNNING,
+						},
+						NodeType: "node-type-1",
+					},
+				},
+				UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
+				MaxJobsToLease:      uint32(maxJobsPerCall),
+			},
+			expectedErr: status.Error(codes.InvalidArgument, "runIdsByState for node test-node includes invalid run id ''"),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			ctrl := gomock.NewController(t)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
+			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+
+			// set up mocks
+			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
+			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
+
+			server, err := NewExecutorApi(
+				mockPulsarProducer,
+				mockJobRepository,
+				mockExecutorRepository,
+				mockLegacyExecutorRepository,
+				[]int32{1000, 2000},
+				"kubernetes.io/hostname",
+				nil,
+				priorityClasses,
+				4*1024*1024,
+			)
+			require.NoError(t, err)
+			server.clock = testClock
+
+			err = server.LeaseJobRuns(mockStream)
+			require.Error(t, err)
+			require.Equal(t, tc.expectedErr, err)
 			cancel()
 		})
 	}

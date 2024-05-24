@@ -87,6 +87,10 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
 
+	if err := validateLeaseRequest(ctx, req); err != nil {
+		return err
+	}
+
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
 		return err

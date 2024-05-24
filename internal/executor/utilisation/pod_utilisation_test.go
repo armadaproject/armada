@@ -118,7 +118,8 @@ func createPod(phase v1.PodPhase, nodeName string, isManaged bool) *v1.Pod {
 	}
 	if isManaged {
 		pod.Labels = map[string]string{
-			domain.JobId: "jobid" + util2.NewULID(),
+			domain.JobRunId: "jobrunid" + util2.NewULID(),
+			domain.JobId:    "jobid" + util2.NewULID(),
 		}
 	}
 	return pod

@@ -61,8 +61,9 @@ func IsInTerminalState(pod *v1.Pod) bool {
 }
 
 func IsManagedPod(pod *v1.Pod) bool {
-	_, ok := pod.Labels[domain.JobId]
-	return ok
+	_, jobRunIdOk := pod.Labels[domain.JobRunId]
+	_, jobIdOk := pod.Labels[domain.JobId]
+	return jobRunIdOk && jobIdOk
 }
 
 func GetManagedPodSelector() labels.Selector {
