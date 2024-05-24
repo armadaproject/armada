@@ -10,7 +10,6 @@ metricsPort: 9002
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
-  receiveTimeout: 5s
   backoffTime: 1s
   receiverQueueSize: 100
 subscriptionName: "lookout-ingester-v2"

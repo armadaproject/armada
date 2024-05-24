@@ -7,7 +7,6 @@ redis:
 pulsar:
   URL: pulsar://pulsar:6650
   jobsetEventsTopic: events
-  receiveTimeout: 5s
   backoffTime: 1s
   receiverQueueSize: 100
 subscriptionName: "events-ingester"

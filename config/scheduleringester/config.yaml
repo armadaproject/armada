@@ -11,7 +11,6 @@ metrics:
 pulsar:
   URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
-  receiveTimeout: 5s
   backoffTime: 1s
   receiverQueueSize: 100
 subscriptionName: "scheduler-ingester"
