@@ -296,6 +296,30 @@ for event in events:
 
 
 
+#### get_job_status(job_ids)
+Get the statuses of armada jobs.
+
+Uses GetJobStatus RPC to get the statuses of jobs.
+
+
+* **Parameters**
+
+    **job_ids** (*Iterable**[**str**]*) – The job ids to get the statuses of.
+
+
+
+* **Returns**
+
+    A JobStatusResponse object.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobStatusResponse
+
+
+
 #### get_queue(name)
 Get the queue by name.
 
