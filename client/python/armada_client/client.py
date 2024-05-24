@@ -7,7 +7,7 @@ https://armadaproject.io/api
 
 from datetime import timedelta
 import logging
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterable, Iterator, List, Optional
 
 from google.protobuf import empty_pb2
 
@@ -17,6 +17,8 @@ from armada_client.armada import (
     submit_pb2,
     submit_pb2_grpc,
     health_pb2,
+    job_pb2,
+    job_pb2_grpc,
 )
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -101,6 +103,7 @@ class ArmadaClient:
     def __init__(self, channel, event_timeout: timedelta = timedelta(minutes=15)):
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.jobs_stub = job_pb2_grpc.JobsStub(channel)
         self.event_timeout = event_timeout
 
     def get_job_events_stream(
@@ -179,6 +182,22 @@ class ArmadaClient:
         )
         response = self.submit_stub.SubmitJobs(request)
         return response
+
+    def get_job_status(
+        self, job_ids: Iterable[str]
+    ) -> job_pb2.JobStatusResponse:
+        """Get the statuses of armada jobs.
+
+        Uses GetJobStatus RPC to get the statuses of jobs.
+
+        :param job_ids: The job ids to get the statuses of.
+        :return: A JobStatusResponse object.
+        """
+
+        request = job_pb2.JobStatusRequest(
+            job_ids=job_ids,
+        )
+        return self.jobs_stub.GetJobStatus(request)
 
     def cancel_jobs(
         self,
