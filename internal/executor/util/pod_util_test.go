@@ -71,7 +71,7 @@ func TestHasIngress_WhenAnnotationNotSetToTrue(t *testing.T) {
 	assert.False(t, HasIngress(pod))
 }
 
-func TestIsManagedPod_ReturnsTrueIfJobRunIdLabelPresent(t *testing.T) {
+func TestIsManagedPod_ReturnsTrueIfJobRunIdAndJobIdLabelPresent(t *testing.T) {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{domain.JobRunId: "label", domain.JobId: "label"},
@@ -86,7 +86,19 @@ func TestIsManagedPod_ReturnsTrueIfJobRunIdLabelPresent(t *testing.T) {
 func TestIsManagedPod_ReturnsFalseIfJobIdLabelNotPresent(t *testing.T) {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{},
+			Labels: map[string]string{domain.JobRunId: "label"},
+		},
+	}
+
+	result := IsManagedPod(&pod)
+
+	assert.False(t, result)
+}
+
+func TestIsManagedPod_ReturnsFalseIfJobRunIdLabelNotPresent(t *testing.T) {
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{domain.JobId: "label"},
 		},
 	}
 
