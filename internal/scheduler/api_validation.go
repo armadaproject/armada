@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/armadaproject/armada/pkg/executorapi"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func validateLeaseRequest(ctx context.Context, req *executorapi.LeaseRequest) error {
