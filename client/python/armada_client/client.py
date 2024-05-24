@@ -183,9 +183,7 @@ class ArmadaClient:
         response = self.submit_stub.SubmitJobs(request)
         return response
 
-    def get_job_status(
-        self, job_ids: Iterable[str]
-    ) -> job_pb2.JobStatusResponse:
+    def get_job_status(self, job_ids: Iterable[str]) -> job_pb2.JobStatusResponse:
         """Get the statuses of armada jobs.
 
         Uses GetJobStatus RPC to get the statuses of jobs.
