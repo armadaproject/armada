@@ -5,6 +5,8 @@ from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
     health_pb2,
+    job_pb2,
+    job_pb2_grpc,
 )
 
 
@@ -101,3 +103,12 @@ class EventService(event_pb2_grpc.EventServicer):
         return health_pb2.HealthCheckResponse(
             status=health_pb2.HealthCheckResponse.SERVING
         )
+
+
+class JobsService(job_pb2_grpc.JobsServicer):
+    def GetJobStatus(self, request, context):
+        job_states = {}
+        for job_id in request.job_ids:
+            job_states[job_id] = submit_pb2.JobState.RUNNING
+
+        return job_pb2.JobStatusResponse(job_states=job_states)
