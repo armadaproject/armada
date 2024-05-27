@@ -1090,6 +1090,8 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 					},
 				},
 			}
+			ctx.Infof("Rejecting job %q from jobset %q queue %q for reason %q", job.Id(), job.Jobset(), job.Queue(), result.reason)
+
 		}
 		events = append(events, es)
 	}
