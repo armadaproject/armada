@@ -9,9 +9,9 @@ requires-python = ">=3.7"
 # extremely difficult.
 dependencies = [
 	"armada-client",
-	"apache-airflow>=2.6.3",
-	"grpcio==1.64.0",
-	"grpcio-tools==1.64.0",
+	"apache-airflow@git+https://github.com/Sovietaced/airflow@protobuf5-test",
+	"grpcio==1.63.0",
+	"grpcio-tools==1.63.0",
 	"types-protobuf==4.24.0.1"
 ]
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
