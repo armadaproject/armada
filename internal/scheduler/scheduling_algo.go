@@ -542,8 +542,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	return result, sctx, nil
 }
 
-// Adapter to make jobDb implement the JobRepository interface.
-//
+// SchedulerJobRepositoryAdapter allows jobDb implement the JobRepository interface.
 // TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
 type SchedulerJobRepositoryAdapter struct {
 	txn *jobdb.Txn
