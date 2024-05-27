@@ -339,8 +339,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		return nil
 	case MarkJobsValidated:
-		jobIds := maps.Keys(o)
-		err := queries.MarkJobsSubmitCheckedById(ctx, jobIds)
+		markValidatedSqlStatement := `UPDATE jobs SET validated = true, pools = $1 WHERE job_id = $2`
+		batch := &pgx.Batch{}
+		for key, value := range o {
+			batch.Queue(markValidatedSqlStatement, value, key)
+		}
+		err := execBatch(ctx, tx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}

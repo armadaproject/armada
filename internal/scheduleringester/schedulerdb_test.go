@@ -51,8 +51,8 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
 			},
 			MarkJobsValidated{
-				jobIds[0]: true,
-				jobIds[1]: true,
+				jobIds[0]: []string{"cpu"},
+				jobIds[1]: []string{"gpu", "cpu"},
 			},
 		}},
 		"InsertRuns": {Ops: []DbOperation{
