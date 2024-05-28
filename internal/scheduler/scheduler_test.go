@@ -1979,6 +1979,7 @@ func TestCycleConsistency(t *testing.T) {
 									RunId:    armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
 									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									JobIdStr: queuedJobA.JobID,
+									RunIdStr: testfixtures.UUIDFromInt(1).String(),
 								},
 							},
 						},
@@ -2071,6 +2072,7 @@ func TestCycleConsistency(t *testing.T) {
 									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
 									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									JobIdStr:               queuedJobA.JobID,
+									RunIdStr:               testfixtures.UUIDFromInt(1).String(),
 									ExecutorId:             testExecutor,
 									NodeId:                 testNode,
 									UpdateSequenceNumber:   1,
@@ -2281,6 +2283,7 @@ func TestCycleConsistency(t *testing.T) {
 									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									JobIdStr: queuedJobA.JobID,
 									RunId:    armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									RunIdStr: testfixtures.UUIDFromInt(1).String(),
 									Errors: []*armadaevents.Error{
 										{
 											Terminal: true,
