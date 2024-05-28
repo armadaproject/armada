@@ -14,7 +14,7 @@ namespace GResearch.Armada.Client
         string Queue { get;  }
         System.DateTimeOffset? Created { get; }
     }
-    
+
     public interface IArmadaClient
     {
         Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body);
@@ -27,23 +27,22 @@ namespace GResearch.Armada.Client
         Task WatchEvents(
             string queue,
             string jobSetId,
-            string fromMessageId, 
+            string fromMessageId,
             CancellationToken ct,
-            Action<StreamResponse<ApiEventStreamMessage>> onMessage, 
+            Action<StreamResponse<ApiEventStreamMessage>> onMessage,
             Action<Exception> onException = null);
     }
 
     public partial class ApiEventMessage
     {
-        public IEvent Event => Cancelled ?? Submitted ?? Queued ?? DuplicateFound ?? Leased ?? LeaseReturned ??
+        public IEvent Event => Cancelled ?? Submitted ?? Queued  ?? Leased ?? LeaseReturned ??
                                LeaseExpired ?? Pending ?? Running ?? UnableToSchedule ??
-                               Failed ?? Succeeded ?? Reprioritized ?? Cancelling ?? Cancelled ?? Terminated ?? 
-                               Utilisation ?? IngressInfo ?? Reprioritizing ?? Updated ?? FailedCompressed as IEvent;
+                               Failed ?? Succeeded ?? Reprioritized ?? Cancelling ?? Cancelled ?? Terminated ??
+                               Utilisation ?? IngressInfo ?? Reprioritizing as IEvent;
     }
 
     public partial class ApiJobSubmittedEvent : IEvent {}
     public partial class ApiJobQueuedEvent : IEvent {}
-    public partial class ApiJobDuplicateFoundEvent : IEvent {}
     public partial class ApiJobLeasedEvent : IEvent {}
     public partial class ApiJobLeaseReturnedEvent : IEvent {}
     public partial class ApiJobLeaseExpiredEvent : IEvent {}
@@ -59,7 +58,6 @@ namespace GResearch.Armada.Client
     public partial class ApiJobUtilisationEvent : IEvent {}
     public partial class ApiJobIngressInfoEvent : IEvent {}
     public partial class ApiJobReprioritizingEvent : IEvent {}
-    public partial class ApiJobUpdatedEvent : IEvent {}
 
     public partial class ApiJobSubmitRequestItem
     {
@@ -84,7 +82,7 @@ namespace GResearch.Armada.Client
                 new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = watch});
             return ReadEventStream(fileResponse.Stream);
         }
-        
+
         private IEnumerable<StreamResponse<ApiEventStreamMessage>> ReadEventStream(Stream stream)
         {
             using (var reader = new StreamReader(stream))
@@ -92,7 +90,7 @@ namespace GResearch.Armada.Client
                 while (!reader.EndOfStream)
                 {
                     var line = reader.ReadLine();
-                    
+
                     var (_, eventMessage) = ProcessEventLine(null, line);
                     if (eventMessage != null)
                     {
@@ -104,9 +102,9 @@ namespace GResearch.Armada.Client
 
         public async Task WatchEvents(
             string queue,
-            string jobSetId, 
-            string fromMessageId, 
-            CancellationToken ct, 
+            string jobSetId,
+            string fromMessageId,
+            CancellationToken ct,
             Action<StreamResponse<ApiEventStreamMessage>> onMessage,
             Action<Exception> onException = null)
         {
@@ -152,7 +150,7 @@ namespace GResearch.Armada.Client
                 }
             }
         }
-        
+
         private (string, StreamResponse<ApiEventStreamMessage>) ProcessEventLine(string fromMessageId, string line)
         {
             try
@@ -162,7 +160,7 @@ namespace GResearch.Armada.Client
                         this.JsonSerializerSettings);
 
                 fromMessageId = eventMessage?.Result?.Id ?? fromMessageId;
-                
+
                 // Ignore unknown event types
                 if (String.IsNullOrEmpty(eventMessage?.Error) &&
                     eventMessage?.Result?.Message?.Event == null)
@@ -173,9 +171,9 @@ namespace GResearch.Armada.Client
             }
             catch(Exception)
             {
-                // Ignore messages which can't be deserialized    
+                // Ignore messages which can't be deserialized
             }
-            
+
             return (fromMessageId, null);
         }
     }
