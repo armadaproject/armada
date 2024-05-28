@@ -10,7 +10,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
-	"github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/client"
@@ -25,8 +24,6 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Config
-	Redis config.RedisConfig
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
