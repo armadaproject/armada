@@ -1,11 +1,13 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: armada-test
+featureGates:
+  "KubeletInUserNamespace": true
 nodes:
 - role: worker
-  image: kindest/node:v1.24.7
+  image: kindest/node:v1.24.17
 - role: control-plane
-  image: kindest/node:v1.24.7
+  image: kindest/node:v1.24.17
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration

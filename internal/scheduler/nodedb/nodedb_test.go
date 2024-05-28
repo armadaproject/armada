@@ -486,19 +486,13 @@ func TestScheduleMany(t *testing.T) {
 		// For each group, whether we expect scheduling to succeed.
 		ExpectSuccess []bool
 	}{
-		// Attempts to schedule 32 jobs with a minimum gang cardinality of 1 job. All jobs get scheduled.
+		// Attempts to schedule 32. All jobs get scheduled.
 		"simple success": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:          [][]*jobdb.Job{gangSuccess},
 			ExpectSuccess: []bool{true},
 		},
-		// Attempts to schedule 33 jobs with a minimum gang cardinality of 32 jobs. One fails, but the overall result is a success.
-		"simple success with min cardinality": {
-			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(32, testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33))},
-			ExpectSuccess: []bool{true},
-		},
-		// Attempts to schedule 33 jobs with a minimum gang cardinality of 33. The overall result fails.
+		// Attempts to schedule 33 jobs. The overall result fails.
 		"simple failure with min cardinality": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:          [][]*jobdb.Job{gangFailure},
@@ -549,9 +543,7 @@ func TestScheduleMany(t *testing.T) {
 				for _, jctx := range jctxs {
 					pctx := jctx.PodSchedulingContext
 					require.NotNil(t, pctx)
-					if !jctx.ShouldFail {
-						assert.NotEqual(t, "", pctx.NodeId)
-					}
+					assert.NotEqual(t, "", pctx.NodeId)
 				}
 			}
 		})

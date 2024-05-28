@@ -417,7 +417,7 @@ func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValid
 		return nil, err
 	}
 	return []DbOperation{
-		MarkJobsValidated{jobId: true},
+		MarkJobsValidated{jobId: checked.Pools},
 	}, nil
 }
 
