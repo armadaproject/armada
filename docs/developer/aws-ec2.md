@@ -97,7 +97,7 @@ ssh into your EC2 instance, become root and download the go package from [golang
 <b>1. Extract the archive you downloaded into /usr/local, creating a Go tree in /usr/local/go with the following command:</b>
 
 ```
-rm -rf /usr/local/go && tar -C /usr/local -xzf go1.20.1.linux-amd64.tar.gz
+rm -rf /usr/local/go && tar -C /usr/local -xzf go1.21.1.linux-amd64.tar.gz
 ```
 
 <b>2. Configure .bashrc</b>
@@ -114,7 +114,7 @@ Add the following lines to your ~/.bashrc file as well, also create a golang fol
 
 ```
 # Go envs
-export GOVERSION=go1.20.1
+export GOVERSION=go1.21.1
 export GO_INSTALL_DIR=/usr/local/go
 export GOROOT=$GO_INSTALL_DIR
 export GOPATH=/home/ec2-user/golang
@@ -129,7 +129,7 @@ Verify that you’ve installed Go by opening a command prompt and typing the fol
 
 ```
 go version
-go version go1.20.1 linux/amd64
+go version go1.21.1 linux/amd64
 ```
 
 - ### Install [Kind](https://dev.to/rajitpaul_savesoil/setup-kind-kubernetes-in-docker-on-linux-3kbd)
