@@ -552,7 +552,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 					PreemptedRunId:    runId,
 					PreemptedRunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
 					PreemptedJobId:    jobId,
-					PreemptedJobIdStr: armadaevents.MustUlidStringFromProtoUuid(runId),
+					PreemptedJobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				},
 			},
 		},
