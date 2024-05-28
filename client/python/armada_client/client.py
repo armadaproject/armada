@@ -197,7 +197,9 @@ class ArmadaClient:
         )
         return self.jobs_stub.GetJobStatus(request)
 
-    def get_job_details(self, job_ids: Iterable[str], expand_job_spec: bool, expand_job_run: bool) -> job_pb2.JobDetailsResponse:
+    def get_job_details(
+        self, job_ids: Iterable[str], expand_job_spec: bool, expand_job_run: bool
+    ) -> job_pb2.JobDetailsResponse:
         """Get the details of armada jobs.
 
         Uses GetJobDetails RPC to get the details of jobs.
@@ -214,7 +216,9 @@ class ArmadaClient:
         )
         return self.jobs_stub.GetJobDetails(request)
 
-    def get_job_run_details(self, run_ids: Iterable[str]) -> job_pb2.JobRunDetailsResponse:
+    def get_job_run_details(
+        self, run_ids: Iterable[str]
+    ) -> job_pb2.JobRunDetailsResponse:
         """Get the details of armada job runs.
 
         Uses GetJobRunDetails RPC to get the details of job runs.

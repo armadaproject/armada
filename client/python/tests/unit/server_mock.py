@@ -112,3 +112,20 @@ class JobsService(job_pb2_grpc.JobsServicer):
             job_states[job_id] = submit_pb2.JobState.RUNNING
 
         return job_pb2.JobStatusResponse(job_states=job_states)
+
+    def GetJobDetails(self, request, context):
+        job_details = {}
+        for job_id in request.job_ids:
+            job_details[job_id] = job_pb2.JobDetails(
+                job_id=job_id, job_state=submit_pb2.JobState.RUNNING
+            )
+        return job_pb2.JobDetailsResponse(job_details=job_details)
+
+    def GetJobRunDetails(self, request, context):
+        job_run_details = {}
+        for run_id in request.run_ids:
+            job_run_details[run_id] = job_pb2.JobRunDetails(
+                run_id=run_id, state=job_pb2.JobRunState.RUN_STATE_RUNNING
+            )
+
+        return job_pb2.JobRunDetailsResponse()
