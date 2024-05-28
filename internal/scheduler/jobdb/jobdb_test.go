@@ -29,6 +29,7 @@ func NewTestJobDb() *JobDb {
 		},
 		"foo",
 		stringinterner.New(1024),
+		TestResourceListFactory,
 	)
 }
 
@@ -268,8 +269,8 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		},
 	}
 	jobDb := NewTestJobDb()
-	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false)
-
+	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false)
+	assert.Nil(t, err)
 	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), job.SchedulingKey())
 }
 
@@ -1257,12 +1258,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			jobSchedulingInfoA := proto.Clone(jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo)
 			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
 			jobSchedulingInfoA.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsA}
-			jobA := baseJob.WithJobSchedulingInfo(jobSchedulingInfoA)
+			jobA := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoA)
 
 			jobSchedulingInfoB := proto.Clone(jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo)
 			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
 			jobSchedulingInfoB.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsB}
-			jobB := baseJob.WithJobSchedulingInfo(jobSchedulingInfoB)
+			jobB := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoB)
 
 			schedulingKeyA := SchedulingKeyFromJob(skg, jobA)
 			schedulingKeyB := SchedulingKeyFromJob(skg, jobB)

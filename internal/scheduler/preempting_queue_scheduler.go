@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -791,11 +790,8 @@ func NewOversubscribedEvictor(
 					// Negative priorities correspond to already evicted jobs.
 					continue
 				}
-				for _, q := range rl.Resources {
-					if q.Cmp(resource.Quantity{}) == -1 {
-						overSubscribedPriorities[p] = true
-						break
-					}
+				if rl.HasNegativeValues() {
+					overSubscribedPriorities[p] = true
 				}
 			}
 			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability

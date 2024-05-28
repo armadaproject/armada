@@ -436,9 +436,12 @@ func TestNodeTypeIterator(t *testing.T) {
 			}
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
-			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
-			for i, t := range nodeDb.indexedResources {
-				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
+			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
+			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(tc.resourceRequests))
+			assert.Nil(t, err)
+			for i, resourceName := range nodeDb.indexedResources {
+				indexedResourceRequests[i], err = rr.GetByName(resourceName)
+				assert.Nil(t, err)
 			}
 			keyIndex := -1
 			for i, p := range nodeDb.nodeDbPriorities {
@@ -453,9 +456,9 @@ func TestNodeTypeIterator(t *testing.T) {
 				nodeIndexName(keyIndex),
 				tc.priority,
 				keyIndex,
-				testfixtures.TestResourceNames,
+				nodeDb.indexedResources,
 				indexedResourceRequests,
-				testfixtures.TestIndexedResourceResolutionMillis,
+				nodeDb.indexedResourceResolution,
 			)
 			require.NoError(t, err)
 
@@ -827,9 +830,13 @@ func TestNodeTypesIterator(t *testing.T) {
 			}
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
-			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
-			for i, t := range testfixtures.TestResourceNames {
-				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
+			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(tc.resourceRequests))
+			assert.Nil(t, err)
+
+			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
+			for i, resourceName := range testfixtures.TestResourceNames {
+				indexedResourceRequests[i], err = rr.GetByName(resourceName)
+				assert.Nil(t, err)
 			}
 			it, err := NewNodeTypesIterator(
 				nodeDb.Txn(false),
@@ -837,9 +844,9 @@ func TestNodeTypesIterator(t *testing.T) {
 				nodeDb.indexNameByPriority[tc.priority],
 				tc.priority,
 				nodeDb.keyIndexByPriority[tc.priority],
-				testfixtures.TestResourceNames,
+				nodeDb.indexedResources,
 				indexedResourceRequests,
-				testfixtures.TestIndexedResourceResolutionMillis,
+				nodeDb.indexedResourceResolution,
 			)
 			require.NoError(t, err)
 
@@ -889,8 +896,9 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 
 	// Create iterator for 0 CPU required and an unfeasible memory request,
 	// such that the iterator has to consider all nodes.
-	indexedResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
-	indexedResourceRequests[1] = resource.MustParse("1Ti")
+	indexedResourceRequests := make([]int64, len(nodeDb.indexedResources))
+	oneTiB := resource.MustParse("1Ti")
+	indexedResourceRequests[1] = oneTiB.ScaledValue(0)
 	nodeTypeId := maps.Keys(nodeDb.nodeTypes)[0]
 	var priority int32
 	txn := nodeDb.Txn(false)
@@ -906,7 +914,7 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			nodeDb.keyIndexByPriority[priority],
 			nodeDb.indexedResources,
 			indexedResourceRequests,
-			testfixtures.TestIndexedResourceResolutionMillis,
+			nodeDb.indexedResourceResolution,
 		)
 		require.NoError(b, err)
 		for {

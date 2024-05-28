@@ -497,7 +497,12 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *arma
 	if err != nil {
 		return nil, false, err
 	}
-	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+
+	job, err = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+	if err != nil {
+		// should never happen - requirements haven't changed
+		panic(err)
+	}
 	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
 	if err != nil {
 		return nil, false, err

@@ -4,10 +4,8 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type Node struct {
@@ -27,14 +25,14 @@ type Node struct {
 	taints []v1.Taint
 	labels map[string]string
 
-	TotalResources schedulerobjects.ResourceList
+	TotalResources ResourceList
 
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	AllocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType
-	AllocatedByQueue      map[string]schedulerobjects.ResourceList
-	AllocatedByJobId      map[string]schedulerobjects.ResourceList
+	AllocatableByPriority map[int32]ResourceList
+	AllocatedByQueue      map[string]ResourceList
+	AllocatedByJobId      map[string]ResourceList
 	EvictedJobRunIds      map[string]bool
 }
 
@@ -46,10 +44,10 @@ func CreateNode(
 	name string,
 	taints []v1.Taint,
 	labels map[string]string,
-	totalResources schedulerobjects.ResourceList,
-	allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType,
-	allocatedByQueue map[string]schedulerobjects.ResourceList,
-	allocatedByJobId map[string]schedulerobjects.ResourceList,
+	totalResources ResourceList,
+	allocatableByPriority map[int32]ResourceList,
+	allocatedByQueue map[string]ResourceList,
+	allocatedByJobId map[string]ResourceList,
 	evictedJobRunIds map[string]bool,
 	keys [][]byte,
 ) *Node {
@@ -62,9 +60,9 @@ func CreateNode(
 		taints:                koTaint.DeepCopyTaints(taints),
 		labels:                deepCopyLabels(labels),
 		TotalResources:        totalResources,
-		AllocatableByPriority: allocatableByPriority,
-		AllocatedByQueue:      allocatedByQueue,
-		AllocatedByJobId:      allocatedByJobId,
+		AllocatableByPriority: deepCopyIntToResourceList(allocatableByPriority),
+		AllocatedByQueue:      deepCopyStringToResourceList(allocatedByQueue),
+		AllocatedByJobId:      deepCopyStringToResourceList(allocatedByJobId),
 		EvictedJobRunIds:      evictedJobRunIds,
 		Keys:                  keys,
 	}
@@ -135,9 +133,9 @@ func (node *Node) UnsafeCopy() *Node {
 
 		Keys: nil,
 
-		AllocatableByPriority: armadamaps.DeepCopy(node.AllocatableByPriority),
-		AllocatedByQueue:      armadamaps.DeepCopy(node.AllocatedByQueue),
-		AllocatedByJobId:      armadamaps.DeepCopy(node.AllocatedByJobId),
+		AllocatableByPriority: deepCopyIntToResourceList(node.AllocatableByPriority),
+		AllocatedByQueue:      deepCopyStringToResourceList(node.AllocatedByQueue),
+		AllocatedByJobId:      deepCopyStringToResourceList(node.AllocatedByJobId),
 		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
 	}
 }
@@ -146,6 +144,22 @@ func deepCopyLabels(labels map[string]string) map[string]string {
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[k] = v
+	}
+	return result
+}
+
+func deepCopyStringToResourceList(m map[string]ResourceList) map[string]ResourceList {
+	result := make(map[string]ResourceList, len(m))
+	for k, v := range m {
+		result[k] = v // we do not need to deep copy the value because ResourceList is immutable
+	}
+	return result
+}
+
+func deepCopyIntToResourceList(m map[int32]ResourceList) map[int32]ResourceList {
+	result := make(map[int32]ResourceList, len(m))
+	for k, v := range m {
+		result[k] = v // we do not need to deep copy the value because ResourceList is immutable
 	}
 	return result
 }

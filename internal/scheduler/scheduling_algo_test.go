@@ -433,7 +433,7 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Setup jobDb.
-			jobDb := testfixtures.NewJobDb()
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
 			err = txn.Upsert(jobsToUpsert)
 			require.NoError(t, err)

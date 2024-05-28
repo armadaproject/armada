@@ -139,7 +139,11 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
 				return
 			}
-			job = job.WithJobSchedulingInfo(schedulingInfo)
+			job, err = job.WithJobSchedulingInfo(schedulingInfo)
+			if err != nil {
+				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
+				return
+			}
 		}
 		if jobRepoJob.QueuedVersion > job.QueuedVersion() {
 			job = job.WithQueuedVersion(jobRepoJob.QueuedVersion)
@@ -258,7 +262,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		}
 	}
 
-	job := jobDb.NewJob(
+	job, err := jobDb.NewJob(
 		dbJob.JobID,
 		dbJob.JobSet,
 		dbJob.Queue,
@@ -272,6 +276,10 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.Submitted,
 		dbJob.Validated,
 	)
+	if err != nil {
+		return nil, err
+	}
+
 	if dbJob.Failed {
 		// TODO(albin): Let's make this an argument to NewJob. Even better: have the state as an enum argument.
 		job = job.WithFailed(dbJob.Failed)

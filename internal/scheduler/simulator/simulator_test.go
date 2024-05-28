@@ -330,9 +330,9 @@ func TestSimulator(t *testing.T) {
 								Requirements: schedulerobjects.PodRequirements{
 									ResourceRequirements: v1.ResourceRequirements{
 										Requests: v1.ResourceList{
-											"cpu":            resource.MustParse("128"),
-											"memory":         resource.MustParse("4096Gi"),
-											"nvidia.com/gpu": resource.MustParse("8"),
+											"cpu":    resource.MustParse("128"),
+											"memory": resource.MustParse("4096Gi"),
+											"gpu":    resource.MustParse("8"),
 										},
 									},
 									Tolerations: []v1.Toleration{
@@ -349,9 +349,9 @@ func TestSimulator(t *testing.T) {
 								Requirements: schedulerobjects.PodRequirements{
 									ResourceRequirements: v1.ResourceRequirements{
 										Requests: v1.ResourceList{
-											"cpu":            resource.MustParse("128"),
-											"memory":         resource.MustParse("4096Gi"),
-											"nvidia.com/gpu": resource.MustParse("8"),
+											"cpu":    resource.MustParse("128"),
+											"memory": resource.MustParse("4096Gi"),
+											"gpu":    resource.MustParse("8"),
 										},
 									},
 									Tolerations: []v1.Toleration{
@@ -374,9 +374,9 @@ func TestSimulator(t *testing.T) {
 								Requirements: schedulerobjects.PodRequirements{
 									ResourceRequirements: v1.ResourceRequirements{
 										Requests: v1.ResourceList{
-											"cpu":            resource.MustParse("16"),
-											"memory":         resource.MustParse("512Gi"),
-											"nvidia.com/gpu": resource.MustParse("1"),
+											"cpu":    resource.MustParse("16"),
+											"memory": resource.MustParse("512Gi"),
+											"gpu":    resource.MustParse("1"),
 										},
 									},
 								},
@@ -506,9 +506,9 @@ func TestClusterSpecTotalResources(t *testing.T) {
 	actual := GetTwoPoolTwoNodeCluster().TotalResources()
 	expected := schedulerobjects.ResourceList{
 		Resources: map[string]resource.Quantity{
-			"cpu":            resource.MustParse("160"),
-			"memory":         resource.MustParse("4352Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
+			"cpu":    resource.MustParse("160"),
+			"memory": resource.MustParse("4352Gi"),
+			"gpu":    resource.MustParse("8"),
 		},
 	}
 	assert.True(t, expected.Equal(actual), "expected %s, but got %s", expected.CompactString(), actual.CompactString())
