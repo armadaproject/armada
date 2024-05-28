@@ -3,6 +3,7 @@ package pruner
 import (
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -11,9 +12,41 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func PruneDb(ctx *armadacontext.Context, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
+func PruneDb(
+	ctx *armadacontext.Context,
+	db *pgx.Conn,
+	jobLifetime time.Duration,
+	deduplicationLifetime time.Duration,
+	batchLimit int,
+	clock clock.Clock,
+) error {
+	var result *multierror.Error
+
+	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	if err := deleteDeduplications(ctx, db, deduplicationLifetime, clock); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	return result.ErrorOrNil()
+}
+
+func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicationLifetime time.Duration, clock clock.Clock) error {
+	cutOffTime := clock.Now().Add(-deduplicationLifetime)
+	log.Infof("Deleting all rows from job_deduplication older than %s", cutOffTime)
+	cmdTag, err := db.Exec(ctx, "DELETE FROM job_deduplication WHERE inserted <= $1", cutOffTime)
+	if err != nil {
+		return errors.Wrap(err, "error deleting deduplications from postgres")
+	}
+	log.Infof("Deleted %d rows", cmdTag.RowsAffected())
+	return nil
+}
+
+func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock) error {
 	now := clock.Now()
-	cutOffTime := now.Add(-keepAfterCompletion)
+	cutOffTime := now.Add(-jobLifetime)
 	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime)
 	if err != nil {
 		return errors.WithStack(err)
@@ -66,6 +99,12 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 		CREATE TEMP TABLE job_ids_to_delete AS (
 			SELECT job_id FROM job
 			WHERE last_transition_time < $1
+			AND state in (
+				4, -- Succeeded
+		   		5, -- Failed
+		   		6, -- Cancelled
+		   		7  -- Preempted
+		    )
 		)`, cutOffTime)
 	if err != nil {
 		return -1, errors.WithStack(err)
@@ -94,7 +133,6 @@ func deleteBatch(ctx *armadacontext.Context, tx pgx.Tx, batchLimit int) (int, er
 	_, err = tx.Exec(ctx, `
 		DELETE FROM job WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_run WHERE job_id in (SELECT job_id from batch);
-		DELETE FROM user_annotation_lookup WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_ids_to_delete WHERE job_id in (SELECT job_id from batch);
 		TRUNCATE TABLE batch;`)
 	if err != nil {

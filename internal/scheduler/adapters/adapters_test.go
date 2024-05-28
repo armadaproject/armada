@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -107,20 +108,15 @@ func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Creating backup for stderr
-			old := os.Stderr
 			r, w, _ := os.Pipe()
-			// Assigning stderr to file, w
-			os.Stderr = w
 			// Stderr from this function would be written to file w
+			logrus.SetOutput(w)
 			scheduler := PodRequirementsFromPodSpec(&test.podspec, test.priorityByPriorityClassName)
 			// Closing file, w
 			err := w.Close()
 			require.NoError(t, err)
 			// Reading from file
 			out, _ := io.ReadAll(r)
-			// Restoring stderr
-			os.Stderr = old
 			expectedScheduler.Priority = test.priority
 			assert.Equal(t, scheduler, expectedScheduler)
 			// if loggedError is true, bytes should be written to stderr,

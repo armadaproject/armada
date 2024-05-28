@@ -1,6 +1,7 @@
 package pruner
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,12 +23,13 @@ import (
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 
-func TestPruneDb(t *testing.T) {
-	type testJob struct {
-		jobId string
-		ts    time.Time
-	}
+type testJob struct {
+	jobId string
+	ts    time.Time
+	state lookout.JobState
+}
 
+func TestPruneDb(t *testing.T) {
 	type testCase struct {
 		testName    string
 		expireAfter time.Duration
@@ -41,12 +43,13 @@ func TestPruneDb(t *testing.T) {
 		sampleJobIds[i] = util.NewULID()
 	}
 
-	manyJobs := func(startIdx, endIdx int, ts time.Time) []testJob {
+	manyJobs := func(startIdx, endIdx int, state lookout.JobState, ts time.Time) []testJob {
 		var testJobs []testJob
 		for i := startIdx; i < endIdx; i++ {
 			testJobs = append(testJobs, testJob{
 				jobId: sampleJobIds[i],
 				ts:    ts,
+				state: state,
 			})
 		}
 		return testJobs
@@ -63,16 +66,25 @@ func TestPruneDb(t *testing.T) {
 			testName:    "no expired jobs",
 			expireAfter: 10 * time.Hour,
 			jobs: []testJob{
+				// Terminated jobs within the expiry
 				{
 					jobId: sampleJobIds[0],
 					ts:    baseTime,
+					state: lookout.JobSucceeded,
 				},
 				{
 					jobId: sampleJobIds[1],
 					ts:    baseTime.Add(-9 * time.Hour),
+					state: lookout.JobSucceeded,
+				},
+				// Non-terminated job older than the expiry
+				{
+					jobId: sampleJobIds[2],
+					ts:    baseTime.Add(-11 * time.Hour),
+					state: lookout.JobRunning,
 				},
 			},
-			jobIdsLeft: []string{sampleJobIds[0], sampleJobIds[1]},
+			jobIdsLeft: []string{sampleJobIds[0], sampleJobIds[1], sampleJobIds[2]},
 		},
 		{
 			testName:    "expire a job",
@@ -80,27 +92,35 @@ func TestPruneDb(t *testing.T) {
 			jobs: []testJob{
 				{
 					jobId: sampleJobIds[0],
-					ts:    baseTime,
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobSucceeded,
 				},
 				{
 					jobId: sampleJobIds[1],
-					ts:    baseTime.Add(-9 * time.Hour),
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobFailed,
 				},
 				{
 					jobId: sampleJobIds[2],
 					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobCancelled,
+				},
+				{
+					jobId: sampleJobIds[3],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobPreempted,
 				},
 			},
-			jobIdsLeft: []string{sampleJobIds[0], sampleJobIds[1]},
+			jobIdsLeft: []string{},
 		},
 		{
 			testName:    "expire many jobs",
 			expireAfter: 100 * time.Hour,
 			jobs: slices.Concatenate(
-				manyJobs(0, 10, baseTime.Add(-300*time.Hour)),
-				manyJobs(10, 20, baseTime.Add(-200*time.Hour)),
-				manyJobs(20, 50, baseTime.Add(-(100*time.Hour+5*time.Minute))),
-				manyJobs(50, 100, baseTime.Add(-99*time.Hour)),
+				manyJobs(0, 10, lookout.JobSucceeded, baseTime.Add(-300*time.Hour)),
+				manyJobs(10, 20, lookout.JobSucceeded, baseTime.Add(-200*time.Hour)),
+				manyJobs(20, 50, lookout.JobSucceeded, baseTime.Add(-(100*time.Hour+5*time.Minute))),
+				manyJobs(50, 100, lookout.JobSucceeded, baseTime.Add(-99*time.Hour)),
 			),
 			jobIdsLeft: sampleJobIds[50:],
 		},
@@ -115,26 +135,12 @@ func TestPruneDb(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 				defer cancel()
 				for _, tj := range tc.jobs {
-					runId := uuid.NewString()
-					repository.NewJobSimulator(converter, store).
-						Submit("queue", "jobSet", "owner", "namespace", tj.ts, &repository.JobOptions{
-							JobId: tj.jobId,
-							Annotations: map[string]string{
-								"armadaproject.io/test-1": "one",
-								"armadaproject.io/test-2": "two",
-							},
-						}).
-						Lease(runId, "cluster", "node", tj.ts).
-						Pending(runId, "cluster", tj.ts).
-						Running(runId, "node", tj.ts).
-						RunSucceeded(runId, tj.ts).
-						Succeeded(tj.ts).
-						Build()
+					storeJob(tj, store, converter)
 				}
 
 				dbConn, err := db.Acquire(ctx)
 				assert.NoError(t, err)
-				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 10, clock.NewFakeClock(baseTime))
+				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 10, clock.NewFakeClock(baseTime))
 				assert.NoError(t, err)
 
 				queriedJobIdsPerTable := []map[string]bool{
@@ -152,6 +158,47 @@ func TestPruneDb(t *testing.T) {
 			})
 			assert.NoError(t, err)
 		})
+	}
+}
+
+func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.InstructionConverter) {
+	runId := uuid.NewString()
+	simulator := repository.NewJobSimulator(converter, db).
+		Submit("queue", "jobSet", "owner", "namespace", job.ts, &repository.JobOptions{
+			JobId: job.jobId,
+			Annotations: map[string]string{
+				"armadaproject.io/test-1": "one",
+				"armadaproject.io/test-2": "two",
+			},
+		}).
+		Lease(runId, "cluster", "node", job.ts).
+		Pending(runId, "cluster", job.ts).
+		Running(runId, "node", job.ts)
+
+	switch job.state {
+	case lookout.JobSucceeded:
+		simulator.
+			RunSucceeded(runId, job.ts).
+			Succeeded(job.ts).
+			Build()
+	case lookout.JobFailed:
+		simulator.
+			RunFailed(runId, "node", 1, "", job.ts).
+			Failed("node", 1, "", job.ts).
+			Build()
+	case lookout.JobCancelled:
+		simulator.
+			Cancelled(job.ts).
+			Build()
+	case lookout.JobPreempted:
+		simulator.
+			Preempted(job.ts).
+			Build()
+	case lookout.JobRunning:
+		simulator.
+			Build()
+	default:
+		panic(fmt.Sprintf("job state %s not supported", job.state))
 	}
 }
 

@@ -75,12 +75,12 @@ $ sudo apt install gcc make unzip
 ```
 
 ### Install Go, Protobuffers, and kubectl tools
-Install the Go compiler and associated tools. Currently, the latest version is 1.20.5, but there may
+Install the Go compiler and associated tools. Currently, the latest version is 1.21.1, but there may
 be newer versions:
 
 ```
-$ curl --location -O https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-$ sudo tar -C /usr/local -xzvf go1.20.5.linux-amd64.tar.gl
+$ curl --location -O https://go.dev/dl/go1.21.1.linux-amd64.tar.gz
+$ sudo tar -C /usr/local -xzvf go1.21.1.linux-amd64.tar.gl
 $ echo 'export PATH=$PATH:/usr/local/go/bin' > go.sh
 $ sudo cp go.sh /etc/profile.d/
 ```

@@ -7,24 +7,54 @@ import (
 )
 
 func cancelCmd() *cobra.Command {
-	a := armadactl.New()
 	cmd := &cobra.Command{
 		Use:   "cancel",
 		Short: "Cancels jobs in armada.",
-		Long:  `Cancels jobs either by jobId or by combination of queue & job set.`,
+		Long:  `Cancels jobs individually using job ID or in bulk as part of a job set.`,
 		Args:  cobra.ExactArgs(0),
+	}
+	cmd.AddCommand(
+		cancelJobCmd(),
+		cancelJobSetCmd(),
+	)
+	return cmd
+}
+
+func cancelJobCmd() *cobra.Command {
+	a := armadactl.New()
+	cmd := &cobra.Command{
+		Use:   "job <queue> <job-set> <job-id>",
+		Short: "Cancels job in armada.",
+		Long:  `Cancel job by providing queue, job-set and job-id.`,
+		Args:  cobra.ExactArgs(3),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			jobId, _ := cmd.Flags().GetString("jobId")
-			queue, _ := cmd.Flags().GetString("queue")
-			jobSetId, _ := cmd.Flags().GetString("jobSet")
-			return a.Cancel(queue, jobSetId, jobId)
+			queue := args[0]
+			jobSetId := args[1]
+			jobId := args[2]
+			return a.CancelJob(queue, jobSetId, jobId)
 		},
 	}
-	cmd.Flags().String("jobId", "", "job to cancel")
-	cmd.Flags().String("queue", "", "queue to cancel jobs from (requires job set to be specified)")
-	cmd.Flags().String("jobSet", "", "jobSet to cancel (requires queue to be specified)")
+	return cmd
+}
+
+func cancelJobSetCmd() *cobra.Command {
+	a := armadactl.New()
+	cmd := &cobra.Command{
+		Use:   "job-set <queue> <job-set>",
+		Short: "Cancels job-set in armada.",
+		Long:  `Cancels job-set by providing queue, job-set.`,
+		Args:  cobra.ExactArgs(2),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			queue := args[0]
+			jobSetId := args[1]
+			return a.CancelJobSet(queue, jobSetId)
+		},
+	}
 	return cmd
 }

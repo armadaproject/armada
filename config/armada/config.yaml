@@ -6,10 +6,7 @@ corsAllowedOrigins:
   - http://localhost:8089
   - http://localhost:10000
 grpcGatewayPath: "/"
-cancelJobsBatchSize: 1000
-queueRepositoryUsesPostgres: false
 queueCacheRefreshPeriod: 10s
-requireQueueAndJobSet: true
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
 grpc:
@@ -22,12 +19,6 @@ grpc:
     permitWithoutStream: true
   tls:
     enabled: false
-redis:
-  addrs:
-    - redis:6379
-  password: ""
-  db: 0
-  poolSize: 1000
 eventsApiRedis:
   addrs:
     - redis:6379

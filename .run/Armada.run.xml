@@ -1,11 +1,11 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Armada (Pulsar Scheduler)" type="CompoundRunConfigurationType">
+  <configuration default="false" name="Armada" type="CompoundRunConfigurationType">
     <toRun name="Armada Infrastructure Services" type="docker-deploy" />
     <toRun name="Event Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Lookout Ingester V2" type="GoApplicationRunConfiguration" />
     <toRun name="LookoutV2" type="GoApplicationRunConfiguration" />
-    <toRun name="Pulsar Executor" type="GoApplicationRunConfiguration" />
-    <toRun name="Pulsar Server" type="GoApplicationRunConfiguration" />
+    <toRun name="Executor" type="GoApplicationRunConfiguration" />
+    <toRun name="Server" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="postgresPulsarMigration" type="GoApplicationRunConfiguration" />
@@ -15,8 +15,8 @@
     <toRun name="Event Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Lookout Ingester V2" type="GoApplicationRunConfiguration" />
     <toRun name="LookoutV2" type="GoApplicationRunConfiguration" />
-    <toRun name="Pulsar Executor" type="GoApplicationRunConfiguration" />
-    <toRun name="Pulsar Server" type="GoApplicationRunConfiguration" />
+    <toRun name="Executor" type="GoApplicationRunConfiguration" />
+    <toRun name="Server" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />
     <method v="2" />

@@ -15,12 +15,12 @@ import (
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -204,21 +204,17 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
-		failedJobs := FailedJobsFromSchedulerResult(schedulerResult)
+
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
 		}
 		if err := txn.Upsert(scheduledJobs); err != nil {
 			return nil, err
 		}
-		if err := txn.Upsert(failedJobs); err != nil {
-			return nil, err
-		}
 
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
-		overallSchedulerResult.FailedJobs = append(overallSchedulerResult.FailedJobs, schedulerResult.FailedJobs...)
 		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 		maps.Copy(overallSchedulerResult.AdditionalAnnotationsByJobId, schedulerResult.AdditionalAnnotationsByJobId)
@@ -507,10 +503,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
-	}
-	for i, jctx := range result.FailedJobs {
-		jobDbJob := jctx.Job
-		result.FailedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	return result, sctx, nil
 }

@@ -34,12 +34,13 @@ var (
 		validateTerminationGracePeriod,
 		validateIngresses,
 		validatePorts,
+		validateClientId,
 	}
 )
 
 // ValidateSubmitRequest ensures that the incoming api.JobSubmitRequest is well-formed. It achieves this
 // by applying a series of validators that each check a single aspect of the request. Validators may
-// chose to validate the whole obSubmitRequest or just a single JobSubmitRequestItem.
+// choose to validate the whole obSubmitRequest or just a single JobSubmitRequestItem.
 // This function will return the error from the first validator that fails, or nil if all  validators pass.
 func ValidateSubmitRequest(req *api.JobSubmitRequest, config configuration.SubmissionConfig) error {
 	for _, validationFunc := range requestValidators {
@@ -179,6 +180,15 @@ func validateAffinity(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 	return nil
 }
 
+// Ensures that if a request specifies a ClientId, that clientID is not too long
+func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	const maxClientIdChars = 100
+	if len(j.GetClientId()) > maxClientIdChars {
+		return fmt.Errorf("client id of length %d is greater than max allowed length of  %d", len(j.ClientId), maxClientIdChars)
+	}
+	return nil
+}
+
 // Ensures that if a request specifies a PriorityClass, that priority class is supported by Armada.
 func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
@@ -281,12 +291,6 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 				return errors.Errorf(
 					"inconsistent gang cardinality in gang %s: expected %d but got %d",
 					actual.Id, expected.Cardinality, actual.Cardinality,
-				)
-			}
-			if expected.MinimumCardinality != actual.MinimumCardinality {
-				return errors.Errorf(
-					"inconsistent gang minimum cardinality in gang %s: expected %d but got %d",
-					actual.Id, expected.MinimumCardinality, actual.MinimumCardinality,
 				)
 			}
 			if expected.PriorityClassName != actual.PriorityClassName {

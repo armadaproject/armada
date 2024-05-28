@@ -12,7 +12,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
@@ -124,7 +123,7 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job")
+		tmpTable := "job_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -293,7 +292,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job")
+		tmpTable := "job_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -407,11 +406,11 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job_run")
+		tmpTable := "job_run_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s (
+				CREATE TEMPORARY TABLE %s (
 					run_id        varchar(36),
 					job_id        varchar(32),
 					cluster       varchar(512),
@@ -510,7 +509,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job_run")
+		tmpTable := "job_run_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -522,6 +521,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					finished      timestamp,
 				    job_run_state smallint,
 					error         bytea,
+					debug         bytea,
 				    exit_code     int
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
@@ -541,6 +541,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"finished",
 					"job_run_state",
 					"error",
+					"debug",
 					"exit_code",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
@@ -552,6 +553,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Finished,
 						instructions[i].JobRunState,
 						instructions[i].Error,
+						instructions[i].Debug,
 						instructions[i].ExitCode,
 					}, nil
 				}),
@@ -570,6 +572,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						finished      = coalesce(tmp.finished, job_run.finished),
 						job_run_state = coalesce(tmp.job_run_state, job_run.job_run_state),
 						error         = coalesce(tmp.error, job_run.error),
+						debug         = coalesce(tmp.debug, job_run.debug),
 						exit_code     = coalesce(tmp.exit_code, job_run.exit_code)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
@@ -592,7 +595,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			job_run_state = coalesce($5, job_run_state),
 			error         = coalesce($6, error),
 			exit_code     = coalesce($7, exit_code),
-			pending       = coalesce($8, pending)
+			pending       = coalesce($8, pending),
+			debug         = coalesce($9, debug)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -604,7 +608,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.JobRunState,
 				i.Error,
 				i.ExitCode,
-				i.Pending)
+				i.Pending,
+				i.Debug)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
@@ -720,6 +725,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.Error != nil {
 				existing.Error = update.Error
+			}
+			if update.Debug != nil {
+				existing.Debug = update.Debug
 			}
 			if update.JobRunState != nil {
 				existing.JobRunState = update.JobRunState

@@ -96,11 +96,11 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
 			operationsFromEvent, err = c.handleJobPreemptionRequested(event.GetJobPreemptionRequested(), meta)
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob())
+			operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob(), meta)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 			operationsFromEvent, err = c.handleReprioritiseJobSet(event.GetReprioritiseJobSet(), meta)
 		case *armadaevents.EventSequence_Event_CancelJob:
-			operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob())
+			operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob(), meta)
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			operationsFromEvent, err = c.handleCancelJobSet(event.GetCancelJobSet(), meta)
 		case *armadaevents.EventSequence_Event_CancelledJob:
@@ -339,13 +339,20 @@ func (c *InstructionConverter) handleJobPreemptionRequested(preemptionRequested 
 	}}, nil
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob) ([]DbOperation, error) {
+func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob, meta eventSequenceCommon) ([]DbOperation, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(reprioritiseJob.GetJobId())
 	if err != nil {
 		return nil, err
 	}
 	return []DbOperation{UpdateJobPriorities{
-		jobId: int64(reprioritiseJob.Priority),
+		key: JobReprioritiseKey{
+			JobSetKey: JobSetKey{
+				queue:  meta.queue,
+				jobSet: meta.jobset,
+			},
+			Priority: int64(reprioritiseJob.Priority),
+		},
+		jobIds: []string{jobId},
 	}}, nil
 }
 
@@ -355,13 +362,16 @@ func (c *InstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *arma
 	}}, nil
 }
 
-func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob) ([]DbOperation, error) {
+func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(cancelJob.GetJobId())
 	if err != nil {
 		return nil, err
 	}
 	return []DbOperation{MarkJobsCancelRequested{
-		jobId: true,
+		JobSetKey{
+			queue:  meta.queue,
+			jobSet: meta.jobset,
+		}: []string{jobId},
 	}}, nil
 }
 
@@ -408,7 +418,7 @@ func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValid
 		return nil, err
 	}
 	return []DbOperation{
-		MarkJobsValidated{jobId: true},
+		MarkJobsValidated{jobId: checked.Pools},
 	}, nil
 }
 

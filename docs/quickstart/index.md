@@ -45,8 +45,8 @@ Create queues, submit some jobs and monitor progress:
 
 ### Queue Creation
 ```bash
-./armadactl create queue queue-a --priorityFactor 1
-./armadactl create queue queue-b --priorityFactor 2
+./armadactl create queue queue-a --priority-factor 1
+./armadactl create queue queue-b --priority-factor 2
 ```
 For queues created in this way, user and group owners of the queue have permissions to:
 - submit jobs

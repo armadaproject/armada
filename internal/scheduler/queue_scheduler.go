@@ -2,14 +2,14 @@ package scheduler
 
 import (
 	"container/heap"
+	"fmt"
 	"reflect"
-	"strconv"
-
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -61,9 +61,18 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
-	var failedJobs []*schedulercontext.JobSchedulingContext
+
 	nodeIdByJobId := make(map[string]string)
 	additionalAnnotationsByJobId := make(map[string]map[string]string)
+	ctx.Info("Looping through candidate gangs...")
+
+	type queueStats struct {
+		gangCount int
+		jobCount  int
+		time      time.Duration
+	}
+
+	statsPerQueue := map[string]queueStats{}
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -89,17 +98,15 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
+
+		start := time.Now()
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
-			numScheduled := gctx.Fit().NumScheduled
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
-					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.GangNumJobsScheduledAnnotation: strconv.Itoa(numScheduled)}
-				} else if jctx.ShouldFail {
-					failedJobs = append(failedJobs, jctx)
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
@@ -112,12 +119,25 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 		}
 
+		duration := time.Now().Sub(start)
+		stats := statsPerQueue[gctx.Queue]
+		stats.gangCount++
+		stats.jobCount += gctx.Cardinality()
+		stats.time += duration
+		statsPerQueue[gctx.Queue] = stats
+		if duration.Seconds() > 1 {
+			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, first job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
+		}
+
 		// Clear() to get the next gang in order of smallest fair share.
 		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
 		if err := sch.candidateGangIterator.Clear(); err != nil {
 			return nil, err
 		}
 	}
+	ctx.Infof("Finished looping through candidate gangs: details %v", armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
+		return fmt.Sprintf("{gangs=%d, jobs=%d, time=%fs}", s.gangCount, s.jobCount, s.time.Seconds())
+	}))
 	if sch.schedulingContext.TerminationReason == "" {
 		sch.schedulingContext.TerminationReason = "no remaining candidate jobs"
 	}
@@ -127,7 +147,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:                nil,
 		ScheduledJobs:                scheduledJobs,
-		FailedJobs:                   failedJobs,
 		NodeIdByJobId:                nodeIdByJobId,
 		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
 		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},

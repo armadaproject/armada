@@ -14,12 +14,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -44,7 +43,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 
 	labels := nodeDb.copyMapWithIntern(node.GetLabels())
-	labels[schedulerconfig.NodeIdLabel] = node.Id
+	labels[configuration.NodeIdLabel] = node.Id
 
 	totalResources := node.TotalResources
 
@@ -445,43 +444,34 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*internaltypes.Node, map[str
 
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	numScheduled := 0
 	for _, jctx := range gctx.JobSchedulingContexts {
 		// In general, we may attempt to schedule a gang multiple times (in
 		// order to find the best fit for this gang); clear out any remnants of
 		// previous attempts.
 		jctx.UnschedulableReason = ""
-		jctx.ShouldFail = false
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 		if err != nil {
 			return false, err
 		}
 
-		if node == nil {
-			// Indicates that when the min cardinality is met, we should fail this job back to the client.
-			jctx.ShouldFail = true
-			continue
-		}
+		if node != nil {
+			// If we found a node for this pod, bind it and continue to the next pod.
+			if node, err := nodeDb.bindJobToNode(node, jctx.Job, jctx.PodSchedulingContext.ScheduledAtPriority); err != nil {
+				return false, err
+			} else {
+				if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+					return false, err
+				}
+			}
 
-		// If we found a node for this pod, bind it and continue to the next pod.
-		if node, err := nodeDb.bindJobToNode(node, jctx.Job, jctx.PodSchedulingContext.ScheduledAtPriority); err != nil {
-			return false, err
-		} else {
-			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+			// Once a job is scheduled, it should no longer be considered for preemption.
+			if err := deleteEvictedJobSchedulingContextIfExistsWithTxn(txn, jctx.JobId); err != nil {
 				return false, err
 			}
+		} else {
+			return false, nil
 		}
-
-		// Once a job is scheduled, it should no longer be considered for preemption.
-		if err := deleteEvictedJobSchedulingContextIfExistsWithTxn(txn, jctx.JobId); err != nil {
-			return false, err
-		}
-
-		numScheduled++
-	}
-	if numScheduled < gctx.GangInfo.MinimumCardinality {
-		return false, nil
 	}
 	return true, nil
 }
@@ -532,7 +522,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}()
 
 	// If the nodeIdLabel selector is set, consider only that node.
-	if nodeId, ok := jctx.GetNodeSelector(schedulerconfig.NodeIdLabel); ok {
+	if nodeId, ok := jctx.GetNodeSelector(configuration.NodeIdLabel); ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -826,7 +816,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
-		nodeId, ok := evictedJctx.GetNodeSelector(schedulerconfig.NodeIdLabel)
+		nodeId, ok := evictedJctx.GetNodeSelector(configuration.NodeIdLabel)
 		if !ok {
 			return nil, errors.Errorf("evicted job %s does not have a nodeIdLabel", evictedJctx.JobId)
 		}

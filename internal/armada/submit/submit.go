@@ -21,11 +21,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -34,14 +32,12 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
-	publisher             pulsarutils.Publisher
-	queueRepository       repository.QueueRepository
-	queueCache            repository.ReadOnlyQueueRepository
-	jobRepository         repository.JobRepository
-	submissionConfig      configuration.SubmissionConfig
-	deduplicator          Deduplicator
-	authorizer            auth.ActionAuthorizer
-	requireQueueAndJobSet bool
+	publisher        pulsarutils.Publisher
+	queueRepository  repository.QueueRepository
+	queueCache       repository.ReadOnlyQueueRepository
+	submissionConfig configuration.SubmissionConfig
+	deduplicator     Deduplicator
+	authorizer       auth.ActionAuthorizer
 	// Below are used only for testing
 	clock       clock.Clock
 	idGenerator func() *armadaevents.Uuid
@@ -51,22 +47,18 @@ func NewServer(
 	publisher pulsarutils.Publisher,
 	queueRepository repository.QueueRepository,
 	queueCache repository.ReadOnlyQueueRepository,
-	jobRepository repository.JobRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
 	authorizer auth.ActionAuthorizer,
-	requireQueueAndJobSet bool,
 ) *Server {
 	return &Server{
-		publisher:             publisher,
-		queueRepository:       queueRepository,
-		queueCache:            queueCache,
-		jobRepository:         jobRepository,
-		submissionConfig:      submissionConfig,
-		deduplicator:          deduplicator,
-		authorizer:            authorizer,
-		requireQueueAndJobSet: requireQueueAndJobSet,
-		clock:                 clock.RealClock{},
+		publisher:        publisher,
+		queueRepository:  queueRepository,
+		queueCache:       queueCache,
+		submissionConfig: submissionConfig,
+		deduplicator:     deduplicator,
+		authorizer:       authorizer,
+		clock:            clock.RealClock{},
 		idGenerator: func() *armadaevents.Uuid {
 			return armadaevents.MustProtoUuidFromUlidString(util.NewULID())
 		},
@@ -150,21 +142,6 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		Events:     submitMsgs,
 	}
 
-	pulsarJobDetails := armadaslices.Map(
-		jobResponses,
-		func(r *api.JobSubmitResponseItem) *schedulerobjects.PulsarSchedulerJobDetails {
-			return &schedulerobjects.PulsarSchedulerJobDetails{
-				JobId:  r.JobId,
-				Queue:  req.Queue,
-				JobSet: req.JobSetId,
-			}
-		})
-
-	if err = s.jobRepository.StorePulsarSchedulerJobDetails(ctx, pulsarJobDetails); err != nil {
-		log.WithError(err).Error("failed store pulsar job details")
-		return nil, status.Error(codes.Internal, "failed store pulsar job details")
-	}
-
 	err = s.publisher.PublishMessages(ctx, es)
 	if err != nil {
 		log.WithError(err).Error("failed send events to Pulsar")
@@ -181,21 +158,14 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 
 func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-
-	if req.JobSetId == "" || req.Queue == "" {
-		ctx.
-			WithField("apidatamissing", "true").
-			Warnf("Cancel jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobId, req.JobSetId, req.Queue, s.GetUser(ctx))
+	jobIds := []string{}
+	jobIds = append(jobIds, req.JobIds...)
+	if req.JobId != "" {
+		jobIds = append(jobIds, req.JobId)
 	}
+	jobIds = slices.Unique(jobIds)
 
-	// separate code path for multiple jobs
-	if len(req.JobIds) > 0 {
-		return s.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
-	}
-
-	// Another separate code path for cancelling an entire job set
-	// TODO: We should deprecate this and move people over to CancelJobSet()
-	if req.JobId == "" {
+	if len(jobIds) == 0 {
 		log.Warnf("CancelJobs called for queue=%s and jobset=%s but with empty job id. Redirecting to CancelJobSet()", req.Queue, req.JobSetId)
 		_, err := s.CancelJobSet(ctx, &api.JobSetCancelRequest{
 			Queue:    req.Queue,
@@ -210,98 +180,34 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 		}, nil
 	}
 
-	resolvedQueue := ""
-	resolvedJobSet := ""
-
-	if s.requireQueueAndJobSet {
-		err := validation.ValidateQueueAndJobSet(req)
-		if err != nil {
-			return nil, err
-		}
-		resolvedQueue = req.Queue
-		resolvedJobSet = req.JobSetId
-	} else {
-		// resolve the queue and jobset of the job: we can't trust what the user has given us
-		resolvedQueue, resolvedJobSet, err := s.resolveQueueAndJobsetForJob(ctx, req.JobId)
-		if err != nil {
-			return nil, err
-		}
-
-		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-		// since the job could not be found for the provided queue/jobSetId.
-		if req.Queue != "" && req.Queue != resolvedQueue {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:    "job",
-				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
-			}
-		}
-		if req.JobSetId != "" && req.JobSetId != resolvedJobSet {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:    "job",
-				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
-			}
-		}
-	}
-
-	userId, groups, err := s.authorize(ctx, resolvedQueue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
 		return nil, err
 	}
 
-	jobId, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
+	userId, groups, err := s.authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
 	}
 
-	sequence := &armadaevents.EventSequence{
-		Queue:      resolvedQueue,
-		JobSetName: resolvedJobSet,
-		UserId:     userId,
-		Groups:     groups,
-		Events: []*armadaevents.EventSequence_Event{
-			{
-				Created: pointer.Now(),
-				Event: &armadaevents.EventSequence_Event_CancelJob{
-					CancelJob: &armadaevents.CancelJob{
-						JobId:    jobId,
-						JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
-						Reason:   util.Truncate(req.Reason, 512),
-					},
-				},
-			},
-		},
-	}
+	var cancelledIds []string
+	es, cancelledIds := eventSequenceForJobIds(s.clock, jobIds, req.Queue, req.JobSetId, userId, groups, req.Reason)
 
-	// we can send the message to cancel to both schedulers. If the scheduler it doesn't belong to it'll be a no-op
-	err = s.publisher.PublishMessages(ctx, sequence)
+	err = s.publisher.PublishMessages(ctx, es)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
-
 	return &api.CancellationResult{
-		CancelledIds: []string{req.JobId}, // indicates no error
+		CancelledIds: cancelledIds,
 	}, nil
 }
 
 func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-
-	if req.Queue == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "Queue",
-			Value:   req.Queue,
-			Message: "queue cannot be empty when preempting jobs",
-		}
-	}
-	if req.JobSetId == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "JobSetId",
-			Value:   req.JobSetId,
-			Message: "jobset cannot be empty when preempting jobs",
-		}
+	err := validation.ValidateQueueAndJobSet(req)
+	if err != nil {
+		return nil, err
 	}
 
 	userId, groups, err := s.authorize(ctx, req.Queue, permissions.PreemptAnyJobs, queue.PermissionVerbPreempt)
@@ -309,12 +215,11 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, err
 	}
 
-	sequence, err := preemptJobEventSequenceForJobIds(req.JobIds, req.Queue, req.JobSetId, userId, groups)
+	sequence, err := preemptJobEventSequenceForJobIds(s.clock, req.JobIds, req.Queue, req.JobSetId, userId, groups)
 	if err != nil {
 		return nil, err
 	}
 
-	// send the message to both schedulers because jobs may be on either
 	err = s.publisher.PublishMessages(ctx, sequence)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -324,7 +229,7 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 	return &types.Empty{}, nil
 }
 
-func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, error) {
+func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      q,
 		JobSetName: jobSet,
@@ -332,6 +237,7 @@ func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string,
 		Groups:     groups,
 		Events:     []*armadaevents.EventSequence_Event{},
 	}
+	eventTime := clock.Now().UTC()
 	for _, jobIdStr := range jobIds {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
 		if err != nil {
@@ -339,7 +245,7 @@ func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string,
 			return nil, fmt.Errorf("could not convert job id to uuid: %s", jobIdStr)
 		}
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Created: pointer.Now(),
+			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
 					JobId:    jobId,
@@ -353,90 +259,33 @@ func preemptJobEventSequenceForJobIds(jobIds []string, q, jobSet, userId string,
 
 func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-
-	if s.requireQueueAndJobSet {
-		err := validation.ValidateQueueAndJobSet(req)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		if req.JobSetId == "" || req.Queue == "" {
-			ctx.
-				WithField("apidatamissing", "true").
-				Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, s.GetUser(ctx))
-		}
-
-		// If either queue or jobSetId is missing, we get the job set and queue associated
-		// with the first job id in the request.
-		//
-		// This must be done before checking auth, since the auth check expects a queue.
-		if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
-			firstJobId := req.JobIds[0]
-
-			resolvedQueue, resolvedJobset, err := s.resolveQueueAndJobsetForJob(ctx, firstJobId)
-			if err != nil {
-				return nil, err
-			}
-
-			// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-			// since the job could not be found for the provided queue/jobSetId.
-			// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-			// since the job could not be found for the provided queue/jobSetId.
-			if req.Queue != "" && req.Queue != resolvedQueue {
-				return nil, &armadaerrors.ErrNotFound{
-					Type:    "job",
-					Value:   firstJobId,
-					Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
-				}
-			}
-			if req.JobSetId != "" && req.JobSetId != resolvedJobset {
-				return nil, &armadaerrors.ErrNotFound{
-					Type:    "job",
-					Value:   firstJobId,
-					Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
-				}
-			}
-			req.Queue = resolvedQueue
-			req.JobSetId = resolvedJobset
-		}
+	err := validation.ValidateQueueAndJobSet(req)
+	if err != nil {
+		return nil, err
 	}
 
-	// TODO: this is incorrect we only validate the permissions on the first job but the other jobs may belong to different queues
 	userId, groups, err := s.authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
 	if err != nil {
 		return nil, err
 	}
 
-	if req.Queue == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "Queue",
-			Value:   req.Queue,
-			Message: "queue is empty",
-		}
-	}
-	if req.JobSetId == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "JobSetId",
-			Value:   req.JobSetId,
-			Message: "JobSetId is empty",
-		}
-	}
-	priority := conversion.PriorityAsInt32(req.NewPriority)
-
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)
+	priority := conversion.PriorityAsInt32(req.NewPriority)
 
 	sequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
-		JobSetName: req.JobSetId, // TODO: this is incorrect- the jobs may be for different jobsets
+		JobSetName: req.JobSetId,
 		UserId:     userId,
 		Groups:     groups,
 		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobIds), len(req.JobIds)),
 	}
 
+	eventTime := s.clock.Now().UTC()
 	// No job ids implicitly indicates that all jobs in the job set should be re-prioritised.
 	if len(req.JobIds) == 0 {
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 				ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
 					Priority: priority,
@@ -449,7 +298,6 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 
 	// Otherwise, only the specified jobs should be re-prioritised.
 	for i, jobIdString := range req.JobIds {
-
 		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdString)
 		if err != nil {
 			results[jobIdString] = err.Error()
@@ -457,6 +305,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 		}
 
 		sequence.Events[i] = &armadaevents.EventSequence_Event{
+			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    jobId,
@@ -482,22 +331,12 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 
 func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if req.Queue == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "Queue",
-			Value:   req.Queue,
-			Message: "queue cannot be empty when cancelling a jobset",
-		}
-	}
-	if req.JobSetId == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "JobSetId",
-			Value:   req.JobSetId,
-			Message: "jobsetId cannot be empty when cancelling a jobset",
-		}
+	err := validation.ValidateQueueAndJobSet(req)
+	if err != nil {
+		return nil, err
 	}
 
-	err := validation.ValidateJobSetFilter(req.Filter)
+	err = validation.ValidateJobSetFilter(req.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -518,6 +357,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 			states[i] = armadaevents.JobState_RUNNING
 		}
 	}
+	eventTime := s.clock.Now().UTC()
 	pulsarSchedulerSequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
@@ -525,7 +365,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 		Groups:     groups,
 		Events: []*armadaevents.EventSequence_Event{
 			{
-				Created: pointer.Now(),
+				Created: &eventTime,
 				Event: &armadaevents.EventSequence_Event_CancelJobSet{
 					CancelJobSet: &armadaevents.CancelJobSet{
 						States: states,
@@ -544,49 +384,18 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	return &types.Empty{}, err
 }
 
-// Assumes all Job IDs are in the queue and job set provided
-func (s *Server) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if q == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "Queue",
-			Value:   "",
-			Message: "Queue cannot be empty when cancelling multiple jobs",
-		}
-	}
-	if jobSet == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "Jobset",
-			Value:   "",
-			Message: "Jobset cannot be empty when cancelling multiple jobs",
-		}
-	}
-	userId, groups, err := s.authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
-	if err != nil {
-		return nil, err
-	}
-	var cancelledIds []string
-	es, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups, reason)
-	err = s.publisher.PublishMessages(ctx, es)
-	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
-		return nil, status.Error(codes.Internal, "Failed to send message")
-	}
-	return &api.CancellationResult{
-		CancelledIds: cancelledIds,
-	}, nil
-}
-
 // Returns event sequence along with all valid job ids in the sequence
-func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string, reason string) (*armadaevents.EventSequence, []string) {
+func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, userId string, groups []string, reason string) (*armadaevents.EventSequence, []string) {
 	sequence := &armadaevents.EventSequence{
-		Queue:      q,
+		Queue:      queue,
 		JobSetName: jobSet,
 		UserId:     userId,
 		Groups:     groups,
 		Events:     []*armadaevents.EventSequence_Event{},
 	}
 	var validIds []string
+	truncatedReason := util.Truncate(reason, 512)
+	eventTime := clock.Now().UTC()
 	for _, jobIdStr := range jobIds {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
 		if err != nil {
@@ -595,33 +404,17 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 		}
 		validIds = append(validIds, jobIdStr)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Created: pointer.Now(),
+			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
 					JobId:    jobId,
 					JobIdStr: jobIdStr,
-					Reason:   util.Truncate(reason, 512),
+					Reason:   truncatedReason,
 				},
 			},
 		})
 	}
 	return sequence, validIds
-}
-
-// resolveQueueAndJobsetForJob returns the queue and jobset for a job.
-// If no job can be retrieved then an error is returned.
-func (s *Server) resolveQueueAndJobsetForJob(ctx *armadacontext.Context, jobId string) (string, string, error) {
-	jobDetails, err := s.jobRepository.GetPulsarSchedulerJobDetails(ctx, jobId)
-	if err != nil {
-		return "", "", err
-	}
-	if jobDetails != nil {
-		return jobDetails.Queue, jobDetails.JobSet, nil
-	}
-	return "", "", &armadaerrors.ErrNotFound{
-		Type:  "job",
-		Value: jobId,
-	}
 }
 
 func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {

@@ -49,12 +49,18 @@ func getComponentsList() []string {
 	return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
 }
 
-// Dependencies include pulsar, postgres (v1 and v2) as well as redis.
-func StartDependencies() error {
-	if onArm() {
-		os.Setenv("PULSAR_IMAGE", "richgross/pulsar:2.11.0")
+// Runs scheduler and lookout migrations
+func RunMigrations() error {
+	migrations := []string{
+		"scheduler-migration",
+		"lookoutv2-migration",
 	}
+	command := append([]string{"compose", "up", "-d"}, migrations...)
+	return dockerRun(command...)
+}
 
+// Starts armada infrastructure dependencies
+func StartDependencies() error {
 	command := append([]string{"compose", "up", "-d"}, dependencies...)
 	return dockerRun(command...)
 }

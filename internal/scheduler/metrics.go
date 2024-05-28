@@ -11,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -136,12 +137,15 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 
 	provider := metricProvider{queueStates: make(map[string]*queueState, len(queues))}
 	queuedJobsCount := make(map[string]int, len(queues))
+	schedulingKeysByQueue := make(map[string]map[schedulerobjects.SchedulingKey]bool, len(queues))
+
 	for _, queue := range queues {
 		provider.queueStates[queue.Name] = &queueState{
 			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
 			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
 		}
 		queuedJobsCount[queue.Name] = 0
+		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
 	}
 
 	err = c.poolAssigner.Refresh(ctx)
@@ -186,6 +190,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.queuedJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
 			queuedJobsCount[job.Queue()]++
+			schedulingKeysByQueue[job.Queue()][job.SchedulingKey()] = true
 		} else {
 			run := job.LatestRun()
 			if run == nil {
@@ -204,7 +209,11 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		recorder.RecordResources(pool, priorityClass, jobResources)
 	}
 
-	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, provider)
+	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[schedulerobjects.SchedulingKey]bool) int {
+		return len(schedulingKeys)
+	})
+
+	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, queuedDistinctSchedulingKeysCount, provider)
 	return queueMetrics, nil
 }
 
