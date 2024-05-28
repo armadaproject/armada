@@ -335,7 +335,7 @@ Uses GetJobRunDetails RPC to get the details of job runs.
 
 * **Parameters**
 
-    **run_ids** (*Iterable**[**str**]*) – The job run ids to get the detials of.
+    **run_ids** (*Iterable**[**str**]*) – The job run ids to get the details of.
 
 
 

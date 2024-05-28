@@ -223,7 +223,7 @@ class ArmadaClient:
 
         Uses GetJobRunDetails RPC to get the details of job runs.
 
-        :param run_ids: The job run ids to get the detials of.
+        :param run_ids: The job run ids to get the details of.
         :return: A JobRunDetailsResponse object.
         """
         request = job_pb2.JobRunDetailsRequest(
