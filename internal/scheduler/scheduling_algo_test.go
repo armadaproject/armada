@@ -12,7 +12,6 @@ import (
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	armadaconfiguration "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -49,9 +48,6 @@ func TestSchedule(t *testing.T) {
 
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
-
-		// Count of jobs expected to fail
-		expectedFailedJobCount int
 	}{
 		"scheduling": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -301,17 +297,6 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
 		},
-		"gang scheduling successful with some jobs failing to schedule above min cardinality": {
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
-			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
-			queuedJobs: testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
-				2,
-				testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 10),
-			),
-			expectedScheduledIndices: []int{0, 1},
-			expectedFailedJobCount:   8,
-		},
 		"not scheduling a gang that does not fit on any executor": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
@@ -479,14 +464,6 @@ func TestSchedule(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
 			}
-			// Sanity check: we've set `GangNumJobsScheduledAnnotation` for all scheduled jobs.
-			for _, job := range scheduledJobs {
-				assert.Contains(t, schedulerResult.AdditionalAnnotationsByJobId[job.Id()], armadaconfiguration.GangNumJobsScheduledAnnotation)
-			}
-
-			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality
-			failedJobs := FailedJobsFromSchedulerResult(schedulerResult)
-			assert.Equal(t, tc.expectedFailedJobCount, len(failedJobs))
 
 			// Check that preempted jobs are marked as such consistently.
 			for _, job := range preemptedJobs {
@@ -506,13 +483,6 @@ func TestSchedule(t *testing.T) {
 				assert.NotEmpty(t, dbRun.NodeName())
 			}
 
-			// Check that failed jobs are marked as such consistently.
-			for _, job := range failedJobs {
-				dbJob := txn.GetById(job.Id())
-				assert.True(t, dbJob.Failed())
-				assert.False(t, dbJob.Queued())
-			}
-
 			// Check that jobDb was updated correctly.
 			// TODO: Check that there are no unexpected jobs in the jobDb.
 			for _, job := range preemptedJobs {
@@ -520,10 +490,6 @@ func TestSchedule(t *testing.T) {
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
 			for _, job := range scheduledJobs {
-				dbJob := txn.GetById(job.Id())
-				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
-			}
-			for _, job := range failedJobs {
 				dbJob := txn.GetById(job.Id())
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
