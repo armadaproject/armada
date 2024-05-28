@@ -197,6 +197,36 @@ class ArmadaClient:
         )
         return self.jobs_stub.GetJobStatus(request)
 
+    def get_job_details(self, job_ids: Iterable[str], expand_job_spec: bool, expand_job_run: bool) -> job_pb2.JobDetailsResponse:
+        """Get the details of armada jobs.
+
+        Uses GetJobDetails RPC to get the details of jobs.
+
+        :param job_ids: The job ids to get the details of.
+        :param expand_job_spec: Whether to include the job_spec field in the response.
+        :param expand_job_run: Whether to include the job_run field in the response.
+        :return: A JobDetailsResponse object.
+        """
+        request = job_pb2.JobDetailsRequest(
+            job_ids=job_ids,
+            expand_job_spec=expand_job_spec,
+            expand_job_run=expand_job_run,
+        )
+        return self.jobs_stub.GetJobDetails(request)
+
+    def get_job_run_details(self, run_ids: Iterable[str]) -> job_pb2.JobRunDetailsResponse:
+        """Get the details of armada job runs.
+
+        Uses GetJobRunDetails RPC to get the details of job runs.
+
+        :param run_ids: The job run ids to get the detials of.
+        :return: A JobRunDetailsResponse object.
+        """
+        request = job_pb2.JobRunDetailsRequest(
+            run_ids=run_ids,
+        )
+        return self.jobs_stub.GetJobRunDetails(request)
+
     def cancel_jobs(
         self,
         queue: str,

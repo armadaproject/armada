@@ -255,6 +255,37 @@ Health check for Event Service.
 
 
 
+#### get_job_details(job_ids, expand_job_spec, expand_job_run)
+Get the details of armada jobs.
+
+Uses GetJobDetails RPC to get the details of jobs.
+
+
+* **Parameters**
+
+    
+    * **job_ids** (*Iterable**[**str**]*) – The job ids to get the details of.
+
+
+    * **expand_job_spec** (*bool*) – Whether to include the job_spec field in the response.
+
+
+    * **expand_job_run** (*bool*) – Whether to include the job_run field in the response.
+
+
+
+* **Returns**
+
+    A JobDetailsResponse object.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobDetailsResponse
+
+
+
 #### get_job_events_stream(queue, job_set_id, from_message_id=None)
 Get event stream for a job set.
 
@@ -293,6 +324,30 @@ for event in events:
 * **Return type**
 
     *Iterator*[armada.event_pb2.EventStreamMessage]
+
+
+
+#### get_job_run_details(run_ids)
+Get the details of armada job runs.
+
+Uses GetJobRunDetails RPC to get the details of job runs.
+
+
+* **Parameters**
+
+    **run_ids** (*Iterable**[**str**]*) – The job run ids to get the detials of.
+
+
+
+* **Returns**
+
+    A JobRunDetailsResponse object.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobRunDetailsResponse
 
 
 
