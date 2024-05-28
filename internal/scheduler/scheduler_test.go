@@ -2021,6 +2021,7 @@ func TestCycleConsistency(t *testing.T) {
 							Event: &armadaevents.EventSequence_Event_JobRunLeased{
 								JobRunLeased: &armadaevents.JobRunLeased{
 									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									RunIdStr:               testfixtures.UUIDFromInt(1).String(),
 									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									JobIdStr:               queuedJobA.JobID,
 									ExecutorId:             testExecutor,

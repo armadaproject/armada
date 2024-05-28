@@ -700,6 +700,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
 						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						RunIdStr: lastRun.Id().String(),
 						JobId:    jobId,
 						JobIdStr: job.Id(),
 					},
