@@ -1,13 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	"regexp"
 	"strings"
 
-	semver "github.com/Masterminds/semver/v3"
 	"github.com/magefile/mage/mg"
+
+	semver "github.com/Masterminds/semver/v3"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 )
@@ -19,22 +21,12 @@ const (
 	KIND_NAME               = "armada-test"
 )
 
-func getImages() []string {
-	images := []string{
+func getImagesUsedInTestsOrControllers() []string {
+	return []string{
+		"nginx:1.21.6", // Used by ingress-controller
 		"alpine:3.18.3",
-		"nginx:1.21.6",
-		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
-		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
+		"bitnami/kubectl:1.30",
 	}
-	// TODO: find suitable kubectl image for arm64
-	if !isAppleSilicon() {
-		images = append(images, "bitnami/kubectl:1.24.8")
-	}
-	return images
-}
-
-func isAppleSilicon() bool {
-	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
 }
 
 func kindBinary() string {
@@ -73,18 +65,6 @@ func kindCheck() error {
 	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
 }
 
-// Images that need to be available in the Kind cluster,
-// e.g., images required for e2e tests.
-func kindGetImages() error {
-	for _, image := range getImages() {
-		if err := dockerRun("pull", image); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func kindInitCluster() error {
 	out, err := kindOutput("get", "clusters")
 	if err != nil {
@@ -103,23 +83,125 @@ func kindInitCluster() error {
 	return nil
 }
 
-func kindSetup() error {
-	mg.Deps(kindInitCluster, kindGetImages)
+func imagesFromFile(resourceYamlPath string) ([]string, error) {
+	content, err := os.ReadFile(resourceYamlPath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
 
-	for _, image := range getImages() {
-		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
-		if err != nil {
-			return err
+	re := regexp.MustCompile(`(?m)image:\s*([^\s]+)`)
+	matches := re.FindAllStringSubmatch(string(content), -1)
+	if matches == nil {
+		return nil, nil
+	}
+
+	var images []string
+	for _, match := range matches {
+		if len(match) > 1 {
+			images = append(images, match[1])
 		}
 	}
-	// Resources to create in the Kind cluster.
+
+	return images, nil
+}
+
+func remapDockerRegistryIfRequired(image string, registries map[string]string) string {
+	for registryFrom, registryTo := range registries {
+		if strings.HasPrefix(image, registryFrom) {
+			return registryTo + strings.TrimPrefix(image, registryFrom)
+		}
+	}
+	return image
+}
+
+func remapDockerImagesInKubernetesManifest(filePath string, images []string, buildConfig BuildConfig) (string, error) {
+	if buildConfig.DockerRegistries == nil {
+		return filePath, nil
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return filePath, fmt.Errorf("error reading manifest: %w", err)
+	}
+
+	replacedContent := ""
+	for _, image := range images {
+		targetImage := remapDockerRegistryIfRequired(image, buildConfig.DockerRegistries)
+		if targetImage != image {
+			if replacedContent == "" {
+				replacedContent = string(content)
+			}
+
+			replacedContent = strings.ReplaceAll(replacedContent, image, targetImage)
+		}
+	}
+
+	if replacedContent == "" {
+		return filePath, nil
+	}
+
+	f, err := os.CreateTemp("", "")
+	if err != nil {
+		return filePath, fmt.Errorf("error creating temporary file: %w", err)
+	}
+	_, err = f.WriteString(replacedContent)
+	if err != nil {
+		return filePath, fmt.Errorf("error writing temporary file: %w", err)
+	}
+	return f.Name(), nil
+}
+
+func kindSetupExternalImages(buildConfig BuildConfig, images []string) error {
+	for _, image := range images {
+		image = remapDockerRegistryIfRequired(image, buildConfig.DockerRegistries)
+		if err := dockerRun("pull", image); err != nil {
+			return fmt.Errorf("error pulling image: %w", err)
+		}
+
+		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
+		if err != nil {
+			return fmt.Errorf("error loading image to kind: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func kindSetup() error {
+	mg.Deps(kindInitCluster)
+
+	buildConfig, err := getBuildConfig()
+	if err != nil {
+		return err
+	}
+
+	err = kindSetupExternalImages(buildConfig, getImagesUsedInTestsOrControllers())
+	if err != nil {
+		return err
+	}
+
 	resources := []string{
 		"e2e/setup/ingress-nginx.yaml",
 		"e2e/setup/priorityclasses.yaml",
 		"e2e/setup/namespace-with-anonymous-user.yaml",
 	}
 	for _, f := range resources {
-		err := kubectlRun("apply", "-f", f, "--context", "kind-armada-test")
+		images, err := imagesFromFile(f)
+		if err != nil {
+			return err
+		}
+
+		err = kindSetupExternalImages(buildConfig, images)
+		if err != nil {
+			return err
+		}
+
+		file, err := remapDockerImagesInKubernetesManifest(f, images, buildConfig)
+		if err != nil {
+			return err
+		}
+
+		err = kubectlRun("apply", "-f", file, "--context", "kind-armada-test")
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,8 @@ For the api definitions:
 https://armadaproject.io/api
 """
 
+from datetime import timedelta
+import logging
 from typing import Dict, List, Optional, AsyncIterator
 
 import grpc
@@ -21,6 +23,68 @@ from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions
 from armada_client.typings import JobState
+from armada_client.iterators import AsyncTimeoutIterator, IteratorTimeoutException
+
+
+class _AsyncResilientArmadaEventStream(AsyncIterator[event_pb2.EventStreamMessage]):
+    def __init__(
+        self,
+        *,
+        queue: str,
+        job_set_id: str,
+        from_message_id: Optional[str] = None,
+        event_stub: event_pb2_grpc.EventStub,
+        event_timeout: timedelta,
+    ):
+        self._queue = queue
+        self._job_set_id = job_set_id
+        self._last_message_id = from_message_id or ""
+        self._stream = None
+        self._cancelled = False
+        self._event_stub = event_stub
+        self._event_timeout = event_timeout
+        self._timeout_iterator = None
+
+    def __aiter__(self) -> AsyncIterator[event_pb2.EventStreamMessage]:
+        return self
+
+    async def __anext__(self) -> event_pb2.EventStreamMessage:
+        while True:
+            if self._cancelled:
+                raise StopAsyncIteration()
+            if self._timeout_iterator is None:
+                self._timeout_iterator = self._re_connect()
+            try:
+                # we can't use anext here, as it requires python 3.10+
+                message = await self._timeout_iterator.__anext__()
+                self._last_message_id = message.id
+                return message
+            except IteratorTimeoutException:
+                self._timeout_iterator = None
+
+    def _re_connect(self):
+        self._close_connection()
+        jsr = event_pb2.JobSetRequest(
+            queue=self._queue,
+            id=self._job_set_id,
+            from_message_id=self._last_message_id,
+            watch=True,
+            errorIfMissing=True,
+        )
+        self._stream = self._event_stub.GetJobSetEvents(jsr)
+        return AsyncTimeoutIterator(self._stream, timeout=self._event_timeout)
+
+    def _close_connection(self):
+        if self._stream is not None:
+            self._stream.cancel()
+            self._stream = None
+
+    def cancel(self):
+        self._cancelled = True
+        self._close_connection()
+
+
+logger = logging.getLogger("armada_client.asyncio_client")
 
 
 class ArmadaAsyncIOClient:
@@ -33,9 +97,14 @@ class ArmadaAsyncIOClient:
     :return: an Armada client instance
     """
 
-    def __init__(self, channel: grpc.aio.Channel) -> None:
+    def __init__(
+        self,
+        channel: grpc.aio.Channel,
+        event_timeout: timedelta = timedelta(minutes=15),
+    ) -> None:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.event_timeout = event_timeout
 
     async def get_job_events_stream(
         self,
@@ -62,19 +131,13 @@ class ArmadaAsyncIOClient:
         :param from_message_id: The from message id.
         :return: A job events stream for the job_set_id provided.
         """
-
-        if from_message_id is None:
-            from_message_id = ""
-
-        jsr = event_pb2.JobSetRequest(
+        return _AsyncResilientArmadaEventStream(
             queue=queue,
-            id=job_set_id,
+            job_set_id=job_set_id,
             from_message_id=from_message_id,
-            watch=True,
-            errorIfMissing=True,
+            event_stub=self.event_stub,
+            event_timeout=self.event_timeout,
         )
-        response = self.event_stub.GetJobSetEvents(jsr)
-        return response
 
     @staticmethod
     def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
@@ -124,36 +187,33 @@ class ArmadaAsyncIOClient:
 
     async def cancel_jobs(
         self,
-        queue: Optional[str] = None,
+        queue: str,
+        job_set_id: str,
         job_id: Optional[str] = None,
-        job_set_id: Optional[str] = None,
     ) -> submit_pb2.CancellationResult:
         """Cancel jobs in a given queue.
 
-        Uses the CancelJobs RPC to cancel jobs. Either job_id or
-        job_set_id is required.
+        Uses the CancelJobs RPC to cancel jobs.
 
         :param queue: The name of the queue
-        :param job_id: The name of the job id (this or job_set_id required)
-        :param job_set_id: An array of JobSubmitRequestItems. (this or job_id required)
+        :param job_set_id: The name of the job set id
+        :param job_id: The name of the job id (optional), if empty - cancel all jobs
         :return: A CancellationResult object.
         """
+        if not queue or not job_set_id:
+            raise ValueError("Both queue and job_set_id must be provided.")
 
-        # Checks to ensure that either job_id is provided,
-        # or job_set_id AND queue is provided.
-        # ensure that the others have appropriate empty values.
-
-        if job_id and not queue and not job_set_id:
-            request = submit_pb2.JobCancelRequest(job_id=job_id)
-
-        elif job_set_id and queue and not job_id:
-            request = submit_pb2.JobCancelRequest(queue=queue, job_set_id=job_set_id)
-
+        if job_id and queue and job_set_id:
+            request = submit_pb2.JobCancelRequest(
+                queue=queue, job_set_id=job_set_id, job_id=job_id
+            )
+            return await self.submit_stub.CancelJobs(request)
         else:
-            raise ValueError("Either job_id or job_set_id and queue must be provided.")
-
-        response = await self.submit_stub.CancelJobs(request)
-        return response
+            logger.warning(
+                "cancelling all jobs within a jobset via cancel_jobs is deprecated. "
+                "Use cancel_jobset instead."
+            )
+            return await self.cancel_jobset(queue, job_set_id, [])  # type: ignore
 
     async def cancel_jobset(
         self,
@@ -186,14 +246,14 @@ class ArmadaAsyncIOClient:
     async def reprioritize_jobs(
         self,
         new_priority: float,
-        job_ids: Optional[List[str]] = None,
-        job_set_id: Optional[str] = None,
-        queue: Optional[str] = None,
+        job_ids: Optional[List[str]],
+        job_set_id: str,
+        queue: str,
     ) -> submit_pb2.JobReprioritizeResponse:
         """Reprioritize jobs with new_priority value.
 
         Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
-        or job set.
+        or job set (if job_ids are set to None or empty).
 
         :param new_priority: The new priority value for the jobs
         :param job_ids: A list of job ids to change priority of
@@ -201,27 +261,48 @@ class ArmadaAsyncIOClient:
         :param queue: The queue the jobs are in
         :return: JobReprioritizeResponse object. It is a map of strings.
         """
+        if not queue or not job_set_id:
+            raise ValueError("Both queue and job_set_id must be provided.")
 
-        # Same as in cancel_jobs, ensure that either
-        # job_ids or job_set_id and queue is provided.
-
-        if job_ids and not job_set_id and not queue:
+        if job_ids:
             request = submit_pb2.JobReprioritizeRequest(
+                queue=queue,
+                job_set_id=job_set_id,
                 job_ids=job_ids,
                 new_priority=new_priority,
             )
 
-        elif job_set_id and queue and not job_ids:
+        else:
             request = submit_pb2.JobReprioritizeRequest(
-                job_set_id=job_set_id,
                 queue=queue,
+                job_set_id=job_set_id,
                 new_priority=new_priority,
             )
 
-        else:
-            raise ValueError("Either job_ids or job_set_id and queue must be provided.")
+        return await self.submit_stub.ReprioritizeJobs(request)
 
-        response = await self.submit_stub.ReprioritizeJobs(request)
+    async def preempt_jobs(
+        self,
+        queue: str,
+        job_set_id: str,
+        job_id: str,
+    ) -> empty_pb2.Empty:
+        """Preempt jobs in a given queue.
+
+        Uses the PreemptJobs RPC to preempt jobs.
+
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set id
+        :param job_id: The id the job
+        :return: An empty response.
+        """
+        if not queue or not job_set_id or not job_id:
+            raise ValueError("All of queue, job_set_id and job_id must be provided.")
+
+        request = submit_pb2.JobPreemptRequest(
+            queue=queue, job_set_id=job_set_id, job_ids=[job_id]
+        )
+        response = await self.submit_stub.PreemptJobs(request)
         return response
 
     async def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:

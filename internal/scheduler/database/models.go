@@ -37,6 +37,7 @@ type Job struct {
 	Serial                  int64     `db:"serial"`
 	LastModified            time.Time `db:"last_modified"`
 	Validated               bool      `db:"validated"`
+	Pools                   []string  `db:"pools"`
 }
 
 type JobRunError struct {

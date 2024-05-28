@@ -39,6 +39,9 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
     def CancelJobSet(self, request, context):
         return empty_pb2.Empty()
 
+    def PreemptJobs(self, request, context):
+        return empty_pb2.Empty()
+
     def ReprioritizeJobs(self, request, context):
         new_priority = request.new_priority
         if len(request.job_ids) > 0:

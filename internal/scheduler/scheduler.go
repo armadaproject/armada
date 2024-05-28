@@ -1062,12 +1062,13 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		}
 
 		if result.isSchedulable {
-			job = job.WithValidated(true)
+			job = job.WithValidated(true).WithPools(result.pools)
 			jobsToUpdate = append(jobsToUpdate, job)
 
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobValidated{
 				JobValidated: &armadaevents.JobValidated{
 					JobId: jobId,
+					Pools: result.pools,
 				},
 			}
 		} else {

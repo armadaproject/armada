@@ -17,7 +17,7 @@ func queueCreateCmd() *cobra.Command {
 // Takes a caller-supplied app struct; useful for testing.
 func queueCreateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "queue <queueName>",
+		Use:   "queue <queue-name>",
 		Short: "Create new queue",
 		Long: `Every job submitted to armada needs to be associated with queue.
 
@@ -29,11 +29,11 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			// TODO cmd.Flags().GetFloat64("priorityFactor") returns (0, nil) for invalid input (e.g., "not_a_float")
+			// TODO cmd.Flags().GetFloat64("priority-factor") returns (0, nil) for invalid input (e.g., "not_a_float")
 			// TODO the other Flags get methods also fail to return errors on invalid input
-			priorityFactor, err := cmd.Flags().GetFloat64("priorityFactor")
+			priorityFactor, err := cmd.Flags().GetFloat64("priority-factor")
 			if err != nil {
-				return fmt.Errorf("error reading priorityFactor: %s", err)
+				return fmt.Errorf("error reading priority-factor: %s", err)
 			}
 
 			owners, err := cmd.Flags().GetStringSlice("owners")
@@ -41,9 +41,9 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("error reading owners: %s", err)
 			}
 
-			groups, err := cmd.Flags().GetStringSlice("groupOwners")
+			groups, err := cmd.Flags().GetStringSlice("group-owners")
 			if err != nil {
-				return fmt.Errorf("error reading groupOwners: %s", err)
+				return fmt.Errorf("error reading group-owners: %s", err)
 			}
 
 			queue, err := queue.NewQueue(&api.Queue{
@@ -59,9 +59,9 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 			return a.CreateQueue(queue)
 		},
 	}
-	cmd.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
+	cmd.Flags().Float64("priority-factor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
-	cmd.Flags().StringSlice("groupOwners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
+	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	return cmd
 }
 
@@ -72,7 +72,7 @@ func queueDeleteCmd() *cobra.Command {
 // Takes a caller-supplied app struct; useful for testing.
 func queueDeleteCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "queue <queueName>",
+		Use:   "queue <queue-name>",
 		Short: "Delete existing queue",
 		Long:  "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
 		Args:  cobra.ExactArgs(1),
@@ -94,9 +94,9 @@ func queueGetCmd() *cobra.Command {
 // Takes a caller-supplied app struct; useful for testing.
 func queueGetCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "queue <queueName>",
-		Short: "Gets Queue Information.",
-		Long:  "Gets Queue Information",
+		Use:   "queue <queue-name>",
+		Short: "Gets queue information.",
+		Long:  "Gets queue information",
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
@@ -116,7 +116,7 @@ func queueUpdateCmd() *cobra.Command {
 // Takes a caller-supplied app struct; useful for testing.
 func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "queue <queueName>",
+		Use:   "queue <queue-name>",
 		Short: "Update an existing queue",
 		Long:  "Update settings of an existing queue",
 		Args:  cobra.ExactArgs(1),
@@ -126,9 +126,9 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			priorityFactor, err := cmd.Flags().GetFloat64("priorityFactor")
+			priorityFactor, err := cmd.Flags().GetFloat64("priority-factor")
 			if err != nil {
-				return fmt.Errorf("error reading priorityFactor: %s", err)
+				return fmt.Errorf("error reading priority-factor: %s", err)
 			}
 
 			owners, err := cmd.Flags().GetStringSlice("owners")
@@ -136,9 +136,9 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading owners: %s", err)
 			}
 
-			groups, err := cmd.Flags().GetStringSlice("groupOwners")
+			groups, err := cmd.Flags().GetStringSlice("group-owners")
 			if err != nil {
-				return fmt.Errorf("error reading groupOwners: %s", err)
+				return fmt.Errorf("error reading group-owners: %s", err)
 			}
 
 			queue, err := queue.NewQueue(&api.Queue{
@@ -155,8 +155,8 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 		},
 	}
 	// TODO this will overwrite existing values with default values if not all flags are provided
-	cmd.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
+	cmd.Flags().Float64("priority-factor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
-	cmd.Flags().StringSlice("groupOwners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
+	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	return cmd
 }
