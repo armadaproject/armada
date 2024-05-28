@@ -78,16 +78,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return nil
 	})
 
-	// Setup Redis
-	db := createRedisClient(&config.Redis)
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.WithError(err).Error("failed to close Redis client")
-		}
-	}()
-	prometheus.MustRegister(
-		redisprometheus.NewCollector("armada", "redis", db))
-
 	// Create database connection. This is used for the query api and also to store queues
 	// In a subsequent pr we will move deduplication here too and move the config out of the `queryapi` namespace
 	queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
@@ -109,13 +99,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
-	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
+	queueRepository := repository.NewPostgresQueueRepository(queryDb)
 	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
 	services = append(services, func() error {
 		return queueCache.Run(ctx)
 	})
-	healthChecks.Add(repository.NewRedisHealth(db))
-
 	eventRepository := event.NewEventRepository(eventDb)
 
 	authorizer := auth.NewAuthorizer(

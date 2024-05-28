@@ -36,8 +36,6 @@ type ExecutorApi struct {
 	jobRepository database.JobRepository
 	// Interface to the component storing executor information, such as which when we last heard from an executor.
 	executorRepository database.ExecutorRepository
-	// Like executorRepository
-	legacyExecutorRepository database.ExecutorRepository
 	// Allowed priority class priorities.
 	allowedPriorities []int32
 	// Known priority classes
@@ -54,7 +52,6 @@ type ExecutorApi struct {
 func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
-	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
@@ -68,7 +65,6 @@ func NewExecutorApi(producer pulsar.Producer,
 		producer:                  producer,
 		jobRepository:             jobRepository,
 		executorRepository:        executorRepository,
-		legacyExecutorRepository:  legacyExecutorRepository,
 		allowedPriorities:         allowedPriorities,
 		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
@@ -93,9 +89,6 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
-		return err
-	}
-	if err = srv.legacyExecutorRepository.StoreExecutor(ctx, executor); err != nil {
 		return err
 	}
 
