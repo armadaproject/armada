@@ -196,7 +196,7 @@ func TestConvertSequence(t *testing.T) {
 		"SubmitChecked": {
 			events: []*armadaevents.EventSequence_Event{f.JobValidated},
 			expected: []DbOperation{
-				MarkJobsValidated{f.JobIdString: true},
+				MarkJobsValidated{f.JobIdString: []string{"cpu"}},
 			},
 		},
 		"PositionMarker": {
