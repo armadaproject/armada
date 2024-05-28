@@ -404,11 +404,6 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 			return err
 		}
 	}
-	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job, nil); err != nil {
-			return err
-		}
-	}
 	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
 	// This is to make sure that preemption is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
@@ -517,16 +512,12 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
-	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
+	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
 	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
 	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs, result.AdditionalAnnotationsByJobId)
-	if err != nil {
-		return nil, err
-	}
-	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -635,32 +626,6 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 								Priority:    scheduledAtPriority,
 							},
 						},
-					},
-				},
-			},
-		})
-	}
-	return eventSequences, nil
-}
-
-func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
-	for _, job := range jobs {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
-		if err != nil {
-			return nil, err
-		}
-		gangJobUnschedulableError := &armadaevents.Error{
-			Terminal: true,
-			Reason:   &armadaevents.Error_GangJobUnschedulable{GangJobUnschedulable: &armadaevents.GangJobUnschedulable{Message: "Job did not meet the minimum gang cardinality"}},
-		}
-		eventSequences = append(eventSequences, &armadaevents.EventSequence{
-			Queue:      job.Queue(),
-			JobSetName: job.Jobset(),
-			Events: []*armadaevents.EventSequence_Event{
-				{
-					Created: &time,
-					Event: &armadaevents.EventSequence_Event_JobErrors{
-						JobErrors: &armadaevents.JobErrors{JobId: jobId, Errors: []*armadaevents.Error{gangJobUnschedulableError}},
 					},
 				},
 			},

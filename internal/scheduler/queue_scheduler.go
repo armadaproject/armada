@@ -4,10 +4,7 @@ import (
 	"container/heap"
 	"fmt"
 	"reflect"
-	"strconv"
 	"time"
-
-	"github.com/armadaproject/armada/internal/armada/configuration"
 
 	"github.com/pkg/errors"
 
@@ -64,7 +61,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
-	var failedJobs []*schedulercontext.JobSchedulingContext
+
 	nodeIdByJobId := make(map[string]string)
 	additionalAnnotationsByJobId := make(map[string]map[string]string)
 	ctx.Info("Looping through candidate gangs...")
@@ -106,14 +103,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
-			numScheduled := gctx.Fit().NumScheduled
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
-					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.GangNumJobsScheduledAnnotation: strconv.Itoa(numScheduled)}
-				} else if jctx.ShouldFail {
-					failedJobs = append(failedJobs, jctx)
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
@@ -154,7 +147,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:                nil,
 		ScheduledJobs:                scheduledJobs,
-		FailedJobs:                   failedJobs,
 		NodeIdByJobId:                nodeIdByJobId,
 		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
 		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
