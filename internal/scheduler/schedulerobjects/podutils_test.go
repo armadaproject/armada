@@ -215,12 +215,12 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"cpu":    resource.MustParse("1"),
 								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("3"),
+								"nvidia.com/gpu":    resource.MustParse("3"),
 							},
 							Requests: map[v1.ResourceName]resource.Quantity{
 								"cpu":    resource.MustParse("2"),
 								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("2"),
+								"nvidia.com/gpu":    resource.MustParse("2"),
 							},
 						},
 					},
@@ -325,12 +325,12 @@ func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"cpu":    resource.MustParse("1"),
 								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("3"),
+								"nvidia.com/gpu":    resource.MustParse("3"),
 							},
 							Requests: map[v1.ResourceName]resource.Quantity{
 								"cpu":    resource.MustParse("2"),
 								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("2"),
+								"nvidia.com/gpu":    resource.MustParse("2"),
 							},
 						},
 					},

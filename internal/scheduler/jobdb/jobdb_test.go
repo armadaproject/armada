@@ -306,12 +306,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("3"),
+						"nvidia.com/gpu":    resource.MustParse("3"),
 					},
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("2"),
+						"nvidia.com/gpu":    resource.MustParse("2"),
 					},
 				},
 			},
@@ -337,12 +337,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("3"),
+						"nvidia.com/gpu":    resource.MustParse("3"),
 					},
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("2"),
+						"nvidia.com/gpu":    resource.MustParse("2"),
 					},
 				},
 			},
@@ -367,12 +367,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("3"),
+						"nvidia.com/gpu":    resource.MustParse("3"),
 					},
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("2"),
+						"nvidia.com/gpu":    resource.MustParse("2"),
 					},
 				},
 			},
@@ -394,12 +394,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("3"),
+						"nvidia.com/gpu":    resource.MustParse("3"),
 					},
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("2"),
+						"nvidia.com/gpu":    resource.MustParse("2"),
 					},
 				},
 			},
@@ -424,12 +424,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("3"),
+						"nvidia.com/gpu":    resource.MustParse("3"),
 					},
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -451,12 +451,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("2"),
-						"gpu":    resource.MustParse("4"),
+						"nvidia.com/gpu":    resource.MustParse("4"),
 					},
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -480,7 +480,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -501,7 +501,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -525,7 +525,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -546,7 +546,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 						"foo":    resource.MustParse("0"),
 					},
 				},
@@ -571,7 +571,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -593,7 +593,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -616,7 +616,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -637,7 +637,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -673,7 +673,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -694,7 +694,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -717,7 +717,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -738,7 +738,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -761,7 +761,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -782,7 +782,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -805,7 +805,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -826,7 +826,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -849,7 +849,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -870,7 +870,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -894,7 +894,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":    resource.MustParse("4"),
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 					},
 				},
 			},
@@ -914,7 +914,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
+						"nvidia.com/gpu":    resource.MustParse("6"),
 						"cpu":    resource.MustParse("4"),
 					},
 				},

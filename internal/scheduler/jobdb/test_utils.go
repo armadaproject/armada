@@ -19,7 +19,7 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 	return []schedulerconfiguration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
-		{Name: "gpu", Resolution: resource.MustParse("1m")},
+		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 		{Name: "foo", Resolution: resource.MustParse("1m")},
 	}
 }

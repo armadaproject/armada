@@ -58,7 +58,7 @@ var (
 	TestResources                    = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
-		{Name: "gpu", Resolution: resource.MustParse("1")},
+		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
 	}
 	TestResourceNames = slices.Map(
 		TestResources,
@@ -634,9 +634,9 @@ func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 		jobId,
 		priority,
 		v1.ResourceList{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("128Gi"),
-			"gpu":    resource.MustParse("1"),
+			"cpu":            resource.MustParse("8"),
+			"memory":         resource.MustParse("128Gi"),
+			"nvidia.com/gpu": resource.MustParse("1"),
 		},
 	)
 	req.Tolerations = []v1.Toleration{
@@ -795,9 +795,9 @@ func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
 	node := TestNode(
 		priorities,
 		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("64"),
-			"memory": resource.MustParse("1024Gi"),
-			"gpu":    resource.MustParse("8"),
+			"cpu":            resource.MustParse("64"),
+			"memory":         resource.MustParse("1024Gi"),
+			"nvidia.com/gpu": resource.MustParse("8"),
 		},
 	)
 	node.Labels["gpu"] = "true"
@@ -998,6 +998,6 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 	return []schedulerconfiguration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
-		{Name: "gpu", Resolution: resource.MustParse("1m")},
+		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 	}
 }

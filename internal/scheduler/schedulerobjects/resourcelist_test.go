@@ -450,7 +450,7 @@ func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 			Resources: ResourceList{
 				Resources: map[string]resource.Quantity{
 					"cpu": resource.MustParse("1"),
-					"gpu": resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -460,7 +460,7 @@ func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 			Resources: ResourceList{
 				Resources: map[string]resource.Quantity{
 					"cpu": resource.MustParse("1"),
-					"gpu": resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -470,7 +470,7 @@ func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 			Resources: ResourceList{
 				Resources: map[string]resource.Quantity{
 					"cpu": resource.MustParse("1"),
-					"gpu": resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -515,7 +515,7 @@ func TestAllocatedByPriorityAndResourceType(t *testing.T) {
 			UsedAtPriority: 1,
 			Resources: map[string]resource.Quantity{
 				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 		},
 		"mid priority": {
@@ -523,7 +523,7 @@ func TestAllocatedByPriorityAndResourceType(t *testing.T) {
 			UsedAtPriority: 5,
 			Resources: map[string]resource.Quantity{
 				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 		},
 		"highest priority": {
@@ -531,7 +531,7 @@ func TestAllocatedByPriorityAndResourceType(t *testing.T) {
 			UsedAtPriority: 10,
 			Resources: map[string]resource.Quantity{
 				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 		},
 	}

@@ -344,7 +344,7 @@ func TestQueueScheduler(t *testing.T) {
 			),
 			Queues: testfixtures.SingleQueuePriorityOne("A"),
 			MinimumJobSize: map[string]resource.Quantity{
-				"gpu": resource.MustParse("1"),
+				"nvidia.com/gpu": resource.MustParse("1"),
 			},
 			ExpectedScheduledIndices: []int{2},
 		},
@@ -358,7 +358,7 @@ func TestQueueScheduler(t *testing.T) {
 			),
 			Queues: testfixtures.SingleQueuePriorityOne("A"),
 			MinimumJobSize: map[string]resource.Quantity{
-				"gpu": resource.MustParse("2"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 			ExpectedScheduledIndices: nil,
 		},

@@ -255,7 +255,7 @@ func TestGangScheduler(t *testing.T) {
 				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("1")},
 					{Name: "memory", Resolution: resource.MustParse("1Mi")},
-					{Name: "gpu", Resolution: resource.MustParse("1")},
+					{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -264,9 +264,9 @@ func TestGangScheduler(t *testing.T) {
 					0,
 					schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("31.5"),
-							"memory": resource.MustParse("512Gi"),
-							"gpu":    resource.MustParse("8"),
+							"cpu":            resource.MustParse("31.5"),
+							"memory":         resource.MustParse("512Gi"),
+							"nvidia.com/gpu": resource.MustParse("8"),
 						},
 					},
 					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),

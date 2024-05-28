@@ -52,7 +52,7 @@ func TestNodeIndexKeyComparison(t *testing.T) {
 		[]string{
 			"cpu",
 			"memory",
-			"gpu",
+			"nvidia.com/gpu",
 		},
 		[]int64{
 			1000,
@@ -61,9 +61,9 @@ func TestNodeIndexKeyComparison(t *testing.T) {
 		},
 		testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 			map[string]resource.Quantity{
-				"cpu":    *resource.NewScaledQuantity(999958006, -9),
-				"memory": *resource.NewScaledQuantity(11823681536, 0),
-				"gpu":    *resource.NewScaledQuantity(0, 0),
+				"cpu":            *resource.NewScaledQuantity(999958006, -9),
+				"memory":         *resource.NewScaledQuantity(11823681536, 0),
+				"nvidia.com/gpu": *resource.NewScaledQuantity(0, 0),
 			}),
 		0,
 	)
