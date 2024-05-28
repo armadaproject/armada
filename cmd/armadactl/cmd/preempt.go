@@ -33,17 +33,5 @@ func preemptJobCmd() *cobra.Command {
 			return a.Preempt(queue, jobSetId, jobId)
 		},
 	}
-	cmd.Flags().String("jobId", "", "job to preempt")
-	if err := cmd.MarkFlagRequired("jobId"); err != nil {
-		panic(err)
-	}
-	cmd.Flags().String("queue", "", "queue of the job to be preempted")
-	if err := cmd.MarkFlagRequired("queue"); err != nil {
-		panic(err)
-	}
-	cmd.Flags().String("jobSet", "", "jobSet of the job to be preempted")
-	if err := cmd.MarkFlagRequired("jobSet"); err != nil {
-		panic(err)
-	}
 	return cmd
 }

@@ -183,7 +183,7 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 			Build()
 	case lookout.JobFailed:
 		simulator.
-			RunFailed(runId, "node", 1, "", job.ts).
+			RunFailed(runId, "node", 1, "", "", job.ts).
 			Failed("node", 1, "", job.ts).
 			Build()
 	case lookout.JobCancelled:
