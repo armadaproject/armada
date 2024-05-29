@@ -105,3 +105,7 @@ func ProtoUuidFromUuidString(uuidString string) (*Uuid, error) {
 func MustUlidStringFromProtoUuid(id *Uuid) string {
 	return strings.ToLower(UlidFromProtoUuid(id).String())
 }
+
+func MustUuidStringFromProtoUuid(id *Uuid) string {
+	return strings.ToLower(UuidFromProtoUuid(id).String())
+}

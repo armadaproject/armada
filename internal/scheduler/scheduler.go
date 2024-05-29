@@ -549,8 +549,10 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			Created: &time,
 			Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 				JobRunPreempted: &armadaevents.JobRunPreempted{
-					PreemptedRunId: runId,
-					PreemptedJobId: jobId,
+					PreemptedRunId:    runId,
+					PreemptedRunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					PreemptedJobId:    jobId,
+					PreemptedJobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				},
 			},
 		},
@@ -558,8 +560,10 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			Created: &time,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: runId,
-					JobId: jobId,
+					RunId:    runId,
+					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -575,7 +579,8 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			Created: &time,
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobId: jobId,
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -612,7 +617,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      armadaevents.ProtoUuidFromUuid(run.Id()),
+							RunIdStr:   run.Id().String(),
 							JobId:      jobId,
+							JobIdStr:   job.Id(),
 							ExecutorId: run.Executor(),
 							// NodeId here refers to the unique identifier of the node in an executor cluster,
 							// which is referred to as the NodeName within the scheduler.
@@ -674,6 +681,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
 					JobId:    jobId,
+					JobIdStr: job.Id(),
 					Priority: job.Priority(),
 				},
 			},
@@ -691,8 +699,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId: armadaevents.ProtoUuidFromUuid(lastRun.Id()),
-						JobId: jobId,
+						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						RunIdStr: lastRun.Id().String(),
+						JobId:    jobId,
+						JobIdStr: job.Id(),
 					},
 				},
 			})
@@ -701,7 +711,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId, JobIdStr: job.Id()},
 			},
 		}
 		events = append(events, cancel)
@@ -710,7 +720,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				CancelJob: &armadaevents.CancelJob{JobId: jobId, JobIdStr: job.Id()},
 			},
 		}
 		events = append(events, cancelRequest)
@@ -723,8 +733,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId: armadaevents.ProtoUuidFromUuid(lastRun.Id()),
-						JobId: jobId,
+						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						RunIdStr: lastRun.Id().String(),
+						JobId:    jobId,
+						JobIdStr: job.Id(),
 					},
 				},
 			})
@@ -733,7 +745,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId, JobIdStr: job.Id()},
 			},
 		}
 		events = append(events, cancel)
@@ -746,7 +758,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobSucceeded{
 					JobSucceeded: &armadaevents.JobSucceeded{
-						JobId: jobId,
+						JobId:    jobId,
+						JobIdStr: job.Id(),
 					},
 				},
 			}
@@ -778,6 +791,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					Event: &armadaevents.EventSequence_Event_JobRequeued{
 						JobRequeued: &armadaevents.JobRequeued{
 							JobId:                jobId,
+							JobIdStr:             job.Id(),
 							SchedulingInfo:       job.JobSchedulingInfo(),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
@@ -822,8 +836,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					Created: s.now(),
 					Event: &armadaevents.EventSequence_Event_JobErrors{
 						JobErrors: &armadaevents.JobErrors{
-							JobId:  jobId,
-							Errors: []*armadaevents.Error{runError},
+							JobId:    jobId,
+							JobIdStr: job.Id(),
+							Errors:   []*armadaevents.Error{runError},
 						},
 					},
 				}
@@ -917,9 +932,11 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunErrors{
 							JobRunErrors: &armadaevents.JobRunErrors{
-								RunId:  armadaevents.ProtoUuidFromUuid(run.Id()),
-								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredError},
+								RunId:    armadaevents.ProtoUuidFromUuid(run.Id()),
+								RunIdStr: run.Id().String(),
+								JobId:    jobId,
+								JobIdStr: job.Id(),
+								Errors:   []*armadaevents.Error{leaseExpiredError},
 							},
 						},
 					},
@@ -927,8 +944,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobErrors{
 							JobErrors: &armadaevents.JobErrors{
-								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredError},
+								JobId:    jobId,
+								JobIdStr: job.Id(),
+								Errors:   []*armadaevents.Error{leaseExpiredError},
 							},
 						},
 					},
@@ -968,11 +986,11 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 			Events: []*armadaevents.EventSequence_Event{
 				{
 					Created: s.now(),
-					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
+					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, JobIdStr: job.Id(), Reason: reason}},
 				},
 				{
 					Created: s.now(),
-					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
+					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, JobIdStr: job.Id(), Reason: reason}},
 				},
 			},
 		}
@@ -1032,8 +1050,9 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobValidated{
 				JobValidated: &armadaevents.JobValidated{
-					JobId: jobId,
-					Pools: result.pools,
+					JobId:    jobId,
+					JobIdStr: job.Id(),
+					Pools:    result.pools,
 				},
 			}
 		} else {
@@ -1042,7 +1061,8 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobId: jobId,
+					JobId:    jobId,
+					JobIdStr: job.Id(),
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
