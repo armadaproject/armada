@@ -248,7 +248,8 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId: jobId,
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				},
 			},
 		})
@@ -308,6 +309,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    jobId,
+					JobIdStr: jobIdString,
 					Priority: priority,
 				},
 			},
@@ -405,8 +407,9 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId:  jobId,
-					Reason: truncatedReason,
+					JobId:    jobId,
+					JobIdStr: jobIdStr,
+					Reason:   truncatedReason,
 				},
 			},
 		})

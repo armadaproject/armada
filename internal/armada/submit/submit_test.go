@@ -286,8 +286,8 @@ func TestCancelJobs_FailedValidation(t *testing.T) {
 }
 
 func TestPreemptJobs(t *testing.T) {
-	jobId1 := util.ULID().String()
-	jobId2 := util.ULID().String()
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
 	tests := map[string]struct {
 		req            *api.JobPreemptRequest
 		expectedEvents []*armadaevents.EventSequence_Event

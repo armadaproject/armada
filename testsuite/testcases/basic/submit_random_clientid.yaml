@@ -1,5 +1,5 @@
 numBatches: 1
-batchSize: 10
+batchSize: 3
 queue: e2e-test-queue
 randomClientId: true
 jobs:
@@ -16,10 +16,10 @@ jobs:
             - "ls"
           resources:
             limits:
-              memory: 10Mi
+              memory: 20Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 20Mi
               cpu: 100m
 ---
 timeout: "180s"
