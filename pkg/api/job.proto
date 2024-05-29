@@ -2,13 +2,9 @@ syntax = 'proto3';
 package api;
 option go_package = "github.com/armadaproject/armada/pkg/api";
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/submit.proto";
 import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
-
-option (gogoproto.goproto_stringer_all) = false;
-option (gogoproto.stringer_all) = true;
 
 enum JobRunState {
   RUN_STATE_UNKNOWN = 0;
@@ -29,10 +25,10 @@ message JobRunDetails {
   JobRunState state = 3;
   string cluster = 4;
   string node = 5;
-  google.protobuf.Timestamp leased_ts = 7  [(gogoproto.stdtime) = true];
-  google.protobuf.Timestamp pending_ts = 8 [(gogoproto.stdtime) = true];
-  google.protobuf.Timestamp started_ts = 9 [(gogoproto.stdtime) = true];
-  google.protobuf.Timestamp finished_ts = 10 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp leased_ts = 7;
+  google.protobuf.Timestamp pending_ts = 8;
+  google.protobuf.Timestamp started_ts = 9;
+  google.protobuf.Timestamp finished_ts = 10;
 }
 
 
@@ -42,10 +38,10 @@ message JobDetails {
   string jobset = 3;
   string namespace = 4;
   JobState state = 5;
-  google.protobuf.Timestamp submitted_ts = 6 [(gogoproto.stdtime) = true];
-  google.protobuf.Timestamp cancel_ts = 7 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp submitted_ts = 6;
+  google.protobuf.Timestamp cancel_ts = 7;
   string cancel_reason = 8;
-  google.protobuf.Timestamp last_transition_ts = 9 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp last_transition_ts = 9;
   string latest_run_id = 10;
   Job job_spec = 11; // Only filled in if expand_job_spec is true
   repeated JobRunDetails job_runs = 12; // Only filled in if expand_job_run is true;

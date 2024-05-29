@@ -9,11 +9,7 @@ import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/api/annotations.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/health.proto";
-
-option (gogoproto.goproto_stringer_all) = false;
-option (gogoproto.stringer_all) = true;
 
 message JobSubmitRequestItem {
     double priority = 1;
@@ -135,8 +131,8 @@ message Job {
   // This is because containers run in parallel, whereas initContainers run serially.
   // This field is populated automatically at submission.
   // Submitting a job with this field already populated results in an error.
-  k8s.io.api.core.v1.ResourceRequirements scheduling_resource_requirements = 21 [(gogoproto.nullable) = false];
-  google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  k8s.io.api.core.v1.ResourceRequirements scheduling_resource_requirements = 21;
+  google.protobuf.Timestamp created = 6;
   // Services can be provided either as Armada-specific config objects or as proper k8s objects.
   // These options are exclusive, i.e., if either ingress or services is provided,
   // then neither of k8s_ingress or k8s_service can be provided, and vice versa.
@@ -193,21 +189,21 @@ message Queue {
     map<string, double> resource_limits = 5 [deprecated = true];
     // Map from priority class name to resource limit overrides for this queue and priority class.
     // If provided for a priority class, global limits for that priority class do not apply to this queue.
-    map<string, PriorityClassResourceLimits> resource_limits_by_priority_class_name = 7 [(gogoproto.nullable) = false];
+    map<string, PriorityClassResourceLimits> resource_limits_by_priority_class_name = 7;
     repeated Permissions permissions = 6;
 }
 
 message PriorityClassResourceLimits {
 	// Limits resources assigned to jobs of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
-	map<string, double> maximum_resource_fraction = 1 [(gogoproto.nullable) = false];
+	map<string, double> maximum_resource_fraction = 1;
 	// Per-pool override of maximum_resource_fraction.
 	// If missing for a particular pool, maximum_resource_fraction is used instead for that pool.
-	map<string, PriorityClassPoolResourceLimits> maximum_resource_fraction_by_pool = 2 [(gogoproto.nullable) = false];
+	map<string, PriorityClassPoolResourceLimits> maximum_resource_fraction_by_pool = 2;
 }
 
 message PriorityClassPoolResourceLimits {
-    map<string, double> maximum_resource_fraction = 1 [(gogoproto.nullable) = false];
+    map<string, double> maximum_resource_fraction = 1;
 }
 
 // swagger:model
@@ -217,7 +213,7 @@ message QueueList {
 
 // swagger:model
 message CancellationResult {
-    repeated string cancelled_ids = 1 [(gogoproto.jsontag) = "cancelledIds"];
+    repeated string cancelled_ids = 1;
 }
 
 //swagger:model

@@ -7,7 +7,7 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
 // Armada state transition model
@@ -67,7 +67,7 @@ import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 message EventSequence {
     // List of possible events, i.e., state transitions.
     message Event {
-        google.protobuf.Timestamp created = 18 [(gogoproto.stdtime) = true];
+        google.protobuf.Timestamp created = 18;
         oneof event {
             SubmitJob submitJob = 1;
             ReprioritiseJob reprioritiseJob = 2;
@@ -114,8 +114,8 @@ message ResourceUtilisation {
     Uuid run_id = 1;
     Uuid job_id = 2;
     KubernetesResourceInfo resource_info = 3;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4 [(gogoproto.nullable) = false];
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5;
     // This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
     string job_id_str = 6;
     string run_id_str = 7;
