@@ -2055,7 +2055,7 @@ func TestGetJobsWithSpecificRunDetails(t *testing.T) {
 			Lease(runIdSpecific, "specific-cluster", "specific-node", baseTime).
 			Pending(runIdSpecific, "specific-cluster", baseTime).
 			Running(runIdSpecific, "specific-node", baseTime.Add(time.Minute)).
-			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", baseTime.Add(2*time.Minute)).
+			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", "", baseTime.Add(2*time.Minute)).
 			Build().
 			Job()
 
@@ -2141,7 +2141,7 @@ func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
 			Lease(runId, "specific-cluster", "specific-node", startTime).
 			Pending(runId, "cluster", startTime).
 			Running(runId, "node", runningTime).
-			RunFailed(runId, "node", 1, "failed", endTime).
+			RunFailed(runId, "node", 1, "failed", "debug", endTime).
 			Build().
 			Job()
 
