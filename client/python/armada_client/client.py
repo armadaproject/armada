@@ -17,6 +17,8 @@ from armada_client.armada import (
     submit_pb2,
     submit_pb2_grpc,
     health_pb2,
+    job_pb2,
+    job_pb2_grpc
 )
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -27,6 +29,41 @@ from armada_client.iterators import (
     TimeoutIterator,
 )
 
+
+def is_terminal(state: JobState) -> bool:
+  """
+  Determines if a job state is terminal.
+
+  Terminal states indicate that a job has completed its lifecycle, whether successfully or due to failure.
+
+  :param state: The current state of the job.
+  :type state: JobState
+
+  :returns: True if the job state is terminal, False if it is active.
+  :rtype: bool
+  """
+  terminal_states = {
+    JobState.SUCCEEDED,
+    JobState.FAILED,
+    JobState.CANCELLED,
+    JobState.PREEMPTED,
+  }
+  return state in terminal_states
+
+
+def is_active(state: JobState) -> bool:
+  """
+  Determines if a job state is active.
+
+  Active states indicate that a job is still running or in a non-terminal state.
+
+  :param state: The current state of the job.
+  :type state: JobState
+
+  :returns: True if the job state is active, False if it is terminal.
+  :rtype: bool
+  """
+  return not is_terminal(state)
 
 class _ResilientArmadaEventStream(Iterator[event_pb2.EventStreamMessage]):
     def __init__(
@@ -102,6 +139,7 @@ class ArmadaClient:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
         self.event_timeout = event_timeout
+        self.job_stub = job_pb2_grpc.JobsStub(channel)
 
     def get_job_events_stream(
         self,
@@ -160,6 +198,31 @@ class ArmadaClient:
         :return: A HealthCheckResponse object.
         """
         return self.event_stub.Health(request=empty_pb2.Empty())
+
+    def get_job_status(self, job_id: str) -> JobState:
+        """
+        Retrieves the status of a job from Armada.
+
+        :param job_id: The unique job identifier.
+        :type job_id: str
+
+        :returns: The response from the server containing the job status.
+        :rtype: JobStatusResponse
+        """
+        req = job_pb2.JobStatusRequest(job_ids=[job_id])
+        return self.job_stub.GetJobStatus(req).job_states[job_id]
+
+    def get_job_details(self, job_id: str) -> JobDetails:
+        """
+        Retrieves the details of a job from Armada.
+
+        :param job_id: The unique job identifier.
+        :type job_id: str
+
+        :returns: The Armada job detail.
+        """
+        req = job_pb2.JobDetailsRequest(job_ids=[job_id], expand_job_run=True)
+        return self.job_stub.GetJobDetails(req).job_details[job_id]
 
     def submit_jobs(
         self, queue: str, job_set_id: str, job_request_items

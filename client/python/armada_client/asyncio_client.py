@@ -104,6 +104,7 @@ class ArmadaAsyncIOClient:
     ) -> None:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.job_stub = job_pb2_grpc.JobsStub(channel)
         self.event_timeout = event_timeout
 
     async def get_job_events_stream(
@@ -184,6 +185,32 @@ class ArmadaAsyncIOClient:
         )
         response = await self.submit_stub.SubmitJobs(request)
         return response
+
+    async def get_job_status(self, job_id: str) -> JobState:
+        """
+        Asynchronously retrieves the status of a job from Armada.
+
+        :param job_id: The unique job identifier.
+        :type job_id: str
+
+        :returns: The status of the job.
+        """
+        req = job_pb2.JobStatusRequest(job_ids=[job_id])
+        resp = await self.job_stub.GetJobStatus(req)
+        return resp.job_states[job_id]
+
+    async def get_job_details(self, job_id: str) -> JobDetails:
+        """
+        Asynchronously retrieves the details of a job from Armada.
+
+        :param job_id: The unique job identifier.
+        :type job_id: str
+
+        :returns: The Armada job detail.
+        """
+        req = job_pb2.JobDetailsRequest(job_ids=[job_id], expand_job_run=True)
+        resp = await self.job_stub.GetJobDetails(req)
+        return resp.job_details[job_id]
 
     async def cancel_jobs(
         self,
