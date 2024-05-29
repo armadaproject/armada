@@ -288,6 +288,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.PriorityClasses,
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
+		resourceListFactory,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
 	if err := prometheus.Register(schedulingRoundMetrics); err != nil {

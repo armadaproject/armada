@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
@@ -161,8 +160,8 @@ func NewNodeTypesIterator(
 	priority int32,
 	keyIndex int,
 	indexedResources []string,
-	indexedResourceRequests []resource.Quantity,
-	indexedResourceResolutionMillis []int64,
+	indexedResourceRequests []int64,
+	indexedResourceResolution []int64,
 ) (*NodeTypesIterator, error) {
 	pq := &nodeTypesIteratorPQ{
 		priority:         priority,
@@ -178,7 +177,7 @@ func NewNodeTypesIterator(
 			keyIndex,
 			indexedResources,
 			indexedResourceRequests,
-			indexedResourceResolutionMillis,
+			indexedResourceResolution,
 		)
 		if err != nil {
 			return nil, err
@@ -250,11 +249,12 @@ func (it *nodeTypesIteratorPQ) less(a, b *internaltypes.Node) bool {
 	allocatableByPriorityA := a.AllocatableByPriority[it.priority]
 	allocatableByPriorityB := b.AllocatableByPriority[it.priority]
 	for _, t := range it.indexedResources {
-		qa := allocatableByPriorityA.Get(t)
-		qb := allocatableByPriorityB.Get(t)
-		if cmp := qa.Cmp(qb); cmp == -1 {
+		qa := allocatableByPriorityA.GetByNameZeroIfMissing(t)
+		qb := allocatableByPriorityB.GetByNameZeroIfMissing(t)
+
+		if qa < qb {
 			return true
-		} else if cmp == 1 {
+		} else if qa > qb {
 			return false
 		}
 	}
@@ -305,14 +305,16 @@ type NodeTypeIterator struct {
 	// NodeDb indexed resources.
 	indexedResources []string
 	// Pod requests for indexed resources in the same order as indexedResources.
-	indexedResourceRequests []resource.Quantity
-	// The resolution with which indexed resources are tracked. In the same order as indexedResources.
-	indexedResourceResolutionMillis []int64
+	indexedResourceRequests []int64
+	// The resolution with which indexed resources are tracked.
+	// In the same order as indexedResources/indexedResourceRequests above.
+	// In the same units as indexedResourceRequests above.
+	indexedResourceResolution []int64
 	// Current lower bound on node allocatable resources looked for.
 	// Updated in-place as the iterator makes progress.
-	lowerBound []resource.Quantity
+	lowerBound []int64
 	// Tentative lower-bound.
-	newLowerBound []resource.Quantity
+	newLowerBound []int64
 	// memdb key computed from nodeTypeId and lowerBound.
 	// Stored here to avoid dynamic allocs.
 	key []byte
@@ -333,29 +335,29 @@ func NewNodeTypeIterator(
 	priority int32,
 	keyIndex int,
 	indexedResources []string,
-	indexedResourceRequests []resource.Quantity,
-	indexedResourceResolutionMillis []int64,
+	indexedResourceRequests []int64,
+	indexedResourceResolution []int64,
 ) (*NodeTypeIterator, error) {
 	if len(indexedResources) != len(indexedResourceRequests) {
 		return nil, errors.Errorf("indexedResources and resourceRequirements are not of equal length")
 	}
-	if len(indexedResources) != len(indexedResourceResolutionMillis) {
-		return nil, errors.Errorf("indexedResources and indexedResourceResolutionMillis are not of equal length")
+	if len(indexedResources) != len(indexedResourceResolution) {
+		return nil, errors.Errorf("indexedResources and indexedResourceResolution are not of equal length")
 	}
 	if keyIndex < 0 {
 		return nil, errors.Errorf("keyIndex is negative: %d", keyIndex)
 	}
 	it := &NodeTypeIterator{
-		txn:                             txn,
-		nodeTypeId:                      nodeTypeId,
-		priority:                        priority,
-		keyIndex:                        keyIndex,
-		indexName:                       indexName,
-		indexedResources:                indexedResources,
-		indexedResourceRequests:         indexedResourceRequests,
-		indexedResourceResolutionMillis: indexedResourceResolutionMillis,
-		lowerBound:                      slices.Clone(indexedResourceRequests),
-		newLowerBound:                   slices.Clone(indexedResourceRequests),
+		txn:                       txn,
+		nodeTypeId:                nodeTypeId,
+		priority:                  priority,
+		keyIndex:                  keyIndex,
+		indexName:                 indexName,
+		indexedResources:          indexedResources,
+		indexedResourceRequests:   indexedResourceRequests,
+		indexedResourceResolution: indexedResourceResolution,
+		lowerBound:                slices.Clone(indexedResourceRequests),
+		newLowerBound:             slices.Clone(indexedResourceRequests),
 	}
 	memdbIt, err := it.newNodeTypeIterator()
 	if err != nil {
@@ -415,17 +417,17 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 			return nil, nil
 		}
 		allocatableByPriority := node.AllocatableByPriority[it.priority]
-		if len(allocatableByPriority.Resources) == 0 {
+		if allocatableByPriority.IsEmpty() {
 			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
-			nodeQuantity := allocatableByPriority.Get(t).DeepCopy()
-			requestQuantity := it.indexedResourceRequests[i].DeepCopy()
-			it.newLowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolutionMillis[i])
+			nodeQuantity := allocatableByPriority.GetByNameZeroIfMissing(t)
+			requestQuantity := it.indexedResourceRequests[i]
+			it.newLowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolution[i])
 
 			// If nodeQuantity < requestQuantity, replace the iterator using the lowerBound.
 			// If nodeQuantity >= requestQuantity for all resources, return the node.
-			if nodeQuantity.Cmp(requestQuantity) == -1 {
+			if nodeQuantity < requestQuantity {
 				for j := i; j < len(it.indexedResources); j++ {
 					it.newLowerBound[j] = it.indexedResourceRequests[j]
 				}
