@@ -7,14 +7,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
-
-const queueHashKey = "Queue"
 
 type ErrQueueNotFound struct {
 	QueueName string
@@ -43,105 +40,6 @@ type QueueRepository interface {
 type ReadOnlyQueueRepository interface {
 	GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error)
 	GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error)
-}
-
-type RedisQueueRepository struct {
-	db redis.UniversalClient
-}
-
-func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
-	return &RedisQueueRepository{db: db}
-}
-
-func (r *RedisQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
-	result, err := r.db.HGetAll(ctx, queueHashKey).Result()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	queues := make([]queue.Queue, len(result))
-	i := 0
-	for _, v := range result {
-		apiQueue := &api.Queue{}
-		if err := proto.Unmarshal([]byte(v), apiQueue); err != nil {
-			return nil, errors.WithStack(err)
-		}
-		queue, err := queue.NewQueue(apiQueue)
-		if err != nil {
-			return nil, err
-		}
-		queues[i] = queue
-		i++
-	}
-	return queues, nil
-}
-
-func (r *RedisQueueRepository) GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error) {
-	result, err := r.db.HGet(ctx, queueHashKey, name).Result()
-	if err == redis.Nil {
-		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
-	} else if err != nil {
-		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from database: %s", err)
-	}
-
-	apiQueue := &api.Queue{}
-	e := proto.Unmarshal([]byte(result), apiQueue)
-	if e != nil {
-		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error unmarshalling queue: %s", err)
-	}
-
-	return queue.NewQueue(apiQueue)
-}
-
-func (r *RedisQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	data, err := proto.Marshal(queue.ToAPI())
-	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error marshalling queue: %s", err)
-	}
-
-	// HSetNX sets a key-value pair if the key doesn't already exist.
-	// If the key exists, this is a no-op, and result is false.
-	result, err := r.db.HSetNX(ctx, queueHashKey, queue.Name, data).Result()
-	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error writing to database: %s", err)
-	}
-	if !result {
-		return &ErrQueueAlreadyExists{QueueName: queue.Name}
-	}
-
-	return nil
-}
-
-// TODO If the queue to be updated is deleted between this method checking if the queue exists and
-// making the update, the deleted queue is re-added to Redis. There's no "update if exists"
-// operation in Redis, so we need to do this with a script or transaction.
-func (r *RedisQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	existsResult, err := r.db.HExists(ctx, queueHashKey, queue.Name).Result()
-	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from database: %s", err)
-	} else if !existsResult {
-		return &ErrQueueNotFound{QueueName: queue.Name}
-	}
-
-	data, err := proto.Marshal(queue.ToAPI())
-	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error marshalling queue: %s", err)
-	}
-
-	result := r.db.HSet(ctx, queueHashKey, queue.Name, data)
-	if err := result.Err(); err != nil {
-		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error writing to database: %s", err)
-	}
-
-	return nil
-}
-
-func (r *RedisQueueRepository) DeleteQueue(ctx *armadacontext.Context, name string) error {
-	result := r.db.HDel(ctx, queueHashKey, name)
-	if err := result.Err(); err != nil {
-		return fmt.Errorf("[RedisQueueRepository.DeleteQueue] error deleting queue: %s", err)
-	}
-	return nil
 }
 
 type PostgresQueueRepository struct {
@@ -242,69 +140,4 @@ func (r *PostgresQueueRepository) unmarshalQueue(definitionBytes []byte) (queue.
 		return queue.Queue{}, err
 	}
 	return q, nil
-}
-
-type DualQueueRepository struct {
-	primaryRepo   QueueRepository
-	secondaryRepo QueueRepository
-}
-
-func NewDualQueueRepository(redis redis.UniversalClient, postgres *pgxpool.Pool, usePostgresForPrimary bool) *DualQueueRepository {
-	redisRepo := NewRedisQueueRepository(redis)
-	postgresRepo := NewPostgresQueueRepository(postgres)
-	if usePostgresForPrimary {
-		return &DualQueueRepository{
-			primaryRepo:   postgresRepo,
-			secondaryRepo: redisRepo,
-		}
-	} else {
-		return &DualQueueRepository{
-			primaryRepo:   redisRepo,
-			secondaryRepo: postgresRepo,
-		}
-	}
-}
-
-func (r *DualQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
-	return r.primaryRepo.GetAllQueues(ctx)
-}
-
-func (r *DualQueueRepository) GetQueue(ctx *armadacontext.Context, name string) (queue.Queue, error) {
-	return r.primaryRepo.GetQueue(ctx, name)
-}
-
-func (r *DualQueueRepository) CreateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	err := r.primaryRepo.CreateQueue(ctx, queue)
-	if err != nil {
-		return err
-	}
-	err = r.secondaryRepo.CreateQueue(ctx, queue)
-	if err != nil {
-		ctx.Warnf("Could not create queue %s on secondaryd repo", queue.Name)
-	}
-	return nil
-}
-
-func (r *DualQueueRepository) UpdateQueue(ctx *armadacontext.Context, queue queue.Queue) error {
-	err := r.primaryRepo.UpdateQueue(ctx, queue)
-	if err != nil {
-		return err
-	}
-	err = r.secondaryRepo.UpdateQueue(ctx, queue)
-	if err != nil {
-		ctx.Warnf("Could not update queue %s on secondary repo", queue.Name)
-	}
-	return nil
-}
-
-func (r *DualQueueRepository) DeleteQueue(ctx *armadacontext.Context, name string) error {
-	err := r.primaryRepo.DeleteQueue(ctx, name)
-	if err != nil {
-		return err
-	}
-	err = r.secondaryRepo.DeleteQueue(ctx, name)
-	if err != nil {
-		ctx.Warnf("Could not delete queue %s on secondary repo", name)
-	}
-	return nil
 }

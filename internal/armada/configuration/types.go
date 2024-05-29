@@ -29,14 +29,10 @@ type ArmadaConfig struct {
 
 	SchedulerApiConnection client.ApiConnectionDetails
 
-	Redis          redis.UniversalOptions
 	EventsApiRedis redis.UniversalOptions
 	Pulsar         PulsarConfig
 	Postgres       PostgresConfig // Used for Pulsar submit API deduplication
 	QueryApi       QueryApiConfig
-
-	// True if we use postgres for the primary queue store.False means we use redis
-	QueueRepositoryUsesPostgres bool
 
 	// Period At which the Queue cache will be refreshed
 	QueueCacheRefreshPeriod time.Duration

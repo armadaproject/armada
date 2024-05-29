@@ -332,35 +332,27 @@ func TestNodeTypeIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("31"),
-							"memory": resource.MustParse("1Gi"),
-							"nvidia.com/gpu":    resource.MustParse("1"),
+							"cpu":            resource.MustParse("31"),
+							"memory":         resource.MustParse("1Gi"),
+							"nvidia.com/gpu": resource.MustParse("1"),
 						}},
 						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("31"),
-							"memory": resource.MustParse("1Gi"),
-							"nvidia.com/gpu":    resource.MustParse("2"),
+							"cpu":            resource.MustParse("31"),
+							"memory":         resource.MustParse("1Gi"),
+							"nvidia.com/gpu": resource.MustParse("2"),
 						}},
 						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("31"),
-							"memory": resource.MustParse("1Gi"),
-							"nvidia.com/gpu":    resource.MustParse("5"),
-						}},
-						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
-					),
-					testfixtures.WithUsedResourcesNodes(
-						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("31"),
-							"memory": resource.MustParse("2Gi"),
+							"cpu":            resource.MustParse("31"),
+							"memory":         resource.MustParse("1Gi"),
+							"nvidia.com/gpu": resource.MustParse("5"),
 						}},
 						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
@@ -369,7 +361,15 @@ func TestNodeTypeIterator(t *testing.T) {
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu":    resource.MustParse("31"),
 							"memory": resource.MustParse("2Gi"),
-							"nvidia.com/gpu":    resource.MustParse("1"),
+						}},
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+					),
+					testfixtures.WithUsedResourcesNodes(
+						0,
+						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
+							"cpu":            resource.MustParse("31"),
+							"memory":         resource.MustParse("2Gi"),
+							"nvidia.com/gpu": resource.MustParse("1"),
 						}},
 						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
@@ -409,9 +409,9 @@ func TestNodeTypeIterator(t *testing.T) {
 			nodeTypeId: 1,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("512Gi"),
-				"nvidia.com/gpu":    resource.MustParse("4"),
+				"cpu":            resource.MustParse("32"),
+				"memory":         resource.MustParse("512Gi"),
+				"nvidia.com/gpu": resource.MustParse("4"),
 			}},
 			expected: []int{7, 5, 4, 2, 1, 0},
 		},
@@ -724,18 +724,18 @@ func TestNodeTypesIterator(t *testing.T) {
 						testfixtures.WithUsedResourcesNodes(
 							0,
 							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("31"),
-								"memory": resource.MustParse("1Gi"),
-								"nvidia.com/gpu":    resource.MustParse("2"),
+								"cpu":            resource.MustParse("31"),
+								"memory":         resource.MustParse("1Gi"),
+								"nvidia.com/gpu": resource.MustParse("2"),
 							}},
 							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
 							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("31"),
-								"memory": resource.MustParse("1Gi"),
-								"nvidia.com/gpu":    resource.MustParse("5"),
+								"cpu":            resource.MustParse("31"),
+								"memory":         resource.MustParse("1Gi"),
+								"nvidia.com/gpu": resource.MustParse("5"),
 							}},
 							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
@@ -755,9 +755,9 @@ func TestNodeTypesIterator(t *testing.T) {
 						testfixtures.WithUsedResourcesNodes(
 							0,
 							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("31"),
-								"memory": resource.MustParse("2Gi"),
-								"nvidia.com/gpu":    resource.MustParse("1"),
+								"cpu":            resource.MustParse("31"),
+								"memory":         resource.MustParse("2Gi"),
+								"nvidia.com/gpu": resource.MustParse("1"),
 							}},
 							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
@@ -803,9 +803,9 @@ func TestNodeTypesIterator(t *testing.T) {
 			nodeTypeIds: []uint64{1, 2, 3},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("512Gi"),
-				"nvidia.com/gpu":    resource.MustParse("4"),
+				"cpu":            resource.MustParse("32"),
+				"memory":         resource.MustParse("512Gi"),
+				"nvidia.com/gpu": resource.MustParse("4"),
 			}},
 			expected: []int{7, 5, 4, 2, 1, 0},
 		},

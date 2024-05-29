@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Pulsar Executor" type="GoApplicationRunConfiguration" factoryName="Go Application">
+  <configuration default="false" name="Executor" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
