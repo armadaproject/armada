@@ -1554,7 +1554,7 @@ func makeFailed(opts *createJobsOpts, converter *instructions.InstructionConvert
 		}).
 		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
 		Running(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
-		RunFailed(runId, node, 1, "error", lastTransitionTime).
+		RunFailed(runId, node, 1, "error", "debug", lastTransitionTime).
 		Failed(node, 1, "error", lastTransitionTime).
 		Build()
 }

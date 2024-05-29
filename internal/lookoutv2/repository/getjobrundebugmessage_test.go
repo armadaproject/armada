@@ -14,28 +14,28 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 )
 
-func TestGetJobRunError(t *testing.T) {
+func TestGetJobRunDebugMessage(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
-		errorStrings := []string{
+		debugMessageStrings := []string{
 			"some bad error happened!",
 			"",
 		}
-		for _, expected := range errorStrings {
+		for _, expected := range debugMessageStrings {
 			_ = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 				Lease(runId, cluster, node, baseTime).
 				Pending(runId, cluster, baseTime).
 				Running(runId, node, baseTime).
-				RunFailed(runId, node, 137, expected, "", baseTime).
+				RunFailed(runId, node, 137, "", expected, baseTime).
 				Failed(node, 137, "", baseTime).
 				Build().
 				ApiJob()
 
-			repo := NewSqlGetJobRunErrorRepository(db, &compress.NoOpDecompressor{})
-			result, err := repo.GetJobRunError(armadacontext.TODO(), runId)
+			repo := NewSqlGetJobRunDebugMessageRepository(db, &compress.NoOpDecompressor{})
+			result, err := repo.GetJobRunDebugMessage(armadacontext.TODO(), runId)
 			assert.NoError(t, err)
 			assert.Equal(t, expected, result)
 		}
@@ -44,10 +44,10 @@ func TestGetJobRunError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestGetJobRunErrorNotFound(t *testing.T) {
+func TestGetJobRunDebugMessageNotFound(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		repo := NewSqlGetJobRunErrorRepository(db, &compress.NoOpDecompressor{})
-		_, err := repo.GetJobRunError(armadacontext.TODO(), runId)
+		repo := NewSqlGetJobRunDebugMessageRepository(db, &compress.NoOpDecompressor{})
+		_, err := repo.GetJobRunDebugMessage(armadacontext.TODO(), runId)
 		assert.Error(t, err)
 		return nil
 	})
