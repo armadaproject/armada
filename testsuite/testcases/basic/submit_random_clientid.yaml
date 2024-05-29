@@ -1,5 +1,5 @@
 numBatches: 1
-batchSize: 10
+batchSize: 3
 queue: e2e-test-queue
 randomClientId: true
 jobs:
