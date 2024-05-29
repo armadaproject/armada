@@ -167,7 +167,7 @@ func (context *WatchContext) AreJobsFinished(ids []string) bool {
 
 func updateJobInfo(info *JobInfo, event api.Event) {
 	if isLifeCycleEvent(event) && !isPodEvent(event) {
-		if info.LastUpdate.After(event.GetCreated()) {
+		if info.LastUpdate.After(event.GetCreated().AsTime()) {
 			if submitEvent, ok := event.(*api.JobSubmittedEvent); ok {
 				info.Job = &submitEvent.Job
 			}
@@ -224,7 +224,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	case *api.JobUtilisationEvent:
 		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
 	case *api.JobUpdatedEvent:
-		info.Job = &typed.Job
+		info.Job = typed.Job
 	}
 }
 
