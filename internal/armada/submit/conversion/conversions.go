@@ -31,6 +31,7 @@ func SubmitJobFromApiRequest(
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
+		JobIdStr:        jobIdStr,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
 		ObjectMeta: &armadaevents.ObjectMeta{
