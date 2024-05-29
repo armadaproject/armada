@@ -191,14 +191,6 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext, state *executorState) schedulingResult {
-	// Skip submit checks if this batch contains less than the min cardinality jobs.
-	// Reason:
-	//  - We need to support submitting gang jobs across batches and allow for gang jobs to queue until min cardinality is satisfied.
-	//  - We cannot verify if min cardinality jobs are schedulable unless we are given at least that many in a single batch.
-	//  - A side effect of this is that users can submit jobs in gangs that skip this check and are never schedulable, which will be handled via queue-ttl.
-	if len(gctx.JobSchedulingContexts) < gctx.GangInfo.MinimumCardinality {
-		return schedulingResult{isSchedulable: true, reason: ""}
-	}
 	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
 	for id, ex := range state.executorsById {
@@ -262,7 +254,7 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 			sb.WriteString(
 				fmt.Sprintf(
 					": %d out of %d pods schedulable (minCardinality %d)\n",
-					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
+					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.Cardinality,
 				),
 			)
 		}

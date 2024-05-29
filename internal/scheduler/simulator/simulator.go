@@ -510,7 +510,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			// Sort jobs to ensure deterministic event ordering.
 			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult(result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
-			failedJobs := scheduler.FailedJobsFromSchedulerResult(result)
 			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {
 					return -1
@@ -528,7 +527,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
 				return lessJob(a.Job, b.Job)
 			})
-			slices.SortFunc(failedJobs, lessJob)
 			for i, job := range preemptedJobs {
 				if run := job.LatestRun(); run != nil {
 					job = job.WithUpdatedRun(run.WithFailed(true))
@@ -553,19 +551,10 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
 				}
 			}
-			for i, job := range failedJobs {
-				if run := job.LatestRun(); run != nil {
-					job = job.WithUpdatedRun(run.WithFailed(true))
-				}
-				failedJobs[i] = job.WithQueued(false).WithFailed(true)
-			}
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
 			if err := txn.Upsert(armadaslices.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
-				return err
-			}
-			if err := txn.Upsert(failedJobs); err != nil {
 				return err
 			}
 
@@ -582,10 +571,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err != nil {
 				return err
 			}
-			eventSequences, err = scheduler.AppendEventSequencesFromUnschedulableJobs(eventSequences, failedJobs, s.time)
-			if err != nil {
-				return err
-			}
 
 			// Update event timestamps to be consistent with simulated time.
 			t := s.time
@@ -597,7 +582,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			// If nothing changed, we're in steady state and can safely skip scheduling until something external has changed.
 			// Do this only if a non-zero amount of time has passed.
-			if !s.time.Equal(time.Time{}) && len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 && len(result.FailedJobs) == 0 {
+			if !s.time.Equal(time.Time{}) && len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 {
 				s.shouldSchedule = false
 			}
 		}

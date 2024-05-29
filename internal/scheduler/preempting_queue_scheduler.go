@@ -269,7 +269,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	return &SchedulerResult{
 		PreemptedJobs:                preemptedJobs,
 		ScheduledJobs:                scheduledJobs,
-		FailedJobs:                   schedulerResult.FailedJobs,
 		NodeIdByJobId:                sch.nodeIdByJobId,
 		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
 		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
@@ -415,9 +414,8 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *Ev
 			continue
 		}
 
-		// Override cardinality and min cardinality with the number of evicted jobs in this gang.
+		// Override cardinality with the number of evicted jobs in this gang.
 		jctx.GangInfo.Cardinality = len(sch.jobIdsByGangId[gangId])
-		jctx.GangInfo.MinimumCardinality = jctx.GangInfo.Cardinality
 	}
 	return
 }

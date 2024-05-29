@@ -293,12 +293,6 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 					actual.Id, expected.Cardinality, actual.Cardinality,
 				)
 			}
-			if expected.MinimumCardinality != actual.MinimumCardinality {
-				return errors.Errorf(
-					"inconsistent gang minimum cardinality in gang %s: expected %d but got %d",
-					actual.Id, expected.MinimumCardinality, actual.MinimumCardinality,
-				)
-			}
 			if expected.PriorityClassName != actual.PriorityClassName {
 				return errors.Errorf(
 					"inconsistent PriorityClassName in gang %s: expected %s but got %s",
