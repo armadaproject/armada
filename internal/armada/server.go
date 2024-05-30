@@ -2,6 +2,7 @@ package armada
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/armada/queue"
 	"net"
 	"time"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/event"
 	"github.com/armadaproject/armada/internal/armada/queryapi"
-	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -99,8 +99,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
-	queueRepository := repository.NewPostgresQueueRepository(queryDb)
-	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
+	queueRepository := queue.NewPostgresQueueRepository(queryDb)
+	queueCache := queue.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
 	services = append(services, func() error {
 		return queueCache.Run(ctx)
 	})
@@ -143,9 +143,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer publisher.Close()
 
+	queueServer := queue.NewServer(queueRepository, authorizer)
+
 	submitServer := submit.NewServer(
+		queueServer,
 		publisher,
-		queueRepository,
 		queueCache,
 		config.Submission,
 		submit.NewDeduplicator(dbPool),
@@ -166,6 +168,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+	api.RegisterQueueServiceServer(grpcServer, queueServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)
