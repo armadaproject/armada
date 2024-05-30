@@ -5,7 +5,7 @@ description = "Armada gRPC API python client"
 readme = "README.md"
 requires-python = ">=3.7"
 # 2024-05-30 - masipauskas - we can't depend on protobuf 5+ and transitively grpcio, grpcio-tools (>1.46.3) due to probuf constraint in opentelemetry-proto used in airflow
-dependencies = ["grpcio>=1.46.3, <=1.62.1", "grpcio-tools>=1.46.3, <=1.62.1", "mypy-protobuf>=3.2.0", "protobuf>=3.20.3, < 5.0"]
+dependencies = ["grpcio>=1.46.3, <=1.62.1", "grpcio-tools>=1.46.3, <=1.62.1", "mypy-protobuf==3.6.0", "protobuf==3.6.0"]
 license = { text = "Apache Software License" }
 authors = [{ name = "G-Research Open Source Software", email = "armada@armadaproject.io" }]
 
