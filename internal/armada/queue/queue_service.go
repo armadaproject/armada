@@ -31,6 +31,7 @@ func NewServer(
 		authorizer:      authorizer,
 	}
 }
+
 func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
