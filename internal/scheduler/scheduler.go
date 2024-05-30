@@ -1029,6 +1029,13 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		return nil, err
 	}
 
+	for _, job := range jobsToCheck {
+		err := job.ValidateResourceRequests()
+		if err != nil {
+			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
+		}
+	}
+
 	events := make([]*armadaevents.EventSequence, 0)
 	jobsToUpdate := make([]*jobdb.Job, 0)
 	for _, job := range jobsToCheck {

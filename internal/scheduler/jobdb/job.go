@@ -640,6 +640,21 @@ func (job *Job) HasRuns() bool {
 	return job.activeRun != nil
 }
 
+func (job *Job) ValidateResourceRequests() error {
+	pr := job.jobSchedulingInfo.GetPodRequirements()
+	if pr == nil {
+		return nil
+	}
+
+	req := pr.ResourceRequirements.Requests
+	if req == nil {
+		return nil
+	}
+
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(req)
+	return err
+}
+
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAtPriority int32) *Job {
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
@@ -787,11 +802,8 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
-	rr, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(jobSchedulingInfo.GetPodRequirements().ResourceRequirements.Requests)
-	if err != nil {
-		return nil, err
-	}
-	j.resourceRequirements = rr
+	j.resourceRequirements = job.jobDb.getResourceRequirements(jobSchedulingInfo)
+
 	return j, nil
 }
 

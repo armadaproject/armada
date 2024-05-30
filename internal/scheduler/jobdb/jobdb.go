@@ -144,10 +144,7 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
-	rr, err := jobDb.getResourceRequirements(schedulingInfo)
-	if err != nil {
-		return nil, err
-	}
+	rr := jobDb.getResourceRequirements(schedulingInfo)
 
 	job := &Job{
 		jobDb:                   jobDb,
@@ -173,23 +170,18 @@ func (jobDb *JobDb) NewJob(
 	return job, nil
 }
 
-func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) (internaltypes.ResourceList, error) {
+func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
 	pr := schedulingInfo.GetPodRequirements()
 	if pr == nil {
-		return internaltypes.ResourceList{}, nil
+		return internaltypes.ResourceList{}
 	}
 
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
-		return internaltypes.ResourceList{}, nil
+		return internaltypes.ResourceList{}
 	}
 
-	rr, err := jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(req)
-	if err != nil {
-		return internaltypes.ResourceList{}, err
-	}
-
-	return rr, nil
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(req).Resources)
 }
 
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
