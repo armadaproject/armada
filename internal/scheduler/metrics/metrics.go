@@ -62,6 +62,9 @@ type Metrics struct {
 	// Messages that match no regex map to -1.
 	matchedRegexIndexByErrorMessage *lru.Cache
 
+	// Histogram of completed run durations by queue
+	completedRunDurations *prometheus.HistogramVec
+
 	// Map from resource name to the counter and counterSeconds Vecs for that resource.
 	resourceCounters map[v1.ResourceName]*prometheus.CounterVec
 }
@@ -95,7 +98,20 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 
 		errorRegexes:                    errorRegexes,
 		matchedRegexIndexByErrorMessage: matchedRegexIndexByError,
-
+		completedRunDurations: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "job_run_completed_duration_seconds",
+				Help:      "Time",
+				Buckets: prometheus.ExponentialBuckets(
+					2,
+					2,
+					20),
+				ConstLabels: map[string]string{},
+			},
+			[]string{"queue"},
+		),
 		resourceCounters: make(map[v1.ResourceName]*prometheus.CounterVec),
 	}, nil
 }
@@ -129,6 +145,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	for _, metric := range m.resourceCounters {
 		metric.Describe(ch)
 	}
+	m.completedRunDurations.Describe(ch)
 }
 
 // Collect and then reset all metrics.
@@ -148,6 +165,7 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 		}
 		m.timeOfMostRecentReset = t
 	}
+	m.completedRunDurations.Collect(ch)
 }
 
 func (m *Metrics) UpdateMany(
@@ -439,6 +457,10 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 		return err
 	} else {
 		c.Add(stateDuration.Seconds())
+	}
+
+	if job.HasRuns() && job.LatestRun().InTerminalState() {
+		m.completedRunDurations.WithLabelValues(job.Queue()).Observe(stateDuration.Seconds())
 	}
 
 	requests := job.ResourceRequirements().Requests
