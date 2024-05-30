@@ -15,8 +15,4 @@
     <PackageReference Include="RichardSzalay.MockHttp" Version="6.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Armada.Client\Armada.Client.csproj" />
-  </ItemGroup>
-
 </Project>

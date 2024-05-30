@@ -1,9 +1,5 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Armada.Client", "Armada.Client\Armada.Client.csproj", "{8016908D-697F-48B0-9AAA-048A64A06FA8}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Armada.Client.Test", "Armada.Client.Test\Armada.Client.Test.csproj", "{FFF216CF-27D6-4E56-B472-30092FF6AE4D}"
-EndProject
 Project("{C67ED064-D6AE-4CC6-8EED-B831AEC436C3}") = "ArmadaProject.Io.Client", "ArmadaProject.Io.Client\ArmadaProject.Io.Client.csproj", "{C67ED064-D6AE-4CC6-8EED-B831AEC436C3}"
 EndProject
 Project("{042CF01C-060C-4B27-A5B7-E7500636451A}") = "ArmadaProject.Io.Client.Test", "ArmadaProject.Io.Client.Test\ArmadaProject.Io.Client.Test.csproj", "{042CF01C-060C-4B27-A5B7-E7500636451A}"
@@ -14,14 +10,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{8016908D-697F-48B0-9AAA-048A64A06FA8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8016908D-697F-48B0-9AAA-048A64A06FA8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8016908D-697F-48B0-9AAA-048A64A06FA8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8016908D-697F-48B0-9AAA-048A64A06FA8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FFF216CF-27D6-4E56-B472-30092FF6AE4D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FFF216CF-27D6-4E56-B472-30092FF6AE4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FFF216CF-27D6-4E56-B472-30092FF6AE4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FFF216CF-27D6-4E56-B472-30092FF6AE4D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C67ED064-D6AE-4CC6-8EED-B831AEC436C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C67ED064-D6AE-4CC6-8EED-B831AEC436C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C67ED064-D6AE-4CC6-8EED-B831AEC436C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
