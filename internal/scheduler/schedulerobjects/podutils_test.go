@@ -213,14 +213,14 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 						PreemptionPolicy: "abc",
 						ResourceRequirements: v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
-								"cpu":    resource.MustParse("1"),
-								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("3"),
+								"cpu":            resource.MustParse("1"),
+								"memory":         resource.MustParse("2"),
+								"nvidia.com/gpu": resource.MustParse("3"),
 							},
 							Requests: map[v1.ResourceName]resource.Quantity{
-								"cpu":    resource.MustParse("2"),
-								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("2"),
+								"cpu":            resource.MustParse("2"),
+								"memory":         resource.MustParse("2"),
+								"nvidia.com/gpu": resource.MustParse("2"),
 							},
 						},
 					},
@@ -323,14 +323,14 @@ func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
 						PreemptionPolicy: "abc",
 						ResourceRequirements: v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
-								"cpu":    resource.MustParse("1"),
-								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("3"),
+								"cpu":            resource.MustParse("1"),
+								"memory":         resource.MustParse("2"),
+								"nvidia.com/gpu": resource.MustParse("3"),
 							},
 							Requests: map[v1.ResourceName]resource.Quantity{
-								"cpu":    resource.MustParse("2"),
-								"memory": resource.MustParse("2"),
-								"gpu":    resource.MustParse("2"),
+								"cpu":            resource.MustParse("2"),
+								"memory":         resource.MustParse("2"),
+								"nvidia.com/gpu": resource.MustParse("2"),
 							},
 						},
 					},

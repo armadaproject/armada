@@ -14,6 +14,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -49,6 +50,8 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	// Resource requirements of this job stored in efficient form.
+	resourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
@@ -302,7 +305,7 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.schedulingKey != other.schedulingKey {
-		// Assume jobSchedulingInfo is equal if schedulingKey is equal.
+		// Assume jobSchedulingInfo/resourceRequirements are equal if schedulingKey is equal.
 		return false
 	}
 	if job.queued != other.queued {
@@ -497,11 +500,17 @@ func (job *Job) Tolerations() []v1.Toleration {
 }
 
 // ResourceRequirements returns the resource requirements of the Job
+// EfficientResourceRequirements below is preferred
 func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
 	}
 	return v1.ResourceRequirements{}
+}
+
+// EfficientResourceRequirements gets resource requirements as an efficient internaltypes.ResourceList
+func (job *Job) EfficientResourceRequirements() internaltypes.ResourceList {
+	return job.resourceRequirements
 }
 
 // QueueTtlSeconds returns the time in seconds that the job should remain queued
@@ -628,6 +637,21 @@ func (job *Job) InTerminalState() bool {
 // If this is returns true then LatestRun is guaranteed to return a non-nil value.
 func (job *Job) HasRuns() bool {
 	return job.activeRun != nil
+}
+
+func (job *Job) ValidateResourceRequests() error {
+	pr := job.jobSchedulingInfo.GetPodRequirements()
+	if pr == nil {
+		return nil
+	}
+
+	req := pr.ResourceRequirements.Requests
+	if req == nil {
+		return nil
+	}
+
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(req)
+	return err
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
@@ -770,19 +794,23 @@ func (job *Job) Validated() bool {
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
-func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
+func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) (*Job, error) {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
-	return j
+	j.resourceRequirements = job.jobDb.getResourceRequirements(jobSchedulingInfo)
+
+	return j, nil
 }
 
 func (job *Job) DeepCopy() *Job {
-	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
-	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
+	j := copyJob(*job)
+	j.jobSchedulingInfo = proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j.ensureJobSchedulingInfoFieldsInitialised()
+	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 
 	j.runsById = maps.Clone(j.runsById)
 	for key, run := range j.runsById {
@@ -795,7 +823,7 @@ func (job *Job) DeepCopy() *Job {
 	return j
 }
 
-// copyJob makes a copy of the job
+// copyJob makes a shallow copy of the job
 func copyJob(j Job) *Job {
 	return &j
 }
