@@ -18,12 +18,11 @@ type DefaultPoolAssigner struct {
 	poolByExecutorId   map[string]string
 }
 
-func NewPoolAssigner(executorRepository database.ExecutorRepository,
-) (*DefaultPoolAssigner, error) {
+func NewPoolAssigner(executorRepository database.ExecutorRepository) *DefaultPoolAssigner {
 	return &DefaultPoolAssigner{
 		executorRepository: executorRepository,
 		poolByExecutorId:   map[string]string{},
-	}, nil
+	}
 }
 
 // Refresh updates executor state

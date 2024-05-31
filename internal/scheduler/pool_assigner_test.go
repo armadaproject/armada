@@ -55,10 +55,9 @@ func TestPoolAssigner_AssignPools(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-			assigner, err := NewPoolAssigner(mockExecutorRepo)
-			require.NoError(t, err)
+			assigner := NewPoolAssigner(mockExecutorRepo)
 
-			err = assigner.Refresh(ctx)
+			err := assigner.Refresh(ctx)
 			require.NoError(t, err)
 			pools, err := assigner.AssignPools(tc.job)
 			require.NoError(t, err)
