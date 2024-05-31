@@ -7,7 +7,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestFromObjectValid(t *testing.T) {
@@ -51,10 +50,10 @@ func makeTestNode(id string) *internaltypes.Node {
 		"node_name",
 		[]v1.Taint{},
 		map[string]string{},
-		schedulerobjects.ResourceList{},
-		schedulerobjects.AllocatableByPriorityAndResourceType{},
-		map[string]schedulerobjects.ResourceList{},
-		map[string]schedulerobjects.ResourceList{},
+		internaltypes.ResourceList{},
+		map[int32]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		[][]byte{},
 	)

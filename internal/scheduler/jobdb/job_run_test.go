@@ -34,6 +34,7 @@ var (
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
+		MakeTestResourceListFactory(),
 	)
 	scheduledAtPriority = int32(5)
 )
