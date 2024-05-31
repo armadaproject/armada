@@ -1,6 +1,6 @@
 [project]
 name = "armada_client"
-version = "0.3.1"
+version = "0.3.2"
 description = "Armada gRPC API python client"
 readme = "README.md"
 requires-python = ">=3.7"
