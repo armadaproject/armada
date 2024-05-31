@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -42,6 +43,8 @@ type JobDb struct {
 	clock clock.PassiveClock
 	// Used for generating job run ids.
 	uuidProvider UUIDProvider
+	// Used to make efficient ResourceList types.
+	resourceListFactory *internaltypes.ResourceListFactory
 }
 
 // UUIDProvider is an interface used to mock UUID generation for tests.
@@ -56,12 +59,14 @@ func (_ RealUUIDProvider) New() uuid.UUID {
 	return uuid.New()
 }
 
-func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInterner *stringinterner.StringInterner) *JobDb {
+func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInterner *stringinterner.StringInterner, resourceListFactory *internaltypes.ResourceListFactory,
+) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
 		defaultPriorityClassName,
 		schedulerobjects.NewSchedulingKeyGenerator(),
 		stringInterner,
+		resourceListFactory,
 	)
 }
 
@@ -70,6 +75,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	defaultPriorityClassName string,
 	skg *schedulerobjects.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
+	resourceListFactory *internaltypes.ResourceListFactory,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
@@ -89,6 +95,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		stringInterner:         stringInterner,
 		clock:                  clock.RealClock{},
 		uuidProvider:           RealUUIDProvider{},
+		resourceListFactory:    resourceListFactory,
 	}
 }
 
@@ -112,6 +119,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
 		stringInterner:         jobDb.stringInterner,
+		resourceListFactory:    jobDb.resourceListFactory,
 	}
 }
 
@@ -130,11 +138,14 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 	validated bool,
-) *Job {
+) (*Job, error) {
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
+
+	rr := jobDb.getResourceRequirements(schedulingInfo)
+
 	job := &Job{
 		jobDb:                   jobDb,
 		id:                      jobId,
@@ -146,6 +157,7 @@ func (jobDb *JobDb) NewJob(
 		requestedPriority:       priority,
 		submittedTime:           created,
 		jobSchedulingInfo:       jobDb.internJobSchedulingInfoStrings(schedulingInfo),
+		resourceRequirements:    rr,
 		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
 		cancelByJobSetRequested: cancelByJobSetRequested,
@@ -155,7 +167,21 @@ func (jobDb *JobDb) NewJob(
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
-	return job
+	return job, nil
+}
+
+func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
+	pr := schedulingInfo.GetPodRequirements()
+	if pr == nil {
+		return internaltypes.ResourceList{}
+	}
+
+	req := pr.ResourceRequirements.Requests
+	if req == nil {
+		return internaltypes.ResourceList{}
+	}
+
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(req).Resources)
 }
 
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
