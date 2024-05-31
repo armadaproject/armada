@@ -357,7 +357,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunLeased             []string                          // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                          // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
-		expectedJobsToFail               []string                          // ids of jobs we expect to fail without having failed the overall scheduling cycle
 		expectedJobsRunsToPreempt        []string                          // ids of jobs we expect to be preempted by the scheduler
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobRunCancelled          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
@@ -471,12 +470,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:           []*jobdb.Job{queuedJob},
 			expectedQueued:        []string{queuedJob.Id()},
 			expectedQueuedVersion: queuedJob.QueuedVersion(),
-		},
-		"FailedJobs in scheduler result will publish appropriate messages": {
-			initialJobs:        []*jobdb.Job{queuedJob},
-			expectedJobErrors:  []string{queuedJob.Id()},
-			expectedJobsToFail: []string{queuedJob.Id()},
-			expectedTerminal:   []string{queuedJob.Id()},
 		},
 		"No updates to an already leased job": {
 			initialJobs:           []*jobdb.Job{leasedJob},
@@ -892,7 +885,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{
 				jobsToSchedule: tc.expectedJobRunLeased,
 				jobsToPreempt:  tc.expectedJobsRunsToPreempt,
-				jobsToFail:     tc.expectedJobsToFail,
 				shouldError:    tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
@@ -1424,7 +1416,6 @@ type testSchedulingAlgo struct {
 	numberOfScheduleCalls int
 	jobsToPreempt         []string
 	jobsToSchedule        []string
-	jobsToFail            []string
 	shouldError           bool
 	// Set to true to indicate that preemption/scheduling/failure decisions have been persisted.
 	// Until persisted is set to true, the same jobs are preempted/scheduled/failed on every call.
@@ -1442,7 +1433,6 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
-	failedJobs := make([]*jobdb.Job, 0, len(t.jobsToFail))
 	for _, id := range t.jobsToPreempt {
 		job := txn.GetById(id)
 		if job == nil {
@@ -1479,27 +1469,13 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 		)
 		scheduledJobs = append(scheduledJobs, job)
 	}
-	for _, id := range t.jobsToFail {
-		job := txn.GetById(id)
-		if job == nil {
-			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
-		}
-		if !job.Queued() {
-			return nil, errors.Errorf("was asked to lease %s but job is not queued", job.Id())
-		}
-		job = job.WithQueued(false).WithFailed(true)
-		failedJobs = append(failedJobs, job)
-	}
 	if err := txn.Upsert(preemptedJobs); err != nil {
 		return nil, err
 	}
 	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	if err := txn.Upsert(failedJobs); err != nil {
-		return nil, err
-	}
-	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, nil), nil
 }
 
 func (t *testSchedulingAlgo) Persist() {
@@ -1514,13 +1490,11 @@ func (t *testSchedulingAlgo) Persist() {
 func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
-	failedJobs S,
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
 	return &SchedulerResult{
 		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs),
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs),
-		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs),
 		NodeIdByJobId: nodeIdByJobId,
 	}
 }
@@ -1799,7 +1773,6 @@ func TestCycleConsistency(t *testing.T) {
 		// Controls which jobs the scheduler should schedule/preempt/fail.
 		idsOfJobsToSchedule []string
 		idsOfJobsToPreempt  []string
-		idsOfJobsToFail     []string
 
 		// Expected jobDbs for scenario 1, i.e., the baseline scenario.
 		// Only compared against if not nil.
@@ -1875,7 +1848,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -1903,7 +1877,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -1911,7 +1886,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -1945,8 +1921,10 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 								JobRunCancelled: &armadaevents.JobRunCancelled{
-									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									RunId:    armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									RunIdStr: testfixtures.UUIDFromInt(1).String(),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -1954,7 +1932,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -1988,7 +1967,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -1996,8 +1976,10 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 								JobRunCancelled: &armadaevents.JobRunCancelled{
-									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									RunId:    armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
+									RunIdStr: testfixtures.UUIDFromInt(1).String(),
 								},
 							},
 						},
@@ -2005,7 +1987,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -2039,51 +2022,15 @@ func TestCycleConsistency(t *testing.T) {
 							Event: &armadaevents.EventSequence_Event_JobRunLeased{
 								JobRunLeased: &armadaevents.JobRunLeased{
 									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									RunIdStr:               testfixtures.UUIDFromInt(1).String(),
 									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr:               queuedJobA.JobID,
 									ExecutorId:             testExecutor,
 									NodeId:                 testNode,
 									UpdateSequenceNumber:   1,
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
 									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"Fail a new job": {
-			firstSchedulerDbUpdate: schedulerDbUpdate{
-				jobUpdates: []*database.Job{
-					queuedJobA,
-				},
-			},
-			idsOfJobsToFail:         []string{queuedJobA.JobID},
-			expectedJobDbCycleOne:   []*jobdb.Job{},
-			expectedJobDbCycleTwo:   []*jobdb.Job{},
-			expectedJobDbCycleThree: []*jobdb.Job{},
-			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
-				{
-					Queue:      queuedJobA.Queue,
-					JobSetName: queuedJobA.JobSet,
-					Events: []*armadaevents.EventSequence_Event{
-						{
-							Created: pointerFromValue(time.Unix(0, 0)),
-							Event: &armadaevents.EventSequence_Event_JobErrors{
-								JobErrors: &armadaevents.JobErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
-									Errors: []*armadaevents.Error{
-										{
-											Terminal: true,
-											Reason: &armadaevents.Error_GangJobUnschedulable{
-												GangJobUnschedulable: &armadaevents.GangJobUnschedulable{
-													// This message is somewhat arbitrary here.
-													Message: "Job did not meet the minimum gang cardinality",
-												},
-											},
-										},
-									},
 								},
 							},
 						},
@@ -2124,6 +2071,8 @@ func TestCycleConsistency(t *testing.T) {
 								JobRunLeased: &armadaevents.JobRunLeased{
 									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
 									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr:               queuedJobA.JobID,
+									RunIdStr:               testfixtures.UUIDFromInt(1).String(),
 									ExecutorId:             testExecutor,
 									NodeId:                 testNode,
 									UpdateSequenceNumber:   1,
@@ -2143,7 +2092,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobSucceeded{
 								JobSucceeded: &armadaevents.JobSucceeded{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -2187,6 +2137,8 @@ func TestCycleConsistency(t *testing.T) {
 								JobRunLeased: &armadaevents.JobRunLeased{
 									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
 									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr:               queuedJobA.JobID,
+									RunIdStr:               testfixtures.UUIDFromInt(1).String(),
 									ExecutorId:             testExecutor,
 									NodeId:                 testNode,
 									UpdateSequenceNumber:   1,
@@ -2206,7 +2158,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 									Errors: []*armadaevents.Error{
 										{
 											Terminal: true,
@@ -2316,8 +2269,10 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 								JobRunPreempted: &armadaevents.JobRunPreempted{
-									PreemptedRunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
-									PreemptedJobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									PreemptedRunId:    armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									PreemptedRunIdStr: testfixtures.UUIDFromInt(1).String(),
+									PreemptedJobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									PreemptedJobIdStr: queuedJobA.JobID,
 								},
 							},
 						},
@@ -2325,8 +2280,10 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobRunErrors{
 								JobRunErrors: &armadaevents.JobRunErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
-									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
+									RunId:    armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									RunIdStr: testfixtures.UUIDFromInt(1).String(),
 									Errors: []*armadaevents.Error{
 										{
 											Terminal: true,
@@ -2342,7 +2299,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobId:    armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									JobIdStr: queuedJobA.JobID,
 									Errors: []*armadaevents.Error{
 										{
 											Terminal: true,
@@ -2480,7 +2438,6 @@ func TestCycleConsistency(t *testing.T) {
 					&testSchedulingAlgo{
 						jobsToSchedule: tc.idsOfJobsToSchedule,
 						jobsToPreempt:  tc.idsOfJobsToPreempt,
-						jobsToFail:     tc.idsOfJobsToFail,
 					},
 					leader.NewStandaloneLeaderController(),
 					newTestPublisher(),

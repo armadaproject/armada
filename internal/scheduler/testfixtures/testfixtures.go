@@ -360,21 +360,7 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangMinimumCardinalityAnnotation: gangCardinality},
-		jobs,
-	)
-}
-
-func WithGangAnnotationsAndMinCardinalityJobs(minimumCardinality int, jobs []*jobdb.Job) []*jobdb.Job {
-	gangId := uuid.NewString()
-	gangCardinality := fmt.Sprintf("%d", len(jobs))
-	gangMinCardinality := fmt.Sprintf("%d", minimumCardinality)
-	return WithAnnotationsJobs(
-		map[string]string{
-			configuration.GangIdAnnotation:                 gangId,
-			configuration.GangCardinalityAnnotation:        gangCardinality,
-			configuration.GangMinimumCardinalityAnnotation: gangMinCardinality,
-		},
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
 		jobs,
 	)
 }
@@ -894,24 +880,8 @@ func TestNSubmitMsgGang(n int) []*armadaevents.SubmitJob {
 	for i := 0; i < n; i++ {
 		job := Test1CoreSubmitMsg()
 		job.MainObject.ObjectMeta.Annotations = map[string]string{
-			configuration.GangIdAnnotation:                 gangId,
-			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
-			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
-		}
-		gang[i] = job
-	}
-	return gang
-}
-
-func TestNSubmitMsgGangLessThanMinCardinality(n int) []*armadaevents.SubmitJob {
-	gangId := uuid.NewString()
-	gang := make([]*armadaevents.SubmitJob, n)
-	for i := 0; i < n; i++ {
-		job := Test1CoreSubmitMsg()
-		job.MainObject.ObjectMeta.Annotations = map[string]string{
-			configuration.GangIdAnnotation:                 gangId,
-			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
-			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
+			configuration.GangIdAnnotation:          gangId,
+			configuration.GangCardinalityAnnotation: fmt.Sprintf("%d", n),
 		}
 		gang[i] = job
 	}

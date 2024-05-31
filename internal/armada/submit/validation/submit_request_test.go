@@ -141,18 +141,6 @@ func TestValidateGangs(t *testing.T) {
 			},
 			expectSuccess: true,
 		},
-		"complete gang job of cardinality 2 with minimum cardinality of 1": {
-			jobRequests: []*api.JobSubmitRequestItem{
-				{
-					Annotations: map[string]string{
-						configuration.GangIdAnnotation:                 "foo",
-						configuration.GangCardinalityAnnotation:        strconv.Itoa(2),
-						configuration.GangMinimumCardinalityAnnotation: strconv.Itoa(1),
-					},
-				},
-			},
-			expectSuccess: true,
-		},
 		"empty gangId": {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{

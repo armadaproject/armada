@@ -32,7 +32,7 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 		// Ignore this error if priorityByPriorityClassName is explicitly set to nil.
 		// We assume that in this case the caller is sure the priority does not need to be set.
 		err := errors.Errorf("unknown priorityClassName %s", podSpec.PriorityClassName)
-		logging.WithStacktrace(logrus.NewEntry(logrus.New()), err).Error("failed to get priority from priorityClassName")
+		logging.WithStacktrace(logrus.NewEntry(logrus.StandardLogger()), err).Error("failed to get priority from priorityClassName")
 	}
 	preemptionPolicy := string(v1.PreemptLowerPriority)
 	if podSpec.PreemptionPolicy != nil {

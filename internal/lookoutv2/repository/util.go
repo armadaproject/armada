@@ -398,7 +398,7 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 	return js
 }
 
-func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, debug string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	runFailed := &armadaevents.EventSequence_Event{
 		Created: &ts,
@@ -411,8 +411,9 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 						Terminal: true,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
-								Message:  message,
-								NodeName: node,
+								Message:      message,
+								DebugMessage: debug,
+								NodeName:     node,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{ExitCode: exitCode},
 								},
