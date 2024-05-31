@@ -92,7 +92,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			defer cancel()
 
 			// set up job db with initial jobs
-			jobDb := testfixtures.NewJobDb()
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
 			err := txn.Upsert(tc.initialJobs)
 			require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			defer cancel()
 
 			// set up job db with initial jobs
-			jobDb := testfixtures.NewJobDb()
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
 			err := txn.Upsert(tc.jobDbJobs)
 			require.NoError(t, err)

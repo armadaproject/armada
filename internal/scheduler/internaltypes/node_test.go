@@ -7,10 +7,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
 func TestNode(t *testing.T) {
+	resourceListFactory, err := MakeResourceListFactory([]schedulerconfiguration.ResourceType{
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+	})
+	assert.Nil(t, err)
+
 	const id = "id"
 	const nodeTypeId = uint64(123)
 	const index = uint64(1)
@@ -25,47 +31,47 @@ func TestNode(t *testing.T) {
 	labels := map[string]string{
 		"key": "value",
 	}
-	totalResources := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{
+	totalResources := resourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
 			"cpu":    resource.MustParse("16"),
 			"memory": resource.MustParse("32Gi"),
 		},
-	}
-	allocatableByPriority := schedulerobjects.AllocatableByPriorityAndResourceType{
-		1: {
-			Resources: map[string]resource.Quantity{
+	)
+	allocatableByPriority := map[int32]ResourceList{
+		1: resourceListFactory.FromNodeProto(
+			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("0"),
 				"memory": resource.MustParse("0Gi"),
 			},
-		},
-		2: {
-			Resources: map[string]resource.Quantity{
+		),
+		2: resourceListFactory.FromNodeProto(
+			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("8"),
 				"memory": resource.MustParse("16Gi"),
 			},
-		},
-		3: {
-			Resources: map[string]resource.Quantity{
+		),
+		3: resourceListFactory.FromNodeProto(
+			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
 				"memory": resource.MustParse("32Gi"),
 			},
-		},
+		),
 	}
-	allocatedByQueue := map[string]schedulerobjects.ResourceList{
-		"queue": {
-			Resources: map[string]resource.Quantity{
+	allocatedByQueue := map[string]ResourceList{
+		"queue": resourceListFactory.FromJobResourceListIgnoreUnknown(
+			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("8"),
 				"memory": resource.MustParse("16Gi"),
 			},
-		},
+		),
 	}
-	allocatedByJobId := map[string]schedulerobjects.ResourceList{
-		"jobId": {
-			Resources: map[string]resource.Quantity{
+	allocatedByJobId := map[string]ResourceList{
+		"jobId": resourceListFactory.FromJobResourceListIgnoreUnknown(
+			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("8"),
 				"memory": resource.MustParse("16Gi"),
 			},
-		},
+		),
 	}
 	evictedJobRunIds := map[string]bool{
 		"jobId":        false,
