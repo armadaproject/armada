@@ -3,9 +3,7 @@ package nodedb
 import (
 	"encoding/binary"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
 // NodeIndexKey returns a []byte to be used as a key with the NodeIndex memdb index.
@@ -21,10 +19,10 @@ import (
 //
 // The key layout is such that an index ordered first by the nodeTypeId, then resources[0], and so on.
 // The byte representation is appended to out, which is returned.
-func NodeIndexKey(out []byte, nodeTypeId uint64, resources []resource.Quantity) []byte {
+func NodeIndexKey(out []byte, nodeTypeId uint64, resources []int64) []byte {
 	out = EncodeUint64(out, nodeTypeId)
 	for _, q := range resources {
-		out = EncodeQuantity(out, q)
+		out = EncodeInt64(out, q)
 	}
 	// Because the key returned by this function should be used with a lower-bound operation on allocatable resources
 	// we set the nodeIndex to 0.
@@ -33,39 +31,30 @@ func NodeIndexKey(out []byte, nodeTypeId uint64, resources []resource.Quantity) 
 }
 
 // RoundedNodeIndexKeyFromResourceList works like NodeIndexKey, except that prior to constructing the key
-// the i-th resource is rounded down to the closest multiple of resourceResolutionMillis[i].
+// the i-th resource is rounded down to the closest multiple of resourceResolution[i].
 // This rounding makes iterating over nodes with at least some amount of available resources more efficient.
 // It also takes as arguments a list of resource names and a resourceList, instead of a list of resources.
 func RoundedNodeIndexKeyFromResourceList(
 	out []byte,
 	nodeTypeId uint64,
 	resourceNames []string,
-	resourceResolutionMillis []int64,
-	rl schedulerobjects.ResourceList,
+	resourceResolution []int64,
+	rl internaltypes.ResourceList,
 	nodeIndex uint64,
 ) []byte {
 	out = EncodeUint64(out, nodeTypeId)
 	for i, name := range resourceNames {
-		resolution := resourceResolutionMillis[i]
-		q := rl.Get(name)
+		resolution := resourceResolution[i]
+		q := rl.GetByNameZeroIfMissing(name)
 		q = roundQuantityToResolution(q, resolution)
-		out = EncodeQuantity(out, q)
+		out = EncodeInt64(out, q)
 	}
 	out = EncodeUint64(out, nodeIndex)
 	return out
 }
 
-func roundQuantityToResolution(q resource.Quantity, resolutionMillis int64) resource.Quantity {
-	q.SetMilli((q.MilliValue() / resolutionMillis) * resolutionMillis)
-	return q
-}
-
-// EncodeQuantity returns the canonical byte representation of a resource.Quantity used within the nodeDb.
-// The resulting []byte is such that for two resource.Quantity a and b, a.Cmp(b) = bytes.Compare(enc(a), enc(b)).
-// The byte representation is appended to out, which is returned.
-func EncodeQuantity(out []byte, val resource.Quantity) []byte {
-	// We assume that any quantity we want to compare can be represented as an int64.
-	return EncodeInt64(out, val.MilliValue())
+func roundQuantityToResolution(q int64, resolution int64) int64 {
+	return (q / resolution) * resolution
 }
 
 // EncodeInt64 returns the canonical byte representation of an int64 used within the nodeDb.

@@ -365,14 +365,6 @@ func (m AllocatableByPriorityAndResourceType) MarkAllocatable(p int32, rs Resour
 	}
 }
 
-func (m AllocatableByPriorityAndResourceType) MarkAllocatedV1ResourceList(p int32, rs v1.ResourceList) {
-	for priority, allocatableResourcesAtPriority := range m {
-		if priority <= p {
-			allocatableResourcesAtPriority.SubV1ResourceList(rs)
-		}
-	}
-}
-
 func (m AllocatableByPriorityAndResourceType) MarkAllocatableV1ResourceList(p int32, rs v1.ResourceList) {
 	for priority, allocatableResourcesAtPriority := range m {
 		if priority <= p {

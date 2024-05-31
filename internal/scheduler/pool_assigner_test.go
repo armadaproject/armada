@@ -21,7 +21,7 @@ import (
 func TestPoolAssigner_AssignPool(t *testing.T) {
 	executorTimeout := 15 * time.Minute
 	cpuJob := testfixtures.TestQueuedJobDbJob()
-	gpuJob := testfixtures.WithJobDbJobPodRequirements(testfixtures.TestQueuedJobDbJob(), testfixtures.Test1GpuPodReqs(testfixtures.TestQueue, util.ULID(), testfixtures.TestPriorities[0]))
+	gpuJob := jobdb.WithJobDbJobPodRequirements(testfixtures.TestQueuedJobDbJob(), testfixtures.Test1GpuPodReqs(testfixtures.TestQueue, util.ULID(), testfixtures.TestPriorities[0]))
 
 	tests := map[string]struct {
 		executorTimout time.Duration

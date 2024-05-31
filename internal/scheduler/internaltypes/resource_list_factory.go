@@ -6,10 +6,10 @@ import (
 
 	"github.com/pkg/errors"
 
+	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type ResourceListFactory struct {
@@ -26,8 +26,8 @@ func MakeResourceListFactory(supportedResourceTypes []configuration.ResourceType
 	nameToIndex := make(map[string]int, len(supportedResourceTypes))
 	scales := make([]k8sResource.Scale, len(supportedResourceTypes))
 	for i, t := range supportedResourceTypes {
-		if dup, exists := nameToIndex[t.Name]; exists {
-			return nil, fmt.Errorf("duplicate resource type name %q", dup)
+		if _, exists := nameToIndex[t.Name]; exists {
+			return nil, fmt.Errorf("duplicate resource type name %q", t.Name)
 		}
 		nameToIndex[t.Name] = i
 		indexToName[i] = t.Name
@@ -52,10 +52,15 @@ func resolutionToScale(resolution k8sResource.Quantity) k8sResource.Scale {
 	return k8sResource.Scale(math.Floor(math.Log10(resolution.AsApproximateFloat64())))
 }
 
-// Ignore unknown resources, round down.
-func (factory *ResourceListFactory) FromNodeProto(resources schedulerobjects.ResourceList) ResourceList {
+func (factory *ResourceListFactory) MakeAllZero() ResourceList {
 	result := make([]int64, len(factory.indexToName))
-	for k, v := range resources.Resources {
+	return ResourceList{resources: result, factory: factory}
+}
+
+// Ignore unknown resources, round down.
+func (factory *ResourceListFactory) FromNodeProto(resources map[string]k8sResource.Quantity) ResourceList {
+	result := make([]int64, len(factory.indexToName))
+	for k, v := range resources {
 		index, ok := factory.nameToIndex[k]
 		if ok {
 			result[index] = QuantityToInt64RoundDown(v, factory.scales[index])
@@ -64,15 +69,30 @@ func (factory *ResourceListFactory) FromNodeProto(resources schedulerobjects.Res
 	return ResourceList{resources: result, factory: factory}
 }
 
-// Fail on unknown resources, round up.
-func (factory *ResourceListFactory) FromJobProto(resources schedulerobjects.ResourceList) (ResourceList, error) {
+// Ignore unknown resources, round up.
+func (factory *ResourceListFactory) FromJobResourceListIgnoreUnknown(resources map[string]k8sResource.Quantity) ResourceList {
 	result := make([]int64, len(factory.indexToName))
-	for k, v := range resources.Resources {
+	for k, v := range resources {
 		index, ok := factory.nameToIndex[k]
 		if ok {
 			result[index] = QuantityToInt64RoundUp(v, factory.scales[index])
+		}
+	}
+	return ResourceList{resources: result, factory: factory}
+}
+
+// Fail on unknown resources, round up.
+func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources v1.ResourceList) (ResourceList, error) {
+	if resources == nil {
+		return ResourceList{}, nil
+	}
+	result := make([]int64, len(factory.indexToName))
+	for k, v := range resources {
+		index, ok := factory.nameToIndex[string(k)]
+		if ok {
+			result[index] = QuantityToInt64RoundUp(v, factory.scales[index])
 		} else {
-			return ResourceList{}, fmt.Errorf("unknown resource type %q", k)
+			return ResourceList{}, fmt.Errorf("resource type %q is not supported (if you want to use it add to scheduling.supportedResourceTypes in the armada scheduler config)", string(k))
 		}
 	}
 	return ResourceList{resources: result, factory: factory}, nil
@@ -90,4 +110,12 @@ func (factory *ResourceListFactory) SummaryString() string {
 		result += fmt.Sprintf("%s (scale %v, resolution %v, maxValue %f)", name, scale, resolution, maxValue.AsApproximateFloat64())
 	}
 	return result
+}
+
+func (factory *ResourceListFactory) GetScale(resourceTypeName string) (k8sResource.Scale, error) {
+	index, ok := factory.nameToIndex[resourceTypeName]
+	if !ok {
+		return 0, fmt.Errorf("unknown resource type %q", resourceTypeName)
+	}
+	return factory.scales[index], nil
 }
