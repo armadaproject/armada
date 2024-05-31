@@ -108,6 +108,15 @@ func (rl ResourceList) IsEmpty() bool {
 	return rl.factory == nil
 }
 
+// ExceedsAvailable
+// - if any resource in this ResourceList is greater than the equivalent resource in pamam available, this function returns
+//   - the name of the relevant resource
+//   - the amount of the relevant resource in available
+//   - the amount of the relevant resource in this ResourceList
+//   - true
+//
+// - if no resources in this ResourceList exceed available, the last return value is false.
+// - empty resource lists are considered equivalent to all zero.
 func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sResource.Quantity, k8sResource.Quantity, bool) {
 	if rl.IsEmpty() && available.IsEmpty() {
 		return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false

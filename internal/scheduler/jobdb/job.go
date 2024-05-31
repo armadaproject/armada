@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -16,6 +14,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -51,7 +50,7 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
-	// Scheduling requirements of this job stored in efficient form.
+	// Resource requirements of this job stored in efficient form.
 	resourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
 	priorityClass types.PriorityClass

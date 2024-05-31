@@ -60,9 +60,9 @@ func CreateNode(
 		taints:                koTaint.DeepCopyTaints(taints),
 		labels:                deepCopyLabels(labels),
 		TotalResources:        totalResources,
-		AllocatableByPriority: deepCopyIntToResourceList(allocatableByPriority),
-		AllocatedByQueue:      deepCopyStringToResourceList(allocatedByQueue),
-		AllocatedByJobId:      deepCopyStringToResourceList(allocatedByJobId),
+		AllocatableByPriority: maps.Clone(allocatableByPriority),
+		AllocatedByQueue:      maps.Clone(allocatedByQueue),
+		AllocatedByJobId:      maps.Clone(allocatedByJobId),
 		EvictedJobRunIds:      evictedJobRunIds,
 		Keys:                  keys,
 	}
@@ -133,9 +133,9 @@ func (node *Node) UnsafeCopy() *Node {
 
 		Keys: nil,
 
-		AllocatableByPriority: deepCopyIntToResourceList(node.AllocatableByPriority),
-		AllocatedByQueue:      deepCopyStringToResourceList(node.AllocatedByQueue),
-		AllocatedByJobId:      deepCopyStringToResourceList(node.AllocatedByJobId),
+		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
+		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
+		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
 		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
 	}
 }
@@ -144,22 +144,6 @@ func deepCopyLabels(labels map[string]string) map[string]string {
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[k] = v
-	}
-	return result
-}
-
-func deepCopyStringToResourceList(m map[string]ResourceList) map[string]ResourceList {
-	result := make(map[string]ResourceList, len(m))
-	for k, v := range m {
-		result[k] = v // we do not need to deep copy the value because ResourceList is immutable
-	}
-	return result
-}
-
-func deepCopyIntToResourceList(m map[int32]ResourceList) map[int32]ResourceList {
-	result := make(map[int32]ResourceList, len(m))
-	for k, v := range m {
-		result[k] = v // we do not need to deep copy the value because ResourceList is immutable
 	}
 	return result
 }
