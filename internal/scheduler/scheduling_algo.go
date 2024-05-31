@@ -271,6 +271,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	for _, executor := range executors {
 		executorToPool[executor.Id] = executor.Pool
 	}
+	allPools := maps.Values(executorToPool)
 
 	if err != nil {
 		return nil, err
@@ -306,8 +307,14 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		// Mark a queue being active for a given pool.  A queue is defined as being active if it has a job running
 		// on a pool or oif a queued job is eligible for that pool
 		pools := job.Pools()
+
 		if !job.Queued() && job.LatestRun() != nil {
 			pools = []string{executorToPool[job.LatestRun().Executor()]}
+		} else if len(pools) < 1 {
+			// This occurs if we haven't assigned a job to a pool.  Right now this can occur if a user
+			// has upgraded from a version of armada where pools were not assigned statically.  Eventually we
+			// Should be able to remove this
+			pools = allPools
 		}
 
 		for _, pool := range pools {
