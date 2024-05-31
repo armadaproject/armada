@@ -150,13 +150,13 @@ func NodeTypeJobRequirementsMet(nodeType *schedulerobjects.NodeType, jctx *sched
 	return NodeSelectorRequirementsMet(nodeTypeLabelGetter, nodeType.GetUnsetIndexedLabels(), jctx.PodRequirements.GetNodeSelector())
 }
 
-// jobRequirementsMet determines whether a job can be scheduled onto this node.
+// JobRequirementsMet determines whether a job can be scheduled onto this node.
 // If the pod can be scheduled, the returned score indicates how well the node fits:
 // - 0: Pod can be scheduled by preempting running pods.
 // - 1: Pod can be scheduled without preempting any running pods.
 // If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
-func jobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason, error) {
+func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason, error) {
 	matches, reason, err := StaticJobRequirementsMet(node, jctx)
 	if !matches || err != nil {
 		return matches, 0, reason, err
@@ -191,7 +191,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, err
 	}
 
-	matches, reason = ResourceRequirementsMet(node.TotalResources, jctx.PodRequirements.ResourceRequirements.Requests)
+	matches, reason = resourceRequirementsMet(node.TotalResources, jctx.ResourceRequirements)
 	if !matches {
 		return matches, reason, nil
 	}
@@ -201,8 +201,8 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 
 // DynamicJobRequirementsMet checks if a pod can be scheduled onto this node,
 // accounting for resources allocated to pods already assigned to this node.
-func DynamicJobRequirementsMet(allocatableResources schedulerobjects.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason) {
-	matches, reason := ResourceRequirementsMet(allocatableResources, jctx.PodRequirements.ResourceRequirements.Requests)
+func DynamicJobRequirementsMet(allocatableResources internaltypes.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason) {
+	matches, reason := resourceRequirementsMet(allocatableResources, jctx.ResourceRequirements)
 	return matches, SchedulableScore, reason
 }
 
@@ -264,8 +264,8 @@ func NodeAffinityRequirementsMet(node *internaltypes.Node, nodeSelector *v1.Node
 	return true, nil, nil
 }
 
-func ResourceRequirementsMet(available schedulerobjects.ResourceList, required v1.ResourceList) (bool, PodRequirementsNotMetReason) {
-	resourceName, availableQuantity, requiredQuantity, hasGreaterResource := findGreaterQuantity(available, required)
+func resourceRequirementsMet(available internaltypes.ResourceList, required internaltypes.ResourceList) (bool, PodRequirementsNotMetReason) {
+	resourceName, availableQuantity, requiredQuantity, hasGreaterResource := required.ExceedsAvailable(available)
 	if hasGreaterResource {
 		return false, &InsufficientResources{
 			ResourceName: resourceName,
@@ -274,16 +274,4 @@ func ResourceRequirementsMet(available schedulerobjects.ResourceList, required v
 		}
 	}
 	return true, nil
-}
-
-// findGreaterQuantity returns the name of a resource in required with non-zero quantity such that
-// the corresponding quantity in available is smaller, or returns false if no such resource can be found.
-func findGreaterQuantity(available schedulerobjects.ResourceList, required v1.ResourceList) (string, resource.Quantity, resource.Quantity, bool) {
-	for t, requiredQuantity := range required {
-		availableQuantity := available.Get(string(t))
-		if requiredQuantity.Cmp(availableQuantity) == 1 {
-			return string(t), availableQuantity, requiredQuantity, true
-		}
-	}
-	return "", resource.Quantity{}, resource.Quantity{}, false
 }

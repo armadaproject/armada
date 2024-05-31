@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -602,6 +603,8 @@ type JobSchedulingContext struct {
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	PodRequirements *schedulerobjects.PodRequirements
+	// Resource requirements in an efficient internaltypes.ResourceList
+	ResourceRequirements internaltypes.ResourceList
 	// Node selectors to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to further constrain where nodes are scheduled,
 	// e.g., to ensure evicted jobs are re-scheduled onto the same node.
@@ -741,11 +744,12 @@ func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
 		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
 	}
 	return &JobSchedulingContext{
-		Created:         time.Now(),
-		JobId:           job.Id(),
-		Job:             job,
-		PodRequirements: job.PodRequirements(),
-		GangInfo:        gangInfo,
+		Created:              time.Now(),
+		JobId:                job.Id(),
+		Job:                  job,
+		PodRequirements:      job.PodRequirements(),
+		ResourceRequirements: job.EfficientResourceRequirements(),
+		GangInfo:             gangInfo,
 	}
 }
 
