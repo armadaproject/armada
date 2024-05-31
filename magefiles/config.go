@@ -7,7 +7,8 @@ import (
 )
 
 type BuildConfig struct {
-	DockerRegistries map[string]string `json:"dockerRegistries"`
+	DockerRegistries       map[string]string `json:"dockerRegistries"`
+	PythonBuilderBaseImage string            `json:"pythonBuilderBaseImage"`
 }
 
 func getBuildConfig() (BuildConfig, error) {
