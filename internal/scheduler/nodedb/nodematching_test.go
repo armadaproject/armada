@@ -10,6 +10,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestNodeSchedulingRequirementsMet(t *testing.T) {
@@ -264,6 +265,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		},
 		"sufficient cpu": {
 			node: makeTestNodeResources(
+				t,
 				schedulerobjects.AllocatableByPriorityAndResourceType{
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -289,6 +291,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		},
 		"insufficient cpu": {
 			node: makeTestNodeResources(
+				t,
 				schedulerobjects.AllocatableByPriorityAndResourceType{
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -314,6 +317,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		},
 		"sufficient cpu at priority": {
 			node: makeTestNodeResources(
+				t,
 				schedulerobjects.AllocatableByPriorityAndResourceType{
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -344,6 +348,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		},
 		"insufficient cpu at priority": {
 			node: makeTestNodeResources(
+				t,
 				schedulerobjects.AllocatableByPriorityAndResourceType{
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -375,12 +380,13 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := jobRequirementsMet(
+			matches, _, reason, err := JobRequirementsMet(
 				tc.node,
 				tc.req.Priority,
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
-					PodRequirements: tc.req,
+					PodRequirements:      tc.req,
+					ResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.req.ResourceRequirements.Requests).Resources),
 				},
 			)
 			assert.NoError(t, err)
@@ -528,7 +534,12 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 				tc.IndexedLabels,
 			)
 			// TODO(albin): Define a jctx in the test case instead.
-			matches, reason := NodeTypeJobRequirementsMet(nodeType, &schedulercontext.JobSchedulingContext{PodRequirements: tc.Req})
+			matches, reason := NodeTypeJobRequirementsMet(nodeType,
+				&schedulercontext.JobSchedulingContext{
+					PodRequirements:      tc.Req,
+					ResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.Req.ResourceRequirements.Requests).Resources),
+				},
+			)
 			if tc.ExpectSuccess {
 				assert.True(t, matches)
 				assert.Nil(t, reason)
@@ -644,16 +655,25 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 		"name",
 		taints,
 		labels,
-		schedulerobjects.ResourceList{},
-		schedulerobjects.AllocatableByPriorityAndResourceType{},
-		map[string]schedulerobjects.ResourceList{},
-		map[string]schedulerobjects.ResourceList{},
+		internaltypes.ResourceList{},
+		map[int32]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		[][]byte{},
 	)
 }
 
-func makeTestNodeResources(allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType, totalResources schedulerobjects.ResourceList) *internaltypes.Node {
+func makeTestNodeResources(t *testing.T, allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType, totalResources schedulerobjects.ResourceList) *internaltypes.Node {
+	tr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(totalResources))
+	assert.Nil(t, err)
+
+	abp := map[int32]internaltypes.ResourceList{}
+	for pri, rl := range allocatableByPriority {
+		abp[pri], err = testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(rl))
+		assert.Nil(t, err)
+	}
+
 	return internaltypes.CreateNode(
 		"id",
 		1,
@@ -662,10 +682,10 @@ func makeTestNodeResources(allocatableByPriority schedulerobjects.AllocatableByP
 		"name",
 		[]v1.Taint{},
 		map[string]string{},
-		totalResources,
-		allocatableByPriority,
-		map[string]schedulerobjects.ResourceList{},
-		map[string]schedulerobjects.ResourceList{},
+		tr,
+		abp,
+		map[string]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		[][]byte{},
 	)
