@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools", "versioneer[toml]==0.29"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name='armada-airflow'
+readme='README.md'
+description='Armada Airflow Operator'
+authors=[
+    { name = 'G-Research' },
+]
+dependencies=[
+    'armada-client==0.3.0',
+    'apache-airflow>=2.6.3',
+    'grpcio==1.58.0',
+    'grpcio-tools==1.58.0',
+    'types-protobuf==4.24.0.1',
+    'kubernetes>=23.6.0',
+    'kubernetes_asyncio>=24.2.3',
+]
+requires-python=">=3.10,<3.11"
+classifiers=[
+    'Programming Language :: Python :: 3',
+    'Operating System :: OS Independent',
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+lint = [
+    "black==24.2.0",
+]
+
+
+[project.urls]
+repository='https://github.com/armadaproject/armada'
+
+
+[tool.setuptools.dynamic]
+version = {attr = "armada_airflow.__version__"}
+
+[tools.setuptools.packages.find]
+include = ["armada_airflow*"]
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "armada_airflow/_version.py"
+tag_prefix = ""
+parentdir_prefix = ""
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = "armada_airflow*"
+exclude = '''
+/(
+    \.git
+  | venv
+  | build
+  | dist
+  | armada_airflow.egg-info
+  | __pycache__*
+)/
+'''
