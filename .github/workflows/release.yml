@@ -119,4 +119,4 @@ jobs:
           TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           VERSION=${TAG#v}
-          dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+          dotnet nuget pushcheckout  ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
