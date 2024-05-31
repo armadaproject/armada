@@ -305,7 +305,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	for _, job := range txn.GetAll() {
 
 		// Mark a queue being active for a given pool.  A queue is defined as being active if it has a job running
-		// on a pool or oif a queued job is eligible for that pool
+		// on a pool or if a queued job is eligible for that pool
 		pools := job.Pools()
 
 		if !job.Queued() && job.LatestRun() != nil {
