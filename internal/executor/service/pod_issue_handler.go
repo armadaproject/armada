@@ -84,7 +84,7 @@ func NewIssueHandler(
 	stateChecksConfig configuration.StateChecksConfiguration,
 	pendingPodChecker podchecks.PodChecker,
 	stuckTerminatingPodExpiry time.Duration,
-) *IssueHandler {
+) (*IssueHandler, error) {
 	issueHandler := &IssueHandler{
 		jobRunState:               jobRunState,
 		clusterContext:            clusterContext,
@@ -97,7 +97,7 @@ func NewIssueHandler(
 		clock:                     clock.RealClock{},
 	}
 
-	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -107,8 +107,11 @@ func NewIssueHandler(
 			issueHandler.handleDeletedPod(pod)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return issueHandler
+	return issueHandler, nil
 }
 
 func (p *IssueHandler) hasIssue(runId string) bool {

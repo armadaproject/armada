@@ -577,7 +577,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	return js
 }
 
-func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, clk clock.Clock) *JobSimulator {
+func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: &ts,

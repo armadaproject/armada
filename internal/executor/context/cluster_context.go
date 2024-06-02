@@ -43,7 +43,7 @@ type ClusterIdentity interface {
 type ClusterContext interface {
 	ClusterIdentity
 
-	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs)
+	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) (cache.ResourceEventHandlerRegistration, error)
 	GetBatchPods() ([]*v1.Pod, error)
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
@@ -124,7 +124,7 @@ func NewClusterContext(
 		clock:                    clock.RealClock{},
 	}
 
-	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -134,6 +134,9 @@ func NewClusterContext(
 			context.submittedPods.Delete(util.ExtractPodKey(pod))
 		},
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	// Use node informer so it is initialised properly
 	context.nodeInformer.Lister()
@@ -141,7 +144,7 @@ func NewClusterContext(
 	context.ingressInformer.Lister()
 	context.endpointSliceInformer.Lister()
 
-	err := context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
+	err = context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
 	if err != nil {
 		panic(err)
 	}
@@ -160,8 +163,8 @@ func indexPodByUID(obj interface{}) (strings []string, err error) {
 	return []string{string(event.InvolvedObject.UID)}, nil
 }
 
-func (c *KubernetesClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.podInformer.Informer().AddEventHandler(handler)
+func (c *KubernetesClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) (cache.ResourceEventHandlerRegistration, error) {
+	return c.podInformer.Informer().AddEventHandler(handler)
 }
 
 func (c *KubernetesClusterContext) Stop() {

@@ -33,7 +33,7 @@ type JobEventReporter struct {
 
 	jobRunStateStore *job.JobRunStateStore
 	clusterContext   clusterContext.ClusterContext
-	clock            clock.Clock
+	clock            clock.WithTicker
 	maxBatchSize     int
 }
 
@@ -41,9 +41,9 @@ func NewJobEventReporter(
 	clusterContext clusterContext.ClusterContext,
 	jobRunState *job.JobRunStateStore,
 	eventSender EventSender,
-	clock clock.Clock,
+	clock clock.WithTicker,
 	maxBatchSize int,
-) (*JobEventReporter, chan bool) {
+) (*JobEventReporter, chan bool, error) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
@@ -56,11 +56,14 @@ func NewJobEventReporter(
 		maxBatchSize:     maxBatchSize,
 	}
 
-	clusterContext.AddPodEventHandler(reporter.podEventHandler())
+	_, err := clusterContext.AddPodEventHandler(reporter.podEventHandler())
+	if err != nil {
+		return nil, nil, err
+	}
 
 	go reporter.processEventQueue(stop)
 
-	return reporter, stop
+	return reporter, stop, nil
 }
 
 func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHandlerFuncs {

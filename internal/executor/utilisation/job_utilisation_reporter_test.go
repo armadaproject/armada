@@ -37,8 +37,9 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
-	eventReporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	_, err := submitPod(clusterContext)
+	eventReporter, err := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	require.NoError(t, err)
+	_, err = submitPod(clusterContext)
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Second)
@@ -76,8 +77,9 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
-	eventReporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	_, err := submitPod(clusterContext)
+	eventReporter, err := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	require.NoError(t, err)
+	_, err = submitPod(clusterContext)
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Millisecond * 500)

@@ -55,7 +55,7 @@ type MetricsCollector struct {
 	executorRepository database.ExecutorRepository
 	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
-	clock              clock.Clock
+	clock              clock.WithTicker
 	state              atomic.Value
 }
 

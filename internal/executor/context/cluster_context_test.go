@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	clientTesting "k8s.io/client-go/testing"
-	"k8s.io/utils/clock"
+	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
