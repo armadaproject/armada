@@ -13,7 +13,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	authv1 "k8s.io/api/authentication/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )

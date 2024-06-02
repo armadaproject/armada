@@ -11,7 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"

@@ -6,7 +6,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/stringinterner"

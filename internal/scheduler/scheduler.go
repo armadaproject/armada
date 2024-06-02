@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
