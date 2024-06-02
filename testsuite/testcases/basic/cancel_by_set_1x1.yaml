@@ -10,16 +10,16 @@ jobs:
       containers:
         - name: cancel-by-set
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10            
+          image: alpine:3.20.0
           args:
             - "sleep"
             - "100s"
           resources:
             limits:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
 ---
 cancel: BY_SET
