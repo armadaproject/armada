@@ -27,8 +27,6 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/optimisation/descent"
-	"github.com/armadaproject/armada/internal/common/optimisation/nesterov"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
@@ -36,12 +34,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -219,54 +215,10 @@ func Run(config schedulerconfig.Configuration) error {
 		services = append(services, func() error {
 			return submitCheckerImpl.Run(ctx)
 		})
-		if err != nil {
-			return errors.WithMessage(err, "error creating submit checker")
-		}
 		submitChecker = submitCheckerImpl
 	} else {
 		ctx.Infof("DisableSubmitCheckis true, will use a dummy submit check")
 		submitChecker = &DummySubmitChecker{}
-	}
-
-	// Setup failure estimation and quarantining.
-	failureEstimator, err := failureestimator.New(
-		config.Scheduling.FailureProbabilityEstimation.NumInnerIterations,
-		// Invalid config will have failed validation.
-		descent.MustNew(config.Scheduling.FailureProbabilityEstimation.InnerOptimiserStepSize),
-		// Invalid config will have failed validation.
-		nesterov.MustNew(
-			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserStepSize,
-			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserNesterovAcceleration,
-		),
-	)
-	if err != nil {
-		return err
-	}
-	failureEstimator.Disable(config.Scheduling.FailureProbabilityEstimation.Disabled)
-	if err := prometheus.Register(failureEstimator); err != nil {
-		return errors.WithStack(err)
-	}
-	nodeQuarantiner, err := quarantine.NewNodeQuarantiner(
-		config.Scheduling.NodeQuarantining.FailureProbabilityQuarantineThreshold,
-		config.Scheduling.NodeQuarantining.FailureProbabilityEstimateTimeout,
-		failureEstimator,
-	)
-	if err != nil {
-		return err
-	}
-	if err := prometheus.Register(nodeQuarantiner); err != nil {
-		return errors.WithStack(err)
-	}
-	queueQuarantiner, err := quarantine.NewQueueQuarantiner(
-		config.Scheduling.QueueQuarantining.QuarantineFactorMultiplier,
-		config.Scheduling.QueueQuarantining.FailureProbabilityEstimateTimeout,
-		failureEstimator,
-	)
-	if err != nil {
-		return err
-	}
-	if err := prometheus.Register(queueQuarantiner); err != nil {
-		return errors.WithStack(err)
 	}
 
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
@@ -276,8 +228,6 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,
-		nodeQuarantiner,
-		queueQuarantiner,
 		stringInterner,
 		resourceListFactory,
 	)
@@ -317,7 +267,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		schedulingRoundMetrics,
 		schedulerMetrics,
-		failureEstimator,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

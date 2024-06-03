@@ -28,7 +28,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -58,10 +57,6 @@ type FairSchedulingAlgo struct {
 	// Order in which to schedule executor groups.
 	// Executors are grouped by either id (i.e., individually) or by pool.
 	executorGroupsToSchedule []string
-	// Used to avoid scheduling onto broken nodes.
-	nodeQuarantiner *quarantine.NodeQuarantiner
-	// Used to reduce the rate at which jobs are scheduled from misbehaving queues.
-	queueQuarantiner *quarantine.QueueQuarantiner
 	// Function that is called every time an executor is scheduled. Useful for testing.
 	onExecutorScheduled func(executor *schedulerobjects.Executor)
 	// rand and clock injected here for repeatable testing.
@@ -77,8 +72,6 @@ func NewFairSchedulingAlgo(
 	executorRepository database.ExecutorRepository,
 	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
-	nodeQuarantiner *quarantine.NodeQuarantiner,
-	queueQuarantiner *quarantine.QueueQuarantiner,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*FairSchedulingAlgo, error) {
@@ -96,8 +89,6 @@ func NewFairSchedulingAlgo(
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
 		maxSchedulingDuration:       maxSchedulingDuration,
-		nodeQuarantiner:             nodeQuarantiner,
-		queueQuarantiner:            queueQuarantiner,
 		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
@@ -434,12 +425,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			l.limiterByQueue[queue] = queueLimiter
 		}
 
-		// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.
-		quarantineFactor := 0.0
-		if l.queueQuarantiner != nil {
-			quarantineFactor = l.queueQuarantiner.QuarantineFactor(now, queue)
-		}
-		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate*(1-quarantineFactor)))
+		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate))
 
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueLimiter); err != nil {
 			return nil, nil, err
@@ -567,15 +553,7 @@ func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 	}
 
-	now := time.Now()
 	for _, node := range nodes {
-		// Taint quarantined nodes to avoid scheduling new jobs onto them.
-		if l.nodeQuarantiner != nil {
-			if taint, ok := l.nodeQuarantiner.IsQuarantined(now, node.Name); ok {
-				node.Taints = append(node.Taints, taint)
-			}
-		}
-
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], node); err != nil {
 			return err
 		}
