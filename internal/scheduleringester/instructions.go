@@ -344,7 +344,7 @@ func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaeven
 	if err != nil {
 		return nil, err
 	}
-	return []DbOperation{UpdateJobPriorities{
+	return []DbOperation{&UpdateJobPriorities{
 		key: JobReprioritiseKey{
 			JobSetKey: JobSetKey{
 				queue:  meta.queue,

@@ -70,7 +70,6 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
-client/DotNet.gRPC/Armada.Client.Grpc/generated
 
 # python
 # Pycache, dist, poetry versions
