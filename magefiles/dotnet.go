@@ -78,15 +78,8 @@ func Dotnet() error {
 
 	dotnetCmd := dotnetCmd()
 
-	client := append(dotnetCmd, "dotnet", "build", "./client/DotNet/Armada.Client", "/t:NSwag")
+	client := append(dotnetCmd, "dotnet", "build", "./client/DotNet/ArmadaProject.Io.Client")
 	output, err := dockerOutput(client...)
-	fmt.Println(output)
-	if err != nil {
-		return err
-	}
-
-	client = append(dotnetCmd, "dotnet", "build", "./client/DotNet/ArmadaProject.Io.Client")
-	output, err = dockerOutput(client...)
 	fmt.Println(output)
 	if err != nil {
 		return err
@@ -100,15 +93,9 @@ func PackNuget() error {
 	fmt.Println("Pack Nuget...")
 
 	dotnetCmd := dotnetCmd()
-	build := append(dotnetCmd, "dotnet", "pack", "client/DotNet/Armada.Client/Armada.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
-	output, err := dockerOutput(build...)
-	fmt.Println(output)
-	if err != nil {
-		return err
-	}
 
-	build = append(dotnetCmd, "dotnet", "pack", "client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
-	output, err = dockerOutput(build...)
+	build := append(dotnetCmd, "dotnet", "pack", "client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
+	output, err := dockerOutput(build...)
 	fmt.Println(output)
 	if err != nil {
 		return err
