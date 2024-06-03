@@ -235,9 +235,9 @@ func (a MarkJobsFailed) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
-func (a UpdateJobPriorities) Merge(b DbOperation) bool {
+func (a *UpdateJobPriorities) Merge(b DbOperation) bool {
 	switch op := b.(type) {
-	case UpdateJobPriorities:
+	case *UpdateJobPriorities:
 		if a.key == op.key {
 			a.jobIds = slices.Unique(append(a.jobIds, op.jobIds...))
 			return true
@@ -353,7 +353,7 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
-	_, isUpdateJobPriorities := b.(UpdateJobPriorities)
+	_, isUpdateJobPriorities := b.(*UpdateJobPriorities)
 	return !isUpdateJobPriorities && !definesJobInSet(a, b)
 }
 
@@ -389,9 +389,9 @@ func (a UpdateJobQueuedState) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 
-func (a UpdateJobPriorities) CanBeAppliedBefore(b DbOperation) bool {
+func (a *UpdateJobPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobSetPriorities := b.(UpdateJobSetPriorities)
-	_, isUpdateJobPriorities := b.(UpdateJobPriorities)
+	_, isUpdateJobPriorities := b.(*UpdateJobPriorities)
 	return !isUpdateJobPriorities && !isUpdateJobSetPriorities &&
 		!definesJobInSet(map[JobSetKey]bool{a.key.JobSetKey: true}, b) &&
 		!definesRunInSet(map[JobSetKey]bool{a.key.JobSetKey: true}, b)

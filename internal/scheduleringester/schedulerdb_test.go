@@ -94,7 +94,7 @@ func TestWriteOps(t *testing.T) {
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
 			},
-			UpdateJobPriorities{
+			&UpdateJobPriorities{
 				key: JobReprioritiseKey{
 					JobSetKey: JobSetKey{
 						queue:  testQueueName,
@@ -367,7 +367,7 @@ func addDefaultValues(op DbOperation) DbOperation {
 	case MarkJobsCancelRequested:
 	case MarkJobsSucceeded:
 	case MarkJobsFailed:
-	case UpdateJobPriorities:
+	case *UpdateJobPriorities:
 	case MarkRunsSucceeded:
 	case MarkRunsFailed:
 	case MarkRunsRunning:
@@ -598,7 +598,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, len(expected), numChanged)
-	case UpdateJobPriorities:
+	case *UpdateJobPriorities:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
