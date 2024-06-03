@@ -3,22 +3,19 @@ package submit
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
-	"github.com/armadaproject/armada/internal/armada/repository"
+	armadaqueue "github.com/armadaproject/armada/internal/armada/queue"
 	"github.com/armadaproject/armada/internal/armada/submit/conversion"
 	"github.com/armadaproject/armada/internal/armada/submit/validation"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -32,9 +29,9 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
+	queueService     api.QueueServiceServer
 	publisher        pulsarutils.Publisher
-	queueRepository  repository.QueueRepository
-	queueCache       repository.ReadOnlyQueueRepository
+	queueCache       armadaqueue.ReadOnlyQueueRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
 	authorizer       auth.ActionAuthorizer
@@ -44,16 +41,16 @@ type Server struct {
 }
 
 func NewServer(
+	queueService api.QueueServiceServer,
 	publisher pulsarutils.Publisher,
-	queueRepository repository.QueueRepository,
-	queueCache repository.ReadOnlyQueueRepository,
+	queueCache armadaqueue.ReadOnlyQueueRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
 	authorizer auth.ActionAuthorizer,
 ) *Server {
 	return &Server{
+		queueService:     queueService,
 		publisher:        publisher,
-		queueRepository:  queueRepository,
 		queueCache:       queueCache,
 		submissionConfig: submissionConfig,
 		deduplicator:     deduplicator,
@@ -417,164 +414,6 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 	return sequence, validIds
 }
 
-func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
-	var ep *armadaerrors.ErrUnauthorized
-	if errors.As(err, &ep) {
-		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", req.Name, ep)
-	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
-	}
-
-	if len(req.UserOwners) == 0 {
-		principal := auth.GetPrincipal(ctx)
-		req.UserOwners = []string{principal.GetName()}
-	}
-
-	queue, err := queue.NewQueue(req)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[CreateQueue] error validating queue: %s", err)
-	}
-
-	err = s.queueRepository.CreateQueue(ctx, queue)
-	var eq *repository.ErrQueueAlreadyExists
-	if errors.As(err, &eq) {
-		return nil, status.Errorf(codes.AlreadyExists, "[CreateQueue] error creating queue: %s", err)
-	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error creating queue: %s", err)
-	}
-
-	return &types.Empty{}, nil
-}
-
-func (s *Server) CreateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	var failedQueues []*api.QueueCreateResponse
-	// Create a queue for each element of the request body and return the failures.
-	for _, queue := range req.Queues {
-		_, err := s.CreateQueue(ctx, queue)
-		if err != nil {
-			failedQueues = append(failedQueues, &api.QueueCreateResponse{
-				Queue: queue,
-				Error: err.Error(),
-			})
-		}
-	}
-
-	return &api.BatchQueueCreateResponse{
-		FailedQueues: failedQueues,
-	}, nil
-}
-
-func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
-	var ep *armadaerrors.ErrUnauthorized
-	if errors.As(err, &ep) {
-		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", req.Name, ep)
-	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[UpdateQueue] error checking permissions: %s", err)
-	}
-
-	queue, err := queue.NewQueue(req)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
-	}
-
-	err = s.queueRepository.UpdateQueue(ctx, queue)
-	var e *repository.ErrQueueNotFound
-	if errors.As(err, &e) {
-		return nil, status.Errorf(codes.NotFound, "[UpdateQueue] error: %s", err)
-	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[UpdateQueue] error getting queue %q: %s", queue.Name, err)
-	}
-
-	return &types.Empty{}, nil
-}
-
-func (s *Server) UpdateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	var failedQueues []*api.QueueUpdateResponse
-
-	// Create a queue for each element of the request body and return the failures.
-	for _, queue := range req.Queues {
-		_, err := s.UpdateQueue(ctx, queue)
-		if err != nil {
-			failedQueues = append(failedQueues, &api.QueueUpdateResponse{
-				Queue: queue,
-				Error: err.Error(),
-			})
-		}
-	}
-
-	return &api.BatchQueueUpdateResponse{
-		FailedQueues: failedQueues,
-	}, nil
-}
-
-func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := s.authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
-	var ep *armadaerrors.ErrUnauthorized
-	if errors.As(err, &ep) {
-		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", req.Name, ep)
-	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[DeleteQueue] error checking permissions: %s", err)
-	}
-	err = s.queueRepository.DeleteQueue(ctx, req.Name)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error deleting queue %s: %s", req.Name, err)
-	}
-	return &types.Empty{}, nil
-}
-
-func (s *Server) GetQueue(grpcCtx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	queue, err := s.queueRepository.GetQueue(ctx, req.Name)
-	var e *repository.ErrQueueNotFound
-	if errors.As(err, &e) {
-		return nil, status.Errorf(codes.NotFound, "[GetQueue] error: %s", err)
-	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[GetQueue] error getting queue %q: %s", req.Name, err)
-	}
-	return queue.ToAPI(), nil
-}
-
-func (s *Server) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_GetQueuesServer) error {
-	ctx := armadacontext.FromGrpcCtx(stream.Context())
-
-	// Receive once to get information about the number of queues to return
-	numToReturn := req.GetNum()
-	if numToReturn < 1 {
-		numToReturn = math.MaxUint32
-	}
-
-	queues, err := s.queueRepository.GetAllQueues(ctx)
-	if err != nil {
-		return err
-	}
-	for i, queue := range queues {
-		if uint32(i) < numToReturn {
-			err := stream.Send(&api.StreamingQueueMessage{
-				Event: &api.StreamingQueueMessage_Queue{Queue: queue.ToAPI()},
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-	err = stream.Send(&api.StreamingQueueMessage{
-		Event: &api.StreamingQueueMessage_End{
-			End: &api.EndMarker{},
-		},
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // authorize authorizes a user request to submit a state transition message to the log.
 // User information used for authorization is extracted from the provided context.
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
@@ -604,4 +443,34 @@ func (s *Server) GetUser(ctx *armadacontext.Context) string {
 func (s *Server) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
+// Functions below are deprecated
+
+func (s *Server) CreateQueue(ctx context.Context, q *api.Queue) (*types.Empty, error) {
+	return s.queueService.CreateQueue(ctx, q)
+}
+
+func (s *Server) CreateQueues(ctx context.Context, list *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+	return s.queueService.CreateQueues(ctx, list)
+}
+
+func (s *Server) UpdateQueue(ctx context.Context, q *api.Queue) (*types.Empty, error) {
+	return s.queueService.UpdateQueue(ctx, q)
+}
+
+func (s *Server) UpdateQueues(ctx context.Context, list *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+	return s.queueService.UpdateQueues(ctx, list)
+}
+
+func (s *Server) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
+	return s.queueService.DeleteQueue(ctx, request)
+}
+
+func (s *Server) GetQueue(ctx context.Context, request *api.QueueGetRequest) (*api.Queue, error) {
+	return s.queueService.GetQueue(ctx, request)
+}
+
+func (s *Server) GetQueues(request *api.StreamingQueueGetRequest, server api.Submit_GetQueuesServer) error {
+	return s.queueService.GetQueues(request, server)
 }

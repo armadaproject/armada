@@ -56,8 +56,6 @@ var (
 	DefaultTerminationGracePeriodSeconds = int64(30)
 	DefaultActiveDeadlineSeconds         = int64(3600)
 	DefaultTime                          = time.Now().UTC()
-	DefaultHostNameSuffix                = "testHostNameSuffix"
-	DefaultCertNameSuffix                = "testHostNameSuffix"
 )
 
 func DefaultSubmissionConfig() configuration.SubmissionConfig {
