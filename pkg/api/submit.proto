@@ -269,6 +269,16 @@ message StreamingQueueMessage{
   }
 }
 
+service QueueService {
+  rpc CreateQueue (Queue) returns (google.protobuf.Empty) {}
+  rpc CreateQueues (QueueList) returns (BatchQueueCreateResponse) {}
+  rpc UpdateQueue (Queue) returns (google.protobuf.Empty) {}
+  rpc UpdateQueues (QueueList) returns (BatchQueueUpdateResponse){}
+  rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {}
+  rpc GetQueue (QueueGetRequest) returns (Queue) {}
+  rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {}
+}
+
 service Submit {
     rpc SubmitJobs (JobSubmitRequest) returns (JobSubmitResponse) {
         option (google.api.http) = {

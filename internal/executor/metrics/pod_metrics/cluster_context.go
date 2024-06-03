@@ -220,15 +220,15 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	for _, nodeGroup := range nodeGroupAllocationInfos {
-		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType.Id)
+		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
 			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
 				prometheus.GaugeValue, armadaresource.QuantityAsFloat64(allocatable), resourceType,
-				nodeGroup.NodeType.Id)
+				nodeGroup.NodeType)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, armadaresource.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType.Id)
+			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, armadaresource.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType)
 		}
 	}
 }
@@ -266,7 +266,7 @@ func (m *ClusterContextMetrics) setEmptyMetrics(podMetrics map[string]map[string
 func (m *ClusterContextMetrics) createNodeTypeLookup(nodes []*v1.Node) map[string]string {
 	result := map[string]string{}
 	for _, n := range nodes {
-		result[n.Name] = m.nodeInfoService.GetType(n).Id
+		result[n.Name] = m.nodeInfoService.GetType(n)
 	}
 	return result
 }

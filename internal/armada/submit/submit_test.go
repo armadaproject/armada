@@ -512,8 +512,8 @@ func withTerminationGracePeriod(req *api.JobSubmitRequest, v *int64) *api.JobSub
 func createTestServer(t *testing.T) (*Server, *mockObjects) {
 	m := createMocks(t)
 	server := NewServer(
+		nil,
 		m.publisher,
-		m.queueRepo,
 		m.queueRepo,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,

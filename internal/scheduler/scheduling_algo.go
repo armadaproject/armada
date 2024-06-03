@@ -253,7 +253,7 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 type fairSchedulingAlgoContext struct {
 	queues                                   []*api.Queue
 	priorityFactorByQueue                    map[string]float64
-	isActiveByQueueName                      map[string]bool
+	isActiveByPoolByQueue                    map[string]map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	jobsByExecutorId                         map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
@@ -266,6 +266,13 @@ type fairSchedulingAlgoContext struct {
 
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn) (*fairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
+
+	executorToPool := make(map[string]string, len(executors))
+	for _, executor := range executors {
+		executorToPool[executor.Id] = executor.Pool
+	}
+	allPools := maps.Values(executorToPool)
+
 	if err != nil {
 		return nil, err
 	}
@@ -290,13 +297,35 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	// Create a map of jobs associated with each executor.
-	isActiveByQueueName := make(map[string]bool, len(queues))
+	isActiveByPoolByQueue := make(map[string]map[string]bool, len(queues))
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
 	for _, job := range txn.GetAll() {
-		isActiveByQueueName[job.Queue()] = true
+
+		// Mark a queue being active for a given pool.  A queue is defined as being active if it has a job running
+		// on a pool or if a queued job is eligible for that pool
+		pools := job.Pools()
+
+		if !job.Queued() && job.LatestRun() != nil {
+			pools = []string{executorToPool[job.LatestRun().Executor()]}
+		} else if len(pools) < 1 {
+			// This occurs if we haven't assigned a job to a pool.  Right now this can occur if a user
+			// has upgraded from a version of armada where pools were not assigned statically.  Eventually we
+			// Should be able to remove this
+			pools = allPools
+		}
+
+		for _, pool := range pools {
+			isActiveByQueue, ok := isActiveByPoolByQueue[pool]
+			if !ok {
+				isActiveByQueue = make(map[string]bool, len(queues))
+			}
+			isActiveByQueue[job.Queue()] = true
+			isActiveByPoolByQueue[pool] = isActiveByQueue
+		}
+
 		if job.Queued() {
 			continue
 		}
@@ -342,7 +371,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	return &fairSchedulingAlgoContext{
 		queues:                                   queues,
 		priorityFactorByQueue:                    priorityFactorByQueue,
-		isActiveByQueueName:                      isActiveByQueueName,
+		isActiveByPoolByQueue:                    isActiveByPoolByQueue,
 		totalCapacityByPool:                      totalCapacityByPool,
 		jobsByExecutorId:                         jobsByExecutorId,
 		nodeIdByJobId:                            nodeIdByJobId,
@@ -409,9 +438,14 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		totalResources,
 	)
 
+	activeByQueue, ok := fsctx.isActiveByPoolByQueue[pool]
+	if !ok {
+		activeByQueue = map[string]bool{}
+	}
+
 	now := time.Now()
 	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
-		if !fsctx.isActiveByQueueName[queue] {
+		if !activeByQueue[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 			continue
 		}
@@ -507,8 +541,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	return result, sctx, nil
 }
 
-// Adapter to make jobDb implement the JobRepository interface.
-//
+// SchedulerJobRepositoryAdapter allows jobDb implement the JobRepository interface.
 // TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
 type SchedulerJobRepositoryAdapter struct {
 	txn *jobdb.Txn

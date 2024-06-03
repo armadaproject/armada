@@ -124,7 +124,7 @@ func StartUpWithContext(
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.NodeTypeLabel, config.Kubernetes.ToleratedTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
