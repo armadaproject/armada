@@ -20,8 +20,18 @@ func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetType(node)
-	assert.Equal(t, result.Id, context.GetClusterPool())
-	assert.Equal(t, len(result.Taints), 0)
+	assert.Equal(t, result, context.GetClusterPool())
+}
+
+func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, []string{"tolerated1", "tolerated2"})
+
+	node := createNodeWithTaints("node1", "tolerated1")
+	node.Labels = map[string]string{nodeTypeLabel: "example-node-type"}
+
+	result := nodeInfoService.GetType(node)
+	assert.Equal(t, result, "example-node-type")
 }
 
 func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
@@ -30,8 +40,7 @@ func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 	node := createNodeWithTaints("node1", "untolerated")
 
 	result := nodeInfoService.GetType(node)
-	assert.Equal(t, result.Id, context.GetClusterPool())
-	assert.Equal(t, len(result.Taints), 0)
+	assert.Equal(t, result, context.GetClusterPool())
 }
 
 func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
@@ -40,15 +49,11 @@ func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	result := nodeInfoService.GetType(node)
-	assert.Equal(t, result.Id, "tolerated1")
-	assert.Equal(t, len(result.Taints), 1)
-	assert.Equal(t, result.Taints, node.Spec.Taints)
+	assert.Equal(t, result, "tolerated1")
 
 	node = createNodeWithTaints("node1", "tolerated1", "tolerated2")
 	result = nodeInfoService.GetType(node)
-	assert.Equal(t, result.Id, "tolerated1,tolerated2")
-	assert.Equal(t, len(result.Taints), 2)
-	assert.Equal(t, result.Taints, node.Spec.Taints)
+	assert.Equal(t, result, "tolerated1,tolerated2")
 }
 
 func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
@@ -57,9 +62,7 @@ func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
 
 	node := createNodeWithTaints("node1", "tolerated1", "untolerated")
 	result := nodeInfoService.GetType(node)
-	assert.Equal(t, result.Id, "tolerated1")
-	assert.Equal(t, len(result.Taints), 1)
-	assert.Equal(t, result.Taints[0], node.Spec.Taints[0])
+	assert.Equal(t, result, "tolerated1")
 }
 
 func TestGroupNodesByType(t *testing.T) {
@@ -82,7 +85,7 @@ func TestGroupNodesByType(t *testing.T) {
 	}
 
 	for _, nodeGroup := range groupedNodes {
-		expectedGroup, present := expected[nodeGroup.NodeType.Id]
+		expectedGroup, present := expected[nodeGroup.NodeType]
 		assert.True(t, present)
 		assert.Equal(t, expectedGroup, nodeGroup.Nodes)
 	}
