@@ -11,8 +11,10 @@ import (
 	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
 )
 
-var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
-var nodeTypeLabel = "node-type"
+var (
+	testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+	nodeTypeLabel = "node-type"
+)
 
 func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
