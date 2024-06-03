@@ -21,12 +21,14 @@ type NodeInfoService interface {
 
 type KubernetesNodeInfoService struct {
 	clusterContext  context.ClusterContext
+	nodeTypeLabel   string
 	toleratedTaints map[string]bool
 }
 
-func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, toleratedTaints []string) *KubernetesNodeInfoService {
+func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, nodeTypeLabel string, toleratedTaints []string) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
 		clusterContext:  clusterContext,
+		nodeTypeLabel:   nodeTypeLabel,
 		toleratedTaints: util.StringListToSet(toleratedTaints),
 	}
 }
@@ -64,14 +66,18 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) *NodeTypeIdentifier {
-	groupId := kubernetesNodeInfoService.clusterContext.GetClusterPool()
+	nodeType := kubernetesNodeInfoService.clusterContext.GetClusterPool()
 	relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
-	if len(relevantTaints) > 0 {
-		groupId = nodeGroupId(relevantTaints)
+
+	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodeTypeLabel]; ok {
+		nodeType = labelValue
+		relevantTaints = []v1.Taint{}
+	} else if len(relevantTaints) > 0 {
+		nodeType = nodeGroupId(relevantTaints)
 	}
 
 	return &NodeTypeIdentifier{
-		Id:     groupId,
+		Id:     nodeType,
 		Taints: relevantTaints,
 	}
 }
