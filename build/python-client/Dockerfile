@@ -1,6 +1,7 @@
-ARG PYTHON_VERSION=3.8.18
+ARG PLATFORM=x86_64
+ARG BASE_IMAGE=python:3.8.18-bookworm
 
-FROM --platform=x86_64 python:${PYTHON_VERSION}-bookworm
+FROM --platform=$PLATFORM ${BASE_IMAGE}
 
 RUN mkdir /proto
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -24,6 +25,38 @@ func dockerOutput(args ...string) (string, error) {
 
 func dockerRun(args ...string) error {
 	return sh.Run(dockerBinary(), args...)
+}
+
+type DockerBuildConfig struct {
+	Platform          string
+	BaseImageOverride string
+}
+
+func NewDockerBuildConfig(baseImageOverride string) DockerBuildConfig {
+	config := DockerBuildConfig{}
+	config.BaseImageOverride = baseImageOverride
+	config.Platform = "x86_64"
+	return config
+}
+
+func dockerBuildImage(config DockerBuildConfig, imageTag string, dockerFile string) error {
+	dockerArgs := []string{
+		"buildx", "build", "-o", "type=docker", "-t", imageTag, "-f", dockerFile,
+	}
+	if config.BaseImageOverride != "" {
+		dockerArgs = append(dockerArgs, "--build-arg", fmt.Sprintf("BASE_IMAGE=%s", config.BaseImageOverride))
+	}
+	if config.Platform != "" {
+		dockerArgs = append(dockerArgs, "--build-arg", fmt.Sprintf("PLATFORM=%s", config.Platform))
+	}
+
+	dockerArgs = append(dockerArgs, ".")
+	err := dockerRun(dockerArgs...)
+	if err != nil {
+		return fmt.Errorf("failed to build %s from %s: %w", imageTag, dockerFile, err)
+	}
+
+	return nil
 }
 
 func dockerBuildxVersion() (*semver.Version, error) {
