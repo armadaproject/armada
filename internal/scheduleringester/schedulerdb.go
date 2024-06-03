@@ -225,7 +225,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return errors.WithStack(err)
 		}
-	case UpdateJobPriorities:
+	case *UpdateJobPriorities:
 		err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
 			Queue:    o.key.queue,
 			JobSet:   o.key.jobSet,

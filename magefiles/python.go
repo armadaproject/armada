@@ -11,7 +11,12 @@ import (
 func BuildPython() error {
 	mg.Deps(BootstrapProto)
 
-	err := dockerRun("buildx", "build", "-o", "type=docker", "-t", "armada-python-client-builder", "-f", "./build/python-client/Dockerfile", ".")
+	buildConfig, err := getBuildConfig()
+	if err != nil {
+		return err
+	}
+
+	err = dockerBuildImage(NewDockerBuildConfig(buildConfig.PythonBuilderBaseImage), "armada-python-client-builder", "./build/python-client/Dockerfile")
 	if err != nil {
 		return err
 	}
@@ -21,13 +26,10 @@ func BuildPython() error {
 		return err
 	}
 
-	return dockerRun(
-		"run",
+	return dockerRun("run",
 		"--rm",
 		"-v", fmt.Sprintf("%s/proto:/proto", wd),
 		"-v", fmt.Sprintf("%s:/go/src/armada", wd),
 		"-w", "/go/src/armada",
-		"armada-python-client-builder",
-		"./scripts/build-python-client.sh",
-	)
+		"armada-python-client-builder", "./scripts/build-python-client.sh")
 }

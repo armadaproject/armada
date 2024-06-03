@@ -492,7 +492,12 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *arma
 	if err != nil {
 		return nil, false, err
 	}
-	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+
+	job, err = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+	if err != nil {
+		// should never happen - requirements haven't changed
+		panic(err)
+	}
 	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
 	if err != nil {
 		return nil, false, err
@@ -1022,6 +1027,13 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 	results, err := s.submitChecker.Check(ctx, jobsToCheck)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, job := range jobsToCheck {
+		err := job.ValidateResourceRequests()
+		if err != nil {
+			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
+		}
 	}
 
 	events := make([]*armadaevents.EventSequence, 0)
