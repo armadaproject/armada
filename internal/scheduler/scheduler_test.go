@@ -116,19 +116,6 @@ var (
 		Version: 2,
 	}
 	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
-	schedulingInfoWithQueueTtl             = &schedulerobjects.JobSchedulingInfo{
-		AtMostOnce: true,
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Priority: int32(10),
-					},
-				},
-			},
-		},
-		Version: 1,
-	}
 
 	schedulerMetrics = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
 		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
