@@ -38,6 +38,7 @@ var baseJob, _ = jobDb.NewJob(
 	false,
 	3,
 	false,
+	[]string{},
 )
 
 var baseRun = &JobRun{
@@ -308,10 +309,10 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false)
+	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false)
+	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 
@@ -364,7 +365,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
 
-	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false)
+	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	assert.NotNil(t, job.NodeSelector())
 	assert.NotNil(t, job.Annotations())
