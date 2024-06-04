@@ -97,7 +97,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: q.Name, Id: jobSetId, Watch: false, ForceNew: true}, stream)
+			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: q.Name, Id: jobSetId, Watch: false}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
 			expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{

@@ -26,10 +26,6 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUBMITTED},
 		},
 		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_DuplicateFound{}},
-			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
-		},
-		{
 			eventMessage: api.EventMessage{Events: &api.EventMessage_Running{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING},
 		},
@@ -59,10 +55,6 @@ func TestIsEventResponse(t *testing.T) {
 		},
 		{
 			eventMessage: api.EventMessage{Events: &api.EventMessage_IngressInfo{}},
-			jobResponse:  nil,
-		},
-		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_Updated{}},
 			jobResponse:  nil,
 		},
 		{
@@ -99,7 +91,7 @@ func TestIsEventResponse(t *testing.T) {
 		},
 	}
 	length := len(eventMessages)
-	assert.Equal(t, length, 19)
+	assert.Equal(t, length, 17)
 	for i := range eventMessages {
 		jobResponse := EventsToJobResponse(eventMessages[i].eventMessage)
 		assert.Equal(t, jobResponse, eventMessages[i].jobResponse)
@@ -111,10 +103,6 @@ func TestIsTerminalEvent(t *testing.T) {
 		{
 			eventMessage:    api.EventMessage{Events: &api.EventMessage_Submitted{}},
 			jobServiceEvent: false,
-		},
-		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_DuplicateFound{}},
-			jobServiceEvent: true,
 		},
 		{
 			eventMessage:    api.EventMessage{Events: &api.EventMessage_Running{}},
@@ -146,10 +134,6 @@ func TestIsTerminalEvent(t *testing.T) {
 		},
 		{
 			eventMessage:    api.EventMessage{Events: &api.EventMessage_IngressInfo{}},
-			jobServiceEvent: false,
-		},
-		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_Updated{}},
 			jobServiceEvent: false,
 		},
 		{
@@ -186,7 +170,7 @@ func TestIsTerminalEvent(t *testing.T) {
 		},
 	}
 	length := len(eventMessages)
-	assert.Equal(t, length, 19)
+	assert.Equal(t, length, 17)
 	for i := range eventMessages {
 		jobResponse := IsEventTerminal(eventMessages[i].eventMessage)
 		assert.Equal(t, jobResponse, eventMessages[i].jobServiceEvent)
