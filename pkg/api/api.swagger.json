@@ -651,14 +651,8 @@
         "cancelling": {
           "$ref": "#/definitions/apiJobCancellingEvent"
         },
-        "duplicateFound": {
-          "$ref": "#/definitions/apiJobDuplicateFoundEvent"
-        },
         "failed": {
           "$ref": "#/definitions/apiJobFailedEvent"
-        },
-        "failedCompressed": {
-          "$ref": "#/definitions/apiJobFailedEventCompressed"
         },
         "ingressInfo": {
           "$ref": "#/definitions/apiJobIngressInfoEvent"
@@ -704,9 +698,6 @@
         },
         "unableToSchedule": {
           "$ref": "#/definitions/apiJobUnableToScheduleEvent"
-        },
-        "updated": {
-          "$ref": "#/definitions/apiJobUpdatedEvent"
         },
         "utilisation": {
           "$ref": "#/definitions/apiJobUtilisationEvent"
@@ -1017,27 +1008,6 @@
         }
       }
     },
-    "apiJobDuplicateFoundEvent": {
-      "type": "object",
-      "properties": {
-        "created": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "jobId": {
-          "type": "string"
-        },
-        "jobSetId": {
-          "type": "string"
-        },
-        "originalJobId": {
-          "type": "string"
-        },
-        "queue": {
-          "type": "string"
-        }
-      }
-    },
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
@@ -1091,16 +1061,6 @@
         },
         "reason": {
           "type": "string"
-        }
-      }
-    },
-    "apiJobFailedEventCompressed": {
-      "type": "object",
-      "title": "Only used internally by Armada",
-      "properties": {
-        "event": {
-          "type": "string",
-          "format": "byte"
         }
       }
     },
@@ -1573,12 +1533,6 @@
         "errorIfMissing": {
           "type": "boolean"
         },
-        "forceLegacy": {
-          "type": "boolean"
-        },
-        "forceNew": {
-          "type": "boolean"
-        },
         "fromMessageId": {
           "type": "string"
         },
@@ -1867,30 +1821,6 @@
           "type": "string"
         },
         "reason": {
-          "type": "string"
-        }
-      }
-    },
-    "apiJobUpdatedEvent": {
-      "type": "object",
-      "properties": {
-        "created": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "job": {
-          "$ref": "#/definitions/apiJob"
-        },
-        "jobId": {
-          "type": "string"
-        },
-        "jobSetId": {
-          "type": "string"
-        },
-        "queue": {
-          "type": "string"
-        },
-        "requestor": {
           "type": "string"
         }
       }

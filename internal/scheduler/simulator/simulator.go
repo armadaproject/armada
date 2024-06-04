@@ -110,6 +110,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		schedulingConfig.PriorityClasses,
 		schedulingConfig.DefaultPriorityClassName,
 		stringinterner.New(1024),
+		resourceListFactory,
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
@@ -661,7 +662,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 	if err != nil {
 		return nil, false, err
 	}
-	job := s.jobDb.NewJob(
+	job, err := s.jobDb.NewJob(
 		armadaevents.UlidFromProtoUuid(e.JobId).String(),
 		eventSequence.JobSetName,
 		eventSequence.Queue,
@@ -674,7 +675,11 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		false,
 		s.logicalJobCreatedTimestamp.Add(1),
 		false,
+		[]string{},
 	)
+	if err != nil {
+		return nil, false, err
+	}
 	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 		return nil, false, err
 	}

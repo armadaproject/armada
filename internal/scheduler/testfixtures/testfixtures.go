@@ -41,8 +41,9 @@ const (
 )
 
 var (
-	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses = map[string]types.PriorityClass{
+	TestResourceListFactory = MakeTestResourceListFactory()
+	BaseTime, _             = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	TestPriorityClasses     = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -57,15 +58,11 @@ var (
 	TestResources                    = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
-		{Name: "gpu", Resolution: resource.MustParse("1")},
+		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
 	}
 	TestResourceNames = slices.Map(
 		TestResources,
 		func(v schedulerconfiguration.ResourceType) string { return v.Name },
-	)
-	TestIndexedResourceResolutionMillis = slices.Map(
-		TestResources,
-		func(v schedulerconfiguration.ResourceType) int64 { return v.Resolution.MilliValue() },
 	)
 	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
@@ -82,12 +79,11 @@ var (
 	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
 	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
-	JobDb                   = NewJobDb()
-	TestResourceListFactory = MakeTestResourceListFactory()
+	JobDb = NewJobDb(TestResourceListFactory)
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
-	jobDb := NewJobDb()
+	jobDb := NewJobDb(TestResourceListFactory)
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
 	if err := txn.Upsert(jobs); err != nil {
@@ -98,17 +94,52 @@ func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
 }
 
 // NewJobDb returns a new default jobDb with defaults to use in tests.
-func NewJobDb() *jobdb.JobDb {
+func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.JobDb {
 	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
+		resourceListFactory,
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
 	jobDb.SetUUIDProvider(NewMockUUIDProvider())
 	return jobDb
+}
+
+func NewJob(
+	jobId string,
+	jobSet string,
+	queue string,
+	priority uint32,
+	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
+	cancelRequested bool,
+	cancelByJobSetRequested bool,
+	cancelled bool,
+	created int64,
+	validated bool,
+) *jobdb.Job {
+	job, err := JobDb.NewJob(jobId,
+		jobSet,
+		queue,
+		priority,
+		schedulingInfo,
+		queued,
+		queuedVersion,
+		cancelRequested,
+		cancelByJobSetRequested,
+		cancelled,
+		created,
+		validated,
+		[]string{},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return job
 }
 
 func IntRange(a, b int) []int {
@@ -428,7 +459,7 @@ func extractPriority(priorityClassName string) int32 {
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return JobDb.NewJob(
+	job, _ := JobDb.NewJob(
 		jobId.String(),
 		TestJobset,
 		queue,
@@ -452,7 +483,9 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		false,
 		created,
 		false,
+		[]string{},
 	)
+	return job
 }
 
 func Test1Cpu4GiJob(queue string, priorityClassName string) *jobdb.Job {
@@ -589,9 +622,9 @@ func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 		jobId,
 		priority,
 		v1.ResourceList{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("128Gi"),
-			"gpu":    resource.MustParse("1"),
+			"cpu":            resource.MustParse("8"),
+			"memory":         resource.MustParse("128Gi"),
+			"nvidia.com/gpu": resource.MustParse("1"),
 		},
 	)
 	req.Tolerations = []v1.Toleration{
@@ -750,9 +783,9 @@ func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
 	node := TestNode(
 		priorities,
 		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("64"),
-			"memory": resource.MustParse("1024Gi"),
-			"gpu":    resource.MustParse("8"),
+			"cpu":            resource.MustParse("64"),
+			"memory":         resource.MustParse("1024Gi"),
+			"nvidia.com/gpu": resource.MustParse("8"),
 		},
 	)
 	node.Labels["gpu"] = "true"
@@ -784,7 +817,7 @@ func MakeTestQueue() *api.Queue {
 }
 
 func TestQueuedJobDbJob() *jobdb.Job {
-	return JobDb.NewJob(
+	job, _ := JobDb.NewJob(
 		util.NewULID(),
 		TestJobset,
 		TestQueue,
@@ -807,21 +840,9 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		BaseTime.UnixNano(),
 		false,
+		[]string{},
 	)
-}
-
-func WithJobDbJobPodRequirements(job *jobdb.Job, reqs *schedulerobjects.PodRequirements) *jobdb.Job {
-	return job.WithJobSchedulingInfo(&schedulerobjects.JobSchedulingInfo{
-		PriorityClassName: job.JobSchedulingInfo().PriorityClassName,
-		SubmitTime:        job.JobSchedulingInfo().SubmitTime,
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: reqs,
-				},
-			},
-		},
-	})
+	return job
 }
 
 func TestRunningJobDbJob(startTime int64) *jobdb.Job {
@@ -950,6 +971,6 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 	return []schedulerconfiguration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
-		{Name: "gpu", Resolution: resource.MustParse("1m")},
+		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 	}
 }

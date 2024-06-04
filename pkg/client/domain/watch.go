@@ -185,8 +185,6 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 			info.PodStatus = append(info.PodStatus, Submitted)
 			info.PodLastUpdated = append(info.PodLastUpdated, time.Time{})
 		}
-	case *api.JobDuplicateFoundEvent:
-		info.Status = Duplicate
 	case *api.JobQueuedEvent:
 		info.Status = Queued
 	case *api.JobLeasedEvent:
@@ -223,8 +221,6 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		// NOOP
 	case *api.JobUtilisationEvent:
 		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
-	case *api.JobUpdatedEvent:
-		info.Job = &typed.Job
 	}
 }
 
@@ -286,8 +282,6 @@ func isLifeCycleEvent(event api.Event) bool {
 	case *api.JobSubmittedEvent:
 		return true
 	case *api.JobQueuedEvent:
-		return true
-	case *api.JobDuplicateFoundEvent:
 		return true
 	case *api.JobLeasedEvent:
 		return true

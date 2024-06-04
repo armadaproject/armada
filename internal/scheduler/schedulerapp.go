@@ -288,6 +288,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.PriorityClasses,
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
+		resourceListFactory,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
 	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
@@ -329,10 +330,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository, resourceListFactory)
-	if err != nil {
-		return errors.WithMessage(err, "error creating pool assigner")
-	}
+	poolAssigner := NewPoolAssigner(executorRepository)
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,

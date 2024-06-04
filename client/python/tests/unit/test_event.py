@@ -32,7 +32,6 @@ class FakeEventStreamMessage:
     [
         ("submitted", EventType.submitted),
         ("queued", EventType.queued),
-        ("duplicate_found", EventType.duplicate_found),
         ("leased", EventType.leased),
         ("lease_returned", EventType.lease_returned),
         ("lease_expired", EventType.lease_expired),
@@ -48,8 +47,6 @@ class FakeEventStreamMessage:
         ("utilisation", EventType.utilisation),
         ("ingress_info", EventType.ingress_info),
         ("reprioritizing", EventType.reprioritizing),
-        ("updated", EventType.updated),
-        ("failedCompressed", EventType.failedCompressed),
     ],
 )
 def test_event_class(name, event_type):
@@ -68,7 +65,6 @@ def test_event_class(name, event_type):
     [
         "submitted",
         "queued",
-        "duplicate_found",
         "leased",
         "lease_returned",
         "lease_expired",
@@ -84,8 +80,6 @@ def test_event_class(name, event_type):
         "utilisation",
         "ingress_info",
         "reprioritizing",
-        "updated",
-        "failedCompressed",
     ],
 )
 def test_unmarshal_event_response(name):

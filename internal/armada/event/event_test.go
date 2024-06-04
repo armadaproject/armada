@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
-	"github.com/armadaproject/armada/internal/armada/repository"
+	armadaqueue "github.com/armadaproject/armada/internal/armada/queue"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
@@ -75,7 +75,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
 			runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
-			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			require.NoError(t, err)
 
 			stream := &eventStreamMock{}
@@ -97,7 +97,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: q.Name, Id: jobSetId, Watch: false, ForceNew: true}, stream)
+			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: q.Name, Id: jobSetId, Watch: false}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
 			expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
@@ -122,7 +122,7 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 				Name:           "test-queue",
 				PriorityFactor: 1,
 			}
-			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			require.NoError(t, err)
 			stream := &eventStreamMock{}
 			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Queue: q.Name, Watch: false}, stream)
@@ -167,7 +167,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -189,7 +189,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -208,7 +208,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -252,7 +252,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -319,7 +319,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			t,
 			func(s *EventServer) {
 				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := auth.NewStaticPrincipal("alice", []string{})
@@ -344,7 +344,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			t,
 			func(s *EventServer) {
 				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := auth.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
@@ -366,7 +366,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("queue permission", func(t *testing.T) {
 		withEventServer(ctx, t, func(s *EventServer) {
 			s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
 			principal := auth.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
@@ -416,7 +416,7 @@ func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *Ev
 		client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
 		eventRepo := NewEventRepository(client)
-		queueRepo := repository.NewPostgresQueueRepository(db)
+		queueRepo := armadaqueue.NewPostgresQueueRepository(db)
 		server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
 		client.FlushDB(ctx)
 

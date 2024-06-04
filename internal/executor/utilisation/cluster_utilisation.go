@@ -54,7 +54,7 @@ func NewClusterUtilisationService(
 }
 
 type NodeGroupAllocationInfo struct {
-	NodeType                     *node.NodeTypeIdentifier
+	NodeType                     string
 	Nodes                        []*v1.Node
 	NodeGroupCapacity            armadaresource.ComputeResources
 	NodeGroupAllocatableCapacity armadaresource.ComputeResources
@@ -135,7 +135,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
 			Unschedulable:               !isSchedulable,
 			ResourceUsageByQueue:        resourceUsageByQueue,
-			NodeType:                    cls.nodeInfoService.GetType(node).Id,
+			NodeType:                    cls.nodeInfoService.GetType(node),
 		})
 	}
 
@@ -261,7 +261,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 
 	for _, nodeGroup := range nodeGroups {
 		totalNodeResource := armadaresource.CalculateTotalResource(nodeGroup.Nodes)
-		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
+		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType]
 		cordonedNodeResource := getCordonedResource(nodeGroup.Nodes, batchPods)
 
 		result = append(result, &NodeGroupAllocationInfo{
@@ -318,7 +318,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResour
 		totalNodeGroupResource := armadaresource.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeGroupResource := totalNodeGroupResource.DeepCopy()
 		allocatableNodeGroupResource.Sub(unmanagedPodResource)
-		result[nodeGroup.NodeType.Id] = allocatableNodeGroupResource
+		result[nodeGroup.NodeType] = allocatableNodeGroupResource
 	}
 
 	return result, nil

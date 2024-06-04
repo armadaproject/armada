@@ -116,7 +116,6 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_JobValidated:
 			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
-			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
@@ -344,7 +343,7 @@ func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaeven
 	if err != nil {
 		return nil, err
 	}
-	return []DbOperation{UpdateJobPriorities{
+	return []DbOperation{&UpdateJobPriorities{
 		key: JobReprioritiseKey{
 			JobSetKey: JobSetKey{
 				queue:  meta.queue,
