@@ -662,14 +662,8 @@ func SwaggerJsonTemplate() string {
 		"        \"cancelling\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobCancellingEvent\"\n" +
 		"        },\n" +
-		"        \"duplicateFound\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobDuplicateFoundEvent\"\n" +
-		"        },\n" +
 		"        \"failed\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobFailedEvent\"\n" +
-		"        },\n" +
-		"        \"failedCompressed\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobFailedEventCompressed\"\n" +
 		"        },\n" +
 		"        \"ingressInfo\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobIngressInfoEvent\"\n" +
@@ -715,9 +709,6 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"unableToSchedule\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobUnableToScheduleEvent\"\n" +
-		"        },\n" +
-		"        \"updated\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobUpdatedEvent\"\n" +
 		"        },\n" +
 		"        \"utilisation\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobUtilisationEvent\"\n" +
@@ -1028,27 +1019,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobDuplicateFoundEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"originalJobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1102,16 +1072,6 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobFailedEventCompressed\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"Only used internally by Armada\",\n" +
-		"      \"properties\": {\n" +
-		"        \"event\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"byte\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1584,12 +1544,6 @@ func SwaggerJsonTemplate() string {
 		"        \"errorIfMissing\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
-		"        \"forceLegacy\": {\n" +
-		"          \"type\": \"boolean\"\n" +
-		"        },\n" +
-		"        \"forceNew\": {\n" +
-		"          \"type\": \"boolean\"\n" +
-		"        },\n" +
 		"        \"fromMessageId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1878,30 +1832,6 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"reason\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobUpdatedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"job\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJob\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"requestor\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +

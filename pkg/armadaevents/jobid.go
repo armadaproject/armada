@@ -32,8 +32,6 @@ func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
 		return e.JobErrors.JobId, nil
 	case *EventSequence_Event_JobRunErrors:
 		return e.JobRunErrors.JobId, nil
-	case *EventSequence_Event_JobDuplicateDetected:
-		return e.JobDuplicateDetected.NewJobId, nil
 	case *EventSequence_Event_StandaloneIngressInfo:
 		return e.StandaloneIngressInfo.JobId, nil
 	case *EventSequence_Event_JobRunPreempted:

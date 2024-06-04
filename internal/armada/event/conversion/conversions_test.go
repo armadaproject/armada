@@ -239,39 +239,6 @@ func TestConvertReprioritised(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestDuplicateJob(t *testing.T) {
-	oldJobString := "02f3j0g1md4qx7z5qb148qnh4r"
-	oldJobProto, _ := armadaevents.ProtoUuidFromUlidString(oldJobString)
-
-	duplicate := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
-		Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
-			JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
-				NewJobId: jobIdProto,
-				OldJobId: oldJobProto,
-			},
-		},
-	}
-
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_DuplicateFound{
-				DuplicateFound: &api.JobDuplicateFoundEvent{
-					JobId:         jobIdString,
-					JobSetId:      jobSetName,
-					Queue:         queue,
-					Created:       baseTime,
-					OriginalJobId: oldJobString,
-				},
-			},
-		},
-	}
-
-	apiEvents, err := FromEventSequence(toEventSeq(duplicate))
-	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
-}
-
 func TestConvertLeased(t *testing.T) {
 	leased := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
