@@ -275,6 +275,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.Cancelled,
 		dbJob.Submitted,
 		dbJob.Validated,
+		dbJob.Pools,
 	)
 	if err != nil {
 		return nil, err
