@@ -132,6 +132,7 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 	validated bool,
+	pools []string,
 ) (*Job, error) {
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
@@ -158,6 +159,7 @@ func (jobDb *JobDb) NewJob(
 		cancelled:               cancelled,
 		validated:               validated,
 		runsById:                map[uuid.UUID]*JobRun{},
+		pools:                   pools,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)

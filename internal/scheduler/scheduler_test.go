@@ -1679,6 +1679,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		job.Cancelled,
 		0,
 		job.Validated,
+		job.Pools,
 	)
 	if err != nil {
 		panic(err)
