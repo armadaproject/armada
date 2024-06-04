@@ -913,7 +913,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				nodeIdLabel,
 				schedulerMetrics,
 				nil,
-				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1076,7 +1075,6 @@ func TestRun(t *testing.T) {
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
-		nil,
 		nil,
 	)
 	require.NoError(t, err)
@@ -1302,7 +1300,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
-				nil,
 				nil,
 			)
 			require.NoError(t, err)
@@ -2455,7 +2452,6 @@ func TestCycleConsistency(t *testing.T) {
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,
-					nil,
 					nil,
 				)
 				require.NoError(t, err)
