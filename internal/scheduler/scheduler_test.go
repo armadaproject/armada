@@ -674,6 +674,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					CancelRequested: true,
 					Cancelled:       false,
 					SchedulingInfo:  schedulingInfoBytes,
+					Priority:        int64(queuedJob.Priority()),
 				},
 			},
 
