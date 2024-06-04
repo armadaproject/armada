@@ -20,6 +20,7 @@ from armada_client.armada import (
     job_pb2,
     job_pb2_grpc
 )
+from armada_client.armada.job_pb2 import JobDetails
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions
@@ -29,41 +30,6 @@ from armada_client.iterators import (
     TimeoutIterator,
 )
 
-
-def is_terminal(state: JobState) -> bool:
-  """
-  Determines if a job state is terminal.
-
-  Terminal states indicate that a job has completed its lifecycle, whether successfully or due to failure.
-
-  :param state: The current state of the job.
-  :type state: JobState
-
-  :returns: True if the job state is terminal, False if it is active.
-  :rtype: bool
-  """
-  terminal_states = {
-    JobState.SUCCEEDED,
-    JobState.FAILED,
-    JobState.CANCELLED,
-    JobState.PREEMPTED,
-  }
-  return state in terminal_states
-
-
-def is_active(state: JobState) -> bool:
-  """
-  Determines if a job state is active.
-
-  Active states indicate that a job is still running or in a non-terminal state.
-
-  :param state: The current state of the job.
-  :type state: JobState
-
-  :returns: True if the job state is active, False if it is terminal.
-  :rtype: bool
-  """
-  return not is_terminal(state)
 
 class _ResilientArmadaEventStream(Iterator[event_pb2.EventStreamMessage]):
     def __init__(

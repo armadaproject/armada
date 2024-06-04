@@ -18,7 +18,10 @@ from armada_client.armada import (
     submit_pb2,
     submit_pb2_grpc,
     health_pb2,
+    job_pb2,
+    job_pb2_grpc
 )
+from armada_client.armada.job_pb2 import JobDetails
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions

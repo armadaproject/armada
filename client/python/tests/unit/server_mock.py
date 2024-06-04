@@ -1,10 +1,10 @@
 from google.protobuf import empty_pb2
 from armada_client.armada import (
-    submit_pb2_grpc,
-    submit_pb2,
-    event_pb2,
-    event_pb2_grpc,
-    health_pb2,
+  submit_pb2_grpc,
+  submit_pb2,
+  event_pb2,
+  event_pb2_grpc,
+  health_pb2, job_pb2_grpc,
 )
 
 
