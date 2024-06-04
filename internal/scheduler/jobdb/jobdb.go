@@ -241,9 +241,6 @@ type Txn struct {
 	jobsByRunId *immutable.Map[uuid.UUID, string]
 	// Queued jobs for each queue. Stored in the order in which they should be scheduled.
 	jobsByQueue map[string]immutable.SortedSet[*Job]
-	// Queued jobs for each queue ordered by remaining time-to-live.
-	// TODO: The ordering is wrong. Since we call time.Now() in the compare function.
-	queuedJobsByTtl *immutable.SortedSet[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// The jobDb from which this transaction was created.
@@ -379,9 +376,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
 				}
-				newQueuedJobsByTtl := txn.queuedJobsByTtl.Delete(existingJob)
-				txn.queuedJobsByTtl = &newQueuedJobsByTtl
-
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
@@ -495,12 +489,7 @@ func (txn *Txn) QueuedJobs(queue string) *immutable.SortedSetIterator[*Job] {
 	}
 }
 
-// QueuedJobsByTtl returns an iterator for jobs ordered by queue ttl time - the closest to expiry first
-func (txn *Txn) QueuedJobsByTtl() *immutable.SortedSetIterator[*Job] {
-	return txn.queuedJobsByTtl.Iterator()
-}
-
-// UnvalidatedJobs returns an iterator for jobs ordered by queue ttl time - the closest to expiry first
+// UnvalidatedJobs returns an iterator for jobs that have not yet been validated
 func (txn *Txn) UnvalidatedJobs() *immutable.SetIterator[*Job] {
 	return txn.unvalidatedJobs.Iterator()
 }
