@@ -127,10 +127,8 @@ var (
 				},
 			},
 		},
-		QueueTtlSeconds: 2,
-		Version:         1,
+		Version: 1,
 	}
-	schedulingInfoWithQueueTtlBytes = protoutil.MustMarshall(schedulingInfoWithQueueTtl)
 
 	schedulerMetrics = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
 		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
@@ -152,21 +150,6 @@ var queuedJob = testfixtures.NewJob(
 	"testQueue",
 	uint32(10),
 	schedulingInfo,
-	true,
-	0,
-	false,
-	false,
-	false,
-	1,
-	true,
-)
-
-var queuedJobWithExpiredTtl = testfixtures.NewJob(
-	util.NewULID(),
-	"testJobset",
-	"testQueue",
-	0,
-	schedulingInfoWithQueueTtl,
 	true,
 	0,
 	false,
@@ -668,82 +651,50 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedLeased:        []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
-		"New job from postgres with expired queue ttl is cancel requested": {
-			jobUpdates: []database.Job{
-				{
-					JobID:          queuedJobWithExpiredTtl.Id(),
-					JobSet:         queuedJobWithExpiredTtl.Jobset(),
-					Queue:          queuedJobWithExpiredTtl.Queue(),
-					Queued:         queuedJobWithExpiredTtl.Queued(),
-					QueuedVersion:  queuedJobWithExpiredTtl.QueuedVersion(),
-					Serial:         1,
-					Submitted:      queuedJobWithExpiredTtl.Created(),
-					SchedulingInfo: schedulingInfoWithQueueTtlBytes,
-					Validated:      true,
-				},
-			},
-
-			// We expect to publish request cancel and cancelled message this cycle.
-			// The job should also be removed from the queue and set to a terminal state.
-			expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
-			expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
-			expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
-			expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
-		},
-		"Existing jobDb job with expired queue ttl is cancel requested": {
-			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl},
-
-			// We expect to publish request cancel and cancelled message this cycle.
-			// The job should also be removed from the queue and set to a terminal state.
-			expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
-			expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
-			expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
-			expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
-		},
 		"New postgres job with cancel requested results in cancel messages": {
 			jobUpdates: []database.Job{
 				{
-					JobID:           queuedJobWithExpiredTtl.Id(),
-					JobSet:          queuedJobWithExpiredTtl.Jobset(),
-					Queue:           queuedJobWithExpiredTtl.Queue(),
-					Queued:          queuedJobWithExpiredTtl.Queued(),
-					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+					JobID:           queuedJob.Id(),
+					JobSet:          queuedJob.Jobset(),
+					Queue:           queuedJob.Queue(),
+					Queued:          queuedJob.Queued(),
+					QueuedVersion:   queuedJob.QueuedVersion(),
 					Serial:          1,
-					Submitted:       queuedJobWithExpiredTtl.Created(),
+					Submitted:       queuedJob.Created(),
 					CancelRequested: true,
 					Cancelled:       false,
-					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+					SchedulingInfo:  schedulingInfoBytes,
 				},
 			},
 
 			// We have already got a request cancel from the DB, so only publish a cancelled message.
 			// The job should also be removed from the queue and set to a terminal state.#
-			expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
-			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
-			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+			expectedJobCancelled:  []string{queuedJob.Id()},
+			expectedQueuedVersion: queuedJob.QueuedVersion(),
+			expectedTerminal:      []string{queuedJob.Id()},
 		},
 		"Postgres job with cancel requested results in cancel messages": {
-			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl.WithCancelRequested(true)},
+			initialJobs: []*jobdb.Job{queuedJob.WithCancelRequested(true)},
 			jobUpdates: []database.Job{
 				{
-					JobID:           queuedJobWithExpiredTtl.Id(),
-					JobSet:          queuedJobWithExpiredTtl.Jobset(),
-					Queue:           queuedJobWithExpiredTtl.Queue(),
-					Queued:          queuedJobWithExpiredTtl.Queued(),
-					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+					JobID:           queuedJob.Id(),
+					JobSet:          queuedJob.Jobset(),
+					Queue:           queuedJob.Queue(),
+					Queued:          queuedJob.Queued(),
+					QueuedVersion:   queuedJob.QueuedVersion(),
 					Serial:          1,
-					Submitted:       queuedJobWithExpiredTtl.Created(),
+					Submitted:       queuedJob.Created(),
 					CancelRequested: true,
 					Cancelled:       false,
-					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+					SchedulingInfo:  schedulingInfoBytes,
 				},
 			},
 
 			// We have already got a request cancel from the DB/existing job state, so only publish a cancelled message.
 			// The job should also be removed from the queue and set to a terminal state.
-			expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
-			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
-			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+			expectedJobCancelled:  []string{queuedJob.Id()},
+			expectedQueuedVersion: queuedJob.QueuedVersion(),
+			expectedTerminal:      []string{queuedJob.Id()},
 		},
 		"Queued job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
@@ -1557,17 +1508,6 @@ var (
 		Validated:             true,
 		Serial:                0,
 	}
-	queuedJobWithTTLA = &database.Job{
-		JobID:                 queuedJobA.JobID,
-		JobSet:                "testJobSet",
-		Queue:                 "testQueue",
-		Queued:                true,
-		QueuedVersion:         0,
-		SchedulingInfo:        schedulingInfoWithQueueTtlBytes,
-		SchedulingInfoVersion: int32(schedulingInfoWithQueueTtl.Version),
-		Validated:             true,
-		Serial:                0,
-	}
 	queuedJobWithFailFastA = &database.Job{
 		JobID:                 queuedJobA.JobID,
 		JobSet:                "testJobSet",
@@ -2372,13 +2312,6 @@ func TestCycleConsistency(t *testing.T) {
 			secondSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
 					runningCancelByJobSetRequestedJobA,
-				},
-			},
-		},
-		"Queued job with expired ttl results in cancellation": {
-			firstSchedulerDbUpdate: schedulerDbUpdate{
-				jobUpdates: []*database.Job{
-					queuedJobWithTTLA,
 				},
 			},
 		},

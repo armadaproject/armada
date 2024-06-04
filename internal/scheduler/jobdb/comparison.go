@@ -1,12 +1,7 @@
 package jobdb
 
-import (
-	"time"
-)
-
 type (
 	JobPriorityComparer struct{}
-	JobQueueTtlComparer struct{}
 	JobIdHasher         struct{}
 )
 
@@ -20,50 +15,6 @@ func (JobIdHasher) Hash(j *Job) uint32 {
 
 func (JobIdHasher) Equal(a, b *Job) bool {
 	return a == b
-}
-
-// Compare jobs by their remaining queue time before expiry
-// Invariants:
-//   - Job.queueTtl must be > 0
-//   - Job.created must be < `t`
-func (j JobQueueTtlComparer) Compare(a, b *Job) int {
-	// Jobs with equal id are always considered equal.
-	// This ensures at most one job with a particular id can exist in the jobDb.
-	if a.id == b.id {
-		return 0
-	}
-
-	// TODO: Calling time.Now() here doesn't sound right. We should probably sort by earliest expiry time.
-	timeSeconds := time.Now().UTC().Unix()
-	aDuration := timeSeconds - (a.submittedTime / 1_000_000_000)
-	bDuration := timeSeconds - (b.submittedTime / 1_000_000_000)
-
-	aRemaining := max(0, a.QueueTtlSeconds()-aDuration)
-	bRemaining := max(0, b.QueueTtlSeconds()-bDuration)
-
-	// If jobs have different ttl remaining, they are ordered by remaining queue ttl - the smallest ttl first.
-	if aRemaining != bRemaining {
-		if aRemaining < bRemaining {
-			return -1
-		} else {
-			return 1
-		}
-	}
-
-	// Tie-break by logical creation timestamp.
-	if a.id < b.id {
-		return -1
-	} else if a.id > b.id {
-		return 1
-	}
-	panic("We should never get here. Since we check for job id equality at the top of this function.")
-}
-
-func max(x, y int64) int64 {
-	if x < y {
-		return y
-	}
-	return x
 }
 
 func (JobPriorityComparer) Compare(job, other *Job) int {

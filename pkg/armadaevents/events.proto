@@ -169,8 +169,6 @@ message SubmitJob {
     string scheduler = 11;
     // Indicates whether job is a duplicate
     bool isDuplicate = 12;
-    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
-    int64 queue_ttl_seconds = 13;
     // This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
     string job_id_str = 14;
 }
