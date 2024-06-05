@@ -131,7 +131,5 @@ type PostgresConfig struct {
 }
 
 type QueryApiConfig struct {
-	Enabled       bool
-	Postgres      PostgresConfig
 	MaxQueryItems int
 }
