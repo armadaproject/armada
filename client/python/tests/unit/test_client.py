@@ -9,7 +9,6 @@ from server_mock import EventService, SubmitService, QueryAPIService
 
 from armada_client.armada import (
     event_pb2_grpc,
-    submit_pb2,
     submit_pb2_grpc,
     submit_pb2,
     health_pb2,

@@ -1,8 +1,12 @@
+from armada_client.typings import JobState
+
+
 def is_terminal(self) -> bool:
     """
     Determines if a job state is terminal.
 
-    Terminal states indicate that a job has completed its lifecycle, whether successfully or due to failure.
+    Terminal states indicate that a job has completed its lifecycle,
+     whether successfully or due to failure.
 
     :param state: The current state of the job.
     :type state: JobState
