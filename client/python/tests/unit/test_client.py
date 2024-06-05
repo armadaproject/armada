@@ -3,7 +3,7 @@ from concurrent import futures
 import grpc
 import pytest
 
-from armada_client import JobState
+from armada_client.typings import JobState
 from armada_client.armada.job_pb2 import JobRunState
 from server_mock import EventService, SubmitService, QueryAPIService
 

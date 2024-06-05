@@ -244,25 +244,14 @@ Uses the DeleteQueue RPC to delete the queue.
 
 
 
-#### get_job_status(job_ids)
-Retrieves the status of a list of jobs from Armada.
-
-
-* **Parameters**
-
-  **job_ids** (*List*[**str**]) – A list of unique job identifiers.
-
-
-
-* **Returns**
-
-  The response from the server containing the job status.
-
+#### event_health()
+Health check for Event Service.
+:return: A HealthCheckResponse object.
 
 
 * **Return type**
 
-  **JobStatusResponse**
+    armada.health_pb2.HealthCheckResponse
 
 
 
@@ -272,52 +261,19 @@ Retrieves the details of a job from Armada.
 
 * **Parameters**
 
-  **job_ids** (*List*[**str**]) – A list of unique job identifiers.
+    **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
 
 
 
 * **Returns**
 
-  The response from the server containing the job details.
+    The Armada job details response.
 
 
 
 * **Return type**
 
-  **JobDetailsResponse**
-
-
-
-#### get_job_run_details(run_ids)
-Retrieves the details of a job run from Armada.
-
-
-* **Parameters**
-
-  **run_ids** (*List*[**str**]) – A list of unique run identifiers.
-
-
-
-* **Returns**
-
-  The response from the server containing the run details.
-
-
-
-* **Return type**
-
-  **JobRunDetailsResponse**
-
-
-
-#### event_health()
-Health check for Event Service.
-:return: A HealthCheckResponse object.
-
-
-* **Return type**
-
-    armada.health_pb2.HealthCheckResponse
+    armada.job_pb2.JobDetailsResponse
 
 
 
@@ -359,6 +315,50 @@ for event in events:
 * **Return type**
 
     *Iterator*[armada.event_pb2.EventStreamMessage]
+
+
+
+#### get_job_run_details(run_ids)
+Retrieves the details of a job run from Armada.
+
+
+* **Parameters**
+
+    **run_ids** (*List**[**str**]*) – A list of unique job run identifiers.
+
+
+
+* **Returns**
+
+    The Armada run details response.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobRunDetailsResponse
+
+
+
+#### get_job_status(job_ids)
+Retrieves the status of a list of jobs from Armada.
+
+
+* **Parameters**
+
+    **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+    The response from the server containing the job status.
+
+
+
+* **Return type**
+
+    JobStatusResponse
 
 
 
@@ -464,7 +464,7 @@ Health check for Submit Service.
 
 
 #### submit_jobs(queue, job_set_id, job_request_items)
-Submit a armada job.
+Submit an armada job.
 
 Uses SubmitJobs RPC to submit a job.
 
