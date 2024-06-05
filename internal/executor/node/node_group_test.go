@@ -22,7 +22,7 @@ func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetType(node)
-	assert.Equal(t, result, context.GetClusterPool())
+	assert.Equal(t, result, defaultNodeType)
 }
 
 func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
@@ -42,7 +42,7 @@ func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 	node := createNodeWithTaints("node1", "untolerated")
 
 	result := nodeInfoService.GetType(node)
-	assert.Equal(t, result, context.GetClusterPool())
+	assert.Equal(t, result, defaultNodeType)
 }
 
 func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
@@ -81,9 +81,9 @@ func TestGroupNodesByType(t *testing.T) {
 	assert.Equal(t, len(groupedNodes), 3)
 
 	expected := map[string][]*v1.Node{
-		context.GetClusterPool(): {node1, node2},
-		"tolerated1":             {node3, node4},
-		"tolerated1,tolerated2":  {node5},
+		defaultNodeType:         {node1, node2},
+		"tolerated1":            {node3, node4},
+		"tolerated1,tolerated2": {node5},
 	}
 
 	for _, nodeGroup := range groupedNodes {
