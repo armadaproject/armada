@@ -11,6 +11,8 @@ import (
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 )
 
+const defaultNodeType = "none"
+
 type NodeInfoService interface {
 	IsAvailableProcessingNode(*v1.Node) bool
 	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
@@ -61,7 +63,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) string {
-	nodeType := kubernetesNodeInfoService.clusterContext.GetClusterPool()
+	nodeType := defaultNodeType
 
 	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodeTypeLabel]; ok {
 		nodeType = labelValue
