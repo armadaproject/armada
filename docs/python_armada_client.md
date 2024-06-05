@@ -244,6 +244,72 @@ Uses the DeleteQueue RPC to delete the queue.
 
 
 
+#### get_job_status(job_ids)
+Retrieves the status of a list of jobs from Armada.
+
+
+* **Parameters**
+
+  **job_ids** (*List*[**str**]) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+  The response from the server containing the job status.
+
+
+
+* **Return type**
+
+  **JobStatusResponse**
+
+
+
+#### get_job_details(job_ids)
+Retrieves the details of a job from Armada.
+
+
+* **Parameters**
+
+  **job_ids** (*List*[**str**]) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+  The response from the server containing the job details.
+
+
+
+* **Return type**
+
+  **JobDetailsResponse**
+
+
+
+#### get_job_run_details(run_ids)
+Retrieves the details of a job run from Armada.
+
+
+* **Parameters**
+
+  **run_ids** (*List*[**str**]) – A list of unique run identifiers.
+
+
+
+* **Returns**
+
+  The response from the server containing the run details.
+
+
+
+* **Return type**
+
+  **JobRunDetailsResponse**
+
+
+
 #### event_health()
 Health check for Event Service.
 :return: A HealthCheckResponse object.

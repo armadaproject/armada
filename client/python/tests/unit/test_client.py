@@ -3,9 +3,18 @@ from concurrent import futures
 import grpc
 import pytest
 
-from server_mock import EventService, SubmitService
+from armada_client import JobState
+from armada_client.armada.job_pb2 import JobRunState
+from server_mock import EventService, SubmitService, QueryAPIService
 
-from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2, health_pb2
+from armada_client.armada import (
+    event_pb2_grpc,
+    submit_pb2,
+    submit_pb2_grpc,
+    submit_pb2,
+    health_pb2,
+    job_pb2_grpc,
+)
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -13,7 +22,6 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 from armada_client.permissions import Permissions, Subject
-from armada_client.typings import JobState
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -21,6 +29,7 @@ def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
     event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
+    job_pb2_grpc.add_JobsServicer_to_server(QueryAPIService(), server)
     server.add_insecure_port("[::]:50051")
     server.start()
 
@@ -278,3 +287,31 @@ def test_health_submit():
 def test_health_event():
     health = tester.event_health()
     assert health.SERVING == health_pb2.HealthCheckResponse.SERVING
+
+
+def test_job_status():
+    test_create_queue()
+    test_submit_job()
+
+    job_status_response = tester.get_job_status(["job-1"])
+    assert job_status_response.job_states["job-1"] == submit_pb2.JobState.RUNNING
+
+
+def test_job_details():
+    test_create_queue()
+    test_submit_job()
+
+    job_details = tester.get_job_details(["job-1"]).job_details
+    assert job_details["job-1"].state == submit_pb2.JobState.RUNNING
+    assert job_details["job-1"].job_id == "job-1"
+    assert job_details["job-1"].queue == "test_queue"
+
+
+def test_job_run_details():
+    test_create_queue()
+    test_submit_job()
+
+    run_details = tester.get_job_run_details(["run-1"]).job_run_details
+    assert run_details["run-1"].state == JobRunState.RUN_STATE_RUNNING
+    assert run_details["run-1"].run_id == "run-1"
+    assert run_details["run-1"].cluster == "test_cluster"
