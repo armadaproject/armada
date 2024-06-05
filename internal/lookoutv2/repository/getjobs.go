@@ -23,6 +23,7 @@ type GetJobsRepository interface {
 type SqlGetJobsRepository struct {
 	db            *pgxpool.Pool
 	lookoutTables *LookoutTables
+	clock         clock.Clock
 }
 
 type GetJobsResult struct {
@@ -54,6 +55,7 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	return &SqlGetJobsRepository{
 		db:            db,
 		lookoutTables: NewTables(),
+		clock:         clock.RealClock{},
 	}
 }
 
@@ -121,7 +123,7 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 				job.Node = lastRun.Node
 				job.Cluster = lastRun.Cluster
 				job.ExitCode = lastRun.ExitCode
-				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, clock.RealClock{})
+				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, r.clock)
 			}
 			jobs = append(jobs, job)
 		}
