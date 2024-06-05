@@ -85,8 +85,6 @@ scheduling:
       resolution: "1"
   disableScheduling: false
   enableAssertions: false
-  nodeEvictionProbability: 1.0
-  nodeOversubscriptionEvictionProbability: 1.0
   protectedFractionOfFairShare: 1.0
   nodeIdLabel: "kubernetes.io/hostname"
   priorityClasses:

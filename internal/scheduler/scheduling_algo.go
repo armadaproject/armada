@@ -489,8 +489,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
-		l.schedulingConfig.NodeEvictionProbability,
-		l.schedulingConfig.NodeOversubscriptionEvictionProbability,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,

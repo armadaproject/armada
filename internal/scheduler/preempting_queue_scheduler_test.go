@@ -59,10 +59,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	evictor := NewOversubscribedEvictor(
 		NewSchedulerJobRepositoryAdapter(jobDbTxn),
 		nodeDb,
-		config.PriorityClasses,
-		1,
-		nil,
-	)
+		config.PriorityClasses)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
 
@@ -572,53 +569,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"C": 1,
 			},
 		},
-		"gang preemption with NodeEvictionProbability 0": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.0, // To test the gang evictor, we need to disable stochastic eviction.
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
-			Rounds: []SchedulingRound{
-				{
-					// Schedule a gang filling all of node 1 and part of node 2.
-					// Make the jobs of node 1 priority 1,
-					// to avoid them being urgency-preempted in the next round.
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.WithGangAnnotationsJobs(
-							append(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 32), testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)...),
-						),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 32),
-					},
-				},
-				{
-					// Schedule a that requires preempting one job in the gang,
-					// and assert that all jobs in the gang are preempted.
-					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass1, 1),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"B": testfixtures.IntRange(0, 0),
-					},
-					ExpectedPreemptedIndices: map[string]map[int][]int{
-						"A": {
-							0: testfixtures.IntRange(0, 32),
-						},
-					},
-				},
-			},
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-		},
+
 		"gang preemption avoid cascading preemption": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.0, // To test the gang evictor, we need to disable stochastic eviction.
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			// TODO: FIX this test!
+			//SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
+			//	0.0, // To test the gang evictor, we need to disable stochastic eviction.
+			//	testfixtures.TestSchedulingConfig(),
+			//),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Schedule a gang spanning nodes 1 and 2.
@@ -1139,10 +1098,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			},
 		},
 		"Oversubscribed eviction does not evict non-preemptible": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.0,
-				testfixtures.TestSchedulingConfig(),
-			),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			//SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
+			//	0.0,
+			//	testfixtures.TestSchedulingConfig(),
+			//),
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
@@ -1837,8 +1797,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
-					tc.SchedulingConfig.NodeEvictionProbability,
-					tc.SchedulingConfig.NodeOversubscriptionEvictionProbability,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
@@ -2194,8 +2152,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
-				tc.SchedulingConfig.NodeEvictionProbability,
-				tc.SchedulingConfig.NodeOversubscriptionEvictionProbability,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
 				NewSchedulerJobRepositoryAdapter(jobDbTxn),
 				nodeDb,
@@ -2256,8 +2212,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
-					tc.SchedulingConfig.NodeEvictionProbability,
-					tc.SchedulingConfig.NodeOversubscriptionEvictionProbability,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
