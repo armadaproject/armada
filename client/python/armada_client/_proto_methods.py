@@ -35,4 +35,4 @@ def is_active(self) -> bool:
     :returns: True if the job state is active, False if it is terminal.
     :rtype: bool
     """
-    return not is_terminal(self.value)
+    return not is_terminal(self)
