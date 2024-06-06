@@ -8,7 +8,7 @@ import (
 	"github.com/gogo/status"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"

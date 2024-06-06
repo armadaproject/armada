@@ -86,13 +86,4 @@ postgres:
     dbname: lookout
     sslmode: disable
 queryapi:
-  enabled: false
   maxQueryItems: 500
-  postgres:
-    connection:
-      host: postgres
-      port: 5432
-      user: postgres
-      password: psw
-      dbname: lookout
-      sslmode: disable

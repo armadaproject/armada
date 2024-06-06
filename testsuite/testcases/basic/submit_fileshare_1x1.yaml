@@ -13,7 +13,7 @@ jobs:
       initContainers:
         - name: writer
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10
+          image: alpine:3.20.0
           command:
             - sh
             - -c
@@ -24,10 +24,10 @@ jobs:
               mountPath: /usr/share/test
           resources:
             limits:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
       containers:
         - name: reader
@@ -50,10 +50,10 @@ jobs:
               mountPath: /usr/share/test
           resources:
             limits:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
 ---
 timeout: "100s"
