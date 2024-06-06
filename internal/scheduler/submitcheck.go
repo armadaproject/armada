@@ -268,7 +268,6 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 func (srv *SubmitChecker) constructNodeDb(executor *schedulerobjects.Executor) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
-		0,
 		srv.schedulingConfig.IndexedResources,
 		srv.schedulingConfig.IndexedTaints,
 		srv.schedulingConfig.IndexedNodeLabels,

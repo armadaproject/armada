@@ -380,7 +380,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := JobRequirementsMet(
+			matches, reason, err := JobRequirementsMet(
 				tc.node,
 				tc.req.Priority,
 				// TODO(albin): Define a jctx in the test case instead.

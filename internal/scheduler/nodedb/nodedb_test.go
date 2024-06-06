@@ -554,7 +554,6 @@ func TestScheduleMany(t *testing.T) {
 func TestAwayNodeTypes(t *testing.T) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
@@ -722,7 +721,6 @@ func TestMakeIndexedResourceResolution_ErrorsOnInvalidResolution(t *testing.T) {
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
@@ -763,7 +761,6 @@ func BenchmarkUpsert100000(b *testing.B) {
 func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []*jobdb.Job) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
@@ -890,7 +887,6 @@ func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
