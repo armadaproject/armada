@@ -483,8 +483,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
-				s.schedulingConfig.NodeEvictionProbability,
-				s.schedulingConfig.NodeOversubscriptionEvictionProbability,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
 				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,

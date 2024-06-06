@@ -151,15 +151,6 @@ type SchedulingConfig struct {
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on a node to balance resource usage.
-	// TODO(albin): Remove.
-	NodeEvictionProbability float64
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on oversubscribed nodes, i.e.,
-	// nodes on which the total resource requests are greater than the available resources.
-	// TODO(albin): Remove.
-	NodeOversubscriptionEvictionProbability float64
 	// Only queues allocated more than this fraction of their fair share are considered for preemption.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.

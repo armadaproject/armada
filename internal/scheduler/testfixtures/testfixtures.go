@@ -161,8 +161,6 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 	return schedulerconfiguration.SchedulingConfig{
 		PriorityClasses:                             maps.Clone(TestPriorityClasses),
 		DefaultPriorityClassName:                    TestDefaultPriorityClass,
-		NodeEvictionProbability:                     1.0,
-		NodeOversubscriptionEvictionProbability:     1.0,
 		MaximumSchedulingRate:                       math.Inf(1),
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
@@ -185,16 +183,6 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config schedulerconfigur
 
 func WithProtectedFractionOfFairShareConfig(v float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.ProtectedFractionOfFairShare = v
-	return config
-}
-
-func WithNodeEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
-	config.NodeEvictionProbability = p
-	return config
-}
-
-func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
-	config.NodeOversubscriptionEvictionProbability = p
 	return config
 }
 
