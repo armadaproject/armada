@@ -21,10 +21,10 @@ jobs:
             - -v
           resources:
             limits:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 50m
             requests:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 50m
 ---
 timeout: "600s"

@@ -21,7 +21,7 @@ type ResourceCleanupService struct {
 func NewResourceCleanupService(
 	clusterContext clusterContext.ClusterContext,
 	kubernetesConfiguration configuration.KubernetesConfiguration,
-) *ResourceCleanupService {
+) (*ResourceCleanupService, error) {
 	service := &ResourceCleanupService{
 		clusterContext:          clusterContext,
 		kubernetesConfiguration: kubernetesConfiguration,
@@ -37,7 +37,7 @@ func NewResourceCleanupService(
 	 So in the case the cleanup below fails, the ownerreference will ensure it is cleaned up when the pod is
 	*/
 
-	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			pod, ok := newObj.(*v1.Pod)
 			if !ok {
@@ -49,8 +49,11 @@ func NewResourceCleanupService(
 			}
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return service
+	return service, nil
 }
 
 func (i *ResourceCleanupService) removeAnyAssociatedIngress(pod *v1.Pod) {

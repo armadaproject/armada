@@ -15,7 +15,7 @@ jobs:
       containers:
         - name: nc
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10
+          image: alpine:3.20.0
           # Server responding to the first request with a 200 status code and then exiting.
           args: ["nc", "-l", "-p", "4000", "-e", "echo", "HTTP/1.1 200 OK\nContent-Length: 12\nConnection: close\nContent-Type: text/html\n\nHello world!"]
           resources:

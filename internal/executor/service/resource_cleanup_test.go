@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,7 +19,8 @@ import (
 )
 
 func TestCleanUpResources_RemovesExpiredResources(t *testing.T) {
-	s := createResourceCleanupService(time.Second, time.Second, 10)
+	s, err := createResourceCleanupService(time.Second, time.Second, 10)
+	require.NoError(t, err)
 	now := time.Now()
 
 	succeededExpiredPod := makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute))
@@ -33,7 +35,8 @@ func TestCleanUpResources_RemovesExpiredResources(t *testing.T) {
 }
 
 func TestCleanUpResources_LeavesNonExpiredPods(t *testing.T) {
-	s := createResourceCleanupService(time.Minute*5, time.Minute*5, 10)
+	s, err := createResourceCleanupService(time.Minute*5, time.Minute*5, 10)
+	require.NoError(t, err)
 	now := time.Now()
 
 	succeededNonExpiredPod := makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute))
@@ -50,7 +53,8 @@ func TestCleanUpResources_LeavesNonExpiredPods(t *testing.T) {
 }
 
 func TestCleanUpResources_RemovesNonExpiredPodsOverMaxTerminatedPodLimit(t *testing.T) {
-	s := createResourceCleanupService(time.Minute*5, time.Minute*5, 1)
+	s, err := createResourceCleanupService(time.Minute*5, time.Minute*5, 1)
+	require.NoError(t, err)
 	now := time.Now()
 
 	succeededNonExpiredPod := makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute))
@@ -66,7 +70,8 @@ func TestCleanUpResources_RemovesNonExpiredPodsOverMaxTerminatedPodLimit(t *test
 }
 
 func TestCanBeRemovedConditions(t *testing.T) {
-	s := createResourceCleanupService(time.Second, time.Second, 1)
+	s, err := createResourceCleanupService(time.Second, time.Second, 1)
+	require.NoError(t, err)
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
 		makePodWithCurrentStateReported(v1.PodRunning, false):   false,
@@ -85,7 +90,8 @@ func TestCanBeRemovedConditions(t *testing.T) {
 }
 
 func TestCanBeRemovedMinimumPodTime(t *testing.T) {
-	s := createResourceCleanupService(5*time.Minute, 10*time.Minute, 1)
+	s, err := createResourceCleanupService(5*time.Minute, 10*time.Minute, 1)
+	require.NoError(t, err)
 	now := time.Now()
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
@@ -228,7 +234,7 @@ func addPods(t *testing.T, clusterContext clusterContext.ClusterContext, pods ..
 	}
 }
 
-func createResourceCleanupService(minimumPodAge, failedPodExpiry time.Duration, maxTerminatedPods int) *ResourceCleanupService {
+func createResourceCleanupService(minimumPodAge, failedPodExpiry time.Duration, maxTerminatedPods int) (*ResourceCleanupService, error) {
 	fakeClusterContext := fake.NewSyncFakeClusterContext()
 	kubernetesConfig := configuration.KubernetesConfiguration{
 		MinimumPodAge:     minimumPodAge,

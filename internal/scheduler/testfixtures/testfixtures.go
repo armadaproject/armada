@@ -52,10 +52,9 @@ var (
 		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
 		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
-	TestDefaultPriorityClass         = PriorityClass3
-	TestPriorities                   = []int32{0, 1, 2, 3}
-	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []schedulerconfiguration.ResourceType{
+	TestDefaultPriorityClass = PriorityClass3
+	TestPriorities           = []int32{0, 1, 2, 3}
+	TestResources            = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
@@ -166,7 +165,6 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
 		MaximumPerQueueSchedulingBurst:              math.MaxInt,
-		MaxExtraNodesToConsider:                     TestMaxExtraNodesToConsider,
 		IndexedResources:                            TestResources,
 		IndexedNodeLabels:                           TestIndexedNodeLabels,
 		IndexedTaints:                               TestIndexedTaints,
