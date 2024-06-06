@@ -393,7 +393,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.MaxExtraNodesToConsider,
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,

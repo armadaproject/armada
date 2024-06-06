@@ -234,7 +234,6 @@ func (s *Simulator) setupClusters() error {
 		for executorGroupIndex, executorGroup := range pool.ClusterGroups {
 			nodeDb, err := nodedb.NewNodeDb(
 				s.schedulingConfig.PriorityClasses,
-				s.schedulingConfig.MaxExtraNodesToConsider,
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
