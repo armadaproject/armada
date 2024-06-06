@@ -40,7 +40,7 @@ func NewJobRunStateStore(clusterContext context.ClusterContext) *JobRunStateStor
 		clusterContext: clusterContext,
 	}
 
-	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -53,9 +53,12 @@ func NewJobRunStateStore(clusterContext context.ClusterContext) *JobRunStateStor
 			}
 		},
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	// On start up, make sure our state matches current k8s state
-	err := stateStore.initialiseStateFromKubernetes()
+	err = stateStore.initialiseStateFromKubernetes()
 	if err != nil {
 		panic(err)
 	}
