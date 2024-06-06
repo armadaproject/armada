@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"

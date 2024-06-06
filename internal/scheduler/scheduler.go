@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -63,7 +63,7 @@ type Scheduler struct {
 	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
-	clock clock.Clock
+	clock clock.WithTicker
 	// Stores active jobs (i.e. queued or running).
 	jobDb *jobdb.JobDb
 	// Highest offset we've read from Postgres on the jobs table.
