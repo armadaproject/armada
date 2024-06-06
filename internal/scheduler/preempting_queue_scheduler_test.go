@@ -1094,11 +1094,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Oversubscribed eviction does not evict non-preemptible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			//SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-			//	0.0,
-			//	testfixtures.TestSchedulingConfig(),
-			//),
-			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
