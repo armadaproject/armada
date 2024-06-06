@@ -509,7 +509,6 @@ func TestGangScheduler(t *testing.T) {
 			}
 			nodeDb, err := nodedb.NewNodeDb(
 				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.MaxExtraNodesToConsider,
 				tc.SchedulingConfig.IndexedResources,
 				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,

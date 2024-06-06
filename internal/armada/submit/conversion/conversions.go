@@ -46,9 +46,8 @@ func SubmitJobFromApiRequest(
 				},
 			},
 		},
-		Objects:         ingressesAndServices,
-		Scheduler:       jobReq.Scheduler,
-		QueueTtlSeconds: jobReq.QueueTtlSeconds,
+		Objects:   ingressesAndServices,
+		Scheduler: jobReq.Scheduler,
 	}
 	postProcess(msg, config)
 	return msg

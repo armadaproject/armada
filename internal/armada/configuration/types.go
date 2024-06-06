@@ -31,7 +31,7 @@ type ArmadaConfig struct {
 
 	EventsApiRedis redis.UniversalOptions
 	Pulsar         PulsarConfig
-	Postgres       PostgresConfig // Used for Pulsar submit API deduplication
+	Postgres       PostgresConfig // Needs to point to the lookout db
 	QueryApi       QueryApiConfig
 
 	// Period At which the Queue cache will be refreshed
@@ -131,7 +131,5 @@ type PostgresConfig struct {
 }
 
 type QueryApiConfig struct {
-	Enabled       bool
-	Postgres      PostgresConfig
 	MaxQueryItems int
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -530,7 +530,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 
 				nodeDb, err := nodedb.NewNodeDb(
 					schedulingConfig.PriorityClasses,
-					schedulingConfig.MaxExtraNodesToConsider,
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
