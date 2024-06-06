@@ -169,6 +169,7 @@ message SubmitJob {
     string scheduler = 11;
     // Indicates whether job is a duplicate
     bool isDuplicate = 12;
+    // Ordinal 13 was originally used for queue_ttl_seconds
     // This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
     string job_id_str = 14;
 }
