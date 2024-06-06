@@ -736,6 +736,7 @@ type SubmitJob struct {
 	Scheduler string `protobuf:"bytes,11,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
 	// Indicates whether job is a duplicate
 	IsDuplicate bool `protobuf:"varint,12,opt,name=isDuplicate,proto3" json:"isDuplicate,omitempty"`
+	// Ordinal 13 was originally used for queue_ttl_seconds
 	// This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
 	JobIdStr string `protobuf:"bytes,14,opt,name=job_id_str,json=jobIdStr,proto3" json:"jobIdStr,omitempty"`
 }
