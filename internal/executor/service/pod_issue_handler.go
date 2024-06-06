@@ -8,9 +8,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubectl/pkg/describe"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -84,7 +84,7 @@ func NewIssueHandler(
 	stateChecksConfig configuration.StateChecksConfiguration,
 	pendingPodChecker podchecks.PodChecker,
 	stuckTerminatingPodExpiry time.Duration,
-) *IssueHandler {
+) (*IssueHandler, error) {
 	issueHandler := &IssueHandler{
 		jobRunState:               jobRunState,
 		clusterContext:            clusterContext,
@@ -97,7 +97,7 @@ func NewIssueHandler(
 		clock:                     clock.RealClock{},
 	}
 
-	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -107,8 +107,11 @@ func NewIssueHandler(
 			issueHandler.handleDeletedPod(pod)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return issueHandler
+	return issueHandler, nil
 }
 
 func (p *IssueHandler) hasIssue(runId string) bool {

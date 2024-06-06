@@ -5,13 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -578,7 +577,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	return js
 }
 
-func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, clk clock.Clock) *JobSimulator {
+func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: &ts,

@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
