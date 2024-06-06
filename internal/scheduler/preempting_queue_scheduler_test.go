@@ -571,11 +571,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 
 		"gang preemption avoid cascading preemption": {
-			// TODO: FIX this test!
-			//SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-			//	0.0, // To test the gang evictor, we need to disable stochastic eviction.
-			//	testfixtures.TestSchedulingConfig(),
-			//),
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
