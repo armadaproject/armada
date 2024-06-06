@@ -8,7 +8,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
@@ -78,14 +77,14 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return nil
 	})
 
-	// Create database connection. This is used for the query api and also to store queues
-	// In a subsequent pr we will move deduplication here too and move the config out of the `queryapi` namespace
-	queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+	// Create database connection. This is used for the query api, queues and for job deduplication
+	dbPool, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
-		return errors.WithMessage(err, "error creating QueryApi postgres pool")
+		return errors.WithMessage(err, "error creating postgres pool")
 	}
+	defer dbPool.Close()
 	queryapiServer := queryapi.New(
-		queryDb,
+		dbPool,
 		config.QueryApi.MaxQueryItems,
 		func() compress.Decompressor { return compress.NewZlibDecompressor() })
 	api.RegisterJobsServer(grpcServer, queryapiServer)
@@ -99,7 +98,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
-	queueRepository := queue.NewPostgresQueueRepository(queryDb)
+	queueRepository := queue.NewPostgresQueueRepository(dbPool)
 	queueCache := queue.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
 	services = append(services, func() error {
 		return queueCache.Run(ctx)
@@ -113,14 +112,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			config.Auth.PermissionClaimMapping,
 		),
 	)
-
-	// If pool settings are provided, open a connection pool to be shared by all services.
-	var dbPool *pgxpool.Pool
-	dbPool, err = database.OpenPgxPool(config.Postgres)
-	if err != nil {
-		return err
-	}
-	defer dbPool.Close()
 
 	serverId := uuid.New()
 	var pulsarClient pulsar.Client
