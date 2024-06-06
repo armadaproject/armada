@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
@@ -19,7 +19,7 @@ type FieldParser interface {
 }
 
 type LastTransitionTimeParser struct {
-	variable pgtype.Numeric
+	variable pgtype.Float8
 }
 
 func (fp *LastTransitionTimeParser) GetField() string {
@@ -31,12 +31,7 @@ func (fp *LastTransitionTimeParser) GetVariableRef() interface{} {
 }
 
 func (fp *LastTransitionTimeParser) ParseValue() (interface{}, error) {
-	var dst float64
-	err := fp.variable.AssignTo(&dst)
-	if err != nil {
-		return "", err
-	}
-	t := time.Unix(int64(math.Round(dst)), 0)
+	t := time.Unix(int64(math.Round(fp.variable.Float64)), 0)
 	return t.Format(time.RFC3339), nil
 }
 
