@@ -165,7 +165,6 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Created:                  time,
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
-		QueueTtlSeconds:          e.QueueTtlSeconds,
 	}, nil
 }
 
