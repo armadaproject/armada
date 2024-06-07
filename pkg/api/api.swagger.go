@@ -1937,6 +1937,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"resourceLimits\": {\n" +
 		"          \"type\": \"object\",\n" +
+		"          \"title\": \"These are ignored and should be removed\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"number\",\n" +
 		"            \"format\": \"double\"\n" +
