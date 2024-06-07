@@ -204,7 +204,7 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 		meetsMinimum := true
 		for _, jctx := range gctx.JobSchedulingContexts {
 			requests := jctx.PodRequirements.ResourceRequirements.Requests
-			if ok, _ := constraints.RequestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests), ex.minimumJobSize); !ok {
+			if ok, _ := constraints.RequestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests).Resources, ex.minimumJobSize.Resources); !ok {
 				meetsMinimum = false
 			}
 		}

@@ -44,7 +44,7 @@ func (rl ResourceList) String() string {
 
 func (rl ResourceList) GetByName(name string) (int64, error) {
 	if rl.IsEmpty() {
-		return 0, fmt.Errorf("resource type %s present as resource list is nil", name)
+		return 0, fmt.Errorf("resource type %s not found as resource list is empty", name)
 	}
 	index, ok := rl.factory.nameToIndex[name]
 	if !ok {
@@ -109,7 +109,7 @@ func (rl ResourceList) IsEmpty() bool {
 }
 
 // ExceedsAvailable
-// - if any resource in this ResourceList is greater than the equivalent resource in pamam available, this function returns
+// - if any resource in this ResourceList is greater than the equivalent resource in param available, this function returns
 //   - the name of the relevant resource
 //   - the amount of the relevant resource in available
 //   - the amount of the relevant resource in this ResourceList

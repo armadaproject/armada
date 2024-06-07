@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/maps"
 )
 
 func TestMergeMaps_AllValuesPresent(t *testing.T) {
@@ -51,25 +52,25 @@ func TestMergeMaps_Nil(t *testing.T) {
 	}
 	assert.Equal(t, MergeMaps(map1, nil), map1)
 	assert.Equal(t, MergeMaps(nil, map1), map1)
-	assert.Equal(t, MergeMaps(nil, nil), map[string]string{})
+	assert.Equal(t, MergeMaps[string, string](nil, nil), map[string]string{})
 }
 
 func TestEqual(t *testing.T) {
 	map1 := map[string]string{
 		"a": "value1",
 	}
-	map2 := DeepCopy(map1)
+	map2 := maps.Clone(map1)
 	assert.True(t, Equal(map1, map2))
 
-	map3 := DeepCopy(map1)
+	map3 := maps.Clone(map1)
 	map3["a"] = "value2"
 	assert.False(t, Equal(map1, map3))
 
-	map4 := DeepCopy(map1)
+	map4 := maps.Clone(map1)
 	delete(map4, "a")
 	assert.False(t, Equal(map1, map4))
 
-	map5 := DeepCopy(map1)
+	map5 := maps.Clone(map1)
 	map5["b"] = "value2"
 	assert.False(t, Equal(map1, map5))
 }
@@ -80,7 +81,7 @@ func TestEqual_Nil(t *testing.T) {
 	}
 	assert.False(t, Equal(map1, nil))
 	assert.False(t, Equal(nil, map1))
-	assert.True(t, Equal(nil, nil))
+	assert.True(t, Equal[string, string](nil, nil))
 }
 
 func Test_FilterKeys(t *testing.T) {
@@ -94,7 +95,7 @@ func Test_FilterKeys(t *testing.T) {
 }
 
 func Test_FilterKeys_Nil(t *testing.T) {
-	assert.Nil(t, FilterKeys(nil, nil))
-	assert.Nil(t, FilterKeys(nil, []string{}))
+	assert.Nil(t, FilterKeys[string, string](nil, nil))
+	assert.Nil(t, FilterKeys[string, string](nil, []string{}))
 	assert.Equal(t, map[string]string{}, FilterKeys(map[string]string{"a": "b"}, nil))
 }
