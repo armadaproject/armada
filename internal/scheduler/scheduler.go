@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -63,7 +63,7 @@ type Scheduler struct {
 	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
-	clock clock.Clock
+	clock clock.WithTicker
 	// Stores active jobs (i.e. queued or running).
 	jobDb *jobdb.JobDb
 	// Highest offset we've read from Postgres on the jobs table.
@@ -336,15 +336,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
-
-	// Request cancel for any jobs that exceed queueTtl
-	ctx.Info("Cancelling queued jobs exceeding their queue ttl")
-	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
-	if err != nil {
-		return overallSchedulerResult, err
-	}
-	ctx.Infof("Finished cancelling queued jobs exceeding their queue ttl, generating %d events", len(queueTtlCancelEvents))
-	events = append(events, queueTtlCancelEvents...)
 
 	// Schedule jobs.
 	if shouldSchedule {
@@ -963,51 +954,6 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
-	return events, nil
-}
-
-// cancelQueuedJobsIfExpired generates cancel request messages for any queued jobs that exceed their queueTtl.
-func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	jobsToCancel := make([]*jobdb.Job, 0)
-	events := make([]*armadaevents.EventSequence, 0)
-	it := txn.QueuedJobsByTtl()
-
-	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
-	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
-		if job.InTerminalState() {
-			continue
-		}
-
-		job = job.WithCancelRequested(true).WithQueued(false).WithCancelled(true)
-		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
-		if err != nil {
-			return nil, err
-		}
-
-		reason := "Expired queue ttl"
-		cancel := &armadaevents.EventSequence{
-			Queue:      job.Queue(),
-			JobSetName: job.Jobset(),
-			Events: []*armadaevents.EventSequence_Event{
-				{
-					Created: s.now(),
-					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, JobIdStr: job.Id(), Reason: reason}},
-				},
-				{
-					Created: s.now(),
-					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, JobIdStr: job.Id(), Reason: reason}},
-				},
-			},
-		}
-
-		jobsToCancel = append(jobsToCancel, job)
-		events = append(events, cancel)
-	}
-
-	if err := txn.Upsert(jobsToCancel); err != nil {
-		return nil, err
-	}
-
 	return events, nil
 }
 

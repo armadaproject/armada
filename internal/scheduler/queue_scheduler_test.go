@@ -725,7 +725,6 @@ func TestQueueScheduler(t *testing.T) {
 func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinterner.StringInterner) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		config.PriorityClasses,
-		config.MaxExtraNodesToConsider,
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,

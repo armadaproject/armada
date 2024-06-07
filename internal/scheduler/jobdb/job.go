@@ -513,12 +513,6 @@ func (job *Job) EfficientResourceRequirements() internaltypes.ResourceList {
 	return job.resourceRequirements
 }
 
-// QueueTtlSeconds returns the time in seconds that the job should remain queued
-// 0 means that this field is  unset
-func (job *Job) QueueTtlSeconds() int64 {
-	return job.jobSchedulingInfo.QueueTtlSeconds
-}
-
 // PodRequirements returns the pod requirements of the Job
 func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 	return job.jobSchedulingInfo.GetPodRequirements()
@@ -736,28 +730,6 @@ func (job *Job) LatestRun() *JobRun {
 // RunById returns the Run corresponding to the provided run id or nil if no such Run exists.
 func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
-}
-
-// HasQueueTtlExpired returns true if the given job has reached its queueTtl expiry.
-// Invariants:
-//   - job.created < `t`
-func (job *Job) HasQueueTtlExpired() bool {
-	ttlSeconds := job.QueueTtlSeconds()
-	if ttlSeconds > 0 {
-		timeSeconds := time.Now().UTC().Unix()
-
-		// job.Created is populated from the `Submitted` field in postgres, which is a UnixNano time hence the conversion.
-		createdSeconds := job.submittedTime / 1_000_000_000
-		duration := timeSeconds - createdSeconds
-		return duration > ttlSeconds
-	} else {
-		return false
-	}
-}
-
-// HasQueueTtlSet returns true if the given job has a queueTtl set.
-func (job *Job) HasQueueTtlSet() bool {
-	return job.QueueTtlSeconds() > 0
 }
 
 // WithJobset returns a copy of the job with the jobSet updated.

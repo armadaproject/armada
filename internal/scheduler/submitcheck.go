@@ -8,7 +8,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/exp/maps"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -268,7 +268,6 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 func (srv *SubmitChecker) constructNodeDb(executor *schedulerobjects.Executor) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
-		0,
 		srv.schedulingConfig.IndexedResources,
 		srv.schedulingConfig.IndexedTaints,
 		srv.schedulingConfig.IndexedNodeLabels,

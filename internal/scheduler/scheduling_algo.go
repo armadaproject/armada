@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -393,7 +393,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.MaxExtraNodesToConsider,
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
@@ -489,8 +488,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
-		l.schedulingConfig.NodeEvictionProbability,
-		l.schedulingConfig.NodeOversubscriptionEvictionProbability,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,

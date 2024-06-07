@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -55,7 +55,7 @@ type MetricsCollector struct {
 	executorRepository database.ExecutorRepository
 	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
-	clock              clock.Clock
+	clock              clock.WithTicker
 	state              atomic.Value
 }
 

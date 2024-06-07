@@ -52,10 +52,9 @@ var (
 		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
 		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
-	TestDefaultPriorityClass         = PriorityClass3
-	TestPriorities                   = []int32{0, 1, 2, 3}
-	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []schedulerconfiguration.ResourceType{
+	TestDefaultPriorityClass = PriorityClass3
+	TestPriorities           = []int32{0, 1, 2, 3}
+	TestResources            = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
@@ -162,13 +161,10 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 	return schedulerconfiguration.SchedulingConfig{
 		PriorityClasses:                             maps.Clone(TestPriorityClasses),
 		DefaultPriorityClassName:                    TestDefaultPriorityClass,
-		NodeEvictionProbability:                     1.0,
-		NodeOversubscriptionEvictionProbability:     1.0,
 		MaximumSchedulingRate:                       math.Inf(1),
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
 		MaximumPerQueueSchedulingBurst:              math.MaxInt,
-		MaxExtraNodesToConsider:                     TestMaxExtraNodesToConsider,
 		IndexedResources:                            TestResources,
 		IndexedNodeLabels:                           TestIndexedNodeLabels,
 		IndexedTaints:                               TestIndexedTaints,
@@ -187,16 +183,6 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config schedulerconfigur
 
 func WithProtectedFractionOfFairShareConfig(v float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.ProtectedFractionOfFairShare = v
-	return config
-}
-
-func WithNodeEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
-	config.NodeEvictionProbability = p
-	return config
-}
-
-func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
-	config.NodeOversubscriptionEvictionProbability = p
 	return config
 }
 

@@ -79,7 +79,7 @@ func ExposeClusterContextMetrics(
 	utilisationService utilisation.UtilisationService,
 	queueUtilisationService utilisation.PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
-) *ClusterContextMetrics {
+) (*ClusterContextMetrics, error) {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
@@ -94,7 +94,7 @@ func ExposeClusterContextMetrics(
 			[]string{queueLabel, phaseLabel}),
 	}
 
-	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -111,8 +111,11 @@ func ExposeClusterContextMetrics(
 			m.reportPhase(newPod)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 	prometheus.MustRegister(m)
-	return m
+	return m, nil
 }
 
 func (m *ClusterContextMetrics) reportPhase(pod *v1.Pod) {

@@ -89,8 +89,9 @@ func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nod
 func (*FakeClusterContext) Stop() {
 }
 
-func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
+func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) (cache.ResourceEventHandlerRegistration, error) {
 	c.podEventHandlers = append(c.podEventHandlers, &handler)
+	return nil, nil
 }
 
 func (c *FakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {

@@ -34,8 +34,9 @@ func NewSyncFakeClusterContext() *SyncFakeClusterContext {
 
 func (*SyncFakeClusterContext) Stop() {}
 
-func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
+func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) (cache.ResourceEventHandlerRegistration, error) {
 	c.podEventHandlers = append(c.podEventHandlers, &handler)
+	return nil, nil
 }
 
 func (c *SyncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {

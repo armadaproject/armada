@@ -157,14 +157,6 @@ type EvictedJobSchedulingContext struct {
 type NodeDb struct {
 	// In-memory database storing *Node.
 	db *memdb.MemDB
-	// Once a node has been found on which a pod can be scheduled,
-	// the NodeDb will consider up to the next maxExtraNodesToConsider nodes.
-	// The NodeDb selects the node with the best score out of the considered nodes.
-	// In particular, the score expresses whether preemption is necessary to schedule a pod.
-	// Hence, a larger maxExtraNodesToConsider would reduce the expected number of preemptions.
-	//
-	// TODO: Currently gives no benefit. Since all nodes are given the same score.
-	maxExtraNodesToConsider uint
 	// Allowed priority classes.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -245,7 +237,6 @@ type NodeDb struct {
 
 func NewNodeDb(
 	priorityClasses map[string]types.PriorityClass,
-	maxExtraNodesToConsider uint,
 	indexedResources []configuration.ResourceType,
 	indexedTaints []string,
 	indexedNodeLabels []string,
@@ -297,7 +288,6 @@ func NewNodeDb(
 	nodeDb := NodeDb{
 		priorityClasses:           priorityClasses,
 		nodeDbPriorities:          nodeDbPriorities,
-		maxExtraNodesToConsider:   maxExtraNodesToConsider,
 		indexedResources:          indexedResourceNames,
 		indexedResourcesSet:       mapFromSlice(indexedResourceNames),
 		indexedResourceResolution: indexedResourceResolution,
@@ -778,42 +768,27 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	onlyCheckDynamicRequirements bool,
 ) (*internaltypes.Node, error) {
 	var selectedNode *internaltypes.Node
-	var selectedNodeScore int
-	var numExtraNodes uint
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		if selectedNode != nil {
-			numExtraNodes++
-			if numExtraNodes > nodeDb.maxExtraNodesToConsider {
-				break
-			}
-		}
-
 		node := obj.(*internaltypes.Node)
 		if node == nil {
 			return nil, nil
 		}
 
 		var matches bool
-		var score int
 		var reason PodRequirementsNotMetReason
 		var err error
 		if onlyCheckDynamicRequirements {
-			matches, score, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 		} else {
-			matches, score, reason, err = JobRequirementsMet(node, priority, jctx)
+			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}
 		if err != nil {
 			return nil, err
 		}
 
 		if matches {
-			if selectedNode == nil || score > selectedNodeScore {
-				selectedNode = node
-				selectedNodeScore = score
-				if selectedNodeScore == SchedulableBestScore {
-					break
-				}
-			}
+			selectedNode = node
+			break
 		} else {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
 			jctx.PodSchedulingContext.NumExcludedNodesByReason[s] += 1
@@ -873,7 +848,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		if priority > maxPriority {
 			maxPriority = priority
 		}
-		matches, _, reason, err := JobRequirementsMet(
+		matches, reason, err := JobRequirementsMet(
 			node,
 			// At this point, we've unbound the jobs running on the node.
 			// Hence, we should check if the job is schedulable at evictedPriority,

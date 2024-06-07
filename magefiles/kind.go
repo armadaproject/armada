@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	KIND_VERSION_CONSTRAINT = ">= 0.14.0"
+	KIND_VERSION_CONSTRAINT = ">= 0.21.0"
 	KIND_CONFIG_INTERNAL    = ".kube/internal/config"
 	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
 	KIND_NAME               = "armada-test"
@@ -23,8 +23,8 @@ const (
 
 func getImagesUsedInTestsOrControllers() []string {
 	return []string{
-		"nginx:1.21.6", // Used by ingress-controller
-		"alpine:3.18.3",
+		"nginx:1.27.0", // Used by ingress-controller
+		"alpine:3.20.0",
 		"bitnami/kubectl:1.30",
 	}
 }
