@@ -20,7 +20,7 @@ def is_terminal(self) -> bool:
         JobState.CANCELLED,
         JobState.PREEMPTED,
     }
-    return self.value in terminal_states
+    return self in terminal_states
 
 
 def is_active(self) -> bool:
