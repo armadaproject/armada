@@ -1926,6 +1926,7 @@
         },
         "resourceLimits": {
           "type": "object",
+          "title": "These are ignored and should be removed",
           "additionalProperties": {
             "type": "number",
             "format": "double"
