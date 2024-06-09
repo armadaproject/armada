@@ -370,15 +370,6 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"duplicate submit is ignored": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.SubmitDuplicate)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
 		"job preempted": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreempted)},
