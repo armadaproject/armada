@@ -111,7 +111,7 @@ type Job struct {
 
 	// state
 	// Required: true
-	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED LEASED]
+	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED LEASED REJECTED]
 	State string `json:"state"`
 
 	// submitted
@@ -396,7 +396,7 @@ var jobTypeStatePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["QUEUED","PENDING","RUNNING","SUCCEEDED","FAILED","CANCELLED","PREEMPTED","LEASED"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["QUEUED","PENDING","RUNNING","SUCCEEDED","FAILED","CANCELLED","PREEMPTED","LEASED","REJECTED"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -429,6 +429,9 @@ const (
 
 	// JobStateLEASED captures enum value "LEASED"
 	JobStateLEASED string = "LEASED"
+
+	// JobStateREJECTED captures enum value "REJECTED"
+	JobStateREJECTED string = "REJECTED"
 )
 
 // prop value enum

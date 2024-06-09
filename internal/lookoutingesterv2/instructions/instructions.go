@@ -143,10 +143,6 @@ func (c *InstructionConverter) handleSubmitJob(
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
-	if event.IsDuplicate {
-		log.Debugf("job %s is a duplicate, ignoring", jobId)
-		return nil
-	}
 
 	// Try and marshall the job proto. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the job spec won't be available in the ui
@@ -201,9 +197,8 @@ func (c *InstructionConverter) handleSubmitJob(
 	return err
 }
 
-// extractUserAnnotations strips userAnnotationPrefix from all keys and
-// truncates keys and values to their maximal lengths (as specified by
-// maxAnnotationKeyLen and maxAnnotationValLen).
+// extractUserAnnotations strips userAnnotationPrefix from all keys and truncates keys and values to their maximal
+// lengths (as specified by maxAnnotationKeyLen and maxAnnotationValLen).
 func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[string]string) map[string]string {
 	result := make(map[string]string, len(jobAnnotations))
 	n := len(userAnnotationPrefix)
@@ -286,11 +281,15 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 		}
 
 		state := lookout.JobFailedOrdinal
-		switch e.Reason.(type) {
-		// We should have a JobPreempted event rather than relying on type of JobErrors
-		// For now this is how we can identify if the job was preempted or failed
+		switch reason := e.Reason.(type) {
+		// Preempted and Rejected jobs are modelled as Reasons on a JobErrors msg
 		case *armadaevents.Error_JobRunPreemptedError:
 			state = lookout.JobPreemptedOrdinal
+		case *armadaevents.Error_JobRejected:
+			state = lookout.JobRejectedOrdinal
+			update.JobErrorsToCreate = append(update.JobErrorsToCreate, &model.CreateJobErrorInstruction{
+				Error: tryCompressError(jobId, reason.JobRejected.Message, c.compressor),
+			})
 		}
 
 		jobUpdate := model.UpdateJobInstruction{
