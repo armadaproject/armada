@@ -20,6 +20,8 @@ import (
 )
 
 func TestSimulator(t *testing.T) {
+	enableFastForward := false
+	schedulerCyclePeriodSeconds := 10
 	tests := map[string]struct {
 		clusterSpec            *ClusterSpec
 		workloadSpec           *WorkloadSpec
@@ -434,7 +436,7 @@ func TestSimulator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig)
+			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig, enableFastForward, int((tc.simulatedTimeLimit + time.Hour).Minutes()), schedulerCyclePeriodSeconds)
 			require.NoError(t, err)
 			mc := NewMetricsCollector(s.StateTransitions())
 			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
