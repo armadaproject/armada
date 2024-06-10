@@ -34,7 +34,8 @@ func reprioritizeJobCmd() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Ignoring first two arguments until Server API change makes queue and job-set a requirement
-
+			queue := args[0]
+			jobSet := args[1]
 			jobId := args[2]
 			priorityString := args[3]
 			priorityFactor, err := strconv.ParseFloat(priorityString, 64)
@@ -42,7 +43,7 @@ func reprioritizeJobCmd() *cobra.Command {
 				return fmt.Errorf("error converting %s to float64: %s", priorityString, err)
 			}
 
-			return a.ReprioritizeJob(jobId, priorityFactor)
+			return a.ReprioritizeJob(queue, jobSet, jobId, priorityFactor)
 		},
 	}
 	return cmd

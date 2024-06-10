@@ -36,7 +36,7 @@ func (a *App) ReprioritizeJobSet(queueName string, jobSet string, priorityFactor
 }
 
 // Reprioritize sets the priority of the job identified by (jobId) to priorityFactor
-func (a *App) ReprioritizeJob(jobId string, priorityFactor float64) error {
+func (a *App) ReprioritizeJob(queue string, jobSet string, jobId string, priorityFactor float64) error {
 	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
 		var jobIds []string
 		if jobId != "" {
@@ -47,6 +47,8 @@ func (a *App) ReprioritizeJob(jobId string, priorityFactor float64) error {
 		defer cancel()
 
 		req := api.JobReprioritizeRequest{
+			Queue:       queue,
+			JobSetId:    jobSet,
 			JobIds:      jobIds,
 			NewPriority: priorityFactor,
 		}
