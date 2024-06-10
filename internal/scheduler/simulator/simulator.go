@@ -82,6 +82,12 @@ type Simulator struct {
 	SuppressSchedulerLogs bool
 	// For making internaltypes.ResourceList
 	resourceListFactory *internaltypes.ResourceListFactory
+	// Skips schedule events when we're in a steady state
+	enableFastForward bool
+	// Limit the time simulated
+	hardTerminationMinutes int
+	// Determines how often we trigger schedule events
+	schedulerCyclePeriodSeconds int
 }
 
 type StateTransition struct {
@@ -89,7 +95,7 @@ type StateTransition struct {
 	EventSequence *armadaevents.EventSequence
 }
 
-func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig) (*Simulator, error) {
+func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig, enableFastForward bool, hardTerminationMinutes int, schedulerCyclePeriodSeconds int) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
 	resourceListFactory, err := internaltypes.MakeResourceListFactory(schedulingConfig.SupportedResourceTypes)
@@ -114,7 +120,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
-		// Seed the RNG using the local time if no explic random seed is provided.
+		// Seed the RNG using the local time if no explicit random seed is provided.
 		randomSeed = time.Now().Unix()
 	}
 	s := &Simulator{
@@ -134,9 +140,12 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 			rate.Limit(schedulingConfig.MaximumSchedulingRate),
 			schedulingConfig.MaximumSchedulingBurst,
 		),
-		limiterByQueue:      make(map[string]*rate.Limiter),
-		rand:                rand.New(rand.NewSource(randomSeed)),
-		resourceListFactory: resourceListFactory,
+		limiterByQueue:              make(map[string]*rate.Limiter),
+		rand:                        rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory:         resourceListFactory,
+		enableFastForward:           enableFastForward,
+		hardTerminationMinutes:      hardTerminationMinutes,
+		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
 	}
 	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
@@ -166,6 +175,9 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 	}()
 	// Bootstrap the simulator by pushing an event that triggers a scheduler run.
 	s.pushScheduleEvent(s.time)
+
+	simTerminationTime := s.time.Add(time.Minute * time.Duration(s.hardTerminationMinutes))
+
 	// Then run the scheduler until all jobs have completed.
 	for s.eventLog.Len() > 0 {
 		select {
@@ -176,6 +188,10 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 			if err := s.handleSimulatorEvent(ctx, event); err != nil {
 				return err
 			}
+		}
+		if s.time.After(simTerminationTime) {
+			ctx.Infof("Current simulated time (%s) exceeds runtime deadline (%s). Terminating", s.time, simTerminationTime)
+			return nil
 		}
 	}
 	return nil
@@ -418,9 +434,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 	// Schedule the next run of the scheduler, unless there are no more active jobTemplates.
 	// TODO: Make timeout configurable.
 	if len(s.activeJobTemplatesById) > 0 {
-		s.pushScheduleEvent(s.time.Add(10 * time.Second))
+		s.pushScheduleEvent(s.time.Add(time.Duration(s.schedulerCyclePeriodSeconds) * time.Second))
 	}
-	if !s.shouldSchedule {
+	if !s.shouldSchedule && s.enableFastForward {
 		return nil
 	}
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"math"
 	"os"
 
 	"github.com/pkg/errors"
@@ -27,6 +28,9 @@ func RootCmd() *cobra.Command {
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
 	cmd.Flags().Int("logInterval", 0, "Log summary statistics every this many events. Disabled if 0.")
 	cmd.Flags().String("eventsOutputFilePath", "", "Path of file to write events to.")
+	cmd.Flags().Bool("enableFastForward", false, "Skips schedule events when we're in a steady state")
+	cmd.Flags().Int("hardTerminationMinutes", math.MaxInt, "Limit the time simulated")
+	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
 	return cmd
 }
 
@@ -53,6 +57,19 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	filePath, err := cmd.Flags().GetString("eventsOutputFilePath")
+	if err != nil {
+		return err
+	}
+
+	enableFastForward, err := cmd.Flags().GetBool("enableFastForward")
+	if err != nil {
+		return err
+	}
+	hardTerminationMinutes, err := cmd.Flags().GetInt("hardTerminationMinutes")
+	if err != nil {
+		return err
+	}
+	schedulerCyclePeriodSeconds, err := cmd.Flags().GetInt("schedulerCyclePeriodSeconds")
 	if err != nil {
 		return err
 	}
@@ -108,7 +125,7 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	for _, clusterSpec := range clusterSpecs {
 		for _, workloadSpec := range workloadSpecs {
 			for schedulingConfigPath, schedulingConfig := range schedulingConfigsByFilePath {
-				if s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig); err != nil {
+				if s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig, enableFastForward, hardTerminationMinutes, schedulerCyclePeriodSeconds); err != nil {
 					return err
 				} else {
 					if !showSchedulerLogs {
