@@ -436,6 +436,34 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 	return js
 }
 
+func (js *JobSimulator) Rejected(message string, timestamp time.Time) *JobSimulator {
+
+	ts := timestampOrNow(timestamp)
+	rejected := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: js.jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_JobRejected{
+							JobRejected: &armadaevents.JobRejected{
+								Message: message,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	js.events = append(js.events, rejected)
+
+	js.job.LastTransitionTime = ts
+	js.job.State = string(lookout.JobRejected)
+	return js
+}
+
 func (js *JobSimulator) Failed(node string, exitCode int32, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	failed := &armadaevents.EventSequence_Event{

@@ -288,6 +288,7 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 		case *armadaevents.Error_JobRejected:
 			state = lookout.JobRejectedOrdinal
 			update.JobErrorsToCreate = append(update.JobErrorsToCreate, &model.CreateJobErrorInstruction{
+				JobId: jobId,
 				Error: tryCompressError(jobId, reason.JobRejected.Message, c.compressor),
 			})
 		}
