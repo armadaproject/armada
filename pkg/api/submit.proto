@@ -189,6 +189,7 @@ message Queue {
     double priority_factor = 2;
     repeated string user_owners = 3;
     repeated string group_owners = 4;
+    // These are ignored and should be removed
     map<string, double> resource_limits = 5 [deprecated = true];
     // Map from priority class name to resource limit overrides for this queue and priority class.
     // If provided for a priority class, global limits for that priority class do not apply to this queue.

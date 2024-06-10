@@ -1148,10 +1148,11 @@ func (m *JobSubmitResponse) GetJobResponseItems() []*JobSubmitResponseItem {
 
 // swagger:model
 type Queue struct {
-	Name           string             `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	PriorityFactor float64            `protobuf:"fixed64,2,opt,name=priority_factor,json=priorityFactor,proto3" json:"priorityFactor,omitempty"`
-	UserOwners     []string           `protobuf:"bytes,3,rep,name=user_owners,json=userOwners,proto3" json:"userOwners,omitempty"`
-	GroupOwners    []string           `protobuf:"bytes,4,rep,name=group_owners,json=groupOwners,proto3" json:"groupOwners,omitempty"`
+	Name           string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	PriorityFactor float64  `protobuf:"fixed64,2,opt,name=priority_factor,json=priorityFactor,proto3" json:"priorityFactor,omitempty"`
+	UserOwners     []string `protobuf:"bytes,3,rep,name=user_owners,json=userOwners,proto3" json:"userOwners,omitempty"`
+	GroupOwners    []string `protobuf:"bytes,4,rep,name=group_owners,json=groupOwners,proto3" json:"groupOwners,omitempty"`
+	// These are ignored and should be removed
 	ResourceLimits map[string]float64 `protobuf:"bytes,5,rep,name=resource_limits,json=resourceLimits,proto3" json:"resourceLimits,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"` // Deprecated: Do not use.
 	// Map from priority class name to resource limit overrides for this queue and priority class.
 	// If provided for a priority class, global limits for that priority class do not apply to this queue.
