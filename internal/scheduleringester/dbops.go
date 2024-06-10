@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
-	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
@@ -239,7 +238,7 @@ func (a *UpdateJobPriorities) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case *UpdateJobPriorities:
 		if a.key == op.key {
-			a.jobIds = slices.Unique(append(a.jobIds, op.jobIds...))
+			a.jobIds = append(a.jobIds, op.jobIds...)
 			return true
 		}
 	}
