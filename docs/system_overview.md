@@ -8,9 +8,10 @@ At a high level, Armada is a multi-Kubernetes cluster batch job scheduler. Each 
 
 Jobs are submitted to Armada and Armada is responsible for determining when and where each job should be run.
 
-An Armada deployments consists of:
-- One or more Kubernetes clusters containing nodes to be used for running jobs. Such clusters are referred to as worker clusters.
-- The Armada control plane components responsible for job submission and scheduling. Jobs are submitted to the control plane and are automatically transferred to worker clusters once scheduled.
+An Armada deployment consists of:
+
+- One or more Kubernetes clusters containing nodes to be used for running jobs. We refer to such clusters as worker clusters.
+- The Armada control plane components responsible for job submission and scheduling. Jobs are submitted to the control plane and are transferred to worker clusters once scheduled.
 - The Armada executors responsible for communication between the Armada control plane and the [Kubernetes control plane](https://kubernetes.io/docs/concepts/overview/kubernetes-api/). There is one executor per worker cluster.
 
 The Armada control plane components may run anywhere from which they can be reached by the executors, e.g., in the same cluster as an executor, on a different Kubernetes cluster, or on a node not managed by Kubernetes. Each executor normally runs within the worker cluster it is responsible for.
@@ -33,9 +34,9 @@ We show an overview of an Armada deployment with three worker clusters below. Cl
 The arrows in the above diagram show the path jobs take though the system. Specifically, each job passes through the following stages:
 
 1. The job is submitted to Armada, where it is stored in one of several queues, e.g., corresponding to different users. At this point, the job is stored in the Armada control plane and does not exist in any Kubernetes cluster. The job is in the *queued* state.
-2. The Armada scheduler eventually determines that the job should be run and marks the job with the Kubernetes cluster and node it should be run on. The job is in the *leased* state.
-3. The Kubernetes resources that make up the job are created in the cluster it was assigned to via kube-api calls. The pod contained in the job is bound to the node it was assigned to. The job is in the "pending" state.
-4. Container images are pulled, volumes and secrets mounted, and init containers run, after which the main containers of the pod start running. The job is in the *running* state.
+2. When the Armada scheduler determines that the job should be run, it is marked with the Kubernetes cluster and node it should be run on. The job is in the *leased* state.
+3. The Kubernetes resources that make up the job are created in the cluster it was assigned to via kube-api calls. The pod contained in the job is bound to the node it was assigned to. The job is in the *pending* state.
+4. Once Kubernetes pod initialisation has completed (e.g., pulling container images, mounting volumes and secrets, and running init containers), the main containers of the pod start running. The job is in the *running* state.
 5. The job terminates once all containers in the pod have stopped running. Depending on the exit codes of the containers, the job transitions to either the *succeeded* or *failed* state.
 
 All Kubernetes resources associated with the job are deleted once the job terminates. For more information on jobs, see the scheduler documentation.
