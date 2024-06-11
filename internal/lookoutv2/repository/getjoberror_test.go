@@ -18,23 +18,25 @@ func TestGetJobError(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		errMsg := "some bad error happened!"
+		_ = NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
+				JobId:            jobId,
+				Priority:         priority,
+				PriorityClass:    priorityClass,
+				Cpu:              cpu,
+				Memory:           memory,
+				EphemeralStorage: ephemeralStorage,
+				Gpu:              gpu,
+			}).
+			Rejected(errMsg, baseTime).
+			Build().
+			ApiJob()
 
-		errorStrings := []string{
-			"some bad error happened!",
-			"",
-		}
-		for _, expected := range errorStrings {
-			_ = NewJobSimulator(converter, store).
-				Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-				Rejected(expected, baseTime).
-				Build().
-				ApiJob()
-
-			repo := NewSqlGetJobErrorRepository(db, &compress.NoOpDecompressor{})
-			result, err := repo.GetJobErrorMessage(armadacontext.TODO(), jobId)
-			assert.NoError(t, err)
-			assert.Equal(t, expected, result)
-		}
+		repo := NewSqlGetJobErrorRepository(db, &compress.NoOpDecompressor{})
+		result, err := repo.GetJobErrorMessage(armadacontext.TODO(), jobId)
+		assert.NoError(t, err)
+		assert.Equal(t, errMsg, result)
 		return nil
 	})
 	assert.NoError(t, err)

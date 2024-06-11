@@ -45,7 +45,7 @@ var (
 	runId            = "123e4567-e89b-12d3-a456-426614174001"
 	node             = "node-1"
 	basicJobOpts     = &JobOptions{
-		JobId:            jobId,
+		//JobId:            jobId,
 		Priority:         priority,
 		PriorityClass:    priorityClass,
 		Cpu:              cpu,

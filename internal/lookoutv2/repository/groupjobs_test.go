@@ -658,6 +658,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 						string(lookout.JobFailed):    0,
 						string(lookout.JobCancelled): 0,
 						string(lookout.JobPreempted): 0,
+						string(lookout.JobRejected):  0,
 					},
 				},
 			},
