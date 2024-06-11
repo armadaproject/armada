@@ -6,13 +6,12 @@ from typing import AsyncIterator, Any, Optional, Tuple, Dict
 
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 from armada_client.armada.job_pb2 import JobRunDetails
-from armada_client.armada.submit_pb2 import JobState
+from armada_client.typings import JobState
 
-from armada_airflow.client import armada_client
-from armada_airflow.client.armada_client import ArmadaAsyncIOClient
-from armada_airflow.logs.token_retriever import TokenRetriever
-from armada_airflow.logs.pod_log_manager import PodLogManagerAsync
-from armada_airflow.model import GrpcChannelArgs
+from armada_client.asyncio_client import ArmadaAsyncIOClient
+from armada.auth import TokenRetriever
+from armada.logs.pod_log_manager import PodLogManagerAsync
+from armada.model import GrpcChannelArgs
 from pendulum import DateTime
 
 
@@ -105,7 +104,7 @@ class ArmadaTrigger(BaseTrigger):
             self.token_retriever.serialize() if self.token_retriever else None
         )
         return (
-            "armada_airflow.triggers.armada.ArmadaTrigger",
+            "armada.triggers.armada.ArmadaTrigger",
             {
                 "job_id": self.job_id,
                 "channel_args_details": self.channel_args.serialize(),
@@ -156,10 +155,11 @@ class ArmadaTrigger(BaseTrigger):
         run_details = None
 
         # Poll for terminal state
-        while armada_client.is_active(state):
-            state = await self.client.get_job_status(job_id)
+        while state.is_active():
+            resp = await self.client.get_job_status([job_id])
+            state = JobState(resp.job_states[job_id])
             self.log.info(
-                f"Job {job_id} is in state: {JobState.Name(state)}. {self.tracking_message}"
+                f"Job {job_id} is in state: {state.name}. {self.tracking_message}"
             )
 
             if state != JobState.UNKNOWN:
@@ -177,7 +177,7 @@ class ArmadaTrigger(BaseTrigger):
                 }
 
             if self.container_logs and not run_details:
-                if state == JobState.RUNNING or armada_client.is_terminal(state):
+                if state == JobState.RUNNING or state.is_terminal():
                     run_details = await self._get_latest_job_run_details(self.job_id)
 
             if run_details:
@@ -194,16 +194,16 @@ class ArmadaTrigger(BaseTrigger):
                 except Exception as e:
                     self.log.exception(e)
 
-            if armada_client.is_active(state):
+            if state.is_active():
                 self.log.debug(f"Sleeping for {self.poll_interval} seconds")
                 await asyncio.sleep(self.poll_interval)
 
-        self.log.info(f"Job {job_id} terminated with state:{JobState.Name(state)}")
+        self.log.info(f"Job {job_id} terminated with state:{state.name}")
         if state != JobState.SUCCEEDED:
             return {
                 "status": "error",
                 "job_id": job_id,
-                "response": f"Job {job_id} did not succeed. Final status was {JobState.Name(state)}",
+                "response": f"Job {job_id} did not succeed. Final status was {state.name}",
             }
         return {
             "status": "success",
@@ -224,7 +224,8 @@ class ArmadaTrigger(BaseTrigger):
         return self._pod_manager
 
     async def _get_latest_job_run_details(self, job_id) -> Optional[JobRunDetails]:
-        job_details = await self.client.get_job_details(job_id)
+        resp = await self.client.get_job_details([job_id])
+        job_details = resp.job_details[job_id]
         if job_details and job_details.latest_run_id:
             for run in job_details.job_runs:
                 if run.run_id == job_details.latest_run_id:

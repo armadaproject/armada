@@ -3,16 +3,16 @@ from math import ceil
 from unittest.mock import MagicMock, patch, PropertyMock
 
 from airflow.exceptions import AirflowException
-from armada_client.armada import submit_pb2
+from armada_client.armada import submit_pb2, job_pb2
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
 
-from armada_airflow.model import GrpcChannelArgs
-from armada_airflow.operators.armada import ArmadaOperator
-from armada_airflow.triggers.armada import ArmadaTrigger
+from armada.model import GrpcChannelArgs
+from armada.operators.armada import ArmadaOperator
+from armada.triggers.armada import ArmadaTrigger
 
 DEFAULT_JOB_ID = "test_job"
 DEFAULT_TASK_ID = "test_task_1"
@@ -38,7 +38,7 @@ class TestArmadaOperator(unittest.TestCase):
         }
 
     @patch('time.sleep', return_value=None)
-    @patch('armada_airflow.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
     def test_execute(self, mock_client_fn, _):
         test_cases = [
             {
@@ -92,7 +92,13 @@ class TestArmadaOperator(unittest.TestCase):
                     job_response_items=[
                         submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
                     ])
-                mock_client.get_job_status.side_effect = test_case["statuses"]
+
+                mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
+                  job_states={
+                    DEFAULT_JOB_ID: x
+                  }
+                ) for x in test_case["statuses"]]
+
                 mock_client_fn.return_value = mock_client
                 self.context["ti"].xcom_pull.return_value = None
 
@@ -107,8 +113,8 @@ class TestArmadaOperator(unittest.TestCase):
                 self.assertEqual(mock_client.get_job_status.call_count, len(test_case["statuses"]))
 
     @patch('time.sleep', return_value=None)
-    @patch('armada_airflow.operators.armada.ArmadaOperator.on_kill', new_callable=PropertyMock)
-    @patch('armada_airflow.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch('armada.operators.armada.ArmadaOperator.on_kill', new_callable=PropertyMock)
+    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
     def test_unacknowledged_results_in_on_kill(self, mock_client_fn, mock_on_kill, _):
         operator = ArmadaOperator(
             name="test",
@@ -127,15 +133,20 @@ class TestArmadaOperator(unittest.TestCase):
                 submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
             ])
         mock_client_fn.return_value = mock_client
-        mock_client.get_job_status.side_effect = [submit_pb2.UNKNOWN, submit_pb2.UNKNOWN]
+        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
+          job_states={
+            DEFAULT_JOB_ID: x
+          }
+        ) for x in [submit_pb2.UNKNOWN, submit_pb2.UNKNOWN]]
 
+        self.context["ti"].xcom_pull.return_value = None
         operator.execute(self.context)
         self.assertEqual(mock_on_kill.call_count, 1)
 
     """We call on_kill by triggering the job unacknowledged timeout"""
 
     @patch('time.sleep', return_value=None)
-    @patch('armada_airflow.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
     def test_on_kill_cancels_job(self, mock_client_fn, _):
         operator = ArmadaOperator(
             name="test",
@@ -154,15 +165,19 @@ class TestArmadaOperator(unittest.TestCase):
                 submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
             ])
         mock_client_fn.return_value = mock_client
-        mock_client.get_job_status.side_effect = [submit_pb2.UNKNOWN
-                                                  for _ in range(
-                1 + ceil(DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL))]
+        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
+          job_states={
+            DEFAULT_JOB_ID: x
+          }
+        ) for x in [submit_pb2.UNKNOWN for _ in range(
+                1 + ceil(DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL))]]
 
+        self.context["ti"].xcom_pull.return_value = None
         operator.execute(self.context)
         self.assertEqual(mock_client.cancel_jobs.call_count, 1)
 
     @patch('time.sleep', return_value=None)
-    @patch('armada_airflow.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
     def test_job_reattaches(self, mock_client_fn, _):
         operator = ArmadaOperator(
             name="test",
@@ -176,15 +191,18 @@ class TestArmadaOperator(unittest.TestCase):
 
         #  Set up Mock Armada
         mock_client = MagicMock()
-        mock_client.get_job_status.side_effect = [submit_pb2.UNKNOWN
-                                                  for _ in range(
-                1 + ceil(DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL))]
+        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
+          job_states={
+            DEFAULT_JOB_ID: x
+          }
+        ) for x in [submit_pb2.UNKNOWN for _ in range(
+                1 + ceil(DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL))]]
         mock_client_fn.return_value = mock_client
-        self.context["ti"].xcom_pull.return_value = {"armada_job_id": "FAKE_JOB_ID"}
+        self.context["ti"].xcom_pull.return_value = {"armada_job_id": DEFAULT_JOB_ID}
 
         operator.execute(self.context)
         self.assertEqual(mock_client.submit_jobs.call_count, 0)
-        self.assertEqual(operator.job_id, "FAKE_JOB_ID")
+        self.assertEqual(operator.job_id, DEFAULT_JOB_ID)
 
 
 class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
@@ -201,8 +219,8 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
             "dag": mock_dag,
         }
 
-    @patch('armada_airflow.operators.armada.ArmadaOperator.defer')
-    @patch('armada_airflow.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch('armada.operators.armada.ArmadaOperator.defer')
+    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
     def test_execute_deferred(self, mock_client_fn, mock_defer_fn):
         operator = ArmadaOperator(
             name="test",

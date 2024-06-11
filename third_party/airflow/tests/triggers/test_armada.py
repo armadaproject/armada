@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock, patch, PropertyMock
 
 from airflow.triggers.base import TriggerEvent
 from armada_client.armada.submit_pb2 import JobState
-from armada_client.armada import submit_pb2
+from armada_client.armada import submit_pb2, job_pb2
 
-from armada_airflow.model import GrpcChannelArgs
-from armada_airflow.triggers.armada import ArmadaTrigger
+from armada.model import GrpcChannelArgs
+from armada.triggers.armada import ArmadaTrigger
 
 DEFAULT_JOB_ID = "test_job"
 DEFAULT_POLLING_INTERVAL = 30
@@ -26,14 +26,14 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
     def test_serialization(self):
         trigger = ArmadaTrigger(
             job_id=DEFAULT_JOB_ID,
-            channel_args=GrpcChannelArgs(target="api.armardaproject.io:443"),
+            channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
             poll_interval=30,
             tracking_message="test tracking message",
             job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
             job_request_namespace="default"
         )
         classpath, kwargs = trigger.serialize()
-        self.assertEqual("armada_airflow.triggers.armada.ArmadaTrigger", classpath)
+        self.assertEqual("armada.triggers.armada.ArmadaTrigger", classpath)
 
         rehydrated = ArmadaTrigger(**kwargs)
         self.assertEqual(trigger, rehydrated)
@@ -44,7 +44,7 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
 
     @patch('time.time')
     @patch('asyncio.sleep', new_callable=AsyncMock)
-    @patch('armada_airflow.triggers.armada.ArmadaTrigger.client', new_callable=PropertyMock)
+    @patch('armada.triggers.armada.ArmadaTrigger.client', new_callable=PropertyMock)
     async def test_execute(self, mock_client_fn, _, time_time):
         time_time.side_effect = self._time_side_effect
 
@@ -143,7 +143,11 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
 
                 # Setup Mock Armada
                 mock_client = AsyncMock()
-                mock_client.get_job_status.side_effect = test_case["statuses"]
+                mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
+                  job_states={
+                    DEFAULT_JOB_ID: x
+                  }
+                ) for x in test_case["statuses"]]
                 mock_client.cancel_jobs.return_value = submit_pb2.CancellationResult(cancelled_ids=[DEFAULT_JOB_ID])
                 mock_client_fn.return_value = mock_client
                 responses = [gen async for gen in trigger.run()]
@@ -151,7 +155,7 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(test_case["statuses"]), mock_client.get_job_status.call_count)
 
     @patch('time.sleep', return_value=None)
-    @patch('armada_airflow.triggers.armada.ArmadaTrigger.client', new_callable=PropertyMock)
+    @patch('armada.triggers.armada.ArmadaTrigger.client', new_callable=PropertyMock)
     async def test_unacknowledged_results_in_job_cancel(self, mock_client_fn, _):
         trigger = ArmadaTrigger(
             job_id=DEFAULT_JOB_ID,
@@ -166,7 +170,11 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
         mock_client = AsyncMock()
         mock_client.cancel_jobs.return_value = submit_pb2.CancellationResult(cancelled_ids=[DEFAULT_JOB_ID])
         mock_client_fn.return_value = mock_client
-        mock_client.get_job_status.side_effect = [JobState.UNKNOWN, JobState.UNKNOWN]
+        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
+          job_states={
+            DEFAULT_JOB_ID: x
+          }
+        ) for x in [JobState.UNKNOWN, JobState.UNKNOWN]]
         [gen async for gen in trigger.run()]
 
         self.assertEqual(mock_client.cancel_jobs.call_count, 1)

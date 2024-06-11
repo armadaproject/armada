@@ -1,29 +1,58 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "armada_airflow"
 version = "0.5.6"
 description = "Armada Airflow Operator"
-requires-python = ">=3.7"
-# Note(JayF): This dependency value is not suitable for release. Whatever
-# release automation we create will have to change this to a dep on a pypi
-# package, but we can't do that now because it would make development
-# extremely difficult.
-dependencies = [
-	"armada-client",
-	"apache-airflow>=2.6.3",
-	"grpcio==1.64.0",
-	"grpcio-tools==1.64.0",
-	"types-protobuf==4.24.0.1"
-]
+readme='README.md'
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
-readme = "README.md"
+dependencies=[
+    'armada-client==0.3.3',
+    'apache-airflow>=2.6.3',
+    'grpcio==1.58.0',
+    'grpcio-tools==1.58.0',
+    'types-protobuf==4.24.0.1',
+    'kubernetes>=23.6.0',
+    'kubernetes_asyncio>=24.2.3',
+]
+requires-python=">=3.10,<3.11"
+classifiers=[
+    'Programming Language :: Python :: 3',
+    'Operating System :: OS Independent',
+]
 
 [project.optional-dependencies]
+lint = ["black==24.2.0"]
 format = ["black==23.7.0", "flake8==7.0.0", "pylint==2.17.5"]
-test = ["pytest==7.3.1", "coverage==7.3.2", "pytest-asyncio==0.21.1"]
 # note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
 docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
 
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+[project.urls]
+repository='https://github.com/armadaproject/armada'
+
+[tools.setuptools.packages.find]
+include = ["armada_airflow*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = "armada_airflow*"
+exclude = '''
+/(
+    \.git
+  | venv
+  | build
+  | dist
+  | armada_airflow.egg-info
+  | __pycache__*
+)/
+'''
+
+[tool.flake8]
+# These settings are reccomended by upstream black to make flake8 find black
+# style formatting correct.
+max-line-length = 88
+extend-ignore = "E203"
