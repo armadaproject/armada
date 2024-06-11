@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
@@ -230,7 +231,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			Queue:    o.key.queue,
 			JobSet:   o.key.jobSet,
 			Priority: o.key.Priority,
-			JobIds:   o.jobIds,
+			JobIds:   slices.Unique(o.jobIds),
 		})
 		if err != nil {
 			return errors.WithStack(err)
