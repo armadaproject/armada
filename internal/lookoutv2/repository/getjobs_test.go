@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	clock "k8s.io/utils/clock/testing"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -52,23 +54,20 @@ var (
 	}
 )
 
-func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository) error) error {
-	for _, useJsonbBackend := range []bool{false, true} {
-		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-			repo := NewSqlGetJobsRepository(db, useJsonbBackend)
-			return f(converter, store, repo)
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGetJobsRepository, *clock.FakeClock) error) error {
+	testClock := clock.NewFakeClock(time.Now())
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		repo := NewSqlGetJobsRepository(db)
+		repo.clock = testClock
+		return f(converter, store, repo, testClock)
+	})
 }
 
 func TestGetJobsSingle(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,
@@ -82,6 +81,7 @@ func TestGetJobsSingle(t *testing.T) {
 					"hello":     "world",
 				},
 			}).
+			Lease(runId, cluster, node, baseTime).
 			Pending(runId, cluster, baseTime).
 			Running(runId, node, baseTime).
 			RunSucceeded(runId, baseTime).
@@ -99,11 +99,17 @@ func TestGetJobsSingle(t *testing.T) {
 }
 
 func TestGetJobsMultipleRuns(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		firstRunId := uuid.NewString()
+		secondRunId := uuid.NewString()
+
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), cluster, baseTime).
-			Pending(uuid.NewString(), cluster, baseTime.Add(time.Second)).
+			Lease(firstRunId, cluster, node, baseTime).
+			Pending(firstRunId, cluster, baseTime).
+			Lease(secondRunId, cluster, node, baseTime.Add(time.Second)).
+			Pending(secondRunId, cluster, baseTime.Add(time.Second)).
+			Lease(runId, cluster, node, baseTime.Add(2*time.Second)).
 			Pending(runId, cluster, baseTime.Add(2*time.Second)).
 			Running(runId, node, baseTime.Add(2*time.Second)).
 			RunSucceeded(runId, baseTime.Add(2*time.Second)).
@@ -122,7 +128,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 }
 
 func TestOrderByUnsupportedField(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -142,7 +148,7 @@ func TestOrderByUnsupportedField(t *testing.T) {
 }
 
 func TestOrderByUnsupportedDirection(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{},
@@ -163,26 +169,26 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 
 // Since job ids are ULIDs, it is comparable to sorting by submission time
 func TestGetJobsOrderByJobId(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		firstId := "01f3j0g1md4qx7z5qb148qnh4d"
 		secondId := "01f3j0g1md4qx7z5qb148qnjjj"
 		thirdId := "01f3j0g1md4qx7z5qb148qnmmm"
 
-		third := NewJobSimulator(converter, store).
+		third := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId: thirdId,
 			}).
 			Build().
 			Job()
 
-		second := NewJobSimulator(converter, store).
+		second := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId: secondId,
 			}).
 			Build().
 			Job()
 
-		first := NewJobSimulator(converter, store).
+		first := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId: firstId,
 			}).
@@ -233,18 +239,18 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 }
 
 func TestGetJobsOrderBySubmissionTime(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		third := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		third := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime.Add(3*time.Second), basicJobOpts).
 			Build().
 			Job()
 
-		second := NewJobSimulator(converter, store).
+		second := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime.Add(2*time.Second), basicJobOpts).
 			Build().
 			Job()
 
-		first := NewJobSimulator(converter, store).
+		first := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
@@ -293,22 +299,25 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 }
 
 func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		runId1 := uuid.NewString()
-		third := NewJobSimulator(converter, store).
+		third := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId1, cluster, node, baseTime).
 			Pending(runId1, cluster, baseTime).
-			Running(runId1, cluster, baseTime.Add(3*time.Minute)).
+			Running(runId1, node, baseTime.Add(3*time.Minute)).
 			Build().
 			Job()
 
-		second := NewJobSimulator(converter, store).
+		runId2 := uuid.NewString()
+		second := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), cluster, baseTime.Add(2*time.Minute)).
+			Lease(runId2, cluster, node, baseTime.Add(2*time.Minute)).
+			Pending(runId2, cluster, baseTime.Add(2*time.Minute)).
 			Build().
 			Job()
 
-		first := NewJobSimulator(converter, store).
+		first := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
@@ -357,7 +366,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 }
 
 func TestFilterByUnsupportedField(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{{
@@ -378,7 +387,7 @@ func TestFilterByUnsupportedField(t *testing.T) {
 }
 
 func TestFilterByUnsupportedMatch(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		_, err := repo.GetJobs(
 			armadacontext.TODO(),
 			[]*model.Filter{{
@@ -400,18 +409,18 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 }
 
 func TestGetJobsById(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnaaa"}).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnbbb"}).
 			Build().
 			Job()
@@ -440,28 +449,28 @@ func TestGetJobsById(t *testing.T) {
 }
 
 func TestGetJobsByQueue(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-2", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-3", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("other-queue", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("something-else", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
@@ -537,28 +546,28 @@ func TestGetJobsByQueue(t *testing.T) {
 }
 
 func TestGetJobsByJobSet(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "job\\set\\1", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "job\\set\\2", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "job\\set\\3", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "other-job\\set", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "something-else", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
@@ -634,28 +643,28 @@ func TestGetJobsByJobSet(t *testing.T) {
 }
 
 func TestGetJobsByOwner(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, "user-2", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, "user-3", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, "other-user", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, "something-else", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
@@ -731,29 +740,33 @@ func TestGetJobsByOwner(t *testing.T) {
 }
 
 func TestGetJobsByState(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		queued := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		queued := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		pending := NewJobSimulator(converter, store).
+		runId1 := uuid.NewString()
+		pending := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), cluster, baseTime).
+			Lease(runId1, cluster, node, baseTime).
+			Pending(runId1, cluster, baseTime).
 			Build().
 			Job()
 
 		runId2 := uuid.NewString()
-		running := NewJobSimulator(converter, store).
+		running := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId2, cluster, node, baseTime).
 			Pending(runId2, cluster, baseTime).
 			Running(runId2, node, baseTime).
 			Build().
 			Job()
 
 		runId3 := uuid.NewString()
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId3, cluster, node, baseTime).
 			Pending(runId3, cluster, baseTime).
 			Running(runId3, node, baseTime).
 			Succeeded(baseTime).
@@ -811,8 +824,8 @@ func TestGetJobsByState(t *testing.T) {
 }
 
 func TestGetJobsByAnnotation(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-1",
@@ -822,7 +835,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-2",
@@ -831,7 +844,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-3",
@@ -840,7 +853,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-2": "annotation-value-1",
@@ -849,7 +862,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		job5 := NewJobSimulator(converter, store).
+		job5 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-6",
@@ -990,29 +1003,29 @@ func TestGetJobsByAnnotation(t *testing.T) {
 }
 
 func TestGetJobsByCpu(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("1"),
 			}).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("3"),
 			}).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("5"),
 			}).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("10"),
 			}).
@@ -1133,29 +1146,29 @@ func TestGetJobsByCpu(t *testing.T) {
 }
 
 func TestGetJobsByMemory(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("1000"),
 			}).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("3000"),
 			}).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("5000"),
 			}).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("10000"),
 			}).
@@ -1276,29 +1289,29 @@ func TestGetJobsByMemory(t *testing.T) {
 }
 
 func TestGetJobsByEphemeralStorage(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("1000"),
 			}).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("3000"),
 			}).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("5000"),
 			}).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("10000"),
 			}).
@@ -1419,29 +1432,29 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 }
 
 func TestGetJobsByGpu(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("1"),
 			}).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("3"),
 			}).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("5"),
 			}).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("8"),
 			}).
@@ -1562,29 +1575,29 @@ func TestGetJobsByGpu(t *testing.T) {
 }
 
 func TestGetJobsByPriority(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 10,
 			}).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 20,
 			}).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 30,
 			}).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 40,
 			}).
@@ -1705,36 +1718,36 @@ func TestGetJobsByPriority(t *testing.T) {
 }
 
 func TestGetJobsByPriorityClass(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		job := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-1",
 			}).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-2",
 			}).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(converter, store).
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-3",
 			}).
 			Build().
 			Job()
 
-		job4 := NewJobSimulator(converter, store).
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "other-priority-class",
 			}).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "something-else",
 			}).
@@ -1812,12 +1825,12 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 }
 
 func TestGetJobsSkip(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		nJobs := 15
 		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
-			jobs[i] = NewJobSimulator(converter, store).
+			jobs[i] = NewJobSimulatorWithClock(converter, store, testClock).
 				Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
 				Build().
 				Job()
@@ -1886,12 +1899,12 @@ func TestGetJobsSkip(t *testing.T) {
 }
 
 func TestGetJobsComplex(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		nJobs := 15
 		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
-			jobs[i] = NewJobSimulator(converter, store).
+			jobs[i] = NewJobSimulatorWithClock(converter, store, testClock).
 				Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 					JobId: jobId,
 					Annotations: map[string]string{
@@ -1904,7 +1917,7 @@ func TestGetJobsComplex(t *testing.T) {
 		}
 
 		for i := 0; i < nJobs; i++ {
-			NewJobSimulator(converter, store).
+			NewJobSimulatorWithClock(converter, store, testClock).
 				Submit("other-queue", jobSet, owner, namespace, baseTime, &JobOptions{
 					JobId: util.NewULID(),
 					Annotations: map[string]string{
@@ -1957,19 +1970,19 @@ func TestGetJobsComplex(t *testing.T) {
 }
 
 func TestGetJobsActiveJobSet(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
-		activeJobSet1 := NewJobSimulator(converter, store).
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		activeJobSet1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-1", "job-set-1", owner, namespace, baseTime, &JobOptions{}).
 			Build().
 			Job()
 
-		inactiveJobSet1 := NewJobSimulator(converter, store).
+		inactiveJobSet1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-1", "job-set-1", owner, namespace, baseTime, &JobOptions{}).
 			Cancelled(baseTime.Add(1 * time.Minute)).
 			Build().
 			Job()
 
-		NewJobSimulator(converter, store).
+		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-2", "job-set-2", owner, namespace, baseTime, &JobOptions{}).
 			Cancelled(baseTime.Add(1 * time.Minute)).
 			Build().
@@ -1999,13 +2012,16 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 }
 
 func TestGetJobsWithLatestRunDetails(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		runIdLatest := uuid.NewString()
 		// Simulate job submission and multiple runs, with the latest run being successful
-		NewJobSimulator(converter, store).
+		firstRunId := uuid.NewString()
+		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Pending(uuid.NewString(), "first-cluster", baseTime).
-			Running(uuid.NewString(), "first-node", baseTime.Add(time.Minute)).
+			Lease(firstRunId, "first-cluster", "first-node", baseTime).
+			Pending(firstRunId, "first-cluster", baseTime).
+			Running(firstRunId, "first-node", baseTime.Add(time.Minute)).
+			Lease(runIdLatest, "latest-cluster", "latest-node", baseTime.Add(2*time.Minute)).
 			Pending(runIdLatest, "latest-cluster", baseTime.Add(2*time.Minute)).
 			Running(runIdLatest, "latest-node", baseTime.Add(3*time.Minute)).
 			RunSucceeded(runIdLatest, baseTime.Add(4*time.Minute)).
@@ -2033,14 +2049,15 @@ func TestGetJobsWithLatestRunDetails(t *testing.T) {
 }
 
 func TestGetJobsWithSpecificRunDetails(t *testing.T) {
-	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository) error {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		runIdSpecific := uuid.NewString()
 		// Simulate job submission and a specific failed run
-		NewJobSimulator(converter, store).
+		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runIdSpecific, "specific-cluster", "specific-node", baseTime).
 			Pending(runIdSpecific, "specific-cluster", baseTime).
 			Running(runIdSpecific, "specific-node", baseTime.Add(time.Minute)).
-			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", baseTime.Add(2*time.Minute)).
+			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", "", baseTime.Add(2*time.Minute)).
 			Build().
 			Job()
 
@@ -2058,6 +2075,92 @@ func TestGetJobsWithSpecificRunDetails(t *testing.T) {
 		if assert.NotNil(t, result.Jobs[0].Cluster) {
 			assert.Equal(t, "specific-cluster", result.Jobs[0].Cluster)
 		}
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestJobRuntimeWhenNoStartOrEnd(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		runId := uuid.NewString()
+
+		NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, time.Now(), basicJobOpts).
+			Lease(runId, "cluster", "node", time.Now()).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+
+		actualRuntime := result.Jobs[0].RuntimeSeconds
+		expectedRuntime := int32(0) // Runtime should be 0 when job is just leased
+		assert.Equal(t, expectedRuntime, actualRuntime)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestJobRuntimeWhenStartedButNotFinishedWithClock(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		runId := uuid.NewString()
+		startTime := testClock.Now().UTC()
+		runningTime := startTime.Add(time.Minute)
+
+		NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, startTime, basicJobOpts).
+			Lease(runId, "cluster", "node", startTime).
+			Pending(runId, "cluster", startTime).
+			Running(runId, "node", runningTime).
+			Build().
+			Job()
+
+		// Increment time by 5 mins
+		testClock.SetTime(testClock.Now().Add(time.Minute * 5))
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+
+		actualRuntime := result.Jobs[0].RuntimeSeconds
+		expectedRuntime := int32(240) // We incremented time by 5 mins, but the run started 1 min after start time
+		assert.Equal(t, expectedRuntime, actualRuntime)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
+	clk := clock.NewFakeClock(time.Now())
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		runId := uuid.NewString()
+		startTime := testClock.Now()
+		endTime := startTime.Add(5 * time.Minute)
+		runningTime := startTime.Add(time.Minute)
+
+		NewJobSimulatorWithClock(converter, store, clk).
+			Submit(queue, jobSet, owner, namespace, startTime, basicJobOpts).
+			Lease(runId, "specific-cluster", "specific-node", startTime).
+			Pending(runId, "cluster", startTime).
+			Running(runId, "node", runningTime).
+			RunFailed(runId, "node", 1, "failed", "debug", endTime).
+			Build().
+			Job()
+
+		// Increment time by 10 mins
+		testClock.SetTime(testClock.Now().Add(time.Minute * 10))
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+
+		actualRuntime := result.Jobs[0].RuntimeSeconds
+		expectedRuntime := int32(endTime.Sub(runningTime).Seconds())
+		assert.Equal(t, expectedRuntime, actualRuntime)
 
 		return nil
 	})

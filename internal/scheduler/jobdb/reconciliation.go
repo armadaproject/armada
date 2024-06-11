@@ -112,6 +112,9 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 	} else if job != nil && jobRepoJob == nil {
 		// No direct updates to the job; just process any updated runs below.
 	} else if job != nil && jobRepoJob != nil {
+		if jobRepoJob.Validated && !job.Validated() {
+			job = job.WithValidated(true).WithPools(jobRepoJob.Pools)
+		}
 		if jobRepoJob.CancelRequested && !job.CancelRequested() {
 			job = job.WithCancelRequested(true)
 		}
@@ -136,7 +139,11 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
 				return
 			}
-			job = job.WithJobSchedulingInfo(schedulingInfo)
+			job, err = job.WithJobSchedulingInfo(schedulingInfo)
+			if err != nil {
+				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
+				return
+			}
 		}
 		if jobRepoJob.QueuedVersion > job.QueuedVersion() {
 			job = job.WithQueuedVersion(jobRepoJob.QueuedVersion)
@@ -255,7 +262,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		}
 	}
 
-	job := jobDb.NewJob(
+	job, err := jobDb.NewJob(
 		dbJob.JobID,
 		dbJob.JobSet,
 		dbJob.Queue,
@@ -267,7 +274,13 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.CancelByJobsetRequested,
 		dbJob.Cancelled,
 		dbJob.Submitted,
+		dbJob.Validated,
+		dbJob.Pools,
 	)
+	if err != nil {
+		return nil, err
+	}
+
 	if dbJob.Failed {
 		// TODO(albin): Let's make this an argument to NewJob. Even better: have the state as an enum argument.
 		job = job.WithFailed(dbJob.Failed)

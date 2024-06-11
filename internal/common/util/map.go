@@ -1,15 +1,7 @@
 package util
 
-func GetOrDefault(m map[string]float64, key string, def float64) float64 {
-	v, ok := m[key]
-	if ok {
-		return v
-	}
-	return def
-}
-
-func MergeMaps(a map[string]string, b map[string]string) map[string]string {
-	result := make(map[string]string)
+func MergeMaps[K comparable, V any](a map[K]V, b map[K]V) map[K]V {
+	result := make(map[K]V)
 	for k, v := range a {
 		result[k] = v
 	}
@@ -19,19 +11,7 @@ func MergeMaps(a map[string]string, b map[string]string) map[string]string {
 	return result
 }
 
-func DeepCopy(a map[string]string) map[string]string {
-	if a == nil {
-		return nil
-	}
-
-	result := make(map[string]string)
-	for k, v := range a {
-		result[k] = v
-	}
-	return result
-}
-
-func Equal(a map[string]string, b map[string]string) bool {
+func Equal[K comparable, V comparable](a map[K]V, b map[K]V) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -44,12 +24,12 @@ func Equal(a map[string]string, b map[string]string) bool {
 	return true
 }
 
-func FilterKeys(a map[string]string, keys []string) map[string]string {
+func FilterKeys[K comparable, V any](a map[K]V, keys []K) map[K]V {
 	if a == nil {
 		return nil
 	}
 
-	result := make(map[string]string)
+	result := make(map[K]V)
 	for _, key := range keys {
 		if val, exists := a[key]; exists {
 			result[key] = val

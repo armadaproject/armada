@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -37,6 +38,7 @@ type JobSimulator struct {
 	events           []*armadaevents.EventSequence_Event
 	converter        *instructions.InstructionConverter
 	store            *lookoutdb.LookoutDb
+	clock            clock.Clock
 }
 
 type JobOptions struct {
@@ -66,6 +68,15 @@ func NewJobSimulator(converter *instructions.InstructionConverter, store *lookou
 	return &JobSimulator{
 		converter: converter,
 		store:     store,
+		clock:     clock.RealClock{},
+	}
+}
+
+func NewJobSimulatorWithClock(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, clk clock.Clock) *JobSimulator {
+	return &JobSimulator{
+		converter: converter,
+		store:     store,
+		clock:     clk,
 	}
 }
 
@@ -170,14 +181,16 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 	return js
 }
 
-func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) Lease(runId string, cluster string, node string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leasedEvent := &armadaevents.EventSequence_Event{
 		Created: &ts,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
-				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
-				JobId: js.jobId,
+				RunId:      armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
+				JobId:      js.jobId,
+				ExecutorId: cluster,
+				NodeId:     node,
 			},
 		},
 	}
@@ -186,9 +199,13 @@ func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobLeased)
-	updateRun(js.job, &runPatch{
+	js.job.Cluster = cluster
+	js.job.Node = &node
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunLeased,
+		cluster:     &cluster,
+		node:        &node,
 		leased:      &ts,
 	})
 	return js
@@ -232,10 +249,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 		jobRunState: lookout.JobRunPending,
 		pending:     &ts,
 	}
-	if js.converter.IsLegacy() {
-		rp.leased = &ts
-	}
-	updateRun(js.job, rp)
+	js.updateRun(js.job, rp)
 	return js
 }
 
@@ -266,7 +280,7 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobRunning)
 	js.job.Node = &node
-	updateRun(js.job, &runPatch{
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunRunning,
 		node:        &node,
@@ -289,7 +303,7 @@ func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimu
 	js.events = append(js.events, runSucceeded)
 
 	js.job.LastActiveRunId = &runId
-	updateRun(js.job, &runPatch{
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		exitCode:    pointer.Int32(0),
 		finished:    &ts,
@@ -338,7 +352,7 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 	}
 	js.events = append(js.events, leaseReturned)
 
-	updateRun(js.job, &runPatch{
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		finished:    &ts,
 		jobRunState: lookout.JobRunLeaseReturned,
@@ -383,7 +397,7 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 	return js
 }
 
-func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, debug string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	runFailed := &armadaevents.EventSequence_Event{
 		Created: &ts,
@@ -396,8 +410,9 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 						Terminal: true,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
-								Message:  message,
-								NodeName: node,
+								Message:      message,
+								DebugMessage: debug,
+								NodeName:     node,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{ExitCode: exitCode},
 								},
@@ -411,7 +426,7 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 	js.events = append(js.events, runFailed)
 
 	js.job.LastActiveRunId = &runId
-	updateRun(js.job, &runPatch{
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		exitCode:    &exitCode,
 		finished:    &ts,
@@ -454,23 +469,34 @@ func (js *JobSimulator) Failed(node string, exitCode int32, message string, time
 
 func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
-	jobIdProto, err := armadaevents.ProtoUuidFromUlidString(util.NewULID())
-	if err != nil {
-		log.WithError(err).Errorf("Could not convert job ID to UUID: %s", util.NewULID())
-	}
 
-	preempted := &armadaevents.EventSequence_Event{
+	preemptedJob := &armadaevents.EventSequence_Event{
 		Created: &ts,
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId:  js.jobId,
-				PreemptiveJobId: jobIdProto,
-				PreemptedRunId:  armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
-				PreemptiveRunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: js.jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_JobRunPreemptedError{
+							JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+						},
+					},
+				},
 			},
 		},
 	}
-	js.events = append(js.events, preempted)
+
+	preemptedRun := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId: js.jobId,
+				PreemptedRunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+			},
+		},
+	}
+	js.events = append(js.events, preemptedJob, preemptedRun)
 
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobPreempted)
@@ -504,7 +530,7 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 	}
 	js.events = append(js.events, terminated)
 
-	updateRun(js.job, &runPatch{
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
 		finished:    &ts,
@@ -541,7 +567,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	}
 	js.events = append(js.events, runUnschedulable)
 
-	updateRun(js.job, &runPatch{
+	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
 		finished:    &ts,
@@ -551,14 +577,14 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	return js
 }
 
-func (js *JobSimulator) LeaseExpired(timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: &ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
-				RunId: eventutil.LegacyJobRunId(),
+				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -572,8 +598,8 @@ func (js *JobSimulator) LeaseExpired(timestamp time.Time) *JobSimulator {
 	}
 	js.events = append(js.events, leaseReturned)
 
-	updateRun(js.job, &runPatch{
-		runId:       eventutil.LEGACY_RUN_ID,
+	js.updateRun(js.job, &runPatch{
+		runId:       runId,
 		finished:    &ts,
 		jobRunState: lookout.JobRunLeaseExpired,
 	})
@@ -614,13 +640,14 @@ func timestampOrNow(timestamp time.Time) time.Time {
 	return timestamp
 }
 
-func updateRun(job *model.Job, patch *runPatch) {
+func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 	if patch.exitCode != nil {
 		job.ExitCode = patch.exitCode
 	}
 	for _, run := range job.Runs {
 		if run.RunId == patch.runId {
 			patchRun(run, patch)
+			job.RuntimeSeconds = calculateJobRuntime(run.Started, run.Finished, js.clock)
 			return
 		}
 	}
@@ -639,6 +666,7 @@ func updateRun(job *model.Job, patch *runPatch) {
 		RunId:       patch.runId,
 		Started:     model.NewPostgreSQLTime(patch.started),
 	})
+	job.RuntimeSeconds = calculateJobRuntime(model.NewPostgreSQLTime(patch.started), model.NewPostgreSQLTime(patch.finished), js.clock)
 }
 
 func patchRun(run *model.Run, patch *runPatch) {

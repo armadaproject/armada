@@ -7,10 +7,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -63,7 +63,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *schedulerco
 func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool, unschedulableReason string) error {
 	// If the job was added to the context, remove it first.
 	if gangAddedToSchedulingContext {
-		failedJobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
+		failedJobs := slices.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })
 		if _, err := sch.schedulingContext.EvictGang(failedJobs); err != nil {
 			return err
 		}
@@ -226,18 +226,9 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 			} else {
 				unschedulableReason = "job does not fit on any node"
 			}
-		} else {
-			// When a gang schedules successfully, update state for failed jobs if they exist.
-			for _, jctx := range gctx.JobSchedulingContexts {
-				if jctx.ShouldFail {
-					jctx.Fail("job does not fit on any node")
-				}
-			}
 		}
-
 		return
 	}
-
 	return
 }
 

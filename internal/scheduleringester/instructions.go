@@ -96,11 +96,11 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
 			operationsFromEvent, err = c.handleJobPreemptionRequested(event.GetJobPreemptionRequested(), meta)
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob())
+			operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob(), meta)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 			operationsFromEvent, err = c.handleReprioritiseJobSet(event.GetReprioritiseJobSet(), meta)
 		case *armadaevents.EventSequence_Event_CancelJob:
-			operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob())
+			operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob(), meta)
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			operationsFromEvent, err = c.handleCancelJobSet(event.GetCancelJobSet(), meta)
 		case *armadaevents.EventSequence_Event_CancelledJob:
@@ -113,8 +113,9 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned(), eventTime)
+		case *armadaevents.EventSequence_Event_JobValidated:
+			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
-			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
@@ -337,13 +338,20 @@ func (c *InstructionConverter) handleJobPreemptionRequested(preemptionRequested 
 	}}, nil
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob) ([]DbOperation, error) {
+func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob, meta eventSequenceCommon) ([]DbOperation, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(reprioritiseJob.GetJobId())
 	if err != nil {
 		return nil, err
 	}
-	return []DbOperation{UpdateJobPriorities{
-		jobId: int64(reprioritiseJob.Priority),
+	return []DbOperation{&UpdateJobPriorities{
+		key: JobReprioritiseKey{
+			JobSetKey: JobSetKey{
+				queue:  meta.queue,
+				jobSet: meta.jobset,
+			},
+			Priority: int64(reprioritiseJob.Priority),
+		},
+		jobIds: []string{jobId},
 	}}, nil
 }
 
@@ -353,13 +361,16 @@ func (c *InstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *arma
 	}}, nil
 }
 
-func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob) ([]DbOperation, error) {
+func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(cancelJob.GetJobId())
 	if err != nil {
 		return nil, err
 	}
 	return []DbOperation{MarkJobsCancelRequested{
-		jobId: true,
+		JobSetKey{
+			queue:  meta.queue,
+			jobSet: meta.jobset,
+		}: []string{jobId},
 	}}, nil
 }
 
@@ -400,6 +411,16 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 	}}, nil
 }
 
+func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValidated) ([]DbOperation, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(checked.GetJobId())
+	if err != nil {
+		return nil, err
+	}
+	return []DbOperation{
+		MarkJobsValidated{jobId: checked.Pools},
+	}, nil
+}
+
 // schedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
 func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
 	return SchedulingInfoFromSubmitJob(submitJob, submitTime, c.priorityClasses)
@@ -416,7 +437,6 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		SubmitTime:      submitTime,
 		Priority:        submitJob.Priority,
 		Version:         0,
-		QueueTtlSeconds: submitJob.QueueTtlSeconds,
 	}
 
 	// Scheduling requirements specific to the objects that make up this job.

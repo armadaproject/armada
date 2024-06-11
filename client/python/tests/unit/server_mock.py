@@ -1,11 +1,16 @@
 from google.protobuf import empty_pb2
+
 from armada_client.armada import (
     submit_pb2_grpc,
     submit_pb2,
     event_pb2,
     event_pb2_grpc,
     health_pb2,
+    job_pb2_grpc,
+    job_pb2,
 )
+from armada_client.armada.job_pb2 import JobRunState
+from armada_client.armada.submit_pb2 import JobState
 
 
 class SubmitService(submit_pb2_grpc.SubmitServicer):
@@ -37,6 +42,9 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         )
 
     def CancelJobSet(self, request, context):
+        return empty_pb2.Empty()
+
+    def PreemptJobs(self, request, context):
         return empty_pb2.Empty()
 
     def ReprioritizeJobs(self, request, context):
@@ -97,4 +105,47 @@ class EventService(event_pb2_grpc.EventServicer):
     def Health(self, request, context):
         return health_pb2.HealthCheckResponse(
             status=health_pb2.HealthCheckResponse.SERVING
+        )
+
+
+class QueryAPIService(job_pb2_grpc.JobsServicer):
+    DEFAULT_JOB_DETAILS = {
+        "queue": "test_queue",
+        "jobset": "test_jobset",
+        "namespace": "test_namespace",
+        "state": JobState.RUNNING,
+        "cancel_reason": "",
+        "latest_run_id": "0",
+    }
+
+    DEFAULT_JOB_RUN_DETAILS = {
+        "job_id": "0",
+        "cluster": "test_cluster",
+        "node": "test_node",
+        "state": JobRunState.RUN_STATE_RUNNING,
+    }
+
+    def GetJobStatus(self, request, context):
+        return job_pb2.JobStatusResponse(
+            job_states={job: JobState.RUNNING for job in request.job_ids}
+        )
+
+    def GetJobDetails(self, request, context):
+        return job_pb2.JobDetailsResponse(
+            job_details={
+                job: job_pb2.JobDetails(
+                    job_id=job, **QueryAPIService.DEFAULT_JOB_DETAILS
+                )
+                for job in request.job_ids
+            }
+        )
+
+    def GetJobRunDetails(self, request, context):
+        return job_pb2.JobRunDetailsResponse(
+            job_run_details={
+                run: job_pb2.JobRunDetails(
+                    run_id=run, **QueryAPIService.DEFAULT_JOB_RUN_DETAILS
+                )
+                for run in request.run_ids
+            }
         )

@@ -160,6 +160,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Queue:                   row.Queue,
 				Priority:                row.Priority,
 				Submitted:               row.Submitted,
+				Validated:               row.Validated,
 				Queued:                  row.Queued,
 				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
@@ -170,6 +171,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				SchedulingInfo:          row.SchedulingInfo,
 				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
+				Pools:                   row.Pools,
 			}
 		}
 

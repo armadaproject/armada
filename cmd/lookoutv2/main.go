@@ -8,8 +8,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
+	armada_config "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -79,7 +80,14 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 }
 
 func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
-	db, err := database.OpenPgxConn(config.Postgres)
+	var dbConfig armada_config.PostgresConfig
+	if config.PrunerConfig.Postgres.Connection != nil {
+		dbConfig = config.PrunerConfig.Postgres
+	} else {
+		dbConfig = config.Postgres
+	}
+
+	db, err := database.OpenPgxConn(dbConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -98,7 +106,13 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 
 	ctxTimeout, cancel := armadacontext.WithTimeout(ctx, config.PrunerConfig.Timeout)
 	defer cancel()
-	err = pruner.PruneDb(ctxTimeout, db, config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, clock.RealClock{})
+	err = pruner.PruneDb(
+		ctxTimeout,
+		db,
+		config.PrunerConfig.ExpireAfter,
+		config.PrunerConfig.DeduplicationExpireAfter,
+		config.PrunerConfig.BatchSize,
+		clock.RealClock{})
 	if err != nil {
 		panic(err)
 	}

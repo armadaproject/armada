@@ -24,7 +24,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/certs"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
@@ -35,8 +35,9 @@ import (
 func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
-	authServices []authorization.AuthService,
+	authServices []auth.AuthService,
 	tlsConfig configuration.TlsConfig,
+	logrusOptions ...grpc_logrus.Option,
 ) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
@@ -60,19 +61,19 @@ func CreateGrpcServer(
 		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
 		requestid.UnaryServerInterceptor(false),
 		armadaerrors.UnaryServerInterceptor(2000),
-		grpc_logrus.UnaryServerInterceptor(messageDefault),
+		grpc_logrus.UnaryServerInterceptor(messageDefault, logrusOptions...),
 	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
 		requestid.StreamServerInterceptor(false),
 		armadaerrors.StreamServerInterceptor(2000),
-		grpc_logrus.StreamServerInterceptor(messageDefault),
+		grpc_logrus.StreamServerInterceptor(messageDefault, logrusOptions...),
 	)
 
 	// Authentication
 	// The provided authServices represents a list of services that can be used to authenticate
 	// the client (e.g., username/password and OpenId). authFunction is a combination of these.
-	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
+	authFunction := auth.CreateMiddlewareAuthFunction(authServices)
 	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
 	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 

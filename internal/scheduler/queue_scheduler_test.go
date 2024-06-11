@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client/queue"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -15,19 +12,19 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaconfiguration "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestQueueScheduler(t *testing.T) {
@@ -39,7 +36,7 @@ func TestQueueScheduler(t *testing.T) {
 		// Set to the total resources across all nodes if not provided.
 		TotalResources schedulerobjects.ResourceList
 		// Queues
-		Queues []queue.Queue
+		Queues []*api.Queue
 		// Initial resource usage for all queues.
 		InitialAllocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string]
 		// Nodes to be considered by the scheduler.
@@ -113,7 +110,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1),
 			),
-			Queues:                   []queue.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+			Queues:                   []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
 			ExpectedScheduledIndices: []int{0, 11, 14},
 		},
 		"MaximumSchedulingBurst is not exceeded by gangs": {
@@ -187,7 +184,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"per queue, resource class, and pool cpu limit": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Queues: []queue.Queue{
+			Queues: []*api.Queue{
 				{
 					Name:           "A",
 					PriorityFactor: 1.0,
@@ -210,7 +207,7 @@ func TestQueueScheduler(t *testing.T) {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
 			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32), testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32)),
-			Queues:                   []queue.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+			Queues:                   []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
 			ExpectedScheduledIndices: armadaslices.Concatenate(testfixtures.IntRange(0, 15), testfixtures.IntRange(32, 47)),
 		},
 		"fairness three queues": {
@@ -221,7 +218,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
 				testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 32),
 			),
-			Queues: []queue.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}, {Name: "C", PriorityFactor: 1.0}},
+			Queues: []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}, {Name: "C", PriorityFactor: 1.0}},
 			ExpectedScheduledIndices: armadaslices.Concatenate(
 				testfixtures.IntRange(0, 10),
 				testfixtures.IntRange(32, 42),
@@ -235,7 +232,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 96),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 96),
 			),
-			Queues: []queue.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 2.0}},
+			Queues: []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 2.0}},
 			ExpectedScheduledIndices: armadaslices.Concatenate(
 				testfixtures.IntRange(0, 63),
 				testfixtures.IntRange(96, 127),
@@ -249,7 +246,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 96),
 				testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 96),
 			),
-			Queues: []queue.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 2.0}, {Name: "C", PriorityFactor: 10.0}},
+			Queues: []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 2.0}, {Name: "C", PriorityFactor: 10.0}},
 			ExpectedScheduledIndices: armadaslices.Concatenate(
 				testfixtures.IntRange(0, 59),
 				testfixtures.IntRange(96, 125),
@@ -263,7 +260,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
 			),
-			Queues: []queue.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+			Queues: []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
 			InitialAllocatedByQueueAndPriorityClass: map[string]schedulerobjects.QuantityByTAndResourceType[string]{
 				"A": {
 					testfixtures.PriorityClass0: schedulerobjects.ResourceList{
@@ -347,7 +344,7 @@ func TestQueueScheduler(t *testing.T) {
 			),
 			Queues: testfixtures.SingleQueuePriorityOne("A"),
 			MinimumJobSize: map[string]resource.Quantity{
-				"gpu": resource.MustParse("1"),
+				"nvidia.com/gpu": resource.MustParse("1"),
 			},
 			ExpectedScheduledIndices: []int{2},
 		},
@@ -361,7 +358,7 @@ func TestQueueScheduler(t *testing.T) {
 			),
 			Queues: testfixtures.SingleQueuePriorityOne("A"),
 			MinimumJobSize: map[string]resource.Quantity{
-				"gpu": resource.MustParse("2"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 			ExpectedScheduledIndices: nil,
 		},
@@ -423,16 +420,14 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "1",
+					armadaconfiguration.GangIdAnnotation:          "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation: "2",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "1",
+					armadaconfiguration.GangIdAnnotation:          "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation: "2",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			),
@@ -451,16 +446,14 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "2",
+					armadaconfiguration.GangIdAnnotation:          "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation: "2",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.WithAnnotationsJobs(map[string]string{
-					configuration.GangIdAnnotation:                 "my-gang",
-					configuration.GangCardinalityAnnotation:        "2",
-					configuration.GangMinimumCardinalityAnnotation: "2",
+					armadaconfiguration.GangIdAnnotation:          "my-gang",
+					armadaconfiguration.GangCardinalityAnnotation: "2",
 				},
 					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			),
@@ -530,19 +523,19 @@ func TestQueueScheduler(t *testing.T) {
 				tc.TotalResources = nodeDb.TotalResources()
 			}
 
-			queueNameToQueue := map[string]*queue.Queue{}
+			queueNameToQueue := map[string]*api.Queue{}
 			for _, q := range tc.Queues {
-				queueNameToQueue[q.Name] = &q
+				queueNameToQueue[q.Name] = q
 			}
 
 			indexByJobId := make(map[string]int)
 			for i, job := range tc.Jobs {
-				if _, ok := queueNameToQueue[job.GetQueue()]; !ok {
+				if _, ok := queueNameToQueue[job.Queue()]; !ok {
 					panic(fmt.Sprintf("queue %s does not exist", job.Queue()))
 				}
-				indexByJobId[job.GetId()] = i
+				indexByJobId[job.Id()] = i
 			}
-			legacySchedulerJobs := make([]interfaces.LegacySchedulerJob, len(tc.Jobs))
+			legacySchedulerJobs := make([]*jobdb.Job, len(tc.Jobs))
 			for i, job := range tc.Jobs {
 				legacySchedulerJobs[i] = job
 			}
@@ -616,7 +609,7 @@ func TestQueueScheduler(t *testing.T) {
 			expectedScheduledIndicesByQueue := armadaslices.GroupByFunc(
 				tc.ExpectedScheduledIndices,
 				func(i int) string {
-					return tc.Jobs[i].GetQueue()
+					return tc.Jobs[i].Queue()
 				},
 			)
 			expectedSuccessfulOrNotAttemptedIndices := armadaslices.MapAndGroupByFuncs(
@@ -633,7 +626,7 @@ func TestQueueScheduler(t *testing.T) {
 			expectedUnsuccessfulIndicesByQueue := armadaslices.GroupByFunc(
 				expectedUnsuccessfulIndices,
 				func(i int) string {
-					return tc.Jobs[i].GetQueue()
+					return tc.Jobs[i].Queue()
 				},
 			)
 			actualSuccessfulIndicesByQueue := make(map[string][]int)
@@ -647,7 +640,7 @@ func TestQueueScheduler(t *testing.T) {
 				qctx := sctx.QueueSchedulingContexts[queue]
 				require.NotNil(t, queue)
 
-				is := util.Map(
+				is := armadaslices.Map(
 					maps.Keys(qctx.SuccessfulJobSchedulingContexts),
 					func(jobId string) int {
 						return indexByJobId[jobId]
@@ -658,7 +651,7 @@ func TestQueueScheduler(t *testing.T) {
 					actualSuccessfulIndicesByQueue[queue] = is
 				}
 
-				is = util.Map(
+				is = armadaslices.Map(
 					maps.Keys(qctx.UnsuccessfulJobSchedulingContexts),
 					func(jobId string) int {
 						return indexByJobId[jobId]
@@ -732,12 +725,12 @@ func TestQueueScheduler(t *testing.T) {
 func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinterner.StringInterner) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		config.PriorityClasses,
-		config.MaxExtraNodesToConsider,
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,
 		config.WellKnownNodeTypes,
 		stringInterner,
+		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {
 		return nil, err

@@ -46,6 +46,7 @@ For documentation, see the following:
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 - [Development guide](./docs/developer.md)
+- [Release notes/Version history](https://github.com/armadaproject/armada/releases)
 - [API Documentation](./docs/developer/api.md)
 
 We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:

@@ -8,7 +8,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
@@ -17,21 +16,17 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/event"
 	"github.com/armadaproject/armada/internal/armada/queryapi"
-	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/armada/queue"
 	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/scheduler"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -57,9 +52,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	if err := validateCancelJobsBatchSizeConfig(config); err != nil {
-		return err
-	}
 	if err := validateSubmissionConfig(config.Submission); err != nil {
 		return err
 	}
@@ -85,15 +77,17 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return nil
 	})
 
-	// Setup Redis
-	db := createRedisClient(&config.Redis)
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.WithError(err).Error("failed to close Redis client")
-		}
-	}()
-	prometheus.MustRegister(
-		redisprometheus.NewCollector("armada", "redis", db))
+	// Create database connection. This is used for the query api, queues and for job deduplication
+	dbPool, err := database.OpenPgxPool(config.Postgres)
+	if err != nil {
+		return errors.WithMessage(err, "error creating postgres pool")
+	}
+	defer dbPool.Close()
+	queryapiServer := queryapi.New(
+		dbPool,
+		config.QueryApi.MaxQueryItems,
+		func() compress.Decompressor { return compress.NewZlibDecompressor() })
+	api.RegisterJobsServer(grpcServer, queryapiServer)
 
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
@@ -104,38 +98,21 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
-	jobRepository := repository.NewRedisJobRepository(db)
-	queueRepository := repository.NewRedisQueueRepository(db)
-	healthChecks.Add(repository.NewRedisHealth(db))
+	queueRepository := queue.NewPostgresQueueRepository(dbPool)
+	queueCache := queue.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
+	services = append(services, func() error {
+		return queueCache.Run(ctx)
+	})
+	eventRepository := event.NewEventRepository(eventDb)
 
-	eventRepository := repository.NewEventRepository(eventDb)
-
-	authorizer := server.NewAuthorizer(
-		authorization.NewPrincipalPermissionChecker(
+	authorizer := auth.NewAuthorizer(
+		auth.NewPrincipalPermissionChecker(
 			config.Auth.PermissionGroupMapping,
 			config.Auth.PermissionScopeMapping,
 			config.Auth.PermissionClaimMapping,
 		),
 	)
 
-	// If pool settings are provided, open a connection pool to be shared by all services.
-	var dbPool *pgxpool.Pool
-	dbPool, err = database.OpenPgxPool(config.Postgres)
-	if err != nil {
-		return err
-	}
-	defer dbPool.Close()
-
-	// Executor Repositories for pulsar scheduler
-	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
-	submitChecker := scheduler.NewSubmitChecker(
-		30*time.Minute,
-		config.Scheduling,
-		pulsarExecutorRepo,
-	)
-	services = append(services, func() error {
-		return submitChecker.Run(ctx)
-	})
 	serverId := uuid.New()
 	var pulsarClient pulsar.Client
 	// API endpoints that generate Pulsar messages.
@@ -157,45 +134,15 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer publisher.Close()
 
-	// KV store where we Automatically clean up keys after two weeks.
-	store, err := pgkeyvalue.New(ctx, dbPool, config.Pulsar.DedupTable)
-	if err != nil {
-		return err
-	}
-	services = append(services, func() error {
-		return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
-	})
+	queueServer := queue.NewServer(queueRepository, authorizer)
 
-	pulsarSubmitServer := submit.NewServer(
+	submitServer := submit.NewServer(
+		queueServer,
 		publisher,
-		queueRepository,
-		jobRepository,
+		queueCache,
 		config.Submission,
-		submit.NewDeduplicator(store),
-		submitChecker,
+		submit.NewDeduplicator(dbPool),
 		authorizer)
-
-	// Consumer that's used for deleting pulsarJob details
-	// Need to use the old config.Pulsar.RedisFromPulsarSubscription name so we continue processing where we left off
-	// TODO: delete this when we finally remove redis
-	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:             config.Pulsar.JobsetEventsTopic,
-		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
-		Type:              pulsar.KeyShared,
-		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
-	})
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer consumer.Close()
-
-	jobExpirer := &PulsarJobExpirer{
-		Consumer:      consumer,
-		JobRepository: jobRepository,
-	}
-	services = append(services, func() error {
-		return jobExpirer.Run(ctx)
-	})
 
 	schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
 	if err != nil {
@@ -204,27 +151,15 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
 	schedulingReportsServer := reports.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 
-	eventServer := server.NewEventServer(
+	eventServer := event.NewEventServer(
 		authorizer,
 		eventRepository,
-		queueRepository,
-		jobRepository,
+		queueCache,
 	)
 
-	if config.QueryApi.Enabled {
-		queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
-		if err != nil {
-			return errors.WithMessage(err, "error creating QueryApi postgres pool")
-		}
-		queryapiServer := queryapi.New(
-			queryDb,
-			config.QueryApi.MaxQueryItems,
-			func() compress.Decompressor { return compress.NewZlibDecompressor() })
-		api.RegisterJobsServer(grpcServer, queryapiServer)
-	}
-
-	api.RegisterSubmitServer(grpcServer, pulsarSubmitServer)
+	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+	api.RegisterQueueServiceServer(grpcServer, queueServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)
@@ -252,14 +187,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
-}
-
-// TODO: Is this all validation that needs to be done?
-func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error {
-	if config.CancelJobsBatchSize <= 0 {
-		return errors.WithStack(fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize))
-	}
-	return nil
 }
 
 func validateSubmissionConfig(config configuration.SubmissionConfig) error {

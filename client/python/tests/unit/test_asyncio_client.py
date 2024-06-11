@@ -4,9 +4,17 @@ import grpc
 import pytest
 import pytest_asyncio
 
-from server_mock import EventService, SubmitService
+from armada_client.typings import JobState
+from armada_client.armada.job_pb2 import JobRunState
+from server_mock import EventService, SubmitService, QueryAPIService
 
-from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2, health_pb2
+from armada_client.armada import (
+    event_pb2_grpc,
+    submit_pb2_grpc,
+    submit_pb2,
+    health_pb2,
+    job_pb2_grpc,
+)
 from armada_client.asyncio_client import ArmadaAsyncIOClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -14,7 +22,6 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 from armada_client.permissions import Permissions, Subject
-from armada_client.typings import JobState
 
 
 @pytest.fixture
@@ -22,6 +29,7 @@ def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
     event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
+    job_pb2_grpc.add_JobsServicer_to_server(QueryAPIService(), server)
     server.add_insecure_port("[::]:50051")
     server.start()
     yield
@@ -177,20 +185,10 @@ async def test_cancel_jobs(aio_client):
     await test_create_queue(aio_client)
     await test_submit_job(aio_client)
 
-    # Test that the right combination of jobid or jobsetid and queue is used
-    # also check that the Value error is raised
-    with pytest.raises(ValueError):
-        await aio_client.cancel_jobs(
-            queue="test", job_id="job-1", job_set_id="job-set-1"
-        )
-
-    resp = await aio_client.cancel_jobs(job_id="job-1")
-
+    resp = await aio_client.cancel_jobs(
+        queue="test", job_id="job-1", job_set_id="job-set-1"
+    )
     assert resp.cancelled_ids[0] == "job-1"
-
-    resp = await aio_client.cancel_jobs(queue="test", job_set_id="job-set-1")
-
-    assert len(list(resp.cancelled_ids)) > 0
 
 
 @pytest.mark.asyncio
@@ -202,6 +200,13 @@ async def test_cancel_jobset(aio_client):
         job_set_id="job-set-1",
         filter_states=[JobState.RUNNING, JobState.PENDING],
     )
+
+
+@pytest.mark.asyncio
+async def test_preempt_jobs(aio_client):
+    await test_create_queue(aio_client)
+    await test_submit_job(aio_client)
+    await aio_client.preempt_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
 
 
 @pytest.mark.asyncio
@@ -266,20 +271,10 @@ async def test_update_queues_full(aio_client):
 
 @pytest.mark.asyncio
 async def test_reprioritize_jobs(aio_client):
-    # Similar to test_cancel_jobs(), test that the right combination of jobid
-    # or jobsetid and queue is used
-    # also check that the Value error is raised
-
-    with pytest.raises(ValueError):
-        await aio_client.reprioritize_jobs(
-            queue="test",
-            job_ids=["job-1"],
-            job_set_id="job-set-1",
-            new_priority=1,
-        )
-
     resp = await aio_client.reprioritize_jobs(
+        queue="test",
         job_ids=["job-1"],
+        job_set_id="job-set-1",
         new_priority=1,
     )
 
@@ -287,6 +282,7 @@ async def test_reprioritize_jobs(aio_client):
 
     resp = await aio_client.reprioritize_jobs(
         queue="test",
+        job_ids=None,
         job_set_id="job-set-1",
         new_priority=1,
     )
@@ -314,3 +310,36 @@ async def test_health_submit(aio_client):
 async def test_health_event(aio_client):
     health = await aio_client.event_health()
     assert health.SERVING == health_pb2.HealthCheckResponse.SERVING
+
+
+@pytest.mark.asyncio
+async def test_job_status(aio_client):
+    await test_create_queue(aio_client)
+    await test_submit_job(aio_client)
+
+    job_status_response = await aio_client.get_job_status(["job-1"])
+    assert job_status_response.job_states["job-1"] == submit_pb2.JobState.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_job_details(aio_client):
+    await test_create_queue(aio_client)
+    await test_submit_job(aio_client)
+
+    job_details_response = await aio_client.get_job_details(["job-1"])
+    job_details = job_details_response.job_details
+    assert job_details["job-1"].state == submit_pb2.JobState.RUNNING
+    assert job_details["job-1"].job_id == "job-1"
+    assert job_details["job-1"].queue == "test_queue"
+
+
+@pytest.mark.asyncio
+async def test_job_run_details(aio_client):
+    await test_create_queue(aio_client)
+    await test_submit_job(aio_client)
+
+    run_details_response = await aio_client.get_job_run_details(["run-1"])
+    run_details = run_details_response.job_run_details
+    assert run_details["run-1"].state == JobRunState.RUN_STATE_RUNNING
+    assert run_details["run-1"].run_id == "run-1"
+    assert run_details["run-1"].cluster == "test_cluster"

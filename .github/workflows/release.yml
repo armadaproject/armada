@@ -83,7 +83,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v1.19.2
+          version: v1.24.0
           args: "-f ./.goreleaser.yml release --clean"
         env:
           FULL_RELEASE: true
@@ -119,4 +119,4 @@ jobs:
           TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           VERSION=${TAG#v}
-          dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.$VERSION.nupkg ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+          dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json

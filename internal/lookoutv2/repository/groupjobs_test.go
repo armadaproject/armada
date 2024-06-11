@@ -21,17 +21,12 @@ import (
 )
 
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
-	for _, useJsonbBackend := range []bool{false, true} {
-		if err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-			converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-			store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
-			repo := NewSqlGroupJobsRepository(db, useJsonbBackend)
-			return f(converter, store, repo)
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		repo := NewSqlGroupJobsRepository(db)
+		return f(converter, store, repo)
+	})
 }
 
 func TestGroupByQueue(t *testing.T) {
@@ -1482,7 +1477,7 @@ func makeLeased(opts *createJobsOpts, converter *instructions.InstructionConvert
 		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
-		Lease(uuid.NewString(), lastTransitionTime).
+		Lease(uuid.NewString(), cluster, node, lastTransitionTime).
 		Build()
 }
 
@@ -1559,7 +1554,7 @@ func makeFailed(opts *createJobsOpts, converter *instructions.InstructionConvert
 		}).
 		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
 		Running(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
-		RunFailed(runId, node, 1, "error", lastTransitionTime).
+		RunFailed(runId, node, 1, "error", "debug", lastTransitionTime).
 		Failed(node, 1, "error", lastTransitionTime).
 		Build()
 }

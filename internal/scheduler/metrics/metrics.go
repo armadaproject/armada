@@ -62,6 +62,9 @@ type Metrics struct {
 	// Messages that match no regex map to -1.
 	matchedRegexIndexByErrorMessage *lru.Cache
 
+	// Histogram of completed run durations by queue
+	completedRunDurations *prometheus.HistogramVec
+
 	// Map from resource name to the counter and counterSeconds Vecs for that resource.
 	resourceCounters map[v1.ResourceName]*prometheus.CounterVec
 }
@@ -95,7 +98,20 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 
 		errorRegexes:                    errorRegexes,
 		matchedRegexIndexByErrorMessage: matchedRegexIndexByError,
-
+		completedRunDurations: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "job_run_completed_duration_seconds",
+				Help:      "Time",
+				Buckets: prometheus.ExponentialBuckets(
+					2,
+					2,
+					20),
+				ConstLabels: map[string]string{},
+			},
+			[]string{"queue"},
+		),
 		resourceCounters: make(map[v1.ResourceName]*prometheus.CounterVec),
 	}, nil
 }
@@ -129,6 +145,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	for _, metric := range m.resourceCounters {
 		metric.Describe(ch)
 	}
+	m.completedRunDurations.Describe(ch)
 }
 
 // Collect and then reset all metrics.
@@ -148,6 +165,7 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 		}
 		m.timeOfMostRecentReset = t
 	}
+	m.completedRunDurations.Collect(ch)
 }
 
 func (m *Metrics) UpdateMany(
@@ -279,7 +297,7 @@ func (m *Metrics) UpdateSucceeded(job *jobdb.Job) error {
 }
 
 func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) error {
-	job := jctx.Job.(*jobdb.Job)
+	job := jctx.Job
 	latestRun := job.LatestRun()
 	duration, priorState := stateDuration(job, latestRun, &jctx.Created)
 	labels := m.buffer[0:0]
@@ -373,7 +391,7 @@ func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int
 
 func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
-	labels = append(labels, job.GetQueue())
+	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	labels = append(labels, "") // No nodeType.
 	labels = append(labels, nodeName)
@@ -381,9 +399,9 @@ func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 }
 
 func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontext.JobSchedulingContext) []string {
-	job := jctx.Job.(*jobdb.Job)
+	job := jctx.Job
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
-	labels = append(labels, job.GetQueue())
+	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	wellKnownNodeType := ""
 	if pctx := jctx.PodSchedulingContext; pctx != nil {
@@ -441,7 +459,11 @@ func (m *Metrics) updateMetrics(labels []string, job *jobdb.Job, stateDuration t
 		c.Add(stateDuration.Seconds())
 	}
 
-	requests := job.GetResourceRequirements().Requests
+	if job.HasRuns() && job.LatestRun().InTerminalState() {
+		m.completedRunDurations.WithLabelValues(job.Queue()).Observe(stateDuration.Seconds())
+	}
+
+	requests := job.ResourceRequirements().Requests
 	for _, resource := range m.config.TrackedResourceNames {
 		if r, ok := m.config.ResourceRenaming[resource]; ok {
 			resource = v1.ResourceName(r)

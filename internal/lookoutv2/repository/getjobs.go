@@ -3,14 +3,11 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
-	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -23,9 +20,9 @@ type GetJobsRepository interface {
 }
 
 type SqlGetJobsRepository struct {
-	db              *pgxpool.Pool
-	lookoutTables   *LookoutTables
-	useJsonbBackend bool
+	db            *pgxpool.Pool
+	lookoutTables *LookoutTables
+	clock         clock.Clock
 }
 
 type GetJobsResult struct {
@@ -53,100 +50,20 @@ type jobRow struct {
 	cancelReason       sql.NullString
 }
 
-type runRow struct {
-	jobId       string
-	runId       string
-	cluster     string
-	node        sql.NullString
-	leased      sql.NullTime
-	pending     sql.NullTime
-	started     sql.NullTime
-	finished    sql.NullTime
-	jobRunState int
-	exitCode    sql.NullInt32
-}
-
-type annotationRow struct {
-	jobId           string
-	annotationKey   string
-	annotationValue string
-}
-
-func NewSqlGetJobsRepository(db *pgxpool.Pool, useJsonbBackend bool) *SqlGetJobsRepository {
+func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	return &SqlGetJobsRepository{
-		db:              db,
-		lookoutTables:   NewTables(),
-		useJsonbBackend: useJsonbBackend,
+		db:            db,
+		lookoutTables: NewTables(),
+		clock:         clock.RealClock{},
 	}
 }
 
 func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
-	getJobs := r.getJobs
-	if r.useJsonbBackend {
-		getJobs = r.getJobsJsonb
-	}
-	return getJobs(ctx, filters, activeJobSets, order, skip, take)
+	return r.getJobs(ctx, filters, activeJobSets, order, skip, take)
 }
 
 func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
-	var jobRows []*jobRow
-	var runRows []*runRow
-	var annotationRows []*annotationRow
-
-	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
-		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadWrite,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
-		logQuery(createTempTableQuery, "CreateTempTable")
-		_, err := tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
-		if err != nil {
-			return err
-		}
-
-		insertQuery, err := NewQueryBuilder(r.lookoutTables).InsertIntoTempTable(tempTableName, filters, activeJobSets, order, skip, take)
-		if err != nil {
-			return err
-		}
-		logQuery(insertQuery, "InsertIntoTempTable")
-		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
-		if err != nil {
-			return err
-		}
-
-		jobRows, err = makeJobRows(ctx, tx, tempTableName)
-		if err != nil {
-			log.WithError(err).Error("failed getting job rows")
-			return err
-		}
-		runRows, err = makeRunRows(ctx, tx, tempTableName)
-		if err != nil {
-			log.WithError(err).Error("failed getting run rows")
-			return err
-		}
-
-		annotationRows, err = makeAnnotationRows(ctx, tx, tempTableName)
-		if err != nil {
-			log.WithError(err).Error("failed getting annotation rows")
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	jobs, err := rowsToJobs(jobRows, runRows, annotationRows)
-	if err != nil {
-		return nil, err
-	}
-	return &GetJobsResult{
-		Jobs: jobs,
-	}, nil
-}
-
-func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
-	query, err := NewQueryBuilder(r.lookoutTables).GetJobsJsonb(filters, activeJobSets, order, skip, take)
+	query, err := NewQueryBuilder(r.lookoutTables).GetJobs(filters, activeJobSets, order, skip, take)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +71,6 @@ func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters 
 	var jobs []*model.Job
 	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query.Sql, query.Args...)
@@ -206,7 +122,7 @@ func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters 
 				job.Node = lastRun.Node
 				job.Cluster = lastRun.Cluster
 				job.ExitCode = lastRun.ExitCode
-
+				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, r.clock)
 			}
 			jobs = append(jobs, job)
 		}
@@ -217,58 +133,22 @@ func (r *SqlGetJobsRepository) getJobsJsonb(ctx *armadacontext.Context, filters 
 	return &GetJobsResult{Jobs: jobs}, nil
 }
 
-func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow) ([]*model.Job, error) {
-	jobMap := make(map[string]*model.Job) // Map from Job ID to Job
-	orderedJobIds := make([]string, len(jobRows))
-
-	for i, row := range jobRows {
-		job := jobRowToModel(row)
-		jobMap[row.jobId] = job
-		orderedJobIds[i] = row.jobId
+func calculateJobRuntime(started, finished *model.PostgreSQLTime, clock clock.Clock) int32 {
+	if started == nil {
+		return 0
 	}
 
-	for _, row := range runRows {
-		run := &model.Run{
-			Cluster:     row.cluster,
-			ExitCode:    database.ParseNullInt32(row.exitCode),
-			Finished:    model.NewPostgreSQLTime(database.ParseNullTime(row.finished)),
-			JobRunState: row.jobRunState,
-			Node:        database.ParseNullString(row.node),
-			Leased:      model.NewPostgreSQLTime(database.ParseNullTime(row.leased)),
-			Pending:     model.NewPostgreSQLTime(database.ParseNullTime(row.pending)),
-			RunId:       row.runId,
-			Started:     model.NewPostgreSQLTime(database.ParseNullTime(row.started)),
-		}
-		job, ok := jobMap[row.jobId]
-		if !ok {
-			return nil, errors.Errorf("job row with id %s not found", row.jobId)
-		}
-		job.Runs = append(jobMap[row.jobId].Runs, run)
+	if finished == nil {
+		now := clock.Now()
+		return formatDuration(started.Time, now)
 	}
 
-	for _, row := range annotationRows {
-		job, ok := jobMap[row.jobId]
-		if !ok {
-			return nil, errors.Errorf("job row with id %s not found", row.jobId)
-		}
-		job.Annotations[row.annotationKey] = row.annotationValue
-	}
+	return formatDuration(started.Time, finished.Time)
+}
 
-	jobs := make([]*model.Job, len(orderedJobIds))
-	for i, jobId := range orderedJobIds {
-		job := jobMap[jobId]
-		sortRuns(job.Runs)
-		if len(job.Runs) > 0 {
-			lastRun := job.Runs[len(job.Runs)-1] // Get the last run
-			job.Node = lastRun.Node
-			job.Cluster = lastRun.Cluster
-			job.ExitCode = lastRun.ExitCode
-
-		}
-		jobs[i] = job
-	}
-
-	return jobs, nil
+func formatDuration(start, end time.Time) int32 {
+	duration := end.Sub(start).Round(time.Second)
+	return int32(duration.Seconds())
 }
 
 func jobRowToModel(row *jobRow) *model.Job {
@@ -294,167 +174,4 @@ func jobRowToModel(row *jobRow) *model.Job {
 		Submitted:          row.submitted,
 		CancelReason:       database.ParseNullString(row.cancelReason),
 	}
-}
-
-func sortRuns(runs []*model.Run) {
-	sort.Slice(runs, func(i, j int) bool {
-		timeA, err := getJobRunTime(runs[i])
-		if err != nil {
-			log.WithError(err).Error("failed to get time for run")
-			return true
-		}
-		timeB, err := getJobRunTime(runs[j])
-		if err != nil {
-			log.WithError(err).Error("failed to get time for run")
-			return true
-		}
-		return timeA.Before(timeB)
-	})
-}
-
-func getJobRunTime(run *model.Run) (time.Time, error) {
-	if run.Leased != nil {
-		return run.Leased.Time, nil
-	}
-	if run.Pending != nil {
-		return run.Pending.Time, nil
-	}
-	return time.Time{}, errors.Errorf("error when getting run time for run with id %s", run.RunId)
-}
-
-func makeJobRows(ctx *armadacontext.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow, error) {
-	query := fmt.Sprintf(`
-		SELECT
-			j.job_id,
-			j.queue,
-			j.owner,
-			j.namespace,
-			j.jobset,
-			j.cpu,
-			j.memory,
-			j.ephemeral_storage,
-			j.gpu,
-			j.priority,
-			j.submitted,
-			j.cancelled,
-			j.state,
-			j.last_transition_time,
-			j.duplicate,
-			j.priority_class,
-			j.latest_run_id,
-			j.cancel_reason
-		FROM %s AS t
-		INNER JOIN job AS j ON t.job_id = j.job_id
-	`, tmpTableName)
-	pgxRows, err := tx.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer pgxRows.Close()
-
-	var rows []*jobRow
-	for pgxRows.Next() {
-		var row jobRow
-		err := pgxRows.Scan(
-			&row.jobId,
-			&row.queue,
-			&row.owner,
-			&row.namespace,
-			&row.jobSet,
-			&row.cpu,
-			&row.memory,
-			&row.ephemeralStorage,
-			&row.gpu,
-			&row.priority,
-			&row.submitted,
-			&row.cancelled,
-			&row.state,
-			&row.lastTransitionTime,
-			&row.duplicate,
-			&row.priorityClass,
-			&row.latestRunId,
-			&row.cancelReason,
-		)
-		if err != nil {
-			log.WithError(err).Errorf("failed to scan job row at index %d", len(rows))
-		}
-		rows = append(rows, &row)
-	}
-	return rows, nil
-}
-
-func makeRunRows(ctx *armadacontext.Context, tx pgx.Tx, tmpTableName string) ([]*runRow, error) {
-	query := fmt.Sprintf(`
-		SELECT
-		    jr.job_id,
-			jr.run_id,
-			jr.cluster,
-			jr.node,
-			jr.leased,
-			jr.pending,
-			jr.started,
-			jr.finished,
-			jr.job_run_state,
-			jr.exit_code
-		FROM %s AS t
-		INNER JOIN job_run AS jr ON t.job_id = jr.job_id
-	`, tmpTableName)
-	pgxRows, err := tx.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer pgxRows.Close()
-
-	var rows []*runRow
-	for pgxRows.Next() {
-		var row runRow
-		err := pgxRows.Scan(
-			&row.jobId,
-			&row.runId,
-			&row.cluster,
-			&row.node,
-			&row.leased,
-			&row.pending,
-			&row.started,
-			&row.finished,
-			&row.jobRunState,
-			&row.exitCode,
-		)
-		if err != nil {
-			log.WithError(err).Errorf("failed to scan run row at index %d", len(rows))
-		}
-		rows = append(rows, &row)
-	}
-	return rows, nil
-}
-
-func makeAnnotationRows(ctx *armadacontext.Context, tx pgx.Tx, tempTableName string) ([]*annotationRow, error) {
-	query := fmt.Sprintf(`
-		SELECT
-			ual.job_id,
-			ual.key,
-			ual.value
-		FROM %s AS t
-		INNER JOIN user_annotation_lookup AS ual ON t.job_id = ual.job_id
-	`, tempTableName)
-	pgxRows, err := tx.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer pgxRows.Close()
-
-	var rows []*annotationRow
-	for pgxRows.Next() {
-		var row annotationRow
-		err := pgxRows.Scan(
-			&row.jobId,
-			&row.annotationKey,
-			&row.annotationValue,
-		)
-		if err != nil {
-			log.WithError(err).Errorf("failed to scan annotation row at index %d", len(rows))
-		}
-		rows = append(rows, &row)
-	}
-	return rows, nil
 }

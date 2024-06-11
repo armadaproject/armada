@@ -13,13 +13,15 @@ postgres:
     port: 5433
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: lookout
     sslmode: disable
 prunerConfig:
-  expireAfter: 1008h  # 42 days, 6 weeks
+  expireAfter: 1008h  # 42 days / 6 weeks
+  deduplicationExpireAfter: 168h # 7 days
   timeout: 1h
   batchSize: 1000
 uiConfig:
+  backend: "jsonb"
   armadaApiBaseUrl: "http://armada-server:8080"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"

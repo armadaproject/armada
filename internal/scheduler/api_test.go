@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -294,7 +294,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
@@ -304,10 +303,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
 			mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
-				assert.Equal(t, tc.expectedExecutor, executor)
-				return nil
-			}).Times(1)
-			mockLegacyExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
@@ -325,7 +320,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
-				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				"kubernetes.io/hostname",
 				nil,
@@ -434,7 +428,6 @@ func TestExecutorApi_Publish(t *testing.T) {
 			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -453,7 +446,6 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
-				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				"kubernetes.io/hostname",
 				nil,

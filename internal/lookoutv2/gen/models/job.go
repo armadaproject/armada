@@ -21,6 +21,10 @@ import (
 // swagger:model job
 type Job struct {
 
+	// runtime seconds
+	// Required: true
+	RuntimeSeconds int32 `json:"RuntimeSeconds"`
+
 	// annotations
 	// Required: true
 	Annotations map[string]string `json:"annotations"`
@@ -31,6 +35,10 @@ type Job struct {
 	// cancelled
 	// Format: date-time
 	Cancelled *strfmt.DateTime `json:"cancelled,omitempty"`
+
+	// cluster
+	// Required: true
+	Cluster string `json:"cluster"`
 
 	// cpu
 	// Required: true
@@ -43,6 +51,9 @@ type Job struct {
 	// ephemeral storage
 	// Required: true
 	EphemeralStorage int64 `json:"ephemeralStorage"`
+
+	// exit code
+	ExitCode *int32 `json:"exitCode,omitempty"`
 
 	// gpu
 	// Required: true
@@ -73,6 +84,9 @@ type Job struct {
 
 	// namespace
 	Namespace *string `json:"namespace,omitempty"`
+
+	// node
+	Node *string `json:"node,omitempty"`
 
 	// owner
 	// Required: true
@@ -105,29 +119,25 @@ type Job struct {
 	// Min Length: 1
 	// Format: date-time
 	Submitted strfmt.DateTime `json:"submitted"`
-
-	// node
-	// Required: false
-	Node *string `json:"node,omitempty"`
-
-	// cluster
-	// Required: true
-	Cluster string `json:"cluster"`
-
-	//exitCode
-	// Required: false
-	ExitCode *int32 `json:"exitCode,omitempty"`
 }
 
 // Validate validates this job
 func (m *Job) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateRuntimeSeconds(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateAnnotations(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateCancelled(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateCluster(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -193,6 +203,15 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
+func (m *Job) validateRuntimeSeconds(formats strfmt.Registry) error {
+
+	if err := validate.Required("RuntimeSeconds", "body", int32(m.RuntimeSeconds)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *Job) validateAnnotations(formats strfmt.Registry) error {
 
 	if err := validate.Required("annotations", "body", m.Annotations); err != nil {
@@ -208,6 +227,15 @@ func (m *Job) validateCancelled(formats strfmt.Registry) error {
 	}
 
 	if err := validate.FormatOf("cancelled", "body", "date-time", m.Cancelled.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Job) validateCluster(formats strfmt.Registry) error {
+
+	if err := validate.RequiredString("cluster", "body", m.Cluster); err != nil {
 		return err
 	}
 

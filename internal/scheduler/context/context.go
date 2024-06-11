@@ -22,15 +22,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-// defaultSchedulingKeyGenerator is used for computing scheduling keys for legacy api.Job where one is not pre-computed.
-var defaultSchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
-
-func init() {
-	defaultSchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
-}
 
 // SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
 type SchedulingContext struct {
@@ -220,18 +215,16 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 
 func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) (bool, error) {
 	allJobsEvictedInThisRound := true
-	numberOfSuccessfulJobs := 0
+	allJobsSuccessful := true
 	for _, jctx := range gctx.JobSchedulingContexts {
 		evictedInThisRound, err := sctx.AddJobSchedulingContext(jctx)
 		if err != nil {
 			return false, err
 		}
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
-		if jctx.IsSuccessful() {
-			numberOfSuccessfulJobs++
-		}
+		allJobsSuccessful = allJobsSuccessful && jctx.IsSuccessful()
 	}
-	if numberOfSuccessfulJobs >= gctx.GangInfo.MinimumCardinality && !allJobsEvictedInThisRound {
+	if allJobsSuccessful && !allJobsEvictedInThisRound {
 		sctx.NumScheduledGangs++
 	}
 	return allJobsEvictedInThisRound, nil
@@ -240,9 +233,9 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) (bool, error) {
-	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.GetQueue()]
+	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.Queue()]
 	if !ok {
-		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.GetQueue())
+		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.Queue())
 	}
 	evictedInThisRound, err := qctx.AddJobSchedulingContext(jctx)
 	if err != nil {
@@ -251,18 +244,18 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	if jctx.IsSuccessful() {
 		if evictedInThisRound {
 			sctx.EvictedResources.SubV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
-			sctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			sctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumEvictedJobs--
 		} else {
 			sctx.ScheduledResources.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
-			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
 	}
 	return evictedInThisRound, nil
 }
 
-func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) (bool, error) {
+func (sctx *SchedulingContext) EvictGang(jobs []*jobdb.Job) (bool, error) {
 	allJobsScheduledInThisRound := true
 	for _, job := range jobs {
 		scheduledInThisRound, err := sctx.EvictJob(job)
@@ -277,23 +270,23 @@ func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) (
 	return allJobsScheduledInThisRound, nil
 }
 
-func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool, error) {
-	qctx, ok := sctx.QueueSchedulingContexts[job.GetQueue()]
+func (sctx *SchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
+	qctx, ok := sctx.QueueSchedulingContexts[job.Queue()]
 	if !ok {
-		return false, errors.Errorf("failed evicting job %s from scheduling context: no context for queue %s", job.GetId(), job.GetQueue())
+		return false, errors.Errorf("failed evicting job %s from scheduling context: no context for queue %s", job.Id(), job.Queue())
 	}
 	scheduledInThisRound, err := qctx.EvictJob(job)
 	if err != nil {
 		return false, err
 	}
-	rl := job.GetResourceRequirements().Requests
+	rl := job.ResourceRequirements().Requests
 	if scheduledInThisRound {
 		sctx.ScheduledResources.SubV1ResourceList(rl)
-		sctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.GetPriorityClassName(), rl)
+		sctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.PriorityClassName(), rl)
 		sctx.NumScheduledJobs--
 	} else {
 		sctx.EvictedResources.AddV1ResourceList(rl)
-		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.GetPriorityClassName(), rl)
+		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.PriorityClassName(), rl)
 		sctx.NumEvictedJobs++
 	}
 	return scheduledInThisRound, nil
@@ -362,13 +355,6 @@ type QueueSchedulingContext struct {
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Jobs evicted in this round.
 	EvictedJobsById map[string]bool
-}
-
-func GetSchedulingContextFromQueueSchedulingContext(qctx *QueueSchedulingContext) *SchedulingContext {
-	if qctx == nil {
-		return nil
-	}
-	return qctx.SchedulingContext
 }
 
 func (qctx *QueueSchedulingContext) String() string {
@@ -481,16 +467,16 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
 		qctx.Allocated.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
-		qctx.AllocatedByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+		qctx.AllocatedByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
 		if evictedInThisRound {
 			delete(qctx.EvictedJobsById, jctx.JobId)
-			qctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			qctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 		} else {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
-			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
@@ -498,25 +484,25 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	return evictedInThisRound, nil
 }
 
-func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool, error) {
-	jobId := job.GetId()
+func (qctx *QueueSchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
+	jobId := job.Id()
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked unsuccessful", jobId)
 	}
 	if _, ok := qctx.EvictedJobsById[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked evicted", jobId)
 	}
-	rl := job.GetResourceRequirements().Requests
+	rl := job.ResourceRequirements().Requests
 	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
 	if scheduledInThisRound {
-		qctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.GetPriorityClassName(), rl)
+		qctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.PriorityClassName(), rl)
 		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
 	} else {
-		qctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.GetPriorityClassName(), rl)
+		qctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.PriorityClassName(), rl)
 		qctx.EvictedJobsById[jobId] = true
 	}
 	qctx.Allocated.SubV1ResourceList(rl)
-	qctx.AllocatedByPriorityClass.SubV1ResourceList(job.GetPriorityClassName(), rl)
+	qctx.AllocatedByPriorityClass.SubV1ResourceList(job.PriorityClassName(), rl)
 	return scheduledInThisRound, nil
 }
 
@@ -551,7 +537,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	representative := jctxs[0]
 	return &GangSchedulingContext{
 		Created:               time.Now(),
-		Queue:                 representative.Job.GetQueue(),
+		Queue:                 representative.Job.Queue(),
 		GangInfo:              representative.GangInfo,
 		JobSchedulingContexts: jctxs,
 		TotalResourceRequests: totalResourceRequests,
@@ -613,10 +599,12 @@ type JobSchedulingContext struct {
 	// Indicates whether this context is for re-scheduling an evicted job.
 	IsEvicted bool
 	// Job spec.
-	Job interfaces.LegacySchedulerJob
+	Job *jobdb.Job
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	PodRequirements *schedulerobjects.PodRequirements
+	// Resource requirements in an efficient internaltypes.ResourceList
+	ResourceRequirements internaltypes.ResourceList
 	// Node selectors to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to further constrain where nodes are scheduled,
 	// e.g., to ensure evicted jobs are re-scheduled onto the same node.
@@ -635,8 +623,6 @@ type JobSchedulingContext struct {
 	// GangInfo holds all the information that is necessary to schedule a gang,
 	// such as the lower and upper bounds on its size.
 	GangInfo
-	// If set, indicates this job should be failed back to the client when the gang is scheduled.
-	ShouldFail bool
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -663,11 +649,7 @@ func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKe
 	if len(jctx.AdditionalNodeSelectors) != 0 || len(jctx.AdditionalTolerations) != 0 {
 		return schedulerobjects.EmptySchedulingKey, false
 	}
-	schedulingKey, ok := jctx.Job.GetSchedulingKey()
-	if !ok {
-		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(defaultSchedulingKeyGenerator, jctx.Job)
-	}
-	return schedulingKey, true
+	return jctx.Job.SchedulingKey(), true
 }
 
 func (jctx *JobSchedulingContext) IsSuccessful() bool {
@@ -699,31 +681,29 @@ func (jctx *JobSchedulingContext) GetNodeSelector(key string) (string, bool) {
 }
 
 type GangInfo struct {
-	Id                 string
-	Cardinality        int
-	MinimumCardinality int
-	PriorityClassName  string
-	NodeUniformity     string
+	Id                string
+	Cardinality       int
+	PriorityClassName string
+	NodeUniformity    string
 }
 
 // EmptyGangInfo returns a GangInfo for a job that is not in a gang.
 func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
 	return GangInfo{
 		// An Id of "" indicates that this job is not in a gang; we set
-		// Cardinality and MinimumCardinality (as well as the other fields,
+		// Cardinality (as well as the other fields,
 		// which all make sense in this context) accordingly.
-		Id:                 "",
-		Cardinality:        1,
-		MinimumCardinality: 1,
-		PriorityClassName:  job.GetPriorityClassName(),
-		NodeUniformity:     job.GetAnnotations()[configuration.GangNodeUniformityLabelAnnotation],
+		Id:                "",
+		Cardinality:       1,
+		PriorityClassName: job.PriorityClassName(),
+		NodeUniformity:    job.Annotations()[configuration.GangNodeUniformityLabelAnnotation],
 	}
 }
 
 func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error) {
 	gangInfo := EmptyGangInfo(job)
 
-	annotations := job.GetAnnotations()
+	annotations := job.Annotations()
 
 	gangId, ok := annotations[configuration.GangIdAnnotation]
 	if !ok {
@@ -745,48 +725,31 @@ func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error)
 		return gangInfo, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
 	}
 
-	gangMinimumCardinalityString, ok := annotations[configuration.GangMinimumCardinalityAnnotation]
-	if !ok {
-		// If it is not set, use gangCardinality as the minimum gang size.
-		gangMinimumCardinalityString = gangCardinalityString
-	}
-	gangMinimumCardinality, err := strconv.Atoi(gangMinimumCardinalityString)
-	if err != nil {
-		return gangInfo, errors.WithStack(err)
-	}
-	if gangMinimumCardinality <= 0 {
-		return gangInfo, errors.Errorf("gang minimum cardinality %d is non-positive", gangMinimumCardinality)
-	}
-	if gangMinimumCardinality > gangCardinality {
-		return gangInfo, errors.Errorf("gang minimum cardinality %d is greater than gang cardinality %d", gangMinimumCardinality, gangCardinality)
-	}
-
 	gangInfo.Id = gangId
 	gangInfo.Cardinality = gangCardinality
-	gangInfo.MinimumCardinality = gangMinimumCardinality
 	return gangInfo, nil
 }
 
-func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J *jobdb.Job](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
-		jctxs[i] = JobSchedulingContextFromJob(priorityClasses, job)
+		jctxs[i] = JobSchedulingContextFromJob(job)
 	}
 	return jctxs
 }
 
-func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob) *JobSchedulingContext {
+func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
 	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
-		logrus.Errorf("failed to extract gang info from job %s: %s", job.GetId(), err)
+		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
 	}
 	return &JobSchedulingContext{
-		Created:         time.Now(),
-		JobId:           job.GetId(),
-		Job:             job,
-		PodRequirements: job.GetPodRequirements(priorityClasses),
-		GangInfo:        gangInfo,
-		ShouldFail:      false,
+		Created:              time.Now(),
+		JobId:                job.Id(),
+		Job:                  job,
+		PodRequirements:      job.PodRequirements(),
+		ResourceRequirements: job.EfficientResourceRequirements(),
+		GangInfo:             gangInfo,
 	}
 }
 

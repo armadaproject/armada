@@ -4,20 +4,21 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/armadactl"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/client"
-
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
+
+	"github.com/armadaproject/armada/internal/armadactl"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 func configCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Operations on armadactl config. Supported: use-context, get-contexts, current-context",
+		Short: "Operations on armadactl config",
+		Long:  "Operations on armadactl config. Supported: use-context, get-contexts, current-context",
 	}
 
 	cmd.AddCommand(getContextsCmd(a))
@@ -76,7 +77,7 @@ func getContextsCmd(a *armadactl.App) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			currentContext := viper.GetString("currentContext")
-			allContexts := util.Map(client.ExtractConfigurationContexts(), func(context string) string {
+			allContexts := armadaslices.Map(client.ExtractConfigurationContexts(), func(context string) string {
 				if context == currentContext {
 					return fmt.Sprintf("%s (current)", context)
 				}

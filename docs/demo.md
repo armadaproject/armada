@@ -12,7 +12,7 @@ The Armada UI (lookout) can be found at this URL:
 ## Local prerequisites
 
 - Git
-- Go 1.20
+- Go 1.21
 
 ## Obtain the armada source
 Clone [this](https://github.com/armadaproject/armada) repository:
@@ -79,8 +79,8 @@ Create queues, submit some jobs, and monitor progress:
 ### Queue Creation
 Use a unique name for the queue. Make sure you remember it for the next steps.
 ```bash
-armadactl create queue $QUEUE_NAME --priorityFactor 1
-armadactl create queue $QUEUE_NAME --priorityFactor 2
+armadactl create queue $QUEUE_NAME --priority-factor 1
+armadactl create queue $QUEUE_NAME --priority-factor 2
 ```
 
 For queues created in this way, user and group owners of the queue have permissions to:

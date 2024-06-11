@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -57,13 +57,13 @@ type Scheduler struct {
 	// The label used when setting node anti affinities.
 	nodeIdLabel string
 	// If an executor fails to report in for this amount of time,
-	// all jobs assigne to that executor are cancelled.
+	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
 	// The time the previous scheduling round ended
 	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
-	clock clock.Clock
+	clock clock.WithTicker
 	// Stores active jobs (i.e. queued or running).
 	jobDb *jobdb.JobDb
 	// Highest offset we've read from Postgres on the jobs table.
@@ -175,6 +175,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
 			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+			if !shouldSchedule {
+				ctx.Info("Won't schedule this cycle as still within schedulePeriod")
+			}
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
@@ -232,14 +235,17 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	overallSchedulerResult := SchedulerResult{}
 
 	// Update job state.
+	ctx.Info("Syncing internal state with database")
 	updatedJobs, jsts, err := s.syncState(ctx)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Info("Finished syncing state")
 
 	// Only the leader may make decisions; exit if not leader.
 	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
+		ctx.Info("Not the leader so will not attempt to schedule")
 		s.schedulerMetrics.Disable()
 		return overallSchedulerResult, err
 	} else {
@@ -267,10 +273,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			failedRunIds = append(failedRunIds, run.Id())
 		}
 	}
+	ctx.Info("Fetching job run errors")
 	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
 	// Update metrics.
 	if !s.schedulerMetrics.IsDisabled() {
@@ -296,34 +304,38 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 				t = time.Now()
 			}
 			if jst.Failed {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), false, t)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.Queue(), run.Executor(), false, t)
 			}
 			if jst.Succeeded {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.GetQueue(), run.Executor(), true, t)
+				s.failureEstimator.Push(run.NodeName(), jst.Job.Queue(), run.Executor(), true, t)
 			}
 		}
 		s.failureEstimator.Update()
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
+	ctx.Info("Generating update messages based on reconciliation changes")
 	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Finished generating updates messages, generating %d events", len(events))
+
+	// Validate that any new jobs can be scheduled
+	validationEvents, err := s.submitCheck(ctx, txn)
+	if err != nil {
+		return overallSchedulerResult, err
+	}
+	events = append(events, validationEvents...)
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
+	ctx.Info("Looking for jobs to expire")
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
+	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
-
-	// Request cancel for any jobs that exceed queueTtl
-	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
-	if err != nil {
-		return overallSchedulerResult, err
-	}
-	events = append(events, queueTtlCancelEvents...)
 
 	// Schedule jobs.
 	if shouldSchedule {
@@ -349,18 +361,22 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		return s.leaderController.ValidateToken(leaderToken)
 	}
 	start := s.clock.Now()
+	ctx.Infof("Starting to publish %d eventSequences to pulsar", len(events))
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return overallSchedulerResult, err
 	}
-	ctx.Infof("published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
+	ctx.Infof("Published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
 
 	// Optionally assert that the jobDb is in a valid state and then commit.
 	if s.enableAssertions {
+		ctx.Infof("Performing assertions on current state")
 		if err := txn.Assert(false); err != nil {
 			return overallSchedulerResult, err
 		}
 	}
+	ctx.Info("Committing cycle transaction")
 	txn.Commit()
+	ctx.Info("Completed committing cycle transaction")
 
 	// Update metrics based on overallSchedulerResult.
 	if err := s.updateMetricsFromSchedulerResult(ctx, overallSchedulerResult); err != nil {
@@ -379,13 +395,8 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 			return err
 		}
 	}
-	for _, jctx := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.UpdateFailed(ctx, jctx.Job.(*jobdb.Job), nil); err != nil {
-			return err
-		}
-	}
 	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
-	// This is to make sure that preempttion is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
+	// This is to make sure that preemption is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
 	return nil
 }
 
@@ -448,7 +459,7 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
 	podRequirements := newSchedulingInfo.GetPodRequirements()
 	if podRequirements == nil {
-		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
+		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.Id())
 	}
 	newAffinity := podRequirements.Affinity
 	if newAffinity == nil {
@@ -467,13 +478,26 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	return newSchedulingInfo, nil
 }
 
-func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobdb.Job) (*jobdb.Job, bool, error) {
+func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *armadacontext.Context, job *jobdb.Job) (*jobdb.Job, bool, error) {
 	schedulingInfoWithNodeAntiAffinity, err := s.createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job)
 	if err != nil {
 		return nil, false, err
 	}
-	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
-	isSchedulable, _ := s.submitChecker.CheckJobDbJobs([]*jobdb.Job{job})
+
+	job, err = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+	if err != nil {
+		// should never happen - requirements haven't changed
+		panic(err)
+	}
+	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
+	if err != nil {
+		return nil, false, err
+	}
+	result, ok := results[job.Id()]
+	isSchedulable := false
+	if ok {
+		isSchedulable = result.isSchedulable
+	}
 	return job, isSchedulable, nil
 }
 
@@ -484,16 +508,12 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
-	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
 	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs, result.AdditionalAnnotationsByJobId)
-	if err != nil {
-		return nil, err
-	}
-	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -525,8 +545,10 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			Created: &time,
 			Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 				JobRunPreempted: &armadaevents.JobRunPreempted{
-					PreemptedRunId: runId,
-					PreemptedJobId: jobId,
+					PreemptedRunId:    runId,
+					PreemptedRunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					PreemptedJobId:    jobId,
+					PreemptedJobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 				},
 			},
 		},
@@ -534,8 +556,10 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			Created: &time,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: runId,
-					JobId: jobId,
+					RunId:    runId,
+					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -551,7 +575,8 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			Created: &time,
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobId: jobId,
+					JobId:    jobId,
+					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -568,7 +593,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
 	for _, jctx := range jctxs {
-		job := jctx.Job.(*jobdb.Job)
+		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
@@ -578,7 +603,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 			return nil, errors.Errorf("attempting to generate lease eventSequences for job %s with no associated runs", job.Id())
 		}
 		runCreationTime := time.Unix(0, job.ActiveRunTimestamp())
-		scheduledAtPriority, hasScheduledAtPriority := job.GetScheduledAtPriority()
+		scheduledAtPriority, hasScheduledAtPriority := job.ScheduledAtPriority()
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(), // TODO: Rename to JobSet.
@@ -588,7 +613,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      armadaevents.ProtoUuidFromUuid(run.Id()),
+							RunIdStr:   run.Id().String(),
 							JobId:      jobId,
+							JobIdStr:   job.Id(),
 							ExecutorId: run.Executor(),
 							// NodeId here refers to the unique identifier of the node in an executor cluster,
 							// which is referred to as the NodeName within the scheduler.
@@ -610,39 +637,13 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
-	for _, job := range jobs {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
-		if err != nil {
-			return nil, err
-		}
-		gangJobUnschedulableError := &armadaevents.Error{
-			Terminal: true,
-			Reason:   &armadaevents.Error_GangJobUnschedulable{GangJobUnschedulable: &armadaevents.GangJobUnschedulable{Message: "Job did not meet the minimum gang cardinality"}},
-		}
-		eventSequences = append(eventSequences, &armadaevents.EventSequence{
-			Queue:      job.GetQueue(),
-			JobSetName: job.GetJobSet(),
-			Events: []*armadaevents.EventSequence_Event{
-				{
-					Created: &time,
-					Event: &armadaevents.EventSequence_Event_JobErrors{
-						JobErrors: &armadaevents.JobErrors{JobId: jobId, Errors: []*armadaevents.Error{gangJobUnschedulableError}},
-					},
-				},
-			},
-		})
-	}
-	return eventSequences, nil
-}
-
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
-func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors, txn)
+		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -655,7 +656,7 @@ func (s *Scheduler) generateUpdateMessages(_ *armadacontext.Context, txn *jobdb.
 
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages
@@ -676,6 +677,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
 					JobId:    jobId,
+					JobIdStr: job.Id(),
 					Priority: job.Priority(),
 				},
 			},
@@ -685,35 +687,64 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
-		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
+		if job.HasRuns() {
+			lastRun := job.LatestRun()
+			job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
+
+			events = append(events, &armadaevents.EventSequence_Event{
+				Created: s.now(),
+				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+					JobRunCancelled: &armadaevents.JobRunCancelled{
+						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						RunIdStr: lastRun.Id().String(),
+						JobId:    jobId,
+						JobIdStr: job.Id(),
+					},
+				},
+			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId, JobIdStr: job.Id()},
 			},
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
-		for _, run := range job.AllRuns() {
-			job = job.WithUpdatedRun(run.WithRunning(false).WithoutTerminal().WithCancelled(true))
-		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				CancelJob: &armadaevents.CancelJob{JobId: jobId, JobIdStr: job.Id()},
 			},
 		}
+		events = append(events, cancelRequest)
+
+		if job.HasRuns() {
+			lastRun := job.LatestRun()
+			job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
+
+			events = append(events, &armadaevents.EventSequence_Event{
+				Created: s.now(),
+				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+					JobRunCancelled: &armadaevents.JobRunCancelled{
+						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
+						RunIdStr: lastRun.Id().String(),
+						JobId:    jobId,
+						JobIdStr: job.Id(),
+					},
+				},
+			})
+		}
+
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId, JobIdStr: job.Id()},
 			},
 		}
-		events = append(events, cancelRequest, cancel)
+		events = append(events, cancel)
 	} else if job.HasRuns() {
 		lastRun := job.LatestRun()
 		// InTerminalState states. Can only have one of these
@@ -723,19 +754,20 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobSucceeded{
 					JobSucceeded: &armadaevents.JobSucceeded{
-						JobId: jobId,
+						JobId:    jobId,
+						JobIdStr: job.Id(),
 					},
 				},
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			failFast := job.GetAnnotations()[configuration.FailFastAnnotation] == "true"
+			failFast := job.Annotations()[configuration.FailFastAnnotation] == "true"
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
-				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
+				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx, job)
 				if err != nil {
-					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.GetId(), err)
+					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
 				} else {
 					if schedulable {
 						job = jobWithAntiAffinity
@@ -755,6 +787,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 					Event: &armadaevents.EventSequence_Event_JobRequeued{
 						JobRequeued: &armadaevents.JobRequeued{
 							JobId:                jobId,
+							JobIdStr:             job.Id(),
 							SchedulingInfo:       job.JobSchedulingInfo(),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
@@ -799,15 +832,16 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 					Created: s.now(),
 					Event: &armadaevents.EventSequence_Event_JobErrors{
 						JobErrors: &armadaevents.JobErrors{
-							JobId:  jobId,
-							Errors: []*armadaevents.Error{runError},
+							JobId:    jobId,
+							JobIdStr: job.Id(),
+							Errors:   []*armadaevents.Error{runError},
 						},
 					},
 				}
 
 				events = append(events, jobErrors)
 			}
-		} else if lastRun.PreemptRequested() && job.GetPriorityClass().Preemptible {
+		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(lastRun.Id()), s.clock.Now())...)
 		}
@@ -838,7 +872,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	if err != nil {
 		return nil, err
 	}
-	staleExecutors := make(map[string]bool, 0)
+	staleExecutors := make(map[string]bool)
 	cutOff := s.clock.Now().Add(-s.executorTimeout)
 
 	jobsToUpdate := make([]*jobdb.Job, 0)
@@ -894,9 +928,11 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunErrors{
 							JobRunErrors: &armadaevents.JobRunErrors{
-								RunId:  armadaevents.ProtoUuidFromUuid(run.Id()),
-								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredError},
+								RunId:    armadaevents.ProtoUuidFromUuid(run.Id()),
+								RunIdStr: run.Id().String(),
+								JobId:    jobId,
+								JobIdStr: job.Id(),
+								Errors:   []*armadaevents.Error{leaseExpiredError},
 							},
 						},
 					},
@@ -904,8 +940,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobErrors{
 							JobErrors: &armadaevents.JobErrors{
-								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredError},
+								JobId:    jobId,
+								JobIdStr: job.Id(),
+								Errors:   []*armadaevents.Error{leaseExpiredError},
 							},
 						},
 					},
@@ -920,48 +957,89 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	return events, nil
 }
 
-// cancelQueuedJobsIfExpired generates cancel request messages for any queued jobs that exceed their queueTtl.
-func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	jobsToCancel := make([]*jobdb.Job, 0)
-	events := make([]*armadaevents.EventSequence, 0)
-	it := txn.QueuedJobsByTtl()
+func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	jobsToCheck := make([]*jobdb.Job, 0)
 
-	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
-	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
+	it := txn.UnvalidatedJobs()
+
+	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
+		// Don't check jobs that are terminal
 		if job.InTerminalState() {
 			continue
 		}
+		jobsToCheck = append(jobsToCheck, job)
+	}
 
-		job = job.WithCancelRequested(true).WithQueued(false).WithCancelled(true)
+	results, err := s.submitChecker.Check(ctx, jobsToCheck)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, job := range jobsToCheck {
+		err := job.ValidateResourceRequests()
+		if err != nil {
+			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
+		}
+	}
+
+	events := make([]*armadaevents.EventSequence, 0)
+	jobsToUpdate := make([]*jobdb.Job, 0)
+	for _, job := range jobsToCheck {
+		result := results[job.Id()]
+
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
 		}
 
-		reason := "Expired queue ttl"
-		cancel := &armadaevents.EventSequence{
+		es := &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
 				{
 					Created: s.now(),
-					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
-				},
-				{
-					Created: s.now(),
-					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
 				},
 			},
 		}
 
-		jobsToCancel = append(jobsToCancel, job)
-		events = append(events, cancel)
+		if result.isSchedulable {
+			job = job.WithValidated(true).WithPools(result.pools)
+			jobsToUpdate = append(jobsToUpdate, job)
+
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobValidated{
+				JobValidated: &armadaevents.JobValidated{
+					JobId:    jobId,
+					JobIdStr: job.Id(),
+					Pools:    result.pools,
+				},
+			}
+		} else {
+			job = job.WithFailed(true).WithQueued(false)
+			jobsToUpdate = append(jobsToUpdate, job)
+
+			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId:    jobId,
+					JobIdStr: job.Id(),
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_JobRejected{
+								JobRejected: &armadaevents.JobRejected{
+									Message: result.reason,
+								},
+							},
+						},
+					},
+				},
+			}
+		}
+		events = append(events, es)
 	}
 
-	if err := txn.Upsert(jobsToCancel); err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
-
 	return events, nil
 }
 
@@ -981,7 +1059,6 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			// TODO(albin): This doesn't need to be separate; we'd anyway load everything in the first scheduling cycle.
 			if _, _, err := s.syncState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)

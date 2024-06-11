@@ -11,12 +11,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -69,51 +69,11 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedCumulativeScheduledJobs: []int{0},
 			ExpectedRuntimeGangCardinality:  []int{0},
 		},
-		"simple success where min cardinality is met": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
-					32,
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40),
-				),
-			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{32},
-			ExpectedRuntimeGangCardinality:  []int{32},
-		},
-		"simple failure where min cardinality is not met": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
-					33,
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40),
-				),
-			},
-			ExpectedScheduledIndices:        nil,
-			ExpectedCumulativeScheduledJobs: []int{0},
-			ExpectedRuntimeGangCardinality:  []int{0},
-		},
 		"one success and one failure": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)),
-				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
-			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{32, 32},
-			ExpectedRuntimeGangCardinality:  []int{32, 0},
-		},
-		"one success and one failure using min cardinality": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
-					32,
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
-				),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
 			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
@@ -212,7 +172,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"resolution has no impact on jobs of size a multiple of the resolution": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("16")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -233,7 +193,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"jobs of size not a multiple of the resolution blocks scheduling new jobs": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("17")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -252,10 +212,10 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"consider all nodes in the bucket": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexedResource{
+				[]configuration.ResourceType{
 					{Name: "cpu", Resolution: resource.MustParse("1")},
 					{Name: "memory", Resolution: resource.MustParse("1Mi")},
-					{Name: "gpu", Resolution: resource.MustParse("1")},
+					{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -264,9 +224,9 @@ func TestGangScheduler(t *testing.T) {
 					0,
 					schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("31.5"),
-							"memory": resource.MustParse("512Gi"),
-							"gpu":    resource.MustParse("8"),
+							"cpu":            resource.MustParse("31.5"),
+							"memory":         resource.MustParse("512Gi"),
+							"nvidia.com/gpu": resource.MustParse("8"),
 						},
 					},
 					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
@@ -400,11 +360,10 @@ func TestGangScheduler(t *testing.T) {
 				)...,
 			),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
-					2,
+				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.WithNodeUniformityLabelAnnotationJobs(
 						"my-cool-node-uniformity",
-						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 4),
+						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
 					),
 				),
 			},
@@ -412,43 +371,6 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedCumulativeScheduledJobs: []int{3},
 			ExpectedNodeUniformity:          map[int]string{0: "b"},
 			ExpectedRuntimeGangCardinality:  []int{3},
-		},
-		"NodeUniformityLabel PreemptedAtPriority tiebreak": {
-			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
-				[]string{"my-cool-node-uniformity"},
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: append(
-				testfixtures.WithUsedResourcesNodes(
-					1,
-					schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-					testfixtures.WithLabelsNodes(
-						map[string]string{"my-cool-node-uniformity": "a"},
-						testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
-					),
-				),
-				testfixtures.WithUsedResourcesNodes(
-					0,
-					schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-					testfixtures.WithLabelsNodes(
-						map[string]string{"my-cool-node-uniformity": "b"},
-						testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
-					),
-				)...,
-			),
-			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
-					2,
-					testfixtures.WithNodeUniformityLabelAnnotationJobs(
-						"my-cool-node-uniformity",
-						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass2, 4),
-					),
-				),
-			},
-			ExpectedScheduledIndices:        []int{0},
-			ExpectedCumulativeScheduledJobs: []int{2},
-			ExpectedNodeUniformity:          map[int]string{0: "b"},
-			ExpectedRuntimeGangCardinality:  []int{2},
 		},
 		"AwayNodeTypes": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
@@ -509,7 +431,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				var jobId ulid.ULID
 				jobId = util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{
+					testfixtures.
+						TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)),
+				})
 				jobId = util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away-both", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
 				return
@@ -568,18 +493,28 @@ func TestGangScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			// This is hacktabulous. Essentially the jobs have the wrong priority classes set at this point
+			// because textfixtures.TestJob() initialises the jobs using a jobDb that doesn't know anything about the
+			// priority classes we have defined in this test.  We therefore need to fix the priority classes here.
+			// The long term strategy is to try and remove the need to have a jobDB for creating jobs.
+			for i, gang := range tc.Gangs {
+				for j, job := range gang {
+					tc.Gangs[i][j] = job.WithPriorityClass(tc.SchedulingConfig.PriorityClasses[job.PriorityClassName()])
+				}
+			}
+
 			nodesById := make(map[string]*schedulerobjects.Node, len(tc.Nodes))
 			for _, node := range tc.Nodes {
 				nodesById[node.Id] = node
 			}
 			nodeDb, err := nodedb.NewNodeDb(
 				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.MaxExtraNodesToConsider,
 				tc.SchedulingConfig.IndexedResources,
 				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,
 				tc.SchedulingConfig.WellKnownNodeTypes,
 				stringinterner.New(1024),
+				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
@@ -595,7 +530,7 @@ func TestGangScheduler(t *testing.T) {
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
 				for _, job := range jobs {
-					priorityFactorByQueue[job.GetQueue()] = 1
+					priorityFactorByQueue[job.Queue()] = 1
 				}
 			}
 
@@ -674,16 +609,6 @@ func TestGangScheduler(t *testing.T) {
 						if expectedValue, ok := tc.ExpectedNodeUniformity[i]; ok {
 							actualValue := maps.Keys(nodeUniformityLabelValues)[0]
 							require.Equal(t, expectedValue, actualValue)
-						}
-					}
-
-					// Verify any excess jobs that failed have the correct state set
-					for _, jctx := range jctxs {
-						if jctx.ShouldFail {
-							if jctx.PodSchedulingContext != nil {
-								require.Equal(t, "", jctx.PodSchedulingContext.NodeId)
-							}
-							require.Equal(t, "job does not fit on any node", jctx.UnschedulableReason)
 						}
 					}
 

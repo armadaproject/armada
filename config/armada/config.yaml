@@ -6,7 +6,7 @@ corsAllowedOrigins:
   - http://localhost:8089
   - http://localhost:10000
 grpcGatewayPath: "/"
-cancelJobsBatchSize: 1000
+queueCacheRefreshPeriod: 10s
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
 grpc:
@@ -19,45 +19,12 @@ grpc:
     permitWithoutStream: true
   tls:
     enabled: false
-redis:
-  addrs:
-    - redis:6379
-  password: ""
-  db: 0
-  poolSize: 1000
 eventsApiRedis:
   addrs:
     - redis:6379
   password: ""
   db: 1
   poolSize: 1000
-# Scheduling config used by the job submitChecker. Only needs the following subset of config options.
-# You may also wish to configure indexedNodeLabels and indexedTaints to speed up checking.
-#
-# This config must be consistent with the scheduling config used by the scheduler.
-# You may want to insert the scheduling config used for the scheduler automatically, e.g., using PyYAML, to guarantee consistency.
-scheduling:
-  executorTimeout: "60m"
-  executorUpdateFrequency: "1m"
-  priorityClasses:
-    armada-default:
-      priority: 1000
-      preemptible: false
-      maximumResourceFractionPerQueue:
-        memory: 1.0
-        cpu: 1.0
-    armada-preemptible:
-      priority: 1000
-      preemptible: true
-  indexedResources:
-    - name: "nvidia.com/gpu"
-      resolution: "1"
-    - name: "cpu"
-      resolution: "100m"
-    - name: "memory"
-      resolution: "100Mi"
-    - name: "ephemeral-storage"
-      resolution: "1Gi"
 submission:
   allowedPriorityClassNames:
     armada-default: true
@@ -116,17 +83,7 @@ postgres:
     port: 5432
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: lookout
     sslmode: disable
 queryapi:
-  enabled: false
   maxQueryItems: 500
-  postgres:
-    connection:
-      host: postgres
-      port: 5432
-      user: postgres
-      password: psw
-      dbname: postgres
-      sslmode: disable
-

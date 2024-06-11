@@ -85,7 +85,12 @@ func AirflowOperator() error {
 		return fmt.Errorf("failed to create proto-airflow directory: %w", err)
 	}
 
-	err = dockerRun("buildx", "build", "-o", "type=docker", "-t", "armada-airflow-operator-builder", "-f", "./build/airflow-operator/Dockerfile", ".")
+	buildConfig, err := getBuildConfig()
+	if err != nil {
+		return err
+	}
+	err = dockerBuildImage(NewDockerBuildConfig(buildConfig.PythonBuilderBaseImage), "armada-airflow-operator-builder", "./build/airflow-operator/Dockerfile")
+
 	if err != nil {
 		return fmt.Errorf("failed to build Airflow Operator: %w", err)
 	}

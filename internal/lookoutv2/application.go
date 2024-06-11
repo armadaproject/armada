@@ -11,7 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/common/util"
+	slices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/conversions"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
@@ -31,12 +31,11 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		return err
 	}
 
-	getJobsRepo := repository.NewSqlGetJobsRepository(db, false)
-	getJobsJsonbRepo := repository.NewSqlGetJobsRepository(db, true)
-	groupJobsRepo := repository.NewSqlGroupJobsRepository(db, false)
-	groupJobsJsonbRepo := repository.NewSqlGroupJobsRepository(db, true)
+	getJobsRepo := repository.NewSqlGetJobsRepository(db)
+	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
+	getJobRunDebugMessageRepo := repository.NewSqlGetJobRunDebugMessageRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
 
 	// create new service API
@@ -54,13 +53,9 @@ func Serve(configuration configuration.LookoutV2Config) error {
 
 	api.GetJobsHandler = operations.GetJobsHandlerFunc(
 		func(params operations.GetJobsParams) middleware.Responder {
-			filters := util.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
+			filters := slices.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
-			repo := getJobsRepo
-			if backend := params.Backend; backend != nil && *backend == "jsonb" {
-				repo = getJobsJsonbRepo
-			}
-			result, err := repo.GetJobs(
+			result, err := getJobsRepo.GetJobs(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
@@ -72,20 +67,16 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGetJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobsOK().WithPayload(&operations.GetJobsOKBody{
-				Jobs: util.Map(result.Jobs, conversions.ToSwaggerJob),
+				Jobs: slices.Map(result.Jobs, conversions.ToSwaggerJob),
 			})
 		},
 	)
 
 	api.GroupJobsHandler = operations.GroupJobsHandlerFunc(
 		func(params operations.GroupJobsParams) middleware.Responder {
-			filters := util.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
+			filters := slices.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
-			repo := groupJobsRepo
-			if backend := params.Backend; backend != nil && *backend == "jsonb" {
-				repo = groupJobsJsonbRepo
-			}
-			result, err := repo.GroupBy(
+			result, err := groupJobsRepo.GroupBy(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GroupJobsRequest.ActiveJobSets,
@@ -99,7 +90,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGroupJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGroupJobsOK().WithPayload(&operations.GroupJobsOKBody{
-				Groups: util.Map(result.Groups, conversions.ToSwaggerGroup),
+				Groups: slices.Map(result.Groups, conversions.ToSwaggerGroup),
 			})
 		},
 	)
@@ -112,6 +103,19 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobRunErrorOK().WithPayload(&operations.GetJobRunErrorOKBody{
+				ErrorString: result,
+			})
+		},
+	)
+
+	api.GetJobRunDebugMessageHandler = operations.GetJobRunDebugMessageHandlerFunc(
+		func(params operations.GetJobRunDebugMessageParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobRunDebugMessageRepo.GetJobRunDebugMessage(ctx, params.GetJobRunDebugMessageRequest.RunID)
+			if err != nil {
+				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobRunDebugMessageOK().WithPayload(&operations.GetJobRunDebugMessageOKBody{
 				ErrorString: result,
 			})
 		},

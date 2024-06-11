@@ -11,7 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -28,7 +28,8 @@ import (
 )
 
 func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
-	podIssueService, _, _, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, _, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 
 	podIssueService.HandlePodIssues()
 
@@ -36,7 +37,8 @@ func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
 }
 
 func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 	runningPod := makeRunningPod()
 	addPod(t, fakeClusterContext, runningPod)
 
@@ -48,9 +50,11 @@ func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 	unretryableStuckPod := makeUnretryableStuckPod()
 	addPod(t, fakeClusterContext, unretryableStuckPod)
+	addPodEvents(fakeClusterContext, unretryableStuckPod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
 
 	podIssueService.HandlePodIssues()
 
@@ -69,10 +73,12 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "unrecoverable problem")
+	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 	terminatingPod := makeTerminatingPod()
 	addPod(t, fakeClusterContext, terminatingPod)
 
@@ -114,7 +120,8 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+			podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+			require.NoError(t, err)
 			addPod(t, fakeClusterContext, tc.pod)
 
 			podIssueService.HandlePodIssues()
@@ -138,9 +145,11 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 }
 
 func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
+	addPodEvents(fakeClusterContext, retryableStuckPod, []*v1.Event{{Message: "Some other message", Type: "Warning"}})
 
 	podIssueService.HandlePodIssues()
 
@@ -165,10 +174,12 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 	assert.True(t, ok)
 	assert.Len(t, returnedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned() != nil)
+	assert.Contains(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned().DebugMessage, "Some other message")
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 	retryableStuckPod := makeRetryableStuckPod()
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
@@ -205,7 +216,8 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 }
 
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
 	runningPod := makeRunningPod()
 	protoJobId, err := armadaevents.ProtoUuidFromUlidString(util.ExtractJobId(runningPod))
 	require.NoError(t, err)
@@ -230,7 +242,8 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
 	require.NoError(t, err)
 
-	podIssueService, _, _, eventsReporter := setupTestComponents([]*job.RunState{createRunState(jobId, uuid.New().String(), job.Active)})
+	podIssueService, _, _, eventsReporter, err := setupTestComponents([]*job.RunState{createRunState(jobId, uuid.New().String(), job.Active)})
+	require.NoError(t, err)
 	podIssueService.clock = fakeClock
 
 	podIssueService.HandlePodIssues()
@@ -254,7 +267,8 @@ func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T
 	fakeClock := clock.NewFakeClock(baseTime)
 	runningPod := makeRunningPod()
 	runState := createRunState(util.ExtractJobId(runningPod), util.ExtractJobRunId(runningPod), job.Active)
-	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{runState})
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{runState})
+	require.NoError(t, err)
 	podIssueService.clock = fakeClock
 
 	podIssueService.HandlePodIssues()
@@ -270,7 +284,8 @@ func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T
 func TestPodIssueService_DeleteRunFromRunState_IfSubmittedPodNeverAppears(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
-	podIssueService, runStateStore, _, eventsReporter := setupTestComponents([]*job.RunState{createRunState("job-1", "run-1", job.SuccessfulSubmission)})
+	podIssueService, runStateStore, _, eventsReporter, err := setupTestComponents([]*job.RunState{createRunState("job-1", "run-1", job.SuccessfulSubmission)})
+	require.NoError(t, err)
 	podIssueService.clock = fakeClock
 
 	podIssueService.HandlePodIssues()
@@ -290,7 +305,8 @@ func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 	fakeClock := clock.NewFakeClock(baseTime)
 	runningPod := makeRunningPod()
 	runState := createRunState(util.ExtractJobId(runningPod), util.ExtractJobRunId(runningPod), job.SuccessfulSubmission)
-	podIssueService, runStateStore, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{runState})
+	podIssueService, runStateStore, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{runState})
+	require.NoError(t, err)
 	podIssueService.clock = fakeClock
 
 	podIssueService.HandlePodIssues()
@@ -304,7 +320,7 @@ func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 	assert.Len(t, runStateStore.GetAll(), 1)
 }
 
-func setupTestComponents(initialRunState []*job.RunState) (*IssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter) {
+func setupTestComponents(initialRunState []*job.RunState) (*IssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
 	pendingPodChecker := makePodChecker()
@@ -314,7 +330,7 @@ func setupTestComponents(initialRunState []*job.RunState) (*IssueHandler, *job.J
 		DeadlineForActivePodConsideredMissing:    time.Minute * 5,
 	}
 
-	podIssueHandler := NewIssueHandler(
+	podIssueHandler, err := NewIssueHandler(
 		runStateStore,
 		fakeClusterContext,
 		eventReporter,
@@ -323,7 +339,7 @@ func setupTestComponents(initialRunState []*job.RunState) (*IssueHandler, *job.J
 		time.Minute*3,
 	)
 
-	return podIssueHandler, runStateStore, fakeClusterContext, eventReporter
+	return podIssueHandler, runStateStore, fakeClusterContext, eventReporter, err
 }
 
 func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunState {
@@ -446,4 +462,8 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func addPodEvents(fakeClusterContext *fakecontext.SyncFakeClusterContext, pod *v1.Pod, events []*v1.Event) {
+	fakeClusterContext.Events[util.ExtractJobId(pod)] = events
 }

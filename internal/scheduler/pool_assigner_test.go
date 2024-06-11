@@ -7,42 +7,44 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestPoolAssigner_AssignPool(t *testing.T) {
-	executorTimeout := 15 * time.Minute
-	cpuJob := testfixtures.TestQueuedJobDbJob()
-	gpuJob := testfixtures.WithJobDbJobPodRequirements(testfixtures.TestQueuedJobDbJob(), testfixtures.Test1GpuPodReqs(testfixtures.TestQueue, util.ULID(), testfixtures.TestPriorities[0]))
+func TestPoolAssigner_AssignPools(t *testing.T) {
+	queuedJob := testfixtures.TestQueuedJobDbJob()
+	cpuExecutor := testfixtures.TestExecutor(testfixtures.BaseTime)
+	runningJob := queuedJob.
+		WithQueued(false).
+		WithNewRun(cpuExecutor.Id, "testNode", "testNode", 0)
 
 	tests := map[string]struct {
 		executorTimout time.Duration
-		config         configuration.SchedulingConfig
 		executors      []*schedulerobjects.Executor
 		job            *jobdb.Job
-		expectedPool   string
+		expectedPools  []string
 	}{
-		"matches pool": {
-			executorTimout: executorTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
-			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			job:            cpuJob,
-			expectedPool:   "cpu",
+		"queued job with single pool": {
+			job:           queuedJob.WithPools([]string{"cpu"}),
+			expectedPools: []string{"cpu"},
 		},
-		"doesn't match pool": {
-			executorTimout: executorTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
-			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
-			job:            gpuJob,
-			expectedPool:   "",
+		"queued job with multiple pools": {
+			job:           queuedJob.WithPools([]string{"cpu", "gpu"}),
+			expectedPools: []string{"cpu", "gpu"},
+		},
+		"running job matches pool": {
+			executors:     []*schedulerobjects.Executor{cpuExecutor},
+			job:           runningJob,
+			expectedPools: []string{"cpu"},
+		},
+		"running job doesn't match pool": {
+			executors:     []*schedulerobjects.Executor{},
+			job:           runningJob,
+			expectedPools: []string{""},
 		},
 	}
 	for name, tc := range tests {
@@ -53,17 +55,14 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-			fakeClock := clock.NewFakeClock(testfixtures.BaseTime)
-			assigner, err := NewPoolAssigner(tc.executorTimout, tc.config, mockExecutorRepo)
-			require.NoError(t, err)
-			assigner.clock = fakeClock
+			assigner := NewPoolAssigner(mockExecutorRepo)
 
-			err = assigner.Refresh(ctx)
+			err := assigner.Refresh(ctx)
 			require.NoError(t, err)
-			pool, err := assigner.AssignPool(tc.job)
+			pools, err := assigner.AssignPools(tc.job)
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expectedPool, pool)
+			assert.Equal(t, tc.expectedPools, pools)
 		})
 	}
 }

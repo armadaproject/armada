@@ -1,15 +1,16 @@
 package cmd
 
 import (
+	"math"
 	"os"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -27,6 +28,9 @@ func RootCmd() *cobra.Command {
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
 	cmd.Flags().Int("logInterval", 0, "Log summary statistics every this many events. Disabled if 0.")
 	cmd.Flags().String("eventsOutputFilePath", "", "Path of file to write events to.")
+	cmd.Flags().Bool("enableFastForward", false, "Skips schedule events when we're in a steady state")
+	cmd.Flags().Int("hardTerminationMinutes", math.MaxInt, "Limit the time simulated")
+	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
 	return cmd
 }
 
@@ -53,6 +57,19 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	filePath, err := cmd.Flags().GetString("eventsOutputFilePath")
+	if err != nil {
+		return err
+	}
+
+	enableFastForward, err := cmd.Flags().GetBool("enableFastForward")
+	if err != nil {
+		return err
+	}
+	hardTerminationMinutes, err := cmd.Flags().GetInt("hardTerminationMinutes")
+	if err != nil {
+		return err
+	}
+	schedulerCyclePeriodSeconds, err := cmd.Flags().GetInt("schedulerCyclePeriodSeconds")
 	if err != nil {
 		return err
 	}
@@ -84,8 +101,8 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 
 	ctx := armadacontext.Background()
 	ctx.Info("Armada simulator")
-	ctx.Infof("ClusterSpecs: %v", util.Map(clusterSpecs, func(clusperSpec *simulator.ClusterSpec) string { return clusperSpec.Name }))
-	ctx.Infof("WorkloadSpecs: %v", util.Map(workloadSpecs, func(workloadSpec *simulator.WorkloadSpec) string { return workloadSpec.Name }))
+	ctx.Infof("ClusterSpecs: %v", slices.Map(clusterSpecs, func(clusperSpec *simulator.ClusterSpec) string { return clusperSpec.Name }))
+	ctx.Infof("WorkloadSpecs: %v", slices.Map(workloadSpecs, func(workloadSpec *simulator.WorkloadSpec) string { return workloadSpec.Name }))
 	ctx.Infof("SchedulingConfigs: %v", maps.Keys(schedulingConfigsByFilePath))
 
 	var fileWriter *simulator.Writer
@@ -108,7 +125,7 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	for _, clusterSpec := range clusterSpecs {
 		for _, workloadSpec := range workloadSpecs {
 			for schedulingConfigPath, schedulingConfig := range schedulingConfigsByFilePath {
-				if s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig); err != nil {
+				if s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig, enableFastForward, hardTerminationMinutes, schedulerCyclePeriodSeconds); err != nil {
 					return err
 				} else {
 					if !showSchedulerLogs {

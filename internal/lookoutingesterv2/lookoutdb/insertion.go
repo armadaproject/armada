@@ -12,7 +12,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
@@ -52,7 +51,7 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 
 	// Now we can job updates, annotations and new job runs
 	wg := sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		l.UpdateJobs(ctx, jobsToUpdate)
@@ -60,10 +59,6 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	go func() {
 		defer wg.Done()
 		l.CreateJobRuns(ctx, instructions.JobRunsToCreate)
-	}()
-	go func() {
-		defer wg.Done()
-		l.CreateUserAnnotations(ctx, instructions.UserAnnotationsToCreate)
 	}()
 
 	wg.Wait()
@@ -77,61 +72,58 @@ func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobsScalar(ctx, instructions)
 	}
+	log.Infof("Inserted %d jobs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	instructions = l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobsScalar(ctx, instructions)
 	}
+	log.Infof("Updated %d jobs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobRunsScalar(ctx, instructions)
 	}
+	log.Infof("Inserted %d job runs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
+	start := time.Now()
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
-}
-
-func (l *LookoutDb) CreateUserAnnotations(ctx *armadacontext.Context, instructions []*model.CreateUserAnnotationInstruction) {
-	if len(instructions) == 0 {
-		return
-	}
-	err := l.CreateUserAnnotationsBatch(ctx, instructions)
-	if err != nil {
-		log.WithError(err).Warn("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).")
-		l.CreateUserAnnotationsScalar(ctx, instructions)
-	}
+	log.Infof("Updated %d job runs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job")
+		tmpTable := "job_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -300,7 +292,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job")
+		tmpTable := "job_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -414,11 +406,11 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job_run")
+		tmpTable := "job_run_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s (
+				CREATE TEMPORARY TABLE %s (
 					run_id        varchar(36),
 					job_id        varchar(32),
 					cluster       varchar(512),
@@ -517,7 +509,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("job_run")
+		tmpTable := "job_run_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -529,6 +521,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					finished      timestamp,
 				    job_run_state smallint,
 					error         bytea,
+					debug         bytea,
 				    exit_code     int
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
@@ -548,6 +541,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"finished",
 					"job_run_state",
 					"error",
+					"debug",
 					"exit_code",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
@@ -559,6 +553,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Finished,
 						instructions[i].JobRunState,
 						instructions[i].Error,
+						instructions[i].Debug,
 						instructions[i].ExitCode,
 					}, nil
 				}),
@@ -577,6 +572,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						finished      = coalesce(tmp.finished, job_run.finished),
 						job_run_state = coalesce(tmp.job_run_state, job_run.job_run_state),
 						error         = coalesce(tmp.error, job_run.error),
+						debug         = coalesce(tmp.debug, job_run.debug),
 						exit_code     = coalesce(tmp.exit_code, job_run.exit_code)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
@@ -599,7 +595,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			job_run_state = coalesce($5, job_run_state),
 			error         = coalesce($6, error),
 			exit_code     = coalesce($7, exit_code),
-			pending       = coalesce($8, pending)
+			pending       = coalesce($8, pending),
+			debug         = coalesce($9, debug)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -611,7 +608,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.JobRunState,
 				i.Error,
 				i.ExitCode,
-				i.Pending)
+				i.Pending,
+				i.Debug)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
@@ -619,98 +617,6 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job run %s failed", i.RunId)
-		}
-	}
-}
-
-func (l *LookoutDb) CreateUserAnnotationsBatch(ctx *armadacontext.Context, instructions []*model.CreateUserAnnotationInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := database.UniqueTableName("user_annotation_lookup")
-
-		createTmp := func(tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s (
-					job_id varchar(32),
-					key    varchar(1024),
-					value  varchar(1024),
-					queue  varchar(512),
-					jobset varchar(1024)
-				) ON COMMIT DROP;`, tmpTable))
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
-			}
-			return err
-		}
-
-		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
-				pgx.Identifier{tmpTable},
-				[]string{
-					"job_id",
-					"key",
-					"value",
-					"queue",
-					"jobset",
-				},
-				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
-					return []interface{}{
-						instructions[i].JobId,
-						instructions[i].Key,
-						instructions[i].Value,
-						instructions[i].Queue,
-						instructions[i].Jobset,
-					}, nil
-				}),
-			)
-			return err
-		}
-
-		copyToDest := func(tx pgx.Tx) error {
-			_, err := tx.Exec(
-				ctx,
-				fmt.Sprintf(`
-					INSERT INTO user_annotation_lookup (
-						job_id,
-						key,
-						value,
-						queue,
-						jobset
-					) SELECT * from %s
-					ON CONFLICT DO NOTHING`, tmpTable))
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		}
-		return batchInsert(ctx, l.db, createTmp, insertTmp, copyToDest)
-	})
-}
-
-func (l *LookoutDb) CreateUserAnnotationsScalar(ctx *armadacontext.Context, instructions []*model.CreateUserAnnotationInstruction) {
-	sqlStatement := `INSERT INTO user_annotation_lookup (
-			job_id,
-			key,
-			value,
-			queue,
-			jobset)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING`
-	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement,
-				i.JobId,
-				i.Key,
-				i.Value,
-				i.Queue,
-				i.Jobset)
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		})
-		// TODO- work out what is a retryable error
-		if err != nil {
-			log.WithError(err).Warnf("Create annotation run for job %s, key %s failed", i.JobId, i.Key)
 		}
 	}
 }
@@ -820,6 +726,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			if update.Error != nil {
 				existing.Error = update.Error
 			}
+			if update.Debug != nil {
+				existing.Debug = update.Debug
+			}
 			if update.JobRunState != nil {
 				existing.JobRunState = update.JobRunState
 			}
@@ -862,7 +771,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	for i, instruction := range instructions {
 		jobIds[i] = instruction.JobId
 	}
-
+	queryStart := time.Now()
 	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
 		terminalStates := []int{
 			lookout.JobSucceededOrdinal,
@@ -890,6 +799,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 			terminalJobs[jobId] = int(state)
 		}
 	}
+	log.Infof("Lookup of terminal states for %d jobs took %s and returned  %d results", len(instructions), time.Since(queryStart), len(terminalJobs))
 
 	if len(terminalJobs) > 0 {
 		jobInstructionMap := make(map[string]*updateInstructionsForJob)

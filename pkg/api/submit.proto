@@ -29,8 +29,7 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
-    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
-    int64 queue_ttl_seconds = 12;
+    // Ordinal 12 was previously used for queue_ttl_seconds
 }
 
 message IngressConfig {
@@ -190,6 +189,7 @@ message Queue {
     double priority_factor = 2;
     repeated string user_owners = 3;
     repeated string group_owners = 4;
+    // These are ignored and should be removed
     map<string, double> resource_limits = 5 [deprecated = true];
     // Map from priority class name to resource limit overrides for this queue and priority class.
     // If provided for a priority class, global limits for that priority class do not apply to this queue.
@@ -267,6 +267,16 @@ message StreamingQueueMessage{
     Queue queue = 1;
     EndMarker end = 2;
   }
+}
+
+service QueueService {
+  rpc CreateQueue (Queue) returns (google.protobuf.Empty) {}
+  rpc CreateQueues (QueueList) returns (BatchQueueCreateResponse) {}
+  rpc UpdateQueue (Queue) returns (google.protobuf.Empty) {}
+  rpc UpdateQueues (QueueList) returns (BatchQueueUpdateResponse){}
+  rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {}
+  rpc GetQueue (QueueGetRequest) returns (Queue) {}
+  rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {}
 }
 
 service Submit {

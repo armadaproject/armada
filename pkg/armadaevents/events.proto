@@ -83,7 +83,6 @@ message EventSequence {
             JobRunRunning jobRunRunning= 12;
             JobRunSucceeded jobRunSucceeded = 13;
             JobRunErrors jobRunErrors = 14;
-            JobDuplicateDetected jobDuplicateDetected = 15;
             StandaloneIngressInfo standaloneIngressInfo = 16;
             ResourceUtilisation resourceUtilisation = 17;
             JobRunPreempted jobRunPreempted = 19;
@@ -91,6 +90,8 @@ message EventSequence {
             JobRunPreemptionRequested jobRunPreemptionRequested = 21;
             JobRequeued jobRequeued = 22;
             JobPreemptionRequested jobPreemptionRequested = 23;
+            JobRunCancelled jobRunCancelled = 24;
+            JobValidated jobValidated = 25;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -114,6 +115,9 @@ message ResourceUtilisation {
     KubernetesResourceInfo resource_info = 3;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5 [(gogoproto.nullable) = false];
+    // This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
+    string job_id_str = 6;
+    string run_id_str = 7;
 }
 
 // A UUID, encoded in accordance with section 4.1.2 of RFC 4122
@@ -165,8 +169,9 @@ message SubmitJob {
     string scheduler = 11;
     // Indicates whether job is a duplicate
     bool isDuplicate = 12;
-    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
-    int64 queue_ttl_seconds = 13;
+    // Ordinal 13 was originally used for queue_ttl_seconds
+    // This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
+    string job_id_str = 14;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
@@ -218,6 +223,7 @@ message PodSpecWithAvoidList {
 message ReprioritiseJob {
     Uuid job_id = 1;
     uint32 priority = 2;
+    string job_id_str = 3;
 }
 
 message JobRequeued {
@@ -225,6 +231,7 @@ message JobRequeued {
     schedulerobjects.JobSchedulingInfo scheduling_info = 2;
     // Used by the scheduler to maintain a consistent state
     int32 update_sequence_number = 3;
+    string job_id_str = 4;
 }
 
 // Set the priority of all jobs part of a job set.
@@ -238,6 +245,7 @@ message ReprioritiseJobSet {
 message ReprioritisedJob {
     Uuid job_id = 1;
     uint32 priority = 2;
+    string job_id_str = 3;
 }
 
 // A request to cancel a particular job.
@@ -246,6 +254,7 @@ message ReprioritisedJob {
 message CancelJob {
     Uuid job_id = 1;
     string reason = 2;
+    string job_id_str = 3;
 }
 
 
@@ -273,6 +282,7 @@ message CancelJobSet {
 message CancelledJob {
     Uuid job_id = 1;
     string reason = 2;
+    string job_id_str = 3;
 }
 
 message JobSucceeded {
@@ -281,6 +291,7 @@ message JobSucceeded {
     // for each resource created for the job run.
     // TODO: remove this once we have fixed the external api
     repeated KubernetesResourceInfo resourceInfos = 2;
+    string job_id_str = 3;
 }
 
 // Indicates that a job has been leased to a cluster by the Armada scheduler.
@@ -309,6 +320,8 @@ message JobRunLeased {
     // for example, it may add additional tolerations to runs that are scheduled
     // as away jobs.
     schedulerobjects.PodRequirements pod_requirements_overlay = 9;
+    string job_id_str = 10;
+    string run_id_str = 11;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.
@@ -319,6 +332,8 @@ message JobRunAssigned {
     // for each resource created for the job run.
     // Included here and in JobRunRunning for compatibility with legacy messages.
     repeated KubernetesResourceInfo resourceInfos = 3;
+    string job_id_str = 4;
+    string run_id_str = 5;
 }
 
 // Indicates that the resources required by the job have been created and that the job is now running.
@@ -328,6 +343,8 @@ message JobRunRunning {
     // Runtime information, e.g., which node the job is running on, its IP address etc,
     // for each resource created for the job run.
     repeated KubernetesResourceInfo resourceInfos = 3;
+    string job_id_str = 4;
+    string run_id_str = 5;
 }
 
 // Message containing runtime information about some resource created for a job.
@@ -363,10 +380,12 @@ message StandaloneIngressInfo {
     ObjectMeta objectMeta = 3;
     map<int32, string> ingress_addresses = 4;
     // The legacy message bundles info associated with the pod.
-	string node_name = 5;
-	int32 pod_number = 6;
-	string pod_name = 7;
-	string pod_namespace = 8;
+    string node_name = 5;
+    int32 pod_number = 6;
+    string pod_name = 7;
+    string pod_namespace = 8;
+    string job_id_str = 9;
+    string run_id_str = 10;
 }
 
 // Indicates that the job finished successfully (i.e., in the expected manner).
@@ -377,6 +396,8 @@ message JobRunSucceeded {
     // for each resource created for the job run.
     // TODO: remove this once we have fixed the external api
     repeated KubernetesResourceInfo resourceInfos = 3;
+    string job_id_str = 4;
+    string run_id_str = 5;
 }
 
 // Message containing a set of errors associated with a particular job.
@@ -386,6 +407,7 @@ message JobErrors {
     Uuid job_id = 1;
     // A set of errors that occurred within some context.
     repeated Error errors = 2;
+    string job_id_str = 3;
 }
 
 // Message containing a set of errors associated with a particular job run.
@@ -400,6 +422,8 @@ message JobRunErrors {
     Uuid job_id = 2;
     // A set of errors that occurred within some context.
     repeated Error errors = 3;
+    string job_id_str = 4;
+    string run_id_str = 5;
 }
 
 // Represents a failure that took place in the course of a job run (i.e., an attempt to run a job).
@@ -426,6 +450,7 @@ message Error {
         PodTerminated podTerminated = 10;
         JobRunPreemptedError jobRunPreemptedError = 11;
         GangJobUnschedulable gangJobUnschedulable = 12;
+        JobRejected jobRejected = 13;
     }
 }
 
@@ -454,6 +479,7 @@ message PodError {
     int32 pod_number = 4;
     repeated ContainerError containerErrors = 5;
     KubernetesReason  kubernetes_reason = 6;
+    string debugMessage = 7;
 }
 
 message ContainerError {
@@ -475,6 +501,7 @@ message PodLeaseReturned {
     string message = 2;
     int32 pod_number = 3;
     bool run_attempted =4;
+    string debugMessage = 5;
 }
 
 // Indicates that the lease on the job that the pod was part of could not be renewed.
@@ -512,11 +539,8 @@ message GangJobUnschedulable{
     string message = 1;
 }
 
-// Generated by the scheduler whenever it detects a SubmitJob message that includes a previously used deduplication id
-// (i.e., when it detects a duplicate job submission).
-message JobDuplicateDetected {
-    Uuid new_job_id = 1;
-    Uuid old_job_id = 2;
+message JobRejected {
+  string message = 1;
 }
 
 // Message to indicate that a JobRun has been preempted.
@@ -529,6 +553,8 @@ message JobRunPreempted{
     Uuid preemptive_job_id = 3;
     // Uuid of the job run that caused the preemption.
     Uuid preemptive_run_id = 4;
+    string preempted_job_id_str = 5;
+    string preempted_run_id_str = 6;
 }
 
 // Message used internally by Armada to see if messages can be propagated through a pulsar partition
@@ -543,9 +569,28 @@ message PartitionMarker {
 message JobRunPreemptionRequested {
     Uuid run_id = 1;
     Uuid job_id = 2;
+    string job_id_str = 3;
+    string run_id_str= 4;
 }
 
 // Indicates that a user has requested for the job to be pre-empted.
 message JobPreemptionRequested {
+    Uuid job_id = 1;
+    string job_id_str = 2;
+}
+
+// Indicates that the scheduler is happy with the job
+message JobValidated {
   Uuid job_id = 1;
+  repeated string pools = 2;
+  string job_id_str = 3;
+}
+
+// Generated by the scheduler when a job is cancelled, all active job runs are also cancelled
+// One such message is generated per job run that was cancelled.
+message JobRunCancelled {
+    Uuid run_id = 1;
+    Uuid job_id = 2;
+    string job_id_str = 3;
+    string run_id_str= 4;
 }

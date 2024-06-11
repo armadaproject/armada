@@ -449,8 +449,8 @@ func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 			UsedAtPriority: 1,
 			Resources: ResourceList{
 				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-					"gpu": resource.MustParse("2"),
+					"cpu":            resource.MustParse("1"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -459,8 +459,8 @@ func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 			UsedAtPriority: 5,
 			Resources: ResourceList{
 				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-					"gpu": resource.MustParse("2"),
+					"cpu":            resource.MustParse("1"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -469,8 +469,8 @@ func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 			UsedAtPriority: 10,
 			Resources: ResourceList{
 				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-					"gpu": resource.MustParse("2"),
+					"cpu":            resource.MustParse("1"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -514,24 +514,24 @@ func TestAllocatedByPriorityAndResourceType(t *testing.T) {
 			Priorities:     []int32{1, 5, 10},
 			UsedAtPriority: 1,
 			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
+				"cpu":            resource.MustParse("1"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 		},
 		"mid priority": {
 			Priorities:     []int32{1, 5, 10},
 			UsedAtPriority: 5,
 			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
+				"cpu":            resource.MustParse("1"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 		},
 		"highest priority": {
 			Priorities:     []int32{1, 5, 10},
 			UsedAtPriority: 10,
 			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
+				"cpu":            resource.MustParse("1"),
+				"nvidia.com/gpu": resource.MustParse("2"),
 			},
 		},
 	}
@@ -740,139 +740,6 @@ func TestResourceListIsStrictlyNonNegative(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.rl.IsStrictlyNonNegative())
-		})
-	}
-}
-
-func TestResourceListIsStrictlyLessOrEqual(t *testing.T) {
-	tests := map[string]struct {
-		a        ResourceList
-		b        ResourceList
-		expected bool
-	}{
-		"both empty": {
-			a:        ResourceList{},
-			b:        ResourceList{},
-			expected: true,
-		},
-		"both empty maps": {
-			a: ResourceList{
-				Resources: make(map[string]resource.Quantity),
-			},
-			b: ResourceList{
-				Resources: make(map[string]resource.Quantity),
-			},
-			expected: true,
-		},
-		"one empty map": {
-			a: ResourceList{
-				Resources: make(map[string]resource.Quantity),
-			},
-			b:        ResourceList{},
-			expected: true,
-		},
-		"zero equals empty": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0"),
-				},
-			},
-			b:        ResourceList{},
-			expected: true,
-		},
-		"zero and missing is equal": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("0"),
-				},
-			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-				},
-			},
-			expected: true,
-		},
-		"simple equal": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("2"),
-					"foo":    resource.MustParse("3"),
-				},
-			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("2"),
-					"foo":    resource.MustParse("3"),
-				},
-			},
-			expected: true,
-		},
-		"simple true": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-				},
-			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("3"),
-				},
-			},
-			expected: true,
-		},
-		"simple false": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("3"),
-				},
-			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-				},
-			},
-			expected: false,
-		},
-		"present in a missing in b true": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-				},
-			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-				},
-			},
-			expected: true,
-		},
-		"missing in a present in b true": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-				},
-			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-				},
-			},
-			expected: true,
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.a.IsStrictlyLessOrEqual(tc.b))
 		})
 	}
 }

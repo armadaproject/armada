@@ -1,14 +1,16 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubectl/pkg/describe"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -35,6 +37,7 @@ type podIssue struct {
 	// A copy of the pod when an issue was detected
 	OriginalPodState  *v1.Pod
 	Message           string
+	DebugMessage      string
 	Retryable         bool
 	DeletionRequested bool
 	Type              podIssueType
@@ -81,7 +84,7 @@ func NewIssueHandler(
 	stateChecksConfig configuration.StateChecksConfiguration,
 	pendingPodChecker podchecks.PodChecker,
 	stuckTerminatingPodExpiry time.Duration,
-) *IssueHandler {
+) (*IssueHandler, error) {
 	issueHandler := &IssueHandler{
 		jobRunState:               jobRunState,
 		clusterContext:            clusterContext,
@@ -94,7 +97,7 @@ func NewIssueHandler(
 		clock:                     clock.RealClock{},
 	}
 
-	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -104,8 +107,11 @@ func NewIssueHandler(
 			issueHandler.handleDeletedPod(pod)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return issueHandler
+	return issueHandler, nil
 }
 
 func (p *IssueHandler) hasIssue(runId string) bool {
@@ -216,6 +222,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
+				debugMessage := createDebugMessage(podEvents)
 				podIssueType := StuckStartingUp
 				if cause == podchecks.NoNodeAssigned {
 					podIssueType = UnableToSchedule
@@ -226,6 +233,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				issue := &podIssue{
 					OriginalPodState: pod.DeepCopy(),
 					Message:          message,
+					DebugMessage:     debugMessage,
 					Retryable:        retryable,
 					Type:             podIssueType,
 				}
@@ -237,6 +245,20 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			}
 		}
 	}
+}
+
+func createDebugMessage(podEvents []*v1.Event) string {
+	events := make([]v1.Event, 0, len(podEvents))
+	for _, e := range podEvents {
+		events = append(events, *e)
+	}
+
+	eventList := v1.EventList{Items: events}
+	writer := bytes.Buffer{}
+	prefixWriter := describe.NewPrefixWriter(&writer)
+
+	describe.DescribeEvents(&eventList, prefixWriter)
+	return writer.String()
 }
 
 // Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period
@@ -326,18 +348,18 @@ func (p *IssueHandler) handlePodIssue(issue *issue) {
 func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
-		message := issue.RunIssue.PodIssue.Message
+		podIssue := issue.RunIssue.PodIssue
 
 		events := make([]reporter.EventMessage, 0, 2)
-		if issue.RunIssue.PodIssue.Type == StuckStartingUp || issue.RunIssue.PodIssue.Type == UnableToSchedule {
-			unableToScheduleEvent, err := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, message, p.clusterContext.GetClusterId())
+		if podIssue.Type == StuckStartingUp || podIssue.Type == UnableToSchedule {
+			unableToScheduleEvent, err := reporter.CreateJobUnableToScheduleEvent(podIssue.OriginalPodState, podIssue.Message, p.clusterContext.GetClusterId())
 			if err != nil {
 				log.Errorf("Failed to create unable to schedule event for job %s because %s", issue.RunIssue.JobId, err)
 				return
 			}
 			events = append(events, reporter.EventMessage{Event: unableToScheduleEvent, JobRunId: issue.RunIssue.RunId})
 		}
-		failedEvent, err := reporter.CreateSimpleJobFailedEvent(issue.RunIssue.PodIssue.OriginalPodState, message, p.clusterContext.GetClusterId(), issue.RunIssue.PodIssue.Cause)
+		failedEvent, err := reporter.CreateSimpleJobFailedEvent(podIssue.OriginalPodState, podIssue.Message, podIssue.DebugMessage, p.clusterContext.GetClusterId(), podIssue.Cause)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
@@ -419,7 +441,14 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 		// When we have our own internal state - we don't need to wait for the pod deletion to complete
 		// We can just mark is to delete in our state and return the lease
 		jobRunAttempted := issue.RunIssue.PodIssue.Type != UnableToSchedule
-		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId(), jobRunAttempted)
+
+		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(
+			issue.RunIssue.PodIssue.OriginalPodState,
+			issue.RunIssue.PodIssue.Message,
+			issue.RunIssue.PodIssue.DebugMessage,
+			p.clusterContext.GetClusterId(),
+			jobRunAttempted,
+		)
 		if err != nil {
 			log.Errorf("Failed to create return lease event for job %s because %s", issue.RunIssue.JobId, err)
 			return

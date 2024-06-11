@@ -12,15 +12,14 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/schedulers"
+	"github.com/armadaproject/armada/internal/common/slices"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -37,8 +36,6 @@ type ExecutorApi struct {
 	jobRepository database.JobRepository
 	// Interface to the component storing executor information, such as which when we last heard from an executor.
 	executorRepository database.ExecutorRepository
-	// Like executorRepository
-	legacyExecutorRepository database.ExecutorRepository
 	// Allowed priority class priorities.
 	allowedPriorities []int32
 	// Known priority classes
@@ -55,7 +52,6 @@ type ExecutorApi struct {
 func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
-	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
@@ -69,7 +65,6 @@ func NewExecutorApi(producer pulsar.Producer,
 		producer:                  producer,
 		jobRepository:             jobRepository,
 		executorRepository:        executorRepository,
-		legacyExecutorRepository:  legacyExecutorRepository,
 		allowedPriorities:         allowedPriorities,
 		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
@@ -96,9 +91,6 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
 		return err
 	}
-	if err = srv.legacyExecutorRepository.StoreExecutor(ctx, executor); err != nil {
-		return err
-	}
 
 	requestRuns, err := runIdsFromLeaseRequest(req)
 	if err != nil {
@@ -122,7 +114,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancel: util.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
+					JobRunIdsToCancel: slices.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
 						return armadaevents.ProtoUuidFromUuid(x)
 					}),
 				},
@@ -318,7 +310,7 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)
+	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes)
 	return &types.Empty{}, err
 }
 
@@ -341,7 +333,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Nodes:          nodes,
 		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: now,
-		UnassignedJobRuns: util.Map(req.UnassignedJobRunIds, func(jobId armadaevents.Uuid) string {
+		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId armadaevents.Uuid) string {
 			return strings.ToLower(armadaevents.UuidFromProtoUuid(&jobId).String())
 		}),
 	}

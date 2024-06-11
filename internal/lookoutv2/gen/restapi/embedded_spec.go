@@ -142,6 +142,63 @@ func init() {
         }
       }
     },
+    "/api/v1/jobRunDebugMessage": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunDebugMessage",
+        "parameters": [
+          {
+            "name": "getJobRunDebugMessageRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns debug message for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Debug message for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobRunError": {
       "post": {
         "consumes": [
@@ -456,9 +513,16 @@ func init() {
         "lastTransitionTime",
         "duplicate",
         "annotations",
-        "runs"
+        "runs",
+        "cluster",
+        "RuntimeSeconds"
       ],
       "properties": {
+        "RuntimeSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": false
+        },
         "annotations": {
           "type": "object",
           "additionalProperties": {
@@ -475,6 +539,10 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "cluster": {
+          "type": "string",
+          "x-nullable": false
+        },
         "cpu": {
           "type": "integer",
           "format": "int64",
@@ -488,6 +556,11 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": true
         },
         "gpu": {
           "type": "integer",
@@ -520,6 +593,10 @@ func init() {
           "x-nullable": false
         },
         "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "node": {
           "type": "string",
           "x-nullable": true
         },
@@ -629,7 +706,8 @@ func init() {
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
             "RUN_MAX_RUNS_EXCEEDED",
-            "RUN_LEASED"
+            "RUN_LEASED",
+            "RUN_CANCELLED"
           ],
           "x-nullable": false
         },
@@ -786,6 +864,63 @@ func init() {
                   "items": {
                     "$ref": "#/definitions/group"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobRunDebugMessage": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunDebugMessage",
+        "parameters": [
+          {
+            "name": "getJobRunDebugMessageRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns debug message for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Debug message for individual job run",
+                  "type": "string",
+                  "x-nullable": false
                 }
               }
             }
@@ -1142,9 +1277,16 @@ func init() {
         "lastTransitionTime",
         "duplicate",
         "annotations",
-        "runs"
+        "runs",
+        "cluster",
+        "RuntimeSeconds"
       ],
       "properties": {
+        "RuntimeSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": false
+        },
         "annotations": {
           "type": "object",
           "additionalProperties": {
@@ -1161,6 +1303,10 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "cluster": {
+          "type": "string",
+          "x-nullable": false
+        },
         "cpu": {
           "type": "integer",
           "format": "int64",
@@ -1174,6 +1320,11 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": true
         },
         "gpu": {
           "type": "integer",
@@ -1206,6 +1357,10 @@ func init() {
           "x-nullable": false
         },
         "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "node": {
           "type": "string",
           "x-nullable": true
         },
@@ -1315,7 +1470,8 @@ func init() {
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
             "RUN_MAX_RUNS_EXCEEDED",
-            "RUN_LEASED"
+            "RUN_LEASED",
+            "RUN_CANCELLED"
           ],
           "x-nullable": false
         },
