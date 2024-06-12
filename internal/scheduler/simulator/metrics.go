@@ -61,7 +61,7 @@ func (mc *MetricsCollector) String() string {
 
 func (m MetricsVector) String() string {
 	return fmt.Sprintf(
-		"{Run: %d, Subm: %d (%s), Pree: %d (%s), Succ: %d (%s), Tot: %d (%s)",
+		"{Run: %d, Subm: %d (%s), Pree: %d (%s), Succ: %d (%s), Tot. events: %d (%s)",
 		m.NumSubmitEvents-(m.NumPreemptedEvents+m.NumJobSucceededEvents),
 		m.NumSubmitEvents, m.TimeOfMostRecentJobSubmittedEvent,
 		m.NumPreemptedEvents, m.TimeOfMostRecentJobPreemptedEvent,
