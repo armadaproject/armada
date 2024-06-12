@@ -377,7 +377,6 @@ func TestExecutorApi_LeaseJobRunsValidation(t *testing.T) {
 			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
 			// set up mocks
@@ -388,7 +387,6 @@ func TestExecutorApi_LeaseJobRunsValidation(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
-				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				"kubernetes.io/hostname",
 				nil,
