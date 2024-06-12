@@ -24,7 +24,6 @@ DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT = 5 * 60
 
 
 class TestArmadaOperator(unittest.TestCase):
-
     def setUp(self):
         # Set up a mock context
         mock_ti = MagicMock()
@@ -37,8 +36,8 @@ class TestArmadaOperator(unittest.TestCase):
             "dag": mock_dag,
         }
 
-    @patch('time.sleep', return_value=None)
-    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch("time.sleep", return_value=None)
+    @patch("armada.operators.armada.ArmadaOperator.client", new_callable=PropertyMock)
     def test_execute(self, mock_client_fn, _):
         test_cases = [
             {
@@ -70,7 +69,7 @@ class TestArmadaOperator(unittest.TestCase):
                     submit_pb2.RUNNING,
                     submit_pb2.RUNNING,
                     submit_pb2.RUNNING,
-                    submit_pb2.SUCCEEDED
+                    submit_pb2.SUCCEEDED,
                 ],
                 "success": True,
             },
@@ -91,13 +90,13 @@ class TestArmadaOperator(unittest.TestCase):
                 mock_client.submit_jobs.return_value = submit_pb2.JobSubmitResponse(
                     job_response_items=[
                         submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
-                    ])
+                    ]
+                )
 
-                mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
-                  job_states={
-                    DEFAULT_JOB_ID: x
-                  }
-                ) for x in test_case["statuses"]]
+                mock_client.get_job_status.side_effect = [
+                    job_pb2.JobStatusResponse(job_states={DEFAULT_JOB_ID: x})
+                    for x in test_case["statuses"]
+                ]
 
                 mock_client_fn.return_value = mock_client
                 self.context["ti"].xcom_pull.return_value = None
@@ -110,11 +109,13 @@ class TestArmadaOperator(unittest.TestCase):
                     return
 
                 self.assertEqual(mock_client.submit_jobs.call_count, 1)
-                self.assertEqual(mock_client.get_job_status.call_count, len(test_case["statuses"]))
+                self.assertEqual(
+                    mock_client.get_job_status.call_count, len(test_case["statuses"])
+                )
 
-    @patch('time.sleep', return_value=None)
-    @patch('armada.operators.armada.ArmadaOperator.on_kill', new_callable=PropertyMock)
-    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch("time.sleep", return_value=None)
+    @patch("armada.operators.armada.ArmadaOperator.on_kill", new_callable=PropertyMock)
+    @patch("armada.operators.armada.ArmadaOperator.client", new_callable=PropertyMock)
     def test_unacknowledged_results_in_on_kill(self, mock_client_fn, mock_on_kill, _):
         operator = ArmadaOperator(
             name="test",
@@ -129,15 +130,13 @@ class TestArmadaOperator(unittest.TestCase):
         #  Set up Mock Armada
         mock_client = MagicMock()
         mock_client.submit_jobs.return_value = submit_pb2.JobSubmitResponse(
-            job_response_items=[
-                submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
-            ])
+            job_response_items=[submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)]
+        )
         mock_client_fn.return_value = mock_client
-        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
-          job_states={
-            DEFAULT_JOB_ID: x
-          }
-        ) for x in [submit_pb2.UNKNOWN, submit_pb2.UNKNOWN]]
+        mock_client.get_job_status.side_effect = [
+            job_pb2.JobStatusResponse(job_states={DEFAULT_JOB_ID: x})
+            for x in [submit_pb2.UNKNOWN, submit_pb2.UNKNOWN]
+        ]
 
         self.context["ti"].xcom_pull.return_value = None
         operator.execute(self.context)
@@ -145,8 +144,8 @@ class TestArmadaOperator(unittest.TestCase):
 
     """We call on_kill by triggering the job unacknowledged timeout"""
 
-    @patch('time.sleep', return_value=None)
-    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch("time.sleep", return_value=None)
+    @patch("armada.operators.armada.ArmadaOperator.client", new_callable=PropertyMock)
     def test_on_kill_cancels_job(self, mock_client_fn, _):
         operator = ArmadaOperator(
             name="test",
@@ -155,29 +154,34 @@ class TestArmadaOperator(unittest.TestCase):
             job_request=JobSubmitRequestItem(),
             task_id=DEFAULT_TASK_ID,
             deferrable=False,
-            job_acknowledgement_timeout=-1
+            job_acknowledgement_timeout=-1,
         )
 
         #  Set up Mock Armada
         mock_client = MagicMock()
         mock_client.submit_jobs.return_value = submit_pb2.JobSubmitResponse(
-            job_response_items=[
-                submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
-            ])
+            job_response_items=[submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)]
+        )
         mock_client_fn.return_value = mock_client
-        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
-          job_states={
-            DEFAULT_JOB_ID: x
-          }
-        ) for x in [submit_pb2.UNKNOWN for _ in range(
-                1 + ceil(DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL))]]
+        mock_client.get_job_status.side_effect = [
+            job_pb2.JobStatusResponse(job_states={DEFAULT_JOB_ID: x})
+            for x in [
+                submit_pb2.UNKNOWN
+                for _ in range(
+                    1
+                    + ceil(
+                        DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL
+                    )
+                )
+            ]
+        ]
 
         self.context["ti"].xcom_pull.return_value = None
         operator.execute(self.context)
         self.assertEqual(mock_client.cancel_jobs.call_count, 1)
 
-    @patch('time.sleep', return_value=None)
-    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch("time.sleep", return_value=None)
+    @patch("armada.operators.armada.ArmadaOperator.client", new_callable=PropertyMock)
     def test_job_reattaches(self, mock_client_fn, _):
         operator = ArmadaOperator(
             name="test",
@@ -186,17 +190,23 @@ class TestArmadaOperator(unittest.TestCase):
             job_request=JobSubmitRequestItem(),
             task_id=DEFAULT_TASK_ID,
             deferrable=False,
-            job_acknowledgement_timeout=-1
+            job_acknowledgement_timeout=-1,
         )
 
         #  Set up Mock Armada
         mock_client = MagicMock()
-        mock_client.get_job_status.side_effect = [job_pb2.JobStatusResponse(
-          job_states={
-            DEFAULT_JOB_ID: x
-          }
-        ) for x in [submit_pb2.UNKNOWN for _ in range(
-                1 + ceil(DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL))]]
+        mock_client.get_job_status.side_effect = [
+            job_pb2.JobStatusResponse(job_states={DEFAULT_JOB_ID: x})
+            for x in [
+                submit_pb2.UNKNOWN
+                for _ in range(
+                    1
+                    + ceil(
+                        DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT / DEFAULT_POLLING_INTERVAL
+                    )
+                )
+            ]
+        ]
         mock_client_fn.return_value = mock_client
         self.context["ti"].xcom_pull.return_value = {"armada_job_id": DEFAULT_JOB_ID}
 
@@ -206,7 +216,6 @@ class TestArmadaOperator(unittest.TestCase):
 
 
 class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
         # Set up a mock context
         mock_ti = MagicMock()
@@ -219,8 +228,8 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
             "dag": mock_dag,
         }
 
-    @patch('armada.operators.armada.ArmadaOperator.defer')
-    @patch('armada.operators.armada.ArmadaOperator.client', new_callable=PropertyMock)
+    @patch("armada.operators.armada.ArmadaOperator.defer")
+    @patch("armada.operators.armada.ArmadaOperator.client", new_callable=PropertyMock)
     def test_execute_deferred(self, mock_client_fn, mock_defer_fn):
         operator = ArmadaOperator(
             name="test",
@@ -234,9 +243,8 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
         #  Set up Mock Armada
         mock_client = MagicMock()
         mock_client.submit_jobs.return_value = submit_pb2.JobSubmitResponse(
-            job_response_items=[
-                submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)
-            ])
+            job_response_items=[submit_pb2.JobSubmitResponseItem(job_id=DEFAULT_JOB_ID)]
+        )
         mock_client_fn.return_value = mock_client
         self.context["ti"].xcom_pull.return_value = None
 
@@ -250,11 +258,13 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
                 poll_interval=operator.poll_interval,
                 tracking_message="",
                 job_acknowledgement_timeout=operator.job_acknowledgement_timeout,
-                job_request_namespace="default"),
-            method_name="_execute_complete", )
+                job_request_namespace="default",
+            ),
+            method_name="_execute_complete",
+        )
 
     def test_templating(self):
-        """ Tests templating for both the job_prefix and the pod spec """
+        """Tests templating for both the job_prefix and the pod spec"""
         prefix = "{{ run_id  }}"
         pod_arg = "{{ run_id }}"
 
@@ -278,9 +288,7 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
                 )
             ],
         )
-        job = JobSubmitRequestItem(
-            priority=1, pod_spec=pod, namespace="armada"
-        )
+        job = JobSubmitRequestItem(priority=1, pod_spec=pod, namespace="armada")
 
         operator = ArmadaOperator(
             name="test",
@@ -295,4 +303,6 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
         operator.render_template_fields(self.context)
 
         self.assertEqual(operator.job_set_prefix, "test_run_1")
-        self.assertEqual(operator.job_request.pod_spec.containers[0].args[0], "test_run_1")
+        self.assertEqual(
+            operator.job_request.pod_spec.containers[0].args[0], "test_run_1"
+        )

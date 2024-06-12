@@ -25,8 +25,8 @@ classifiers=[
 ]
 
 [project.optional-dependencies]
-lint = ["black==24.2.0"]
-format = ["black==23.7.0", "flake8==7.0.0", "pylint==2.17.5"]
+lint = ["black>=24.2.0"]
+format = ["black>=24.0.0", "flake8==7.0.0", "pylint==2.17.5"]
 # note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
 docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
 
@@ -39,13 +39,21 @@ include = ["armada_airflow*"]
 [tool.black]
 line-length = 88
 target-version = ['py310']
-include = "armada_airflow*"
+include = '''
+/(
+    armada
+  | test
+)/
+'''
 exclude = '''
 /(
     \.git
   | venv
   | build
   | dist
+  | new
+  | .tox
+  | docs
   | armada_airflow.egg-info
   | __pycache__*
 )/

@@ -63,7 +63,8 @@ class PodPhase:
 
 @dataclass
 class PodLoggingStatus:
-    """Return the status of the pod and last log time when exiting from `fetch_container_logs`."""
+    """Return the status of the pod and last log time when exiting from
+    `fetch_container_logs`."""
 
     running: bool
     last_log_time: DateTime | None
@@ -93,9 +94,9 @@ class PodLogManagerAsync(LoggingMixin):
         if self._token_retriever is not None:
             while True:
                 await asyncio.sleep(interval)
-                self._k8s_client.api_client.configuration.api_key["BearerToken"] = (
-                    f"Bearer {self._token_retriever.get_token()}"
-                )
+                self._k8s_client.api_client.configuration.api_key[
+                    "BearerToken"
+                ] = f"Bearer {self._token_retriever.get_token()}"
 
     async def k8s_client(self) -> async_client:
         await async_config.load_kube_config(context=self._k8s_context)
@@ -113,12 +114,15 @@ class PodLogManagerAsync(LoggingMixin):
         post_termination_timeout: int = 120,
     ) -> PodLoggingStatus:
         """
-        Follow the logs of container and stream to airflow logging. Doesn't block whilst logs are being fetched.
+        Follow the logs of container and stream to airflow logging. Doesn't block whilst
+        logs are being fetched.
 
         Returns when container exits.
 
-        Between when the pod starts and logs being available, there might be a delay due to CSR not approved
-        and signed yet. In such situation, ApiException is thrown. This is why we are retrying on this
+        Between when the pod starts and logs being available, there might be a delay due
+        to CSR not approved
+        and signed yet. In such situation, ApiException is thrown. This is why we are
+        retrying on this
         specific exception.
         """
         # Can't await in constructor, so instantiating here
@@ -186,7 +190,8 @@ class PodLogManagerAsync(LoggingMixin):
                         last_captured_timestamp = message_timestamp
             except BaseHTTPError as e:
                 self.log.warning(
-                    "Reading of logs interrupted for container %r with error %r; will retry. "
+                    "Reading of logs interrupted for container %r with error %r; will "
+                    "retry. "
                     "Set log level to DEBUG for traceback.",
                     container_name,
                     e,
@@ -199,7 +204,8 @@ class PodLogManagerAsync(LoggingMixin):
             return last_captured_timestamp or since_time, logs
 
         # note: `read_pod_logs` follows the logs, so we shouldn't necessarily *need* to
-        # loop as we do here. But in a long-running process we might temporarily lose connectivity.
+        # loop as we do here. But in a long-running process we might temporarily lose
+        # connectivity.
         # So the looping logic is there to let us resume following the logs.
         logs = None
         last_log_time = since_time
@@ -327,9 +333,9 @@ class PodLogManager(LoggingMixin):
 
     def _refresh_k8s_auth_token(self):
         if self._token_retriever is not None:
-            self._k8s_client.api_client.configuration.api_key["BearerToken"] = (
-                f"Bearer {self._token_retriever.get_token()}"
-            )
+            self._k8s_client.api_client.configuration.api_key[
+                "BearerToken"
+            ] = f"Bearer {self._token_retriever.get_token()}"
 
     @cached_property
     def _k8s_client(self) -> client:
@@ -351,8 +357,10 @@ class PodLogManager(LoggingMixin):
 
         Returns when container exits.
 
-        Between when the pod starts and logs being available, there might be a delay due to CSR not approved
-        and signed yet. In such situation, ApiException is thrown. This is why we are retrying on this
+        Between when the pod starts and logs being available, there might be a delay due
+        to CSR not approved
+        and signed yet. In such situation, ApiException is thrown. This is why we are
+        retrying on this
         specific exception.
         """
 
@@ -417,7 +425,8 @@ class PodLogManager(LoggingMixin):
                         last_captured_timestamp = message_timestamp
             except BaseHTTPError as e:
                 self.log.warning(
-                    "Reading of logs interrupted for container %r with error %r; will retry. "
+                    "Reading of logs interrupted for container %r with error %r; will "
+                    "retry. "
                     "Set log level to DEBUG for traceback.",
                     container_name,
                     e,
@@ -430,7 +439,8 @@ class PodLogManager(LoggingMixin):
             return last_captured_timestamp or since_time, logs
 
         # note: `read_pod_logs` follows the logs, so we shouldn't necessarily *need* to
-        # loop as we do here. But in a long-running process we might temporarily lose connectivity.
+        # loop as we do here. But in a long-running process we might temporarily lose
+        # connectivity.
         # So the looping logic is there to let us resume following the logs.
         logs = None
         last_log_time = since_time

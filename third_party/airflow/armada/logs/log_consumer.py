@@ -29,23 +29,25 @@ from kubernetes_asyncio.client import V1Pod as aio_V1Pod
 
 from armada.logs.utils import container_is_running, get_container_status
 
-
 if TYPE_CHECKING:
-    from urllib3.response import HTTPResponse
+    from urllib3.response import HTTPResponse  # noqa: F811
 
 
 class PodLogsConsumerAsync:
     """
-    Responsible for pulling pod logs from a stream asynchronously, checking the container status before reading data.
+    Responsible for pulling pod logs from a stream asynchronously, checking the
+    container status before reading data.
 
-    This class contains a workaround for the issue https://github.com/apache/airflow/issues/23497.
+    This class contains a workaround for the issue
+    https://github.com/apache/airflow/issues/23497.
 
     :param response: HTTP response with logs
     :param pod: Pod instance from Kubernetes client
     :param read_pod_async: Callable returning a pod object that can be awaited on,
         given (pod name, namespace) as arguments
     :param container_name: Name of the container that we're reading logs from
-    :param post_termination_timeout: (Optional) The period of time in seconds representing for how long time
+    :param post_termination_timeout: (Optional) The period of time in seconds
+    representing for how long time
         logs are available after the container termination.
     :param read_pod_cache_timeout: (Optional) The container's status cache lifetime.
         The container status is cached to reduce API calls.
@@ -154,15 +156,19 @@ class PodLogsConsumerAsync:
 
 class PodLogsConsumer:
     """
-    Responsible for pulling pod logs from a stream with checking a container status before reading data.
+    Responsible for pulling pod logs from a stream with checking a container status
+    before reading data.
 
-    This class is a workaround for the issue https://github.com/apache/airflow/issues/23497.
+    This class is a workaround for the issue
+    https://github.com/apache/airflow/issues/23497.
 
     :param response: HTTP response with logs
     :param pod: Pod instance from Kubernetes client
-    :param read_pod: Callable returning a pod object given (pod name, namespace) as arguments
+    :param read_pod: Callable returning a pod object given (pod name, namespace) as
+    arguments
     :param container_name: Name of the container that we're reading logs from
-    :param post_termination_timeout: (Optional) The period of time in seconds representing for how long time
+    :param post_termination_timeout: (Optional) The period of time in seconds
+    representing for how long time
         logs are available after the container termination.
     :param read_pod_cache_timeout: (Optional) The container's status cache lifetime.
         The container status is cached to reduce API calls.

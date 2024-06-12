@@ -35,28 +35,38 @@ class ArmadaTrigger(BaseTrigger):
         last_log_time: Optional[DateTime] = None,
     ):
         """
-        Initializes an instance of ArmadaTrigger, which is an Airflow trigger for managing Armada jobs asynchronously.
+        Initializes an instance of ArmadaTrigger, which is an Airflow trigger for
+        managing Armada jobs asynchronously.
 
         :param job_id: The unique identifier of the job to be monitored.
         :type job_id: str
-        :param poll_interval: The interval, in seconds, at which the job status will be checked.
+        :param poll_interval: The interval, in seconds, at which the job status will be
+        checked.
         :type poll_interval: int
-        :param tracking_message: A message to log or display for tracking the job status.
+        :param tracking_message: A message to log or display for tracking the job
+         status.
         :type tracking_message: str
-        :param job_acknowledgement_timeout: The timeout, in seconds, to wait for the job to be acknowledged by Armada.
+        :param job_acknowledgement_timeout: The timeout, in seconds, to wait for the job
+        to be acknowledged by Armada.
         :type job_acknowledgement_timeout: int
-        :param job_request_namespace: The Kubernetes namespace under which the job was submitted.
+        :param job_request_namespace: The Kubernetes namespace under which the job was
+        submitted.
         :type job_request_namespace: str
-        :param channel_args: The arguments to configure the gRPC channel. If None, default arguments will be used.
+        :param channel_args: The arguments to configure the gRPC channel. If None,
+        default arguments will be used.
         :type channel_args: GrpcChannelArgs, optional
-        :param channel_args_details: Additional details or configurations for the gRPC channel as a dictionary. Only used when
+        :param channel_args_details: Additional details or configurations for the gRPC
+        channel as a dictionary. Only used when
         the trigger is rehydrated after serialization.
         :type channel_args_details: dict[str, Any], optional
         :param container_logs: Name of container from which to retrieve logs
         :type container_logs: str, optional
-        :param token_retriever: An optional instance of type TokenRetriever, used to refresh the Kubernetes auth token
+        :param token_retriever: An optional instance of type TokenRetriever, used to
+        refresh the Kubernetes auth token
         :type token_retriever: TokenRetriever, optional
-        :param token_retriever_details: Configuration for TokenRetriever as a dictionary. Only used when the trigger is
+        :param token_retriever_details: Configuration for TokenRetriever as a
+         dictionary.
+        Only used when the trigger is
         rehydrated after serialization.
         :type token_retriever_details: Tuple[str, Dict[str, Any]], optional
         :param last_log_time: where to resume logs from
@@ -120,7 +130,8 @@ class ArmadaTrigger(BaseTrigger):
 
     async def run(self) -> AsyncIterator[TriggerEvent]:
         """
-        Run the Trigger Asynchronously. This will poll Armada until the Job reaches a terminal state
+        Run the Trigger Asynchronously. This will poll Armada until the Job reaches a
+        terminal state
         """
         try:
             response = await self._poll_for_termination(self.job_id)
@@ -173,7 +184,8 @@ class ArmadaTrigger(BaseTrigger):
                 return {
                     "status": "error",
                     "job_id": job_id,
-                    "response": f"Job {job_id} not acknowledged within timeout {self.job_acknowledgement_timeout}.",
+                    "response": f"Job {job_id} not acknowledged within timeout "
+                    f"{self.job_acknowledgement_timeout}.",
                 }
 
             if self.container_logs and not run_details:
@@ -203,7 +215,8 @@ class ArmadaTrigger(BaseTrigger):
             return {
                 "status": "error",
                 "job_id": job_id,
-                "response": f"Job {job_id} did not succeed. Final status was {state.name}",
+                "response": f"Job {job_id} did not succeed. Final status was "
+                f"{state.name}",
             }
         return {
             "status": "success",

@@ -19,7 +19,7 @@
 import os
 import time
 from functools import cache, cached_property
-from typing import Optional, Sequence, Any, TypeVar
+from typing import Optional, Sequence, Any
 
 import jinja2
 from airflow.configuration import conf
@@ -44,36 +44,40 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
     """
     An Airflow operator that manages Job submission to Armada.
 
-    This operator submits a job to an Armada cluster, polls for its completion, and handles job cancellation if the Airflow task is killed.
+    This operator submits a job to an Armada cluster, polls for its completion,
+    and handles job cancellation if the Airflow task is killed.
     """
 
     template_fields: Sequence[str] = ("job_request", "job_set_prefix")
 
     """
-    Initializes a new ArmadaOperator.
+Initializes a new ArmadaOperator.
 
-    :param name: The name of the job to be submitted.
-    :type name: str
-    :param channel_args: The gRPC channel arguments for connecting to the Armada server.
-    :type channel_args: GrpcChannelArgs
-    :param armada_queue: The name of the Armada queue to which the job will be submitted.
-    :type armada_queue: str
-    :param job_request: The job to be submitted to Armada.
-    :type job_request: JobSubmitRequestItem
-    :param job_set_prefix: A string to prepend to the jobSet name
-    :type job_set_prefix: Optional[str]
-    :param lookout_url_template: Template for creating lookout links. If not specified then no tracking information will be logged.
-    :type lookout_url_template: Optional[str]
-    :param poll_interval: The interval in seconds between polling for job status updates.
-    :type poll_interval: int
-    :param container_logs: Name of container whose logs will be published to stdout.
-    :type container_logs: Optional[str]
-    :param deferrable: Whether the operator should run in a deferrable mode, allowing for asynchronous execution.
-    :type deferrable: bool
-    :param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be acknowledged by Armada.
-    :type job_acknowledgement_timeout: int
-    :param kwargs: Additional keyword arguments to pass to the BaseOperator.
-    """
+:param name: The name of the job to be submitted.
+:type name: str
+:param channel_args: The gRPC channel arguments for connecting to the Armada server.
+:type channel_args: GrpcChannelArgs
+:param armada_queue: The name of the Armada queue to which the job will be submitted.
+:type armada_queue: str
+:param job_request: The job to be submitted to Armada.
+:type job_request: JobSubmitRequestItem
+:param job_set_prefix: A string to prepend to the jobSet name
+:type job_set_prefix: Optional[str]
+:param lookout_url_template: Template for creating lookout links. If not specified
+then no tracking information will be logged.
+:type lookout_url_template: Optional[str]
+:param poll_interval: The interval in seconds between polling for job status updates.
+:type poll_interval: int
+:param container_logs: Name of container whose logs will be published to stdout.
+:type container_logs: Optional[str]
+:param deferrable: Whether the operator should run in a deferrable mode, allowing
+for asynchronous execution.
+:type deferrable: bool
+:param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be
+acknowledged by Armada.
+:type job_acknowledgement_timeout: int
+:param kwargs: Additional keyword arguments to pass to the BaseOperator.
+"""
 
     def __init__(
         self,
@@ -108,7 +112,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
         if self.container_logs and self.token_retriever is None:
             self.log.warning(
-                "Token refresh mechanism not configured, airflow may stop retrieving logs from Kubernetes"
+                "Token refresh mechanism not configured, airflow may stop retrieving "
+                "logs from Kubernetes"
             )
 
     def execute(self, context) -> None:
@@ -118,11 +123,13 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
         :param context: The execution context provided by Airflow.
         :type context: Context
         """
-        # We take the job_set_id from Airflow's run_id. This means that all jobs in the dag will be in the same jobset.
+        # We take the job_set_id from Airflow's run_id. This means that all jobs in the
+        # dag will be in the same jobset.
         job_set_id = f"{self.job_set_prefix}{context['run_id']}"
         self._annotate_job_request(context, self.job_request)
 
-        # Submit job or reattach to previously submitted job. We always do this synchronously.
+        # Submit job or reattach to previously submitted job. We always do this
+        # synchronously.
         self.job_id = self._reattach_or_submit_job(
             context, self.armada_queue, job_set_id, self.job_request
         )
@@ -191,13 +198,17 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
     def on_kill(self) -> None:
         if self.job_id is not None:
             self.log.info(
-                f"on_kill called, cancelling job with id {self.job_id} in queue {self.armada_queue}"
+                f"on_kill called, cancelling job with id {self.job_id} in queue "
+                f"{self.armada_queue}"
             )
             self._cancel_job()
 
     def _trigger_tracking_message(self):
         if self.lookout_url_template:
-            return f'Job details available at {self.lookout_url_template.replace("<job_id>", self.job_id)}'
+            return (
+                f"Job details available at "
+                f'{self.lookout_url_template.replace("<job_id>", self.job_id)}'
+            )
 
         return ""
 
@@ -236,7 +247,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
         # We submitted exactly one job to armada, so we expect a single response
         if num_responses != 1:
             raise AirflowException(
-                f"No valid received from Armada (expected 1 job to be created but got {num_responses}"
+                f"No valid received from Armada (expected 1 job to be created "
+                f"but got {num_responses}"
             )
         job = resp.job_response_items[0]
 
@@ -270,7 +282,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
                 and int(time.time() - start_time) > self.job_acknowledgement_timeout
             ):
                 self.log.info(
-                    f"Job {self.job_id} not acknowledged by the Armada server within timeout ({self.job_acknowledgement_timeout}), terminating"
+                    f"Job {self.job_id} not acknowledged by the Armada server within "
+                    f"timeout ({self.job_acknowledgement_timeout}), terminating"
                 )
                 self.on_kill()
                 return
@@ -281,7 +294,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
             if run_details:
                 try:
-                    # pod_name format is sufficient for now. Ideally pod name should be retrieved from queryapi
+                    # pod_name format is sufficient for now. Ideally pod name should be
+                    # retrieved from queryapi
                     log_status = self.pod_manager(
                         run_details.cluster
                     ).fetch_container_logs(
@@ -296,9 +310,7 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
             time.sleep(self.poll_interval)
 
-        self.log.info(
-            f"job {self.job_id} terminated with state: {state.name}"
-        )
+        self.log.info(f"job {self.job_id} terminated with state: {state.name}")
         if state != JobState.SUCCEEDED:
             raise AirflowException(
                 f"job {self.job_id} did not succeed. Final status was {state.name}"
