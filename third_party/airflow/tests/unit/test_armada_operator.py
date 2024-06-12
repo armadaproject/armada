@@ -1,8 +1,17 @@
+from armada.operators.armada import ArmadaOperator
+
+from armada_client import ArmadaClient
+from armada.operators.armada import ArmadaOperator
+from unittest.mock import patch, Mock
+
 import copy
 from unittest.mock import patch, Mock
 
 import grpc
 import pytest
+import unittest
+
+
 
 from armada.jobservice import jobservice_pb2
 from armada.operators.armada import ArmadaOperator
@@ -43,6 +52,35 @@ def test_get_lookout_url(lookout_url_template, job_id, expected_url):
     )
 
     assert operator._get_lookout_url(job_id) == expected_url
+
+
+class TestJobService(unittest.TestCase):
+    @patch.object(JobService, "cancel_jobs")
+    def test_on_kill(self, mock_cancel_jobs):
+         
+        operator = ArmadaOperator(
+            name="test_operator",
+            armada_channel_args={},
+            job_service_channel_args={},
+            armada_queue="test_queue",
+            job_request_items=[],
+        )
+
+        operator.job_set_id = "test_job_set_id"
+        operator.queue = "test_queue"
+
+        armada_client_instance = mock_armada_client.return_value
+        armada_client_instance.cancel_job.return_value = None
+
+        operator.on_kill()
+
+        armada_client_instance.cancel_job.assert_called_once_with(
+            job_set_id="test_job_set_id", queue="test_queue"
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 
 def test_deepcopy_operator():

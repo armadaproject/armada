@@ -151,6 +151,26 @@ class ArmadaOperator(BaseOperator):
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
 
+    def on_kill(self) -> None:
+        """
+        Stops the JobService from listening to the JobSet and cancels the jobs.
+
+        :return: None
+        """
+        try:
+            if self.job_set_id and self.queue:
+                # Cancel the jobs using the Armada client
+                self.armada_client.cancel_job(
+                    job_set_id=self.job_set_id, queue=self.queue
+                )
+                armada_logger.info(
+                    "Queue %s and JobSetId %s has been cancelled.",
+                    self.queue,
+                    self.job_set_id,
+                )
+        except Exception as e:
+            armada_logger.warning("Error during job cancellation: %s", str(e))
+
     def render_template_fields(
         self,
         context: Context,
