@@ -718,7 +718,7 @@ func (er *EvictorResult) SummaryString() string {
 		statsPerQueue[queue] = stats
 	}
 	return fmt.Sprintf("%v", armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
-		return fmt.Sprintf("{evictedJobCount=%d, evictedResources={%s}", s.evictedJobCount, s.evictedResources.String())
+		return fmt.Sprintf("{evictedJobCount=%d, evictedResources={%s}}", s.evictedJobCount, s.evictedResources.String())
 	}))
 }
 
