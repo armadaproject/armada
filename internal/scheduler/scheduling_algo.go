@@ -168,7 +168,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		pool := executorGroup[0].Pool
 		minimumJobSize := executorGroup[0].MinimumJobSize
 		ctx.Infof(
-			"scheduling on executor group %s with capacity %s",
+			"Scheduling on executor group %s with capacity %s",
 			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
 

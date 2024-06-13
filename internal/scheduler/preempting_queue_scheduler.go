@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -275,6 +276,9 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err != nil {
 		return nil, nil, err
 	}
+
+	ctx.Infof("Evicting for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
+
 	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
 		return nil, nil, err
 	}
@@ -347,7 +351,13 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 		// No gangs to evict.
 		return &EvictorResult{}, nil
 	}
-	return evictor.Evict(ctx, txn)
+
+	result, err := evictor.Evict(ctx, txn)
+	if err != nil {
+		ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
+	}
+
+	return result, err
 }
 
 // Collect job ids for any gangs that were partially evicted and the ids of nodes those jobs are on.
@@ -496,7 +506,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	defer txn.Abort()
 	i := 0
 	for {
-		if gctx, err := candidateGangIterator.Peek(); err != nil {
+		if gctx, _, err := candidateGangIterator.Peek(); err != nil {
 			return err
 		} else if gctx == nil {
 			break
@@ -694,6 +704,24 @@ type EvictorResult struct {
 	NodeIdByJobId map[string]string
 }
 
+func (er *EvictorResult) SummaryString() string {
+	type queueStats struct {
+		evictedJobCount  int
+		evictedResources internaltypes.ResourceList
+	}
+	statsPerQueue := map[string]queueStats{}
+	for _, jctx := range er.EvictedJctxsByJobId {
+		queue := jctx.Job.Queue()
+		stats := statsPerQueue[queue]
+		stats.evictedJobCount++
+		stats.evictedResources = stats.evictedResources.Add(jctx.Job.EfficientResourceRequirements())
+		statsPerQueue[queue] = stats
+	}
+	return fmt.Sprintf("%v", armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
+		return fmt.Sprintf("{evictedJobCount=%d, evictedResources={%s}}", s.evictedJobCount, s.evictedResources.String())
+	}))
+}
+
 func NewNodeEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
@@ -845,5 +873,6 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		AffectedNodesById:   affectedNodesById,
 		NodeIdByJobId:       nodeIdByJobId,
 	}
+
 	return result, nil
 }
