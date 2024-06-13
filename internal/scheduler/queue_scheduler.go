@@ -183,7 +183,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		return fmt.Sprintf("{gangsConsidered=%d, jobsConsidered=%d, gangsScheduled=%d, "+
 			"firstGangConsideredSampleJobId=%s, firstGangConsideredResult=%s, firstGangConsideredQueuePosition=%d, "+
 			"lastGangScheduledSampleJobId=%s, lastGangScheduledQueuePosition=%d, lastGangScheduledQueueCost=%f,"+
-			"lastGangScheduledResources=%s, lastGangScheduledQueueResources=%s, time=%fs",
+			"lastGangScheduledResources=%s, lastGangScheduledQueueResources=%s, time=%fs}",
 			s.gangsConsidered,
 			s.jobsConsidered,
 			s.gangsScheduled,
