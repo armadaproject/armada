@@ -185,13 +185,13 @@ You can install the package via `pip3 install third_party/airflow`.
 
 You can use our tox file that streamlines development lifecycle.  For development, you can install black, tox, mypy and flake8.
 
-`python3.8 -m tox -e py38` will run unit tests.
+`python3.10 -m tox -e py310` will run unit tests.
 
-`python3.8 -m tox -e format` will run a format check
+`python3.10 -m tox -e format` will run black on your code.
 
-`python3.8 -m tox -e format-code` will run black on your code.
+`python3.10 -m tox -e format-check` will run a format check.
 
-`python3.8 -m tox -e docs` will generate a new sphinx doc.
+`python3.10 -m tox -e docs` will generate a new sphinx doc.
 
 ## Releasing the client
 Armada-airflow releases are automated via Github Actions, for contributors with sufficient access to run them.
