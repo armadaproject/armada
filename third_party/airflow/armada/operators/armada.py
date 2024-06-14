@@ -109,6 +109,7 @@ acknowledged by Armada.
         self.deferrable = deferrable
         self.job_acknowledgement_timeout = job_acknowledgement_timeout
         self.job_id = None
+        self.job_set_id = None
 
         if self.container_logs and self.token_retriever is None:
             self.log.warning(
@@ -125,13 +126,13 @@ acknowledged by Armada.
         """
         # We take the job_set_id from Airflow's run_id. This means that all jobs in the
         # dag will be in the same jobset.
-        job_set_id = f"{self.job_set_prefix}{context['run_id']}"
+        self.job_set_id = f"{self.job_set_prefix}{context['run_id']}"
         self._annotate_job_request(context, self.job_request)
 
         # Submit job or reattach to previously submitted job. We always do this
         # synchronously.
         self.job_id = self._reattach_or_submit_job(
-            context, self.armada_queue, job_set_id, self.job_request
+            context, self.armada_queue, self.job_set_id, self.job_request
         )
 
         # Wait until finished
@@ -186,6 +187,8 @@ acknowledged by Armada.
     def _cancel_job(self) -> None:
         try:
             result = self.client.cancel_jobs(
+                queue=self.armada_queue,
+                job_set_id=self.job_set_id,
                 job_id=self.job_id,
             )
             if len(list(result.cancelled_ids)) > 0:
@@ -266,10 +269,8 @@ acknowledged by Armada.
         start_time = time.time()
         job_acknowledged = False
         while state.is_active():
-            tmp = self.client.get_job_status([self.job_id]).job_states
-            print(tmp)
-            print(self.job_id)
-            state = JobState(tmp[self.job_id])
+            response = self.client.get_job_status([self.job_id])
+            state = JobState(response.job_states[self.job_id])
             self.log.info(
                 f"job {self.job_id} is in state: {state.name}. {tracking_message}"
             )
