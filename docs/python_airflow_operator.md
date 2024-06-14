@@ -17,7 +17,8 @@ Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
 
-This operator submits a job to an Armada cluster, polls for its completion, and handles job cancellation if the Airflow task is killed.
+This operator submits a job to an Armada cluster, polls for its completion,
+and handles job cancellation if the Airflow task is killed.
 
 
 * **Parameters**
@@ -149,23 +150,22 @@ Initializes a new ArmadaOperator.
     * **job_set_prefix** (*Optional**[**str**]*) – A string to prepend to the jobSet name
 
 
-    * **lookout_url_template** (*Optional**[**str**]*) – Template for creating lookout links. If not specified then no tracking information will be logged.
+    * **lookout_url_template** – Template for creating lookout links. If not specified
 
 
-    * **poll_interval** (*int*) – The interval in seconds between polling for job status updates.
-
-
-    * **container_logs** (*Optional**[**str**]*) – Name of container whose logs will be published to stdout.
-
-
-    * **deferrable** (*bool*) – Whether the operator should run in a deferrable mode, allowing for asynchronous execution.
-
-
-    * **job_acknowledgement_timeout** (*int*) – The timeout in seconds to wait for a job to be acknowledged by Armada.
-
-
-    * **kwargs** – Additional keyword arguments to pass to the BaseOperator.
-
+then no tracking information will be logged.
+:type lookout_url_template: Optional[str]
+:param poll_interval: The interval in seconds between polling for job status updates.
+:type poll_interval: int
+:param container_logs: Name of container whose logs will be published to stdout.
+:type container_logs: Optional[str]
+:param deferrable: Whether the operator should run in a deferrable mode, allowing
+for asynchronous execution.
+:type deferrable: bool
+:param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be
+acknowledged by Armada.
+:type job_acknowledgement_timeout: int
+:param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
 ## armada.operators.armada_deferrable module
 
