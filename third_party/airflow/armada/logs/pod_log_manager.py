@@ -94,9 +94,9 @@ class PodLogManagerAsync(LoggingMixin):
         if self._token_retriever is not None:
             while True:
                 await asyncio.sleep(interval)
-                self._k8s_client.api_client.configuration.api_key[
-                    "BearerToken"
-                ] = f"Bearer {self._token_retriever.get_token()}"
+                self._k8s_client.api_client.configuration.api_key["BearerToken"] = (
+                    f"Bearer {self._token_retriever.get_token()}"
+                )
 
     async def k8s_client(self) -> async_client:
         await async_config.load_kube_config(context=self._k8s_context)
@@ -333,9 +333,9 @@ class PodLogManager(LoggingMixin):
 
     def _refresh_k8s_auth_token(self):
         if self._token_retriever is not None:
-            self._k8s_client.api_client.configuration.api_key[
-                "BearerToken"
-            ] = f"Bearer {self._token_retriever.get_token()}"
+            self._k8s_client.api_client.configuration.api_key["BearerToken"] = (
+                f"Bearer {self._token_retriever.get_token()}"
+            )
 
     @cached_property
     def _k8s_client(self) -> client:
