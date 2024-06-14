@@ -9,6 +9,8 @@ from armada.model import GrpcChannelArgs
 from armada.triggers.armada import ArmadaTrigger
 
 DEFAULT_JOB_ID = "test_job"
+DEFAULT_QUEUE = "test_queue"
+DEFAULT_JOB_SET_ID = "test_job_set_id"
 DEFAULT_POLLING_INTERVAL = 30
 DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT = 5 * 60
 
@@ -25,6 +27,8 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
     def test_serialization(self):
         trigger = ArmadaTrigger(
             job_id=DEFAULT_JOB_ID,
+            armada_queue=DEFAULT_QUEUE,
+            job_set_id=DEFAULT_JOB_SET_ID,
             channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
             poll_interval=30,
             tracking_message="test tracking message",
@@ -149,7 +153,9 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
             with self.subTest(test_case=test_case["name"]):
                 trigger = ArmadaTrigger(
                     job_id=DEFAULT_JOB_ID,
-                    channel_args=GrpcChannelArgs,
+                    armada_queue=DEFAULT_QUEUE,
+                    job_set_id=DEFAULT_JOB_SET_ID,
+                    channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
                     poll_interval=DEFAULT_POLLING_INTERVAL,
                     tracking_message="some tracking message",
                     job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
@@ -177,7 +183,9 @@ class TestArmadaTrigger(unittest.IsolatedAsyncioTestCase):
     async def test_unacknowledged_results_in_job_cancel(self, mock_client_fn, _):
         trigger = ArmadaTrigger(
             job_id=DEFAULT_JOB_ID,
-            channel_args=GrpcChannelArgs,
+            armada_queue=DEFAULT_QUEUE,
+            job_set_id=DEFAULT_JOB_SET_ID,
+            channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
             poll_interval=DEFAULT_POLLING_INTERVAL,
             tracking_message="some tracking message",
             job_acknowledgement_timeout=-1,

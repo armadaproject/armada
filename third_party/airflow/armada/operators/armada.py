@@ -141,6 +141,8 @@ acknowledged by Armada.
                 timeout=self.execution_timeout,
                 trigger=ArmadaTrigger(
                     job_id=self.job_id,
+                    armada_queue=self.armada_queue,
+                    job_set_id=self.job_set_id,
                     channel_args=self.channel_args,
                     poll_interval=self.poll_interval,
                     tracking_message=self._trigger_tracking_message(),

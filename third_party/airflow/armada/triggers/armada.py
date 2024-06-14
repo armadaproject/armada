@@ -23,6 +23,8 @@ class ArmadaTrigger(BaseTrigger):
     def __init__(
         self,
         job_id: str,
+        armada_queue: str,
+        job_set_id: str,
         poll_interval: int,
         tracking_message: str,
         job_acknowledgement_timeout: int,
@@ -40,6 +42,12 @@ class ArmadaTrigger(BaseTrigger):
 
         :param job_id: The unique identifier of the job to be monitored.
         :type job_id: str
+        :param armada_queue: The Armada queue under which the job was submitted.
+        Required for job cancellation.
+        :type armada_queue: str
+        :param job_set_id: The unique identifier of the job set under which the job
+        was submitted. Required for job cancellation.
+        :type job_set_id: str
         :param poll_interval: The interval, in seconds, at which the job status will be
         checked.
         :type poll_interval: int
@@ -75,6 +83,8 @@ class ArmadaTrigger(BaseTrigger):
 
         super().__init__()
         self.job_id = job_id
+        self.armada_queue = armada_queue
+        self.job_set_id = job_set_id
         self.poll_interval = poll_interval
         self.tracking_message = tracking_message
         self.job_acknowledgement_timeout = job_acknowledgement_timeout
@@ -117,6 +127,8 @@ class ArmadaTrigger(BaseTrigger):
             "armada.triggers.armada.ArmadaTrigger",
             {
                 "job_id": self.job_id,
+                "armada_queue": self.armada_queue,
+                "job_set_id": self.job_set_id,
                 "channel_args_details": self.channel_args.serialize(),
                 "poll_interval": self.poll_interval,
                 "tracking_message": self.tracking_message,
@@ -150,6 +162,8 @@ class ArmadaTrigger(BaseTrigger):
     async def _cancel_job(self) -> None:
         try:
             result = await self.client.cancel_jobs(
+                queue=self.armada_queue,
+                job_set_id=self.job_set_id,
                 job_id=self.job_id,
             )
             if len(list(result.cancelled_ids)) > 0:

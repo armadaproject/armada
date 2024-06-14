@@ -79,7 +79,7 @@ class TestArmadaOperator(unittest.TestCase):
             with self.subTest(test_case=test_case["name"]):
                 operator = ArmadaOperator(
                     name="test",
-                    channel_args=GrpcChannelArgs(target="api.armadaproject.io"),
+                    channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
                     armada_queue=DEFAULT_QUEUE,
                     job_request=JobSubmitRequestItem(),
                     task_id=DEFAULT_TASK_ID,
@@ -119,7 +119,7 @@ class TestArmadaOperator(unittest.TestCase):
     def test_unacknowledged_results_in_on_kill(self, mock_client_fn, mock_on_kill, _):
         operator = ArmadaOperator(
             name="test",
-            channel_args=GrpcChannelArgs,
+            channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
             armada_queue=DEFAULT_QUEUE,
             job_request=JobSubmitRequestItem(),
             task_id=DEFAULT_TASK_ID,
@@ -149,7 +149,7 @@ class TestArmadaOperator(unittest.TestCase):
     def test_on_kill_cancels_job(self, mock_client_fn, _):
         operator = ArmadaOperator(
             name="test",
-            channel_args=GrpcChannelArgs,
+            channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
             armada_queue=DEFAULT_QUEUE,
             job_request=JobSubmitRequestItem(),
             task_id=DEFAULT_TASK_ID,
@@ -185,7 +185,7 @@ class TestArmadaOperator(unittest.TestCase):
     def test_job_reattaches(self, mock_client_fn, _):
         operator = ArmadaOperator(
             name="test",
-            channel_args=GrpcChannelArgs,
+            channel_args=GrpcChannelArgs(target="api.armadaproject.io:443"),
             armada_queue=DEFAULT_QUEUE,
             job_request=JobSubmitRequestItem(),
             task_id=DEFAULT_TASK_ID,
@@ -254,6 +254,8 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
             timeout=operator.execution_timeout,
             trigger=ArmadaTrigger(
                 job_id=DEFAULT_JOB_ID,
+                armada_queue=DEFAULT_QUEUE,
+                job_set_id=operator.job_set_id,  # Not relevant for the sake of test
                 channel_args=operator.channel_args,
                 poll_interval=operator.poll_interval,
                 tracking_message="",
