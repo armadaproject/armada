@@ -11,33 +11,32 @@ import (
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 )
 
+const defaultNodeType = "none"
+
 type NodeInfoService interface {
 	IsAvailableProcessingNode(*v1.Node) bool
 	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
 	GetAllNodes() ([]*v1.Node, error)
 	GroupNodesByType(nodes []*v1.Node) []*NodeGroup
-	GetType(node *v1.Node) *NodeTypeIdentifier
+	GetType(node *v1.Node) string
 }
 
 type KubernetesNodeInfoService struct {
 	clusterContext  context.ClusterContext
+	nodeTypeLabel   string
 	toleratedTaints map[string]bool
 }
 
-func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, toleratedTaints []string) *KubernetesNodeInfoService {
+func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, nodeTypeLabel string, toleratedTaints []string) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
 		clusterContext:  clusterContext,
+		nodeTypeLabel:   nodeTypeLabel,
 		toleratedTaints: util.StringListToSet(toleratedTaints),
 	}
 }
 
-type NodeTypeIdentifier struct {
-	Id     string
-	Taints []v1.Taint
-}
-
 type NodeGroup struct {
-	NodeType *NodeTypeIdentifier
+	NodeType string
 	Nodes    []*v1.Node
 }
 
@@ -46,13 +45,13 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 
 	for _, node := range nodes {
 		nodeType := kubernetesNodeInfoService.GetType(node)
-		if _, present := nodeGroupMap[nodeType.Id]; !present {
-			nodeGroupMap[nodeType.Id] = &NodeGroup{
+		if _, present := nodeGroupMap[nodeType]; !present {
+			nodeGroupMap[nodeType] = &NodeGroup{
 				NodeType: nodeType,
 				Nodes:    []*v1.Node{},
 			}
 		}
-		nodeGroupMap[nodeType.Id].Nodes = append(nodeGroupMap[nodeType.Id].Nodes, node)
+		nodeGroupMap[nodeType].Nodes = append(nodeGroupMap[nodeType].Nodes, node)
 	}
 
 	nodeGroups := make([]*NodeGroup, 0, len(nodeGroupMap))
@@ -63,17 +62,19 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 	return nodeGroups
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) *NodeTypeIdentifier {
-	groupId := kubernetesNodeInfoService.clusterContext.GetClusterPool()
-	relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
-	if len(relevantTaints) > 0 {
-		groupId = nodeGroupId(relevantTaints)
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) string {
+	nodeType := defaultNodeType
+
+	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodeTypeLabel]; ok {
+		nodeType = labelValue
+	} else {
+		relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
+		if len(relevantTaints) > 0 {
+			nodeType = nodeGroupId(relevantTaints)
+		}
 	}
 
-	return &NodeTypeIdentifier{
-		Id:     groupId,
-		Taints: relevantTaints,
-	}
+	return nodeType
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterToleratedTaints(taints []v1.Taint) []v1.Taint {

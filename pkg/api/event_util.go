@@ -39,8 +39,6 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Submitted, nil
 	case *EventMessage_Queued:
 		return event.Queued, nil
-	case *EventMessage_DuplicateFound:
-		return event.DuplicateFound, nil
 	case *EventMessage_Leased:
 		return event.Leased, nil
 	case *EventMessage_LeaseReturned:
@@ -71,144 +69,10 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Utilisation, nil
 	case *EventMessage_IngressInfo:
 		return event.IngressInfo, nil
-	case *EventMessage_Updated:
-		return event.Updated, nil
 	case *EventMessage_Preempting:
 		return event.Preempting, nil
 	case *EventMessage_Preempted:
 		return event.Preempted, nil
 	}
 	return nil, errors.Errorf("unknown event type: %s", reflect.TypeOf(message.Events))
-}
-
-func Wrap(event Event) (*EventMessage, error) {
-	switch typed := event.(type) {
-	case *JobSubmittedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Submitted{
-				Submitted: typed,
-			},
-		}, nil
-	case *JobQueuedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Queued{
-				Queued: typed,
-			},
-		}, nil
-	case *JobDuplicateFoundEvent:
-		return &EventMessage{
-			Events: &EventMessage_DuplicateFound{
-				DuplicateFound: typed,
-			},
-		}, nil
-	case *JobLeasedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Leased{
-				Leased: typed,
-			},
-		}, nil
-	case *JobLeaseReturnedEvent:
-		return &EventMessage{
-			Events: &EventMessage_LeaseReturned{
-				LeaseReturned: typed,
-			},
-		}, nil
-	case *JobLeaseExpiredEvent:
-		return &EventMessage{
-			Events: &EventMessage_LeaseExpired{
-				LeaseExpired: typed,
-			},
-		}, nil
-	case *JobPendingEvent:
-		return &EventMessage{
-			Events: &EventMessage_Pending{
-				Pending: typed,
-			},
-		}, nil
-	case *JobRunningEvent:
-		return &EventMessage{
-			Events: &EventMessage_Running{
-				Running: typed,
-			},
-		}, nil
-	case *JobUnableToScheduleEvent:
-		return &EventMessage{
-			Events: &EventMessage_UnableToSchedule{
-				UnableToSchedule: typed,
-			},
-		}, nil
-	case *JobFailedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Failed{
-				Failed: typed,
-			},
-		}, nil
-	case *JobSucceededEvent:
-		return &EventMessage{
-			Events: &EventMessage_Succeeded{
-				Succeeded: typed,
-			},
-		}, nil
-	case *JobReprioritizingEvent:
-		return &EventMessage{
-			Events: &EventMessage_Reprioritizing{
-				Reprioritizing: typed,
-			},
-		}, nil
-	case *JobReprioritizedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Reprioritized{
-				Reprioritized: typed,
-			},
-		}, nil
-	case *JobCancellingEvent:
-		return &EventMessage{
-			Events: &EventMessage_Cancelling{
-				Cancelling: typed,
-			},
-		}, nil
-	case *JobCancelledEvent:
-		return &EventMessage{
-			Events: &EventMessage_Cancelled{
-				Cancelled: typed,
-			},
-		}, nil
-	case *JobTerminatedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Terminated{
-				Terminated: typed,
-			},
-		}, nil
-	case *JobUtilisationEvent:
-		return &EventMessage{
-			Events: &EventMessage_Utilisation{
-				Utilisation: typed,
-			},
-		}, nil
-	case *JobIngressInfoEvent:
-		return &EventMessage{
-			Events: &EventMessage_IngressInfo{
-				IngressInfo: typed,
-			},
-		}, nil
-	case *JobUpdatedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Updated{
-				Updated: typed,
-			},
-		}, nil
-	case *JobPreemptingEvent:
-		return &EventMessage{
-			Events: &EventMessage_Preempting{
-				Preempting: typed,
-			},
-		}, nil
-	case *JobPreemptedEvent:
-		return &EventMessage{
-			Events: &EventMessage_Preempted{
-				Preempted: typed,
-			},
-		}, nil
-	}
-	return nil, errors.Errorf("unknown event type: %s", reflect.TypeOf(event))
 }

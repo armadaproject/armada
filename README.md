@@ -2,8 +2,9 @@
 <img src="./logo.svg" width="200"/>
 
 <p><a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
-<a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a></p>
-</div>
+<a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
+<a href="https://insights.lfx.linuxfoundation.org/foundation/cncf/overview?project=armada" title="Click to view project insights and health checks"><img src="https://img.shields.io/badge/LFX%20Insights-0094FF" alt="LFX Insights Dashboard"></a>
+</p></div>
 
 # Armada
 
@@ -45,6 +46,7 @@ For documentation, see the following:
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 - [Development guide](./docs/developer.md)
+- [Release notes/Version history](https://github.com/armadaproject/armada/releases)
 - [API Documentation](./docs/developer/api.md)
 
 We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:

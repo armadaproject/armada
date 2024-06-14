@@ -88,5 +88,4 @@ jobs:
         with:
           name: nupkg-artifacts
           path: |
-            ./bin/client/DotNet/G-Research.Armada.Client.${{ steps.create-release-tag.outputs.release_tag }}.nupkg
             ./bin/client/DotNet/ArmadaProject.Io.Client.${{ steps.create-release-tag.outputs.release_tag }}.nupkg

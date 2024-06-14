@@ -129,7 +129,7 @@ func TestConvertSequence(t *testing.T) {
 		"reprioritise job": {
 			events: []*armadaevents.EventSequence_Event{f.JobReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobPriorities{
+				&UpdateJobPriorities{
 					key: JobReprioritiseKey{
 						JobSetKey: JobSetKey{queue: f.Queue, jobSet: f.JobSetName},
 						Priority:  f.NewPriority,

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/mocks"
@@ -512,8 +512,8 @@ func withTerminationGracePeriod(req *api.JobSubmitRequest, v *int64) *api.JobSub
 func createTestServer(t *testing.T) (*Server, *mockObjects) {
 	m := createMocks(t)
 	server := NewServer(
+		nil,
 		m.publisher,
-		m.queueRepo,
 		m.queueRepo,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,

@@ -12,7 +12,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/event/sequence"
 	"github.com/armadaproject/armada/internal/armada/permissions"
-	"github.com/armadaproject/armada/internal/armada/repository"
+	armadaqueue "github.com/armadaproject/armada/internal/armada/queue"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -23,13 +23,13 @@ import (
 type EventServer struct {
 	authorizer      auth.ActionAuthorizer
 	eventRepository EventRepository
-	queueRepository repository.ReadOnlyQueueRepository
+	queueRepository armadaqueue.ReadOnlyQueueRepository
 }
 
 func NewEventServer(
 	authorizer auth.ActionAuthorizer,
 	eventRepository EventRepository,
-	queueRepository repository.ReadOnlyQueueRepository,
+	queueRepository armadaqueue.ReadOnlyQueueRepository,
 ) *EventServer {
 	return &EventServer{
 		authorizer:      authorizer,
@@ -42,7 +42,7 @@ func NewEventServer(
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	ctx := armadacontext.FromGrpcCtx(stream.Context())
 	q, err := s.queueRepository.GetQueue(ctx, request.Queue)
-	var expected *repository.ErrQueueNotFound
+	var expected *armadaqueue.ErrQueueNotFound
 	if errors.As(err, &expected) {
 		return status.Errorf(codes.NotFound, "[GetJobSetEvents] Queue %s does not exist", request.Queue)
 	} else if err != nil {
@@ -78,8 +78,6 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 		FromMessageId:  req.FromId,
 		Queue:          req.Queue,
 		ErrorIfMissing: true,
-		ForceLegacy:    req.ForceLegacy,
-		ForceNew:       req.ForceNew,
 	}
 	return s.GetJobSetEvents(request, stream)
 }
