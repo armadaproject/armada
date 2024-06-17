@@ -109,6 +109,7 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	queue string, weight float64,
 	initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string],
+	demand schedulerobjects.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -136,6 +137,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Weight:                            weight,
 		Limiter:                           limiter,
 		Allocated:                         allocated,
+		Demand:                            demand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -164,6 +166,16 @@ func (sctx *SchedulingContext) TotalCost() float64 {
 		rv += sctx.FairnessCostProvider.CostFromQueue(qctx)
 	}
 	return rv
+}
+
+func (sctx *SchedulingContext) foo() {
+	totalCost := sctx.TotalCost()
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		fairShare := qctx.Weight / sctx.WeightSum
+		cappedShare := sctx.FairnessCostProvider.CostFromAllocationAndWeight(qctx.Demand, qctx.Weight) / totalCost
+		cappedShare =
+		fractionOfFairShare := actualShare / fairShare
+	}
 }
 
 func (sctx *SchedulingContext) ReportString(verbosity int32) string {
@@ -342,6 +354,9 @@ type QueueSchedulingContext struct {
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
+	// Total demand from this queue.  This is essentially the cumulative resources og all non-terminal jobs at the
+	// start of the scheduling cycle
+	Demand schedulerobjects.ResourceList
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
