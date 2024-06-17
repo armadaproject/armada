@@ -855,7 +855,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		node.availableResource = node.availableResource.Add(evictedJctx.ResourceRequirements)
 		node.evictedJobs = append(node.evictedJobs, evictedJobSchedulingContext)
 
-		dynamicRequirementsMet, reason := DynamicJobRequirementsMet(node.availableResource, jctx)
+		dynamicRequirementsMet, _ := DynamicJobRequirementsMet(node.availableResource, jctx)
 		if !dynamicRequirementsMet {
 			continue
 		}
