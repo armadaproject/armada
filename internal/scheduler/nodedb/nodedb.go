@@ -544,7 +544,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}()
 
 	// If the nodeIdLabel selector is set, consider only that node.
-	if nodeId, ok := jctx.GetNodeSelector(configuration.NodeIdLabel); ok {
+	if nodeId := jctx.GetAssignedNodeId(); nodeId != "" {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -821,9 +821,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
-		nodeId, ok := evictedJctx.GetNodeSelector(configuration.NodeIdLabel)
-		if !ok {
-			return nil, errors.Errorf("evicted job %s does not have a nodeIdLabel", evictedJctx.JobId)
+		nodeId := jctx.GetAssignedNodeId()
+		if nodeId == "" {
+			return nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
 		}
 		node, ok := nodesById[nodeId]
 		if !ok {
