@@ -821,7 +821,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
-		nodeId := jctx.GetAssignedNodeId()
+		nodeId := evictedJctx.GetAssignedNodeId()
 		if nodeId == "" {
 			return nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
 		}
