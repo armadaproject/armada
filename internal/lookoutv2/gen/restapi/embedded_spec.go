@@ -515,14 +515,9 @@ func init() {
         "annotations",
         "runs",
         "cluster",
-        "RuntimeSeconds"
+        "runtimeSeconds"
       ],
       "properties": {
-        "RuntimeSeconds": {
-          "type": "integer",
-          "format": "int32",
-          "x-nullable": false
-        },
         "annotations": {
           "type": "object",
           "additionalProperties": {
@@ -624,6 +619,11 @@ func init() {
           "items": {
             "$ref": "#/definitions/run"
           },
+          "x-nullable": false
+        },
+        "runtimeSeconds": {
+          "type": "integer",
+          "format": "int32",
           "x-nullable": false
         },
         "state": {
@@ -1279,14 +1279,9 @@ func init() {
         "annotations",
         "runs",
         "cluster",
-        "RuntimeSeconds"
+        "runtimeSeconds"
       ],
       "properties": {
-        "RuntimeSeconds": {
-          "type": "integer",
-          "format": "int32",
-          "x-nullable": false
-        },
         "annotations": {
           "type": "object",
           "additionalProperties": {
@@ -1388,6 +1383,11 @@ func init() {
           "items": {
             "$ref": "#/definitions/run"
           },
+          "x-nullable": false
+        },
+        "runtimeSeconds": {
+          "type": "integer",
+          "format": "int32",
           "x-nullable": false
         },
         "state": {
