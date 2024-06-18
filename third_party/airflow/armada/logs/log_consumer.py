@@ -20,7 +20,7 @@
 import queue
 from datetime import timedelta
 from http.client import HTTPResponse
-from typing import Generator, TYPE_CHECKING, Callable, Awaitable
+from typing import Generator, TYPE_CHECKING, Callable, Awaitable, List
 
 from aiohttp.client_exceptions import ClientResponse
 from airflow.utils.timezone import utcnow
@@ -84,7 +84,7 @@ class PodLogsConsumerAsync:
         if not self.log_queue.empty():
             return self.log_queue.get()
 
-        incomplete_log_item: list[bytes] = []
+        incomplete_log_item: List[bytes] = []
         if await self.logs_available():
             async for data_chunk in self.response.content:
                 if b"\n" in data_chunk:
@@ -113,7 +113,7 @@ class PodLogsConsumerAsync:
         raise StopAsyncIteration
 
     @staticmethod
-    def _extract_log_items(incomplete_log_item: list[bytes], log_items: list[bytes]):
+    def _extract_log_items(incomplete_log_item: List[bytes], log_items: List[bytes]):
         yield b"".join(incomplete_log_item) + log_items[0] + b"\n"
         for x in log_items[1:-1]:
             yield x + b"\n"
@@ -198,7 +198,7 @@ class PodLogsConsumer:
 
     def __iter__(self) -> Generator[bytes, None, None]:
         r"""Yield log items divided by the '\n' symbol."""
-        incomplete_log_item: list[bytes] = []
+        incomplete_log_item: List[bytes] = []
         if self.logs_available():
             for data_chunk in self.response.stream(amt=None, decode_content=True):
                 if b"\n" in data_chunk:
@@ -213,7 +213,7 @@ class PodLogsConsumer:
             yield b"".join(incomplete_log_item)
 
     @staticmethod
-    def _extract_log_items(incomplete_log_item: list[bytes], log_items: list[bytes]):
+    def _extract_log_items(incomplete_log_item: List[bytes], log_items: List[bytes]):
         yield b"".join(incomplete_log_item) + log_items[0] + b"\n"
         for x in log_items[1:-1]:
             yield x + b"\n"

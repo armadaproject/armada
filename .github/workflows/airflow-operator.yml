@@ -16,7 +16,6 @@ on:
       - 'internal/jobservice/*'
       - 'pkg/api/*.proto'
       - 'pkg/api/jobservice/*.proto'
-      - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
       - './magefiles/tests.go'
@@ -46,8 +45,11 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: [ '3.10' ]
+        python: [ '3.8', '3.9', '3.10' ]
         include:
+          - tox-env: 'py38'
+          - tox-env: 'py39'
+            python: '3.9'
           - tox-env: 'py310'
             python: '3.10'
     steps:

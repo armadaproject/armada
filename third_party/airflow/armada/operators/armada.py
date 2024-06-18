@@ -18,8 +18,8 @@
 
 import os
 import time
-from functools import cache, cached_property
-from typing import Optional, Sequence, Any
+from functools import lru_cache, cached_property
+from typing import Optional, Sequence, Any, Dict
 
 import jinja2
 from airflow.configuration import conf
@@ -70,6 +70,9 @@ then no tracking information will be logged.
 :type poll_interval: int
 :param container_logs: Name of container whose logs will be published to stdout.
 :type container_logs: Optional[str]
+:param k8s_token_retriever: A serialisable Kubernetes token retriever object. We use
+this to read logs from Kubernetes pods.
+:type k8s_token_retriever: Optional[TokenRetriever]
 :param deferrable: Whether the operator should run in a deferrable mode, allowing
 for asynchronous execution.
 :type deferrable: bool
@@ -89,7 +92,7 @@ acknowledged by Armada.
         lookout_url_template: Optional[str] = None,
         poll_interval: int = 30,
         container_logs: Optional[str] = None,
-        token_retriever: Optional[TokenRetriever] = None,
+        k8s_token_retriever: Optional[TokenRetriever] = None,
         deferrable: bool = conf.getboolean(
             "operators", "default_deferrable", fallback=False
         ),
@@ -105,13 +108,13 @@ acknowledged by Armada.
         self.lookout_url_template = lookout_url_template
         self.poll_interval = poll_interval
         self.container_logs = container_logs
-        self.token_retriever = token_retriever
+        self.k8s_token_retriever = k8s_token_retriever
         self.deferrable = deferrable
         self.job_acknowledgement_timeout = job_acknowledgement_timeout
         self.job_id = None
         self.job_set_id = None
 
-        if self.container_logs and self.token_retriever is None:
+        if self.container_logs and self.k8s_token_retriever is None:
             self.log.warning(
                 "Token refresh mechanism not configured, airflow may stop retrieving "
                 "logs from Kubernetes"
@@ -148,7 +151,7 @@ acknowledged by Armada.
                     tracking_message=self._trigger_tracking_message(),
                     job_acknowledgement_timeout=self.job_acknowledgement_timeout,
                     container_logs=self.container_logs,
-                    token_retriever=self.token_retriever,
+                    k8s_token_retriever=self.k8s_token_retriever,
                     job_request_namespace=self.job_request.namespace,
                 ),
                 method_name="_execute_complete",
@@ -160,10 +163,10 @@ acknowledged by Armada.
     def client(self) -> ArmadaClient:
         return ArmadaClient(channel=self.channel_args.channel())
 
-    @cache
+    @lru_cache(maxsize=None)
     def pod_manager(self, k8s_context: str) -> PodLogManager:
         return PodLogManager(
-            k8s_context=k8s_context, token_retriever=self.token_retriever
+            k8s_context=k8s_context, token_retriever=self.k8s_token_retriever
         )
 
     def render_template_fields(
@@ -177,7 +180,7 @@ acknowledged by Armada.
 
         Args:
             context (Context): The execution context provided by Airflow.
-        :param context: Airflow Context dict with values to apply on content
+        :param context: Airflow Context dict wi1th values to apply on content
         :param jinja_env: jinja’s environment to use for rendering.
         """
         self.job_request = MessageToDict(
@@ -217,7 +220,7 @@ acknowledged by Armada.
 
         return ""
 
-    def _execute_complete(self, _: Context, event: dict[str, Any]):
+    def _execute_complete(self, _: Context, event: Dict[str, Any]):
         if event["status"] == "error":
             raise AirflowException(event["response"])
 

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from kubernetes.client.models.v1_pod import V1Pod  # noqa: F811
 
 
-def get_container_status(pod: V1Pod, container_name: str) -> V1ContainerStatus | None:
+def get_container_status(pod: V1Pod, container_name: str) -> V1ContainerStatus:
     """Retrieve container status."""
     container_statuses = pod.status.container_statuses if pod and pod.status else None
     if container_statuses:

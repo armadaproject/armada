@@ -1,7 +1,13 @@
 import importlib
-from typing import Tuple, Any, Optional, Sequence
+from typing import Tuple, Any, Optional, Sequence, Dict
 
 import grpc
+
+
+""" This class exists so that we can retain our connection to the Armada Query API
+    when using the deferrable Armada Airflow Operator. Airflow requires any state
+    within deferrable operators be serialisable, unfortunately grpc.Channel isn't
+    itself serialisable."""
 
 
 class GrpcChannelArgs:
@@ -11,7 +17,7 @@ class GrpcChannelArgs:
         options: Optional[Sequence[Tuple[str, Any]]] = None,
         compression: Optional[grpc.Compression] = None,
         auth: Optional[grpc.AuthMetadataPlugin] = None,
-        auth_details: Optional[dict[str, Any]] = None,
+        auth_details: Optional[Dict[str, Any]] = None,
     ):
         self.target = target
         self.options = options
@@ -33,7 +39,7 @@ class GrpcChannelArgs:
         else:
             self.auth = None
 
-    def serialize(self) -> dict[str, Any]:
+    def serialize(self) -> Dict[str, Any]:
         auth_details = self.auth.serialize() if self.auth else None
         return {
             "target": self.target,

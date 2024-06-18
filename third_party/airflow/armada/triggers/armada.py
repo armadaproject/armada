@@ -30,10 +30,10 @@ class ArmadaTrigger(BaseTrigger):
         job_acknowledgement_timeout: int,
         job_request_namespace: str,
         channel_args: GrpcChannelArgs = None,
-        channel_args_details: dict[str, Any] = None,
+        channel_args_details: Dict[str, Any] = None,
         container_logs: Optional[str] = None,
-        token_retriever: Optional[TokenRetriever] = None,
-        token_retriever_details: Optional[Tuple[str, Dict[str, Any]]] = None,
+        k8s_token_retriever: Optional[TokenRetriever] = None,
+        k8s_token_retriever_details: Optional[Tuple[str, Dict[str, Any]]] = None,
         last_log_time: Optional[DateTime] = None,
     ):
         """
@@ -69,18 +69,17 @@ class ArmadaTrigger(BaseTrigger):
         :type channel_args_details: dict[str, Any], optional
         :param container_logs: Name of container from which to retrieve logs
         :type container_logs: str, optional
-        :param token_retriever: An optional instance of type TokenRetriever, used to
+        :param k8s_token_retriever: An optional instance of type TokenRetriever, used to
         refresh the Kubernetes auth token
-        :type token_retriever: TokenRetriever, optional
-        :param token_retriever_details: Configuration for TokenRetriever as a
+        :type k8s_token_retriever: TokenRetriever, optional
+        :param k8s_token_retriever_details: Configuration for TokenRetriever as a
          dictionary.
         Only used when the trigger is
         rehydrated after serialization.
-        :type token_retriever_details: Tuple[str, Dict[str, Any]], optional
+        :type k8s_token_retriever_details: Tuple[str, Dict[str, Any]], optional
         :param last_log_time: where to resume logs from
         :type last_log_time: DateTime, optional
         """
-
         super().__init__()
         self.job_id = job_id
         self.armada_queue = armada_queue
@@ -92,7 +91,7 @@ class ArmadaTrigger(BaseTrigger):
         self.last_log_time = last_log_time
         self.job_request_namespace = job_request_namespace
         self._pod_manager = None
-        self.token_retriever = token_retriever
+        self.k8s_token_retriever = k8s_token_retriever
 
         if channel_args:
             self.channel_args = channel_args
@@ -101,8 +100,8 @@ class ArmadaTrigger(BaseTrigger):
         else:
             raise f"must provide either {channel_args} or {channel_args_details}"
 
-        if token_retriever_details:
-            classpath, kwargs = token_retriever_details
+        if k8s_token_retriever_details:
+            classpath, kwargs = k8s_token_retriever_details
             module_path, class_name = classpath.rsplit(
                 ".", 1
             )  # Split the classpath to module and class name
@@ -110,7 +109,7 @@ class ArmadaTrigger(BaseTrigger):
                 module_path
             )  # Dynamically import the module
             cls = getattr(module, class_name)  # Get the class from the module
-            self.token_retriever = cls(
+            self.k8s_token_retriever = cls(
                 **kwargs
             )  # Instantiate the class with the deserialized kwargs
 
@@ -120,8 +119,8 @@ class ArmadaTrigger(BaseTrigger):
         When the Trigger is re-hydrated, these values will be passed to init() as kwargs
         :return:
         """
-        token_retriever_details = (
-            self.token_retriever.serialize() if self.token_retriever else None
+        k8s_token_retriever_details = (
+            self.k8s_token_retriever.serialize() if self.k8s_token_retriever else None
         )
         return (
             "armada.triggers.armada.ArmadaTrigger",
@@ -134,7 +133,7 @@ class ArmadaTrigger(BaseTrigger):
                 "tracking_message": self.tracking_message,
                 "job_acknowledgement_timeout": self.job_acknowledgement_timeout,
                 "container_logs": self.container_logs,
-                "token_retriever_details": token_retriever_details,
+                "k8s_token_retriever_details": k8s_token_retriever_details,
                 "last_log_time": self.last_log_time,
                 "job_request_namespace": self.job_request_namespace,
             },
@@ -173,7 +172,7 @@ class ArmadaTrigger(BaseTrigger):
         except Exception as e:
             self.log.warning(f"Failed to cancel job with id {self.job_id}: {e}")
 
-    async def _poll_for_termination(self, job_id: str) -> dict[str, Any]:
+    async def _poll_for_termination(self, job_id: str) -> Dict[str, Any]:
         state = JobState.UNKNOWN
         start_time = time.time()
         job_acknowledged = False
@@ -245,7 +244,7 @@ class ArmadaTrigger(BaseTrigger):
     def pod_manager(self, k8s_context: str) -> PodLogManagerAsync:
         if self._pod_manager is None:
             self._pod_manager = PodLogManagerAsync(
-                k8s_context=k8s_context, token_retriever=self.token_retriever
+                k8s_context=k8s_context, token_retriever=self.k8s_token_retriever
             )
 
         return self._pod_manager

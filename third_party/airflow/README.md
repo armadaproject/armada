@@ -10,43 +10,6 @@ state management and (optionally) log streaming back to Airflow.
 The Operator works by periodically polling Armada for the state of each job.  As a result, it is only intended for DAGs
 with tens or (at the limit) hundreds of concurrent jobs.
 
-## Getting started
-
-```python
-
-from airflow import DAG
-from datetime import datetime
-from armada.operators.armada import ArmadaOperator
-
-with DAG(
-        "example_armada_dag",
-        description="Example Armada DAG with helper tooling",
-        schedule=None,
-        start_date=datetime(2022, 1, 1),
-        catchup=False,
-        user_defined_macros={
-            'version': vid
-        }
-) as dag:
-    # Configure single container "alpine" - dag.
-    ArmadaOperator(
-        name="EXAMPLE TASK",
-        task_id="EXAMPLE_TASK",
-        channel_args={"target": "127.0.0.1:50051"},
-        armada_queue="armada",
-        job_request=create_job(
-            namespace="armada",
-            application_name="alpine",
-            # You could also resolve version as below
-            image="alpine:3.16.2",
-            arguments=["sh", "-c", "echo 'Today is: {{ ds_nodash }}'"],
-        ),
-        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
-        container_logs="alpine",
-    )
-
-```
-
 ## Installation
 
 `pip install armada-airflow`
@@ -81,12 +44,12 @@ def create_dummy_job():
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
                     requests={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "cpu": api_resource.Quantity(string="1"),
+                        "memory": api_resource.Quantity(string="1Gi"),
                     },
                     limits={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "cpu": api_resource.Quantity(string="1"),
+                        "memory": api_resource.Quantity(string="1Gi"),
                     },
                 ),
             )
