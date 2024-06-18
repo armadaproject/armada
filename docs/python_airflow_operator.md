@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, \*\*kwargs)
 Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
@@ -48,7 +48,7 @@ and handles job cancellation if the Airflow task is killed.
     * **container_logs** (*str** | **None*) – 
 
 
-    * **token_retriever** (*TokenRetriever** | **None*) – 
+    * **k8s_token_retriever** (*TokenRetriever** | **None*) – 
 
 
     * **deferrable** (*bool*) – 
@@ -115,7 +115,7 @@ Args:
 * **Parameters**
 
     
-    * **context** (*Context*) – Airflow Context dict with values to apply on content
+    * **context** (*Context*) – Airflow Context dict wi1th values to apply on content
 
 
     * **jinja_env** (*Environment** | **None*) – jinja’s environment to use for rendering.
@@ -159,6 +159,9 @@ then no tracking information will be logged.
 :type poll_interval: int
 :param container_logs: Name of container whose logs will be published to stdout.
 :type container_logs: Optional[str]
+:param k8s_token_retriever: A serialisable Kubernetes token retriever object. We use
+this to read logs from Kubernetes pods.
+:type k8s_token_retriever: Optional[TokenRetriever]
 :param deferrable: Whether the operator should run in a deferrable mode, allowing
 for asynchronous execution.
 :type deferrable: bool
