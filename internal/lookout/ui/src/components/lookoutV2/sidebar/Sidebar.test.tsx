@@ -71,7 +71,7 @@ describe("Sidebar", () => {
     const run = job.runs[0]
 
     // Switch to runs tab
-    await userEvent.click(getByRole("tab", { name: /Runs/ }))
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
 
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
@@ -84,7 +84,7 @@ describe("Sidebar", () => {
     run.exitCode = 137
 
     // Switch to runs tab
-    await userEvent.click(getByRole("tab", { name: /Runs/ }))
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
 
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
@@ -96,7 +96,7 @@ describe("Sidebar", () => {
     const { getByRole, getByText } = renderComponent()
 
     // Switch to runs tab
-    await userEvent.click(getByRole("tab", { name: /Runs/ }))
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
 
     getByText("This job has not run.")
   })
