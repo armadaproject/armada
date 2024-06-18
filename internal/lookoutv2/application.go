@@ -34,6 +34,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
+	getJobErrorRepo := repository.NewSqlGetJobErrorRepository(db, decompressor)
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobRunDebugMessageRepo := repository.NewSqlGetJobRunDebugMessageRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
@@ -116,6 +117,19 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobRunDebugMessageOK().WithPayload(&operations.GetJobRunDebugMessageOKBody{
+				ErrorString: result,
+			})
+		},
+	)
+
+	api.GetJobErrorHandler = operations.GetJobErrorHandlerFunc(
+		func(params operations.GetJobErrorParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobErrorRepo.GetJobErrorMessage(ctx, params.GetJobErrorRequest.JobID)
+			if err != nil {
+				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobErrorOK().WithPayload(&operations.GetJobErrorOKBody{
 				ErrorString: result,
 			})
 		},
