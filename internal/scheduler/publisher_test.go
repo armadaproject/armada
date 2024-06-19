@@ -120,7 +120,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 				}).AnyTimes()
 
 			options := pulsar.ProducerOptions{Topic: topic}
-			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second)
+			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 1000, 5*time.Second)
 			require.NoError(t, err)
 			err = publisher.PublishMessages(ctx, tc.eventSequences, func() bool { return tc.amLeader })
 
@@ -191,7 +191,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 
 			options := pulsar.ProducerOptions{Topic: topic}
 			ctx := armadacontext.TODO()
-			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second)
+			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 1000, 5*time.Second)
 			require.NoError(t, err)
 
 			published, err := publisher.PublishMarkers(ctx, uuid.New())
