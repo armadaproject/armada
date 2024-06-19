@@ -57,8 +57,8 @@ func TestBatch_MaxItems(t *testing.T) {
 		batcher.Run(ctx)
 	}()
 
-	// Post 3 items on the input channel without advancing the clock
-	// And we should get a single update on the output channel
+	// Post 6 items on the input channel without advancing the clock
+	// And we should get a 2 updates on the output channel
 	inputChan <- 1
 	inputChan <- 2
 	inputChan <- 3
@@ -84,8 +84,8 @@ func TestBatch_MaxItems_CustomItemCountFunction(t *testing.T) {
 		batcher.Run(ctx)
 	}()
 
-	// Post 3 items on the input channel without advancing the clock
-	// And we should get a single update on the output channel
+	// Post 6 items on the input channel without advancing the clock
+	// And we should get a 3 updates on the output channel
 	inputChan <- 1
 	inputChan <- 2
 	inputChan <- 3
