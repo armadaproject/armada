@@ -94,7 +94,7 @@ func findOrDownloadArmadaCtl() string {
 			return path
 		}
 
-		err = sh.Run("sh", "./docs/local/armadactl.sh")
+		err = sh.Run("sh", "./scripts/get-armadactl.sh")
 		if err != nil {
 			return ""
 		}
