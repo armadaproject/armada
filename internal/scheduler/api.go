@@ -40,6 +40,8 @@ type ExecutorApi struct {
 	allowedPriorities []int32
 	// Known priority classes
 	priorityClasses map[string]priorityTypes.PriorityClass
+	// Max number of events in published Pulsar messages
+	maxEventsPerPulsarMessage int
 	// Max size of Pulsar messages produced.
 	maxPulsarMessageSizeBytes uint
 	// See scheduling schedulingConfig.
@@ -56,6 +58,7 @@ func NewExecutorApi(producer pulsar.Producer,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
+	maxEventsPerPulsarMessage int,
 	maxPulsarMessageSizeBytes uint,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
@@ -310,7 +313,7 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes)
+	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxEventsPerPulsarMessage, srv.maxPulsarMessageSizeBytes)
 	return &types.Empty{}, err
 }
 
