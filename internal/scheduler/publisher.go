@@ -43,8 +43,6 @@ type PulsarPublisher struct {
 	numPartitions int
 	// Timeout after which async messages sends will be considered failed
 	pulsarSendTimeout time.Duration
-	// Maximum number of Events in each EventSequence
-	maxEventsPerMessage int
 	// Maximum size (in bytes) of produced pulsar messages.
 	// This must be below 4MB which is the pulsar message size limit
 	maxMessageBatchSize uint
@@ -53,7 +51,6 @@ type PulsarPublisher struct {
 func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
-	maxEventsPerMessage int,
 	pulsarSendTimeout time.Duration,
 ) (*PulsarPublisher, error) {
 	partitions, err := pulsarClient.TopicPartitions(producerOptions.Topic)
@@ -72,7 +69,6 @@ func NewPulsarPublisher(
 	return &PulsarPublisher{
 		producer:            producer,
 		pulsarSendTimeout:   pulsarSendTimeout,
-		maxEventsPerMessage: maxEventsPerMessage,
 		maxMessageBatchSize: maxMessageBatchSize,
 		numPartitions:       len(partitions),
 	}, nil
@@ -82,7 +78,6 @@ func NewPulsarPublisher(
 // single event sequences up to maxMessageBatchSize.
 func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
 	sequences := eventutil.CompactEventSequences(events)
-	sequences = eventutil.LimitSequencesEventMessageCount(sequences, p.maxEventsPerMessage)
 	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxMessageBatchSize, true)
 	if err != nil {
 		return err

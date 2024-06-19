@@ -18,8 +18,6 @@ type Publisher interface {
 type PulsarPublisher struct {
 	// Used to send messages to pulsar
 	producer pulsar.Producer
-	// Maximum number of Events in each EventSequence
-	maxEventsPerMessage int
 	// Maximum size (in bytes) of produced pulsar messages.
 	// This must be below 4MB which is the pulsar message size limit
 	maxAllowedMessageSize uint
@@ -28,7 +26,6 @@ type PulsarPublisher struct {
 func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
-	maxEventsPerMessage int,
 	maxAllowedMessageSize uint,
 ) (*PulsarPublisher, error) {
 	producer, err := pulsarClient.CreateProducer(producerOptions)
@@ -37,7 +34,6 @@ func NewPulsarPublisher(
 	}
 	return &PulsarPublisher{
 		producer:              producer,
-		maxEventsPerMessage:   maxEventsPerMessage,
 		maxAllowedMessageSize: maxAllowedMessageSize,
 	}, nil
 }
@@ -49,7 +45,6 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, es *armada
 		ctx,
 		[]*armadaevents.EventSequence{es},
 		p.producer,
-		p.maxEventsPerMessage,
 		p.maxAllowedMessageSize)
 }
 

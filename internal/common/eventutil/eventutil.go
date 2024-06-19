@@ -14,7 +14,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -252,29 +251,6 @@ func groupsEqual(g1, g2 []string) bool {
 		}
 	}
 	return true
-}
-
-func LimitSequencesEventMessageCount(sequences []*armadaevents.EventSequence, maxEventsPerSequence int) []*armadaevents.EventSequence {
-	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
-	for _, sequence := range sequences {
-		if len(sequence.Events) > maxEventsPerSequence {
-			splitEventMessages := slices.PartitionToMaxLen(sequence.Events, maxEventsPerSequence)
-
-			for _, eventMessages := range splitEventMessages {
-				rv = append(rv, &armadaevents.EventSequence{
-					Queue:      sequence.Queue,
-					JobSetName: sequence.JobSetName,
-					UserId:     sequence.UserId,
-					Groups:     sequence.Groups,
-					Events:     eventMessages,
-				})
-			}
-
-		} else {
-			rv = append(rv, sequence)
-		}
-	}
-	return rv
 }
 
 // LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences

@@ -37,7 +37,6 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
-  maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 #4Mi
 armadaApi:
   armadaUrl: "server:50051"
