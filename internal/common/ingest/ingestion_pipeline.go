@@ -121,7 +121,7 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 		close(eventSequences)
 	}()
 
-	// Batched up messages
+	// Batch up messages
 	batchedEventSequences := make(chan *EventSequencesWithIds)
 	eventCounterFunc := func(seq *EventSequencesWithIds) int { return len(seq.EventSequences) }
 	eventPublisherFunc := func(b []*EventSequencesWithIds) { batchedEventSequences <- combineEventSequences(b) }
