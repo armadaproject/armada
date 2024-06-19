@@ -17,9 +17,7 @@ const (
 	defaultMaxTimeOut = 5 * time.Second
 )
 
-var (
-	defaultItemCounterFunc = func(i int) int { return 1 }
-)
+var defaultItemCounterFunc = func(i int) int { return 1 }
 
 type resultHolder struct {
 	result [][]int

@@ -203,6 +203,7 @@ func (i *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
 		pulsarClient.Close()
 	}, nil
 }
+
 func unmarshalEventSequences(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
 	sequences := make([]*armadaevents.EventSequence, 0, 1)
 	messageIds := make([]pulsar.MessageID, 0, 1)
