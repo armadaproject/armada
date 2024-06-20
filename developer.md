@@ -47,10 +47,11 @@ Please see these documents for more information about Armadas Design:
 * [Using OIDC with Armada](./developer/oidc.md)
 * [Building the Website](./developer/website.md)
 * [Using Localdev Manually](./developer/manual-localdev.md)
+* [Inspecting and Debugging etcd in Localdev setup](./developer/etc-localdev.md)
 
 ## Pre-requisites
 
-- [Go](https://go.dev/doc/install) (version 1.20 or later)
+- [Go](https://go.dev/doc/install) (version 1.21 or later)
 - gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/))
 - [mage](https://magefile.org/)
 - [docker](https://docs.docker.com/get-docker/)
@@ -74,11 +75,39 @@ LocalDev provides a reliable and extendable way to install Armada as a developer
 
 It has the following options to customize further steps:
 
-* `mage localdev full` - Installs all components of Armada, including the UI.
-* `mage localdev minimal` - Installs only the core components of Armada, the server, executor and eventingester.
-* `mage localdev no-build` - skips the build step. Assumes that a separate image has been set from `ARMADA_IMAGE` and `ARMADA_TAG` environment variables or it has already been built.
+* `mage localdev full` - Runs all components of Armada, including the Lookout UI.
+* `mage localdev minimal` - Runs only the core components of Armada (such as the API server and an executor).
+* `mage localdev no-build` - Skips the build step; set `ARMADA_IMAGE` and `ARMADA_TAG` to choose the Docker image to use.
 
 `mage localdev minimal` is what is used to test the CI pipeline, and is the recommended way to test changes to the core components of Armada.
+
+## Debug error saying that the (port 6443 is already in use) after running mage localdev full
+
+## Identifying the Conflict
+
+Before making any changes, it's essential to identify which port is causing the conflict. Port 6443 is a common source of conflicts. You can check for existing bindings to this port using commands like `netstat` or `lsof`.
+
+1. The `kind.yaml` file is where you define the configuration for your Kind clusters. To resolve port conflicts:
+
+* Open your [kind.yaml](https://github.com/armadaproject/armada/blob/master/e2e/setup/kind.yaml) file.
+
+2. Locate the relevant section where the `hostPort` is set. It may look something like this:
+
+   
+   ```
+   - containerPort: 6443 # control plane
+     hostPort: 6443  # exposes control plane on localhost:6443
+     protocol: TCP
+   ```
+
+   * Modify the hostPort value to a port that is not in use on your system. For example:
+   
+   ```
+   - containerPort: 6443 # control plane
+     hostPort: 6444  # exposes control plane on localhost:6444
+     protocol: TCP
+   ```
+   You are not limited to using port 6444; you can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
 
 ### Testing if LocalDev is working
 
@@ -121,7 +150,7 @@ mage LocalDevStop
 And then run
 
 ```bash
-mage LocalDev minimal-pulsar
+mage LocalDev minimal
 ```
 
 Ensure your local dev environment is completely torn down when switching between pulsar backed and legacy
@@ -200,6 +229,24 @@ External Debug Port Mappings:
 |lookoutingesterv2  |localhost:4007|
 |jobservice         |localhost:4008|
 
+
+## GoLand Run Configurations
+
+We provide a number of run configurations within the `.run` directory of this project. These will be accessible when opening the project in GoLand, allowing you to run Armada in both standard and debug mode.
+
+The following high-level configurations are provided, each composed of sub-configurations:
+1. `Armada Infrastructure Services`
+    - Runs Infrastructure Services required to run Armada, irrespective of scheduler type
+2. `Armada (Legacy Scheduler)`
+   - Runs Armada with the Legacy Scheduler
+3. `Armada (Pulsar Scheduler)`
+   - Runs Armada with the Pulsar Scheduler (recommended)
+4. `LookoutV2 UI`
+   - Script which configures a local UI development setup
+
+A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `LookoutV2 UI` script on top of this configuration would allow you to develop the Lookout UI live from GoLand, and see the changes visible in your browser. **These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`**
+
+GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
 
 ### Other Debugging Methods
 
