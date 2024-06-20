@@ -53,6 +53,42 @@ Note the names of the branch must follow proper docker names:
 
 >A tag name must be valid ASCII and may contain lowercase and uppercase letters, digits, underscores, periods and dashes. A tag name may not start with a period or a dash and may contain a maximum of 128 characters.
 
+#### Signing Off Commits
+
+To enhance the integrity of contributions to the Armada repository, we've adopted the use of the DCO (Developer Certificate of Origin) plug-in. This means that for every commit you contribute via Pull Requests, you'll need to sign off your commits to certify that you have the right to submit it under the open source license used by this project.
+
+**Every commit in your PRs must have a "Signed-Off" attribute.**
+
+When committing to the repository, ensure you use the `--signoff` option with `git commit`. This will append a sign-off message at the end of the commit log to indicate that the commit has your signature.
+
+You sign-off by adding the following to your commit messages:
+
+```
+Author: Your Name <your.name@example.com>
+Date:   Thu Feb 2 11:41:15 2018 -0800
+
+    This is my commit message
+
+    Signed-off-by: Your Name <your.name@example.com>
+```
+
+Notice the `Author` and `Signed-off-by` lines match. If they don't, the PR will
+be rejected by the automated DCO check.
+
+Git has a `-s` command line option to do this automatically:
+
+    git commit -s -m 'This is my commit message'
+
+If you forgot to do this and have not yet pushed your changes to the remote
+repository, you can amend your commit with the sign-off by running 
+
+    git commit --amend -s
+    
+This command will modify the latest commit and add the required sign-off.    
+
+For more details checkout [DCO](https://github.com/apps/dco)
+
+
 ## Chat & Discussions
 
 Sometimes, it's good to hash things out in real time.
