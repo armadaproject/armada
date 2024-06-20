@@ -168,13 +168,70 @@ func (sctx *SchedulingContext) TotalCost() float64 {
 	return rv
 }
 
-func (sctx *SchedulingContext) foo() {
-	totalCost := sctx.TotalCost()
-	for _, qctx := range sctx.QueueSchedulingContexts {
-		fairShare := qctx.Weight / sctx.WeightSum
-		cappedShare := sctx.FairnessCostProvider.CostFromAllocationAndWeight(qctx.Demand, qctx.Weight) / totalCost
-		cappedShare =
-		fractionOfFairShare := actualShare / fairShare
+func (sctx *SchedulingContext) CalculateFairShares() {
+	const maxIterations = 5
+
+	type queueInfo struct {
+		queueName     string
+		adjustedShare float64
+		fairShare     float64
+		weight        float64
+		cappedShare   float64
+	}
+
+	queueInfos := make([]*queueInfo, 0, len(sctx.QueueSchedulingContexts))
+	for queueName, qctx := range sctx.QueueSchedulingContexts {
+		cappedShare := 1.0
+		if !sctx.TotalResources.IsZero() {
+			cappedShare = sctx.FairnessCostProvider.CostFromAllocationAndWeight(qctx.Demand, qctx.Weight) * qctx.Weight
+		}
+		queueInfos = append(queueInfos, &queueInfo{
+			queueName:     queueName,
+			adjustedShare: 0,
+			fairShare:     qctx.Weight / sctx.WeightSum,
+			weight:        qctx.Weight,
+			cappedShare:   cappedShare,
+		})
+	}
+	slices.SortFunc(queueInfos, func(a, b *queueInfo) int {
+		return strings.Compare(a.queueName, b.queueName)
+	})
+
+	reallocationFactor := 1.0
+	for i := 0; i < maxIterations; i++ {
+		totalWeight := 0.0
+		for _, q := range queueInfos {
+			totalWeight += q.weight
+		}
+
+		for _, q := range queueInfos {
+			if q.weight > 0 {
+				share := (q.weight / totalWeight) * reallocationFactor
+				q.adjustedShare += share
+			}
+		}
+		unallocated := 0.0
+		needsRecalc := false
+		for _, q := range queueInfos {
+			excessShare := q.adjustedShare - q.cappedShare
+			if excessShare > 0 {
+				q.adjustedShare = q.cappedShare
+				q.weight = 0.0
+				unallocated += excessShare
+			} else {
+				needsRecalc = true
+			}
+		}
+		reallocationFactor = unallocated
+		if !needsRecalc {
+			break
+		}
+	}
+
+	for _, q := range queueInfos {
+		qtx := sctx.QueueSchedulingContexts[q.queueName]
+		qtx.FairShare = q.fairShare
+		qtx.AdjustedFairShare = q.adjustedShare
 	}
 }
 
@@ -354,9 +411,13 @@ type QueueSchedulingContext struct {
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
-	// Total demand from this queue.  This is essentially the cumulative resources og all non-terminal jobs at the
+	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
 	Demand schedulerobjects.ResourceList
+	// Fair share is the weight of this queue over the sum of the weights of all queues
+	FairShare float64
+	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
+	AdjustedFairShare float64
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]

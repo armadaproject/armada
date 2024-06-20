@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReallocation(t *testing.T) {
@@ -21,7 +22,7 @@ func TestReallocation(t *testing.T) {
 			demand:   []float64{1.0, 1.0, 1.0, 1.0},
 			expected: []float64{0.2, 0.4, 0.2, 0.2},
 		},
-		"One queue has negligable demand": {
+		"One queue has negligible demand": {
 			weights:  []float64{1.0, 1.0, 1.0, 1.0},
 			demand:   []float64{1.0, 1.0, 0.00001, 1.0},
 			expected: []float64{0.33333, 0.33333, 0.00001, 0.33333},

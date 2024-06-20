@@ -127,9 +127,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
-					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
 					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
-					fractionOfFairShare := actualShare / fairShare
+					fractionOfFairShare := actualShare / qctx.AdjustedFairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
 					}

@@ -6,9 +6,9 @@ import (
 
 func calculateAdjustedShares(weights, desiredShares []float64, maxIterations int) []float64 {
 	adjustedShares := make([]float64, len(weights))
-	var reallocationFactor = 1.0
+	reallocationFactor := 1.0
 	for i := 0; i < maxIterations; i++ {
-		var totalWeight = 0.0
+		totalWeight := 0.0
 		for _, w := range weights {
 			totalWeight += w
 		}
