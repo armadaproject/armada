@@ -67,53 +67,6 @@ To use priority and preemption in Armada:
 1. Add one or more [PriorityClasses](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass).
 2. Create Armada jobs with [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#pod-priority) in the job's `podSpec` set to one of the existing PriorityClasses.
 
-### Example
-
-* Create a Kubernetes PriorityClass:
-```yaml
-apiVersion: scheduling.k8s.io/v1
-kind: PriorityClass
-metadata:
-  name: armada-example-priority-class
-value: 10
-preemptionPolicy: PreemptLowerPriority
-globalDefault: false
-description: "Example priority class for preemptive Armada jobs."
-```
-```bash
-$ kubectl apply -f ./docs/quickstart/priority-class-example.yaml
-```
-
-* Apply an Armada job which references the PriorityClass in the field `priorityClassName`:
-```yaml
-queue: queue-a
-jobSetId: job-set-1
-jobs:
-  - priority: 1
-    podSpec:
-      priorityClassName: armada-example-priority-class
-      terminationGracePeriodSeconds: 0
-      restartPolicy: Never
-      containers:
-        - name: sleeper
-          image: alpine:latest
-          command:
-            - sh
-          args:
-            - -c
-            - sleep $(( (RANDOM % 60) + 10 ))
-          resources:
-            limits:
-              memory: 100Mi
-              cpu: 100m
-            requests:
-              memory: 100Mi
-              cpu: 100m
-```
-```bash
-$ armadactl submit ./docs/quickstart/job-queue-a-preemptive.yaml
-```
-
 ## Job options
 
 Here, we give a complete example of an Armada jobspec with all available parameters.
