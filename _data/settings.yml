@@ -25,26 +25,22 @@ blog_settings:
   # Should we display a narrow grid of other posts at the bottom of each blog post?
   read_more: "yes"
 
-# Setup your navigation below – how to use the icons: 
+# Setup your navigation below – how to use the icons:
   # 1. See all the icons available here https://demos.creative-tim.com/argon-design-system-pro/docs/1.0/foundation/icons.html
-  # 2. Get the name of the icon e.g basket, then prefix with ni to make ni-basket. 
-  # 3. Add a color of the icon - text-primary, text-success, text-info, text-danger, text-warning and text-default all work! 
+  # 2. Get the name of the icon e.g basket, then prefix with ni to make ni-basket.
+  # 3. Add a color of the icon - text-primary, text-success, text-info, text-danger, text-warning and text-default all work!
 menu_settings:
   menu_items:
     - title: 'Design'
-      url: '/design'    
+      url: '/design'
     - title: 'Documentation'
       submenu_items:
-      - title: 'Development'
-        url: '/developer'
+      - title: 'Quickstart'
+        url: '/quickstart'
       - title: 'User Guide'
-        url: '/user'   
-      - title: 'Production Install'
-        url: '/production-install'
+        url: '/user'
       - title: 'Libraries'
         url: '/libraries'
-    - title: 'Quickstart'
-      url: '/quickstart' 
     - title: 'Contribute'
       url: '/contribute'
 
@@ -59,7 +55,7 @@ contact_settings:
 
 social_settings:
   facebook_url: ''
-  discussions_url: 'https://github.com/G-Research/armada/discussions'
+  discussions_url: 'https://github.com/armadaproject/armada/discussions'
   twitter_url: 'https://twitter.com/GRESEARCHjobs'
   instagram_url: ''
   youtube_url: ''
@@ -68,13 +64,13 @@ social_settings:
   gitter_url: ''
   dribbble_url: ''
   behance_url: ''
-  github_url: 'https://github.com/G-Research/armada'
+  github_url: 'https://github.com/armadaproject/armada'
   reddit_url: ''
   linkedin_url: ''
 
 authors:
 
 advanced_settings:
-  analytics_code: 'G-SKPDW30VNF' 
-  header_js: 
-  footer_js: 
+  analytics_code: 'G-SKPDW30VNF'
+  header_js:
+  footer_js:

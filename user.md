@@ -70,6 +70,7 @@ To use priority and preemption in Armada:
 ### Example
 
 * Create a Kubernetes PriorityClass:
+
 ```yaml
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
@@ -80,11 +81,13 @@ preemptionPolicy: PreemptLowerPriority
 globalDefault: false
 description: "Example priority class for preemptive Armada jobs."
 ```
+
 ```bash
 $ kubectl apply -f ./docs/quickstart/priority-class-example.yaml
 ```
 
 * Apply an Armada job which references the PriorityClass in the field `priorityClassName`:
+
 ```yaml
 queue: queue-a
 jobSetId: job-set-1
@@ -110,6 +113,7 @@ jobs:
               memory: 100Mi
               cpu: 100m
 ```
+
 ```bash
 $ armadactl submit ./docs/quickstart/job-queue-a-preemptive.yaml
 ```
