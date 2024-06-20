@@ -36,7 +36,6 @@ on:
       - 'internal/jobservice/*'
       - 'pkg/api/*.proto'
       - 'pkg/api/jobservice/*.proto'
-      - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
 
