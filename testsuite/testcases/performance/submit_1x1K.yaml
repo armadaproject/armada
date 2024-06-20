@@ -16,10 +16,10 @@ jobs:
             - "Hello world!"
           resources:
             limits:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
 ---
 timeout: "900s"

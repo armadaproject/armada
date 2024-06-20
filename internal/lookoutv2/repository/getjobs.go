@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -23,6 +22,7 @@ type GetJobsRepository interface {
 type SqlGetJobsRepository struct {
 	db            *pgxpool.Pool
 	lookoutTables *LookoutTables
+	clock         clock.Clock
 }
 
 type GetJobsResult struct {
@@ -54,6 +54,7 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	return &SqlGetJobsRepository{
 		db:            db,
 		lookoutTables: NewTables(),
+		clock:         clock.RealClock{},
 	}
 }
 
@@ -70,7 +71,6 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 	var jobs []*model.Job
 	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query.Sql, query.Args...)
@@ -122,7 +122,7 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 				job.Node = lastRun.Node
 				job.Cluster = lastRun.Cluster
 				job.ExitCode = lastRun.ExitCode
-				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, clock.RealClock{})
+				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, r.clock)
 			}
 			jobs = append(jobs, job)
 		}

@@ -29,7 +29,7 @@ func TestGetJobRunError(t *testing.T) {
 				Lease(runId, cluster, node, baseTime).
 				Pending(runId, cluster, baseTime).
 				Running(runId, node, baseTime).
-				RunFailed(runId, node, 137, expected, baseTime).
+				RunFailed(runId, node, 137, expected, "", baseTime).
 				Failed(node, 137, "", baseTime).
 				Build().
 				ApiJob()

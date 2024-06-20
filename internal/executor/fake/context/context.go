@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 )
@@ -89,8 +89,9 @@ func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nod
 func (*FakeClusterContext) Stop() {
 }
 
-func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
+func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) (cache.ResourceEventHandlerRegistration, error) {
 	c.podEventHandlers = append(c.podEventHandlers, &handler)
+	return nil, nil
 }
 
 func (c *FakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
@@ -302,7 +303,7 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 	for _, s := range specs {
 		for i := 0; i < s.Count; i++ {
 			name := c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i)
-			labels := util.DeepCopy(s.Labels)
+			labels := maps.Clone(s.Labels)
 			if labels == nil {
 				labels = map[string]string{}
 			}

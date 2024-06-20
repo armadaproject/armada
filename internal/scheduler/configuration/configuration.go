@@ -10,7 +10,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
-	"github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/client"
@@ -25,8 +24,6 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Config
-	Redis config.RedisConfig
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
@@ -88,30 +85,11 @@ type MetricsConfig struct {
 	// Allowed characters in resource names are [a-zA-Z_:][a-zA-Z0-9_:]*
 	// It can also be used to track multiple resources within the same metric, e.g., "nvidia.com/gpu" and "amd.com/gpu".
 	ResourceRenaming map[v1.ResourceName]string
-	// Controls the cycle time metrics.
-	// TODO(albin): Not used yet.
-	CycleTimeConfig PrometheusSummaryConfig
 	// The first matching regex of each error message is cached in an LRU cache.
 	// This setting controls the cache size.
 	MatchedRegexIndexByErrorMessageCacheSize uint64
 	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
 	ResetInterval time.Duration
-}
-
-// PrometheusSummaryConfig contains the relevant config for a prometheus.Summary.
-type PrometheusSummaryConfig struct {
-	// Objectives defines the quantile rank estimates with their respective
-	// absolute error. If Objectives[q] = e, then the value reported for q
-	// will be the φ-quantile value for some φ between q-e and q+e.  The
-	// default value is an empty map, resulting in a summary without
-	// quantiles.
-	Objectives map[float64]float64
-
-	// MaxAge defines the duration for which an observation stays relevant
-	// for the summary. Only applies to pre-calculated quantiles, does not
-	// apply to _sum and _count. Must be positive. The default value is
-	// DefMaxAge.
-	MaxAge time.Duration
 }
 
 type LeaderConfig struct {
@@ -173,15 +151,6 @@ type SchedulingConfig struct {
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on a node to balance resource usage.
-	// TODO(albin): Remove.
-	NodeEvictionProbability float64
-	// If using PreemptToFairShare,
-	// the probability of evicting jobs on oversubscribed nodes, i.e.,
-	// nodes on which the total resource requests are greater than the available resources.
-	// TODO(albin): Remove.
-	NodeOversubscriptionEvictionProbability float64
 	// Only queues allocated more than this fraction of their fair share are considered for preemption.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
@@ -236,13 +205,6 @@ type SchedulingConfig struct {
 	MaxRetries uint
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
 	DominantResourceFairnessResourcesToConsider []string
-	// Once a node has been found on which a pod can be scheduled,
-	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
-	// The scheduler selects the node with the best score out of the considered nodes.
-	// In particular, the score expresses whether preemption is necessary to schedule a pod.
-	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
-	// TODO(albin): Remove. It's unused.
-	MaxExtraNodesToConsider uint
 	// Resource types (e.g. memory or nvidia.com/gpu) that the scheduler keeps track of.
 	// Resource types not on this list will be ignored if seen on a node, and any jobs requesting them will fail.
 	SupportedResourceTypes []ResourceType

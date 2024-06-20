@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/avast/retry-go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -227,37 +226,6 @@ jobs:
 		require.True(t, strings.Contains(out, s), "expected output to contain '%s', but got '%s'", s, out)
 	}
 
-	// analyze
-	err = retry.Do(
-		func() error {
-			err = app.Analyze(name, "set1")
-			if err != nil {
-				return fmt.Errorf("expected no error, but got %s", err)
-			}
-
-			out = buf.String()
-			buf.Reset()
-
-			if strings.Contains(out, "Found no events associated") {
-				return fmt.Errorf("no events found, got response %s", out)
-			}
-
-			for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
-				if !strings.Contains(out, s) {
-					return fmt.Errorf("expected output to contain '%s', but got '%s'", s, out)
-				}
-			}
-
-			return nil
-		},
-		retry.Attempts(100), // default retry delay is 100ms and it may take 10 seconds for the server to commit a job
-	)
-	require.NoError(t, err, "error on calling analyze")
-	// resources
-	// no need for retry since we can be sure the job has been committed to the db at this point
-	err = app.Resources(name, "set1")
-	require.NoError(t, err)
-
 	out = buf.String()
 	buf.Reset()
 	for _, s := range []string{"Job ID:", "maximum used resources:", "\n"} {
@@ -265,7 +233,7 @@ jobs:
 	}
 
 	// reprioritize
-	err = app.Reprioritize("", name, "set1", 2)
+	err = app.ReprioritizeJobSet(name, "set1", 2)
 	require.NoError(t, err)
 
 	out = buf.String()
@@ -275,7 +243,7 @@ jobs:
 	}
 
 	// cancel
-	err = app.Cancel(name, "set1", "")
+	err = app.CancelJob(name, "set1", "")
 	require.NoError(t, err)
 
 	out = buf.String()

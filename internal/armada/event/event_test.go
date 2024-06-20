@@ -8,21 +8,21 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
-	"github.com/armadaproject/armada/internal/armada/repository"
+	armadaqueue "github.com/armadaproject/armada/internal/armada/queue"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -30,7 +30,7 @@ import (
 
 type FakeActionAuthorizer struct{}
 
-func (c *FakeActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
+func (c *FakeActionAuthorizer) AuthorizeAction(_ *armadacontext.Context, _ permission.Permission) error {
 	return nil
 }
 
@@ -41,27 +41,6 @@ func (c *FakeActionAuthorizer) AuthorizeQueueAction(
 	_ queue.PermissionVerb,
 ) error {
 	return nil
-}
-
-type FakeDenyAllActionAuthorizer struct{}
-
-func (c *FakeDenyAllActionAuthorizer) AuthorizeAction(ctx *armadacontext.Context, anyPerm permission.Permission) error {
-	return &armadaerrors.ErrUnauthorized{
-		Principal: auth.GetPrincipal(ctx).GetName(),
-		Message:   "permission denied",
-	}
-}
-
-func (c *FakeDenyAllActionAuthorizer) AuthorizeQueueAction(
-	ctx *armadacontext.Context,
-	_ queue.Queue,
-	_ permission.Permission,
-	_ queue.PermissionVerb,
-) error {
-	return &armadaerrors.ErrUnauthorized{
-		Principal: auth.GetPrincipal(ctx).GetName(),
-		Message:   "permission denied",
-	}
 }
 
 func TestEventServer_Health(t *testing.T) {
@@ -86,12 +65,18 @@ func TestEventServer_ForceNew(t *testing.T) {
 		t,
 		func(s *EventServer) {
 			jobSetId := "set1"
-			queue := ""
+			q := queue.Queue{
+				Name:           "test-queue",
+				PriorityFactor: 1,
+			}
 			jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
 			runIdString := "123e4567-e89b-12d3-a456-426614174000"
 			baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 			jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
 			runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+
+			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
+			require.NoError(t, err)
 
 			stream := &eventStreamMock{}
 
@@ -105,20 +90,20 @@ func TestEventServer_ForceNew(t *testing.T) {
 				},
 			}
 
-			err := reportPulsarEvent(ctx, &armadaevents.EventSequence{
-				Queue:      queue,
+			err = reportPulsarEvent(ctx, &armadaevents.EventSequence{
+				Queue:      q.Name,
 				JobSetName: jobSetId,
 				Events:     []*armadaevents.EventSequence_Event{assigned},
 			})
 
 			require.NoError(t, err)
-			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
+			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: q.Name, Id: jobSetId, Watch: false}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
 			expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
 				JobId:    jobIdString,
 				JobSetId: jobSetId,
-				Queue:    queue,
+				Queue:    q.Name,
 				Created:  baseTime,
 			}}
 			assert.Equal(t, expected, stream.sendMessages[len(stream.sendMessages)-1].Message.Events)
@@ -133,8 +118,14 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 		ctx,
 		t,
 		func(s *EventServer) {
+			q := queue.Queue{
+				Name:           "test-queue",
+				PriorityFactor: 1,
+			}
+			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
+			require.NoError(t, err)
 			stream := &eventStreamMock{}
-			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
+			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Queue: q.Name, Watch: false}, stream)
 			require.NoError(t, e)
 			assert.Equal(t, 0, len(stream.sendMessages))
 		},
@@ -176,7 +167,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -198,7 +189,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -217,7 +208,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -261,7 +252,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			ctx,
 			t,
 			func(s *EventServer) {
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
@@ -328,7 +319,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			t,
 			func(s *EventServer) {
 				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := auth.NewStaticPrincipal("alice", []string{})
@@ -353,7 +344,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			t,
 			func(s *EventServer) {
 				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-				err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
 				principal := auth.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
@@ -375,7 +366,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("queue permission", func(t *testing.T) {
 		withEventServer(ctx, t, func(s *EventServer) {
 			s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
-			err := s.queueRepository.(repository.QueueRepository).CreateQueue(ctx, q)
+			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
 			principal := auth.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
@@ -421,29 +412,19 @@ func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequenc
 
 func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *EventServer)) {
 	t.Helper()
+	_ = lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
-	// using real redis instance as miniredis does not support streams
-	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+		eventRepo := NewEventRepository(client)
+		queueRepo := armadaqueue.NewPostgresQueueRepository(db)
+		server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
+		client.FlushDB(ctx)
 
-	eventRepo := NewEventRepository(client)
-	queueRepo := repository.NewRedisQueueRepository(client)
-	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
+		action(server)
 
-	client.FlushDB(ctx)
-	legacyClient.FlushDB(ctx)
-
-	// Create test queue
-	err := queueRepo.CreateQueue(ctx, queue.Queue{
-		Name:           "",
-		Permissions:    nil,
-		PriorityFactor: 1,
+		client.FlushDB(ctx)
+		return nil
 	})
-	require.NoError(t, err)
-	action(server)
-
-	client.FlushDB(ctx)
-	legacyClient.FlushDB(ctx)
 }
 
 type eventStreamMock struct {

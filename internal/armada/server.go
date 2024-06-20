@@ -8,7 +8,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
@@ -19,7 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/event"
 	"github.com/armadaproject/armada/internal/armada/queryapi"
-	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/queue"
 	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -78,24 +77,14 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return nil
 	})
 
-	// Setup Redis
-	db := createRedisClient(&config.Redis)
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.WithError(err).Error("failed to close Redis client")
-		}
-	}()
-	prometheus.MustRegister(
-		redisprometheus.NewCollector("armada", "redis", db))
-
-	// Create database connection. This is used for the query api and also to store queues
-	// In a subsequent pr we will move deduplication here too and move the config out of the `queryapi` namespace
-	queryDb, err := database.OpenPgxPool(config.QueryApi.Postgres)
+	// Create database connection. This is used for the query api, queues and for job deduplication
+	dbPool, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
-		return errors.WithMessage(err, "error creating QueryApi postgres pool")
+		return errors.WithMessage(err, "error creating postgres pool")
 	}
+	defer dbPool.Close()
 	queryapiServer := queryapi.New(
-		queryDb,
+		dbPool,
 		config.QueryApi.MaxQueryItems,
 		func() compress.Decompressor { return compress.NewZlibDecompressor() })
 	api.RegisterJobsServer(grpcServer, queryapiServer)
@@ -109,13 +98,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
 
-	queueRepository := repository.NewDualQueueRepository(db, queryDb, config.QueueRepositoryUsesPostgres)
-	queueCache := repository.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
+	queueRepository := queue.NewPostgresQueueRepository(dbPool)
+	queueCache := queue.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
 	services = append(services, func() error {
 		return queueCache.Run(ctx)
 	})
-	healthChecks.Add(repository.NewRedisHealth(db))
-
 	eventRepository := event.NewEventRepository(eventDb)
 
 	authorizer := auth.NewAuthorizer(
@@ -125,14 +112,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			config.Auth.PermissionClaimMapping,
 		),
 	)
-
-	// If pool settings are provided, open a connection pool to be shared by all services.
-	var dbPool *pgxpool.Pool
-	dbPool, err = database.OpenPgxPool(config.Postgres)
-	if err != nil {
-		return err
-	}
-	defer dbPool.Close()
 
 	serverId := uuid.New()
 	var pulsarClient pulsar.Client
@@ -155,9 +134,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer publisher.Close()
 
+	queueServer := queue.NewServer(queueRepository, authorizer)
+
 	submitServer := submit.NewServer(
+		queueServer,
 		publisher,
-		queueRepository,
 		queueCache,
 		config.Submission,
 		submit.NewDeduplicator(dbPool),
@@ -178,6 +159,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+	api.RegisterQueueServiceServer(grpcServer, queueServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)

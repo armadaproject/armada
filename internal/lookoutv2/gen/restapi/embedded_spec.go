@@ -142,6 +142,63 @@ func init() {
         }
       }
     },
+    "/api/v1/jobRunDebugMessage": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunDebugMessage",
+        "parameters": [
+          {
+            "name": "getJobRunDebugMessageRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns debug message for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Debug message for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobRunError": {
       "post": {
         "consumes": [
@@ -457,7 +514,8 @@ func init() {
         "duplicate",
         "annotations",
         "runs",
-        "cluster"
+        "cluster",
+        "runtimeSeconds"
       ],
       "properties": {
         "annotations": {
@@ -561,6 +619,11 @@ func init() {
           "items": {
             "$ref": "#/definitions/run"
           },
+          "x-nullable": false
+        },
+        "runtimeSeconds": {
+          "type": "integer",
+          "format": "int32",
           "x-nullable": false
         },
         "state": {
@@ -801,6 +864,63 @@ func init() {
                   "items": {
                     "$ref": "#/definitions/group"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobRunDebugMessage": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunDebugMessage",
+        "parameters": [
+          {
+            "name": "getJobRunDebugMessageRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns debug message for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Debug message for individual job run",
+                  "type": "string",
+                  "x-nullable": false
                 }
               }
             }
@@ -1158,7 +1278,8 @@ func init() {
         "duplicate",
         "annotations",
         "runs",
-        "cluster"
+        "cluster",
+        "runtimeSeconds"
       ],
       "properties": {
         "annotations": {
@@ -1262,6 +1383,11 @@ func init() {
           "items": {
             "$ref": "#/definitions/run"
           },
+          "x-nullable": false
+        },
+        "runtimeSeconds": {
+          "type": "integer",
+          "format": "int32",
           "x-nullable": false
         },
         "state": {

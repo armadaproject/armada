@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
@@ -33,7 +33,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
-		poolMappings map[string]string
+		poolMappings map[string][]string
 		queues       []*api.Queue
 		expected     []prometheus.Metric
 	}{
@@ -92,7 +92,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			defer cancel()
 
 			// set up job db with initial jobs
-			jobDb := testfixtures.NewJobDb()
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
 			err := txn.Upsert(tc.initialJobs)
 			require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			defer cancel()
 
 			// set up job db with initial jobs
-			jobDb := testfixtures.NewJobDb()
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
 			err := txn.Upsert(tc.jobDbJobs)
 			require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
-			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string]string{}}
+			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string][]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(tc.executors, nil)
@@ -302,17 +302,17 @@ func createNode(nodeType string) *schedulerobjects.Node {
 
 type MockPoolAssigner struct {
 	defaultPool string
-	poolsById   map[string]string
+	poolsById   map[string][]string
 }
 
 func (m MockPoolAssigner) Refresh(_ *armadacontext.Context) error {
 	return nil
 }
 
-func (m MockPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
-	pool, ok := m.poolsById[j.Id()]
+func (m MockPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
+	pools, ok := m.poolsById[j.Id()]
 	if !ok {
-		pool = m.defaultPool
+		return []string{m.defaultPool}, nil
 	}
-	return pool, nil
+	return pools, nil
 }

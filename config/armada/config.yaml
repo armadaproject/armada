@@ -6,7 +6,6 @@ corsAllowedOrigins:
   - http://localhost:8089
   - http://localhost:10000
 grpcGatewayPath: "/"
-queueRepositoryUsesPostgres: false
 queueCacheRefreshPeriod: 10s
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
@@ -20,12 +19,6 @@ grpc:
     permitWithoutStream: true
   tls:
     enabled: false
-redis:
-  addrs:
-    - redis:6379
-  password: ""
-  db: 0
-  poolSize: 1000
 eventsApiRedis:
   addrs:
     - redis:6379
@@ -93,13 +86,4 @@ postgres:
     dbname: lookout
     sslmode: disable
 queryapi:
-  enabled: false
   maxQueryItems: 500
-  postgres:
-    connection:
-      host: postgres
-      port: 5432
-      user: postgres
-      password: psw
-      dbname: lookout
-      sslmode: disable

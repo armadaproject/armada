@@ -45,7 +45,6 @@ func GetOneQueue10JobWorkload() *WorkloadSpec {
 
 func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
-		NodeEvictionProbability: 1.0,
 		PriorityClasses: map[string]types.PriorityClass{
 			"armada-default": {
 				Priority:    30000,

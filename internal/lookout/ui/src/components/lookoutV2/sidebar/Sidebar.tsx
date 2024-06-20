@@ -13,7 +13,7 @@ import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
-import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
+import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
 import { ILogService } from "../../../services/lookoutV2/LogService"
 import { CommandSpec } from "../../../utils"
 
@@ -33,7 +33,7 @@ type ResizeState = {
 
 export interface SidebarProps {
   job: Job
-  runErrorService: IGetRunErrorService
+  runInfoService: IGetRunInfoService
   jobSpecService: IGetJobSpecService
   logService: ILogService
   cordonService: ICordonService
@@ -46,7 +46,7 @@ export interface SidebarProps {
 export const Sidebar = memo(
   ({
     job,
-    runErrorService,
+    runInfoService,
     jobSpecService,
     logService,
     cordonService,
@@ -186,7 +186,7 @@ export const Sidebar = memo(
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.JobRuns} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobRuns job={job} runErrorService={runErrorService} cordonService={cordonService} />
+                  <SidebarTabJobRuns job={job} runInfoService={runInfoService} cordonService={cordonService} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Yaml} className={styles.sidebarTabPanel}>

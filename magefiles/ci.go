@@ -12,8 +12,7 @@ import (
 )
 
 func createQueue() error {
-	outbytes, err := exec.Command(armadaCtl(), "create", "queue", "e2e-test-queue").CombinedOutput()
-	out := string(outbytes)
+	out, err := runArmadaCtl("create", "queue", "e2e-test-queue")
 	// check if err text contains "already exists" and ignore if it does
 	if err != nil && !strings.Contains(out, "already exists") {
 		fmt.Println(out)
@@ -65,8 +64,7 @@ func CheckForArmadaRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Armada to start")
 		case <-tick:
-			outbytes, _ := exec.Command(armadaCtl(), "submit", "./developer/config/job.yaml").CombinedOutput()
-			out := string(outbytes)
+			out, _ := runArmadaCtl("submit", "./developer/config/job.yaml")
 			if strings.Contains(out, "Submitted job with id") {
 				// Sleep for 1 second to allow Armada to fully start
 				time.Sleep(1 * time.Second)
@@ -78,9 +76,25 @@ func CheckForArmadaRunning() error {
 	}
 }
 
-func armadaCtl() string {
+func runArmadaCtl(args ...string) (string, error) {
+	armadaCtlArgs := []string{
+		"--config", "e2e/config/armadactl_config.yaml",
+	}
+	armadaCtlArgs = append(armadaCtlArgs, args...)
+	outBytes, err := exec.Command(findOrDownloadArmadaCtl(), armadaCtlArgs...).CombinedOutput()
+	out := string(outBytes)
+	return out, err
+}
+
+// Finds armadactl to submit with
+// We look for local armadactl first, then in path, then try to download one from github releases.
+func findOrDownloadArmadaCtl() string {
 	if _, err := os.Stat("./armadactl"); os.IsNotExist(err) {
-		err = sh.Run("sh", "./docs/local/armadactl.sh")
+		if path, err := exec.LookPath("armadactl"); err == nil {
+			return path
+		}
+
+		err = sh.Run("sh", "./scripts/get-armadactl.sh")
 		if err != nil {
 			return ""
 		}

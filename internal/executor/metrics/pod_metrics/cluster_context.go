@@ -79,7 +79,7 @@ func ExposeClusterContextMetrics(
 	utilisationService utilisation.UtilisationService,
 	queueUtilisationService utilisation.PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
-) *ClusterContextMetrics {
+) (*ClusterContextMetrics, error) {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
@@ -94,7 +94,7 @@ func ExposeClusterContextMetrics(
 			[]string{queueLabel, phaseLabel}),
 	}
 
-	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -111,8 +111,11 @@ func ExposeClusterContextMetrics(
 			m.reportPhase(newPod)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 	prometheus.MustRegister(m)
-	return m
+	return m, nil
 }
 
 func (m *ClusterContextMetrics) reportPhase(pod *v1.Pod) {
@@ -217,15 +220,15 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	for _, nodeGroup := range nodeGroupAllocationInfos {
-		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType.Id)
+		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
 			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
 				prometheus.GaugeValue, armadaresource.QuantityAsFloat64(allocatable), resourceType,
-				nodeGroup.NodeType.Id)
+				nodeGroup.NodeType)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, armadaresource.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType.Id)
+			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, armadaresource.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType)
 		}
 	}
 }
@@ -263,7 +266,7 @@ func (m *ClusterContextMetrics) setEmptyMetrics(podMetrics map[string]map[string
 func (m *ClusterContextMetrics) createNodeTypeLookup(nodes []*v1.Node) map[string]string {
 	result := map[string]string{}
 	for _, n := range nodes {
-		result[n.Name] = m.nodeInfoService.GetType(n).Id
+		result[n.Name] = m.nodeInfoService.GetType(n)
 	}
 	return result
 }

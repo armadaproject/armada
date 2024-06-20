@@ -70,7 +70,6 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
-client/DotNet.gRPC/Armada.Client.Grpc/generated
 
 # python
 # Pycache, dist, poetry versions
@@ -94,6 +93,7 @@ build/ssl/certs/ca-certificates.crt
 developer/volumes/go/pkg/
 .coverage
 coverage.xml
+.venv
 
 # Yarn
 developer/yarn.lock

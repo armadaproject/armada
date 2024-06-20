@@ -2,8 +2,9 @@
 <img src="./logo.svg" width="200"/>
 
 <p><a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
-<a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a></p>
-</div>
+<a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
+<a href="https://insights.lfx.linuxfoundation.org/foundation/cncf/overview?project=armada" title="Click to view project insights and health checks"><img src="https://img.shields.io/badge/LFX%20Insights-0094FF" alt="LFX Insights Dashboard"></a>
+</p></div>
 
 # Armada
 
@@ -36,6 +37,26 @@ For an overview of Armada, see the following videos:
 
 The Armada project adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
 
+## Installation
+
+### Armada Operator
+
+For installation instructions, easiest way is to use the Armada Operator.
+For more information, see the [Armada Operator repository](https://github.com/armadaproject/armada-operator).
+
+Alternatively, you can install Armada manually by using the Helm charts defined in the `deployment` directory.
+
+### armadactl
+
+Armada also provides a command-line interface, `armadactl`, which can be used to interact with the Armada system.
+
+To install `armadactl`, run the following script:
+```bash
+scripts/get-armadactl.sh
+```
+
+Or download it from the [GitHub Release](https://github.com/armadaproject/armada/releases/latest) page for your platform.
+
 ## Documentation
 
 For documentation, see the following:
@@ -43,8 +64,8 @@ For documentation, see the following:
 - [System overview](./docs/system_overview.md)
 - [Scheduler](./docs/scheduler.md)
 - [User guide](./docs/user.md)
-- [Quickstart](./docs/quickstart/index.md)
 - [Development guide](./docs/developer.md)
+- [Release notes/Version history](https://github.com/armadaproject/armada/releases)
 - [API Documentation](./docs/developer/api.md)
 
 We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:

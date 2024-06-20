@@ -56,8 +56,6 @@ var (
 	DefaultTerminationGracePeriodSeconds = int64(30)
 	DefaultActiveDeadlineSeconds         = int64(3600)
 	DefaultTime                          = time.Now().UTC()
-	DefaultHostNameSuffix                = "testHostNameSuffix"
-	DefaultCertNameSuffix                = "testHostNameSuffix"
 )
 
 func DefaultSubmissionConfig() configuration.SubmissionConfig {
@@ -81,7 +79,8 @@ func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequen
 			Created: &DefaultTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId: armadaevents.MustProtoUuidFromUlidString(jobId),
+					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
+					JobIdStr: jobId,
 				},
 			},
 		}
@@ -96,7 +95,8 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 			Created: &DefaultTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId: armadaevents.MustProtoUuidFromUlidString(jobId),
+					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
+					JobIdStr: jobId,
 				},
 			},
 		}
@@ -123,6 +123,7 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
+					JobIdStr: jobId,
 					Priority: uint32(newPriority),
 				},
 			},
@@ -182,8 +183,10 @@ func JobSubmitRequestItem(i int) *api.JobSubmitRequestItem {
 }
 
 func SubmitJob(i int) *armadaevents.SubmitJob {
+	jobId := TestUlid(i)
 	return &armadaevents.SubmitJob{
-		JobId:           TestUlid(i),
+		JobId:           jobId,
+		JobIdStr:        armadaevents.MustUlidStringFromProtoUuid(jobId),
 		Priority:        DefaultPriorityInt,
 		ObjectMeta:      &armadaevents.ObjectMeta{Namespace: DefaultNamespace},
 		Objects:         []*armadaevents.KubernetesObject{},

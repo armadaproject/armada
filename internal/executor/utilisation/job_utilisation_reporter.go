@@ -35,7 +35,7 @@ func NewUtilisationEventReporter(
 	podUtilisation PodUtilisationService,
 	eventReporter reporter.EventReporter,
 	reportingPeriod time.Duration,
-) *UtilisationEventReporter {
+) (*UtilisationEventReporter, error) {
 	r := &UtilisationEventReporter{
 		clusterContext:    clusterContext,
 		podUtilisation:    podUtilisation,
@@ -44,7 +44,7 @@ func NewUtilisationEventReporter(
 		podInfo:           map[string]*podUtilisationInfo{},
 	}
 
-	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
@@ -70,7 +70,10 @@ func NewUtilisationEventReporter(
 			go r.deletePod(pod)
 		},
 	})
-	return r
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (r *UtilisationEventReporter) ReportUtilisationEvents() {

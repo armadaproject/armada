@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -55,7 +55,7 @@ type MetricsCollector struct {
 	executorRepository database.ExecutorRepository
 	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
-	clock              clock.Clock
+	clock              clock.WithTicker
 	state              atomic.Value
 }
 
@@ -165,7 +165,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			continue
 		}
 
-		pool, err := c.poolAssigner.AssignPool(job)
+		pools, err := c.poolAssigner.AssignPools(job)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +205,10 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.runningJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 		}
-		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
-		recorder.RecordResources(pool, priorityClass, jobResources)
+		for _, pool := range pools {
+			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
+			recorder.RecordResources(pool, priorityClass, jobResources)
+		}
 	}
 
 	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[schedulerobjects.SchedulingKey]bool) int {

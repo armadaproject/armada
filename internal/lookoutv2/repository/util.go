@@ -5,13 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -398,7 +397,7 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 	return js
 }
 
-func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, debug string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	runFailed := &armadaevents.EventSequence_Event{
 		Created: &ts,
@@ -411,8 +410,9 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 						Terminal: true,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
-								Message:  message,
-								NodeName: node,
+								Message:      message,
+								DebugMessage: debug,
+								NodeName:     node,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{ExitCode: exitCode},
 								},
@@ -577,7 +577,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	return js
 }
 
-func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, clk clock.Clock) *JobSimulator {
+func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: &ts,

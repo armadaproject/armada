@@ -11,9 +11,6 @@ type SchedulerResult struct {
 	PreemptedJobs []*schedulercontext.JobSchedulingContext
 	// Queued jobs that should be scheduled.
 	ScheduledJobs []*schedulercontext.JobSchedulingContext
-	// Queued jobs that could not be scheduled.
-	// This is used to fail jobs that could not schedule above `minimumGangCardinality`.
-	FailedJobs []*schedulercontext.JobSchedulingContext
 	// For each preempted job, maps the job id to the id of the node on which the job was running.
 	// For each scheduled job, maps the job id to the id of the node on which the job should be scheduled.
 	NodeIdByJobId map[string]string
@@ -39,15 +36,6 @@ func PreemptedJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
 func ScheduledJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
 	rv := make([]*jobdb.Job, len(sr.ScheduledJobs))
 	for i, jctx := range sr.ScheduledJobs {
-		rv[i] = jctx.Job
-	}
-	return rv
-}
-
-// FailedJobsFromSchedulerResult returns the slice of scheduled jobs in the result.
-func FailedJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
-	rv := make([]*jobdb.Job, len(sr.FailedJobs))
-	for i, jctx := range sr.FailedJobs {
 		rv[i] = jctx.Job
 	}
 	return rv

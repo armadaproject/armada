@@ -31,6 +31,7 @@ func SubmitJobFromApiRequest(
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
+		JobIdStr:        jobIdStr,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
 		ObjectMeta: &armadaevents.ObjectMeta{
@@ -45,9 +46,8 @@ func SubmitJobFromApiRequest(
 				},
 			},
 		},
-		Objects:         ingressesAndServices,
-		Scheduler:       jobReq.Scheduler,
-		QueueTtlSeconds: jobReq.QueueTtlSeconds,
+		Objects:   ingressesAndServices,
+		Scheduler: jobReq.Scheduler,
 	}
 	postProcess(msg, config)
 	return msg

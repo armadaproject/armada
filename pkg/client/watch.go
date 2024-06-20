@@ -67,8 +67,6 @@ func WatchJobSetWithJobIdsFilter(
 				FromMessageId:  lastMessageId,
 				Watch:          waitForNew,
 				ErrorIfMissing: errorOnNotExists,
-				ForceNew:       forceNew,
-				ForceLegacy:    forceLegacy,
 			},
 		)
 

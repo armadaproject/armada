@@ -12,11 +12,11 @@ import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armad
 import reportWebVitals from "./reportWebVitals"
 import { CordonService } from "./services/lookoutV2/CordonService"
 import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
-import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { GetRunInfoService } from "./services/lookoutV2/GetRunInfoService"
 import { LogService as V2LogService } from "./services/lookoutV2/LogService"
 import { FakeCordonService } from "./services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
-import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeGetRunInfoService } from "./services/lookoutV2/mocks/FakeGetRunInfoService"
 import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
 
@@ -39,7 +39,7 @@ import "./index.css"
   const v2GroupJobsService = fakeDataEnabled
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(uiConfig.backend)
-  const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService()
+  const v2RunInfoService = fakeDataEnabled ? new FakeGetRunInfoService() : new GetRunInfoService()
   const v2LogService = fakeDataEnabled
     ? new FakeLogService()
     : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
@@ -58,7 +58,7 @@ import "./index.css"
       v2GroupJobsService={v2GroupJobsService}
       v2UpdateJobsService={v2UpdateJobsService}
       v2UpdateJobSetsService={v2UpdateJobSetsService}
-      v2RunErrorService={v2RunErrorService}
+      v2RunInfoService={v2RunInfoService}
       v2JobSpecService={v2JobSpecService}
       v2LogService={v2LogService}
       v2CordonService={v2CordonService}

@@ -9,10 +9,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -48,6 +50,8 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	// Resource requirements of this job stored in efficient form.
+	resourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
@@ -66,6 +70,8 @@ type Job struct {
 	activeRun *JobRun
 	// The timestamp of the currently active run.
 	activeRunTimestamp int64
+	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
+	pools []string
 }
 
 func (job *Job) String() string {
@@ -299,7 +305,7 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.schedulingKey != other.schedulingKey {
-		// Assume jobSchedulingInfo is equal if schedulingKey is equal.
+		// Assume jobSchedulingInfo/resourceRequirements are equal if schedulingKey is equal.
 		return false
 	}
 	if job.queued != other.queued {
@@ -339,6 +345,9 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.activeRunTimestamp != other.activeRunTimestamp {
+		return false
+	}
+	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
@@ -390,10 +399,22 @@ func (job *Job) RequestedPriority() uint32 {
 	return job.requestedPriority
 }
 
+// Pools returns the pools associated with the job
+func (job *Job) Pools() []string {
+	return slices.Clone(job.pools)
+}
+
 // WithPriority returns a copy of the job with the priority updated.
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.priority = priority
+	return j
+}
+
+// WithPools returns a copy of the job with the pools updated.
+func (job *Job) WithPools(pools []string) *Job {
+	j := copyJob(*job)
+	j.pools = slices.Clone(pools)
 	return j
 }
 
@@ -479,6 +500,7 @@ func (job *Job) Tolerations() []v1.Toleration {
 }
 
 // ResourceRequirements returns the resource requirements of the Job
+// EfficientResourceRequirements below is preferred
 func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
@@ -486,10 +508,9 @@ func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
-// QueueTtlSeconds returns the time in seconds that the job should remain queued
-// 0 means that this field is  unset
-func (job *Job) QueueTtlSeconds() int64 {
-	return job.jobSchedulingInfo.QueueTtlSeconds
+// EfficientResourceRequirements gets resource requirements as an efficient internaltypes.ResourceList
+func (job *Job) EfficientResourceRequirements() internaltypes.ResourceList {
+	return job.resourceRequirements
 }
 
 // PodRequirements returns the pod requirements of the Job
@@ -612,6 +633,21 @@ func (job *Job) HasRuns() bool {
 	return job.activeRun != nil
 }
 
+func (job *Job) ValidateResourceRequests() error {
+	pr := job.jobSchedulingInfo.GetPodRequirements()
+	if pr == nil {
+		return nil
+	}
+
+	req := pr.ResourceRequirements.Requests
+	if req == nil {
+		return nil
+	}
+
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(req)
+	return err
+}
+
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAtPriority int32) *Job {
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
@@ -696,28 +732,6 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
-// HasQueueTtlExpired returns true if the given job has reached its queueTtl expiry.
-// Invariants:
-//   - job.created < `t`
-func (job *Job) HasQueueTtlExpired() bool {
-	ttlSeconds := job.QueueTtlSeconds()
-	if ttlSeconds > 0 {
-		timeSeconds := time.Now().UTC().Unix()
-
-		// job.Created is populated from the `Submitted` field in postgres, which is a UnixNano time hence the conversion.
-		createdSeconds := job.submittedTime / 1_000_000_000
-		duration := timeSeconds - createdSeconds
-		return duration > ttlSeconds
-	} else {
-		return false
-	}
-}
-
-// HasQueueTtlSet returns true if the given job has a queueTtl set.
-func (job *Job) HasQueueTtlSet() bool {
-	return job.QueueTtlSeconds() > 0
-}
-
 // WithJobset returns a copy of the job with the jobSet updated.
 func (job *Job) WithJobset(jobset string) *Job {
 	j := copyJob(*job)
@@ -752,19 +766,23 @@ func (job *Job) Validated() bool {
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
-func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
+func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) (*Job, error) {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
-	return j
+	j.resourceRequirements = job.jobDb.getResourceRequirements(jobSchedulingInfo)
+
+	return j, nil
 }
 
 func (job *Job) DeepCopy() *Job {
-	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
-	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
+	j := copyJob(*job)
+	j.jobSchedulingInfo = proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j.ensureJobSchedulingInfoFieldsInitialised()
+	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 
 	j.runsById = maps.Clone(j.runsById)
 	for key, run := range j.runsById {
@@ -777,7 +795,7 @@ func (job *Job) DeepCopy() *Job {
 	return j
 }
 
-// copyJob makes a copy of the job
+// copyJob makes a shallow copy of the job
 func copyJob(j Job) *Job {
 	return &j
 }

@@ -10,16 +10,16 @@ jobs:
       containers:
         - name: oom
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10
+          image: alpine:3.20.0
           args:
             - "tail"
             - "/dev/zero"
           resources:
             limits:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 25Mi
               cpu: 100m
 ---
 timeout: "300s"

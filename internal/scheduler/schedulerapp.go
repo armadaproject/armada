@@ -13,7 +13,6 @@ import (
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"k8s.io/client-go/kubernetes"
@@ -102,17 +101,6 @@ func Run(config schedulerconfig.Configuration) error {
 	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
-	redisClient := redis.NewUniversalClient(config.Redis.AsUniversalOptions())
-	defer func() {
-		err := redisClient.Close()
-		if err != nil {
-			logging.
-				WithStacktrace(ctx, err).
-				Warnf("Redis client didn't close down cleanly")
-		}
-	}()
-	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
-
 	// ////////////////////////////////////////////////////////////////////////
 	// Queue Cache
 	// ////////////////////////////////////////////////////////////////////////
@@ -190,7 +178,6 @@ func Run(config schedulerconfig.Configuration) error {
 		apiProducer,
 		jobRepository,
 		executorRepository,
-		legacyExecutorRepository,
 		types.AllowedPriorities(config.Scheduling.PriorityClasses),
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
@@ -301,6 +288,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.PriorityClasses,
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
+		resourceListFactory,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
 	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
@@ -342,10 +330,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository, resourceListFactory)
-	if err != nil {
-		return errors.WithMessage(err, "error creating pool assigner")
-	}
+	poolAssigner := NewPoolAssigner(executorRepository)
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,

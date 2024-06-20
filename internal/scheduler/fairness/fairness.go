@@ -55,7 +55,7 @@ func (f *DominantResourceFairness) CostFromAllocationAndWeight(allocation schedu
 			continue
 		}
 		q := allocation.Get(t)
-		tcost := float64(q.MilliValue()) / float64(capacity.MilliValue())
+		tcost := q.AsApproximateFloat64() / capacity.AsApproximateFloat64()
 		if tcost > cost {
 			cost = tcost
 		}

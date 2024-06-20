@@ -20,7 +20,7 @@ type Context struct {
 func Background() *Context {
 	return &Context{
 		Context:     context.Background(),
-		FieldLogger: logrus.NewEntry(logrus.New()),
+		FieldLogger: logrus.NewEntry(logrus.StandardLogger()),
 	}
 }
 
@@ -28,7 +28,7 @@ func Background() *Context {
 func TODO() *Context {
 	return &Context{
 		Context:     context.TODO(),
-		FieldLogger: logrus.NewEntry(logrus.New()),
+		FieldLogger: logrus.NewEntry(logrus.StandardLogger()),
 	}
 }
 

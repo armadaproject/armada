@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
@@ -99,6 +99,12 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 		CREATE TEMP TABLE job_ids_to_delete AS (
 			SELECT job_id FROM job
 			WHERE last_transition_time < $1
+			AND state in (
+				4, -- Succeeded
+		   		5, -- Failed
+		   		6, -- Cancelled
+		   		7  -- Preempted
+		    )
 		)`, cutOffTime)
 	if err != nil {
 		return -1, errors.WithStack(err)
@@ -127,7 +133,6 @@ func deleteBatch(ctx *armadacontext.Context, tx pgx.Tx, batchLimit int) (int, er
 	_, err = tx.Exec(ctx, `
 		DELETE FROM job WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_run WHERE job_id in (SELECT job_id from batch);
-		DELETE FROM user_annotation_lookup WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_ids_to_delete WHERE job_id in (SELECT job_id from batch);
 		TRUNCATE TABLE batch;`)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
@@ -225,12 +226,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return errors.WithStack(err)
 		}
-	case UpdateJobPriorities:
+	case *UpdateJobPriorities:
 		err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
 			Queue:    o.key.queue,
 			JobSet:   o.key.jobSet,
 			Priority: o.key.Priority,
-			JobIds:   o.jobIds,
+			JobIds:   slices.Unique(o.jobIds),
 		})
 		if err != nil {
 			return errors.WithStack(err)
@@ -339,8 +340,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		return nil
 	case MarkJobsValidated:
-		jobIds := maps.Keys(o)
-		err := queries.MarkJobsSubmitCheckedById(ctx, jobIds)
+		markValidatedSqlStatement := `UPDATE jobs SET validated = true, pools = $1 WHERE job_id = $2`
+		batch := &pgx.Batch{}
+		for key, value := range o {
+			batch.Queue(markValidatedSqlStatement, value, key)
+		}
+		err := execBatch(ctx, tx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}

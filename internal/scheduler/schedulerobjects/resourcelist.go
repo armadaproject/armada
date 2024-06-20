@@ -278,19 +278,6 @@ func (a ResourceList) IsStrictlyNonNegative() bool {
 	return true
 }
 
-// IsStrictlyLessOrEqual returns false if
-// - there is a quantity in b greater than that in a or
-// - there is a non-zero quantity in b not in a
-// and true otherwise.
-func (a ResourceList) IsStrictlyLessOrEqual(b ResourceList) bool {
-	for t, q := range b.Resources {
-		if q.Cmp(a.Get(t)) == -1 {
-			return false
-		}
-	}
-	return true
-}
-
 func (rl ResourceList) CompactString() string {
 	var sb strings.Builder
 	sb.WriteString("{")
@@ -361,14 +348,6 @@ func (m AllocatableByPriorityAndResourceType) MarkAllocatable(p int32, rs Resour
 	for priority, allocatableResourcesAtPriority := range m {
 		if priority <= p {
 			allocatableResourcesAtPriority.Add(rs)
-		}
-	}
-}
-
-func (m AllocatableByPriorityAndResourceType) MarkAllocatedV1ResourceList(p int32, rs v1.ResourceList) {
-	for priority, allocatableResourcesAtPriority := range m {
-		if priority <= p {
-			allocatableResourcesAtPriority.SubV1ResourceList(rs)
 		}
 	}
 }

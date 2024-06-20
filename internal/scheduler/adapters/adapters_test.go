@@ -5,14 +5,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -107,20 +106,15 @@ func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Creating backup for stderr
-			old := os.Stderr
 			r, w, _ := os.Pipe()
-			// Assigning stderr to file, w
-			os.Stderr = w
 			// Stderr from this function would be written to file w
+			logrus.SetOutput(w)
 			scheduler := PodRequirementsFromPodSpec(&test.podspec, test.priorityByPriorityClassName)
 			// Closing file, w
 			err := w.Close()
 			require.NoError(t, err)
 			// Reading from file
 			out, _ := io.ReadAll(r)
-			// Restoring stderr
-			os.Stderr = old
 			expectedScheduler.Priority = test.priority
 			assert.Equal(t, scheduler, expectedScheduler)
 			// if loggedError is true, bytes should be written to stderr,
@@ -167,41 +161,6 @@ func TestPodRequirementsFromPodSpecPreemptionPolicy(t *testing.T) {
 			assert.Equal(t, scheduler.PreemptionPolicy, string(test.preemptionpolicy))
 		})
 	}
-}
-
-func TestPodRequirementsFromPod(t *testing.T) {
-	podSpec := &v1.PodSpec{
-		Priority: &priority,
-		Containers: []v1.Container{
-			{
-				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{
-						v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-						v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-					},
-					Requests: v1.ResourceList{
-						v1.ResourceName("cpu"):    *resource.NewMilliQuantity(300, resource.DecimalSI),
-						v1.ResourceName("memory"): *resource.NewQuantity(2*1024*1024*1024, resource.BinarySI),
-					},
-				},
-			},
-		},
-	}
-	pod := v1.Pod{
-		Spec: *podSpec,
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				configuration.GangIdAnnotation:          "gang-id",
-				configuration.GangCardinalityAnnotation: "1",
-			},
-		},
-	}
-	rv := PodRequirementsFromPod(&pod, priorityByPriorityClassName)
-	rv.Annotations["something"] = "test"
-	// Ensures that any modification made to the returned value of PodRequirementsFromPod function, "rv", does not
-	// affect the original pod definition. This assertion checks if the length of "pod.Annotation" is altered
-	// in view of the modification made to "rv" above.
-	assert.Len(t, pod.Annotations, 2)
 }
 
 func TestPriorityFromPodSpec(t *testing.T) {

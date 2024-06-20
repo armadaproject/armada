@@ -7,13 +7,15 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"golang.org/x/exp/maps"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -24,11 +26,19 @@ import (
 
 type schedulingResult struct {
 	isSchedulable bool
+	pools         []string
 	reason        string
 }
 
+// TODO: rename this to "executor" when we simplify pool assigner
+type executorDetails struct {
+	pool           string
+	nodeDb         *nodedb.NodeDb
+	minimumJobSize schedulerobjects.ResourceList
+}
+
 type executorState struct {
-	executorsById             map[string]*nodedb.NodeDb
+	executorsById             map[string]*executorDetails
 	jobSchedulingResultsCache *lru.Cache
 }
 
@@ -69,6 +79,7 @@ func NewSubmitChecker(
 }
 
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
+	ctx.Infof("Will refresh executor state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
 	srv.updateExecutors(ctx)
 	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
 	for {
@@ -89,21 +100,26 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			Error("Error fetching executors")
 		return
 	}
+	ctx.Infof("Retrieved %d executors", len(executors))
 	jobSchedulingResultsCache, err := lru.New(10000)
 	if err != nil {
 		// This should never happen as lru.New only returns an error if it is initialised with a negative size
 		panic(err)
 	}
 
-	executorsById := map[string]*nodedb.NodeDb{}
-	for _, executor := range executors {
-		nodeDb, err := srv.constructNodeDb(executor)
+	executorsById := map[string]*executorDetails{}
+	for _, ex := range executors {
+		nodeDb, err := srv.constructNodeDb(ex)
 		if err == nil {
-			executorsById[executor.Id] = nodeDb
+			executorsById[ex.Id] = &executorDetails{
+				pool:           ex.Pool,
+				nodeDb:         nodeDb,
+				minimumJobSize: ex.MinimumJobSize,
+			}
 		} else {
 			logging.
 				WithStacktrace(ctx, err).
-				Warnf("Error constructing nodedb for executor: %s", executor.Id)
+				Warnf("Error constructing nodedb for executor: %s", ex.Id)
 		}
 	}
 	srv.state.Store(&executorState{
@@ -172,22 +188,37 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 
 // Check if a set of jobs can be scheduled onto some cluster.
 // TODO: there are a number of things this won't catch:
-//   - Minimum Job Size
 //   - Node Uniformity Label (although it will work if this is per cluster)
-//   - Gang jobs that will use more thanthe allowed capacity limit
+//   - Gang jobs that will use more than the allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext, state *executorState) schedulingResult {
-	// Skip submit checks if this batch contains less than the min cardinality jobs.
-	// Reason:
-	//  - We need to support submitting gang jobs across batches and allow for gang jobs to queue until min cardinality is satisfied.
-	//  - We cannot verify if min cardinality jobs are schedulable unless we are given at least that many in a single batch.
-	//  - A side effect of this is that users can submit jobs in gangs that skip this check and are never schedulable, which will be handled via queue-ttl.
-	if len(gctx.JobSchedulingContexts) < gctx.GangInfo.MinimumCardinality {
-		return schedulingResult{isSchedulable: true, reason: ""}
-	}
+	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
-	for id, nodeDb := range state.executorsById {
-		txn := nodeDb.Txn(true)
-		ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+	for id, ex := range state.executorsById {
+
+		// If we already know we can schedule on this pool then we are good
+		if sucessfulPools[ex.pool] {
+			continue
+		}
+
+		// if job doesn't meet the minimum resource requirements we can skip
+		meetsMinimum := true
+		for _, jctx := range gctx.JobSchedulingContexts {
+			requests := jctx.PodRequirements.ResourceRequirements.Requests
+			if ok, _ := constraints.RequestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests).Resources, ex.minimumJobSize.Resources); !ok {
+				meetsMinimum = false
+			}
+		}
+
+		if !meetsMinimum {
+			sb.WriteString("Job size is below the minimum required by the cluster")
+			sb.WriteString("\n")
+			sb.WriteString("---")
+			sb.WriteString("\n")
+			continue
+		}
+
+		txn := ex.nodeDb.Txn(true)
+		ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 		txn.Abort()
 
 		sb.WriteString(id)
@@ -198,7 +229,8 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 		}
 
 		if ok {
-			return schedulingResult{isSchedulable: true}
+			sucessfulPools[ex.pool] = true
+			continue
 		}
 
 		numSuccessfullyScheduled := 0
@@ -222,10 +254,13 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 			sb.WriteString(
 				fmt.Sprintf(
 					": %d out of %d pods schedulable (minCardinality %d)\n",
-					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.MinimumCardinality,
+					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.Cardinality,
 				),
 			)
 		}
+	}
+	if len(sucessfulPools) > 0 {
+		return schedulingResult{isSchedulable: true, pools: maps.Keys(sucessfulPools)}
 	}
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
 }
@@ -233,7 +268,6 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 func (srv *SubmitChecker) constructNodeDb(executor *schedulerobjects.Executor) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
-		0,
 		srv.schedulingConfig.IndexedResources,
 		srv.schedulingConfig.IndexedTaints,
 		srv.schedulingConfig.IndexedNodeLabels,

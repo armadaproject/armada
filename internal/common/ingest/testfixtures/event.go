@@ -320,6 +320,7 @@ var JobValidated = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobValidated{
 		JobValidated: &armadaevents.JobValidated{
 			JobId: JobIdProto,
+			Pools: []string{"cpu"},
 		},
 	},
 }

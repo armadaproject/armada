@@ -7,7 +7,7 @@ import { makeTestJob } from "utils/fakeJobsUtils"
 import { Sidebar } from "./Sidebar"
 import { FakeCordonService } from "../../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
-import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeGetRunInfoService } from "../../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
 
 describe("Sidebar", () => {
@@ -43,7 +43,7 @@ describe("Sidebar", () => {
       <SnackbarProvider>
         <Sidebar
           job={job}
-          runErrorService={new FakeGetRunErrorService()}
+          runInfoService={new FakeGetRunInfoService()}
           jobSpecService={new FakeGetJobSpecService()}
           logService={new FakeLogService()}
           cordonService={new FakeCordonService()}
