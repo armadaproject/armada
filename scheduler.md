@@ -1,132 +1,109 @@
 # Scheduler
 
-The scheduler is the component of Armada responsible for determining when and where each job should run. Here, we describe how it works, including its support for
+Here, we give an overview of the algorithm used by Armada to determine which jobs to schedule and preempt. This algorithm runs within the scheduling subsystem of the Armada control plane. Note that Armada does not rely on kube-scheduler (or other in-cluster schedulers) for scheduling and preemption.
 
-* fair resource allocation,
-* bin-packing,
-* gang-scheduling, and
-* preemption (urgency-based and to fair share).
+Scheduling requires balancing throughput, timeliness, and fairness. The Armada scheduler operates according to the following principles:
 
-## Jobs
+- Throughput: Maximise resource utilisation by scheduling jobs onto available nodes whenever possible.
+- Timeliness: Schedule more urgent jobs before less urgent jobs. Always preempt less urgent jobs to make room for more urgent jobs, but never the opposite.
+- Fairness: Schedule jobs from queues allocated a smaller fraction of their fair share of resources before those allocated a larger fraction. Always preempt jobs from queues with a larger fraction of their fair share if doing so helps schedule jobs from queues with a smaller fraction.
 
-An Armada job represents a computational task to be carried out and consists of a bag of Kubernetes objects (e.g., pods, services, and ingresses) with a shared life cycle, i.e., all objects are created at the start of the job (within the same cluster) and are destroyed at its end. Each job is a member of a queue (e.g., corresponding to a particular user) and a job set (a per-queue logical grouping of jobs that can be managed as a unit), and has a priority associated with it, i.e., each job has associated with it a tuple (queue, jobSet, priority). Each job also has a priority class (PC) associated with it; see the section on preemption.
+The Armada scheduler also satisfies (with some exceptions as noted throughout the documentation) the following properties:
 
-Each job is submitted to a specific queue and is stored in that queue while waiting to be scheduled. Job sets typically represent workflows consisting of multiple jobs. For example, if fitting a machine learning model against several different data sets, there may be a separate job for each data set, and these jobs could all be members of the same job set. Job sets can be monitored and, e.g., cancelled as a unit, which simplifies managing large numbers of jobs.
+- Sharing incentive: Each user should be better off sharing the cluster than exclusively using their own partition of the cluster.
+- Strategy-proofness: Users should not benefit from lying about their resource requirements.
+- Envy-freeness: A user should not prefer the allocation of another. This property embodies the notion of fairness.
+- Pareto efficiency: It should not be possible to increase the allocation of a user without decreasing the allocation of another.
+- Preemption stability: Whenever a job is preempted and subsequently re-submitted before any other jobs have completed, the re-submitted job should not trigger further preemptions.
 
-Armada jobs are created by submitting a job specification to the Armada server via either the gRPC API, client libraries, or the armadactl command-line-utility.
+Next, we cover some specific features of the scheduler.
+
+## Jobs and queues
+
+Each Armada job represents a computational task to be carried out and consists of:
+
+- A Kubernetes podspec representing the workload to be run.
+- Auxiliary Kubernetes objects, e.g., services and ingresses.
+
+All objects that make up the job are created at job startup and are deleted when the job terminates.
+
+Jobs are annotated with the following Armada-specific metadata:
+
+- Queue: Each job belongs to a queue, which is the basis for fair share in Armada.
+- Job set: A per-queue logical grouping of jobs meant to make it easier to manage large number of jobs. Jobs within the same job set can be managed as a unit.
+- Priority: Controls the order in which jobs appear in the queue.
+- Armada priority class, which itself contains a priority that controls preemption.
+
+Jobs are totally ordered within each queue by:
+
+1. Priority class priority.
+2. Job priority.
+3. Time submitted.
+
+Armada attempts to schedule one job at a time. When scheduling from a particular queue, Armada chooses the next job to schedule according to this order.
 
 ## Resource usage and fairness
 
-Each job has a cost associated with it that is the basis of fair resource allocation. In particular, Armada tries to balance the aggregate cost of jobs between queues. Specifically, the cost of each job is a weighted sum of all resources requested by that job. For example, a job requesting CPU, GPU, and RAM, has cost
+Armada divides resources fairly between queues. In particular, Armada will schedule and preempt jobs to balance the vector
 
-CPU + w_GPU * GPU + w_RAM * RAM,
+```
+c_1/w_1, c_2/w_2, ..., c_n/w_n 
+```
 
-where w_GPU and w_RAM is the cost of GPU and RAM relative to 1 CPU. Currently,  w_GPU=1 and w_RAM=0.
+where `c_i` and `w_i`, is the cost and weight associated with the `i`-th active queue, respectively, and `n` is the number of active queues. Only active queues, i.e., queues with jobs either queued or running, are considered when computing fairness. Hence, the fair share of a queue may change over time as other queues become active or inactive.
 
-Further, the cost associated with each queue is the sum of the cost of all jobs in the pending or running state associated with the queue; this per-queue cost is what the Armada scheduler tries to balance. (This notion of fairness is sometimes referred to as asset fairness.) Specifically, each queue has a weight associated with it that determines the size of its fair share. If we denote these per-queue weights by 
+The cost of each queue is computed from the resource requests of running jobs originating from the queue. In particular, Armada relies on dominant resource fairness to compute cost, such that
 
-w_1, ..., w_N,
+```
+c_i = max(cpu_i/cpu_total, memory_i/memory_total, ...)
+```
 
-where N is the number of active queues (see below) and by
+where `cpu_i` is the total CPU allocated to jobs from the `i`-th queue and so on, and the totals is the total amount of resources available for scheduling. This fairness model has several desirable proprties; see
 
-w = sum(w_1, ..., w_N) 
+- [Dominant Resource Fairness: Fair Allocation of Multiple Resource Types](https://amplab.cs.berkeley.edu/wp-content/uploads/2011/06/Dominant-Resource-Fairness-Fair-Allocation-of-Multiple-Resource-Types.pdf)
 
-their sum, then the fair share of each of the N queues is
+The weight of each queue is the reciprocal of its priority factor, which is configured on a per-queue basis.
 
-w_1 / w, ..., w_N / w.
-
-This computation only includes active queues, i.e., queues for which there are jobs in the queued, pending, or running state. Hence, the fair share of a queue may vary over time as other queues transition between active and inactive. Armada considers the cost associated with each queue (more specifically, the fraction of its fair share each queue is currently assigned) when selecting which job to schedule next; see the following section.
-
-## Job scheduling order
-
-Armada schedules one job at a time, and choosing the order in which jobs are attempted to be scheduled is the mechanism by which Armada ensures resources are divided fairly between queues. In particular, jobs within each queue are ordered by per-job priorities set by the user, but there is no inherent ordering between jobs associated with different queues; the scheduler is responsible for establishing such a global ordering. To divide resources fairly, Armada establishes such a global ordering as follows:
-
-1. For each queue, find the next schedulable job in that queue, where jobs are considered in order of per-job priority first and submission time second.
-2. For each queue, compute what fraction of its fair share the queue would have if the next schedulable job were to be scheduled.
-3. Select for scheduling the next schedulable job from the queue for which this computation resulted in the smallest fraction of fair share.
-
-Including the next schedulable job in the computation in step 2. is important since the next job may be a gang job requesting thousands of nodes.
-
-This approach is sometimes referred to as progressive filling and is known to achieve max-min fairness, i.e., for an allocation computed in this way, an attempt to increase the allocation of one queue necessarily results in decreasing the allocation of some other queue with equal or smaller fraction of its fair share, under certain conditions, e.g., when the increments are sufficiently small.
-
-Note that when finding the next schedulable job, there is a limit to the number of jobs considered, i.e., there may be schedulable job in a queue blocked behind a long sequence of unschedulable jobs.
-
-## Bin-packing
-When assigning jobs to nodes, Armada adheres to the following principles:
-
-* When choosing a node to assign a job to, Armada first considers the set of nodes on which the queue the job is associated with is the only user. If not schedulable on any of those nodes, Armada considers the set of unused nodes, and, only if not schedulable there either, considers nodes with multiple users. This principle is important to reduce interference between jobs associated with different queues during the scheduling cycle and serves to reduce the number of preemptions necessary when preempting to fair share (see the section on preemption). 
-* When choosing among the nodes in such a set, Armada attempts to schedule the job onto the node with the smallest amount of available resources on which the job fits. This principle is important to increase the amount of contiguous resources available, thus facilitating scheduling large jobs later – Armada is optimised for large jobs in this way since the difficulty of scheduling a job increases with its size; very small jobs are typically easy to schedule regardless.
-
-Together, these principles result in jobs being bin-packed on a per-queue basis – the second step above can be seen as greedy bin-packing solver.
-
-This approach comes with an important trade-off compared global bin-packing in that it reduces cross-queue job contention at the expense of potentially increasing inter-queue job contention. I.e., each user has a greater level of control of how the resources on a node are utilised – since a user submitting a large number of jobs is likely to be the only user on most of the nodes assigned to those jobs. However, this approach also results in jobs that are likely to have similar resource usage profiles being clustered together – since jobs originating from the same queue are more likely to, e.g., consume large amounts of network bandwidth at the same time, than jobs originating from different queues. We opt for giving users the greater level of control since it can allow for overall more performant applications (hence, this is also the approach typically taken in the high-performance computing community). 
-
-## Gang scheduling
-Armada supports gang scheduling of jobs, i.e., all-or-nothing scheduling of a set of jobs, such that all jobs in the gang are scheduled onto the same cluster at the same time or not at all. Specifically, Armada implicitly groups jobs using a special annotation set on the pod spec embedded in the job. A set of jobs (not necessarily a "job set") for which the value of this annotation is the same across all jobs in the set is referred to as a gang. All jobs in a gang are gang-scheduled onto the same cluster at the same time. The cluster is chosen dynamically by the scheduler and does not need to be pre-specified.
-
-Details related to the gang-scheduling algorithm:
-
-* Jobs are grouped using the armadaproject.io/gangId annotation. The value of the armadaproject.io/gangId annotation must not be re-used. For example, a unique UUID generated for each gang is a good choice.
-* All jobs in a gang must also specify the total number of jobs in the gang using another annotation armadaproject.io/gangCardinality. It's the responsibility of the submitter to ensure this value is set correctly on each job that makes up a gang.
-* All jobs in a gang must be submitted within the same request to Armada. This is to ensure that Armada can validate at submit-time that all jobs in the gang are present.
-* During scheduling, Armada iterates over jobs. Whenever the Armada scheduler find a job that sets the armadaproject.io/gangId annotation, it stores that job in a separate place. Armada only considers these jobs for scheduling once it has found all of the jobs that make up the gang. Note that the scheduler object already supports several pods.
-
-## Preemption
+## Priority classes and preemption
 
 Armada supports two forms of preemption:
 
-1. Urgency-based preemption, i.e., making room for a job by preempting less urgent jobs. This form of preemption works in the same way as Kubernetes priority classes (PCs).
+1. Urgency-based preemption, i.e., making room for a job by preempting less urgent jobs. This form of preemption works in the same way as the normal Kubernetes preemption.
 2. Preemption to fair share, i.e., preempting jobs belonging to users with more than their fair share of resources, such that those resources can be re-allocated to improve fairness.
 
-These forms of preemption are driven by separate processes and operate independently of each other. Incidentally, preemption also makes it easier to schedule large jobs, since currently running jobs can be preempted to make room for them.
+Both forms of preemption are based on Armada priority classes (PCs). These are similar to but distinct from Kubernetes PCs. All Armada jobs have an Armada PC associated with them. Each Armada PC is represented by the following fields:
 
-Both forms of preemption are based on Armada job PCs, each of which is represented by a tuple (name, priority, isPreemptible). Armada comes with two PCs by default:
+- name: A unique name associated with each Armada PC.
+- priority: An integer encoding the urgency of jobs with this PC. Jobs with a PC with higher priority can always preempt jobs with a PC with lower priority.
+- isFairSharePreemptible: A boolean indicating whether jobs with this PC can be preempted via preemption to fair share. Note that all jobs can be preempted via urgency-based preemption, unless there is no other job with a higher PC priority.
 
-* (armada-default, 30000, false) 
-* (armada-preemptible, 20000, true) 
+Job priority classes are set by setting the `priorityClassName` field of the podspec embedded in the job. Jobs with no PC are automatically assigned one. We describe both forms of preemption in more detail below.
 
-Job priority classes are set by setting the priorityClassName field of the embedded podspec. Jobs with no PC are automatically assigned the armada-default PC (i.e., preemption is opt-in). We describe both forms of preemption in more detail below.
+## Gang scheduling
 
-### Urgency-based preemption
+Armada supports gang scheduling of jobs, i.e., all-or-nothing scheduling of a set of jobs. Gang scheduling is controlled by the following annotations set on individual jobs submitted to Armada:
 
-When scheduling a job, Armada may preempt other jobs to make room for it. Specifically, Armada may preempt running preemptible jobs with a lower-priority PC. Hence, the PC priority of a job expresses how urgent a job is. In this way, PCs support the following use cases:
+* `armadaproject.io/gangId`: Jobs with the same value for this annotation are considered part of the same gang. The value of this annotation should not be re-used. For example, a unique UUID generated for each gang is a good choice. For jobs that do not set this annotation, a randomly generated value is filled in, i.e., single jobs are considered gangs of cardinality one.
+* `armadaproject.io/gangCardinality`: Total number of jobs in the gang. The Armada scheduler relies on this value to know when it has collected all jobs that make up the gang. It is the responsibility of the submitter to ensure this value is set correctly for gangs.
+* `armadaproject.io/gangMinimumCardinality`: Minimum number of jobs in the gang that must be scheduled. If the number of jobs scheduled is less than the cardinality of the gang, the remaining unscheduled jobs are failed by the scheduler. The value of this annotation defaults to that of `armadaproject.io/gangCardinality`.
+* `armadaproject.io/gangNodeUniformityLabel`: Constrains the jobs that make up a gang to be scheduled across a uniform set of nodes. Specifically, if set, all gang jobs are scheduled onto nodes for which the value of the provided label is equal. This can be used to ensure, e.g., that all gang jobs are scheduled onto the same cluster or rack.
 
-* A user wants to run, e.g., a speculative job and doesn't want to occupy the farm if there are more urgent jobs to run. To that end, the user chooses a low-priority preemptible PC when submitting it. If there are more urgent jobs to run (i.e., with a higher-priority PC), those jobs may preempt the submitted job.
-* A user has an urgent job they want to be run immediately. To that end, they choose a high-priority PC, such that it may preempt currently running preemptible jobs to make room for itself.
+## Node selection and bin-packing
 
-Hence, this is a cooperative form of preemption that requires users to coordinate among themselves to set appropriate PCs.
+Armada schedules one job at a time. This process consists of:
 
-Urgency-based preemption is implemented in Armada via tracking the allocatable resources at different PC priorities. For example, if a 32-core node has running on it
+1. Selecting a job to schedule.
+2. Assigning the selected job to a node.
 
-* an armada-default job requesting 10 cores and
-* an armada-preemptible job requesting 20 cores,
+Here, we explain the second step. Armada adheres to the following principles in the order listed:
 
-then Armada understands that up to 22 cores can be allocated to armada-default jobs (allocating more than 2 cores is possible by preempting the armada-preemptible job) and up to 2 cores can be allocated to armada-preemptible jobs. If during scheduling a job needs to be preempted, kube-scheduler (a Kubernetes component) makes the decision on which job should be preempted.
+1. Avoid preempting running jobs if possible.
+2. If necessary, preempt according to the following principles:
+    1. Preempt jobs of as low PC priority as possible.
+    2. For jobs of equal PC priority, preempt jobs from queues allocated the largest fraction of fair share possible.
+3. Assign to a node with the smallest amount of resources possible.
 
-### Preemption to fair share
-
-Whereas urgency-based preemption is triggered by a job being submitted that can not be scheduled without preempting a lower-urgency job, preemption to fair share is triggered whenever a queue A has been allocated more than their fair share of resources – and at least some of those jobs are preemptible – and another queue B has jobs of equal PC priority queued. Recall that the fair share of each queue is computed from the set of currently active queues, i.e., queue A may be exceeding its fair share because a previously inactive queue B has become active as a result of jobs being submitted to it, thus reducing the size of the fair share of queue A.
-
-For example, if jobs of PC armada-preemptible are submitted to queue A and are allocated all available resources, and later jobs of PC armada-preemptible are submitted to queue B, Armada would preempt some of the jobs of user A to make room for the jobs submitted by user B (the fraction of resources reclaimed from queue A depends on the relative weights of the two user's queues).
-
-At a high level, preemption to fair share works as follows:
-
-1. Some preemptible jobs are evicted from the nodes to which they are assigned and are placed at the front of their respective queues. Specifically, for each node, all preemptible jobs on that node are evicted with a configurable probability. If a job part of gang is evicted, all other jobs in that gang that are still running are also evicted, regardless of which node they are assigned to. This happens only within the scheduler, i.e., no running jobs are preempted at this stage. The cost of the evicted jobs are subtracted from the cost of their respective queues.
-2. Armada performs a scheduling cycle, thus computing a mapping from jobs to nodes as if the evicted jobs had never started running and were still queued. Recall that Armada selects which queue to schedule from next based on what fraction of its fair share the queue is currently allocated. Hence, any queue above its fair share is unlikely to have all of its evicted jobs re-scheduled as part of the cycle (unless other jobs for some reason can not be scheduled).
-3. Any jobs that were evicted and not re-scheduled as part of step 2. are preempted. Any jobs scheduled in step 2. that were not previously evicted are new jobs that should be allowed to start running. Because evicted jobs are placed at the front of each queue, Armada will always, for each queue, try to re-schedule evicted jobs before trying to schedule now jobs.
-
-In this way Armada makes a unified of which jobs should be preempted and scheduled. It is then the responsibility of the rest of the system to reconcile against this new desired state.
-
-For this process to be effective, i.e., not cause large numbers of avoidable preemptions, the mapping from jobs to nodes must be stable across invocations of the scheduler. We use two strategies to increase stability:
-
-* Evicted jobs may only be scheduled onto the node they were evicted from, i.e., no moving jobs between nodes.
-* Jobs are bin-packed on a per-queue basis. This reduces interference between queues during the scheduling cycle.
-
-For example, consider a scenario with two queues A and B of equal weight and two nodes – node 1 and node 2 –  with 32 cores each. Say that initially 40 1-core preemptible jobs are submitted to queue A, 32 of which are scheduled onto node 1 and 8 on node 2. Later, 50 1-core preemptible jobs are submitted to queue B. During the next scheduler invocation, Armada evicts all jobs from nodes 1 and 2 and places these at the front of queue A. At this point, there are 40 jobs in queue A and 50 jobs in queue B. Then, Armada starts scheduling from both queue A and B. Because Armada selects which queue to schedule from next based on which queue is currently assigned the smallest fraction of its fair share, Armada will alternate between scheduling from queue A and B, such that at the end of the scheduling cycle, 32 jobs are scheduled from each queue; the scheduling cycle will have terminated because both node 1 and 2 are full at this point. For queue A, all these jobs are re-scheduled evicted jobs, whereas for queue B the 32 scheduled jobs are new jobs. For queue A, 8 evicted jobs were not re-scheduled and are thus preempted. For queue B, 18 jobs could not be scheduled and are still queued.
-
-The above example also illustrates why per-queue bin-packing (as opposed to bin-packing in a non-queue-aware manner) is important; because Armada alternates between scheduling from queue A and B, non-queue-aware bin-packing would fill up node 1 with 16 jobs from each queue before scheduling onto node 2, thus unnecessarily preempting 16 jobs from queue A. Per-queue bin-packing, on the other hand, avoids scheduling jobs from queue B onto node 1 when possible, which results in the 32 jobs of queue B all being scheduled onto node 2.
-
-To control the rate of preemptions, the expected fraction of currently running jobs considered for preemption to fair share is configurable. Specifically, for each node, the preemptible jobs on that node are evicted with a configurable probability.
+These principles result in Armada doing the best it can to avoid preemptions, or at least preempt fairly, and then greedily bin-packing jobs.
 
 ## Graceful termination
 
@@ -146,9 +123,158 @@ Jobs that explicitly set a termination period higher than the limit will be reje
 
 ## Job deadlines
 
-All Armada jobs can be assigned default job deadlines, i.e., jobs have a default maximum runtime after which the job will be killed. These defaults are:
+All Armada jobs can be assigned default job deadlines, i.e., jobs have a default maximum runtime after which the job will be killed. Default deadlines are only added to jobs that do not already specify one. To manually specify a deadline, set the `ActiveDeadlineSeconds` field of the podspec embedded in the job.
 
-* CPU jobs: 3 days
-* GPU jobs: 14 days
+## Scheduler: implementation
 
-Default deadlines are only added to jobs that do not already specify one. To manually specify a deadline, set the ActiveDeadlineSeconds field of the pod spec embedded in the job; see https://github.com/kubernetes/api/blob/master/core/v1/types.go#L3182
+Each scheduling cycle can be seen as a pure function that takes the current state as its input and returns a new desired state. We could express this in code as the following function:
+
+```go
+// Schedule determines which queued jobs to schedule and which running jobs to preempt.
+func Schedule(
+	// Map from queues to the jobs in that queue.
+	queues map[Queue][]Job
+	// Nodes over which to schedule jobs.
+	nodes []Node
+    // Map from jobs to nodes. Queued jobs are not assigned to any node.
+	nodeByJob map[Job]Node
+) map[Job]Node {
+	// Scheduling logic 
+	... 
+
+	// Return an updated mapping from jobs to nodes. 
+	// - nodeByJob[job] == nil && updatedNodeByJob != nil: job was scheduled. 
+	// - nodeByJob[job] != nil && updatedNodeByJob == nil: job was preempted. 
+	// - nodeByJob[job] == updatedNodeByJob: no change for job. 
+	return updatedNodeByJob
+}
+```
+
+Each scheduling cycle thus produces a mapping from jobs to nodes that is the desired state of the system. It is the responsibility of the rest of the system to reconcile any differences between the actual and desired state. Note that in actuality the scheduler does maintain state between iterations for efficiency and for certain features (e.g., rate-limiting).
+
+Each scheduling cycle in turn consists of the following steps:
+
+1. Eviction
+2. Queue ordering
+3. Job scheduling:
+    1. Job selection
+    2. Node selection
+
+Which we express in pseudocode as (a more detailed version of the above snippet):
+
+```go
+func Schedule(queues map[Queue][]Job, nodes []Node, nodeByJob map[Job]Node) map[Job]Node {
+	queues, nodeByJob := evict(queues, nodeByJob)
+	queues = sortQueues(queues) 
+	for {
+		gang := selectNextQueuedGangToSchedule(queues)
+		if gang == nil {
+			// No more jobs to schedule.
+			break
+		}
+		nodeByJobForGang := selectNodesForGang(gang, nodes)
+		copy(nodeByJob, nodeByJobForGang)
+	}
+	return nodeByJob
+}
+
+func evict(queues map[Queue][]Job, nodeByJob map[Job]Node) (map[Queue][]Job, map[Job]Node) {
+	updatedNodeByJob := make(map[Job]Node)
+	for job, node := range nodeByJob {
+		if isFairSharePreemptible(job) {
+			queue := queueFromJob(job)
+			queues[queue] = append(queues[queue], job)
+		} else {
+			updatedNodeByJob[job] = node
+		}
+	}
+	return updatedNodeByJob
+}
+
+func sortQueues(queues map[Queue][]Job) map[Queue][]Job {
+	updatedQueues := clone(queues)
+	for queue, jobs := range queues {
+		updatedQueues[queue] = sort(jobs, sortFunc)
+	}
+	return updatedQueues
+}
+
+func selectNextQueuedGangToSchedule(queues map[Queue][]Job) Gang {
+	var Gang selectedGang
+	var Queue selectedQueue
+	for queue, jobs := range queues {
+		// Consider jobs in the order they appear in the queue.
+		gang := firstGangFromJobs(jobs)
+		// Select the queue with smallest fraction of its fair share.
+		if fractionOfFairShare(queue, gang) < fractionOfFairShare(selectedQueue, selectedGang) {
+			selectedJob = job
+			selectedQueue = queue
+		}
+	}
+	// Remove the selected gang from its queue.
+	popFirstGang(queues[selectedQueue])
+	return gang
+}
+
+func selectNodesForGang(gang Gang, nodes []Node) map[Job]Node {
+	nodes = clone(nodes)
+	nodeByJob := make(map[Job]Node)
+	for _, job := range jobsFromGang(gang) {
+		node = selectNodeForJob(job, nodes)
+		nodeByJob[job] = node
+	}
+	return nodeByJob
+}
+
+func selectNodeForJob(job Job, nodes []Node) Node {
+	var Node selectedNode
+	for _, node := range nodes {
+		if jobFitsOnNode(job, node) {
+			if fitScore(job, node) > fitScore(job, selectedNode) {
+				selectedNode = node
+			} 
+		}
+	}
+	return selectedNode
+}
+```
+
+Next, we explain eviction and job ordering in more detail.
+
+### Eviction
+
+Eviction is part of the preemption strategy used by Armada. It consists of, at the start of each cycle, moving all currently running preemptible jobs from the nodes to which they are assigned back to their respective queues. As a result, those jobs appear to Armada as if they had never been scheduled and are still queued. We refer to such jobs moved back to the queue as *evicted*.
+
+Whether a job is evicted or not and whether it is assigned to a node in the job scheduling stage or not determines which jobs are scheduled, preempted, or neither. Specifically:
+
+- Not evicted and assigned a node: Queued jobs that should be scheduled.
+- Not evicted and not assigned a node: Queued jobs that remain queued.
+- Evicted and assigned a node: Running jobs that should remain running.
+- Evicted and not assigned a node: Running jobs that should be preempted.
+
+Eviction and (re-)scheduling thus provides a unified mechanism for scheduling and preemption. This approach comes with several benefits:
+
+- No need to maintain separate scheduling and preemption algorithms. Improvements to scheduling also improves preemption.
+- We are guaranteed there are no preemptions that do not help scheduling new jobs without needing to check specifically that is the case.
+- Preemption and scheduling is consistent in the sense that a job that was preempted will if re-submitted not be scheduled.
+- Many-to-many preemption, i.e., one preemption may facilitate scheduling several other jobs.
+
+There are two caveats for which some care needs to be taken:
+
+1. Evicted jobs may only be re-scheduled onto the node from which they were evicted.
+2. We should avoid preventing re-scheduling evicted jobs when scheduling new jobs.
+
+To address these issues, Armada maintains a record of which node each job was evicted from that is used when assigning jobs to nodes.
+
+
+### Job scheduling order
+
+Armada schedules one job at a time, and choosing the order in which jobs are attempted to be scheduled is the mechanism by which Armada ensures resources are divided fairly between queues. In particular, jobs within each queue are totally ordered, but there is no inherent ordering between jobs associated with different queues; the scheduler is responsible for establishing such a global ordering. To divide resources fairly, Armada establishes such a global ordering as follows:
+
+1. Get the topmost gang (which may be a single job) in each queue.
+2. For each queue, compute what fraction of its fair share the queue would have if the topmost gang were to be scheduled.
+3. Select for scheduling the next gang from the queue for which this computation resulted in the smallest fraction of fair share.
+
+Including the topmost gang in the computation in step 2. is important since it may request thousands of nodes.
+
+This approach is sometimes referred to as progressive filling and is known to achieve max-min fairness, i.e., for an allocation computed in this way, an attempt to increase the allocation of one queue necessarily results in decreasing the allocation of some other queue with equal or smaller fraction of its fair share, under certain conditions, e.g., when the increments are sufficiently small.
