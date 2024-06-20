@@ -37,6 +37,26 @@ For an overview of Armada, see the following videos:
 
 The Armada project adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
 
+## Installation
+
+### Armada Operator
+
+For installation instructions, easiest way is to use the Armada Operator.
+For more information, see the [Armada Operator repository](https://github.com/armadaproject/armada-operator).
+
+Alternatively, you can install Armada manually by using the Helm charts defined in the `deployment` directory.
+
+### armadactl
+
+Armada also provides a command-line interface, `armadactl`, which can be used to interact with the Armada system.
+
+To install `armadactl`, run the following script:
+```bash
+scripts/get-armadactl.sh
+```
+
+Or download it from the [GitHub Release](https://github.com/armadaproject/armada/releases/latest) page for your platform.
+
 ## Documentation
 
 For documentation, see the following:
@@ -44,7 +64,6 @@ For documentation, see the following:
 - [System overview](./docs/system_overview.md)
 - [Scheduler](./docs/scheduler.md)
 - [User guide](./docs/user.md)
-- [Quickstart](./docs/quickstart/index.md)
 - [Development guide](./docs/developer.md)
 - [Release notes/Version history](https://github.com/armadaproject/armada/releases)
 - [API Documentation](./docs/developer/api.md)
