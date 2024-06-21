@@ -802,19 +802,19 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	return selectedNode, nil
 }
 
-type consideredNode struct {
-	node                     *internaltypes.Node
-	availableResource        internaltypes.ResourceList
-	evictedJobs              []*EvictedJobSchedulingContext
-	staticRequirementsNotMet bool
-}
-
 // selectNodeForJobWithFairPreemption returns a node onto which the provided job could be scheduled, or nil if none can be found.
 // Specifically, it returns the node for which scheduling would result in the most "fair" preemptions.
 //
 // It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
 // from being re-scheduled the jobs that would be scheduled last.
 func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
+	type consideredNode struct {
+		node                     *internaltypes.Node
+		availableResource        internaltypes.ResourceList
+		evictedJobs              []*EvictedJobSchedulingContext
+		staticRequirementsNotMet bool
+	}
+
 	pctx := jctx.PodSchedulingContext
 
 	var selectedNode *internaltypes.Node
