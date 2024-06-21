@@ -14,7 +14,6 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -436,7 +435,7 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 		if !jctx.IsEvicted {
 			return errors.New("evicted job %s is not marked as such")
 		}
-		if nodeId, ok := jctx.GetNodeSelector(schedulerconfig.NodeIdLabel); ok {
+		if nodeId := jctx.GetAssignedNodeId(); nodeId != "" {
 			if _, ok := evictorResult.AffectedNodesById[nodeId]; !ok {
 				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, jobId)
 			}
@@ -858,7 +857,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			// TODO(albin): We can remove the checkOnlyDynamicRequirements flag in the nodeDb now that we've added the tolerations.
 			jctx := schedulercontext.JobSchedulingContextFromJob(job)
 			jctx.IsEvicted = true
-			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.GetId())
+			jctx.SetAssignedNodeId(node.GetId())
 			evictedJctxsByJobId[job.Id()] = jctx
 			jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, node.GetTolerationsForTaints()...)
 
