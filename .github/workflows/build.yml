@@ -21,7 +21,7 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v3
 
-      - uses: goreleaser/goreleaser-action@v5
+      - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: v1.24.0
