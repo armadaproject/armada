@@ -324,6 +324,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				1000,
 				4*1024*1024,
 			)
 			require.NoError(t, err)
@@ -450,6 +451,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				1000,
 				4*1024*1024,
 			)
 

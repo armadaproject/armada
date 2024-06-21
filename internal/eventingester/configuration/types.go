@@ -20,7 +20,7 @@ type EventIngesterConfiguration struct {
 	// Size in bytes above which event message will be compressed when inserting in the database
 	MinMessageCompressionSize int
 	// Max size in bytes that messages inserted into the database will be
-	MaxMessageBatchSizeBytes int
+	MaxOutputMessageSizeBytes int
 	// Number of messages that will be batched together before being inserted into the database
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database

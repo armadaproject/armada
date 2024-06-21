@@ -20,6 +20,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -623,6 +624,9 @@ type JobSchedulingContext struct {
 	// GangInfo holds all the information that is necessary to schedule a gang,
 	// such as the lower and upper bounds on its size.
 	GangInfo
+	// This is the node the pod is assigned to.
+	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
+	AssignedNodeId string
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -663,21 +667,23 @@ func (jctx *JobSchedulingContext) Fail(unschedulableReason string) {
 	}
 }
 
+func (jctx *JobSchedulingContext) GetAssignedNodeId() string {
+	return jctx.AssignedNodeId
+}
+
+func (jctx *JobSchedulingContext) SetAssignedNodeId(assignedNodeId string) {
+	if assignedNodeId != "" {
+		jctx.AssignedNodeId = assignedNodeId
+		jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, assignedNodeId)
+	}
+}
+
 func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
 	if jctx.AdditionalNodeSelectors == nil {
 		jctx.AdditionalNodeSelectors = map[string]string{key: value}
 	} else {
 		jctx.AdditionalNodeSelectors[key] = value
 	}
-}
-
-func (jctx *JobSchedulingContext) GetNodeSelector(key string) (string, bool) {
-	if value, ok := jctx.AdditionalNodeSelectors[key]; ok {
-		return value, true
-	} else if value, ok := jctx.PodRequirements.NodeSelector[key]; ok {
-		return value, true
-	}
-	return "", false
 }
 
 type GangInfo struct {

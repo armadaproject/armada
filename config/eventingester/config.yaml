@@ -12,7 +12,7 @@ pulsar:
   receiverQueueSize: 100
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
-maxMessageBatchSizeBytes: 1048576  #1MB
+maxOutputMessageSizeBytes: 1048576  #1MB
 batchSize: 10000
 batchDuration: 100ms
 eventRetentionPolicy:
