@@ -238,7 +238,7 @@ func TestCalculateFairShares(t *testing.T) {
 					qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, nil)
 				require.NoError(t, err)
 			}
-			sctx.CalculateFairShares()
+			sctx.UpdateFairShares()
 			for qName, qctx := range sctx.QueueSchedulingContexts {
 				expectedFairShare, ok := tc.expectedFairShares[qName]
 				require.True(t, ok, "Expected fair share for queue %s not found", qName)

@@ -168,7 +168,11 @@ func (sctx *SchedulingContext) TotalCost() float64 {
 	return rv
 }
 
-func (sctx *SchedulingContext) CalculateFairShares() {
+// UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
+// SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
+// AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
+func (sctx *SchedulingContext) UpdateFairShares() {
+
 	const maxIterations = 5
 
 	type queueInfo struct {
@@ -193,12 +197,16 @@ func (sctx *SchedulingContext) CalculateFairShares() {
 			cappedShare:   cappedShare,
 		})
 	}
+
+	// We do this so that we get deterministic output
 	slices.SortFunc(queueInfos, func(a, b *queueInfo) int {
 		return strings.Compare(a.queueName, b.queueName)
 	})
 
-	reallocationFactor := 1.0
-	for i := 0; i < maxIterations; i++ {
+	unallocated := 1.0 // this is the proportion of the cluster that we can share each time
+
+	// We will reshare unused capacity until we've reshared 99% of all capacity or we've completed 5 iteration
+	for i := 0; i < maxIterations && unallocated > 0.01; i++ {
 		totalWeight := 0.0
 		for _, q := range queueInfos {
 			totalWeight += q.weight
@@ -206,25 +214,18 @@ func (sctx *SchedulingContext) CalculateFairShares() {
 
 		for _, q := range queueInfos {
 			if q.weight > 0 {
-				share := (q.weight / totalWeight) * reallocationFactor
+				share := (q.weight / totalWeight) * unallocated
 				q.adjustedShare += share
 			}
 		}
-		unallocated := 0.0
-		needsRecalc := false
+		unallocated = 0.0
 		for _, q := range queueInfos {
 			excessShare := q.adjustedShare - q.cappedShare
 			if excessShare > 0 {
 				q.adjustedShare = q.cappedShare
 				q.weight = 0.0
 				unallocated += excessShare
-			} else {
-				needsRecalc = true
 			}
-		}
-		reallocationFactor = unallocated
-		if !needsRecalc {
-			break
 		}
 	}
 

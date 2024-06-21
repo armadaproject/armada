@@ -1697,6 +1697,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				)
 			}
 
+			demandByQueue := map[string]schedulerobjects.ResourceList{}
+
 			// Run the scheduler.
 			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
@@ -1712,6 +1714,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						queuedJobs = append(queuedJobs, job.WithQueued(true))
 						roundByJobId[job.Id()] = i
 						indexByJobId[job.Id()] = j
+						r, ok := demandByQueue[job.Queue()]
+						if !ok {
+							r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+							demandByQueue[job.Queue()] = r
+						}
+						r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 					}
 				}
 				err = jobDbTxn.Upsert(queuedJobs)
@@ -1733,6 +1741,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								delete(gangIdByJobId, job.Id())
 								delete(jobIdsByGangId[gangId], job.Id())
 							}
+							r, ok := demandByQueue[job.Queue()]
+							if !ok {
+								r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+								demandByQueue[job.Queue()] = r
+							}
+							r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 						}
 					}
 				}
@@ -1774,7 +1788,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						queue,
 						weight,
 						allocatedByQueueAndPriorityClass[queue],
-						schedulerobjects.NewResourceList(0),
+						demandByQueue[queue],
 						limiterByQueue[queue],
 					)
 					require.NoError(t, err)
@@ -1786,6 +1800,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 					nil,
 				)
+				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,

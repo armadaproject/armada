@@ -484,7 +484,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			return nil, nil, err
 		}
 	}
-	sctx.CalculateFairShares()
+	sctx.UpdateFairShares()
 	constraints := schedulerconstraints.NewSchedulingConstraints(
 		pool,
 		fsctx.totalCapacityByPool[pool],
