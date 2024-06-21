@@ -376,8 +376,6 @@ func TestSchedule(t *testing.T) {
 				mockExecutorRepo,
 				mockQueueCache,
 				schedulingContextRepo,
-				nil,
-				nil,
 				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
 			)
@@ -517,8 +515,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				algo, err := NewFairSchedulingAlgo(
 					schedulingConfig,
 					time.Second*5,
-					nil,
-					nil,
 					nil,
 					nil,
 					nil,
