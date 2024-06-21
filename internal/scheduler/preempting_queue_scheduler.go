@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"math"
 	"reflect"
 	"time"
 
@@ -128,7 +129,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
-					fractionOfFairShare := actualShare / qctx.AdjustedFairShare
+					fractionOfFairShare := actualShare / math.Max(qctx.AdjustedFairShare, qctx.FairShare)
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
 					}
