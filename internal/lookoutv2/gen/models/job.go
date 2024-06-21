@@ -21,10 +21,6 @@ import (
 // swagger:model job
 type Job struct {
 
-	// runtime seconds
-	// Required: true
-	RuntimeSeconds int32 `json:"RuntimeSeconds"`
-
 	// annotations
 	// Required: true
 	Annotations map[string]string `json:"annotations"`
@@ -109,6 +105,10 @@ type Job struct {
 	// Required: true
 	Runs []*Run `json:"runs"`
 
+	// runtime seconds
+	// Required: true
+	RuntimeSeconds int32 `json:"runtimeSeconds"`
+
 	// state
 	// Required: true
 	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED LEASED REJECTED]
@@ -124,10 +124,6 @@ type Job struct {
 // Validate validates this job
 func (m *Job) Validate(formats strfmt.Registry) error {
 	var res []error
-
-	if err := m.validateRuntimeSeconds(formats); err != nil {
-		res = append(res, err)
-	}
 
 	if err := m.validateAnnotations(formats); err != nil {
 		res = append(res, err)
@@ -189,6 +185,10 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateRuntimeSeconds(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateState(formats); err != nil {
 		res = append(res, err)
 	}
@@ -200,15 +200,6 @@ func (m *Job) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
-	return nil
-}
-
-func (m *Job) validateRuntimeSeconds(formats strfmt.Registry) error {
-
-	if err := validate.Required("RuntimeSeconds", "body", int32(m.RuntimeSeconds)); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -387,6 +378,15 @@ func (m *Job) validateRuns(formats strfmt.Registry) error {
 			}
 		}
 
+	}
+
+	return nil
+}
+
+func (m *Job) validateRuntimeSeconds(formats strfmt.Registry) error {
+
+	if err := validate.Required("runtimeSeconds", "body", int32(m.RuntimeSeconds)); err != nil {
+		return err
 	}
 
 	return nil

@@ -1,3 +1,0 @@
-hardAntiAffinity: false
-persistentVolume:
-  enabled: false
