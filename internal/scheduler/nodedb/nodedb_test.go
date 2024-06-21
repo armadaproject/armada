@@ -69,13 +69,11 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	require.NotEmpty(t, nodeId)
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	jobs := testfixtures.WithNodeSelectorJobs(
-		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
-		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-	)
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
 	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
+		jctx.SetAssignedNodeId(nodeId)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
 		require.NoError(t, err)
@@ -96,13 +94,11 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	require.NotEmpty(t, nodeId)
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	jobs := testfixtures.WithNodeSelectorJobs(
-		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
-		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-	)
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
 	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
+		jctx.SetAssignedNodeId("non-existent node")
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
 		if !assert.NoError(t, err) {

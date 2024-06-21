@@ -16,6 +16,7 @@
 | Rich Scott           | [richscott](https://github.com/richscott)               | G-Research  |
 | Robert Smith         | [robertdavidsmith](https://github.com/robertdavidsmith) | G-Research  |
 | Sam Clark            | [samclark](https://github.com/samclark)                 | G-Research  |
+| Geoffrey Wilson      | [suprjinx](https://github.com/suprjinx)                 | G-Research  |
 
 ## Past
 
@@ -26,6 +27,5 @@
 | Carlo Camurri        | [carlocamurri](https://github.com/carlocamurri)         | G-Research  |
 | Clifton Houck        | [ClifHouck](https://github.com/ClifHouck)               | G-Research  |
 | Daniel Rastelli      | [theAntiYeti](https://github.com/theAntiYeti)           | G-Research  |
-| Geoffrey Wilson      | [suprjinx](https://github.com/suprjinx)                 | G-Research  |
 | Jamie Poole          | [jimbobby5](https://github.com/jimbobby5)               | G-Research  |
 | Kevin Hannon         | [kannon92](https://github.com/kannon92)                 | G-Research  |
