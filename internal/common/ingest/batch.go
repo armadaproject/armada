@@ -17,25 +17,32 @@ type Batcher[T any] struct {
 	maxItems   int
 	maxTimeout time.Duration
 	clock      clock.Clock
-	callback   func([]T)
-	buffer     []T
-	mutex      sync.Mutex
+	// This function is used to determine how many items are in a given input
+	// This allows customising how the batcher batches up your input
+	// Such as if you are batching objects A, but want to limit on the number of A.[]B objects seen
+	// In which case this function should return len(A.[]B)
+	itemCountFunc func(T) int
+	callback      func([]T)
+	buffer        []T
+	mutex         sync.Mutex
 }
 
-func NewBatcher[T any](input <-chan T, maxItems int, maxTimeout time.Duration, callback func([]T)) *Batcher[T] {
+func NewBatcher[T any](input <-chan T, maxItems int, maxTimeout time.Duration, itemCountFunc func(T) int, callback func([]T)) *Batcher[T] {
 	return &Batcher[T]{
-		input:      input,
-		maxItems:   maxItems,
-		maxTimeout: maxTimeout,
-		callback:   callback,
-		clock:      clock.RealClock{},
-		mutex:      sync.Mutex{},
+		input:         input,
+		maxItems:      maxItems,
+		maxTimeout:    maxTimeout,
+		itemCountFunc: itemCountFunc,
+		callback:      callback,
+		clock:         clock.RealClock{},
+		mutex:         sync.Mutex{},
 	}
 }
 
 func (b *Batcher[T]) Run(ctx *armadacontext.Context) {
 	for {
 		b.buffer = []T{}
+		totalNumberOfItems := 0
 		expire := b.clock.After(b.maxTimeout)
 		for appendToBatch := true; appendToBatch; {
 			select {
@@ -50,7 +57,8 @@ func (b *Batcher[T]) Run(ctx *armadacontext.Context) {
 				}
 				b.mutex.Lock()
 				b.buffer = append(b.buffer, value)
-				if len(b.buffer) == b.maxItems {
+				totalNumberOfItems += b.itemCountFunc(value)
+				if totalNumberOfItems >= b.maxItems {
 					b.callback(b.buffer)
 					appendToBatch = false
 				}
