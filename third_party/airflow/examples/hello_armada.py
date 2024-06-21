@@ -1,5 +1,7 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+
+from armada.model import GrpcChannelArgs
 from armada.operators.armada import ArmadaOperator
 
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -62,11 +64,9 @@ with DAG(
     default_args={"retries": 2},
 ) as dag:
     """
-    The ArmadaOperator requires grpc.channel arguments for armada and
-    the jobservice.
+    The ArmadaOperator requires grpc.channel arguments for armada.
     """
-    armada_channel_args = {"target": "127.0.0.1:50051"}
-    job_service_channel_args = {"target": "127.0.0.1:60003"}
+    armada_channel_args = GrpcChannelArgs(target="127.0.0.1:50051")
 
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
@@ -75,8 +75,7 @@ with DAG(
     op = BashOperator(task_id="dummy", bash_command="echo Hello World!")
     """
     This is creating an Armada task with the task_id of armada and name of armada.
-    The Airflow operator needs queue and job-set for Armada
-    You also specify the PythonClient and JobServiceClient for each task.
+    The Airflow operator needs queue for Armada
     You should reuse them for all your tasks.
     This job will use the podspec defined above.
     """
@@ -84,9 +83,8 @@ with DAG(
         task_id="armada",
         name="armada",
         armada_queue="test",
-        job_service_channel_args=job_service_channel_args,
-        armada_channel_args=armada_channel_args,
-        job_request_items=submit_sleep_job(),
+        channel_args=armada_channel_args,
+        job_request=submit_sleep_job()[0],
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     """
