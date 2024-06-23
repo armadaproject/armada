@@ -173,6 +173,7 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
 		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
+		UseAdjustedFairShareProtection:              true,
 	}
 }
 

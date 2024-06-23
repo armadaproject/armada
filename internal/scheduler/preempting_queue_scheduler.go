@@ -27,11 +27,12 @@ import (
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
 // Uses QueueScheduler as a building block.
 type PreemptingQueueScheduler struct {
-	schedulingContext            *schedulercontext.SchedulingContext
-	constraints                  schedulerconstraints.SchedulingConstraints
-	protectedFractionOfFairShare float64
-	jobRepo                      JobRepository
-	nodeDb                       *nodedb.NodeDb
+	schedulingContext              *schedulercontext.SchedulingContext
+	constraints                    schedulerconstraints.SchedulingConstraints
+	protectedFractionOfFairShare   float64
+	useAdjustedFairShareProtection bool
+	jobRepo                        JobRepository
+	nodeDb                         *nodedb.NodeDb
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -50,6 +51,7 @@ func NewPreemptingQueueScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
 	protectedFractionOfFairShare float64,
+	useAdjustedFairShareProtection bool,
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
@@ -70,14 +72,15 @@ func NewPreemptingQueueScheduler(
 		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
 	return &PreemptingQueueScheduler{
-		schedulingContext:            sctx,
-		constraints:                  constraints,
-		protectedFractionOfFairShare: protectedFractionOfFairShare,
-		jobRepo:                      jobRepo,
-		nodeDb:                       nodeDb,
-		nodeIdByJobId:                maps.Clone(initialNodeIdByJobId),
-		jobIdsByGangId:               initialJobIdsByGangId,
-		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
+		schedulingContext:              sctx,
+		constraints:                    constraints,
+		protectedFractionOfFairShare:   protectedFractionOfFairShare,
+		useAdjustedFairShareProtection: useAdjustedFairShareProtection,
+		jobRepo:                        jobRepo,
+		nodeDb:                         nodeDb,
+		nodeIdByJobId:                  maps.Clone(initialNodeIdByJobId),
+		jobIdsByGangId:                 initialJobIdsByGangId,
+		gangIdByJobId:                  maps.Clone(initialGangIdByJobId),
 	}
 }
 
@@ -129,7 +132,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
-					fractionOfFairShare := actualShare / math.Max(qctx.AdjustedFairShare, qctx.FairShare)
+					fairShare := qctx.FairShare
+					if sch.useAdjustedFairShareProtection {
+						fairShare = math.Max(qctx.AdjustedFairShare, fairShare)
+					}
+					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
 					}

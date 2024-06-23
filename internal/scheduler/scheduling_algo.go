@@ -496,6 +496,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		sctx,
 		constraints,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
+		l.schedulingConfig.UseAdjustedFairShareProtection,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
