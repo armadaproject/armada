@@ -230,8 +230,25 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
-		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
-			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
+		if len(container.Resources.Requests) != len(container.Resources.Limits) {
+			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
+		}
+
+		for resource, request := range container.Resources.Requests {
+			limit, ok := container.Resources.Limits[resource]
+			if !ok {
+				return fmt.Errorf("container %v defines %s for requests but not limits", container.Name, resource)
+			}
+			if limit.MilliValue() < request.MilliValue() {
+				return fmt.Errorf("container %v defines %s with limits smaller than requests", container.Name, resource)
+			}
+			maxOversubscription, ok := config.MaxResourceOversubscriptionByResourceRequest[resource.String()]
+			if !ok {
+				maxOversubscription = 1.0
+			}
+			if float64(limit.MilliValue()) > maxOversubscription*float64(request.MilliValue()) {
+				return fmt.Errorf("container %v defines %s with limits great than %d*requests", container.Name, resource)
+			}
 		}
 
 		for rc, containerRsc := range container.Resources.Requests {

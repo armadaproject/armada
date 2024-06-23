@@ -125,6 +125,9 @@ type SubmissionConfig struct {
 	// will have activeDeadlineSeconds set to 1.
 	// Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+	// Maximum ratio of limits:requests per resource. Jobs who have a higher limits:resource ratio than this will be rejected.
+	// Any resource type missing from this map will default to 1.0.
+	MaxResourceOversubscriptionByResourceRequest map[string]float64
 }
 
 // TODO: we can probably just typedef this to map[string]string
