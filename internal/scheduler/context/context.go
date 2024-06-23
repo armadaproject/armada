@@ -173,7 +173,6 @@ func (sctx *SchedulingContext) TotalCost() float64 {
 // SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
 // AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
 func (sctx *SchedulingContext) UpdateFairShares() {
-
 	const maxIterations = 5
 
 	type queueInfo struct {
