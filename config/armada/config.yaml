@@ -75,6 +75,7 @@ pulsar:
   compressionLevel: faster
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
+  maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 # 4MB
   receiverQueueSize: 100
 postgres:

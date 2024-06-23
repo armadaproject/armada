@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -95,6 +96,23 @@ func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSched
 		ResourceRequirements: job.EfficientResourceRequirements(),
 		GangInfo:             EmptyGangInfo(job),
 	}
+}
+
+func TestJobSchedulingContext_SetAssignedNodeId(t *testing.T) {
+	jctx := &JobSchedulingContext{}
+
+	assert.Equal(t, "", jctx.GetAssignedNodeId())
+	assert.Empty(t, jctx.AdditionalNodeSelectors)
+
+	// Will not add a node selector if input is empty
+	jctx.SetAssignedNodeId("")
+	assert.Equal(t, "", jctx.GetAssignedNodeId())
+	assert.Empty(t, jctx.AdditionalNodeSelectors)
+
+	jctx.SetAssignedNodeId("node1")
+	assert.Equal(t, "node1", jctx.GetAssignedNodeId())
+	assert.Len(t, jctx.AdditionalNodeSelectors, 1)
+	assert.Equal(t, map[string]string{configuration.NodeIdLabel: "node1"}, jctx.AdditionalNodeSelectors)
 }
 
 func TestCalculateFairShares(t *testing.T) {
