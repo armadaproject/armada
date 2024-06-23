@@ -208,7 +208,6 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 // Ensures that the JobSubmitRequestItem's limits and requests are equal.
 // Also  checks that  any resources defined are above minimum values set in  config
 func validateResources(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
-
 	spec := j.GetMainPodSpec()
 	maxOversubscriptionByResource := config.MaxOversubscriptionByResourceRequest
 	if maxOversubscriptionByResource == nil {
