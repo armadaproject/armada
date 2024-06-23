@@ -95,10 +95,5 @@ func AirflowOperator() error {
 		return fmt.Errorf("failed to build Airflow Operator: %w", err)
 	}
 
-	err = dockerRun("run", "--rm", "-v", "${PWD}/proto-airflow:/proto-airflow", "-v", "${PWD}:/go/src/armada", "-w", "/go/src/armada", "armada-airflow-operator-builder", "./scripts/build-airflow-operator.sh")
-	if err != nil {
-		return fmt.Errorf("failed to run build-airflow-operator.sh script: %w", err)
-	}
-
 	return nil
 }
