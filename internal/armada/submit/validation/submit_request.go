@@ -3,8 +3,6 @@ package validation
 import (
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
@@ -210,20 +208,12 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 // Ensures that the JobSubmitRequestItem's limits and requests are equal.
 // Also  checks that  any resources defined are above minimum values set in  config
 func validateResources(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
-	// Function which tells us if two k8s resource lists contain exactly the same elements
-	resourceListEquals := func(a v1.ResourceList, b v1.ResourceList) bool {
-		if len(a) != len(b) {
-			return false
-		}
-		for k, v := range a {
-			if v != b[k] {
-				return false
-			}
-		}
-		return true
-	}
 
 	spec := j.GetMainPodSpec()
+	maxOversubscriptionByResource := config.MaxOversubscriptionByResourceRequest
+	if maxOversubscriptionByResource == nil {
+		maxOversubscriptionByResource = map[string]float64{}
+	}
 	for _, container := range spec.Containers {
 
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
@@ -242,12 +232,12 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 			if limit.MilliValue() < request.MilliValue() {
 				return fmt.Errorf("container %v defines %s with limits smaller than requests", container.Name, resource)
 			}
-			maxOversubscription, ok := config.MaxResourceOversubscriptionByResourceRequest[resource.String()]
+			maxOversubscription, ok := maxOversubscriptionByResource[resource.String()]
 			if !ok {
 				maxOversubscription = 1.0
 			}
 			if float64(limit.MilliValue()) > maxOversubscription*float64(request.MilliValue()) {
-				return fmt.Errorf("container %v defines %s with limits great than %d*requests", container.Name, resource)
+				return fmt.Errorf("container %v defines %s with limits great than %.2f*requests", container.Name, resource, maxOversubscription)
 			}
 		}
 

@@ -788,9 +788,10 @@ func TestValidateResources(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		req             *api.JobSubmitRequestItem
-		minJobResources v1.ResourceList
-		expectSuccess   bool
+		req                                  *api.JobSubmitRequestItem
+		minJobResources                      v1.ResourceList
+		maxOversubscriptionByResourceRequest map[string]float64
+		expectSuccess                        bool
 	}{
 		"Requests Missing": {
 			req: reqFromContainer(v1.Container{
@@ -808,13 +809,37 @@ func TestValidateResources(t *testing.T) {
 			}),
 			expectSuccess: false,
 		},
-		"Requests and limits different": {
+		"Requests and limits different with MaxResourceOversubscriptionByResourceRequest undefined": {
 			req: reqFromContainer(v1.Container{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
 			}),
+			expectSuccess: false,
+		},
+		"Requests and limits different, passes MaxResourceOversubscriptionByResourceRequest": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   twoCpu,
+				},
+			}),
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu": 2.0,
+			},
+			expectSuccess: true,
+		},
+		"Requests and limits different, fails MaxResourceOversubscriptionByResourceRequest": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   twoCpu,
+				},
+			}),
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu": 1.9,
+			},
 			expectSuccess: false,
 		},
 		"Request and limits the same": {
@@ -846,7 +871,11 @@ func TestValidateResources(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateResources(tc.req, configuration.SubmissionConfig{})
+			submitConfg := configuration.SubmissionConfig{}
+			if tc.maxOversubscriptionByResourceRequest != nil {
+				submitConfg.MaxOversubscriptionByResourceRequest = tc.maxOversubscriptionByResourceRequest
+			}
+			err := validateResources(tc.req, submitConfg)
 			if tc.expectSuccess {
 				assert.NoError(t, err)
 			} else {
