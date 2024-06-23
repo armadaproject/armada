@@ -1,13 +1,14 @@
 package jobdb
 
 import (
+	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
+
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/gogo/protobuf/proto"
-	"github.com/pkg/errors"
 )
 
 // JobStateTransitions captures the process of updating a job.
