@@ -1,5 +1,7 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+
+from armada.model import GrpcChannelArgs
 from armada.operators.armada import ArmadaOperator
 
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -56,48 +58,44 @@ with DAG(
 ) as dag:
     """
     This Airflow DAG follows a similar pattern:
-    1) Define arguments for armada and jobservice grpc channels.
+    1) Define arguments for armada grpc channel.
     2) Define your ArmadaOperator tasks that you want to run.
     3) Generate a DAG definition.
     """
-    armada_channel_args = {"target": "127.0.0.1:50051"}
-    job_service_channel_args = {"target": "127.0.0.1:60003"}
+    armada_channel_args = GrpcChannelArgs(target="127.0.0.1:50051")
 
     op = BashOperator(task_id="dummy", bash_command="echo Hello World!")
     armada = ArmadaOperator(
         task_id="armada",
         name="armada",
         armada_queue="test",
-        job_service_channel_args=job_service_channel_args,
-        armada_channel_args=armada_channel_args,
-        job_request_items=submit_sleep_container(image="busybox"),
+        channel_args=armada_channel_args,
+        job_request=submit_sleep_container(image="busybox")[0],
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     """
-    This task is used to verify that if an Armada Job
-    fails we are correctly telling Airflow that it failed.
-    """
+  This task is used to verify that if an Armada Job
+  fails we are correctly telling Airflow that it failed.
+  """
     bad_armada = ArmadaOperator(
         task_id="armada_fail",
         name="armada_fail",
         armada_queue="test",
-        job_service_channel_args=job_service_channel_args,
-        armada_channel_args=armada_channel_args,
-        job_request_items=submit_sleep_container(image="nonexistant"),
+        channel_args=armada_channel_args,
+        job_request=submit_sleep_container(image="busybox")[0],
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     good_armada = ArmadaOperator(
         task_id="good_armada",
         name="good_armada",
         armada_queue="test",
-        job_service_channel_args=job_service_channel_args,
-        armada_channel_args=armada_channel_args,
-        job_request_items=submit_sleep_container(image="busybox"),
+        channel_args=armada_channel_args,
+        job_request=submit_sleep_container(image="busybox")[0],
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     """
-    Airflow syntax to say
-    Run op first and then run armada and bad_armada in parallel
-    If all jobs are successful, run good_armada.
-    """
+  Airflow syntax to say
+  Run op first and then run armada and bad_armada in parallel
+  If all jobs are successful, run good_armada.
+  """
     op >> [armada, bad_armada] >> good_armada
