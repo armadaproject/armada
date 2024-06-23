@@ -507,6 +507,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				sctx,
 				constraints,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
+				s.schedulingConfig.UseAdjustedFairShareProtection,
 				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
