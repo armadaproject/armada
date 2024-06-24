@@ -389,6 +389,29 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass0, 4)),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
+		"scheduling from paused queue": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueueSchedulingPaused()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{},
+		},
+		"multi-queue scheduling with paused and non-paused queue": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueueSchedulingPaused(), {Name: testfixtures.TestQueue1, PriorityFactor: 100}},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue1, testfixtures.PriorityClass3, 10)...,
+			),
+			expectedScheduledIndices: []int{10, 11, 12, 13},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

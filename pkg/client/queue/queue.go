@@ -12,6 +12,8 @@ type Queue struct {
 	Permissions                       []Permissions  `json:"permissions"`
 	PriorityFactor                    PriorityFactor `json:"priorityFactor"`
 	ResourceLimitsByPriorityClassName map[string]api.PriorityClassResourceLimits
+	SchedulingPaused                  bool
+	Labels                            []string
 }
 
 // NewQueue returns new Queue using the in parameter. Error is returned if
@@ -50,6 +52,9 @@ func NewQueue(in *api.Queue) (Queue, error) {
 		Name:                              in.Name,
 		PriorityFactor:                    priorityFactor,
 		Permissions:                       permissions,
+		ResourceLimitsByPriorityClassName: in.ResourceLimitsByPriorityClassName,
+		SchedulingPaused:                  in.SchedulingPaused,
+		Labels:                            in.Labels,
 		ResourceLimitsByPriorityClassName: resourceLimitsByPriorityClassName,
 	}, nil
 }
@@ -57,6 +62,11 @@ func NewQueue(in *api.Queue) (Queue, error) {
 // ToAPI transforms Queue to *api.Queue structure
 func (q Queue) ToAPI() *api.Queue {
 	rv := &api.Queue{
+		Name:                              q.Name,
+		PriorityFactor:                    float64(q.PriorityFactor),
+		ResourceLimitsByPriorityClassName: q.ResourceLimitsByPriorityClassName,
+		SchedulingPaused:                  q.SchedulingPaused,
+		Labels:                            q.Labels,
 		Name:           q.Name,
 		PriorityFactor: float64(q.PriorityFactor),
 		ResourceLimitsByPriorityClassName: armadamaps.MapValues(

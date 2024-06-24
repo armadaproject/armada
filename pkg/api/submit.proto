@@ -192,6 +192,8 @@ message Queue {
     // If provided for a priority class, global limits for that priority class do not apply to this queue.
     map<string, PriorityClassResourceLimits> resource_limits_by_priority_class_name = 7;
     repeated Permissions permissions = 6;
+    bool scheduling_paused = 8;
+    repeated string labels = 9;
 }
 
 message PriorityClassResourceLimits {
