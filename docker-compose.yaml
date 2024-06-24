@@ -61,6 +61,7 @@ services:
     depends_on:
       - lookoutv2-migration
       - eventingester
+      - lookoutingesterv2
     working_dir: /app
     env_file:
       - developer/env/docker/server.env

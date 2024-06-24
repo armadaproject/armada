@@ -51,7 +51,7 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 
 	// Now we can job updates, annotations and new job runs
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		l.UpdateJobs(ctx, jobsToUpdate)
@@ -59,6 +59,10 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	go func() {
 		defer wg.Done()
 		l.CreateJobRuns(ctx, instructions.JobRunsToCreate)
+	}()
+	go func() {
+		defer wg.Done()
+		l.CreateJobErrors(ctx, instructions.JobErrorsToCreate)
 	}()
 
 	wg.Wait()
@@ -119,6 +123,19 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
 	log.Infof("Updated %d job runs in %s", len(instructions), time.Since(start))
+}
+
+func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {
+	if len(instructions) == 0 {
+		return
+	}
+	start := time.Now()
+	err := l.CreateJobErrorsBatch(ctx, instructions)
+	if err != nil {
+		log.WithError(err).Warn("Creating job errors via batch failed, will attempt to insert serially (this might be slow).")
+		l.CreateJobErrorsScalar(ctx, instructions)
+	}
+	log.Infof("Inserted %d job errors in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
@@ -621,6 +638,76 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 	}
 }
 
+func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
+	tmpTable := "job_error_create_tmp"
+	return l.withDatabaseRetryInsert(func() error {
+		createTmp := func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, fmt.Sprintf(`
+				CREATE TEMPORARY TABLE %s (
+					job_id varchar(32),
+					error bytea
+				) ON COMMIT DROP;`, tmpTable))
+			if err != nil {
+				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
+			}
+			return err
+		}
+
+		insertTmp := func(tx pgx.Tx) error {
+			_, err := tx.CopyFrom(ctx,
+				pgx.Identifier{tmpTable},
+				[]string{
+					"job_id",
+					"error",
+				},
+				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
+					return []interface{}{
+						instructions[i].JobId,
+						instructions[i].Error,
+					}, nil
+				}),
+			)
+			return err
+		}
+
+		copyToDest := func(tx pgx.Tx) error {
+			_, err := tx.Exec(
+				ctx,
+				fmt.Sprintf(`
+					INSERT INTO job_error (
+						job_id,
+						error
+					) SELECT * from %s
+					ON CONFLICT DO NOTHING`, tmpTable))
+			if err != nil {
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
+			}
+			return err
+		}
+		return batchInsert(ctx, l.db, createTmp, insertTmp, copyToDest)
+	})
+}
+
+func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {
+	sqlStatement := `INSERT INTO job_error (job_id, error)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`
+	for _, i := range instructions {
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.JobId,
+				i.Error)
+			if err != nil {
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
+			}
+			return err
+		})
+		if err != nil {
+			log.WithError(err).Warnf("Create job error for job %s, failed", i.JobId)
+		}
+	}
+}
+
 func batchInsert(ctx *armadacontext.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
 	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
 ) error {
@@ -656,7 +743,8 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 			return *p == lookout.JobFailedOrdinal ||
 				*p == lookout.JobSucceededOrdinal ||
 				*p == lookout.JobCancelledOrdinal ||
-				*p == lookout.JobPreemptedOrdinal
+				*p == lookout.JobPreemptedOrdinal ||
+				*p == lookout.JobRejectedOrdinal
 		}
 	}
 
@@ -778,6 +866,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 			lookout.JobFailedOrdinal,
 			lookout.JobCancelledOrdinal,
 			lookout.JobPreemptedOrdinal,
+			lookout.JobRejectedOrdinal,
 		}
 		return db.Query(ctx, "SELECT DISTINCT job_id, state FROM JOB where state = any($1) AND job_id = any($2)", terminalStates, jobIds)
 	})

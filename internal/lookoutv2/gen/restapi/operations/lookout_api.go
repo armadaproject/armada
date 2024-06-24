@@ -46,6 +46,9 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 		GetHealthHandler: GetHealthHandlerFunc(func(params GetHealthParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetHealth has not yet been implemented")
 		}),
+		GetJobErrorHandler: GetJobErrorHandlerFunc(func(params GetJobErrorParams) middleware.Responder {
+			return middleware.NotImplemented("operation GetJobError has not yet been implemented")
+		}),
 		GetJobRunDebugMessageHandler: GetJobRunDebugMessageHandlerFunc(func(params GetJobRunDebugMessageParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetJobRunDebugMessage has not yet been implemented")
 		}),
@@ -102,6 +105,8 @@ type LookoutAPI struct {
 
 	// GetHealthHandler sets the operation handler for the get health operation
 	GetHealthHandler GetHealthHandler
+	// GetJobErrorHandler sets the operation handler for the get job error operation
+	GetJobErrorHandler GetJobErrorHandler
 	// GetJobRunDebugMessageHandler sets the operation handler for the get job run debug message operation
 	GetJobRunDebugMessageHandler GetJobRunDebugMessageHandler
 	// GetJobRunErrorHandler sets the operation handler for the get job run error operation
@@ -194,6 +199,9 @@ func (o *LookoutAPI) Validate() error {
 
 	if o.GetHealthHandler == nil {
 		unregistered = append(unregistered, "GetHealthHandler")
+	}
+	if o.GetJobErrorHandler == nil {
+		unregistered = append(unregistered, "GetJobErrorHandler")
 	}
 	if o.GetJobRunDebugMessageHandler == nil {
 		unregistered = append(unregistered, "GetJobRunDebugMessageHandler")
@@ -304,6 +312,10 @@ func (o *LookoutAPI) initHandlerCache() {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/health"] = NewGetHealth(o.context, o.GetHealthHandler)
+	if o.handlers["POST"] == nil {
+		o.handlers["POST"] = make(map[string]http.Handler)
+	}
+	o.handlers["POST"]["/api/v1/jobError"] = NewGetJobError(o.context, o.GetJobErrorHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}

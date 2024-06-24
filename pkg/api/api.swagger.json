@@ -1561,7 +1561,8 @@
         "SUBMITTED",
         "LEASED",
         "PREEMPTED",
-        "CANCELLED"
+        "CANCELLED",
+        "REJECTED"
       ]
     },
     "apiJobStatusRequest": {
