@@ -20,6 +20,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -109,6 +110,7 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	queue string, weight float64,
 	initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string],
+	demand schedulerobjects.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -136,6 +138,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Weight:                            weight,
 		Limiter:                           limiter,
 		Allocated:                         allocated,
+		Demand:                            demand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -164,6 +167,73 @@ func (sctx *SchedulingContext) TotalCost() float64 {
 		rv += sctx.FairnessCostProvider.CostFromQueue(qctx)
 	}
 	return rv
+}
+
+// UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
+// SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
+// AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
+func (sctx *SchedulingContext) UpdateFairShares() {
+	const maxIterations = 5
+
+	type queueInfo struct {
+		queueName     string
+		adjustedShare float64
+		fairShare     float64
+		weight        float64
+		cappedShare   float64
+	}
+
+	queueInfos := make([]*queueInfo, 0, len(sctx.QueueSchedulingContexts))
+	for queueName, qctx := range sctx.QueueSchedulingContexts {
+		cappedShare := 1.0
+		if !sctx.TotalResources.IsZero() {
+			cappedShare = sctx.FairnessCostProvider.CostFromAllocationAndWeight(qctx.Demand, qctx.Weight) * qctx.Weight
+		}
+		queueInfos = append(queueInfos, &queueInfo{
+			queueName:     queueName,
+			adjustedShare: 0,
+			fairShare:     qctx.Weight / sctx.WeightSum,
+			weight:        qctx.Weight,
+			cappedShare:   cappedShare,
+		})
+	}
+
+	// We do this so that we get deterministic output
+	slices.SortFunc(queueInfos, func(a, b *queueInfo) int {
+		return strings.Compare(a.queueName, b.queueName)
+	})
+
+	unallocated := 1.0 // this is the proportion of the cluster that we can share each time
+
+	// We will reshare unused capacity until we've reshared 99% of all capacity or we've completed 5 iteration
+	for i := 0; i < maxIterations && unallocated > 0.01; i++ {
+		totalWeight := 0.0
+		for _, q := range queueInfos {
+			totalWeight += q.weight
+		}
+
+		for _, q := range queueInfos {
+			if q.weight > 0 {
+				share := (q.weight / totalWeight) * unallocated
+				q.adjustedShare += share
+			}
+		}
+		unallocated = 0.0
+		for _, q := range queueInfos {
+			excessShare := q.adjustedShare - q.cappedShare
+			if excessShare > 0 {
+				q.adjustedShare = q.cappedShare
+				q.weight = 0.0
+				unallocated += excessShare
+			}
+		}
+	}
+
+	for _, q := range queueInfos {
+		qtx := sctx.QueueSchedulingContexts[q.queueName]
+		qtx.FairShare = q.fairShare
+		qtx.AdjustedFairShare = q.adjustedShare
+	}
 }
 
 func (sctx *SchedulingContext) ReportString(verbosity int32) string {
@@ -342,6 +412,13 @@ type QueueSchedulingContext struct {
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
+	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
+	// start of the scheduling cycle
+	Demand schedulerobjects.ResourceList
+	// Fair share is the weight of this queue over the sum of the weights of all queues
+	FairShare float64
+	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
+	AdjustedFairShare float64
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
@@ -623,6 +700,9 @@ type JobSchedulingContext struct {
 	// GangInfo holds all the information that is necessary to schedule a gang,
 	// such as the lower and upper bounds on its size.
 	GangInfo
+	// This is the node the pod is assigned to.
+	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
+	AssignedNodeId string
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -663,21 +743,23 @@ func (jctx *JobSchedulingContext) Fail(unschedulableReason string) {
 	}
 }
 
+func (jctx *JobSchedulingContext) GetAssignedNodeId() string {
+	return jctx.AssignedNodeId
+}
+
+func (jctx *JobSchedulingContext) SetAssignedNodeId(assignedNodeId string) {
+	if assignedNodeId != "" {
+		jctx.AssignedNodeId = assignedNodeId
+		jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, assignedNodeId)
+	}
+}
+
 func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
 	if jctx.AdditionalNodeSelectors == nil {
 		jctx.AdditionalNodeSelectors = map[string]string{key: value}
 	} else {
 		jctx.AdditionalNodeSelectors[key] = value
 	}
-}
-
-func (jctx *JobSchedulingContext) GetNodeSelector(key string) (string, bool) {
-	if value, ok := jctx.AdditionalNodeSelectors[key]; ok {
-		return value, true
-	} else if value, ok := jctx.PodRequirements.NodeSelector[key]; ok {
-		return value, true
-	}
-	return "", false
 }
 
 type GangInfo struct {

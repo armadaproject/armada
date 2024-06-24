@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from armada.operators.armada_deferrable import ArmadaDeferrableOperator
 
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -12,6 +11,9 @@ from armada_client.armada import (
 )
 
 import pendulum
+
+from armada.model import GrpcChannelArgs
+from armada.operators.armada import ArmadaOperator
 
 
 def submit_sleep_job():
@@ -63,12 +65,9 @@ with DAG(
     default_args={"retries": 2},
 ) as dag:
     """
-    The ArmadaDeferrableOperatorOperator requires grpc.aio.channel arguments
+    The ArmadaOperator requires GrpcChannelArgs arguments
     """
-    armada_channel_args = {"target": "127.0.0.1:50051"}
-    job_service_channel_args = {
-        "target": "127.0.0.1:60003",
-    }
+    armada_channel_args = GrpcChannelArgs(target="127.0.0.1:50051")
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
     task name of dummy.
@@ -76,19 +75,17 @@ with DAG(
     op = BashOperator(task_id="dummy", bash_command="echo Hello World!")
     """
     This is creating an Armada task with the task_id of armada and name of armada.
-    The Airflow operator needs queue and job-set for Armada
-    You also specify the PythonClient and JobServiceClient channel arguments
-    for each task.
+    The Airflow operator needs queue for Armada.
     This job will use the podspec defined above.
     """
-    armada = ArmadaDeferrableOperator(
+    armada = ArmadaOperator(
         task_id="armada_deferrable",
         name="armada_deferrable",
-        armada_channel_args=armada_channel_args,
-        job_service_channel_args=job_service_channel_args,
+        channel_args=armada_channel_args,
         armada_queue="test",
-        job_request_items=submit_sleep_job(),
+        job_request=submit_sleep_job()[0],
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+        deferrable=True,
     )
     """
     Airflow dag syntax for running op and then armada.

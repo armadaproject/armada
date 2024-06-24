@@ -611,6 +611,14 @@ func TestCreateJobErrorsBatch(t *testing.T) {
 		jobError = getJobError(t, db, jobIdString)
 		assert.Equal(t, expectedJobError, jobError)
 
+		// Insert again with a different value and check we don't overwrite
+		jobErrors := defaultInstructionSet().JobErrorsToCreate
+		jobErrors[0].Error = []byte{}
+		err = ldb.CreateJobErrorsBatch(armadacontext.Background(), jobErrors)
+		assert.Nil(t, err)
+		jobError = getJobError(t, db, jobIdString)
+		assert.Equal(t, expectedJobError, jobError)
+
 		// If a row is bad then we should return an error and no updates should happen
 		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM job_error")
 		assert.NoError(t, err)

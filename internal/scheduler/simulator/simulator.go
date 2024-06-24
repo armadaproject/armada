@@ -443,6 +443,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 	var eventSequences []*armadaevents.EventSequence
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
+	demandByQueue := calculateDemandByQueue(txn.GetAll())
 	for _, pool := range s.ClusterSpec.Pools {
 		for i := range pool.ClusterGroups {
 			nodeDb := s.nodeDbByPoolAndExecutorGroup[pool.Name][i]
@@ -469,6 +470,11 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			sctx.Started = s.time
 			for _, queue := range s.WorkloadSpec.Queues {
+				demand, hasDemand := demandByQueue[queue.Name]
+				if !hasDemand {
+					// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
+					continue
+				}
 				limiter, ok := s.limiterByQueue[queue.Name]
 				if !ok {
 					limiter = rate.NewLimiter(
@@ -482,6 +488,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					queue.Name,
 					queue.Weight,
 					s.allocationByPoolAndQueueAndPriorityClass[pool.Name][queue.Name],
+					demand,
 					limiter,
 				)
 				if err != nil {
@@ -500,6 +507,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				sctx,
 				constraints,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
+				s.schedulingConfig.UseAdjustedFairShareProtection,
 				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
@@ -879,4 +887,21 @@ func maxTime(a, b time.Time) time.Time {
 
 func pointer[T any](t T) *T {
 	return &t
+}
+
+func calculateDemandByQueue(jobs []*jobdb.Job) map[string]schedulerobjects.ResourceList {
+	queueResources := make(map[string]schedulerobjects.ResourceList)
+
+	for _, job := range jobs {
+		if job.InTerminalState() {
+			continue
+		}
+		r, ok := queueResources[job.Queue()]
+		if !ok {
+			r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+			queueResources[job.Queue()] = r
+		}
+		r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+	}
+	return queueResources
 }

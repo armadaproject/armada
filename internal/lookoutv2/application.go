@@ -127,7 +127,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
 			result, err := getJobErrorRepo.GetJobErrorMessage(ctx, params.GetJobErrorRequest.JobID)
 			if err != nil {
-				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+				return operations.NewGetJobErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobErrorOK().WithPayload(&operations.GetJobErrorOKBody{
 				ErrorString: result,

@@ -18,7 +18,7 @@ type Configuration struct {
 	PriorityClasses map[string]types.PriorityClass
 	// Pulsar subscription name
 	SubscriptionName string
-	// Number of messages that will be batched together before being inserted into the database
+	// Number of event messages that will be batched together before being inserted into the database
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration

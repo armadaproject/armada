@@ -57,6 +57,7 @@ func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithId
 			operations = AppendDbOperation(operations, op)
 		}
 	}
+	log.Infof("Converted sequences into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
 		MessageIds: sequencesWithIds.MessageIds,
@@ -117,6 +118,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_JobRunCancelled,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)

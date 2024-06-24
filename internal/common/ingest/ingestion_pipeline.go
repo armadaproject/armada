@@ -109,31 +109,72 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 		i.consumer = consumer
 		defer closePulsar()
 	}
-	pulsarMsgs := i.consumer.Chan()
+	pulsarMessageChannel := i.consumer.Chan()
+	pulsarMessages := make(chan pulsar.ConsumerMessage)
 
-	// Batch up messages
-	batchedMsgs := make(chan []pulsar.ConsumerMessage)
-	batcher := NewBatcher[pulsar.ConsumerMessage](pulsarMsgs, i.pulsarBatchSize, i.pulsarBatchDuration, func(b []pulsar.ConsumerMessage) { batchedMsgs <- b })
+	// Consume pulsar messages
+	// Used to track if we are no longer receiving pulsar messages
 	go func() {
-		batcher.Run(ctx)
-		close(batchedMsgs)
+		timeout := time.Minute * 2
+		timer := time.NewTimer(timeout)
+	loop:
+		for {
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(timeout)
+			select {
+			case msg, ok := <-pulsarMessageChannel:
+				if !ok {
+					// Channel closed
+					break loop
+				}
+				pulsarMessages <- msg
+			case <-timer.C:
+				log.Infof("No pulsar message received in %s", timeout)
+			}
+		}
+		close(pulsarMessages)
 	}()
 
 	// Convert to event sequences
 	eventSequences := make(chan *EventSequencesWithIds)
 	go func() {
-		for msg := range batchedMsgs {
+		for msg := range pulsarMessages {
 			converted := unmarshalEventSequences(msg, i.metrics)
 			eventSequences <- converted
 		}
 		close(eventSequences)
 	}()
 
+	// Batch up messages
+	batchedEventSequences := make(chan *EventSequencesWithIds)
+	eventCounterFunc := func(seq *EventSequencesWithIds) int { return len(seq.EventSequences) }
+	eventPublisherFunc := func(b []*EventSequencesWithIds) { batchedEventSequences <- combineEventSequences(b) }
+	batcher := NewBatcher[*EventSequencesWithIds](eventSequences, i.pulsarBatchSize, i.pulsarBatchDuration, eventCounterFunc, eventPublisherFunc)
+	go func() {
+		batcher.Run(ctx)
+		close(batchedEventSequences)
+	}()
+
+	// Log summary of batch
+	preprocessedBatchEventSequences := make(chan *EventSequencesWithIds)
+	go func() {
+		for msg := range batchedEventSequences {
+			logSummaryOfEventSequences(msg)
+			preprocessedBatchEventSequences <- msg
+		}
+		close(preprocessedBatchEventSequences)
+	}()
+
 	// Convert to instructions
 	instructions := make(chan T)
 	go func() {
-		for msg := range eventSequences {
+		for msg := range preprocessedBatchEventSequences {
+			start := time.Now()
 			converted := i.converter.Convert(ctx, msg)
+			taken := time.Now().Sub(start)
+			log.Infof("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
 			instructions <- converted
 		}
 		close(instructions)
@@ -202,23 +243,20 @@ func (i *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
 	}, nil
 }
 
-func unmarshalEventSequences(batch []pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
-	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
-	messageIds := make([]pulsar.MessageID, len(batch))
-	for i, msg := range batch {
+func unmarshalEventSequences(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
+	sequences := make([]*armadaevents.EventSequence, 0, 1)
+	messageIds := make([]pulsar.MessageID, 0, 1)
 
-		// Record the messageId- we need to record all message Ids, even if the event they contain is invalid
-		// As they must be acked at the end
-		messageIds[i] = msg.ID()
+	// Record the messageId- we need to record all message Ids, even if the event they contain is invalid
+	// As they must be acked at the end
+	messageIds = append(messageIds, msg.ID())
 
-		// Try and unmarshall the proto
-		es, err := eventutil.UnmarshalEventSequence(armadacontext.Background(), msg.Payload())
-		if err != nil {
-			metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
-			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", msg.ID())
-			continue
-		}
-
+	// Try and unmarshall the proto
+	es, err := eventutil.UnmarshalEventSequence(armadacontext.Background(), msg.Payload())
+	if err != nil {
+		metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
+		log.WithError(err).Warnf("Could not unmarshal proto for msg %s", msg.ID())
+	} else {
 		// Fill in time if it is not set
 		// TODO - once created is set everywhere we can remove this
 		for _, event := range es.Events {
@@ -232,4 +270,29 @@ func unmarshalEventSequences(batch []pulsar.ConsumerMessage, metrics *commonmetr
 	return &EventSequencesWithIds{
 		EventSequences: sequences, MessageIds: messageIds,
 	}
+}
+
+func combineEventSequences(sequences []*EventSequencesWithIds) *EventSequencesWithIds {
+	combinedSequences := make([]*armadaevents.EventSequence, 0)
+	messageIds := []pulsar.MessageID{}
+	for _, seq := range sequences {
+		combinedSequences = append(combinedSequences, seq.EventSequences...)
+		messageIds = append(messageIds, seq.MessageIds...)
+	}
+	return &EventSequencesWithIds{
+		EventSequences: combinedSequences, MessageIds: messageIds,
+	}
+}
+
+func logSummaryOfEventSequences(sequence *EventSequencesWithIds) {
+	numberOfEvents := 0
+	countOfEventsByType := map[string]int{}
+	for _, eventSequence := range sequence.EventSequences {
+		numberOfEvents += len(eventSequence.Events)
+		for _, e := range eventSequence.Events {
+			typeString := e.GetEventName()
+			countOfEventsByType[typeString] = countOfEventsByType[typeString] + 1
+		}
+	}
+	log.Infof("Batch being processed contains %d event messages and %d events of type %v", len(sequence.MessageIds), numberOfEvents, countOfEventsByType)
 }

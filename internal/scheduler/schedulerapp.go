@@ -135,7 +135,7 @@ func Run(config schedulerconfig.Configuration) error {
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.PulsarSendTimeout)
+	}, config.Pulsar.MaxAllowedEventsPerMessage, config.PulsarSendTimeout)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
@@ -182,6 +182,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
+		config.Pulsar.MaxAllowedEventsPerMessage,
 		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
