@@ -22,6 +22,24 @@ func FromResourceList(list v1.ResourceList) ComputeResources {
 	return resources
 }
 
+func FromProtoMap(m map[string]*resource.Quantity) ComputeResources {
+	resources := make(ComputeResources, len(m))
+	for k, v := range m {
+		if v != nil {
+			resources[k] = *v
+		}
+	}
+	return resources
+}
+
+func (a ComputeResources) ToProtoMap() map[string]*resource.Quantity {
+	resources := make(map[string]*resource.Quantity, len(a))
+	for k, v := range a {
+		resources[k] = &v
+	}
+	return resources
+}
+
 // QuantityAsFloat64 returns a float64 representation of a quantity.
 // We need our own function because q.AsApproximateFloat64 sometimes returns surprising results.
 // For example, resource.MustParse("5188205838208Ki").AsApproximateFloat64() returns 0.004291583283300088,

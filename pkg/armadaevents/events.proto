@@ -113,8 +113,8 @@ message ResourceUtilisation {
     Uuid run_id = 1;
     Uuid job_id = 2;
     KubernetesResourceInfo resource_info = 3;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4 [(gogoproto.nullable) = false];
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5;
     // This is a string representation of the job_id.  Eventually we will retire the job_id field and just use strings
     string job_id_str = 6;
     string run_id_str = 7;

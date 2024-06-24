@@ -222,10 +222,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	case *api.JobIngressInfoEvent:
 		// NOOP
 	case *api.JobUtilisationEvent:
-		r := typed.MaxResourcesForPeriod
-		if r != nil {
-			info.MaxUsedResources.Max(*r)
-		}
+		info.MaxUsedResources.Max(armadaresource.FromProtoMap(typed.MaxResourcesForPeriod))
 	}
 }
 
