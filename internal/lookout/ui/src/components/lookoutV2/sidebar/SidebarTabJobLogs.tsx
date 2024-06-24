@@ -18,13 +18,13 @@ import styles from "./SidebarTabJobLogs.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
 import { getAccessToken, useUserManager } from "../../../oidc"
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
 
 export interface SidebarTabJobLogsProps {
   job: Job
-  jobSpecService: IGetJobSpecService
+  jobSpecService: IGetJobInfoService
   logService: ILogService
 }
 

@@ -11,11 +11,11 @@ import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { v4 as uuidv4 } from "uuid"
 
 import { JobsTableContainer } from "./JobsTableContainer"
-import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../services/lookoutV2/GetRunInfoService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { FakeCordonService } from "../../services/lookoutV2/mocks/FakeCordonService"
-import FakeGetJobSpecService from "../../services/lookoutV2/mocks/FakeGetJobSpecService"
+import FakeGetJobInfoService from "../../services/lookoutV2/mocks/FakeGetJobInfoService"
 import { FakeGetRunInfoService } from "../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import { FakeLogService } from "../../services/lookoutV2/mocks/FakeLogService"
 
@@ -57,7 +57,7 @@ describe("JobsTableContainer", () => {
   let getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
     runErrorService: IGetRunInfoService,
-    jobSpecService: IGetJobSpecService,
+    jobSpecService: IGetJobInfoService,
     logService: ILogService,
     updateJobsService: UpdateJobsService
 
@@ -69,7 +69,7 @@ describe("JobsTableContainer", () => {
   beforeEach(() => {
     setUp([])
     runErrorService = new FakeGetRunInfoService(false)
-    jobSpecService = new FakeGetJobSpecService(false)
+    jobSpecService = new FakeGetJobInfoService(false)
     logService = new FakeLogService()
     localStorage.clear()
 

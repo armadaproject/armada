@@ -17,7 +17,7 @@ import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { UserManagerContext, useUserManager } from "./oidc"
 import { ICordonService } from "./services/lookoutV2/CordonService"
-import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "./services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "./services/lookoutV2/GetRunInfoService"
 import { ILogService } from "./services/lookoutV2/LogService"
 import { CommandSpec } from "./utils"
@@ -69,7 +69,7 @@ type AppProps = {
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2RunInfoService: IGetRunInfoService
-  v2JobSpecService: IGetJobSpecService
+  v2JobSpecService: IGetJobInfoService
   v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
