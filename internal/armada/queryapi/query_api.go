@@ -24,6 +24,7 @@ var JobStateMap = map[int16]api.JobState{
 	lookout.JobFailedOrdinal:    api.JobState_FAILED,
 	lookout.JobCancelledOrdinal: api.JobState_CANCELLED,
 	lookout.JobPreemptedOrdinal: api.JobState_PREEMPTED,
+	lookout.JobRejectedOrdinal:  api.JobState_REJECTED,
 }
 
 // JobRunStateMap is a mapping between database state and api Job Run states

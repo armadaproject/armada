@@ -493,6 +493,14 @@ func TestSchedule(t *testing.T) {
 				dbJob := txn.GetById(job.Id())
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
+
+			// Check that we calculated fair share and adjusted fair share
+			for _, schCtx := range schedulerResult.SchedulingContexts {
+				for _, qtx := range schCtx.QueueSchedulingContexts {
+					assert.NotEqual(t, 0, qtx.AdjustedFairShare)
+					assert.NotEqual(t, 0, qtx.FairShare)
+				}
+			}
 		})
 	}
 }
