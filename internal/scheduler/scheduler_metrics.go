@@ -60,6 +60,15 @@ var fairSharePerQueueDesc = prometheus.NewDesc(
 	}, nil,
 )
 
+var adjustedFairSharePerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "adjusted_fair_share"),
+	"Adjusted Fair share of each queue and pool.",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
 var actualSharePerQueueDesc = prometheus.NewDesc(
 	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "actual_share"),
 	"Actual share of each queue and pool.",
@@ -147,6 +156,7 @@ func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometh
 	for key, value := range schedulingRoundData.queuePoolData {
 		result = append(result, prometheus.MustNewConstMetric(consideredJobsDesc, prometheus.GaugeValue, float64(value.numberOfJobsConsidered), key.queue, key.pool))
 		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, float64(value.fairShare), key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(adjustedFairSharePerQueueDesc, prometheus.GaugeValue, float64(value.adjustedFairShare), key.queue, key.pool))
 		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, float64(value.actualShare), key.queue, key.pool))
 	}
 	for key, value := range schedulingRoundData.scheduledJobData {
@@ -185,17 +195,15 @@ func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []
 	result := make(map[queuePoolKey]queuePoolData)
 	for _, schedContext := range schedulingContexts {
 		totalCost := schedContext.TotalCost()
-		totalWeight := schedContext.WeightSum
 		pool := schedContext.Pool
 
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			key := queuePoolKey{queue: queue, pool: pool}
-			fairShare := queueContext.Weight / totalWeight
 			actualShare := schedContext.FairnessCostProvider.CostFromQueue(queueContext) / totalCost
-
 			result[key] = queuePoolData{
 				numberOfJobsConsidered: len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
-				fairShare:              fairShare,
+				fairShare:              queueContext.FairShare,
+				adjustedFairShare:      queueContext.AdjustedFairShare,
 				actualShare:            actualShare,
 			}
 		}
@@ -224,4 +232,5 @@ type queuePoolData struct {
 	numberOfJobsConsidered int
 	actualShare            float64
 	fairShare              float64
+	adjustedFairShare      float64
 }
