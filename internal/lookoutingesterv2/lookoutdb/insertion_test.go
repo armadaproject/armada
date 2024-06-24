@@ -35,11 +35,7 @@ const (
 	priority         = 3
 	updatePriority   = 4
 	priorityClass    = "default"
-	updateState      = 5
-	podNumber        = 6
-	jobJson          = `{"foo": "bar"}`
 	jobProto         = "hello world"
-	containerName    = "testContainer"
 )
 
 var m = metrics.Get()
@@ -57,7 +53,7 @@ var (
 	fatalErrors     = []*regexp.Regexp{regexp.MustCompile("SQLSTATE 22001")}
 )
 
-// An invalid job id that exceeds th varchar count
+// An invalid job id that exceeds the varchar count
 var invalidId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 type JobRow struct {
@@ -97,12 +93,9 @@ type JobRunRow struct {
 	ExitCode    *int32
 }
 
-type UserAnnotationRow struct {
-	JobId  string
-	Key    string
-	Value  string
-	Queue  string
-	JobSet string
+type JobErrorRow struct {
+	JobId string
+	Error []byte
 }
 
 func defaultInstructionSet() *model.InstructionSet {
@@ -131,6 +124,10 @@ func defaultInstructionSet() *model.InstructionSet {
 			Debug:       []byte(testfixtures.DebugMsg),
 			JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 			ExitCode:    pointer.Int32(0),
+		}},
+		JobErrorsToCreate: []*model.CreateJobErrorInstruction{{
+			JobId: jobIdString,
+			Error: []byte(testfixtures.ErrMsg),
 		}},
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3)},
 	}
@@ -182,6 +179,11 @@ var expectedJobRun = JobRunRow{
 	Cluster:     executorId,
 	Pending:     updateTime,
 	JobRunState: lookout.JobRunPendingOrdinal,
+}
+
+var expectedJobError = JobErrorRow{
+	JobId: jobIdString,
+	Error: []byte(testfixtures.ErrMsg),
 }
 
 var expectedJobRunAfterUpdate = JobRunRow{
@@ -593,6 +595,62 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestCreateJobErrorsBatch(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
+
+		// Insert
+		err := ldb.CreateJobErrorsBatch(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		assert.Nil(t, err)
+		jobError := getJobError(t, db, jobIdString)
+		assert.Equal(t, expectedJobError, jobError)
+
+		// Insert again and test that it's idempotent
+		err = ldb.CreateJobErrorsBatch(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		assert.Nil(t, err)
+		jobError = getJobError(t, db, jobIdString)
+		assert.Equal(t, expectedJobError, jobError)
+
+		// Insert again with a different value and check we don't overwrite
+		jobErrors := defaultInstructionSet().JobErrorsToCreate
+		jobErrors[0].Error = []byte{}
+		err = ldb.CreateJobErrorsBatch(armadacontext.Background(), jobErrors)
+		assert.Nil(t, err)
+		jobError = getJobError(t, db, jobIdString)
+		assert.Equal(t, expectedJobError, jobError)
+
+		// If a row is bad then we should return an error and no updates should happen
+		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM job_error")
+		assert.NoError(t, err)
+		invalidError := &model.CreateJobErrorInstruction{
+			JobId: invalidId,
+		}
+		err = ldb.CreateJobErrorsBatch(armadacontext.Background(), append(defaultInstructionSet().JobErrorsToCreate, invalidError))
+		assert.Error(t, err)
+		assertNoRows(t, db, "job_error")
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestCreateJobErrorsScalar(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10)
+
+		// Insert
+		ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		jobError := getJobError(t, db, jobIdString)
+		assert.Equal(t, expectedJobError, jobError)
+
+		// Insert again and test that it's idempotent
+		ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		jobError = getJobError(t, db, jobIdString)
+		assert.Equal(t, expectedJobError, jobError)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestStoreWithEmptyInstructionSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10)
@@ -963,6 +1021,19 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 	)
 	assert.NoError(t, err)
 	return run
+}
+
+func getJobError(t *testing.T, db *pgxpool.Pool, jobId string) JobErrorRow {
+	errorRow := JobErrorRow{}
+	r := db.QueryRow(
+		armadacontext.Background(),
+		"SELECT job_id, error FROM job_error WHERE job_id = $1",
+		jobId)
+
+	err := r.Scan(&errorRow.JobId, &errorRow.Error)
+
+	assert.NoError(t, err)
+	return errorRow
 }
 
 func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {

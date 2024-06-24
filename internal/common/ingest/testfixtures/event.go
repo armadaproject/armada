@@ -513,6 +513,25 @@ var JobPreempted = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRejected = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobErrors{
+		JobErrors: &armadaevents.JobErrors{
+			JobId: JobIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_JobRejected{
+						JobRejected: &armadaevents.JobRejected{
+							Message: ErrMsg,
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 var JobFailed = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobErrors{
