@@ -109,12 +109,38 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 		i.consumer = consumer
 		defer closePulsar()
 	}
-	pulsarMsgs := i.consumer.Chan()
+	pulsarMessageChannel := i.consumer.Chan()
+	pulsarMessages := make(chan pulsar.ConsumerMessage)
+
+	// Consume pulsar messages
+	// Used to track if we are no longer receiving pulsar messages
+	go func() {
+		timeout := time.Minute * 2
+		timer := time.NewTimer(timeout)
+	loop:
+		for {
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(timeout)
+			select {
+			case msg, ok := <-pulsarMessageChannel:
+				if !ok {
+					// Channel closed
+					break loop
+				}
+				pulsarMessages <- msg
+			case <-timer.C:
+				log.Infof("No pulsar message received in %s", timeout)
+			}
+		}
+		close(pulsarMessages)
+	}()
 
 	// Convert to event sequences
 	eventSequences := make(chan *EventSequencesWithIds)
 	go func() {
-		for msg := range pulsarMsgs {
+		for msg := range pulsarMessages {
 			converted := unmarshalEventSequences(msg, i.metrics)
 			eventSequences <- converted
 		}
@@ -131,11 +157,24 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 		close(batchedEventSequences)
 	}()
 
+	// Log summary of batch
+	preprocessedBatchEventSequences := make(chan *EventSequencesWithIds)
+	go func() {
+		for msg := range batchedEventSequences {
+			logSummaryOfEventSequences(msg)
+			preprocessedBatchEventSequences <- msg
+		}
+		close(preprocessedBatchEventSequences)
+	}()
+
 	// Convert to instructions
 	instructions := make(chan T)
 	go func() {
-		for msg := range batchedEventSequences {
+		for msg := range preprocessedBatchEventSequences {
+			start := time.Now()
 			converted := i.converter.Convert(ctx, msg)
+			taken := time.Now().Sub(start)
+			log.Infof("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
 			instructions <- converted
 		}
 		close(instructions)
@@ -243,4 +282,17 @@ func combineEventSequences(sequences []*EventSequencesWithIds) *EventSequencesWi
 	return &EventSequencesWithIds{
 		EventSequences: combinedSequences, MessageIds: messageIds,
 	}
+}
+
+func logSummaryOfEventSequences(sequence *EventSequencesWithIds) {
+	numberOfEvents := 0
+	countOfEventsByType := map[string]int{}
+	for _, eventSequence := range sequence.EventSequences {
+		numberOfEvents += len(eventSequence.Events)
+		for _, e := range eventSequence.Events {
+			typeString := e.GetEventName()
+			countOfEventsByType[typeString] = countOfEventsByType[typeString] + 1
+		}
+	}
+	log.Infof("Batch being processed contains %d event messages and %d events of type %v", len(sequence.MessageIds), numberOfEvents, countOfEventsByType)
 }
