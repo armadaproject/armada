@@ -3,6 +3,7 @@ package queue
 import (
 	"fmt"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -14,7 +15,7 @@ type Queue struct {
 }
 
 // NewQueue returns new Queue using the in parameter. Error is returned if
-// any of the queue fields has corresponding value in in that is invalid.
+// any of the queue fields has corresponding value that is invalid.
 func NewQueue(in *api.Queue) (Queue, error) {
 	if in == nil {
 		return Queue{}, fmt.Errorf("queue is nil")
@@ -39,19 +40,27 @@ func NewQueue(in *api.Queue) (Queue, error) {
 	}
 
 	return Queue{
-		Name:                              in.Name,
-		PriorityFactor:                    priorityFactor,
-		Permissions:                       permissions,
-		ResourceLimitsByPriorityClassName: in.ResourceLimitsByPriorityClassName,
+		Name:           in.Name,
+		PriorityFactor: priorityFactor,
+		Permissions:    permissions,
+		ResourceLimitsByPriorityClassName: armadamaps.MapValues(
+			in.ResourceLimitsByPriorityClassName,
+			func(p *api.PriorityClassResourceLimits) api.PriorityClassResourceLimits {
+				return *p
+			}),
 	}, nil
 }
 
 // ToAPI transforms Queue to *api.Queue structure
 func (q Queue) ToAPI() *api.Queue {
 	rv := &api.Queue{
-		Name:                              q.Name,
-		PriorityFactor:                    float64(q.PriorityFactor),
-		ResourceLimitsByPriorityClassName: q.ResourceLimitsByPriorityClassName,
+		Name:           q.Name,
+		PriorityFactor: float64(q.PriorityFactor),
+		ResourceLimitsByPriorityClassName: armadamaps.MapValues(
+			q.ResourceLimitsByPriorityClassName,
+			func(p api.PriorityClassResourceLimits) *api.PriorityClassResourceLimits {
+				return &p
+			}),
 	}
 	for _, permission := range q.Permissions {
 		rv.Permissions = append(rv.Permissions, permission.ToAPI())

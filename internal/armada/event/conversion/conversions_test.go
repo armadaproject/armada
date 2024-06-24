@@ -99,7 +99,7 @@ func TestConvertSubmitted(t *testing.T) {
 								},
 							},
 						},
-						SchedulingResourceRequirements: v1.ResourceRequirements{
+						SchedulingResourceRequirements: &v1.ResourceRequirements{
 							Requests: make(v1.ResourceList),
 							Limits:   make(v1.ResourceList),
 						},

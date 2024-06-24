@@ -188,9 +188,9 @@ func TestQueueScheduler(t *testing.T) {
 				{
 					Name:           "A",
 					PriorityFactor: 1.0,
-					ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{
+					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 						testfixtures.PriorityClass0: {
-							MaximumResourceFractionByPool: map[string]api.PriorityClassPoolResourceLimits{
+							MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
 								"pool": {
 									MaximumResourceFraction: map[string]float64{"cpu": 0.5, "memory": 1.0},
 								},

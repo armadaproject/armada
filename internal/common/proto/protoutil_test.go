@@ -2,11 +2,11 @@ package protoutil
 
 import (
 	"fmt"
-	"github.com/gogo/protobuf/types"
 	"testing"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,8 +68,7 @@ func TestMustMarshallAndCompress(t *testing.T) {
 }
 
 func TestToTimestamp(t *testing.T) {
-
-	var tests = map[string]struct {
+	tests := map[string]struct {
 		ts *types.Timestamp
 		t  time.Time
 	}{
