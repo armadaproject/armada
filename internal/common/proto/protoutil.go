@@ -1,7 +1,10 @@
 package protoutil
 
 import (
+	"time"
+
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -71,4 +74,19 @@ func MustMarshallAndCompress(msg proto.Message, compressor compress.Compressor) 
 		panic(err)
 	}
 	return b
+}
+
+func ToStdTime(ts *types.Timestamp) time.Time {
+	if ts == nil {
+		return time.Unix(0, 0).UTC()
+	}
+
+	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC()
+}
+
+func ToTimestamp(t time.Time) *types.Timestamp {
+	return &types.Timestamp{
+		Seconds: t.Unix(),
+		Nanos:   int32(t.Nanosecond()),
+	}
 }

@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -87,7 +88,7 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 		JobId:    jobId,
 		JobSetId: jobSet,
 		Queue:    queue,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 		Job:      *job,
 	}
 
@@ -95,7 +96,7 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 		JobId:    jobId,
 		JobSetId: jobSet,
 		Queue:    queue,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	return []*api.EventMessage{
@@ -125,7 +126,7 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
 				},
 			},
@@ -146,7 +147,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
 				},
 			},
@@ -167,7 +168,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
 				},
 			},
@@ -187,7 +188,7 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 					JobId:       jobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
-					Created:     time,
+					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
 					Requestor:   userId,
 				},
@@ -208,7 +209,7 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					JobId:       jobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
-					Created:     time,
+					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
 					Requestor:   userId,
 				},
@@ -229,7 +230,7 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					ClusterId: e.ExecutorId,
 				},
 			},
@@ -247,7 +248,7 @@ func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Tim
 		JobId:    jobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -285,7 +286,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 					},
 				},
 			}
@@ -305,7 +306,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						PodNumber:    reason.PodUnschedulable.GetPodNumber(),
 						JobSetId:     jobSetName,
 						Queue:        queueName,
-						Created:      time,
+						Created:      protoutil.ToTimestamp(time),
 					},
 				},
 			}
@@ -318,7 +319,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						JobId:        jobId,
 						JobSetId:     jobSetName,
 						Queue:        queueName,
-						Created:      time,
+						Created:      protoutil.ToTimestamp(time),
 						ClusterId:    objectMeta.GetExecutorId(),
 						Reason:       reason.PodLeaseReturned.GetMessage(),
 						KubernetesId: objectMeta.GetKubernetesId(),
@@ -338,7 +339,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						PodNamespace: objectMeta.GetNamespace(),
 						PodName:      objectMeta.GetName(),
 						Queue:        queueName,
-						Created:      time,
+						Created:      protoutil.ToTimestamp(time),
 						ClusterId:    objectMeta.GetExecutorId(),
 						Reason:       reason.PodTerminated.GetMessage(),
 						KubernetesId: objectMeta.GetKubernetesId(),
@@ -379,7 +380,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   "preempted",
 					},
 				},
@@ -392,7 +393,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   reason.MaxRunsExceeded.Message,
 					},
 				},
@@ -405,7 +406,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   reason.GangJobUnschedulable.Message,
 					},
 				},
@@ -418,7 +419,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   reason.JobRejected.Message,
 						Cause:    api.Cause_Rejected,
 					},
@@ -433,7 +434,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 					},
 				},
 			}
@@ -453,7 +454,7 @@ func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Ti
 		JobId:    jobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -485,7 +486,7 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		JobId:    jobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -540,7 +541,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		JobId:           jobId,
 		JobSetId:        jobSetName,
 		Queue:           queueName,
-		Created:         time,
+		Created:         protoutil.ToTimestamp(time),
 		RunId:           runId,
 		PreemptiveJobId: preemptiveJobId,
 		PreemptiveRunId: preemptiveRunId,
@@ -565,7 +566,7 @@ func FromInternalResourceUtilisation(queueName string, jobSetName string, time t
 		JobId:                 jobId,
 		JobSetId:              jobSetName,
 		Queue:                 queueName,
-		Created:               time,
+		Created:               protoutil.ToTimestamp(time),
 		ClusterId:             e.GetResourceInfo().GetObjectMeta().GetExecutorId(),
 		KubernetesId:          e.GetResourceInfo().GetObjectMeta().GetKubernetesId(),
 		MaxResourcesForPeriod: e.MaxResourcesForPeriod,
@@ -595,7 +596,7 @@ func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time
 		JobId:            jobId,
 		JobSetId:         jobSetName,
 		Queue:            queueName,
-		Created:          time,
+		Created:          protoutil.ToTimestamp(time),
 		ClusterId:        e.GetObjectMeta().GetExecutorId(),
 		KubernetesId:     e.GetObjectMeta().GetKubernetesId(),
 		NodeName:         e.GetNodeName(),
@@ -620,7 +621,7 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 		JobId:        jobId,
 		JobSetId:     jobSetName,
 		Queue:        queueName,
-		Created:      time,
+		Created:      protoutil.ToTimestamp(time),
 		ClusterId:    podError.GetObjectMeta().GetExecutorId(),
 		PodNamespace: podError.GetObjectMeta().GetNamespace(),
 		KubernetesId: podError.GetObjectMeta().GetKubernetesId(),

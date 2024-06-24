@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"time"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -53,7 +55,8 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool
 }
 
 func (a *App) printSummary(state *domain.WatchContext, e api.Event) {
-	summary := fmt.Sprintf("%s | ", e.GetCreated().Format(time.Stamp))
+	ts := protoutil.ToStdTime(e.GetCreated())
+	summary := fmt.Sprintf("%s | ", ts.Format(time.Stamp))
 	summary += state.GetCurrentStateSummary()
 	summary += fmt.Sprintf(" | %s, job id: %s", reflect.TypeOf(e).String()[5:], e.GetJobId())
 

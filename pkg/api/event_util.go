@@ -3,8 +3,8 @@ package api
 import (
 	"encoding/json"
 	"reflect"
-	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 )
 
@@ -12,7 +12,7 @@ type Event interface {
 	GetJobId() string
 	GetJobSetId() string
 	GetQueue() string
-	GetCreated() time.Time
+	GetCreated() *types.Timestamp
 }
 
 type KubernetesEvent interface {

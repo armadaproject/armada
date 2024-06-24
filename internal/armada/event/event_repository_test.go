@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/event/sequence"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -113,7 +114,7 @@ var expectedPending = api.EventMessage{
 			JobId:        jobIdString,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
-			Created:      baseTime,
+			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
 			KubernetesId: runIdString,
 			PodNumber:    podNumber,
@@ -129,7 +130,7 @@ var expectedRunning = api.EventMessage{
 			JobId:        jobIdString,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
-			Created:      baseTime,
+			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
 			KubernetesId: runIdString,
 			NodeName:     nodeName,
