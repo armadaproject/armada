@@ -809,6 +809,36 @@ func TestValidateResources(t *testing.T) {
 			}),
 			expectSuccess: false,
 		},
+		"Limits Less Than Request": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: twoCpu,
+					Limits:   oneCpu,
+				},
+			}),
+			expectSuccess: false,
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu": 2.0,
+			},
+		},
+		"Limits And Requests specify different resources": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceCPU: resource.MustParse("1"),
+					},
+					Limits: v1.ResourceList{
+						v1.ResourceCPU:    resource.MustParse("1"),
+						v1.ResourceMemory: resource.MustParse("2Gi"),
+					},
+				},
+			}),
+			expectSuccess: false,
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu":    2.0,
+				"memory": 2.0,
+			},
+		},
 		"Requests and limits different with MaxResourceOversubscriptionByResourceRequest undefined": {
 			req: reqFromContainer(v1.Container{
 				Resources: v1.ResourceRequirements{
