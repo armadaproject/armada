@@ -68,7 +68,7 @@ func generateFullES() ([]byte, error) {
 			Containers: []v1.Container{
 				{
 					Name:  "container1",
-					Image: "alpine:3.10",
+					Image: "alpine:3.20.1",
 					Args:  []string{"sleep", "5s"},
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
