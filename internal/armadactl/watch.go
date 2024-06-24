@@ -6,9 +6,8 @@ import (
 	"reflect"
 	"time"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/domain"
