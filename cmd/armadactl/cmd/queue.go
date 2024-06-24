@@ -46,11 +46,23 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("error reading group-owners: %s", err)
 			}
 
+			schedulingPaused, err := cmd.Flags().GetBool("pause-scheduling")
+			if err != nil {
+				return fmt.Errorf("error reading pause-scheduling: %s", err)
+			}
+
+			labels, err := cmd.Flags().GetStringSlice("labels")
+			if err != nil {
+				return fmt.Errorf("error reading queue labels: %s", err)
+			}
+
 			queue, err := queue.NewQueue(&api.Queue{
-				Name:           name,
-				PriorityFactor: priorityFactor,
-				UserOwners:     owners,
-				GroupOwners:    groups,
+				Name:             name,
+				PriorityFactor:   priorityFactor,
+				UserOwners:       owners,
+				GroupOwners:      groups,
+				SchedulingPaused: schedulingPaused,
+				Labels:           labels,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -62,6 +74,8 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 	cmd.Flags().Float64("priority-factor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
+	cmd.Flags().Bool("pause-scheduling", false, "Used to pause scheduling on specified queue. Defaults to false.")
+	cmd.Flags().StringSlice("labels", []string{}, "Comma separated list of queue labels, defaults to empty list.")
 	return cmd
 }
 
@@ -109,6 +123,29 @@ func queueGetCmdWithApp(a *armadactl.App) *cobra.Command {
 	return cmd
 }
 
+func queuesGetCmd() *cobra.Command {
+	return queuesGetCmdWithApp(armadactl.New())
+}
+
+// Takes a caller-supplied app struct; useful for testing.
+func queuesGetCmdWithApp(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "queues",
+		Short: "Gets queue information.",
+		Long:  "Gets queue information",
+		Args:  cobra.ExactArgs(0),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.GetAllQueues()
+		},
+	}
+	cmd.Flags().StringSlice("labels", []string{}, "Select queues by label. Will retrieve all queues if not provided.")
+
+	return cmd
+}
+
 func queueUpdateCmd() *cobra.Command {
 	return queueUpdateCmdWithApp(armadactl.New())
 }
@@ -141,11 +178,23 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading group-owners: %s", err)
 			}
 
+			schedulingPaused, err := cmd.Flags().GetBool("pause-scheduling")
+			if err != nil {
+				return fmt.Errorf("error reading pause-scheduling: %s", err)
+			}
+
+			labels, err := cmd.Flags().GetStringSlice("labels")
+			if err != nil {
+				return fmt.Errorf("error reading queue labels: %s", err)
+			}
+
 			queue, err := queue.NewQueue(&api.Queue{
-				Name:           name,
-				PriorityFactor: priorityFactor,
-				UserOwners:     owners,
-				GroupOwners:    groups,
+				Name:             name,
+				PriorityFactor:   priorityFactor,
+				UserOwners:       owners,
+				GroupOwners:      groups,
+				SchedulingPaused: schedulingPaused,
+				Labels:           labels,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -158,5 +207,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().Float64("priority-factor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
+	cmd.Flags().Bool("pause-scheduling", false, "Used to pause scheduling on specified queue. Defaults to false.")
+	cmd.Flags().StringSlice("labels", []string{}, "Comma separated list of queue labels, defaults to empty list.")
 	return cmd
 }

@@ -68,6 +68,21 @@ func (a *App) GetQueue(name string) error {
 	return nil
 }
 
+// GetQueue calls app.QueueAPI.GetAll with the provided parameters.
+func (a *App) GetAllQueues() error {
+	queues, err := a.Params.QueueAPI.GetAll()
+	if err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error getting all queues: %s", err)
+	}
+
+	b, err := yaml.Marshal(queues)
+	if err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queues: %s", err)
+	}
+	fmt.Fprintf(a.Out, headerYaml()+string(b))
+	return nil
+}
+
 func headerYaml() string {
 	b, err := yaml.Marshal(client.Resource{
 		Version: client.APIVersionV1,

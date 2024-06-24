@@ -251,8 +251,11 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []*api.Queue
-	priorityFactorByQueue                    map[string]float64
+	queues []*api.Queue
+	// Determines whether a queue has scheduling enabled. Not the same as a queue being active.
+	schedulingStatusByQueue map[string]bool
+	priorityFactorByQueue   map[string]float64
+	// A queue is active if it has jobs in the states running or queued
 	isActiveByPoolByQueue                    map[string]map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	jobsByExecutorId                         map[string][]*jobdb.Job
@@ -283,8 +286,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	if err != nil {
 		return nil, err
 	}
+	schedulingStatusByQueue := make(map[string]bool)
 	priorityFactorByQueue := make(map[string]float64)
 	for _, queue := range queues {
+		schedulingStatusByQueue[queue.Name] = !queue.SchedulingPaused
 		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
 	}
 
@@ -370,6 +375,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	return &fairSchedulingAlgoContext{
 		queues:                                   queues,
+		schedulingStatusByQueue:                  schedulingStatusByQueue,
 		priorityFactorByQueue:                    priorityFactorByQueue,
 		isActiveByPoolByQueue:                    isActiveByPoolByQueue,
 		totalCapacityByPool:                      totalCapacityByPool,
@@ -465,6 +471,14 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 				l.schedulingConfig.MaximumPerQueueSchedulingBurst,
 			)
 			l.limiterByQueue[queue] = queueLimiter
+		}
+
+		if fsctx.schedulingStatusByQueue[queue] {
+			queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate))
+			queueLimiter.SetBurstAt(now, l.schedulingConfig.MaximumPerQueueSchedulingBurst)
+		} else {
+			queueLimiter.SetLimitAt(now, rate.Limit(float64(0)))
+			queueLimiter.SetBurstAt(now, 0)
 		}
 
 		// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.

@@ -31,6 +31,7 @@ import (
 const (
 	TestJobset                   = "testJobset"
 	TestQueue                    = "testQueue"
+	TestQueue1                   = "testQueueB"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
 	PriorityClass0               = "priority-0"
@@ -799,6 +800,14 @@ func MakeTestQueue() *api.Queue {
 	return &api.Queue{
 		Name:           TestQueue,
 		PriorityFactor: 100,
+	}
+}
+
+func MakeTestQueueSchedulingPaused() *api.Queue {
+	return &api.Queue{
+		Name:             TestQueue,
+		PriorityFactor:   100,
+		SchedulingPaused: true,
 	}
 }
 
