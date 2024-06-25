@@ -104,6 +104,7 @@ enum JobState {
     LEASED = 7;
     PREEMPTED = 8;
     CANCELLED = 9;
+    REJECTED = 10;
 }
 
 message Job {

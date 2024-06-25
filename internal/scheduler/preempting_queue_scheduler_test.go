@@ -1276,6 +1276,42 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"C": 1,
 			},
 		},
+		"ProtectedFractionOfFairShare reshared": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(
+				1.0,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2NonPreemptible, 16), // not preemptible
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 11),
+						"C": testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 3),
+						"D": testfixtures.N1Cpu4GiJobs("D", testfixtures.PriorityClass0, 2),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 15),
+						"B": testfixtures.IntRange(0, 10),
+						"C": testfixtures.IntRange(0, 2),
+						"D": testfixtures.IntRange(0, 1),
+					},
+				},
+				{
+					// D submits one more job. No preemption occurs because B is below adjusted fair share
+					JobsByQueue: map[string][]*jobdb.Job{
+						"D": testfixtures.N1Cpu4GiJobs("D", testfixtures.PriorityClass0, 1),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+				"D": 1,
+			},
+		},
 		"DominantResourceFairness": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
@@ -1697,6 +1733,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				)
 			}
 
+			demandByQueue := map[string]schedulerobjects.ResourceList{}
+
 			// Run the scheduler.
 			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
@@ -1712,6 +1750,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						queuedJobs = append(queuedJobs, job.WithQueued(true))
 						roundByJobId[job.Id()] = i
 						indexByJobId[job.Id()] = j
+						r, ok := demandByQueue[job.Queue()]
+						if !ok {
+							r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+							demandByQueue[job.Queue()] = r
+						}
+						r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 					}
 				}
 				err = jobDbTxn.Upsert(queuedJobs)
@@ -1733,6 +1777,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								delete(gangIdByJobId, job.Id())
 								delete(jobIdsByGangId[gangId], job.Id())
 							}
+							r, ok := demandByQueue[job.Queue()]
+							if !ok {
+								r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+								demandByQueue[job.Queue()] = r
+							}
+							r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 						}
 					}
 				}
@@ -1774,6 +1824,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						queue,
 						weight,
 						allocatedByQueueAndPriorityClass[queue],
+						demandByQueue[queue],
 						limiterByQueue[queue],
 					)
 					require.NoError(t, err)
@@ -1785,10 +1836,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 					nil,
 				)
+				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
+					tc.SchedulingConfig.UseAdjustedFairShareProtection,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
 					nodeIdByJobId,
@@ -2130,7 +2183,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), limiterByQueue[queue])
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -2144,6 +2197,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				sctx,
 				constraints,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
+				tc.SchedulingConfig.UseAdjustedFairShareProtection,
 				NewSchedulerJobRepositoryAdapter(jobDbTxn),
 				nodeDb,
 				nil,
@@ -2197,13 +2251,14 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], limiterByQueue[queue])
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], schedulerobjects.NewResourceList(0), limiterByQueue[queue])
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
+					tc.SchedulingConfig.UseAdjustedFairShareProtection,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
 					nil,

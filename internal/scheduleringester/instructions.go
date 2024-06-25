@@ -57,6 +57,7 @@ func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithId
 			operations = AppendDbOperation(operations, op)
 		}
 	}
+	log.Infof("Converted sequences into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
 		MessageIds: sequencesWithIds.MessageIds,

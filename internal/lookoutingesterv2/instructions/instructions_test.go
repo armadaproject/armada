@@ -137,6 +137,18 @@ var expectedUnschedulable = model.UpdateJobRunInstruction{
 	Node:  pointer.String(testfixtures.NodeName),
 }
 
+var expectedRejected = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(lookout.JobRejectedOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+}
+
+var expectedRejectedJobError = model.CreateJobErrorInstruction{
+	JobId: testfixtures.JobIdString,
+	Error: []byte(testfixtures.ErrMsg),
+}
+
 var expectedPreempted = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobIdString,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
@@ -370,13 +382,15 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"duplicate submit is ignored": {
+		"job rejected": {
 			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.SubmitDuplicate)},
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRejected)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToUpdate:      []*model.UpdateJobInstruction{&expectedRejected},
+				JobErrorsToCreate: []*model.CreateJobErrorInstruction{&expectedRejectedJobError},
+				MessageIds:        []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job preempted": {
