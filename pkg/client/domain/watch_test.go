@@ -170,7 +170,7 @@ func TestWatchContext_GetNumberOfJobsInStates_IsCorrectlyUpdatedOnUpdateToExisti
 func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	now := time.Now()
+	now := time.Now().UTC()
 	job := api.Job{
 		Id:       "1",
 		JobSetId: "job-set-1",
