@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 import { OpenSnackbarFn } from "./useCustomSnackbar"
 import { Job } from "../models/lookoutV2Models"
-import { IGetJobSpecService } from "../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../services/lookoutV2/GetJobInfoService"
 import { getErrorMessage, RequestStatus } from "../utils"
 
 export type JobSpecState = {
@@ -12,7 +12,7 @@ export type JobSpecState = {
 
 export const useJobSpec = (
   job: Job,
-  jobSpecService: IGetJobSpecService,
+  jobSpecService: IGetJobInfoService,
   openSnackbar: OpenSnackbarFn,
 ): JobSpecState => {
   const [jobSpecState, setJobSpecState] = useState<JobSpecState>({

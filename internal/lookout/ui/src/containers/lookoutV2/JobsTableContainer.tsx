@@ -71,7 +71,7 @@ import styles from "./JobsTableContainer.module.css"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
-import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
@@ -83,7 +83,7 @@ interface JobsTableContainerProps {
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
   runInfoService: IGetRunInfoService
-  jobSpecService: IGetJobSpecService
+  jobSpecService: IGetJobInfoService
   logService: ILogService
   cordonService: ICordonService
   debug: boolean

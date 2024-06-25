@@ -116,13 +116,10 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	// Used to track if we are no longer receiving pulsar messages
 	go func() {
 		timeout := time.Minute * 2
-		timer := time.NewTimer(timeout)
+		ticker := time.NewTicker(timeout)
+		lastReceivedTime := time.Now()
 	loop:
 		for {
-			if !timer.Stop() {
-				<-timer.C
-			}
-			timer.Reset(timeout)
 			select {
 			case msg, ok := <-pulsarMessageChannel:
 				if !ok {
@@ -130,8 +127,12 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 					break loop
 				}
 				pulsarMessages <- msg
-			case <-timer.C:
-				log.Infof("No pulsar message received in %s", timeout)
+				lastReceivedTime = time.Now()
+			case <-ticker.C:
+				timeSinceLastReceived := time.Now().Sub(lastReceivedTime)
+				if timeSinceLastReceived > timeout {
+					log.Infof("Last pulsar message received %s ago", timeSinceLastReceived)
+				}
 			}
 		}
 		close(pulsarMessages)
@@ -149,7 +150,13 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 
 	// Batch up messages
 	batchedEventSequences := make(chan *EventSequencesWithIds)
-	eventCounterFunc := func(seq *EventSequencesWithIds) int { return len(seq.EventSequences) }
+	eventCounterFunc := func(seq *EventSequencesWithIds) int {
+		totalEvents := 0
+		for _, seq := range seq.EventSequences {
+			totalEvents += len(seq.Events)
+		}
+		return totalEvents
+	}
 	eventPublisherFunc := func(b []*EventSequencesWithIds) { batchedEventSequences <- combineEventSequences(b) }
 	batcher := NewBatcher[*EventSequencesWithIds](eventSequences, i.pulsarBatchSize, i.pulsarBatchDuration, eventCounterFunc, eventPublisherFunc)
 	go func() {

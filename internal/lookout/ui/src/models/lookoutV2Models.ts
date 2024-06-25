@@ -8,6 +8,7 @@ export enum JobState {
   Failed = "FAILED",
   Cancelled = "CANCELLED",
   Preempted = "PREEMPTED",
+  Rejected = "REJECTED",
 }
 
 export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
@@ -19,9 +20,16 @@ export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
   [JobState.Failed]: { displayName: "Failed", color: "#ff0000" },
   [JobState.Cancelled]: { displayName: "Cancelled", color: "#999999" },
   [JobState.Preempted]: { displayName: "Preempted", color: "#f8bbd0" },
+  [JobState.Rejected]: { displayName: "Rejected", color: "#ef5350" },
 }
 
-const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled, JobState.Preempted])
+const terminatedJobStates = new Set([
+  JobState.Succeeded,
+  JobState.Failed,
+  JobState.Cancelled,
+  JobState.Preempted,
+  JobState.Rejected,
+])
 export const isTerminatedJobState = (state: JobState) => terminatedJobStates.has(state)
 
 export enum JobRunState {

@@ -3,40 +3,49 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ExpandMore } from "@mui/icons-material"
 import {
   Accordion,
-  AccordionSummary,
-  Typography,
   AccordionDetails,
+  AccordionSummary,
+  Button,
   CircularProgress,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
+  DialogContent,
+  DialogTitle,
+  Tooltip,
+  Typography,
 } from "@mui/material"
-import { Button, Tooltip } from "@mui/material"
-import { Job, JobRun } from "models/lookoutV2Models"
+import { Job, JobRun, JobState } from "models/lookoutV2Models"
 import { formatJobRunState, formatTimeSince, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
-import styles from "./SidebarTabJobRuns.module.css"
+import styles from "./SidebarTabJobResult.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { getAccessToken, useUserManager } from "../../../oidc"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
+import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
 import { getErrorMessage } from "../../../utils"
 
-export interface SidebarTabJobRunsProps {
+export interface SidebarTabJobResultProps {
   job: Job
   runInfoService: IGetRunInfoService
+  jobInfoService: IGetJobInfoService
   cordonService: ICordonService
 }
 
 type LoadState = "Idle" | "Loading"
 
-export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: SidebarTabJobRunsProps) => {
+export const SidebarTabJobResult = ({
+  job,
+  jobInfoService,
+  runInfoService,
+  cordonService,
+}: SidebarTabJobResultProps) => {
   const mounted = useRef(false)
   const openSnackbar = useCustomSnackbar()
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
+  const [jobError, setJobError] = useState<string>("")
   const [runErrorMap, setRunErrorMap] = useState<Map<string, string>>(new Map<string, string>())
   const [runErrorLoadingMap, setRunErrorLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
   const [runDebugMessageMap, setRunDebugMessageMap] = useState<Map<string, string>>(new Map<string, string>())
@@ -44,6 +53,29 @@ export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: Sideba
     new Map<string, LoadState>(),
   )
   const [open, setOpen] = useState(false)
+
+  const fetchJobError = useCallback(async () => {
+    if (job.state != JobState.Failed && job.state != JobState.Rejected) {
+      setJobError("")
+      return
+    }
+    const getJobErrorResultPromise = jobInfoService.getJobError(job.jobId)
+    getJobErrorResultPromise
+      .then((errorString) => {
+        if (!mounted.current) {
+          return
+        }
+        setJobError(errorString)
+      })
+      .catch(async (e) => {
+        const errMsg = await getErrorMessage(e)
+        console.error(errMsg)
+        if (!mounted.current) {
+          return
+        }
+        openSnackbar("Failed to retrieve Job error for Job with ID: " + job.jobId + ": " + errMsg, "error")
+      })
+  }, [job])
 
   const fetchRunErrors = useCallback(async () => {
     const newRunErrorLoadingMap = new Map<string, LoadState>()
@@ -134,9 +166,25 @@ export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: Sideba
     }
   }, [job])
 
+  let topLevelError = ""
+  let topLevelErrorTitle = ""
+  if (jobError != "") {
+    topLevelError = jobError
+    topLevelErrorTitle = "Job Error"
+  } else {
+    for (const run of job.runs) {
+      const runErr = runErrorMap.get(run.runId) ?? ""
+      if (runErr != "") {
+        topLevelError = runErr
+        topLevelErrorTitle = "Last Job Run Error"
+      }
+    }
+  }
+
   useEffect(() => {
     mounted.current = true
     fetchRunErrors()
+    fetchJobError()
     fetchRunDebugMessages()
     return () => {
       mounted.current = false
@@ -167,9 +215,15 @@ export const SidebarTabJobRuns = ({ job, runInfoService, cordonService }: Sideba
       openSnackbar("Failed to cordon node " + node + ": " + errMsg, "error")
     }
   }
-
   return (
     <div style={{ width: "100%", height: "100%" }}>
+      {topLevelError !== "" ? (
+        <>
+          <Typography variant="subtitle2">{topLevelErrorTitle}:</Typography>
+          <CodeBlock text={topLevelError} />
+        </>
+      ) : null}
+      <Typography variant="subtitle2">Runs:</Typography>
       {runsNewestFirst.map((run, i) => {
         return (
           <Accordion key={run.runId} defaultExpanded={i === 0}>

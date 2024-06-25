@@ -9,11 +9,11 @@ import { Job } from "models/lookoutV2Models"
 import styles from "./SidebarTabJobYaml.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 
 export interface SidebarTabJobYamlProps {
   job: Job
-  jobSpecService: IGetJobSpecService
+  jobSpecService: IGetJobInfoService
 }
 
 function toJobSubmissionYaml(jobSpec: Record<string, any>): string {
