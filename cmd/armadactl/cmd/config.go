@@ -33,7 +33,7 @@ func useContextCmd(a *armadactl.App) *cobra.Command {
 		Short: "Sets the default context for future armadactl calls",
 		Long: `This command allows you to set the default context value for future armadactl calls.
 
-It stores this state within the specified, or otherwise default ($HOME/.armadactl) configuration file.`,
+It stores this state within the specified, or otherwise default ($HOME/.armadactl.yaml) configuration file.`,
 		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
