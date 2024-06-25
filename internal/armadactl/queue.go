@@ -2,7 +2,8 @@ package armadactl
 
 import (
 	"fmt"
-
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 
@@ -68,16 +69,31 @@ func (a *App) GetQueue(name string) error {
 	return nil
 }
 
-// GetQueue calls app.QueueAPI.GetAll with the provided parameters.
-func (a *App) GetAllQueues() error {
-	queues, err := a.Params.QueueAPI.GetAll()
+func (a *App) getAllQueuesAsAPIQueue(queueNames []string, labels []string, inverse bool) ([]*api.Queue, error) {
+	queueContainsAllLabelsAndInProvidedNames := func(q *api.Queue) bool {
+		containsAllLabels := slices.AllFunc(labels, func(label string) bool { return slices.Contains(q.Labels, label) })
+		inQueues := len(queueNames) == 0 || slices.Contains(queueNames, q.Name)
+		return inverse != (containsAllLabels && inQueues)
+
+	}
+	queuesToReturn, err := a.Params.QueueAPI.GetAll()
 	if err != nil {
-		return errors.Errorf("[armadactl.GetQueue] error getting all queues: %s", err)
+		return nil, errors.Errorf("[armadactl.getAllQueuesAsAPIQueue] error getting all queues: %s", err)
+	}
+
+	return slices.Filter(queuesToReturn, queueContainsAllLabelsAndInProvidedNames), nil
+}
+
+// GetQueue calls app.QueueAPI.GetAll with the provided parameters.
+func (a *App) GetAllQueues(queueNames []string, labels []string, inverse bool) error {
+	queues, err := a.getAllQueuesAsAPIQueue(queueNames, labels, inverse)
+	if err != nil {
+		return errors.Errorf("[armadactl.GetAllQueues] error getting all queues: %s", err)
 	}
 
 	b, err := yaml.Marshal(queues)
 	if err != nil {
-		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queues: %s", err)
+		return errors.Errorf("[armadactl.GetAllQueues] error unmarshalling queues: %s", err)
 	}
 	fmt.Fprintf(a.Out, headerYaml()+string(b))
 	return nil

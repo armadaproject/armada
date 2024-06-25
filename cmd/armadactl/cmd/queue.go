@@ -131,17 +131,34 @@ func queuesGetCmd() *cobra.Command {
 func queuesGetCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queues",
-		Short: "Gets queue information.",
-		Long:  "Gets queue information",
+		Short: "Gets information from multiple queues.",
+		Long:  "Gets information from multiple queues, filtering by queue name and/or matching labels. Defaults to retrieving all queues.",
 		Args:  cobra.ExactArgs(0),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.GetAllQueues()
+			inverse, err := cmd.Flags().GetBool("inverse")
+			if err != nil {
+				return fmt.Errorf("error reading inverse flag: %s", err)
+			}
+
+			labels, err := cmd.Flags().GetStringSlice("match-labels")
+			if err != nil {
+				return fmt.Errorf("error reading queue labels: %s", err)
+			}
+
+			queues, err := cmd.Flags().GetStringSlice("match-queues")
+			if err != nil {
+				return fmt.Errorf("error reading queue labels: %s", err)
+			}
+
+			return a.GetAllQueues(queues, labels, inverse)
 		},
 	}
-	cmd.Flags().StringSlice("labels", []string{}, "Select queues by label. Will retrieve all queues if not provided.")
+	cmd.Flags().StringSlice("match-queues", []string{}, "Select queues matching provided queue names.")
+	cmd.Flags().StringSlice("match-labels", []string{}, "Select queues by label.")
+	cmd.Flags().Bool("inverse", false, "Inverts result to get all queues which don't contain provided set of labels. Defaults to false.")
 
 	return cmd
 }
@@ -208,6 +225,6 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("pause-scheduling", false, "Used to pause scheduling on specified queue. Defaults to false.")
-	cmd.Flags().StringSlice("labels", []string{}, "Comma separated list of queue labels, defaults to empty list.")
+	cmd.Flags().StringSlice("labels", []string{}, "Comma separated list of queue labels to be stored under this queue, defaults to empty list.")
 	return cmd
 }

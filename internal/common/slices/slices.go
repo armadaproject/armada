@@ -109,6 +109,16 @@ func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[
 	return rv
 }
 
+// Apply applies the given function to all elements of the input slice
+func Apply[S ~[]E, E any](s S, f func(E)) {
+	if s == nil {
+		return
+	}
+	for _, s := range s {
+		f(s)
+	}
+}
+
 // Map Returns a slice consisting of the results of applying the given function to the elements of the input slice
 func Map[S ~[]E, E any, V any](s S, f func(E) V) []V {
 	if s == nil {
@@ -172,6 +182,19 @@ func Filter[S ~[]E, E any](s S, predicate func(e E) bool) S {
 	return out
 }
 
+// Contains returns true if the slice s contains the element e.
+func Contains[S ~[]E, E comparable](s S, e E) bool {
+	if s == nil {
+		return false
+	}
+	for _, element := range s {
+		if e == element {
+			return true
+		}
+	}
+	return false
+}
+
 // Repeat returns a slice []T of length n*len(vs) consisting of n copies of vs.
 func Repeat[T any](n int, vs ...T) []T {
 	rv := make([]T, n*len(vs))
@@ -191,6 +214,18 @@ func AnyFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
 		}
 	}
 	return false
+}
+
+// AllFunc returns true if predicate(v) returns true for all values v in s.
+func AllFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
+	result := true
+	for _, v := range s {
+		result = predicate(v) && result
+		if !result {
+			return result
+		}
+	}
+	return result
 }
 
 // Zeros returns a slice T[] of length n with all elements equal to zero.

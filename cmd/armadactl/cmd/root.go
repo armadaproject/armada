@@ -30,6 +30,7 @@ func RootCmd() *cobra.Command {
 		configCmd(armadactl.New()),
 		preemptCmd(),
 		docsCmd(),
+		controlSchedulingCmd(),
 	)
 
 	return cmd
