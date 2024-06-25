@@ -68,7 +68,6 @@ func TestMustMarshallAndCompress(t *testing.T) {
 }
 
 func TestToTimestamp(t *testing.T) {
-
 	var tests = map[string]struct {
 		ts *types.Timestamp
 		t  time.Time
