@@ -6,7 +6,7 @@ import { makeTestJob } from "utils/fakeJobsUtils"
 
 import { Sidebar } from "./Sidebar"
 import { FakeCordonService } from "../../../services/lookoutV2/mocks/FakeCordonService"
-import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
+import FakeGetJobInfoService from "../../../services/lookoutV2/mocks/FakeGetJobInfoService"
 import { FakeGetRunInfoService } from "../../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
 
@@ -44,7 +44,7 @@ describe("Sidebar", () => {
         <Sidebar
           job={job}
           runInfoService={new FakeGetRunInfoService()}
-          jobSpecService={new FakeGetJobSpecService()}
+          jobSpecService={new FakeGetJobInfoService()}
           logService={new FakeLogService()}
           cordonService={new FakeCordonService()}
           sidebarWidth={600}
@@ -71,7 +71,7 @@ describe("Sidebar", () => {
     const run = job.runs[0]
 
     // Switch to runs tab
-    await userEvent.click(getByRole("tab", { name: /Runs/ }))
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
 
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
@@ -84,7 +84,7 @@ describe("Sidebar", () => {
     run.exitCode = 137
 
     // Switch to runs tab
-    await userEvent.click(getByRole("tab", { name: /Runs/ }))
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
 
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
@@ -96,7 +96,7 @@ describe("Sidebar", () => {
     const { getByRole, getByText } = renderComponent()
 
     // Switch to runs tab
-    await userEvent.click(getByRole("tab", { name: /Runs/ }))
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
 
     getByText("This job has not run.")
   })

@@ -7,7 +7,7 @@ import { KeyValuePairTable } from "./KeyValuePairTable"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
 import { Job } from "../../../models/lookoutV2Models"
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 
 export interface ContainerData {
   name: string
@@ -19,7 +19,7 @@ export interface ContainerData {
 
 interface ContainerDetailsProps {
   job: Job
-  jobSpecService: IGetJobSpecService
+  jobSpecService: IGetJobInfoService
 }
 
 const getContainerData = (container: any): ContainerData => {

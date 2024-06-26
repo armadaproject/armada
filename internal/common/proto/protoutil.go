@@ -78,7 +78,7 @@ func MustMarshallAndCompress(msg proto.Message, compressor compress.Compressor) 
 
 func ToStdTime(ts *types.Timestamp) time.Time {
 	if ts == nil {
-		return time.Unix(0, 0).UTC()
+		return time.Time{}.UTC()
 	}
 
 	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC()
