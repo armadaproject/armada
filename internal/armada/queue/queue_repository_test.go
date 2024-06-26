@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"github.com/armadaproject/armada/pkg/api"
 	"testing"
 	"time"
 
@@ -15,14 +16,16 @@ import (
 
 var (
 	queueA = queue.Queue{
-		Name:           "queueA",
-		PriorityFactor: 1000,
-		Permissions:    []queue.Permissions{},
+		Name:                              "queueA",
+		PriorityFactor:                    1000,
+		Permissions:                       []queue.Permissions{},
+		ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{},
 	}
 	queueB = queue.Queue{
-		Name:           "queueB",
-		PriorityFactor: 2000,
-		Permissions:    []queue.Permissions{},
+		Name:                              "queueB",
+		PriorityFactor:                    2000,
+		Permissions:                       []queue.Permissions{},
+		ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{},
 	}
 	twoQueues = []queue.Queue{queueA, queueB}
 )

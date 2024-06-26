@@ -39,15 +39,18 @@ func NewQueue(in *api.Queue) (Queue, error) {
 		permissions = append(permissions, perm)
 	}
 
+	resourceLimitsByPriorityClassName := make(map[string]api.PriorityClassResourceLimits, len(in.ResourceLimitsByPriorityClassName))
+	for k, v := range in.ResourceLimitsByPriorityClassName {
+		if v != nil {
+			resourceLimitsByPriorityClassName[k] = *v
+		}
+	}
+
 	return Queue{
-		Name:           in.Name,
-		PriorityFactor: priorityFactor,
-		Permissions:    permissions,
-		ResourceLimitsByPriorityClassName: armadamaps.MapValues(
-			in.ResourceLimitsByPriorityClassName,
-			func(p *api.PriorityClassResourceLimits) api.PriorityClassResourceLimits {
-				return *p
-			}),
+		Name:                              in.Name,
+		PriorityFactor:                    priorityFactor,
+		Permissions:                       permissions,
+		ResourceLimitsByPriorityClassName: resourceLimitsByPriorityClassName,
 	}, nil
 }
 
