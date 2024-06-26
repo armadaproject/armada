@@ -34,6 +34,7 @@ const (
 	TestJobset                   = "testJobset"
 	TestQueue0                   = "testQueue-0"
 	TestQueue1                   = "testQueue-1"
+	TestQueue2                   = "testQueue-2"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
 	ClusterNameLabel             = "cluster"
@@ -843,6 +844,13 @@ func MakeTestExecutor(executorId string, nodePools ...string) *schedulerobjects.
 func MakeTestQueue() *api.Queue {
 	return &api.Queue{
 		Name:           TestQueue0,
+		PriorityFactor: 100,
+	}
+}
+
+func MakeTestQueue2() *api.Queue {
+	return &api.Queue{
+		Name:           TestQueue2,
 		PriorityFactor: 100,
 	}
 }
