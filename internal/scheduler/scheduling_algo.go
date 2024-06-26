@@ -490,21 +490,19 @@ func (l *FairSchedulingAlgo) schedulePool(
 			l.limiterByQueue[queue] = queueLimiter
 		}
 
-		if fsctx.schedulingStatusByQueue[queue] {
-			queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate))
-			queueLimiter.SetBurstAt(now, l.schedulingConfig.MaximumPerQueueSchedulingBurst)
-		} else {
+		if !fsctx.schedulingStatusByQueue[queue] {
 			queueLimiter.SetLimitAt(now, rate.Limit(float64(0)))
 			queueLimiter.SetBurstAt(now, 0)
 		}
 
-		// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.
-		quarantineFactor := 0.0
-		if l.queueQuarantiner != nil {
-			quarantineFactor = l.queueQuarantiner.QuarantineFactor(now, queue)
-		}
-		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate*(1-quarantineFactor)))
 
+			// Queued jobs should not be considered for paused queues, so demand := running
+			allocated := schedulerobjects.NewResourceListWithDefaultSize()
+			for _, rl := range allocatedByPriorityClass.DeepCopy() {
+				allocated.Add(rl)
+			}
+			demand = allocated
+		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, demand.AggregateByResource(), cappedDemand.AggregateByResource(), queueLimiter); err != nil {
 			return nil, nil, err
 		}

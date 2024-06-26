@@ -575,10 +575,10 @@ func TestAwayNodeTypes(t *testing.T) {
 
 	jobId := util.ULID()
 	job := testfixtures.TestJob(
-		testfixtures.TestQueue,
+		testfixtures.TestQueue0,
 		jobId,
 		"armada-preemptible-away",
-		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
+		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue0, jobId, 30000),
 	)
 	jctx := schedulercontext.JobSchedulingContextFromJob(job)
 	require.Empty(t, jctx.AdditionalTolerations)
