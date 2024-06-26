@@ -227,7 +227,6 @@ External Debug Port Mappings:
 |lookoutv2          |localhost:4005|
 |lookoutingester    |localhost:4006|
 |lookoutingesterv2  |localhost:4007|
-|jobservice         |localhost:4008|
 
 
 ## GoLand Run Configurations
