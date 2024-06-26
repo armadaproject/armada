@@ -222,7 +222,6 @@ type fairSchedulingAlgoContext struct {
 	demandByPoolByQueue                      map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	// Determines whether a queue has scheduling enabled. Not the same as a queue being active.
 	schedulingStatusByQueue map[string]bool
-	priorityFactorByQueue   map[string]float64
 	// A queue is active if it has jobs in the states running or queued
 	isActiveByPoolByQueue                    map[string]map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]

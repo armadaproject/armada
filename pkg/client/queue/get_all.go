@@ -3,13 +3,15 @@ package queue
 import (
 	"context"
 	"fmt"
+	"io"
+	"time"
+
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
+
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
-	"time"
 )
 
 type GetAllAPI func() ([]*api.Queue, error)
@@ -32,7 +34,6 @@ func GetAll(getConnectionDetails client.ConnectionDetails) GetAllAPI {
 
 		allQueues := make([]*api.Queue, 0)
 		queueStream, err := client.GetQueues(ctx, &api.StreamingQueueGetRequest{})
-
 		if err != nil {
 			log.Error(err)
 			return nil, err
