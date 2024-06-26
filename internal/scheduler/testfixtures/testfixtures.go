@@ -30,8 +30,8 @@ import (
 
 const (
 	TestJobset                   = "testJobset"
-	TestQueue                    = "testQueue"
-	TestQueue1                   = "testQueueB"
+	TestQueue0                   = "testQueue-0"
+	TestQueue1                   = "testQueue-1"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
 	PriorityClass0               = "priority-0"
@@ -799,14 +799,14 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 
 func MakeTestQueue() *api.Queue {
 	return &api.Queue{
-		Name:           TestQueue,
+		Name:           TestQueue0,
 		PriorityFactor: 100,
 	}
 }
 
 func MakeTestQueueSchedulingPaused() *api.Queue {
 	return &api.Queue{
-		Name:             TestQueue,
+		Name:             TestQueue1,
 		PriorityFactor:   100,
 		SchedulingPaused: true,
 	}
@@ -816,7 +816,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 	job, _ := JobDb.NewJob(
 		util.NewULID(),
 		TestJobset,
-		TestQueue,
+		TestQueue0,
 		0,
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,

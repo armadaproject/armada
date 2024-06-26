@@ -56,7 +56,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
 		"Fair share": {
@@ -88,7 +88,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.WithLastUpdateTimeExecutor(testfixtures.BaseTime.Add(-1*time.Hour), testfixtures.Test1Node32CoreExecutor("executor2")),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{0, 1},
 		},
 		"schedule onto executors with some unacknowledged jobs": {
@@ -98,11 +98,11 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs: testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 48),
+			queuedJobs: testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 48),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 16),
+						jobs:         testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 16),
 						acknowledged: false,
 					},
 				},
@@ -116,11 +116,11 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs: testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 48),
+			queuedJobs: testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 48),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 16),
+						jobs:         testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 16),
 						acknowledged: false,
 					},
 				},
@@ -134,11 +134,11 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 2),
 						acknowledged: true,
 					},
 				},
@@ -157,11 +157,11 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 2),
 						acknowledged: true,
 					},
 				},
@@ -179,11 +179,11 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 1),
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 1),
 						acknowledged: true,
 					},
 				},
@@ -202,7 +202,7 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{},
 			queues:           []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs:       testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:       testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 		},
 		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -219,12 +219,12 @@ func TestSchedule(t *testing.T) {
 				// than the priority class number of the two jobs (i.e., 3); if the scheduler were
 				// to use the per-queue priority instead of the priority class number in its
 				// accounting, then it would schedule this job.
-				testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(1),
+				testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue0, testfixtures.PriorityClass3).WithPriority(1),
 			},
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         []*jobdb.Job{testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(0)},
+						jobs:         []*jobdb.Job{testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue0, testfixtures.PriorityClass3).WithPriority(0)},
 						acknowledged: true,
 					},
 				},
@@ -355,7 +355,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass0, 4)),
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass0, 4)),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
 		"scheduling from paused queue": {
@@ -365,7 +365,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueueSchedulingPaused()},
-			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{},
 		},
 		"multi-queue scheduling with paused and non-paused queue": {
@@ -374,12 +374,27 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues: []*api.Queue{testfixtures.MakeTestQueueSchedulingPaused(), {Name: testfixtures.TestQueue1, PriorityFactor: 100}},
+			queues: []*api.Queue{testfixtures.MakeTestQueueSchedulingPaused(), testfixtures.MakeTestQueue()},
 			queuedJobs: append(
-				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue1, testfixtures.PriorityClass3, 10)...,
 			),
-			expectedScheduledIndices: []int{10, 11, 12, 13},
+			expectedScheduledIndices: []int{0, 1, 2, 3},
+		},
+		"multi-queue scheduling with paused and non-paused queue large": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+				testfixtures.Test1Node32CoreExecutor("executor3"),
+				testfixtures.Test1Node32CoreExecutor("executor4"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueueSchedulingPaused(), testfixtures.MakeTestQueue()},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue1, testfixtures.PriorityClass3, 10)...,
+			),
+			expectedScheduledIndices: []int{0, 1, 2, 3, 4, 5, 6, 7},
 		},
 	}
 	for name, tc := range tests {
