@@ -2,10 +2,12 @@ package armadactl
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/pkg/api"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
+
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/pkg/api"
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -74,7 +76,6 @@ func (a *App) getAllQueuesAsAPIQueue(queueNames []string, labels []string, inver
 		containsAllLabels := slices.AllFunc(labels, func(label string) bool { return slices.Contains(q.Labels, label) })
 		inQueues := len(queueNames) == 0 || slices.Contains(queueNames, q.Name)
 		return inverse != (containsAllLabels && inQueues)
-
 	}
 	queuesToReturn, err := a.Params.QueueAPI.GetAll()
 	if err != nil {

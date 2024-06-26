@@ -2,6 +2,7 @@ package armadactl
 
 import (
 	"fmt"
+
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -18,7 +19,6 @@ func (a *App) pauseScheduling(q *api.Queue) error {
 
 func (a *App) PauseScheduling(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
 	selectedQueues, err := a.getAllQueuesAsAPIQueue(matchQueues, matchLabels, inverse)
-
 	if err != nil {
 		return fmt.Errorf("error retrieving queues: %s", err)
 	}
@@ -43,6 +43,9 @@ func (a *App) PauseScheduling(matchQueues []string, matchLabels []string, dryRun
 func (a *App) resumeScheduling(q *api.Queue) error {
 	q.SchedulingPaused = false
 	newQueue, err := queue.NewQueue(q)
+	if err != nil {
+		return fmt.Errorf("error creating new queue type for %s: %s", q.Name, err)
+	}
 	if err = a.Params.QueueAPI.Update(newQueue); err != nil {
 		return fmt.Errorf("error updating queue %s: %s", q.Name, err)
 	}
@@ -51,7 +54,6 @@ func (a *App) resumeScheduling(q *api.Queue) error {
 
 func (a *App) ResumeScheduling(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
 	selectedQueues, err := a.getAllQueuesAsAPIQueue(matchQueues, matchLabels, inverse)
-
 	if err != nil {
 		return fmt.Errorf("error retrieving queues: %s", err)
 	}

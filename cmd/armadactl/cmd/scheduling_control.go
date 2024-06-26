@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/armadactl"
+
 	"github.com/spf13/cobra"
+
+	"github.com/armadaproject/armada/internal/armadactl"
 )
 
 func controlSchedulingCmd() *cobra.Command {

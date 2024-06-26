@@ -246,11 +246,11 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []*api.Queue
-	priorityFactorByQueue                    map[string]float64
-	demandByPoolByQueue                      map[string]map[string]schedulerobjects.ResourceList
+	queues                []*api.Queue
+	priorityFactorByQueue map[string]float64
+	demandByPoolByQueue   map[string]map[string]schedulerobjects.ResourceList
 	// Determines whether a queue has scheduling enabled. Not the same as a queue being active.
-	schedulingStatusByQueue map[string]bool
+	schedulingStatusByQueue                  map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	jobsByExecutorId                         map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
