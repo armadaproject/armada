@@ -1340,7 +1340,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 2,
-				"c": 1,
+				"C": 1,
 			},
 		},
 		"DominantResourceFairness": {

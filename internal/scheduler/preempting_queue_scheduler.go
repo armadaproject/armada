@@ -137,7 +137,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 						fairShare = math.Max(qctx.AdjustedFairShare, fairShare)
 					}
 					fractionOfFairShare := actualShare / fairShare
-					ctx.Infof("queue=%s, fairShare=%.2f, actualShare=%.2f", qctx.Queue, fairShare, actualShare)
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
 					}
