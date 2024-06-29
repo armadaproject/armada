@@ -199,7 +199,7 @@ func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []
 
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			key := queuePoolKey{queue: queue, pool: pool}
-			actualShare := schedContext.FairnessCostProvider.CostFromQueue(queueContext) / totalCost
+			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext) / totalCost
 			result[key] = queuePoolData{
 				numberOfJobsConsidered: len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
 				fairShare:              queueContext.FairShare,

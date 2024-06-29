@@ -21,8 +21,10 @@ type Queue interface {
 
 // FairnessCostProvider captures algorithms to compute the cost of an allocation.
 type FairnessCostProvider interface {
-	CostFromQueue(queue Queue) float64
-	CostFromAllocationAndWeight(allocation schedulerobjects.ResourceList, weight float64) float64
+	UnweightedCostFromQueue(queue Queue) float64
+	UnweightedCostFromAllocation(allocation schedulerobjects.ResourceList) float64
+	WeightedCostFromQueue(queue Queue) float64
+	WeightedCostFromAllocation(allocation schedulerobjects.ResourceList, weight float64) float64
 }
 
 type DominantResourceFairness struct {
@@ -42,11 +44,19 @@ func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, r
 	}, nil
 }
 
-func (f *DominantResourceFairness) CostFromQueue(queue Queue) float64 {
-	return f.CostFromAllocationAndWeight(queue.GetAllocation(), queue.GetWeight())
+func (f *DominantResourceFairness) WeightedCostFromQueue(queue Queue) float64 {
+	return f.UnweightedCostFromQueue(queue) / queue.GetWeight()
 }
 
-func (f *DominantResourceFairness) CostFromAllocationAndWeight(allocation schedulerobjects.ResourceList, weight float64) float64 {
+func (f *DominantResourceFairness) UnweightedCostFromQueue(queue Queue) float64 {
+	return f.UnweightedCostFromAllocation(queue.GetAllocation())
+}
+
+func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation schedulerobjects.ResourceList, weight float64) float64 {
+	return f.UnweightedCostFromAllocation(allocation) / weight
+}
+
+func (f *DominantResourceFairness) UnweightedCostFromAllocation(allocation schedulerobjects.ResourceList) float64 {
 	var cost float64
 	for _, t := range f.resourcesToConsider {
 		capacity := f.totalResources.Get(t)
@@ -60,5 +70,5 @@ func (f *DominantResourceFairness) CostFromAllocationAndWeight(allocation schedu
 			cost = tcost
 		}
 	}
-	return cost / weight
+	return cost
 }

@@ -465,7 +465,7 @@ func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSc
 	it.buffer.Zero()
 	it.buffer.Add(queue.GetAllocation())
 	it.buffer.Add(gctx.TotalResourceRequests)
-	return it.fairnessCostProvider.CostFromAllocationAndWeight(it.buffer, queue.GetWeight()), nil
+	return it.fairnessCostProvider.WeightedCostFromAllocation(it.buffer, queue.GetWeight()), nil
 }
 
 // Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
