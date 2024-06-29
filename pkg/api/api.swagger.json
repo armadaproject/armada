@@ -1912,6 +1912,12 @@
             "type": "string"
           }
         },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "name": {
           "type": "string"
         },
@@ -1939,6 +1945,9 @@
           "additionalProperties": {
             "$ref": "#/definitions/apiPriorityClassResourceLimits"
           }
+        },
+        "schedulingPaused": {
+          "type": "boolean"
         },
         "userOwners": {
           "type": "array",

@@ -50,6 +50,7 @@ type QueueAPI struct {
 	Create queue.CreateAPI
 	Delete queue.DeleteAPI
 	Get    queue.GetAPI
+	GetAll queue.GetAllAPI
 	Update queue.UpdateAPI
 }
 

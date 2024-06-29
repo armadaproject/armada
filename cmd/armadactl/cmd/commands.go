@@ -58,6 +58,7 @@ func getCmd() *cobra.Command {
 	}
 	cmd.AddCommand(
 		queueGetCmd(),
+		queuesGetCmd(),
 		getSchedulingReportCmd(armadactl.New()),
 		getQueueSchedulingReportCmd(armadactl.New()),
 		getJobSchedulingReportCmd(armadactl.New()),

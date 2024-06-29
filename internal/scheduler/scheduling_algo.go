@@ -246,9 +246,11 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []*api.Queue
-	priorityFactorByQueue                    map[string]float64
-	demandByPoolByQueue                      map[string]map[string]schedulerobjects.ResourceList
+	queues                []*api.Queue
+	priorityFactorByQueue map[string]float64
+	demandByPoolByQueue   map[string]map[string]schedulerobjects.ResourceList
+	// Determines whether a queue has scheduling enabled. Not the same as a queue being active.
+	schedulingStatusByQueue                  map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	jobsByExecutorId                         map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
@@ -278,8 +280,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	if err != nil {
 		return nil, err
 	}
+	schedulingStatusByQueue := make(map[string]bool)
 	priorityFactorByQueue := make(map[string]float64)
 	for _, queue := range queues {
+		schedulingStatusByQueue[queue.Name] = !queue.SchedulingPaused
 		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
 	}
 
@@ -375,6 +379,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	return &fairSchedulingAlgoContext{
 		queues:                                   queues,
+		schedulingStatusByQueue:                  schedulingStatusByQueue,
 		priorityFactorByQueue:                    priorityFactorByQueue,
 		demandByPoolByQueue:                      demandByPoolByQueue,
 		totalCapacityByPool:                      totalCapacityByPool,
@@ -473,13 +478,27 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			l.limiterByQueue[queue] = queueLimiter
 		}
 
-		// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.
-		quarantineFactor := 0.0
-		if l.queueQuarantiner != nil {
-			quarantineFactor = l.queueQuarantiner.QuarantineFactor(now, queue)
-		}
-		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate*(1-quarantineFactor)))
+		if fsctx.schedulingStatusByQueue[queue] {
+			queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate))
+			queueLimiter.SetBurstAt(now, l.schedulingConfig.MaximumPerQueueSchedulingBurst)
 
+			// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.
+			quarantineFactor := 0.0
+			if l.queueQuarantiner != nil {
+				quarantineFactor = l.queueQuarantiner.QuarantineFactor(now, queue)
+			}
+			queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate*(1-quarantineFactor)))
+		} else {
+			queueLimiter.SetLimitAt(now, rate.Limit(float64(0)))
+			queueLimiter.SetBurstAt(now, 0)
+
+			// Queued jobs should not be considered for paused queues, so demand := running
+			allocated := schedulerobjects.NewResourceListWithDefaultSize()
+			for _, rl := range allocatedByPriorityClass.DeepCopy() {
+				allocated.Add(rl)
+			}
+			demand = allocated
+		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, demand, queueLimiter); err != nil {
 			return nil, nil, err
 		}
