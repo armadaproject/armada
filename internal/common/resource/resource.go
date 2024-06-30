@@ -35,7 +35,8 @@ func FromProtoMap(m map[string]*resource.Quantity) ComputeResources {
 func (a ComputeResources) ToProtoMap() map[string]*resource.Quantity {
 	resources := make(map[string]*resource.Quantity, len(a))
 	for k, v := range a {
-		resources[k] = &v
+		r := v.DeepCopy()
+		resources[k] = &r
 	}
 	return resources
 }
