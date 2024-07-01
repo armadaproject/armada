@@ -181,6 +181,23 @@ func TestToProtoMap(t *testing.T) {
 	assert.Equal(t, actual, expected)
 }
 
+func TestFromProtoMap(t *testing.T) {
+	oneCpu := resource.MustParse("1")
+	oneGi := resource.MustParse("1Gi")
+
+	input := map[string]*resource.Quantity{
+		"cpu":    &oneCpu,
+		"memory": &oneGi,
+	}
+	expected := ComputeResources{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("1Gi"),
+	}
+
+	actual := FromProtoMap(input)
+	assert.Equal(t, actual, expected)
+}
+
 func makeDefaultNodeResource() v1.ResourceList {
 	cpuResource := resource.NewQuantity(100, resource.DecimalSI)
 	memoryResource := resource.NewQuantity(50*1024*1024*1024, resource.DecimalSI)
