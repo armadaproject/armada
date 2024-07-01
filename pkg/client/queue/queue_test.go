@@ -2,10 +2,11 @@ package queue
 
 import (
 	"encoding/json"
-	"github.com/armadaproject/armada/pkg/api"
 	"reflect"
 	"testing"
 	"testing/quick"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestQueue(t *testing.T) {
@@ -25,7 +26,6 @@ func TestQueue(t *testing.T) {
 }
 
 func TestQueueMarshalUnmarshal(t *testing.T) {
-
 	testCase := func(queue1 Queue) bool {
 		var queue2 Queue
 		data, err := json.Marshal(queue1)
