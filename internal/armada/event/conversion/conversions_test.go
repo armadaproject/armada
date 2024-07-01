@@ -11,6 +11,7 @@ import (
 	v11 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -31,18 +32,15 @@ var (
 )
 
 const (
-	jobSetName       = "testJobset"
-	executorId       = "testCluster"
-	nodeName         = "testNode"
-	podName          = "test-pod"
-	queue            = "test-queue"
-	userId           = "testUser"
-	namespace        = "test-ns"
-	priority         = 3
-	newPriority      = 4
-	podNumber        = 6
-	errMsg           = "sample error message"
-	leaseReturnedMsg = "lease returned error message"
+	jobSetName = "testJobset"
+	executorId = "testCluster"
+	nodeName   = "testNode"
+	podName    = "test-pod"
+	queue      = "test-queue"
+	userId     = "testUser"
+	namespace  = "test-ns"
+	priority   = 3
+	podNumber  = 6
 )
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
@@ -83,7 +81,7 @@ func TestConvertSubmitted(t *testing.T) {
 					JobId:    jobIdString,
 					JobSetId: jobSetName,
 					Queue:    queue,
-					Created:  baseTime,
+					Created:  protoutil.ToTimestamp(baseTime),
 					Job: api.Job{
 						Id:         jobIdString,
 						JobSetId:   jobSetName,
@@ -91,7 +89,7 @@ func TestConvertSubmitted(t *testing.T) {
 						Namespace:  namespace,
 						Owner:      userId,
 						Priority:   priority,
-						Created:    baseTime,
+						Created:    protoutil.ToTimestamp(baseTime),
 						K8SIngress: []*v11.Ingress{},
 						K8SService: []*v1.Service{},
 						PodSpec: &v1.PodSpec{
@@ -114,7 +112,7 @@ func TestConvertSubmitted(t *testing.T) {
 				JobId:    jobIdString,
 				JobSetId: jobSetName,
 				Queue:    queue,
-				Created:  baseTime,
+				Created:  protoutil.ToTimestamp(baseTime),
 			}},
 		},
 	}
@@ -140,7 +138,7 @@ func TestConvertCancel(t *testing.T) {
 					JobId:     jobIdString,
 					JobSetId:  jobSetName,
 					Queue:     queue,
-					Created:   baseTime,
+					Created:   protoutil.ToTimestamp(baseTime),
 					Requestor: userId,
 				},
 			},
@@ -169,7 +167,7 @@ func TestConvertCancelled(t *testing.T) {
 					JobId:     jobIdString,
 					JobSetId:  jobSetName,
 					Queue:     queue,
-					Created:   baseTime,
+					Created:   protoutil.ToTimestamp(baseTime),
 					Requestor: userId,
 				},
 			},
@@ -198,7 +196,7 @@ func TestConvertReprioritising(t *testing.T) {
 					JobId:     jobIdString,
 					JobSetId:  jobSetName,
 					Queue:     queue,
-					Created:   baseTime,
+					Created:   protoutil.ToTimestamp(baseTime),
 					Requestor: userId,
 				},
 			},
@@ -227,7 +225,7 @@ func TestConvertReprioritised(t *testing.T) {
 					JobId:     jobIdString,
 					JobSetId:  jobSetName,
 					Queue:     queue,
-					Created:   baseTime,
+					Created:   protoutil.ToTimestamp(baseTime),
 					Requestor: userId,
 				},
 			},
@@ -267,7 +265,7 @@ func TestConvertLeased(t *testing.T) {
 					JobId:     jobIdString,
 					JobSetId:  jobSetName,
 					Queue:     queue,
-					Created:   baseTime,
+					Created:   protoutil.ToTimestamp(baseTime),
 					ClusterId: executorId,
 				},
 			},
@@ -305,7 +303,7 @@ func TestConvertLeaseExpired(t *testing.T) {
 					JobId:    jobIdString,
 					JobSetId: jobSetName,
 					Queue:    queue,
-					Created:  baseTime,
+					Created:  protoutil.ToTimestamp(baseTime),
 				},
 			},
 		},
@@ -359,7 +357,7 @@ func TestConvertPodUnschedulable(t *testing.T) {
 					PodNumber:    podNumber,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 				},
 			},
 		},
@@ -410,7 +408,7 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 					PodNumber:    podNumber,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					RunAttempted: true,
 				},
 			},
@@ -464,7 +462,7 @@ func TestConvertPodTerminated(t *testing.T) {
 					PodNumber:    podNumber,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 				},
 			},
 		},
@@ -548,7 +546,7 @@ func TestConvertJobError(t *testing.T) {
 					PodNumber:    podNumber,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					Cause:        api.Cause_DeadlineExceeded,
 					ContainerStatuses: []*api.ContainerStatus{
 						{
@@ -569,7 +567,7 @@ func TestConvertJobError(t *testing.T) {
 					Reason:   "Max runs",
 					JobSetId: jobSetName,
 					Queue:    queue,
-					Created:  baseTime,
+					Created:  protoutil.ToTimestamp(baseTime),
 					Cause:    api.Cause_Error,
 				},
 			},
@@ -614,7 +612,7 @@ func TestConvertJobSucceeded(t *testing.T) {
 					JobId:        jobIdString,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
 					NodeName:     nodeName,
@@ -665,7 +663,7 @@ func TestConvertJobRunning(t *testing.T) {
 					JobId:        jobIdString,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
 					NodeName:     nodeName,
@@ -715,7 +713,7 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 					JobId:    jobIdString,
 					JobSetId: jobSetName,
 					Queue:    queue,
-					Created:  baseTime,
+					Created:  protoutil.ToTimestamp(baseTime),
 				},
 			},
 		},
@@ -760,7 +758,7 @@ func TestConvertJobAssigned(t *testing.T) {
 					JobId:        jobIdString,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
 					PodNumber:    podNumber,
@@ -816,7 +814,7 @@ func TestConvertResourceUtilisation(t *testing.T) {
 					JobId:        jobIdString,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
 					MaxResourcesForPeriod: map[string]resource.Quantity{
@@ -872,7 +870,7 @@ func TestConvertIngressInfo(t *testing.T) {
 					JobId:        jobIdString,
 					JobSetId:     jobSetName,
 					Queue:        queue,
-					Created:      baseTime,
+					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
 					NodeName:     nodeName,
@@ -909,7 +907,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 					JobId:     jobIdString,
 					JobSetId:  jobSetName,
 					Queue:     queue,
-					Created:   baseTime,
+					Created:   protoutil.ToTimestamp(baseTime),
 					Requestor: userId,
 				},
 			},
@@ -941,7 +939,7 @@ func TestConvertJobRunPreempted(t *testing.T) {
 					JobId:           jobIdString,
 					JobSetId:        jobSetName,
 					Queue:           queue,
-					Created:         baseTime,
+					Created:         protoutil.ToTimestamp(baseTime),
 					RunId:           runIdString,
 					PreemptiveJobId: preemptiveJobIdString,
 					PreemptiveRunId: preemptiveRunIdString,

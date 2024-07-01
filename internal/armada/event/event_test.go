@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -104,7 +105,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 				JobId:    jobIdString,
 				JobSetId: jobSetId,
 				Queue:    q.Name,
-				Created:  baseTime,
+				Created:  protoutil.ToTimestamp(baseTime),
 			}}
 			assert.Equal(t, expected, stream.sendMessages[len(stream.sendMessages)-1].Message.Events)
 		},
