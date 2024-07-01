@@ -60,7 +60,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				NodeType: "node-type-1",
 			},
 		},
-		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
+		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId3)},
 		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
