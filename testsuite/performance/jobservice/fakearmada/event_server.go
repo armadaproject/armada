@@ -53,7 +53,7 @@ var messageScript = []*scriptedMessage{
 						JobSetId: request.Id,
 						Queue:    request.Queue,
 						Created:  types.TimestampNow(),
-						Job: &api.Job{
+						Job: api.Job{
 							Id:        "fake_job_id",
 							ClientId:  "",
 							Queue:     request.Queue,
