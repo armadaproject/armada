@@ -82,7 +82,7 @@ func TestConvertSubmitted(t *testing.T) {
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
-					Job: api.Job{
+					Job: &api.Job{
 						Id:         jobIdString,
 						JobSetId:   jobSetName,
 						Queue:      queue,
@@ -99,7 +99,7 @@ func TestConvertSubmitted(t *testing.T) {
 								},
 							},
 						},
-						SchedulingResourceRequirements: v1.ResourceRequirements{
+						SchedulingResourceRequirements: &v1.ResourceRequirements{
 							Requests: make(v1.ResourceList),
 							Limits:   make(v1.ResourceList),
 						},
@@ -795,13 +795,13 @@ func TestConvertResourceUtilisation(t *testing.T) {
 						},
 					},
 				},
-				MaxResourcesForPeriod: map[string]resource.Quantity{
-					"cpu": resource.MustParse("2.0"),
-					"mem": resource.MustParse("100Gi"),
+				MaxResourcesForPeriod: map[string]*resource.Quantity{
+					"cpu": resourcePointer("2.0"),
+					"mem": resourcePointer("100Gi"),
 				},
-				TotalCumulativeUsage: map[string]resource.Quantity{
-					"cpu": resource.MustParse("3.0"),
-					"mem": resource.MustParse("200Gi"),
+				TotalCumulativeUsage: map[string]*resource.Quantity{
+					"cpu": resourcePointer("3.0"),
+					"mem": resourcePointer("200Gi"),
 				},
 			},
 		},
@@ -817,17 +817,17 @@ func TestConvertResourceUtilisation(t *testing.T) {
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
-					MaxResourcesForPeriod: map[string]resource.Quantity{
-						"cpu": resource.MustParse("2.0"),
-						"mem": resource.MustParse("100Gi"),
+					MaxResourcesForPeriod: map[string]*resource.Quantity{
+						"cpu": resourcePointer("2.0"),
+						"mem": resourcePointer("100Gi"),
 					},
 					NodeName:     nodeName,
 					PodNumber:    podNumber,
 					PodName:      podName,
 					PodNamespace: namespace,
-					TotalCumulativeUsage: map[string]resource.Quantity{
-						"cpu": resource.MustParse("3.0"),
-						"mem": resource.MustParse("200Gi"),
+					TotalCumulativeUsage: map[string]*resource.Quantity{
+						"cpu": resourcePointer("3.0"),
+						"mem": resourcePointer("200Gi"),
 					},
 				},
 			},
@@ -981,4 +981,9 @@ func toEventSeq(event ...*armadaevents.EventSequence_Event) *armadaevents.EventS
 		Events:     event,
 		UserId:     userId,
 	}
+}
+
+func resourcePointer(s string) *resource.Quantity {
+	r := resource.MustParse(s)
+	return &r
 }
