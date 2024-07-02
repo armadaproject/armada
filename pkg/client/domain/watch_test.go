@@ -59,7 +59,7 @@ func TestWatchContext_ProcessEvent_SubmittedEventAddsJobToJobInfo(t *testing.T) 
 		MaxUsedResources: armadaresource.ComputeResources{},
 	}
 
-	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job})
+	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: &job})
 	result := watchContext.GetJobInfo("1")
 
 	assert.Equal(t, expected, result)
@@ -216,7 +216,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	)
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
-	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: protoutil.ToTimestamp(now.Add(-2 * time.Second))})
+	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: &job, Created: protoutil.ToTimestamp(now.Add(-2 * time.Second))})
 	assert.Equal(
 		t,
 		&JobInfo{
@@ -234,6 +234,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 
 func TestWatchContext_UtilisationEvent(t *testing.T) {
 	watchContext := NewWatchContext()
+	oneCpu := resource.MustParse("1")
 	watchContext.ProcessEvent(&api.JobUtilisationEvent{
 		JobId:        "job1",
 		JobSetId:     "",
@@ -241,8 +242,8 @@ func TestWatchContext_UtilisationEvent(t *testing.T) {
 		Created:      types.TimestampNow(),
 		ClusterId:    "",
 		KubernetesId: "",
-		MaxResourcesForPeriod: armadaresource.ComputeResources{
-			"cpu": resource.MustParse("1"),
+		MaxResourcesForPeriod: map[string]*resource.Quantity{
+			"cpu": &oneCpu,
 		},
 	})
 	assert.Equal(t, resource.MustParse("1"), watchContext.GetJobInfo("job1").MaxUsedResources["cpu"])

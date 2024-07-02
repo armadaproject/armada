@@ -60,8 +60,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	_, ok = fakeEventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
 	assert.True(t, ok)
 
-	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.ComputeResources(event1.ResourceUtilisation.MaxResourcesForPeriod))
-	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.ComputeResources(event1.ResourceUtilisation.TotalCumulativeUsage))
+	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.TotalCumulativeUsage))
 
 	event1CreatedTime := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Created
 	event2CreatedTime := fakeEventReporter.ReceivedEvents[1].Event.Events[0].Created

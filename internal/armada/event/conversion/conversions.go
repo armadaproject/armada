@@ -89,7 +89,7 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 		JobSetId: jobSet,
 		Queue:    queue,
 		Created:  protoutil.ToTimestamp(time),
-		Job:      *job,
+		Job:      job,
 	}
 
 	queuedEvent := &api.JobQueuedEvent{
