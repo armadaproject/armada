@@ -23,7 +23,7 @@ func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
 		}
 		defer conn.Close()
 
-		client := api.NewSubmitClient(conn)
+		client := api.NewQueueServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

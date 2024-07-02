@@ -25,7 +25,7 @@ func Create(getConnectionDetails client.ConnectionDetails) CreateAPI {
 		ctx, cancel := common.ContextWithDefaultTimeout()
 		defer cancel()
 
-		client := api.NewSubmitClient(conn)
+		client := api.NewQueueServiceClient(conn)
 		if _, err := client.CreateQueue(ctx, queue.ToAPI()); err != nil {
 			return fmt.Errorf("create queue request failed: %s", err)
 		}

@@ -25,7 +25,7 @@ func Delete(getConnectionDetails client.ConnectionDetails) DeleteAPI {
 		ctx, cancel := common.ContextWithDefaultTimeout()
 		defer cancel()
 
-		client := api.NewSubmitClient(conn)
+		client := api.NewQueueServiceClient(conn)
 		if _, err = client.DeleteQueue(ctx, &api.QueueDeleteRequest{Name: queueName}); err != nil {
 			return fmt.Errorf("delete queue request failed: %s", err)
 		}
