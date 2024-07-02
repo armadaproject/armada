@@ -6,7 +6,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 
 	"github.com/pkg/errors"
@@ -76,14 +75,14 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 }
 
 func ResourceListFromProtoResources(r map[string]*resource.Quantity) schedulerobjects.ResourceList {
-	return schedulerobjects.ResourceList{
-		Resources: armadamaps.MapValues(r, func(v *resource.Quantity) resource.Quantity {
-			if v != nil {
-				return *v
-			}
-			return resource.Quantity{}
-		}),
+	resources := make(map[string]resource.Quantity, len(r))
+	for k, v := range r {
+		if v != nil {
+			r := v.DeepCopy()
+			resources[k] = r
+		}
 	}
+	return schedulerobjects.ResourceList{Resources: resources}
 }
 
 func ComputeResourceFromProtoResources(r map[string]resource.Quantity) *ComputeResource {
