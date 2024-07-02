@@ -22,7 +22,7 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
 
-COPY server executor binoculars eventingester lookoutingesterv2 lookoutv2 jobservice scheduler scheduleringester armadactl /app/
+COPY server executor binoculars eventingester lookoutingesterv2 lookoutv2 scheduler scheduleringester armadactl /app/
 COPY config/ /app/config/
 
 WORKDIR /app

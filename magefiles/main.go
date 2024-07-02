@@ -205,7 +205,7 @@ func LocalDev(arg string) error {
 	case "minimal":
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 	case "full":
-		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
+		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
@@ -315,7 +315,7 @@ func Generate() error {
 
 // CI Image to build
 func BuildCI() error {
-	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars", "jobservice"}
+	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars"}
 	err := goreleaserMinimalRelease(ciImage...)
 	if err != nil {
 		return err

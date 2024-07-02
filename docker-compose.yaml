@@ -217,24 +217,6 @@ services:
     working_dir: /app
     command: ./lookoutingesterv2
 
-  jobservice:
-    container_name: jobservice
-    image: ${ARMADA_IMAGE:-gresearch/armada-jobservice}:${ARMADA_IMAGE_TAG:-latest}
-    volumes:
-      - "go-cache:/root/.cache/go-build:rw"
-      - "gomod-cache:/go/pkg/mod:rw"
-    networks:
-      - kind
-    ports:
-      - 60003:60003
-      - 4008:4000
-    depends_on:
-      - server
-    env_file:
-      - ./developer/env/docker/jobservice.env
-    working_dir: /app
-    command: ./jobservice run
-
   airflow:
     container_name: airflow
     image: python:3.8-buster

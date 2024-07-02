@@ -11,11 +11,6 @@ type GrpcConfig struct {
 	Tls                        TlsConfig
 }
 
-type GrpcPoolConfig struct {
-	InitialConnections int
-	Capacity           int
-}
-
 type TlsConfig struct {
 	Enabled  bool
 	KeyPath  string

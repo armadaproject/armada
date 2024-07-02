@@ -31,7 +31,6 @@ var defaultComponents = []string{
 
 var allComponents = append(
 	slices.Clone(defaultComponents),
-	"jobservice",
 	"airflow",
 )
 
