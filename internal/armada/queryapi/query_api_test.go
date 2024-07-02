@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -25,6 +26,7 @@ const (
 
 var (
 	baseTime, _      = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimestamp    = protoutil.ToTimestamp(baseTime)
 	testDecompressor = func() compress.Decompressor { return &compress.NoOpDecompressor{} }
 )
 
@@ -348,10 +350,10 @@ func newJobDetails(jobId string, state api.JobState, latestRunId string, runs ..
 		Jobset:           "testJobset",
 		Namespace:        "testNamespace",
 		State:            state,
-		SubmittedTs:      &baseTime,
+		SubmittedTs:      baseTimestamp,
 		CancelTs:         nil,
 		CancelReason:     "",
-		LastTransitionTs: &baseTime,
+		LastTransitionTs: baseTimestamp,
 		LatestRunId:      latestRunId,
 		JobSpec:          nil,
 		JobRuns:          runs,
@@ -365,9 +367,9 @@ func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased 
 		State:      state,
 		Cluster:    "testCluster",
 		Node:       "testNode",
-		LeasedTs:   &leased,
-		PendingTs:  &baseTime,
-		StartedTs:  &baseTime,
+		LeasedTs:   protoutil.ToTimestamp(leased),
+		PendingTs:  baseTimestamp,
+		StartedTs:  baseTimestamp,
 		FinishedTs: nil,
 	}
 }
