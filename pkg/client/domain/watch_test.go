@@ -4,10 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -168,7 +170,7 @@ func TestWatchContext_GetNumberOfJobsInStates_IsCorrectlyUpdatedOnUpdateToExisti
 func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	now := time.Now()
+	now := time.Now().UTC()
 	job := api.Job{
 		Id:       "1",
 		JobSetId: "job-set-1",
@@ -182,11 +184,11 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 		},
 	}
 
-	watchContext.ProcessEvent(&api.JobUtilisationEvent{JobId: "1", Created: now.Add(10 * time.Second)})
+	watchContext.ProcessEvent(&api.JobUtilisationEvent{JobId: "1", Created: protoutil.ToTimestamp(now.Add(10 * time.Second))})
 	assert.Equal(t, &JobInfo{MaxUsedResources: armadaresource.ComputeResources{}}, watchContext.GetJobInfo("1"))
 	assert.Equal(t, map[JobStatus]int{}, watchContext.stateSummary)
 
-	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1", Created: now})
+	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1", Created: protoutil.ToTimestamp(now)})
 	assert.Equal(
 		t,
 		&JobInfo{
@@ -200,7 +202,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	)
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
-	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1", Created: now.Add(-1 * time.Second)})
+	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1", Created: protoutil.ToTimestamp(now.Add(-1 * time.Second))})
 	assert.Equal(
 		t,
 		&JobInfo{
@@ -214,7 +216,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	)
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
-	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: now.Add(-2 * time.Second)})
+	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: protoutil.ToTimestamp(now.Add(-2 * time.Second))})
 	assert.Equal(
 		t,
 		&JobInfo{
@@ -236,7 +238,7 @@ func TestWatchContext_UtilisationEvent(t *testing.T) {
 		JobId:        "job1",
 		JobSetId:     "",
 		Queue:        "",
-		Created:      time.Now(),
+		Created:      types.TimestampNow(),
 		ClusterId:    "",
 		KubernetesId: "",
 		MaxResourcesForPeriod: armadaresource.ComputeResources{
