@@ -20,7 +20,7 @@ import (
 type LeaseRequest struct {
 	AvailableResource   armadaresource.ComputeResources
 	Nodes               []*executorapi.NodeInfo
-	UnassignedJobRunIds []armadaevents.Uuid
+	UnassignedJobRunIds []*armadaevents.Uuid
 	MaxJobsToLease      uint32
 }
 
@@ -60,8 +60,8 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	leaseRequest := &executorapi.LeaseRequest{
 		ExecutorId:          requester.clusterIdentity.GetClusterId(),
 		Pool:                requester.clusterIdentity.GetClusterPool(),
-		MinimumJobSize:      requester.minimumJobSize,
-		Resources:           request.AvailableResource,
+		MinimumJobSize:      requester.minimumJobSize.ToProtoMap(),
+		Resources:           request.AvailableResource.ToProtoMap(),
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
 		MaxJobsToLease:      request.MaxJobsToLease,

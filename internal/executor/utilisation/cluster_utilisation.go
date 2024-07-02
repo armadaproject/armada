@@ -3,6 +3,8 @@ package utilisation
 import (
 	"fmt"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+
 	"github.com/armadaproject/armada/pkg/executorapi"
 
 	"github.com/pkg/errors"
@@ -112,24 +114,26 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		usageByQueue := cls.getPodUtilisationByQueue(runningNodePodsArmada)
 		resourceUsageByQueue := make(map[string]*executorapi.ComputeResource)
 		for queueName, resourceUsage := range usageByQueue {
-			resourceUsageByQueue[queueName] = &executorapi.ComputeResource{Resources: resourceUsage}
+			resourceUsageByQueue[queueName] = executorapi.ComputeResourceFromProtoResources(resourceUsage)
 		}
 
-		nodeAllocatedResources := make(map[int32]executorapi.ComputeResource)
+		nodeAllocatedResources := make(map[int32]*executorapi.ComputeResource)
 		for p, rl := range allocatedByPriority {
-			nodeAllocatedResources[p] = executorapi.ComputeResource{Resources: rl.Resources}
+			nodeAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
 		}
-		nodeNonArmadaAllocatedResources := make(map[int32]executorapi.ComputeResource)
+		nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
 		for p, rl := range allocatedByPriorityNonArmada {
-			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResource{Resources: rl.Resources}
+			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
 		}
 		nodes = append(nodes, executorapi.NodeInfo{
-			Name:                        node.Name,
-			Labels:                      cls.filterTrackedLabels(node.Labels),
-			Taints:                      node.Spec.Taints,
-			AllocatableResources:        allocatable,
-			AvailableResources:          available,
-			TotalResources:              allocatable,
+			Name:   node.Name,
+			Labels: cls.filterTrackedLabels(node.Labels),
+			Taints: armadaslices.Map(node.Spec.Taints, func(t v1.Taint) *v1.Taint {
+				return &t
+			}),
+			AllocatableResources:        allocatable.ToProtoMap(),
+			AvailableResources:          available.ToProtoMap(),
+			TotalResources:              allocatable.ToProtoMap(),
 			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,

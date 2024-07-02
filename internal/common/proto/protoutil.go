@@ -85,8 +85,26 @@ func ToStdTime(ts *types.Timestamp) time.Time {
 }
 
 func ToTimestamp(t time.Time) *types.Timestamp {
+	types.TimestampNow()
 	return &types.Timestamp{
 		Seconds: t.Unix(),
 		Nanos:   int32(t.Nanosecond()),
+	}
+}
+
+func ToStdDuration(pd *types.Duration) time.Duration {
+	if pd == nil {
+		return 0
+	}
+	return time.Duration(pd.Seconds)*time.Second + time.Duration(pd.Nanos)*time.Nanosecond
+}
+
+func ToDuration(d time.Duration) *types.Duration {
+	nanos := d.Nanoseconds()
+	secs := nanos / 1e9
+	nanos -= secs * 1e9
+	return &types.Duration{
+		Seconds: secs,
+		Nanos:   int32(nanos),
 	}
 }

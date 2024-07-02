@@ -12,6 +12,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
 	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
@@ -67,8 +68,9 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Optional timeout
 	var cancel context.CancelFunc
-	if srv.testSpec.Timeout != 0 {
-		ctx, cancel = context.WithTimeout(ctx, srv.testSpec.Timeout)
+	timeout := protoutil.ToStdDuration(srv.testSpec.Timeout)
+	if timeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
 	} else {
 		ctx, cancel = context.WithCancel(ctx)
 	}

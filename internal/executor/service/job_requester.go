@@ -103,7 +103,7 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 }
 
 // Returns the RunIds of all managed pods that haven't been assigned to a node
-func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAvailableCapacityReport) ([]armadaevents.Uuid, error) {
+func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAvailableCapacityReport) ([]*armadaevents.Uuid, error) {
 	allAssignedRunIds := []string{}
 	allJobRunIds := []string{}
 

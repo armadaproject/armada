@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -46,7 +47,7 @@ func NewSubmitterFromTestSpec(conn *client.ApiConnectionDetails, testSpec *api.T
 		JobSetName:           testSpec.JobSetId,
 		NumBatches:           testSpec.NumBatches,
 		BatchSize:            testSpec.BatchSize,
-		Interval:             testSpec.Interval,
+		Interval:             protoutil.ToStdDuration(testSpec.Interval),
 		RandomClientId:       testSpec.RandomClientId,
 		out:                  out,
 	}
