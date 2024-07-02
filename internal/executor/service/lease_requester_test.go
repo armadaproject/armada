@@ -101,15 +101,15 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 				RunIdsByState: map[string]api.JobState{"id1": api.JobState_RUNNING},
 			},
 		},
-		UnassignedJobRunIds: []armadaevents.Uuid{*id1},
+		UnassignedJobRunIds: []*armadaevents.Uuid{id1},
 		MaxJobsToLease:      uint32(5),
 	}
 
 	expectedRequest := &executorapi.LeaseRequest{
 		ExecutorId:          defaultClusterIdentity.GetClusterId(),
 		Pool:                defaultClusterIdentity.GetClusterPool(),
-		Resources:           leaseRequest.AvailableResource,
-		MinimumJobSize:      defaultMinimumJobSize,
+		Resources:           leaseRequest.AvailableResource.ToProtoMap(),
+		MinimumJobSize:      defaultMinimumJobSize.ToProtoMap(),
 		Nodes:               leaseRequest.Nodes,
 		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
 		MaxJobsToLease:      leaseRequest.MaxJobsToLease,

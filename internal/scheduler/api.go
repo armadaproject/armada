@@ -335,10 +335,10 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:             req.ExecutorId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
-		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		MinimumJobSize: executorapi.ResourceListFromProtoResources(req.MinimumJobSize),
 		LastUpdateTime: now,
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId armadaevents.Uuid) string {
-			return strings.ToLower(armadaevents.UuidFromProtoUuid(&jobId).String())
+		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId *armadaevents.Uuid) string {
+			return strings.ToLower(armadaevents.UuidFromProtoUuid(jobId).String())
 		}),
 	}
 }
@@ -356,7 +356,7 @@ func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]uuid.UUID, error) 
 		}
 	}
 	for _, runId := range req.UnassignedJobRunIds {
-		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
+		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId))
 	}
 	return runIds, nil
 }
