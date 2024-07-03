@@ -63,7 +63,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				NodeType: "node-type-1",
 			},
 		},
-		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
+		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId3)},
 		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
@@ -74,7 +74,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
 				Executor:                    "test-executor",
-				TotalResources:              schedulerobjects.ResourceList{},
+				TotalResources:              schedulerobjects.NewResourceList(0),
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
@@ -90,7 +90,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				ReportingNodeType:    "node-type-1",
 			},
 		},
-		MinimumJobSize:    schedulerobjects.ResourceList{},
+		MinimumJobSize:    schedulerobjects.NewResourceList(0),
 		LastUpdateTime:    testClock.Now().UTC(),
 		UnassignedJobRuns: []string{runId3.String()},
 	}
