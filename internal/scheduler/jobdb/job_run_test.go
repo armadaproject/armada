@@ -1,7 +1,6 @@
 package jobdb
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -36,7 +36,7 @@ var (
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		MakeTestResourceListFactory(),
-		testfixtures.TestEmptyFloatingResources,
+		makeTestEmptyFloatingResources(),
 	)
 	scheduledAtPriority = int32(5)
 )
@@ -169,4 +169,9 @@ func TestDeepCopy(t *testing.T) {
 	run.nodeId = "new nodeId"
 	run.executor = "new executor"
 	assert.Equal(t, expected, actual)
+}
+
+func makeTestEmptyFloatingResources() *floatingresources.FloatingResourceTypes {
+	result, _ := floatingresources.NewFloatingResourceTypes(nil)
+	return result
 }
