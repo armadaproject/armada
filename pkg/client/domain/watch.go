@@ -171,7 +171,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	if isLifeCycleEvent(event) && !isPodEvent(event) {
 		if info.LastUpdate.After(eventTs) {
 			if submitEvent, ok := event.(*api.JobSubmittedEvent); ok {
-				info.Job = &submitEvent.Job
+				info.Job = submitEvent.Job
 			}
 			// skipping event as it is out of time order
 			return
@@ -182,7 +182,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	switch typed := event.(type) {
 	case *api.JobSubmittedEvent:
 		info.Status = Submitted
-		info.Job = &typed.Job
+		info.Job = typed.Job
 		for len(info.PodStatus) < len(typed.Job.PodSpecs) {
 			info.PodStatus = append(info.PodStatus, Submitted)
 			info.PodLastUpdated = append(info.PodLastUpdated, time.Time{})
@@ -222,7 +222,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	case *api.JobIngressInfoEvent:
 		// NOOP
 	case *api.JobUtilisationEvent:
-		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
+		info.MaxUsedResources.Max(armadaresource.FromProtoMap(typed.MaxResourcesForPeriod))
 	}
 }
 
