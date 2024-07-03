@@ -80,7 +80,6 @@ func NewFairSchedulingAlgo(
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
-
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
