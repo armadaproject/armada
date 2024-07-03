@@ -6,38 +6,34 @@ option go_package = "github.com/armadaproject/armada/pkg/executorapi";
 import "pkg/armadaevents/events.proto";
 import "pkg/api/submit.proto";
 import "google/protobuf/empty.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
-
-option (gogoproto.goproto_stringer_all) = false;
-option (gogoproto.stringer_all) = true;
 
 
 // Used by the scheduler when allocating jobs to executors.
 message NodeInfo {
   string name = 1;
-  repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
+  repeated k8s.io.api.core.v1.Taint taints = 2;
   map<string,string> labels = 3;
   // To be deprecated in favour of total_resources + allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 4 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 4;
   // To be deprecated in favour of total_resources + allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> available_resources = 5 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> available_resources = 5;
   // Total node resources.
   // Resources available for allocation is given by the difference between this and allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_resources = 6 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_resources = 6;
   // Each pod is created with a priority class. Each priority class has an integer priority associated with it.
   // This is a map from priority to the total amount of resources allocated to pods with that priority.
   // It is used by the scheduler to decide whether more jobs should be sent to an executor.
   // In particular, jobs may be sent to an executor even if all resources are allocated
   // if the sent jobs are of higher priority.
-  map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
+  map<int32, ComputeResource> allocated_resources = 7;
   // All run ids of jobs on the node, mapped to their current state
   // this should be of type armadaevents.uuid, but this creates a circular loop
   // once the old scheduler has gone, we can correct this
-  map<string, api.JobState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
+  map<string, api.JobState>  run_ids_by_state = 8;
   // The amount of resource allocated to non-armada pods by priority
-  map<int32, ComputeResource> non_armada_allocated_resources = 9 [(gogoproto.nullable) = false];
+  map<int32, ComputeResource> non_armada_allocated_resources = 9;
   bool unschedulable = 10;
   // This should only be used for metrics
   // An aggregated real usage of jobs by queue
@@ -48,7 +44,7 @@ message NodeInfo {
 }
 
 message ComputeResource {
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1;
 }
 
 message EventList {
@@ -61,16 +57,16 @@ message LeaseRequest{
   // Nodes are split into pools. This field indicates for which pool jobs are leased.
   string pool = 2;
   // Total resources available for scheduling across all nodes.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3;
   // Jobs submitted to this executor must require at least this amount of resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 4 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 4;
   // For each node in the cluster:
   // - The total allocatable resources on that node.
   // - The job runs running on those nodes,
   // - Any taints and labels on the node.
   repeated NodeInfo nodes = 5;
   // Run Ids of jobs owned by the executor but not currently assigned to a node.
-  repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
+  repeated armadaevents.Uuid unassigned_job_run_ids = 6;
   // Max number of jobs this request should return
   uint32 max_jobs_to_lease = 7;
 }
