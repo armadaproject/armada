@@ -112,6 +112,19 @@ type LeaderConfig struct {
 	LeaderConnection client.ApiConnectionDetails
 }
 
+type FloatingResourceConfig struct {
+	// Resource name, e.g. "s3-connections"
+	Name string
+	// Per-pool config.
+	Pools []FloatingResourcePoolConfig
+}
+
+type FloatingResourcePoolConfig struct {
+	// Name of the pool.
+	Name string
+	// Amount of this resource that can be allocated across all jobs in this pool.
+	Quantity resource.Quantity
+}
 type HttpConfig struct {
 	Port int `validate:"required"`
 }
@@ -230,6 +243,13 @@ type SchedulingConfig struct {
 	//
 	// If not set, all taints are indexed.
 	IndexedTaints []string
+	// Experimental - subject to change
+	// Resources that are outside of k8s, and not tied to a given k8s node or cluster.
+	// For example connections to an S3 server that sits outside of k8s could be rationed to limit load on the server.
+	// These can be requested like a normal k8s resource. Note there is no mechanism in armada
+	// to enforce actual usage, it relies on honesty. For example, there is nothing to stop a badly-behaved job
+	// requesting 2 S3 server connections and then opening 10.
+	ExperimentalFloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
 	// Executor that haven't heartbeated in this time period are considered stale.

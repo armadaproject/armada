@@ -1,6 +1,7 @@
 package jobdb
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"math/rand"
 	"sort"
 	"testing"
@@ -30,6 +31,7 @@ func NewTestJobDb() *JobDb {
 		"foo",
 		stringinterner.New(1024),
 		TestResourceListFactory,
+		testfixtures.TestEmptyFloatingResources,
 	)
 }
 

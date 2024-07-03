@@ -20,6 +20,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -89,6 +90,22 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
 			ExpectedCumulativeScheduledJobs: []int{64},
 			ExpectedRuntimeGangCardinality:  []int{64},
+		},
+		"floating resources": {
+			SchedulingConfig: func() configuration.SchedulingConfig {
+				cfg := testfixtures.TestSchedulingConfig()
+				cfg.ExperimentalFloatingResources = testfixtures.TestFloatingResourceConfig
+				return cfg
+			}(),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				// we have 10 of test-floating-resource so only the first of these two jobs should fit
+				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
+				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
+			},
+			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs: []int{1, 1},
+			ExpectedRuntimeGangCardinality:  []int{1, 0},
 		},
 		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -571,7 +588,9 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig,
 				nil,
 			)
-			sch, err := NewGangScheduler(sctx, constraints, nodeDb)
+			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
+			require.NoError(t, err)
+			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
 			require.NoError(t, err)
 
 			var actualScheduledIndices []int
@@ -637,4 +656,14 @@ func TestGangScheduler(t *testing.T) {
 			assert.Equal(t, tc.ExpectedScheduledIndices, actualScheduledIndices)
 		})
 	}
+}
+
+func addFloatingResourceRequest(request string, jobs []*jobdb.Job) []*jobdb.Job {
+	return testfixtures.WithRequestsJobs(
+		schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"test-floating-resource": resource.MustParse(request),
+			},
+		},
+		jobs)
 }

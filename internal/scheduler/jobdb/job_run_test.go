@@ -1,6 +1,7 @@
 package jobdb
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 
 	"github.com/google/uuid"
@@ -35,6 +36,7 @@ var (
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		MakeTestResourceListFactory(),
+		testfixtures.TestEmptyFloatingResources,
 	)
 	scheduledAtPriority = int32(5)
 )

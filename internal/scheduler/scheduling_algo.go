@@ -23,6 +23,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -61,10 +62,11 @@ type FairSchedulingAlgo struct {
 	// Used to reduce the rate at which jobs are scheduled from misbehaving queues.
 	queueQuarantiner *quarantine.QueueQuarantiner
 	// Function that is called every time an executor is scheduled. Useful for testing.
-	onExecutorScheduled func(executor *schedulerobjects.Executor)
-	clock               clock.Clock
-	stringInterner      *stringinterner.StringInterner
-	resourceListFactory *internaltypes.ResourceListFactory
+	onExecutorScheduled   func(executor *schedulerobjects.Executor)
+	clock                 clock.Clock
+	stringInterner        *stringinterner.StringInterner
+	resourceListFactory   *internaltypes.ResourceListFactory
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 func NewFairSchedulingAlgo(
@@ -77,6 +79,8 @@ func NewFairSchedulingAlgo(
 	queueQuarantiner *quarantine.QueueQuarantiner,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
+
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -98,6 +102,7 @@ func NewFairSchedulingAlgo(
 		clock:                       clock.RealClock{},
 		stringInterner:              stringInterner,
 		resourceListFactory:         resourceListFactory,
+		floatingResourceTypes:       floatingResourceTypes,
 	}, nil
 }
 
@@ -289,6 +294,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		for _, node := range executor.Nodes {
 			totalCapacityByPool.AddResourceList(executor.Pool, node.TotalResources)
 		}
+	}
+
+	for pool, poolCapacity := range totalCapacityByPool {
+		poolCapacity.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
 	}
 
 	// Create a map of jobs associated with each executor.
@@ -495,6 +504,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
+		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
 		l.schedulingConfig.UseAdjustedFairShareProtection,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),

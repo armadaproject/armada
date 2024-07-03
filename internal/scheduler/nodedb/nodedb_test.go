@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -123,7 +125,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	request := job.EfficientResourceRequirements()
-	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(job.ResourceRequirements().Requests)
+	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(job.ResourceRequirements().Requests))
 	assert.Nil(t, err)
 
 	jobId := job.Id()

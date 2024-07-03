@@ -1,6 +1,7 @@
 package jobdb
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,7 @@ func TestJobPriorityComparer(t *testing.T) {
 		},
 		"Running jobs come before queued jobs": {
 			a:        &Job{id: "a", priority: 1},
-			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), TestResourceListFactory)}).WithNewRun("", "", "", 0),
+			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), TestResourceListFactory, testfixtures.TestEmptyFloatingResources)}).WithNewRun("", "", "", 0),
 			expected: 1,
 		},
 		"Running jobs are ordered third by runtime": {

@@ -9,10 +9,13 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -41,6 +44,8 @@ type JobDb struct {
 	uuidProvider UUIDProvider
 	// Used to make efficient ResourceList types.
 	resourceListFactory *internaltypes.ResourceListFactory
+	// Info about floating resources
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 // UUIDProvider is an interface used to mock UUID generation for tests.
@@ -55,7 +60,11 @@ func (_ RealUUIDProvider) New() uuid.UUID {
 	return uuid.New()
 }
 
-func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInterner *stringinterner.StringInterner, resourceListFactory *internaltypes.ResourceListFactory,
+func NewJobDb(priorityClasses map[string]types.PriorityClass,
+	defaultPriorityClassName string,
+	stringInterner *stringinterner.StringInterner,
+	resourceListFactory *internaltypes.ResourceListFactory,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
@@ -63,6 +72,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityCla
 		schedulerobjects.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 }
 
@@ -72,6 +82,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	skg *schedulerobjects.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
@@ -91,6 +102,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		clock:                  clock.RealClock{},
 		uuidProvider:           RealUUIDProvider{},
 		resourceListFactory:    resourceListFactory,
+		floatingResourceTypes:  floatingResourceTypes,
 	}
 }
 
@@ -139,8 +151,6 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
-	rr := jobDb.getResourceRequirements(schedulingInfo)
-
 	job := &Job{
 		jobDb:                   jobDb,
 		id:                      jobId,
@@ -152,7 +162,7 @@ func (jobDb *JobDb) NewJob(
 		requestedPriority:       priority,
 		submittedTime:           created,
 		jobSchedulingInfo:       jobDb.internJobSchedulingInfoStrings(schedulingInfo),
-		resourceRequirements:    rr,
+		resourceRequirements:    jobDb.getResourceRequirements(schedulingInfo),
 		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
 		cancelByJobSetRequested: cancelByJobSetRequested,
@@ -167,17 +177,21 @@ func (jobDb *JobDb) NewJob(
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+}
+
+func safeGetRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) map[string]k8sResource.Quantity {
 	pr := schedulingInfo.GetPodRequirements()
 	if pr == nil {
-		return internaltypes.ResourceList{}
+		return map[string]k8sResource.Quantity{}
 	}
 
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
-		return internaltypes.ResourceList{}
+		return map[string]k8sResource.Quantity{}
 	}
 
-	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(req).Resources)
+	return adapters.K8sResourceListToMap(req)
 }
 
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
