@@ -25,11 +25,18 @@ import (
 type queueState struct {
 	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
 	runningJobRecorder *commonmetrics.JobMetricsRecorder
+	priority           float64
 }
 
 // metricProvider is a simple implementation of QueueMetricProvider
 type metricProvider struct {
 	queueStates map[string]*queueState
+}
+
+func (m metricProvider) GetQueuePriorites() map[string]float64 {
+	return armadamaps.MapValues(m.queueStates, func(v *queueState) float64 {
+		return v.priority
+	})
 }
 
 func (m metricProvider) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
@@ -147,6 +154,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		provider.queueStates[queue.Name] = &queueState{
 			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
 			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
+			priority:           queue.PriorityFactor,
 		}
 		queuedJobsCount[queue.Name] = 0
 		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
