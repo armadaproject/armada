@@ -3,6 +3,9 @@ package util
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -29,15 +32,13 @@ func TestStringUuidsToUuids(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := StringUuidsToUuids(tt.uuidStrings)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("StringUuidsToUuids() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
-
 			for i, v := range got {
-				if v != tt.want[i] {
-					t.Errorf("StringUuidsToUuids() = %v, want %v", v, tt.want[i])
-				}
+				assert.Equal(t, tt.want[i], v)
 			}
 		})
 	}
