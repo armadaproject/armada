@@ -19,10 +19,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -321,6 +324,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{1000, 2000},
+				testResourceNames(),
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
@@ -448,6 +452,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{1000, 2000},
+				testResourceNames(),
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
@@ -494,4 +499,8 @@ func groups(t *testing.T) ([]string, []byte) {
 	compressed, err := compress.CompressStringArray(groups, compressor)
 	require.NoError(t, err)
 	return groups, compressed
+}
+
+func testResourceNames() []string {
+	return slices.Map(testfixtures.GetTestSupportedResourceTypes(), func(rt schedulerconfig.ResourceType) string { return rt.Name })
 }

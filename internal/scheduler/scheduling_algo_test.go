@@ -380,6 +380,7 @@ func TestSchedule(t *testing.T) {
 				nil,
 				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
+				testfixtures.TestEmptyFloatingResources,
 			)
 			require.NoError(t, err)
 
@@ -532,6 +533,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					stringInterner,
 					testfixtures.TestResourceListFactory,
+					testfixtures.TestEmptyFloatingResources,
 				)
 				require.NoError(b, err)
 				b.StartTimer()

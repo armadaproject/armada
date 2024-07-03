@@ -15,6 +15,7 @@ import (
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -57,13 +58,14 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 // MetricsCollector is a Prometheus Collector that handles scheduler metrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
-	jobDb              *jobdb.JobDb
-	queueCache         queue.QueueCache
-	executorRepository database.ExecutorRepository
-	poolAssigner       PoolAssigner
-	refreshPeriod      time.Duration
-	clock              clock.WithTicker
-	state              atomic.Value
+	jobDb                 *jobdb.JobDb
+	queueCache            queue.QueueCache
+	executorRepository    database.ExecutorRepository
+	poolAssigner          PoolAssigner
+	refreshPeriod         time.Duration
+	clock                 clock.WithTicker
+	state                 atomic.Value
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 func NewMetricsCollector(
@@ -72,15 +74,17 @@ func NewMetricsCollector(
 	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *MetricsCollector {
 	return &MetricsCollector{
-		jobDb:              jobDb,
-		queueCache:         queueCache,
-		executorRepository: executorRepository,
-		poolAssigner:       poolAssigner,
-		refreshPeriod:      refreshPeriod,
-		clock:              clock.RealClock{},
-		state:              atomic.Value{},
+		jobDb:                 jobDb,
+		queueCache:            queueCache,
+		executorRepository:    executorRepository,
+		poolAssigner:          poolAssigner,
+		refreshPeriod:         refreshPeriod,
+		clock:                 clock.RealClock{},
+		state:                 atomic.Value{},
+		floatingResourceTypes: floatingResourceTypes,
 	}
 }
 
@@ -316,6 +320,17 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				}
 			}
 		}
+	}
+
+	for _, pool := range c.floatingResourceTypes.AllPools() {
+		totalFloatingResources := c.floatingResourceTypes.GetTotalAvailableForPool(pool)
+		clusterKey := clusterMetricKey{
+			cluster:  "floating",
+			pool:     pool,
+			nodeType: "",
+		}
+		addToResourceListMap(availableResourceByCluster, clusterKey, totalFloatingResources)
+		addToResourceListMap(totalResourceByCluster, clusterKey, totalFloatingResources)
 	}
 
 	clusterMetrics := make([]prometheus.Metric, 0, len(phaseCountByQueue))

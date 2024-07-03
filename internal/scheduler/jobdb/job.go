@@ -14,6 +14,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -644,7 +645,8 @@ func (job *Job) ValidateResourceRequests() error {
 		return nil
 	}
 
-	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(req)
+	resourcesExclFloating := job.jobDb.floatingResourceTypes.RemoveFloatingResources(adapters.K8sResourceListToMap(req))
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(resourcesExclFloating)
 	return err
 }
 
@@ -763,6 +765,11 @@ func (job *Job) WithValidated(validated bool) *Job {
 // Validated returns true if the job has been validated
 func (job *Job) Validated() bool {
 	return job.validated
+}
+
+// Does this job request any floating resources?
+func (job *Job) RequestsFloatingResources() bool {
+	return job.jobDb.floatingResourceTypes.HasFloatingResources(safeGetRequirements(job.jobSchedulingInfo))
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.

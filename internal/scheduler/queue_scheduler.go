@@ -13,6 +13,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -28,6 +29,7 @@ type QueueScheduler struct {
 func NewQueueScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobIterator,
 ) (*QueueScheduler, error) {
@@ -36,7 +38,7 @@ func NewQueueScheduler(
 			return nil, errors.Errorf("no scheduling context for queue %s", queue)
 		}
 	}
-	gangScheduler, err := NewGangScheduler(sctx, constraints, nodeDb)
+	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
 	if err != nil {
 		return nil, err
 	}
