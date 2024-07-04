@@ -137,7 +137,6 @@ func TestToDuration(t *testing.T) {
 			assert.Equal(t, tc.stdDuration, ToStdDuration(tc.protoDuration))
 		})
 	}
-
 }
 
 func utcDate(year, month, day int) time.Time {
