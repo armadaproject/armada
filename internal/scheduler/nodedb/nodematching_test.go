@@ -665,12 +665,12 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 }
 
 func makeTestNodeResources(t *testing.T, allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType, totalResources schedulerobjects.ResourceList) *internaltypes.Node {
-	tr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(totalResources))
+	tr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(totalResources.Resources)
 	assert.Nil(t, err)
 
 	abp := map[int32]internaltypes.ResourceList{}
 	for pri, rl := range allocatableByPriority {
-		abp[pri], err = testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(rl))
+		abp[pri], err = testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(rl.Resources)
 		assert.Nil(t, err)
 	}
 

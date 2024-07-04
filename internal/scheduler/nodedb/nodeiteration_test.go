@@ -437,7 +437,7 @@ func TestNodeTypeIterator(t *testing.T) {
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
-			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(tc.resourceRequests))
+			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(tc.resourceRequests.Resources)
 			assert.Nil(t, err)
 			for i, resourceName := range nodeDb.indexedResources {
 				indexedResourceRequests[i], err = rr.GetByName(resourceName)
@@ -830,7 +830,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			}
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
-			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(tc.resourceRequests))
+			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(tc.resourceRequests.Resources)
 			assert.Nil(t, err)
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))

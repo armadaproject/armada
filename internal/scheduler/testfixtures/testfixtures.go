@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -41,9 +42,22 @@ const (
 )
 
 var (
-	TestResourceListFactory = MakeTestResourceListFactory()
-	BaseTime, _             = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses     = map[string]types.PriorityClass{
+	TestResourceListFactory    = MakeTestResourceListFactory()
+	TestEmptyFloatingResources = MakeTestFloatingResourceTypes(nil)
+	TestFloatingResources      = MakeTestFloatingResourceTypes(TestFloatingResourceConfig)
+	TestFloatingResourceConfig = []schedulerconfiguration.FloatingResourceConfig{
+		{
+			Name: "test-floating-resource",
+			Pools: []schedulerconfiguration.FloatingResourcePoolConfig{
+				{
+					Name:     "pool",
+					Quantity: resource.MustParse("10"),
+				},
+			},
+		},
+	}
+	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -100,6 +114,7 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		resourceListFactory,
+		TestFloatingResources,
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
@@ -951,6 +966,11 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
 	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	return result
+}
+
+func MakeTestFloatingResourceTypes(config []schedulerconfiguration.FloatingResourceConfig) *floatingresources.FloatingResourceTypes {
+	result, _ := floatingresources.NewFloatingResourceTypes(config)
 	return result
 }
 

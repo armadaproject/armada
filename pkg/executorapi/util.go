@@ -3,14 +3,13 @@ package executorapi
 import (
 	"time"
 
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-
-	"github.com/pkg/errors"
-
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -75,14 +74,14 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 }
 
 func ResourceListFromProtoResources(r map[string]*resource.Quantity) schedulerobjects.ResourceList {
-	resources := make(map[string]resource.Quantity, len(r))
-	for k, v := range r {
-		if v != nil {
-			r := v.DeepCopy()
-			resources[k] = r
-		}
+	return schedulerobjects.ResourceList{
+		Resources: armadamaps.MapValues(r, func(v *resource.Quantity) resource.Quantity {
+			if v != nil {
+				return *v
+			}
+			return resource.Quantity{}
+		}),
 	}
-	return schedulerobjects.ResourceList{Resources: resources}
 }
 
 func ComputeResourceFromProtoResources(r map[string]resource.Quantity) *ComputeResource {

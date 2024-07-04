@@ -10,6 +10,7 @@ import (
 type QueueMetricProvider interface {
 	GetQueuedJobMetrics(queueName string) []*QueueMetrics
 	GetRunningJobMetrics(queueName string) []*QueueMetrics
+	GetQueuePriorites() map[string]float64
 }
 
 type QueueMetrics struct {
