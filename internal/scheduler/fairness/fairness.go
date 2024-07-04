@@ -45,6 +45,11 @@ func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, c
 	if len(config.DominantResourceFairnessResourcesToConsider) != 0 && len(config.ExperimentalDominantResourceFairnessResourcesToConsider) != 0 {
 		return nil, errors.New("config error - only one of DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider should be set")
 	}
+	for _, rtc := range config.ExperimentalDominantResourceFairnessResourcesToConsider {
+		if rtc.Multiplier < 0 {
+			return nil, fmt.Errorf("config error - ExperimentalDominantResourceFairnessResourcesToConsider has negative multiplier for resource %s", rtc.Name)
+		}
+	}
 
 	var resourcesToConsider []resourceToConsider
 	if len(config.DominantResourceFairnessResourcesToConsider) > 0 {
