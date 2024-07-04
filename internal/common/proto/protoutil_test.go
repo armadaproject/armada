@@ -105,6 +105,41 @@ func TestToTimestamp(t *testing.T) {
 	}
 }
 
+func TestToDuration(t *testing.T) {
+	tests := map[string]struct {
+		protoDuration *types.Duration
+		stdDuration   time.Duration
+	}{
+		"empty": {
+			protoDuration: &types.Duration{Seconds: 0, Nanos: 0},
+			stdDuration:   0 * time.Second,
+		},
+		"seconds": {
+			protoDuration: &types.Duration{Seconds: 100, Nanos: 0},
+			stdDuration:   100 * time.Second,
+		},
+		"seconds and nanos": {
+			protoDuration: &types.Duration{Seconds: 100, Nanos: 1000},
+			stdDuration:   100*time.Second + 1000*time.Nanosecond,
+		},
+		"negative": {
+			protoDuration: &types.Duration{Seconds: -100, Nanos: -1000},
+			stdDuration:   -100*time.Second - 1000*time.Nanosecond,
+		},
+		"nil": {
+			protoDuration: nil,
+			stdDuration:   0 * time.Second,
+		},
+	}
+	types.TimestampNow()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.stdDuration, ToStdDuration(tc.protoDuration))
+		})
+	}
+
+}
+
 func utcDate(year, month, day int) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
