@@ -553,7 +553,7 @@ func TestGangScheduler(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
-				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
