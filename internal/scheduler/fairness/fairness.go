@@ -4,6 +4,8 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -27,21 +29,47 @@ type FairnessCostProvider interface {
 	WeightedCostFromAllocation(allocation schedulerobjects.ResourceList, weight float64) float64
 }
 
+type resourceToConsider struct {
+	Name       string
+	Multiplier float64
+}
+
 type DominantResourceFairness struct {
 	// Total resources across all nodes.
 	totalResources schedulerobjects.ResourceList
 	// Resources considered when computing DominantResourceFairness.
-	resourcesToConsider []string
+	resourcesToConsider []resourceToConsider
 }
 
-func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, resourcesToConsider []string) (*DominantResourceFairness, error) {
-	if len(resourcesToConsider) == 0 {
-		return nil, errors.New("resourcesToConsider is empty")
+func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, config configuration.SchedulingConfig) (*DominantResourceFairness, error) {
+	if len(config.DominantResourceFairnessResourcesToConsider) != 0 && len(config.ExperimentalDominantResourceFairnessResourcesToConsider) != 0 {
+		return nil, errors.New("config error - only one of DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider should be set")
 	}
+
+	var resourcesToConsider []resourceToConsider
+	if len(config.DominantResourceFairnessResourcesToConsider) > 0 {
+		resourcesToConsider = slices.Map(config.DominantResourceFairnessResourcesToConsider, func(n string) resourceToConsider {
+			return resourceToConsider{Name: n, Multiplier: 1}
+		})
+	} else if len(config.ExperimentalDominantResourceFairnessResourcesToConsider) > 0 {
+		resourcesToConsider = slices.Map(config.ExperimentalDominantResourceFairnessResourcesToConsider, func(r configuration.DominantResourceFairnessResource) resourceToConsider {
+			return resourceToConsider{Name: r.Name, Multiplier: defaultMultiplier(r.Multiplier)}
+		})
+	} else {
+		return nil, errors.New("config error - DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider are both empty")
+	}
+
 	return &DominantResourceFairness{
 		totalResources:      totalResources,
 		resourcesToConsider: resourcesToConsider,
 	}, nil
+}
+
+func defaultMultiplier(multiplier float64) float64 {
+	if !(multiplier > 0) {
+		return 1
+	}
+	return multiplier
 }
 
 func (f *DominantResourceFairness) WeightedCostFromQueue(queue Queue) float64 {
@@ -59,13 +87,13 @@ func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation schedul
 func (f *DominantResourceFairness) UnweightedCostFromAllocation(allocation schedulerobjects.ResourceList) float64 {
 	var cost float64
 	for _, t := range f.resourcesToConsider {
-		capacity := f.totalResources.Get(t)
+		capacity := f.totalResources.Get(t.Name)
 		if capacity.Equal(resource.Quantity{}) {
 			// Ignore any resources with zero capacity.
 			continue
 		}
-		q := allocation.Get(t)
-		tcost := q.AsApproximateFloat64() / capacity.AsApproximateFloat64()
+		q := allocation.Get(t.Name)
+		tcost := q.AsApproximateFloat64() / capacity.AsApproximateFloat64() * t.Multiplier
 		if tcost > cost {
 			cost = tcost
 		}

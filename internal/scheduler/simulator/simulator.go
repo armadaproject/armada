@@ -460,7 +460,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			totalResources := s.totalResourcesByPool[pool.Name]
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				totalResources,
-				s.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+				s.schedulingConfig,
 			)
 			if err != nil {
 				return err
