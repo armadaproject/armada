@@ -187,7 +187,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, err
 	}
 
-	matches, reason = resourceRequirementsMet(node.TotalResources, jctx.ResourceRequirements)
+	matches, reason = resourceRequirementsMet(node.GetTotalResources(), jctx.ResourceRequirements)
 	if !matches {
 		return matches, reason, nil
 	}

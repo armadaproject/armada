@@ -2319,7 +2319,7 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.GetName(),
 		taints,
 		node.GetLabels(),
-		node.TotalResources,
+		node.GetTotalResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,

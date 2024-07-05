@@ -936,7 +936,7 @@ func testWithNodeTypeId(node *internaltypes.Node, nodeTypeId uint64) *internalty
 		node.GetName(),
 		node.GetTaints(),
 		node.GetLabels(),
-		node.TotalResources,
+		node.GetTotalResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,
