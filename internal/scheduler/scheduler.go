@@ -628,6 +628,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 								Annotations: additionalAnnotationsByJobId[job.Id()],
 								Priority:    scheduledAtPriority,
 							},
+							Pool: run.Pool(),
 						},
 					},
 				},
