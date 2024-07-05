@@ -18,6 +18,7 @@ type Node struct {
 	// Executor this node belongs to and node name, which must be unique per executor.
 	executor   string
 	name       string
+	pool       string
 	nodeTypeId uint64
 
 	// We need to store taints and labels separately from the node type: the latter only includes
@@ -42,6 +43,7 @@ func CreateNode(
 	index uint64,
 	executor string,
 	name string,
+	pool string,
 	taints []v1.Taint,
 	labels map[string]string,
 	totalResources ResourceList,
@@ -57,6 +59,7 @@ func CreateNode(
 		index:                 index,
 		executor:              executor,
 		name:                  name,
+		pool:                  pool,
 		taints:                koTaint.DeepCopyTaints(taints),
 		labels:                deepCopyLabels(labels),
 		TotalResources:        totalResources,
@@ -74,6 +77,10 @@ func (node *Node) GetId() string {
 
 func (node *Node) GetName() string {
 	return node.name
+}
+
+func (node *Node) GetPool() string {
+	return node.pool
 }
 
 func (node *Node) GetIndex() uint64 {
@@ -125,6 +132,7 @@ func (node *Node) UnsafeCopy() *Node {
 		index:      node.index,
 		executor:   node.executor,
 		name:       node.name,
+		pool:       node.pool,
 		nodeTypeId: node.nodeTypeId,
 		taints:     node.taints,
 		labels:     node.labels,

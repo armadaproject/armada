@@ -19,17 +19,24 @@ type NodeInfoService interface {
 	GetAllNodes() ([]*v1.Node, error)
 	GroupNodesByType(nodes []*v1.Node) []*NodeGroup
 	GetType(node *v1.Node) string
+	GetPool(node *v1.Node) string
 }
 
 type KubernetesNodeInfoService struct {
 	clusterContext  context.ClusterContext
 	nodeTypeLabel   string
+	nodePoolLabel   string
 	toleratedTaints map[string]bool
 }
 
-func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, nodeTypeLabel string, toleratedTaints []string) *KubernetesNodeInfoService {
+func NewKubernetesNodeInfoService(
+	clusterContext context.ClusterContext,
+	nodeTypeLabel string,
+	nodePoolLabel string,
+	toleratedTaints []string) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
 		clusterContext:  clusterContext,
+		nodePoolLabel:   nodePoolLabel,
 		nodeTypeLabel:   nodeTypeLabel,
 		toleratedTaints: util.StringListToSet(toleratedTaints),
 	}
@@ -60,6 +67,19 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 	}
 
 	return nodeGroups
+}
+
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetPool(node *v1.Node) string {
+	// For now default to the cluster pool
+	// Once node pool rolled out for a while it'd be ideal to remove the concept of "cluster" pool
+	//  and just default to a static string
+	nodePool := kubernetesNodeInfoService.clusterContext.GetClusterPool()
+
+	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodePoolLabel]; ok {
+		nodePool = labelValue
+	}
+
+	return nodePool
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) string {

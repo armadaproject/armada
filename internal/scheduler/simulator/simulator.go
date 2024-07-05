@@ -466,7 +466,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				return err
 			}
 			sctx := schedulercontext.NewSchedulingContext(
-				fmt.Sprintf("%s-%d", pool.Name, i),
 				pool.Name,
 				s.schedulingConfig.PriorityClasses,
 				s.schedulingConfig.DefaultPriorityClassName,
@@ -505,8 +504,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				pool.Name,
 				totalResources,
-				// Minimum job size not used for simulation; use taints/tolerations instead.
-				schedulerobjects.ResourceList{},
 				s.schedulingConfig,
 				nil,
 			)

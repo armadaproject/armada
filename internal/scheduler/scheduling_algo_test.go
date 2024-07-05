@@ -548,7 +548,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
-				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)
+				err = algo.populateNodeDb(nodeDb, jobs, nodes)
 				require.NoError(b, err)
 			}
 		})
@@ -591,7 +591,7 @@ func TestSortExecutorGroups(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			sortExecutorGroups(tc.groups, tc.groupToPriority, tc.defaultPriority)
+			sortGroups(tc.groups, tc.groupToPriority, tc.defaultPriority)
 			assert.Equal(t, tc.expected, tc.groups)
 		})
 	}

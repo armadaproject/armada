@@ -30,8 +30,6 @@ import (
 func TestQueueScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
-		// Minimum job size.
-		MinimumJobSize map[string]resource.Quantity
 		// Total resources across all clusters.
 		// Set to the total resources across all nodes if not provided.
 		TotalResources schedulerobjects.ResourceList
@@ -324,44 +322,6 @@ func TestQueueScheduler(t *testing.T) {
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{1},
 		},
-		"minimum job size": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:             armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
-			Queues:           testfixtures.SingleQueuePriorityOne("A"),
-			MinimumJobSize: map[string]resource.Quantity{
-				"cpu": resource.MustParse("2"),
-			},
-			ExpectedScheduledIndices: []int{1},
-		},
-		"minimum job size gpu": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N8GpuNodes(2, testfixtures.TestPriorities),
-			Jobs: armadaslices.Concatenate(
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
-			),
-			Queues: testfixtures.SingleQueuePriorityOne("A"),
-			MinimumJobSize: map[string]resource.Quantity{
-				"nvidia.com/gpu": resource.MustParse("1"),
-			},
-			ExpectedScheduledIndices: []int{2},
-		},
-		"minimum job size two gpu": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N8GpuNodes(2, testfixtures.TestPriorities),
-			Jobs: armadaslices.Concatenate(
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
-			),
-			Queues: testfixtures.SingleQueuePriorityOne("A"),
-			MinimumJobSize: map[string]resource.Quantity{
-				"nvidia.com/gpu": resource.MustParse("2"),
-			},
-			ExpectedScheduledIndices: nil,
-		},
 		"taints and tolerations": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
 			Nodes:                    testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
@@ -553,7 +513,6 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
-				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
 				tc.SchedulingConfig.DefaultPriorityClassName,
@@ -580,7 +539,6 @@ func TestQueueScheduler(t *testing.T) {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				tc.TotalResources,
-				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				tc.Queues,
 			)

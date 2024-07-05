@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -96,28 +95,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			jobs: []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu2"}},
-			},
-		},
-		"One job schedulable, minimum job size respected": {
-			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
-			executors: []*schedulerobjects.Executor{
-				testfixtures.TestExecutor(baseTime),
-				{
-					Id:             uuid.NewString(),
-					Pool:           "cpu2",
-					LastUpdateTime: baseTime,
-					MinimumJobSize: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("100"),
-						},
-					},
-					Nodes: testfixtures.TestCluster(),
-				},
-			},
-			jobs: []*jobdb.Job{smallJob1},
-			expectedResult: map[string]schedulingResult{
-				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
 		"Two jobs schedules": {

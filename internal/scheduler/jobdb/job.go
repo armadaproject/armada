@@ -651,7 +651,7 @@ func (job *Job) ValidateResourceRequests() error {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAtPriority int32) *Job {
+func (job *Job) WithNewRun(executor, nodeId, nodeName string, scheduledAtPriority int32) *Job {
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
 		job.Id(),
