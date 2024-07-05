@@ -49,25 +49,25 @@ var (
 func TestGetNodePool(t *testing.T) {
 	assert.Equal(t, "node-pool", GetNodePool(nodeWithPool, executorWithPool))
 	assert.Equal(t, "executor-pool", GetNodePool(nodeWithoutPool, executorWithPool))
-	assert.Equal(t, "", GetNodePool(nodeWithoutPool, executorWithoutPool))
+	assert.Equal(t, DefaultPool, GetNodePool(nodeWithoutPool, executorWithoutPool))
 }
 
 func TestGetNodePool_NilInputs(t *testing.T) {
 	assert.Equal(t, "node-pool", GetNodePool(nodeWithPool, nil))
 	assert.Equal(t, "executor-pool", GetNodePool(nil, executorWithPool))
-	assert.Equal(t, "", GetNodePool(nil, nil))
+	assert.Equal(t, DefaultPool, GetNodePool(nil, nil))
 }
 
 func TestGetRunPool(t *testing.T) {
 	assert.Equal(t, "run-pool", GetRunPool(runWithPool, nodeWithPool, executorWithPool))
 	assert.Equal(t, "node-pool", GetRunPool(runWithoutPool, nodeWithPool, executorWithPool))
 	assert.Equal(t, "executor-pool", GetRunPool(runWithoutPool, nodeWithoutPool, executorWithPool))
-	assert.Equal(t, "", GetRunPool(runWithoutPool, nodeWithoutPool, executorWithoutPool))
+	assert.Equal(t, DefaultPool, GetRunPool(runWithoutPool, nodeWithoutPool, executorWithoutPool))
 }
 
 func TestGetRunPool_NilInputs(t *testing.T) {
 	assert.Equal(t, "run-pool", GetRunPool(runWithPool, nil, nil))
 	assert.Equal(t, "node-pool", GetRunPool(nil, nodeWithPool, executorWithPool))
 	assert.Equal(t, "executor-pool", GetRunPool(nil, nil, executorWithPool))
-	assert.Equal(t, "", GetRunPool(nil, nil, nil))
+	assert.Equal(t, DefaultPool, GetRunPool(nil, nil, nil))
 }

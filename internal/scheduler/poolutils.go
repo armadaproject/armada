@@ -7,6 +7,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+const DefaultPool = "default"
+
 // TODO Remove this and just use node.GetPool() once we have migrated to have all nodes have pool set
 // We may still want to keep a "fallback" pool, which may be a statically defined default pool or remain at executor level
 func GetNodePool(node *schedulerobjects.Node, executor *schedulerobjects.Executor) string {
@@ -19,10 +21,11 @@ func GetNodePool(node *schedulerobjects.Node, executor *schedulerobjects.Executo
 	}
 
 	if executor == nil {
-		return ""
+		return DefaultPool
 	}
 	if executor.GetPool() == "" {
 		log.Errorf("executor %s has no pool set", executor.Id)
+		return DefaultPool
 	}
 	return executor.GetPool()
 }
