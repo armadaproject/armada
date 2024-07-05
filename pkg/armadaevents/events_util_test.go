@@ -3,12 +3,12 @@ package armadaevents
 import (
 	"bytes"
 	"testing"
-	time "time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
@@ -28,8 +28,6 @@ var (
 )
 
 func generateBasicEventSequence_Event() ([]byte, error) {
-	now := time.Now()
-
 	evSubmitJob := EventSequence_Event_SubmitJob{
 		SubmitJob: &SubmitJob{
 			JobId:           ProtoUuidFromUuid(uuid.New()),
@@ -46,7 +44,7 @@ func generateBasicEventSequence_Event() ([]byte, error) {
 		},
 	}
 
-	ese := &EventSequence_Event{Created: &now, Event: &evSubmitJob}
+	ese := &EventSequence_Event{Created: types.TimestampNow(), Event: &evSubmitJob}
 
 	eseYaml, err := yaml.Marshal(ese)
 	if err != nil {

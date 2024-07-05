@@ -3,7 +3,9 @@ package armadaevents
 import (
 	"encoding/json"
 	"errors"
-	time "time"
+	"time"
+
+	"github.com/gogo/protobuf/types"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -38,8 +40,14 @@ func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	protoTs, err := types.TimestampProto(*(rawEvent.Created))
+	if err != nil {
+		return err
+	}
 
-	ev.Created = rawEvent.Created
+	if rawEvent.Created != nil {
+		ev.Created = protoTs
+	}
 
 	// Unmarshal into a map, which is temporarily used only to get the marshalled
 	// key that signifies the actual struct underlying this instance of the

@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -268,8 +269,7 @@ func unmarshalEventSequences(msg pulsar.ConsumerMessage, metrics *commonmetrics.
 		// TODO - once created is set everywhere we can remove this
 		for _, event := range es.Events {
 			if event.GetCreated() == nil {
-				publishTime := msg.PublishTime()
-				event.Created = &publishTime
+				event.Created = protoutil.ToTimestamp(msg.PublishTime())
 			}
 		}
 		sequences = append(sequences, es)

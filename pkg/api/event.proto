@@ -8,12 +8,8 @@ import "google/protobuf/timestamp.proto";
 import "pkg/api/submit.proto";
 import "pkg/api/health.proto";
 import "google/protobuf/empty.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
-
-option (gogoproto.goproto_stringer_all) = false;
-option (gogoproto.stringer_all) = true;
 
 message JobSubmittedEvent {
     string job_id = 1;

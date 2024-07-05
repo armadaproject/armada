@@ -9,11 +9,7 @@ import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/api/annotations.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/health.proto";
-
-option (gogoproto.goproto_stringer_all) = false;
-option (gogoproto.stringer_all) = true;
 
 message JobSubmitRequestItem {
     double priority = 1;
@@ -218,7 +214,7 @@ message QueueList {
 
 // swagger:model
 message CancellationResult {
-    repeated string cancelled_ids = 1 [(gogoproto.jsontag) = "cancelledIds"];
+    repeated string cancelled_ids = 1;
 }
 
 //swagger:model

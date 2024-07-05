@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 	"github.com/armadaproject/armada/pkg/api"
@@ -84,7 +85,7 @@ func (c *InstructionConverter) convertSequence(
 			log.WithError(err).Warnf("Missing timestamp for event at index %d.", idx)
 			continue
 		}
-		ts := *event.Created
+		ts := protoutil.ToStdTime(event.Created)
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			err = c.handleSubmitJob(queue, owner, jobset, ts, event.GetSubmitJob(), update)
