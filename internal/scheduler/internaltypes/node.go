@@ -8,7 +8,10 @@ import (
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 )
 
+// Node is a scheduler-internal representation of one Kubernetes node.
+// Its private fields should be immmutable! Do not change these!
 type Node struct {
+
 	// Unique id and index of this node.
 	// TODO(albin): Having both id and index is redundant.
 	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
@@ -25,7 +28,8 @@ type Node struct {
 	taints []v1.Taint
 	labels map[string]string
 
-	TotalResources ResourceList
+	// Total space allocatable on this node
+	totalResources ResourceList
 
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
@@ -59,7 +63,7 @@ func CreateNode(
 		name:                  name,
 		taints:                koTaint.DeepCopyTaints(taints),
 		labels:                deepCopyLabels(labels),
-		TotalResources:        totalResources,
+		totalResources:        totalResources,
 		AllocatableByPriority: maps.Clone(allocatableByPriority),
 		AllocatedByQueue:      maps.Clone(allocatedByQueue),
 		AllocatedByJobId:      maps.Clone(allocatedByJobId),
@@ -117,22 +121,26 @@ func (node *Node) GetTolerationsForTaints() []v1.Toleration {
 	return tolerations
 }
 
-// UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
-// shallow copies of fields that are not mutated by methods of NodeDb.
-func (node *Node) UnsafeCopy() *Node {
+func (node *Node) GetTotalResources() ResourceList {
+	return node.totalResources
+}
+
+func (node *Node) DeepCopyNilKeys() *Node {
 	return &Node{
-		id:         node.id,
-		index:      node.index,
-		executor:   node.executor,
-		name:       node.name,
-		nodeTypeId: node.nodeTypeId,
-		taints:     node.taints,
-		labels:     node.labels,
+		// private fields are immutable so a shallow copy is fine
+		id:             node.id,
+		index:          node.index,
+		executor:       node.executor,
+		name:           node.name,
+		nodeTypeId:     node.nodeTypeId,
+		taints:         node.taints,
+		labels:         node.labels,
+		totalResources: node.totalResources,
 
-		TotalResources: node.TotalResources,
-
+		// keys set to nil
 		Keys: nil,
 
+		// these maps are mutable but their keys and values are immutable
 		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
 		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
 		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
