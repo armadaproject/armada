@@ -60,9 +60,7 @@ type FairSchedulingAlgo struct {
 	// Used to avoid scheduling onto broken nodes.
 	nodeQuarantiner *quarantine.NodeQuarantiner
 	// Used to reduce the rate at which jobs are scheduled from misbehaving queues.
-	queueQuarantiner *quarantine.QueueQuarantiner
-	// Function that is called every time an executor is scheduled. Useful for testing.
-	onExecutorScheduled   func(executor *schedulerobjects.Executor)
+	queueQuarantiner      *quarantine.QueueQuarantiner
 	clock                 clock.Clock
 	stringInterner        *stringinterner.StringInterner
 	resourceListFactory   *internaltypes.ResourceListFactory
