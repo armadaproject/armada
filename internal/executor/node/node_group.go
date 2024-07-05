@@ -33,7 +33,8 @@ func NewKubernetesNodeInfoService(
 	clusterContext context.ClusterContext,
 	nodeTypeLabel string,
 	nodePoolLabel string,
-	toleratedTaints []string) *KubernetesNodeInfoService {
+	toleratedTaints []string,
+) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
 		clusterContext:  clusterContext,
 		nodePoolLabel:   nodePoolLabel,
