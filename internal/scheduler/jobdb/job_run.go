@@ -28,8 +28,9 @@ type JobRun struct {
 	// The name of the node this run has been leased to.
 	// Identifies the node within the target executor cluster.
 	nodeName string
-	// The pool of the node this run has been leased to.
-	nodePool string
+	// The pool this run was scheduled to
+	// This will be the pool of the node this run was scheduled on belong to, at the time of scheduling
+	pool string
 	// Priority class priority that this job was scheduled at.
 	scheduledAtPriority *int32
 	// True if the run has been reported as pending by the executor.
@@ -219,6 +220,7 @@ func (jobDb *JobDb) CreateRun(
 	executor string,
 	nodeId string,
 	nodeName string,
+	pool string,
 	scheduledAtPriority *int32,
 	leased bool,
 	pending bool,
@@ -243,6 +245,7 @@ func (jobDb *JobDb) CreateRun(
 		executor:            jobDb.stringInterner.Intern(executor),
 		nodeId:              jobDb.stringInterner.Intern(nodeId),
 		nodeName:            jobDb.stringInterner.Intern(nodeName),
+		pool:                jobDb.stringInterner.Intern(pool),
 		scheduledAtPriority: scheduledAtPriority,
 		leased:              leased,
 		pending:             pending,
@@ -282,9 +285,9 @@ func (run *JobRun) NodeId() string {
 	return run.nodeId
 }
 
-// NodePool returns the pool of the node to which the JobRun is assigned.
-func (run *JobRun) NodePool() string {
-	return run.nodePool
+// Pool returns the pool this JobRun was scheduled on.
+func (run *JobRun) Pool() string {
+	return run.pool
 }
 
 // NodeName returns the name of the node to which the JobRun is assigned.

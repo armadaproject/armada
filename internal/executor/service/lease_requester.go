@@ -37,18 +37,15 @@ type LeaseRequester interface {
 type JobLeaseRequester struct {
 	executorApiClient executorapi.ExecutorApiClient
 	clusterIdentity   clusterContext.ClusterIdentity
-	minimumJobSize    armadaresource.ComputeResources
 }
 
 func NewJobLeaseRequester(
 	executorApiClient executorapi.ExecutorApiClient,
 	clusterIdentity clusterContext.ClusterIdentity,
-	minimumJobSize armadaresource.ComputeResources,
 ) *JobLeaseRequester {
 	return &JobLeaseRequester{
 		executorApiClient: executorApiClient,
 		clusterIdentity:   clusterIdentity,
-		minimumJobSize:    minimumJobSize,
 	}
 }
 
@@ -60,7 +57,6 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	leaseRequest := &executorapi.LeaseRequest{
 		ExecutorId:          requester.clusterIdentity.GetClusterId(),
 		Pool:                requester.clusterIdentity.GetClusterPool(),
-		MinimumJobSize:      requester.minimumJobSize.ToProtoMap(),
 		Resources:           request.AvailableResource.ToProtoMap(),
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,

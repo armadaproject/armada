@@ -213,6 +213,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				Queue:                  meta.queue,
 				Executor:               jobRunLeased.GetExecutorId(),
 				Node:                   jobRunLeased.GetNodeId(),
+				Pool:                   jobRunLeased.GetPool(),
 				ScheduledAtPriority:    scheduledAtPriority,
 				LeasedTimestamp:        &eventTime,
 				PodRequirementsOverlay: PodRequirementsOverlay,

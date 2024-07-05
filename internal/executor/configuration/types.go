@@ -66,7 +66,6 @@ type KubernetesConfiguration struct {
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
 	MaxTerminatedPods         int
-	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
 	StateChecks               StateChecksConfiguration
 	PendingPodChecks          *podchecks.Checks

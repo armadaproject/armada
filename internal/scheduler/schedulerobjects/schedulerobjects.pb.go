@@ -72,6 +72,7 @@ type Executor struct {
 	Pool string `protobuf:"bytes,2,opt,name=pool,proto3" json:"pool,omitempty"`
 	// The nodes available for scheduling via this executor.
 	Nodes []*Node `protobuf:"bytes,3,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	// Deprecated - not currently in use
 	// Minimum resources which a job must request in order to be considered for scheduling on this executor.
 	MinimumJobSize ResourceList `protobuf:"bytes,4,opt,name=minimumJobSize,proto3" json:"minimumJobSize"`
 	// Last time the executor provided a heartbeat to say it was still accepting job.

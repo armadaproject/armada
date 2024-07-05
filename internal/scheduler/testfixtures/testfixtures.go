@@ -656,6 +656,7 @@ func TestCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:       "node1",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 1},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
@@ -674,6 +675,7 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:       "node2",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 2},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
@@ -692,6 +694,7 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:       "node3",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 3},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},

@@ -214,8 +214,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
 
-	leaseRequester := service.NewJobLeaseRequester(
-		executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
+	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
 	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
 	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
 

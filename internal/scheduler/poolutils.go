@@ -24,10 +24,10 @@ func GetNodePool(node *schedulerobjects.Node, executor *schedulerobjects.Executo
 	return executor.GetPool()
 }
 
-// TODO Remove this and just use run.NodePool() once we have migrated to have all runs have node pool set
+// TODO Remove this and just use run.Pool() once we have migrated to have all runs have node pool set
 func GetRunPool(run *jobdb.JobRun, node *schedulerobjects.Node, executor *schedulerobjects.Executor) string {
-	if run.NodePool() != "" {
-		return run.NodePool()
+	if run.Pool() != "" {
+		return run.Pool()
 	}
 	return GetNodePool(node, executor)
 }

@@ -581,7 +581,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					if !ok {
 						return errors.Errorf("job %s not mapped to a priority", job.Id())
 					}
-					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
+					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
 				}
 			}
 			if err := txn.Upsert(preemptedJobs); err != nil {

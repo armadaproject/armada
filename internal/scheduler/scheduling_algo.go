@@ -551,7 +551,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 		result.ScheduledJobs[i].Job = jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
-			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
+			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
 	}
 	return result, sctx, nil
 }

@@ -62,6 +62,7 @@ const (
 	JobSetName                 = "testJobset"
 	ExecutorId                 = "testCluster"
 	NodeName                   = "testNode"
+	Pool                       = "pool"
 	PodName                    = "test-pod"
 	Queue                      = "test-Queue"
 	UserId                     = "testUser"
@@ -212,6 +213,7 @@ var Leased = &armadaevents.EventSequence_Event{
 			JobId:                  JobIdProto,
 			ExecutorId:             ExecutorId,
 			NodeId:                 NodeName,
+			Pool:                   Pool,
 			HasScheduledAtPriority: true,
 			ScheduledAtPriority:    15,
 			UpdateSequenceNumber:   1,
