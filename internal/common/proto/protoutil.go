@@ -90,3 +90,10 @@ func ToTimestamp(t time.Time) *types.Timestamp {
 		Nanos:   int32(t.Nanosecond()),
 	}
 }
+
+func ToStdDuration(pd *types.Duration) time.Duration {
+	if pd == nil {
+		return 0
+	}
+	return time.Duration(pd.Seconds)*time.Second + time.Duration(pd.Nanos)*time.Nanosecond
+}

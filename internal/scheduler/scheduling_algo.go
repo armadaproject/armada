@@ -438,7 +438,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 	// If we want to support other fairness models it would need to be done here
 	fairnessCostProvider, err = fairness.NewDominantResourceFairness(
 		totalResources,
-		l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		l.schedulingConfig,
 	)
 	if err != nil {
 		return nil, nil, err

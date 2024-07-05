@@ -197,7 +197,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 		),
 	)
 
-	expectedAllocatable := boundNode.TotalResources
+	expectedAllocatable := boundNode.GetTotalResources()
 	expectedAllocatable = expectedAllocatable.Subtract(request)
 	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
 	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))

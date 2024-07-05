@@ -218,8 +218,14 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
+	// Experimental - subject to change
+	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
+	ExperimentalDominantResourceFairnessResourcesToConsider []DominantResourceFairnessResource
+	// FairnessResources
 	// Resource types (e.g. memory or nvidia.com/gpu) that the scheduler keeps track of.
 	// Resource types not on this list will be ignored if seen on a node, and any jobs requesting them will fail.
 	SupportedResourceTypes []ResourceType
@@ -313,6 +319,15 @@ type ResourceType struct {
 	Name string
 	// Resolution with which Armada tracks this resource; larger values indicate lower resolution.
 	Resolution resource.Quantity
+}
+
+// DominantResourceFairnessResource - config for dominant resource fairness costs, the algorithm
+// used to assign a cost to jobs and queues.
+type DominantResourceFairnessResource struct {
+	// Name of the resource type. For example, "cpu", "memory", or "nvidia.com/gpu".
+	Name string
+	// If set, Armada multiplies the cost for this resource by this number. If not set defaults to 1.
+	Multiplier float64
 }
 
 // A WellKnownNodeType defines a set of nodes; see AwayNodeType.

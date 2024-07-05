@@ -1832,7 +1832,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 					nodeDb.TotalResources(),
-					tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
 				sctx := schedulercontext.NewSchedulingContext(
@@ -2195,7 +2195,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				nodeDb.TotalResources(),
-				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
 			sctx := schedulercontext.NewSchedulingContext(
@@ -2311,7 +2311,7 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.GetPool(),
 		taints,
 		node.GetLabels(),
-		node.TotalResources,
+		node.GetTotalResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,
