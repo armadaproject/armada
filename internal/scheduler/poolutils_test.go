@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -25,7 +26,7 @@ var (
 		"test-executor-test-node",
 		"test-node",
 		"run-pool",
-		pointerFromValue(int32(5)),
+		pointer.Int32(5),
 		false,
 		false,
 		false,

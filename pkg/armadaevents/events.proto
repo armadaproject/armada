@@ -7,7 +7,6 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
 // Armada state transition model
@@ -67,7 +66,7 @@ import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 message EventSequence {
     // List of possible events, i.e., state transitions.
     message Event {
-        google.protobuf.Timestamp created = 18 [(gogoproto.stdtime) = true];
+        google.protobuf.Timestamp created = 18;
         oneof event {
             SubmitJob submitJob = 1;
             ReprioritiseJob reprioritiseJob = 2;

@@ -144,6 +144,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 			executor:            "test-executor",
 			nodeId:              "test-nodeId",
 			nodeName:            "nodeId",
+			pool:                "pool",
 			scheduledAtPriority: &scheduledAtPriority,
 		},
 		run,

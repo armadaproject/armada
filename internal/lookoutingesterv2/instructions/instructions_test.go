@@ -417,7 +417,7 @@ func TestConvert(t *testing.T) {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{
 					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
-						Created: &testfixtures.BaseTime,
+						Created: testfixtures.BaseTimeProto,
 						Event: &armadaevents.EventSequence_Event_JobRunRunning{
 							JobRunRunning: &armadaevents.JobRunRunning{},
 						},
