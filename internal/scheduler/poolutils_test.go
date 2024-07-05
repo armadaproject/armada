@@ -3,12 +3,12 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 var (
