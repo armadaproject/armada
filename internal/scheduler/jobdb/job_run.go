@@ -29,7 +29,7 @@ type JobRun struct {
 	// Identifies the node within the target executor cluster.
 	nodeName string
 	// The pool this run was scheduled to
-	// This will be the pool of the node this run was scheduled on belong to, at the time of scheduling
+	// This will retrieved from the node at the time of scheduling
 	pool string
 	// Priority class priority that this job was scheduled at.
 	scheduledAtPriority *int32
