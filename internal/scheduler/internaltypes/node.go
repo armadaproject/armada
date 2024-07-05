@@ -11,7 +11,6 @@ import (
 // Node is a scheduler-internal representation of one Kubernetes node.
 // Its private fields should be immmutable! Do not change these!
 type Node struct {
-
 	// Unique id and index of this node.
 	// TODO(albin): Having both id and index is redundant.
 	//              Currently, the id is "cluster name" + "node name"  and index an integer assigned on node creation.
