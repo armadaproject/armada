@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -93,7 +94,7 @@ func (mc *MetricsCollector) addEventSequence(eventSequence *armadaevents.EventSe
 	perQueueMetrics := mc.MetricsByQueue[queue]
 	perQueueMetrics.NumEvents += 1
 	for _, event := range eventSequence.Events {
-		d := event.Created.Sub(time.Time{})
+		d := protoutil.ToStdTime(event.Created).Sub(time.Time{})
 		mc.OverallMetrics.TimeOfMostRecentEvent = d
 		perQueueMetrics.TimeOfMostRecentEvent = d
 		switch event.GetEvent().(type) {

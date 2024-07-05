@@ -352,10 +352,10 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 
 func multipleEventsMultipleTimeStamps() []*armadaevents.EventSequence_Event {
 	events := []*armadaevents.EventSequence_Event{f.JobCancelled, f.JobRunSucceeded, f.Running}
-	created := f.BaseTime.Add(time.Hour)
+	created := protoutil.ToTimestamp(f.BaseTime.Add(time.Hour))
 	anotherCancelled, _ := f.DeepCopy(f.JobCancelled)
 	anotherSucceeded, _ := f.DeepCopy(f.JobRunSucceeded)
-	anotherCancelled.Created = &created
-	anotherSucceeded.Created = &created
+	anotherCancelled.Created = created
+	anotherSucceeded.Created = created
 	return append(events, anotherCancelled, anotherSucceeded)
 }

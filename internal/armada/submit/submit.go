@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -108,9 +109,9 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
 		submitMsg := conversion.SubmitJobFromApiRequest(jobRequest, s.submissionConfig, req.JobSetId, req.Queue, userId, s.idGenerator)
-		eventTime := s.clock.Now().UTC()
+		eventTime := protoutil.ToTimestamp(s.clock.Now().UTC())
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
-			Created: &eventTime,
+			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_SubmitJob{
 				SubmitJob: submitMsg,
 			},
@@ -234,7 +235,7 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 		Groups:     groups,
 		Events:     []*armadaevents.EventSequence_Event{},
 	}
-	eventTime := clock.Now().UTC()
+	eventTime := protoutil.ToTimestamp(clock.Now().UTC())
 	for _, jobIdStr := range jobIds {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
 		if err != nil {
@@ -242,7 +243,7 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 			return nil, fmt.Errorf("could not convert job id to uuid: %s", jobIdStr)
 		}
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Created: &eventTime,
+			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
 					JobId:    jobId,
@@ -278,11 +279,11 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobIds), len(req.JobIds)),
 	}
 
-	eventTime := s.clock.Now().UTC()
+	eventTime := protoutil.ToTimestamp(s.clock.Now().UTC())
 	// No job ids implicitly indicates that all jobs in the job set should be re-prioritised.
 	if len(req.JobIds) == 0 {
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Created: &eventTime,
+			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 				ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
 					Priority: priority,
@@ -302,7 +303,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 		}
 
 		sequence.Events[i] = &armadaevents.EventSequence_Event{
-			Created: &eventTime,
+			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    jobId,
@@ -354,7 +355,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 			states[i] = armadaevents.JobState_RUNNING
 		}
 	}
-	eventTime := s.clock.Now().UTC()
+	eventTime := protoutil.ToTimestamp(s.clock.Now().UTC())
 	pulsarSchedulerSequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
@@ -362,7 +363,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 		Groups:     groups,
 		Events: []*armadaevents.EventSequence_Event{
 			{
-				Created: &eventTime,
+				Created: eventTime,
 				Event: &armadaevents.EventSequence_Event_CancelJobSet{
 					CancelJobSet: &armadaevents.CancelJobSet{
 						States: states,
@@ -392,7 +393,7 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 	}
 	var validIds []string
 	truncatedReason := util.Truncate(reason, 512)
-	eventTime := clock.Now().UTC()
+	eventTime := protoutil.ToTimestamp(clock.Now().UTC())
 	for _, jobIdStr := range jobIds {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
 		if err != nil {
@@ -401,7 +402,7 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 		}
 		validIds = append(validIds, jobIdStr)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Created: &eventTime,
+			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
 					JobId:    jobId,
