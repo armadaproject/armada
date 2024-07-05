@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -296,10 +295,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				a1 := actual[i]
 				// As resources are a map, the ordering isn't deterministic, so we have to use compare
 				// Alternatively if we can work out how to sort prometheus.Metric we could do that instead
-				contains := assert.Contains(t, tc.expected, a1)
-				if !contains {
-					fmt.Println("not contains")
-				}
+				assert.Contains(t, tc.expected, a1)
 			}
 		})
 	}

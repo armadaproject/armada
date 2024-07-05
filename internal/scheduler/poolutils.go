@@ -1,9 +1,10 @@
 package scheduler
 
 import (
+	log "github.com/sirupsen/logrus"
+
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	log "github.com/sirupsen/logrus"
 )
 
 // TODO Remove this and just use node.GetPool() once we have migrated to have all nodes have pool set
