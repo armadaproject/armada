@@ -1,0 +1,8 @@
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: pkg
+    opt: paths=source_relative
+  - local: protoc-gen-connect-go
+    out: pkg
+    opt: paths=source_relative

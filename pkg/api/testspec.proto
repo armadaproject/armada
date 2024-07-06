@@ -5,8 +5,8 @@ option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/duration.proto";
-import "pkg/api/submit.proto";
-import "pkg/api/event.proto";
+import "api/submit.proto";
+import "api/event.proto";
 
 // Defines a test case for the Armada test suite.
 // Defined as a proto message to enable unmarshalling oneof fields.
