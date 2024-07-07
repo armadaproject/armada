@@ -53,8 +53,6 @@ const (
 	QueueServiceDeleteQueueProcedure = "/api.QueueService/DeleteQueue"
 	// QueueServiceGetQueueProcedure is the fully-qualified name of the QueueService's GetQueue RPC.
 	QueueServiceGetQueueProcedure = "/api.QueueService/GetQueue"
-	// QueueServiceGetQueuesProcedure is the fully-qualified name of the QueueService's GetQueues RPC.
-	QueueServiceGetQueuesProcedure = "/api.QueueService/GetQueues"
 	// SubmitSubmitJobsProcedure is the fully-qualified name of the Submit's SubmitJobs RPC.
 	SubmitSubmitJobsProcedure = "/api.Submit/SubmitJobs"
 	// SubmitCancelJobsProcedure is the fully-qualified name of the Submit's CancelJobs RPC.
@@ -77,8 +75,6 @@ const (
 	SubmitDeleteQueueProcedure = "/api.Submit/DeleteQueue"
 	// SubmitGetQueueProcedure is the fully-qualified name of the Submit's GetQueue RPC.
 	SubmitGetQueueProcedure = "/api.Submit/GetQueue"
-	// SubmitGetQueuesProcedure is the fully-qualified name of the Submit's GetQueues RPC.
-	SubmitGetQueuesProcedure = "/api.Submit/GetQueues"
 	// SubmitHealthProcedure is the fully-qualified name of the Submit's Health RPC.
 	SubmitHealthProcedure = "/api.Submit/Health"
 )
@@ -92,7 +88,6 @@ var (
 	queueServiceUpdateQueuesMethodDescriptor = queueServiceServiceDescriptor.Methods().ByName("UpdateQueues")
 	queueServiceDeleteQueueMethodDescriptor  = queueServiceServiceDescriptor.Methods().ByName("DeleteQueue")
 	queueServiceGetQueueMethodDescriptor     = queueServiceServiceDescriptor.Methods().ByName("GetQueue")
-	queueServiceGetQueuesMethodDescriptor    = queueServiceServiceDescriptor.Methods().ByName("GetQueues")
 	submitServiceDescriptor                  = api.File_api_submit_proto.Services().ByName("Submit")
 	submitSubmitJobsMethodDescriptor         = submitServiceDescriptor.Methods().ByName("SubmitJobs")
 	submitCancelJobsMethodDescriptor         = submitServiceDescriptor.Methods().ByName("CancelJobs")
@@ -105,7 +100,6 @@ var (
 	submitUpdateQueuesMethodDescriptor       = submitServiceDescriptor.Methods().ByName("UpdateQueues")
 	submitDeleteQueueMethodDescriptor        = submitServiceDescriptor.Methods().ByName("DeleteQueue")
 	submitGetQueueMethodDescriptor           = submitServiceDescriptor.Methods().ByName("GetQueue")
-	submitGetQueuesMethodDescriptor          = submitServiceDescriptor.Methods().ByName("GetQueues")
 	submitHealthMethodDescriptor             = submitServiceDescriptor.Methods().ByName("Health")
 )
 
@@ -117,7 +111,6 @@ type QueueServiceClient interface {
 	UpdateQueues(context.Context, *connect.Request[api.QueueList]) (*connect.Response[api.BatchQueueUpdateResponse], error)
 	DeleteQueue(context.Context, *connect.Request[api.QueueDeleteRequest]) (*connect.Response[emptypb.Empty], error)
 	GetQueue(context.Context, *connect.Request[api.QueueGetRequest]) (*connect.Response[api.Queue], error)
-	GetQueues(context.Context, *connect.Request[api.StreamingQueueGetRequest]) (*connect.ServerStreamForClient[api.StreamingQueueMessage], error)
 }
 
 // NewQueueServiceClient constructs a client for the api.QueueService service. By default, it uses
@@ -166,12 +159,6 @@ func NewQueueServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(queueServiceGetQueueMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
-		getQueues: connect.NewClient[api.StreamingQueueGetRequest, api.StreamingQueueMessage](
-			httpClient,
-			baseURL+QueueServiceGetQueuesProcedure,
-			connect.WithSchema(queueServiceGetQueuesMethodDescriptor),
-			connect.WithClientOptions(opts...),
-		),
 	}
 }
 
@@ -183,7 +170,6 @@ type queueServiceClient struct {
 	updateQueues *connect.Client[api.QueueList, api.BatchQueueUpdateResponse]
 	deleteQueue  *connect.Client[api.QueueDeleteRequest, emptypb.Empty]
 	getQueue     *connect.Client[api.QueueGetRequest, api.Queue]
-	getQueues    *connect.Client[api.StreamingQueueGetRequest, api.StreamingQueueMessage]
 }
 
 // CreateQueue calls api.QueueService.CreateQueue.
@@ -216,11 +202,6 @@ func (c *queueServiceClient) GetQueue(ctx context.Context, req *connect.Request[
 	return c.getQueue.CallUnary(ctx, req)
 }
 
-// GetQueues calls api.QueueService.GetQueues.
-func (c *queueServiceClient) GetQueues(ctx context.Context, req *connect.Request[api.StreamingQueueGetRequest]) (*connect.ServerStreamForClient[api.StreamingQueueMessage], error) {
-	return c.getQueues.CallServerStream(ctx, req)
-}
-
 // QueueServiceHandler is an implementation of the api.QueueService service.
 type QueueServiceHandler interface {
 	CreateQueue(context.Context, *connect.Request[api.Queue]) (*connect.Response[emptypb.Empty], error)
@@ -229,7 +210,6 @@ type QueueServiceHandler interface {
 	UpdateQueues(context.Context, *connect.Request[api.QueueList]) (*connect.Response[api.BatchQueueUpdateResponse], error)
 	DeleteQueue(context.Context, *connect.Request[api.QueueDeleteRequest]) (*connect.Response[emptypb.Empty], error)
 	GetQueue(context.Context, *connect.Request[api.QueueGetRequest]) (*connect.Response[api.Queue], error)
-	GetQueues(context.Context, *connect.Request[api.StreamingQueueGetRequest], *connect.ServerStream[api.StreamingQueueMessage]) error
 }
 
 // NewQueueServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -274,12 +254,6 @@ func NewQueueServiceHandler(svc QueueServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(queueServiceGetQueueMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
-	queueServiceGetQueuesHandler := connect.NewServerStreamHandler(
-		QueueServiceGetQueuesProcedure,
-		svc.GetQueues,
-		connect.WithSchema(queueServiceGetQueuesMethodDescriptor),
-		connect.WithHandlerOptions(opts...),
-	)
 	return "/api.QueueService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case QueueServiceCreateQueueProcedure:
@@ -294,8 +268,6 @@ func NewQueueServiceHandler(svc QueueServiceHandler, opts ...connect.HandlerOpti
 			queueServiceDeleteQueueHandler.ServeHTTP(w, r)
 		case QueueServiceGetQueueProcedure:
 			queueServiceGetQueueHandler.ServeHTTP(w, r)
-		case QueueServiceGetQueuesProcedure:
-			queueServiceGetQueuesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -329,10 +301,6 @@ func (UnimplementedQueueServiceHandler) GetQueue(context.Context, *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.QueueService.GetQueue is not implemented"))
 }
 
-func (UnimplementedQueueServiceHandler) GetQueues(context.Context, *connect.Request[api.StreamingQueueGetRequest], *connect.ServerStream[api.StreamingQueueMessage]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("api.QueueService.GetQueues is not implemented"))
-}
-
 // SubmitClient is a client for the api.Submit service.
 type SubmitClient interface {
 	SubmitJobs(context.Context, *connect.Request[api.JobSubmitRequest]) (*connect.Response[api.JobSubmitResponse], error)
@@ -346,7 +314,11 @@ type SubmitClient interface {
 	UpdateQueues(context.Context, *connect.Request[api.QueueList]) (*connect.Response[api.BatchQueueUpdateResponse], error)
 	DeleteQueue(context.Context, *connect.Request[api.QueueDeleteRequest]) (*connect.Response[emptypb.Empty], error)
 	GetQueue(context.Context, *connect.Request[api.QueueGetRequest]) (*connect.Response[api.Queue], error)
-	GetQueues(context.Context, *connect.Request[api.StreamingQueueGetRequest]) (*connect.ServerStreamForClient[api.StreamingQueueMessage], error)
+	//	rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {
+	//	  option (google.api.http) = {
+	//	    get: "/v1/batched/queues"
+	//	  };
+	//	}
 	Health(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error)
 }
 
@@ -426,12 +398,6 @@ func NewSubmitClient(httpClient connect.HTTPClient, baseURL string, opts ...conn
 			connect.WithSchema(submitGetQueueMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
-		getQueues: connect.NewClient[api.StreamingQueueGetRequest, api.StreamingQueueMessage](
-			httpClient,
-			baseURL+SubmitGetQueuesProcedure,
-			connect.WithSchema(submitGetQueuesMethodDescriptor),
-			connect.WithClientOptions(opts...),
-		),
 		health: connect.NewClient[emptypb.Empty, api.HealthCheckResponse](
 			httpClient,
 			baseURL+SubmitHealthProcedure,
@@ -454,7 +420,6 @@ type submitClient struct {
 	updateQueues     *connect.Client[api.QueueList, api.BatchQueueUpdateResponse]
 	deleteQueue      *connect.Client[api.QueueDeleteRequest, emptypb.Empty]
 	getQueue         *connect.Client[api.QueueGetRequest, api.Queue]
-	getQueues        *connect.Client[api.StreamingQueueGetRequest, api.StreamingQueueMessage]
 	health           *connect.Client[emptypb.Empty, api.HealthCheckResponse]
 }
 
@@ -513,11 +478,6 @@ func (c *submitClient) GetQueue(ctx context.Context, req *connect.Request[api.Qu
 	return c.getQueue.CallUnary(ctx, req)
 }
 
-// GetQueues calls api.Submit.GetQueues.
-func (c *submitClient) GetQueues(ctx context.Context, req *connect.Request[api.StreamingQueueGetRequest]) (*connect.ServerStreamForClient[api.StreamingQueueMessage], error) {
-	return c.getQueues.CallServerStream(ctx, req)
-}
-
 // Health calls api.Submit.Health.
 func (c *submitClient) Health(ctx context.Context, req *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error) {
 	return c.health.CallUnary(ctx, req)
@@ -536,7 +496,11 @@ type SubmitHandler interface {
 	UpdateQueues(context.Context, *connect.Request[api.QueueList]) (*connect.Response[api.BatchQueueUpdateResponse], error)
 	DeleteQueue(context.Context, *connect.Request[api.QueueDeleteRequest]) (*connect.Response[emptypb.Empty], error)
 	GetQueue(context.Context, *connect.Request[api.QueueGetRequest]) (*connect.Response[api.Queue], error)
-	GetQueues(context.Context, *connect.Request[api.StreamingQueueGetRequest], *connect.ServerStream[api.StreamingQueueMessage]) error
+	//	rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {
+	//	  option (google.api.http) = {
+	//	    get: "/v1/batched/queues"
+	//	  };
+	//	}
 	Health(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error)
 }
 
@@ -612,12 +576,6 @@ func NewSubmitHandler(svc SubmitHandler, opts ...connect.HandlerOption) (string,
 		connect.WithSchema(submitGetQueueMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
-	submitGetQueuesHandler := connect.NewServerStreamHandler(
-		SubmitGetQueuesProcedure,
-		svc.GetQueues,
-		connect.WithSchema(submitGetQueuesMethodDescriptor),
-		connect.WithHandlerOptions(opts...),
-	)
 	submitHealthHandler := connect.NewUnaryHandler(
 		SubmitHealthProcedure,
 		svc.Health,
@@ -648,8 +606,6 @@ func NewSubmitHandler(svc SubmitHandler, opts ...connect.HandlerOption) (string,
 			submitDeleteQueueHandler.ServeHTTP(w, r)
 		case SubmitGetQueueProcedure:
 			submitGetQueueHandler.ServeHTTP(w, r)
-		case SubmitGetQueuesProcedure:
-			submitGetQueuesHandler.ServeHTTP(w, r)
 		case SubmitHealthProcedure:
 			submitHealthHandler.ServeHTTP(w, r)
 		default:
@@ -703,10 +659,6 @@ func (UnimplementedSubmitHandler) DeleteQueue(context.Context, *connect.Request[
 
 func (UnimplementedSubmitHandler) GetQueue(context.Context, *connect.Request[api.QueueGetRequest]) (*connect.Response[api.Queue], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.Submit.GetQueue is not implemented"))
-}
-
-func (UnimplementedSubmitHandler) GetQueues(context.Context, *connect.Request[api.StreamingQueueGetRequest], *connect.ServerStream[api.StreamingQueueMessage]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("api.Submit.GetQueues is not implemented"))
 }
 
 func (UnimplementedSubmitHandler) Health(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error) {

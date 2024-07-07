@@ -273,7 +273,7 @@ service QueueService {
   rpc UpdateQueues (QueueList) returns (BatchQueueUpdateResponse){}
   rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {}
   rpc GetQueue (QueueGetRequest) returns (Queue) {}
-  rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {}
+ // rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {}
 }
 
 service Submit {
@@ -341,10 +341,10 @@ service Submit {
             get: "/v1/queue/{name}"
         };
     }
-    rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {
-      option (google.api.http) = {
-        get: "/v1/batched/queues"
-      };
-    }
+//    rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {
+//      option (google.api.http) = {
+//        get: "/v1/batched/queues"
+//      };
+//    }
     rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
 }

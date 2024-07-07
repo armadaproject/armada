@@ -34,27 +34,28 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// EventGetJobSetEventsProcedure is the fully-qualified name of the Event's GetJobSetEvents RPC.
-	EventGetJobSetEventsProcedure = "/api.Event/GetJobSetEvents"
-	// EventWatchProcedure is the fully-qualified name of the Event's Watch RPC.
-	EventWatchProcedure = "/api.Event/Watch"
 	// EventHealthProcedure is the fully-qualified name of the Event's Health RPC.
 	EventHealthProcedure = "/api.Event/Health"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
 var (
-	eventServiceDescriptor               = api.File_api_event_proto.Services().ByName("Event")
-	eventGetJobSetEventsMethodDescriptor = eventServiceDescriptor.Methods().ByName("GetJobSetEvents")
-	eventWatchMethodDescriptor           = eventServiceDescriptor.Methods().ByName("Watch")
-	eventHealthMethodDescriptor          = eventServiceDescriptor.Methods().ByName("Health")
+	eventServiceDescriptor      = api.File_api_event_proto.Services().ByName("Event")
+	eventHealthMethodDescriptor = eventServiceDescriptor.Methods().ByName("Health")
 )
 
 // EventClient is a client for the api.Event service.
 type EventClient interface {
-	GetJobSetEvents(context.Context, *connect.Request[api.JobSetRequest]) (*connect.ServerStreamForClient[api.EventStreamMessage], error)
-	// Deprecated: do not use.
-	Watch(context.Context, *connect.Request[api.WatchRequest]) (*connect.ServerStreamForClient[api.EventStreamMessage], error)
+	//	rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
+	//	    option (google.api.http) = {
+	//	        post: "/v1/job-set/{queue}/{id}"
+	//	        body: "*"
+	//	    };
+	//	}
+	//
+	//	rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
+	//	    option deprecated = true;
+	//	}
 	Health(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error)
 }
 
@@ -68,18 +69,6 @@ type EventClient interface {
 func NewEventClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) EventClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &eventClient{
-		getJobSetEvents: connect.NewClient[api.JobSetRequest, api.EventStreamMessage](
-			httpClient,
-			baseURL+EventGetJobSetEventsProcedure,
-			connect.WithSchema(eventGetJobSetEventsMethodDescriptor),
-			connect.WithClientOptions(opts...),
-		),
-		watch: connect.NewClient[api.WatchRequest, api.EventStreamMessage](
-			httpClient,
-			baseURL+EventWatchProcedure,
-			connect.WithSchema(eventWatchMethodDescriptor),
-			connect.WithClientOptions(opts...),
-		),
 		health: connect.NewClient[emptypb.Empty, api.HealthCheckResponse](
 			httpClient,
 			baseURL+EventHealthProcedure,
@@ -91,21 +80,7 @@ func NewEventClient(httpClient connect.HTTPClient, baseURL string, opts ...conne
 
 // eventClient implements EventClient.
 type eventClient struct {
-	getJobSetEvents *connect.Client[api.JobSetRequest, api.EventStreamMessage]
-	watch           *connect.Client[api.WatchRequest, api.EventStreamMessage]
-	health          *connect.Client[emptypb.Empty, api.HealthCheckResponse]
-}
-
-// GetJobSetEvents calls api.Event.GetJobSetEvents.
-func (c *eventClient) GetJobSetEvents(ctx context.Context, req *connect.Request[api.JobSetRequest]) (*connect.ServerStreamForClient[api.EventStreamMessage], error) {
-	return c.getJobSetEvents.CallServerStream(ctx, req)
-}
-
-// Watch calls api.Event.Watch.
-//
-// Deprecated: do not use.
-func (c *eventClient) Watch(ctx context.Context, req *connect.Request[api.WatchRequest]) (*connect.ServerStreamForClient[api.EventStreamMessage], error) {
-	return c.watch.CallServerStream(ctx, req)
+	health *connect.Client[emptypb.Empty, api.HealthCheckResponse]
 }
 
 // Health calls api.Event.Health.
@@ -115,9 +90,16 @@ func (c *eventClient) Health(ctx context.Context, req *connect.Request[emptypb.E
 
 // EventHandler is an implementation of the api.Event service.
 type EventHandler interface {
-	GetJobSetEvents(context.Context, *connect.Request[api.JobSetRequest], *connect.ServerStream[api.EventStreamMessage]) error
-	// Deprecated: do not use.
-	Watch(context.Context, *connect.Request[api.WatchRequest], *connect.ServerStream[api.EventStreamMessage]) error
+	//	rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
+	//	    option (google.api.http) = {
+	//	        post: "/v1/job-set/{queue}/{id}"
+	//	        body: "*"
+	//	    };
+	//	}
+	//
+	//	rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
+	//	    option deprecated = true;
+	//	}
 	Health(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error)
 }
 
@@ -127,18 +109,6 @@ type EventHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewEventHandler(svc EventHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	eventGetJobSetEventsHandler := connect.NewServerStreamHandler(
-		EventGetJobSetEventsProcedure,
-		svc.GetJobSetEvents,
-		connect.WithSchema(eventGetJobSetEventsMethodDescriptor),
-		connect.WithHandlerOptions(opts...),
-	)
-	eventWatchHandler := connect.NewServerStreamHandler(
-		EventWatchProcedure,
-		svc.Watch,
-		connect.WithSchema(eventWatchMethodDescriptor),
-		connect.WithHandlerOptions(opts...),
-	)
 	eventHealthHandler := connect.NewUnaryHandler(
 		EventHealthProcedure,
 		svc.Health,
@@ -147,10 +117,6 @@ func NewEventHandler(svc EventHandler, opts ...connect.HandlerOption) (string, h
 	)
 	return "/api.Event/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case EventGetJobSetEventsProcedure:
-			eventGetJobSetEventsHandler.ServeHTTP(w, r)
-		case EventWatchProcedure:
-			eventWatchHandler.ServeHTTP(w, r)
 		case EventHealthProcedure:
 			eventHealthHandler.ServeHTTP(w, r)
 		default:
@@ -161,14 +127,6 @@ func NewEventHandler(svc EventHandler, opts ...connect.HandlerOption) (string, h
 
 // UnimplementedEventHandler returns CodeUnimplemented from all methods.
 type UnimplementedEventHandler struct{}
-
-func (UnimplementedEventHandler) GetJobSetEvents(context.Context, *connect.Request[api.JobSetRequest], *connect.ServerStream[api.EventStreamMessage]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("api.Event.GetJobSetEvents is not implemented"))
-}
-
-func (UnimplementedEventHandler) Watch(context.Context, *connect.Request[api.WatchRequest], *connect.ServerStream[api.EventStreamMessage]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("api.Event.Watch is not implemented"))
-}
 
 func (UnimplementedEventHandler) Health(context.Context, *connect.Request[emptypb.Empty]) (*connect.Response[api.HealthCheckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.Event.Health is not implemented"))
