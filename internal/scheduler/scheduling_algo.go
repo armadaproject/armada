@@ -55,7 +55,7 @@ type FairSchedulingAlgo struct {
 	// Max amount of time each scheduling round is allowed to take.
 	maxSchedulingDuration time.Duration
 	// Pools that need to be scheduled in sorted order
-	poolsToSchedule []string
+	poolsToSchedule       []string
 	clock                 clock.Clock
 	stringInterner        *stringinterner.StringInterner
 	resourceListFactory   *internaltypes.ResourceListFactory
@@ -263,7 +263,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 	executors = l.filterStaleExecutors(ctx, executors)
 
-	// TODO(albin): Skip queues with a high failure rate.
 	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
