@@ -55,6 +55,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Id:       api.NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
 		Name:     nodeInfo.Name,
 		Executor: executor,
+		Pool:     nodeInfo.Pool,
 		LastSeen: lastSeen,
 		Taints: armadaslices.Map(nodeInfo.GetTaints(), func(v *v1.Taint) v1.Taint {
 			if v != nil {

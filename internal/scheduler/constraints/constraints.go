@@ -59,9 +59,6 @@ func IsTerminalQueueUnschedulableReason(reason string) bool {
 type SchedulingConstraints struct {
 	// Max number of jobs to consider for a queue before giving up.
 	maxQueueLookBack uint
-	// Jobs leased to this executor must be at least this large.
-	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
-	minimumJobSize map[string]resource.Quantity
 	// Scheduling constraints by priority class.
 	priorityClassSchedulingConstraintsByPriorityClassName map[string]priorityClassSchedulingConstraints
 	// Scheduling constraints for specific queues.
@@ -88,7 +85,6 @@ type priorityClassSchedulingConstraints struct {
 func NewSchedulingConstraints(
 	pool string,
 	totalResources schedulerobjects.ResourceList,
-	minimumJobSize schedulerobjects.ResourceList,
 	config configuration.SchedulingConfig,
 	queues []*api.Queue,
 ) SchedulingConstraints {
@@ -133,7 +129,6 @@ func NewSchedulingConstraints(
 	}
 	return SchedulingConstraints{
 		maxQueueLookBack:           config.MaxQueueLookback,
-		minimumJobSize:             minimumJobSize.Resources,
 		maximumResourcesToSchedule: absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFractionToSchedule),
 		priorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassName,
 		queueSchedulingConstraintsByQueueName:                 queueSchedulingConstraintsByQueueName,
@@ -171,11 +166,6 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	qctx := sctx.QueueSchedulingContexts[gctx.Queue]
 	if qctx == nil {
 		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", gctx.Queue)
-	}
-
-	// Check that the job is large enough for this executor.
-	if ok, unschedulableReason := RequestsAreLargeEnough(gctx.TotalResourceRequests.Resources, constraints.minimumJobSize); !ok {
-		return false, unschedulableReason, nil
 	}
 
 	// Global rate limiter check.

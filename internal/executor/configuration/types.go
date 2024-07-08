@@ -56,6 +56,7 @@ type KubernetesConfiguration struct {
 	QPS                       float32
 	Burst                     int
 	Etcd                      EtcdConfiguration
+	NodePoolLabel             string
 	NodeTypeLabel             string
 	NodeIdLabel               string
 	TrackedNodeLabels         []string
@@ -65,7 +66,6 @@ type KubernetesConfiguration struct {
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
 	MaxTerminatedPods         int
-	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
 	StateChecks               StateChecksConfiguration
 	PendingPodChecks          *podchecks.Checks

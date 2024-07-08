@@ -4,6 +4,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // PoolAssigner allows jobs to be assigned to one or more pools
@@ -15,13 +16,15 @@ type PoolAssigner interface {
 
 type DefaultPoolAssigner struct {
 	executorRepository database.ExecutorRepository
-	poolByExecutorId   map[string]string
+	executorById       map[string]*schedulerobjects.Executor
+	nodeById           map[string]*schedulerobjects.Node
 }
 
 func NewPoolAssigner(executorRepository database.ExecutorRepository) *DefaultPoolAssigner {
 	return &DefaultPoolAssigner{
 		executorRepository: executorRepository,
-		poolByExecutorId:   map[string]string{},
+		executorById:       map[string]*schedulerobjects.Executor{},
+		nodeById:           map[string]*schedulerobjects.Node{},
 	}
 }
 
@@ -31,11 +34,16 @@ func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.Context) error {
 	if err != nil {
 		return err
 	}
-	poolByExecutorId := map[string]string{}
+	executorById := map[string]*schedulerobjects.Executor{}
+	nodeById := map[string]*schedulerobjects.Node{}
 	for _, e := range executors {
-		poolByExecutorId[e.Id] = e.Pool
+		executorById[e.Id] = e
+		for _, node := range e.Nodes {
+			nodeById[node.Id] = node
+		}
 	}
-	p.poolByExecutorId = poolByExecutorId
+	p.executorById = executorById
+	p.nodeById = nodeById
 	return nil
 }
 
@@ -43,7 +51,7 @@ func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.Context) error {
 func (p *DefaultPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
 	// If Job has an active run then use the pool associated with the executor it was assigned to
 	if !j.Queued() && j.HasRuns() {
-		pool := p.poolByExecutorId[j.LatestRun().Executor()]
+		pool := GetRunPool(j.LatestRun(), p.nodeById[j.LatestRun().NodeId()], p.executorById[j.LatestRun().Executor()])
 		return []string{pool}, nil
 	}
 	// otherwise use the pools associated with the job
