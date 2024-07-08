@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -161,9 +162,9 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 
 		PodSpec:                        podSpec,
 		PodSpecs:                       podSpecs,
-		SchedulingResourceRequirements: schedulingResourceRequirements,
+		SchedulingResourceRequirements: &schedulingResourceRequirements,
 
-		Created:                  time,
+		Created:                  protoutil.ToTimestamp(time),
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
 	}, nil

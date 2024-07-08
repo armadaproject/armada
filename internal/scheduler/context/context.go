@@ -34,9 +34,7 @@ type SchedulingContext struct {
 	Started time.Time
 	// Time at which the scheduling cycle finished.
 	Finished time.Time
-	// Executor for which we're currently scheduling jobs.
-	ExecutorId string
-	// Resource pool of this executor.
+	// Pool for which we're currently scheduling jobs.
 	Pool string
 	// Allowed priority classes.
 	PriorityClasses map[string]types.PriorityClass
@@ -51,8 +49,10 @@ type SchedulingContext struct {
 	WeightSum float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
-	// Total resources across all clusters available at the start of the scheduling cycle.
+	// Total resources across all clusters in this pool available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
+	// Allocated resources across all clusters in this pool
+	Allocated schedulerobjects.ResourceList
 	// Resources assigned across all queues during this scheduling cycle.
 	ScheduledResources                schedulerobjects.ResourceList
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
@@ -77,7 +77,6 @@ type SchedulingContext struct {
 }
 
 func NewSchedulingContext(
-	executorId string,
 	pool string,
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
@@ -87,7 +86,6 @@ func NewSchedulingContext(
 ) *SchedulingContext {
 	return &SchedulingContext{
 		Started:                           time.Now(),
-		ExecutorId:                        executorId,
 		Pool:                              pool,
 		PriorityClasses:                   priorityClasses,
 		DefaultPriorityClass:              defaultPriorityClass,
@@ -130,10 +128,11 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		allocated.Add(rl)
 	}
 	sctx.WeightSum += weight
+	sctx.Allocated.Add(allocated)
+
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
 		Created:                           time.Now(),
-		ExecutorId:                        sctx.ExecutorId,
 		Queue:                             queue,
 		Weight:                            weight,
 		Limiter:                           limiter,
@@ -164,7 +163,7 @@ func (sctx *SchedulingContext) GetQueue(queue string) (fairness.Queue, bool) {
 func (sctx *SchedulingContext) TotalCost() float64 {
 	var rv float64
 	for _, qctx := range sctx.QueueSchedulingContexts {
-		rv += sctx.FairnessCostProvider.CostFromQueue(qctx)
+		rv += sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
 	}
 	return rv
 }
@@ -187,7 +186,7 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 	for queueName, qctx := range sctx.QueueSchedulingContexts {
 		cappedShare := 1.0
 		if !sctx.TotalResources.IsZero() {
-			cappedShare = sctx.FairnessCostProvider.CostFromAllocationAndWeight(qctx.Demand, qctx.Weight) * qctx.Weight
+			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.Demand)
 		}
 		queueInfos = append(queueInfos, &queueInfo{
 			queueName:     queueName,
@@ -307,7 +306,7 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	if !ok {
 		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.Queue())
 	}
-	evictedInThisRound, err := qctx.AddJobSchedulingContext(jctx)
+	evictedInThisRound, err := qctx.addJobSchedulingContext(jctx)
 	if err != nil {
 		return false, err
 	}
@@ -321,6 +320,7 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
+		sctx.Allocated.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
 	}
 	return evictedInThisRound, nil
 }
@@ -345,7 +345,7 @@ func (sctx *SchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
 	if !ok {
 		return false, errors.Errorf("failed evicting job %s from scheduling context: no context for queue %s", job.Id(), job.Queue())
 	}
-	scheduledInThisRound, err := qctx.EvictJob(job)
+	scheduledInThisRound, err := qctx.evictJob(job)
 	if err != nil {
 		return false, err
 	}
@@ -359,6 +359,7 @@ func (sctx *SchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
 		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.PriorityClassName(), rl)
 		sctx.NumEvictedJobs++
 	}
+	sctx.Allocated.SubV1ResourceList(rl)
 	return scheduledInThisRound, nil
 }
 
@@ -400,8 +401,6 @@ type QueueSchedulingContext struct {
 	SchedulingContext *SchedulingContext
 	// Time at which this context was created.
 	Created time.Time
-	// Executor this job was attempted to be assigned to.
-	ExecutorId string
 	// Queue name.
 	Queue string
 	// Determines the fair share of this queue relative to other queues.
@@ -526,9 +525,9 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	return sb.String()
 }
 
-// AddJobSchedulingContext adds a job scheduling context.
+// addJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
-func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) (bool, error) {
+func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingContext) (bool, error) {
 	if _, ok := qctx.SuccessfulJobSchedulingContexts[jctx.JobId]; ok {
 		return false, errors.Errorf("failed adding job %s to queue: job already marked successful", jctx.JobId)
 	}
@@ -561,7 +560,7 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	return evictedInThisRound, nil
 }
 
-func (qctx *QueueSchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
+func (qctx *QueueSchedulingContext) evictJob(job *jobdb.Job) (bool, error) {
 	jobId := job.Id()
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked unsuccessful", jobId)
@@ -597,28 +596,34 @@ type GangSchedulingContext struct {
 	Created time.Time
 	Queue   string
 	GangInfo
-	JobSchedulingContexts []*JobSchedulingContext
-	TotalResourceRequests schedulerobjects.ResourceList
-	AllJobsEvicted        bool
+	JobSchedulingContexts     []*JobSchedulingContext
+	TotalResourceRequests     schedulerobjects.ResourceList
+	AllJobsEvicted            bool
+	RequestsFloatingResources bool
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
 	allJobsEvicted := true
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
+	requestsFloatingResources := false
 	for _, jctx := range jctxs {
 		allJobsEvicted = allJobsEvicted && jctx.IsEvicted
 		totalResourceRequests.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+		if jctx.Job.RequestsFloatingResources() {
+			requestsFloatingResources = true
+		}
 	}
 	// Uniformity of the values that we pick off the first job in the gang was
 	// checked when the jobs were submitted (e.g., in ValidateApiJobs).
 	representative := jctxs[0]
 	return &GangSchedulingContext{
-		Created:               time.Now(),
-		Queue:                 representative.Job.Queue(),
-		GangInfo:              representative.GangInfo,
-		JobSchedulingContexts: jctxs,
-		TotalResourceRequests: totalResourceRequests,
-		AllJobsEvicted:        allJobsEvicted,
+		Created:                   time.Now(),
+		Queue:                     representative.Job.Queue(),
+		GangInfo:                  representative.GangInfo,
+		JobSchedulingContexts:     jctxs,
+		TotalResourceRequests:     totalResourceRequests,
+		AllJobsEvicted:            allJobsEvicted,
+		RequestsFloatingResources: requestsFloatingResources,
 	}
 }
 

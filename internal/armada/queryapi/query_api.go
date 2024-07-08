@@ -95,10 +95,10 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				Jobset:           row.Jobset,
 				Namespace:        NilStringToString(row.Namespace),
 				State:            apiJobState,
-				SubmittedTs:      DbTimeToGoTime(row.Submitted),
-				CancelTs:         DbTimeToGoTime(row.Cancelled),
+				SubmittedTs:      DbTimeToTimestamp(row.Submitted),
+				CancelTs:         DbTimeToTimestamp(row.Cancelled),
 				CancelReason:     NilStringToString(row.CancelReason),
-				LastTransitionTs: DbTimeToGoTime(row.LastTransitionTime),
+				LastTransitionTs: DbTimeToTimestamp(row.LastTransitionTime),
 				LatestRunId:      NilStringToString(row.LatestRunID),
 				JobSpec:          jobSpec,
 			}
@@ -202,9 +202,9 @@ func parseJobDetails(row database.JobRun) *api.JobRunDetails {
 		State:      runState,
 		Cluster:    row.Cluster,
 		Node:       NilStringToString(row.Node),
-		LeasedTs:   DbTimeToGoTime(row.Leased),
-		PendingTs:  DbTimeToGoTime(row.Pending),
-		StartedTs:  DbTimeToGoTime(row.Started),
-		FinishedTs: DbTimeToGoTime(row.Finished),
+		LeasedTs:   DbTimeToTimestamp(row.Leased),
+		PendingTs:  DbTimeToTimestamp(row.Pending),
+		StartedTs:  DbTimeToTimestamp(row.Started),
+		FinishedTs: DbTimeToTimestamp(row.Finished),
 	}
 }

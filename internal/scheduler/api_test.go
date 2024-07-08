@@ -19,10 +19,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -60,7 +63,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				NodeType: "node-type-1",
 			},
 		},
-		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
+		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId3)},
 		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
@@ -71,7 +74,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
 				Executor:                    "test-executor",
-				TotalResources:              schedulerobjects.ResourceList{},
+				TotalResources:              schedulerobjects.NewResourceList(0),
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
@@ -87,7 +90,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				ReportingNodeType:    "node-type-1",
 			},
 		},
-		MinimumJobSize:    schedulerobjects.ResourceList{},
 		LastUpdateTime:    testClock.Now().UTC(),
 		UnassignedJobRuns: []string{runId3.String()},
 	}
@@ -321,6 +323,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{1000, 2000},
+				testResourceNames(),
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
@@ -448,6 +451,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{1000, 2000},
+				testResourceNames(),
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
@@ -494,4 +498,8 @@ func groups(t *testing.T) ([]string, []byte) {
 	compressed, err := compress.CompressStringArray(groups, compressor)
 	require.NoError(t, err)
 	return groups, compressed
+}
+
+func testResourceNames() []string {
+	return slices.Map(testfixtures.GetTestSupportedResourceTypes(), func(rt schedulerconfig.ResourceType) string { return rt.Name })
 }

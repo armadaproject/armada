@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -82,13 +81,10 @@ func (factory *ResourceListFactory) FromJobResourceListIgnoreUnknown(resources m
 }
 
 // Fail on unknown resources, round up.
-func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources v1.ResourceList) (ResourceList, error) {
-	if resources == nil {
-		return ResourceList{}, nil
-	}
+func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources map[string]k8sResource.Quantity) (ResourceList, error) {
 	result := make([]int64, len(factory.indexToName))
 	for k, v := range resources {
-		index, ok := factory.nameToIndex[string(k)]
+		index, ok := factory.nameToIndex[k]
 		if ok {
 			result[index] = QuantityToInt64RoundUp(v, factory.scales[index])
 		} else {

@@ -112,6 +112,19 @@ type LeaderConfig struct {
 	LeaderConnection client.ApiConnectionDetails
 }
 
+type FloatingResourceConfig struct {
+	// Resource name, e.g. "s3-connections"
+	Name string
+	// Per-pool config.
+	Pools []FloatingResourcePoolConfig
+}
+
+type FloatingResourcePoolConfig struct {
+	// Name of the pool.
+	Name string
+	// Amount of this resource that can be allocated across all jobs in this pool.
+	Quantity resource.Quantity
+}
 type HttpConfig struct {
 	Port int `validate:"required"`
 }
@@ -205,8 +218,14 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
+	// Experimental - subject to change
+	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
+	ExperimentalDominantResourceFairnessResourcesToConsider []DominantResourceFairnessResource
+	// FairnessResources
 	// Resource types (e.g. memory or nvidia.com/gpu) that the scheduler keeps track of.
 	// Resource types not on this list will be ignored if seen on a node, and any jobs requesting them will fail.
 	SupportedResourceTypes []ResourceType
@@ -230,6 +249,13 @@ type SchedulingConfig struct {
 	//
 	// If not set, all taints are indexed.
 	IndexedTaints []string
+	// Experimental - subject to change
+	// Resources that are outside of k8s, and not tied to a given k8s node or cluster.
+	// For example connections to an S3 server that sits outside of k8s could be rationed to limit load on the server.
+	// These can be requested like a normal k8s resource. Note there is no mechanism in armada
+	// to enforce actual usage, it relies on honesty. For example, there is nothing to stop a badly-behaved job
+	// requesting 2 S3 server connections and then opening 10.
+	ExperimentalFloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
 	// Executor that haven't heartbeated in this time period are considered stale.
@@ -242,12 +268,6 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Controls node and queue success probability estimation.
-	FailureProbabilityEstimation FailureEstimatorConfig
-	// Controls node quarantining, i.e., removing from consideration for scheduling misbehaving nodes.
-	NodeQuarantining NodeQuarantinerConfig
-	// Controls queue quarantining, i.e., rate-limiting scheduling from misbehaving queues.
-	QueueQuarantining QueueQuarantinerConfig
 	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first
 	PoolSchedulePriority map[string]int
 	// Default priority for pools that are not in the above list
@@ -295,6 +315,15 @@ type ResourceType struct {
 	Resolution resource.Quantity
 }
 
+// DominantResourceFairnessResource - config for dominant resource fairness costs, the algorithm
+// used to assign a cost to jobs and queues.
+type DominantResourceFairnessResource struct {
+	// Name of the resource type. For example, "cpu", "memory", or "nvidia.com/gpu".
+	Name string
+	// If set, Armada multiplies the cost for this resource by this number. If not set defaults to 1.
+	Multiplier float64
+}
+
 // A WellKnownNodeType defines a set of nodes; see AwayNodeType.
 type WellKnownNodeType struct {
 	// Name is the unique identifier for this node type.
@@ -302,28 +331,4 @@ type WellKnownNodeType struct {
 	// Taints is the set of taints that characterizes this node type; a node is
 	// part of this node type if and only if it has all of these taints.
 	Taints []v1.Taint
-}
-
-// FailureEstimatorConfig controls node and queue success probability estimation.
-// See internal/scheduler/failureestimator.go for details.
-type FailureEstimatorConfig struct {
-	Disabled                           bool
-	NumInnerIterations                 int     `validate:"gt=0"`
-	InnerOptimiserStepSize             float64 `validate:"gt=0"`
-	OuterOptimiserStepSize             float64 `validate:"gt=0"`
-	OuterOptimiserNesterovAcceleration float64 `validate:"gte=0"`
-}
-
-// NodeQuarantinerConfig controls how nodes are quarantined, i.e., removed from consideration when scheduling new jobs.
-// See internal/scheduler/quarantine/node_quarantiner.go for details.
-type NodeQuarantinerConfig struct {
-	FailureProbabilityQuarantineThreshold float64       `validate:"gte=0,lte=1"`
-	FailureProbabilityEstimateTimeout     time.Duration `validate:"gte=0"`
-}
-
-// QueueQuarantinerConfig controls how scheduling from misbehaving queues is rate-limited.
-// See internal/scheduler/quarantine/queue_quarantiner.go for details.
-type QueueQuarantinerConfig struct {
-	QuarantineFactorMultiplier        float64       `validate:"gte=0,lte=1"`
-	FailureProbabilityEstimateTimeout time.Duration `validate:"gte=0"`
 }
