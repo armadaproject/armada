@@ -73,10 +73,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 	}
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
-		eventTime := time.Now().UTC()
-		if event.Created != nil {
-			eventTime = *event.Created
-		}
+		eventTime := protoutil.ToStdTime(event.Created)
 		var err error = nil
 		var operationsFromEvent []DbOperation
 		switch eventType := event.GetEvent().(type) {
@@ -213,6 +210,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				Queue:                  meta.queue,
 				Executor:               jobRunLeased.GetExecutorId(),
 				Node:                   jobRunLeased.GetNodeId(),
+				Pool:                   jobRunLeased.GetPool(),
 				ScheduledAtPriority:    scheduledAtPriority,
 				LeasedTimestamp:        &eventTime,
 				PodRequirementsOverlay: PodRequirementsOverlay,

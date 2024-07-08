@@ -18,6 +18,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -29,6 +30,7 @@ import (
 type PreemptingQueueScheduler struct {
 	schedulingContext              *schedulercontext.SchedulingContext
 	constraints                    schedulerconstraints.SchedulingConstraints
+	floatingResourceTypes          *floatingresources.FloatingResourceTypes
 	protectedFractionOfFairShare   float64
 	useAdjustedFairShareProtection bool
 	jobRepo                        JobRepository
@@ -50,6 +52,7 @@ type PreemptingQueueScheduler struct {
 func NewPreemptingQueueScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	protectedFractionOfFairShare float64,
 	useAdjustedFairShareProtection bool,
 	jobRepo JobRepository,
@@ -74,6 +77,7 @@ func NewPreemptingQueueScheduler(
 	return &PreemptingQueueScheduler{
 		schedulingContext:              sctx,
 		constraints:                    constraints,
+		floatingResourceTypes:          floatingResourceTypes,
 		protectedFractionOfFairShare:   protectedFractionOfFairShare,
 		useAdjustedFairShareProtection: useAdjustedFairShareProtection,
 		jobRepo:                        jobRepo,
@@ -131,7 +135,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
-					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
+					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx) / totalCost
 					fairShare := qctx.FairShare
 					if sch.useAdjustedFairShareProtection {
 						fairShare = math.Max(qctx.AdjustedFairShare, fairShare)
@@ -155,7 +159,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
-	ctx.WithField("stage", "scheduling-algo").Info("Performing initial scheduling jobs onto nodes")
+	ctx.WithField("stage", "scheduling-algo").Info("Performing initial scheduling of jobs onto nodes")
 	schedulerResult, err := sch.schedule(
 		armadacontext.WithLogField(ctx, "stage", "re-schedule after balancing eviction"),
 		inMemoryJobRepo,
@@ -552,6 +556,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 	sched, err := NewQueueScheduler(
 		sch.schedulingContext,
 		sch.constraints,
+		sch.floatingResourceTypes,
 		sch.nodeDb,
 		jobIteratorByQueue,
 	)

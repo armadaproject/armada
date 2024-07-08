@@ -1,9 +1,10 @@
 package queryapi
 
 import (
-	"time"
-
+	"github.com/gogo/protobuf/types"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 )
 
 func NilStringToString(s *string) string {
@@ -13,10 +14,9 @@ func NilStringToString(s *string) string {
 	return *s
 }
 
-func DbTimeToGoTime(t pgtype.Timestamp) *time.Time {
+func DbTimeToTimestamp(t pgtype.Timestamp) *types.Timestamp {
 	if !t.Valid {
 		return nil
 	}
-	tt := t.Time.UTC()
-	return &tt
+	return protoutil.ToTimestamp(t.Time.UTC())
 }

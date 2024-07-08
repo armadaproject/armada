@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -27,6 +28,7 @@ var (
 	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
 	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto = protoutil.ToTimestamp(baseTime)
 	testMetrics   = metrics.NewMetrics("test")
 )
 
@@ -36,7 +38,7 @@ var succeeded = &armadaevents.EventSequence{
 	UserId:     "chrisma",
 	Events: []*armadaevents.EventSequence_Event{
 		{
-			Created: &baseTime,
+			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runIdProto,
@@ -53,7 +55,7 @@ var pendingAndRunning = &armadaevents.EventSequence{
 	UserId:     "chrisma",
 	Events: []*armadaevents.EventSequence_Event{
 		{
-			Created: &baseTime,
+			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
 					RunId:      runIdProto,
@@ -63,7 +65,7 @@ var pendingAndRunning = &armadaevents.EventSequence{
 			},
 		},
 		{
-			Created: &baseTime,
+			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
 					RunId: runIdProto,
@@ -80,7 +82,7 @@ var failed = &armadaevents.EventSequence{
 	UserId:     "chrisma",
 	Events: []*armadaevents.EventSequence_Event{
 		{
-			Created: &baseTime,
+			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runIdProto,
@@ -95,7 +97,7 @@ var failed = &armadaevents.EventSequence{
 			},
 		},
 		{
-			Created: &baseTime,
+			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId: jobIdProto,

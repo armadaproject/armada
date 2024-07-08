@@ -1,14 +1,11 @@
 package database
 
 import (
-	"bytes"
 	"io/fs"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
-
-	stakikfs "github.com/rakyll/statik/fs"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
@@ -116,49 +113,6 @@ func ReadMigrations(fsys fs.FS, basePath string) ([]Migration, error) {
 			id:   id,
 			name: f.Name(),
 			sql:  string(bytes),
-		})
-	}
-	return migrations, nil
-}
-
-// TODO: remove this when we've migrated over to iofs
-func ReadMigrationsFromStatik(namespace string) ([]Migration, error) {
-	vfs, err := stakikfs.NewWithNamespace(namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	dir, err := vfs.Open("/")
-	if err != nil {
-		return nil, err
-	}
-
-	files, err := dir.Readdir(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
-
-	var migrations []Migration
-	for _, f := range files {
-		file, err := vfs.Open("/" + f.Name())
-		if err != nil {
-			return nil, err
-		}
-		buf := new(bytes.Buffer)
-		_, err = buf.ReadFrom(file)
-		if err != nil {
-			return nil, err
-		}
-		id, err := strconv.Atoi(strings.Split(f.Name(), "_")[0])
-		if err != nil {
-			return nil, err
-		}
-		migrations = append(migrations, Migration{
-			id:   id,
-			name: f.Name(),
-			sql:  buf.String(),
 		})
 	}
 	return migrations, nil

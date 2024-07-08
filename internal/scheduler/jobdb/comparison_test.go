@@ -7,9 +7,11 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 )
 
 func TestJobPriorityComparer(t *testing.T) {
+	emptyFloatingResourceTypes, _ := floatingresources.NewFloatingResourceTypes(nil)
 	tests := map[string]struct {
 		a        *Job
 		b        *Job
@@ -52,7 +54,7 @@ func TestJobPriorityComparer(t *testing.T) {
 		},
 		"Running jobs come before queued jobs": {
 			a:        &Job{id: "a", priority: 1},
-			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), TestResourceListFactory)}).WithNewRun("", "", "", 0),
+			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), TestResourceListFactory, emptyFloatingResourceTypes)}).WithNewRun("", "", "", "", 0),
 			expected: 1,
 		},
 		"Running jobs are ordered third by runtime": {

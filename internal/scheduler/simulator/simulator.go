@@ -17,6 +17,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -26,6 +27,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -102,6 +104,11 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	if err != nil {
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources)
+	if err != nil {
+		return nil, err
+	}
+
 	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
 	workloadSpec = proto.Clone(workloadSpec).(*WorkloadSpec)
 	initialiseClusterSpec(clusterSpec)
@@ -117,6 +124,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		schedulingConfig.DefaultPriorityClassName,
 		stringinterner.New(1024),
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
@@ -322,7 +330,7 @@ func (s *Simulator) bootstrapWorkload() error {
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
-						Created: pointer(s.time.Add(jobTemplate.EarliestSubmitTime)),
+						Created: protoutil.ToTimestamp(s.time.Add(jobTemplate.EarliestSubmitTime)),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
 							SubmitJob: submitJobFromJobTemplate(jobId, jobTemplate),
 						},
@@ -394,7 +402,7 @@ func (s *Simulator) pushEventSequence(eventSequence *armadaevents.EventSequence)
 		&s.eventLog,
 		Event{
 			// We assume that all events in the sequence have the same Created time.
-			time:                         *eventSequence.Events[0].Created,
+			time:                         protoutil.ToStdTime(eventSequence.Events[0].Created),
 			sequenceNumber:               s.sequenceNumber,
 			eventSequenceOrScheduleEvent: eventSequence,
 		},
@@ -453,13 +461,12 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			totalResources := s.totalResourcesByPool[pool.Name]
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				totalResources,
-				s.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+				s.schedulingConfig,
 			)
 			if err != nil {
 				return err
 			}
 			sctx := schedulercontext.NewSchedulingContext(
-				fmt.Sprintf("%s-%d", pool.Name, i),
 				pool.Name,
 				s.schedulingConfig.PriorityClasses,
 				s.schedulingConfig.DefaultPriorityClassName,
@@ -498,14 +505,19 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				pool.Name,
 				totalResources,
-				// Minimum job size not used for simulation; use taints/tolerations instead.
-				schedulerobjects.ResourceList{},
 				s.schedulingConfig,
 				nil,
 			)
+
+			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
+			if err != nil {
+				return err
+			}
+
 			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
+				nloatingResourceTypes,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
 				s.schedulingConfig.UseAdjustedFairShareProtection,
 				scheduler.NewSchedulerJobRepositoryAdapter(txn),
@@ -570,7 +582,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					if !ok {
 						return errors.Errorf("job %s not mapped to a priority", job.Id())
 					}
-					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
+					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
 				}
 			}
 			if err := txn.Upsert(preemptedJobs); err != nil {
@@ -598,7 +610,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			t := s.time
 			for _, eventSequence := range eventSequences {
 				for _, event := range eventSequence.Events {
-					event.Created = &t
+					event.Created = protoutil.ToTimestamp(t)
 				}
 			}
 
@@ -630,7 +642,7 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			s.shouldSchedule = true
-			jobs[i], shouldPublish, err = s.handleSubmitJob(txn, event.GetSubmitJob(), *event.Created, es)
+			jobs[i], shouldPublish, err = s.handleSubmitJob(txn, event.GetSubmitJob(), protoutil.ToStdTime(event.Created), es)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			jobs[i], shouldPublish, err = s.handleJobRunLeased(txn, event.GetJobRunLeased())
 		case *armadaevents.EventSequence_Event_JobSucceeded:
@@ -723,7 +735,7 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: &jobSuccessTime,
+					Created: protoutil.ToTimestamp(jobSuccessTime),
 					Event: &armadaevents.EventSequence_Event_JobSucceeded{
 						JobSucceeded: &armadaevents.JobSucceeded{
 							JobId: e.JobId,
@@ -800,7 +812,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
 						// EarliestSubmitTimeFromDependencyCompletion must be positive
-						Created: pointer(maxTime(time.Time{}.Add(dependentJobTemplate.EarliestSubmitTime), s.time.Add(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion))),
+						Created: protoutil.ToTimestamp(maxTime(time.Time{}.Add(dependentJobTemplate.EarliestSubmitTime), s.time.Add(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion))),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
 							SubmitJob: submitJobFromJobTemplate(jobId, dependentJobTemplate),
 						},
@@ -862,7 +874,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: &resubmitTime,
+					Created: protoutil.ToTimestamp(resubmitTime),
 					Event: &armadaevents.EventSequence_Event_SubmitJob{
 						SubmitJob: submitJobFromJobTemplate(retryJobId, jobTemplate),
 					},
@@ -883,10 +895,6 @@ func maxTime(a, b time.Time) time.Time {
 		return b
 	}
 	return a
-}
-
-func pointer[T any](t T) *T {
-	return &t
 }
 
 func calculateDemandByQueue(jobs []*jobdb.Job) map[string]schedulerobjects.ResourceList {

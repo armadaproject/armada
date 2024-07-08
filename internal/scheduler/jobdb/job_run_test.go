@@ -8,6 +8,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -35,6 +36,7 @@ var (
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		MakeTestResourceListFactory(),
+		makeTestEmptyFloatingResources(),
 	)
 	scheduledAtPriority = int32(5)
 )
@@ -46,6 +48,7 @@ var baseJobRun = jobDb.CreateRun(
 	"test-executor",
 	"test-nodeId",
 	"test-nodeName",
+	"test-pool",
 	&scheduledAtPriority,
 	false,
 	false,
@@ -122,6 +125,7 @@ func TestDeepCopy(t *testing.T) {
 		"executor",
 		"nodeName",
 		"nodeId",
+		"pool",
 		&scheduledAtPriority,
 		true,
 		true,
@@ -146,6 +150,7 @@ func TestDeepCopy(t *testing.T) {
 		"executor",
 		"nodeName",
 		"nodeId",
+		"pool",
 		&scheduledAtPriority,
 		true,
 		true,
@@ -167,4 +172,9 @@ func TestDeepCopy(t *testing.T) {
 	run.nodeId = "new nodeId"
 	run.executor = "new executor"
 	assert.Equal(t, expected, actual)
+}
+
+func makeTestEmptyFloatingResources() *floatingresources.FloatingResourceTypes {
+	result, _ := floatingresources.NewFloatingResourceTypes(nil)
+	return result
 }
