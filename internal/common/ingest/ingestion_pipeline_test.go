@@ -369,7 +369,7 @@ func generateEventSequence(numberOfEvents int) *armadaevents.EventSequence {
 	}
 	for i := 0; i < numberOfEvents; i++ {
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Created: &baseTime,
+			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runIdProto,
