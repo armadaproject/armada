@@ -5,12 +5,12 @@ metadata:
 spec:
   version: v0.3.88
   homepage: https://github.com/armadaproject/armada
-  shortDescription: Command line utility to submit many jobs to armada
+  shortDescription: Command line utility used for interacting with Armada API
   description: |
     armadactl is a command-line tool used for managing jobs in the Armada workload orchestration system.
     It provides functionality for creating, updating, and deleting jobs, as well as monitoring job status and resource usage.
   caveats: |
-    Before using the Armada CLI, make sure you have working armada enviornment
+    Before using the Armada CLI, make sure you have working armada environment
     or a armadactl.yaml file that points to a valid armada cluster.
   platforms:
   - selector:

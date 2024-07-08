@@ -9,24 +9,23 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"k8s.io/apimachinery/pkg/util/clock"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-var (
-	emptyList            = immutable.NewSortedSet[*Job](JobPriorityComparer{})
-	emptyQueuedJobsByTtl = immutable.NewSortedSet[*Job](JobQueueTtlComparer{})
-)
+var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 
 type JobDb struct {
 	jobsById        *immutable.Map[string, *Job]
 	jobsByRunId     *immutable.Map[uuid.UUID, string]
 	jobsByQueue     map[string]immutable.SortedSet[*Job]
-	queuedJobsByTtl *immutable.SortedSet[*Job]
 	unvalidatedJobs *immutable.Set[*Job]
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
@@ -45,6 +44,8 @@ type JobDb struct {
 	uuidProvider UUIDProvider
 	// Used to make efficient ResourceList types.
 	resourceListFactory *internaltypes.ResourceListFactory
+	// Info about floating resources
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 // UUIDProvider is an interface used to mock UUID generation for tests.
@@ -59,7 +60,11 @@ func (_ RealUUIDProvider) New() uuid.UUID {
 	return uuid.New()
 }
 
-func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInterner *stringinterner.StringInterner, resourceListFactory *internaltypes.ResourceListFactory,
+func NewJobDb(priorityClasses map[string]types.PriorityClass,
+	defaultPriorityClassName string,
+	stringInterner *stringinterner.StringInterner,
+	resourceListFactory *internaltypes.ResourceListFactory,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
@@ -67,6 +72,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityCla
 		schedulerobjects.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 }
 
@@ -76,6 +82,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	skg *schedulerobjects.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
@@ -88,7 +95,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		unvalidatedJobs:        &unvalidatedJobs,
-		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -96,6 +102,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		clock:                  clock.RealClock{},
 		uuidProvider:           RealUUIDProvider{},
 		resourceListFactory:    resourceListFactory,
+		floatingResourceTypes:  floatingResourceTypes,
 	}
 }
 
@@ -113,7 +120,6 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsById:               jobDb.jobsById,
 		jobsByRunId:            jobDb.jobsByRunId,
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
-		queuedJobsByTtl:        jobDb.queuedJobsByTtl,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
@@ -138,13 +144,12 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 	validated bool,
+	pools []string,
 ) (*Job, error) {
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
-
-	rr := jobDb.getResourceRequirements(schedulingInfo)
 
 	job := &Job{
 		jobDb:                   jobDb,
@@ -157,13 +162,14 @@ func (jobDb *JobDb) NewJob(
 		requestedPriority:       priority,
 		submittedTime:           created,
 		jobSchedulingInfo:       jobDb.internJobSchedulingInfoStrings(schedulingInfo),
-		resourceRequirements:    rr,
+		resourceRequirements:    jobDb.getResourceRequirements(schedulingInfo),
 		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
 		cancelByJobSetRequested: cancelByJobSetRequested,
 		cancelled:               cancelled,
 		validated:               validated,
 		runsById:                map[uuid.UUID]*JobRun{},
+		pools:                   pools,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
@@ -171,17 +177,21 @@ func (jobDb *JobDb) NewJob(
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+}
+
+func safeGetRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) map[string]k8sResource.Quantity {
 	pr := schedulingInfo.GetPodRequirements()
 	if pr == nil {
-		return internaltypes.ResourceList{}
+		return map[string]k8sResource.Quantity{}
 	}
 
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
-		return internaltypes.ResourceList{}
+		return map[string]k8sResource.Quantity{}
 	}
 
-	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(req).Resources)
+	return adapters.K8sResourceListToMap(req)
 }
 
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
@@ -210,7 +220,6 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsById:        jobDb.jobsById,
 		jobsByRunId:     jobDb.jobsByRunId,
 		jobsByQueue:     jobDb.jobsByQueue,
-		queuedJobsByTtl: jobDb.queuedJobsByTtl,
 		unvalidatedJobs: jobDb.unvalidatedJobs,
 		active:          true,
 		jobDb:           jobDb,
@@ -229,7 +238,6 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsById:        jobDb.jobsById,
 		jobsByRunId:     jobDb.jobsByRunId,
 		jobsByQueue:     maps.Clone(jobDb.jobsByQueue),
-		queuedJobsByTtl: jobDb.queuedJobsByTtl,
 		unvalidatedJobs: jobDb.unvalidatedJobs,
 		active:          true,
 		jobDb:           jobDb,
@@ -249,9 +257,6 @@ type Txn struct {
 	jobsByRunId *immutable.Map[uuid.UUID, string]
 	// Queued jobs for each queue. Stored in the order in which they should be scheduled.
 	jobsByQueue map[string]immutable.SortedSet[*Job]
-	// Queued jobs for each queue ordered by remaining time-to-live.
-	// TODO: The ordering is wrong. Since we call time.Now() in the compare function.
-	queuedJobsByTtl *immutable.SortedSet[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// The jobDb from which this transaction was created.
@@ -270,7 +275,6 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsById = txn.jobsById
 	txn.jobDb.jobsByRunId = txn.jobsByRunId
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
-	txn.jobDb.queuedJobsByTtl = txn.queuedJobsByTtl
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
 
 	txn.active = false
@@ -388,9 +392,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
 				}
-				newQueuedJobsByTtl := txn.queuedJobsByTtl.Delete(existingJob)
-				txn.queuedJobsByTtl = &newQueuedJobsByTtl
-
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
@@ -452,11 +453,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				}
 				newQueue = newQueue.Add(job)
 				txn.jobsByQueue[job.queue] = newQueue
-
-				if job.HasQueueTtlSet() {
-					queuedJobsByTtl := txn.queuedJobsByTtl.Add(job)
-					txn.queuedJobsByTtl = &queuedJobsByTtl
-				}
 			}
 		}
 	}()
@@ -509,12 +505,7 @@ func (txn *Txn) QueuedJobs(queue string) *immutable.SortedSetIterator[*Job] {
 	}
 }
 
-// QueuedJobsByTtl returns an iterator for jobs ordered by queue ttl time - the closest to expiry first
-func (txn *Txn) QueuedJobsByTtl() *immutable.SortedSetIterator[*Job] {
-	return txn.queuedJobsByTtl.Iterator()
-}
-
-// UnvalidatedJobs returns an iterator for jobs ordered by queue ttl time - the closest to expiry first
+// UnvalidatedJobs returns an iterator for jobs that have not yet been validated
 func (txn *Txn) UnvalidatedJobs() *immutable.SetIterator[*Job] {
 	return txn.unvalidatedJobs.Iterator()
 }
@@ -555,12 +546,6 @@ func (txn *Txn) delete(jobId string) {
 		if ok {
 			newQueue := queue.Delete(job)
 			txn.jobsByQueue[job.queue] = newQueue
-		}
-
-		// We only add these jobs into the collection if it has a queueTtl set, hence only remove if this is set.
-		if job.HasQueueTtlSet() {
-			newQueuedJobsByExpiry := txn.queuedJobsByTtl.Delete(job)
-			txn.queuedJobsByTtl = &newQueuedJobsByExpiry
 		}
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs

@@ -5,19 +5,21 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
+
+	"github.com/gogo/protobuf/types"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
@@ -117,7 +119,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 	}
 
 	submitEvent := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
 				JobId:           jobIdProto,
@@ -158,7 +160,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 	}
 	js.events = append(js.events, submitEvent)
 
-	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, submitEvent.GetSubmitJob())
+	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, protoutil.ToStdTime(ts), submitEvent.GetSubmitJob())
 	js.apiJob = apiJob
 
 	js.job = &model.Job{
@@ -168,7 +170,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 		Gpu:                opts.Gpu.Value(),
 		JobId:              jobId,
 		JobSet:             jobSet,
-		LastTransitionTime: ts,
+		LastTransitionTime: protoutil.ToStdTime(ts),
 		Memory:             opts.Memory.Value(),
 		Owner:              owner,
 		Namespace:          &apiJob.Namespace,
@@ -177,15 +179,16 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 		Queue:              queue,
 		Runs:               []*model.Run{},
 		State:              string(lookout.JobQueued),
-		Submitted:          ts,
+		Submitted:          protoutil.ToStdTime(ts),
 	}
 	return js
 }
 
 func (js *JobSimulator) Lease(runId string, cluster string, node string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	leased := protoutil.ToStdTime(ts)
 	leasedEvent := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
 				RunId:      armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
@@ -198,7 +201,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 	js.events = append(js.events, leasedEvent)
 
 	js.job.LastActiveRunId = &runId
-	js.job.LastTransitionTime = ts
+	js.job.LastTransitionTime = protoutil.ToStdTime(ts)
 	js.job.State = string(lookout.JobLeased)
 	js.job.Cluster = cluster
 	js.job.Node = &node
@@ -207,15 +210,16 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 		jobRunState: lookout.JobRunLeased,
 		cluster:     &cluster,
 		node:        &node,
-		leased:      &ts,
+		leased:      &leased,
 	})
 	return js
 }
 
 func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	pending := protoutil.ToStdTime(ts)
 	assignedEvent := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 			JobRunAssigned: &armadaevents.JobRunAssigned{
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
@@ -241,14 +245,14 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 	js.events = append(js.events, assignedEvent)
 
 	js.job.LastActiveRunId = &runId
-	js.job.LastTransitionTime = ts
+	js.job.LastTransitionTime = pending
 	js.job.State = string(lookout.JobPending)
 	js.job.Cluster = cluster
 	rp := &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
 		jobRunState: lookout.JobRunPending,
-		pending:     &ts,
+		pending:     &pending,
 	}
 	js.updateRun(js.job, rp)
 	return js
@@ -256,8 +260,9 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 
 func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	running := protoutil.ToStdTime(ts)
 	runningEvent := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
@@ -278,22 +283,23 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 	js.events = append(js.events, runningEvent)
 
 	js.job.LastActiveRunId = &runId
-	js.job.LastTransitionTime = ts
+	js.job.LastTransitionTime = running
 	js.job.State = string(lookout.JobRunning)
 	js.job.Node = &node
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunRunning,
 		node:        &node,
-		started:     &ts,
+		started:     &running,
 	})
 	return js
 }
 
 func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	succeeded := protoutil.ToStdTime(ts)
 	runSucceeded := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 			JobRunSucceeded: &armadaevents.JobRunSucceeded{
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
@@ -307,7 +313,7 @@ func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimu
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		exitCode:    pointer.Int32(0),
-		finished:    &ts,
+		finished:    &succeeded,
 		jobRunState: lookout.JobRunSucceeded,
 	})
 	return js
@@ -315,8 +321,9 @@ func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimu
 
 func (js *JobSimulator) Succeeded(timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	succeededTime := protoutil.ToStdTime(ts)
 	succeeded := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
 				JobId: js.jobId,
@@ -325,15 +332,16 @@ func (js *JobSimulator) Succeeded(timestamp time.Time) *JobSimulator {
 	}
 	js.events = append(js.events, succeeded)
 
-	js.job.LastTransitionTime = ts
+	js.job.LastTransitionTime = succeededTime
 	js.job.State = string(lookout.JobSucceeded)
 	return js
 }
 
 func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	returnedTime := protoutil.ToStdTime(ts)
 	leaseReturned := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
@@ -355,7 +363,7 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
-		finished:    &ts,
+		finished:    &returnedTime,
 		jobRunState: lookout.JobRunLeaseReturned,
 	})
 	return js
@@ -363,8 +371,9 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 
 func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	cancelledTime := protoutil.ToStdTime(ts)
 	cancelled := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
 				JobId: js.jobId,
@@ -374,15 +383,15 @@ func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 	js.events = append(js.events, cancelled)
 
 	js.job.State = string(lookout.JobCancelled)
-	js.job.Cancelled = &ts
-	js.job.LastTransitionTime = ts
+	js.job.Cancelled = &cancelledTime
+	js.job.LastTransitionTime = cancelledTime
 	return js
 }
 
 func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	reprioritized := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
 				JobId:    js.jobId,
@@ -400,8 +409,9 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 
 func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, message string, debug string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	failedTime := protoutil.ToStdTime(ts)
 	runFailed := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
@@ -430,17 +440,46 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		exitCode:    &exitCode,
-		finished:    &ts,
+		finished:    &failedTime,
 		jobRunState: lookout.JobRunFailed,
 		node:        &node,
 	})
 	return js
 }
 
+func (js *JobSimulator) Rejected(message string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	rejectedTime := protoutil.ToStdTime(ts)
+	rejected := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: js.jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_JobRejected{
+							JobRejected: &armadaevents.JobRejected{
+								Message: message,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	js.events = append(js.events, rejected)
+
+	js.job.LastTransitionTime = rejectedTime
+	js.job.State = string(lookout.JobRejected)
+	return js
+}
+
 func (js *JobSimulator) Failed(node string, exitCode int32, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	failedTime := protoutil.ToStdTime(ts)
 	failed := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId: js.jobId,
@@ -463,16 +502,17 @@ func (js *JobSimulator) Failed(node string, exitCode int32, message string, time
 	}
 	js.events = append(js.events, failed)
 
-	js.job.LastTransitionTime = ts
+	js.job.LastTransitionTime = failedTime
 	js.job.State = string(lookout.JobFailed)
 	return js
 }
 
 func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	preemptedTime := protoutil.ToStdTime(ts)
 
 	preemptedJob := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId: js.jobId,
@@ -489,7 +529,7 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	}
 
 	preemptedRun := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
 				PreemptedJobId: js.jobId,
@@ -499,15 +539,16 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	}
 	js.events = append(js.events, preemptedJob, preemptedRun)
 
-	js.job.LastTransitionTime = ts
+	js.job.LastTransitionTime = preemptedTime
 	js.job.State = string(lookout.JobPreempted)
 	return js
 }
 
 func (js *JobSimulator) RunTerminated(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	terminatedTime := protoutil.ToStdTime(ts)
 	terminated := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
@@ -534,7 +575,7 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
-		finished:    &ts,
+		finished:    &terminatedTime,
 		jobRunState: lookout.JobRunTerminated,
 		node:        &node,
 	})
@@ -543,8 +584,9 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 
 func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	unschedulableTime := protoutil.ToStdTime(ts)
 	runUnschedulable := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
@@ -571,17 +613,18 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
-		finished:    &ts,
+		finished:    &unschedulableTime,
 		jobRunState: lookout.JobRunUnableToSchedule,
 		node:        &node,
 	})
 	return js
 }
 
-func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, clk clock.Clock) *JobSimulator {
+func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
+	leaseExpiredTime := protoutil.ToStdTime(ts)
 	leaseReturned := &armadaevents.EventSequence_Event{
-		Created: &ts,
+		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: js.jobId,
@@ -601,7 +644,7 @@ func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, clk cloc
 
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
-		finished:    &ts,
+		finished:    &leaseExpiredTime,
 		jobRunState: lookout.JobRunLeaseExpired,
 	})
 	return js
@@ -634,11 +677,11 @@ func (js *JobSimulator) ApiJob() *api.Job {
 	return js.apiJob
 }
 
-func timestampOrNow(timestamp time.Time) time.Time {
+func timestampOrNow(timestamp time.Time) *types.Timestamp {
 	if timestamp.IsZero() {
-		timestamp = time.Now()
+		return types.TimestampNow()
 	}
-	return timestamp
+	return protoutil.ToTimestamp(timestamp)
 }
 
 func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {

@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cluster"
@@ -124,7 +124,7 @@ func StartUpWithContext(
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.NodeTypeLabel, config.Kubernetes.NodePoolLabel, config.Kubernetes.ToleratedTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
@@ -144,7 +144,11 @@ func StartUpWithContext(
 
 	stopExecutorApiComponents := setupExecutorApiComponents(log, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
 
-	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
+	resourceCleanupService, err := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
+	if err != nil {
+		log.Errorf("Error creating resource cleanup service: %s", err)
+		os.Exit(-1)
+	}
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
@@ -192,12 +196,16 @@ func setupExecutorApiComponents(
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
-	eventReporter, stopReporter := reporter.NewJobEventReporter(
+	eventReporter, stopReporter, err := reporter.NewJobEventReporter(
 		clusterContext,
 		jobRunState,
 		eventSender,
 		clock.RealClock{},
 		200)
+	if err != nil {
+		log.Errorf("Failed to create job event reporter: %s", err)
+		os.Exit(-1)
+	}
 
 	submitter := job.NewSubmitter(
 		clusterContext,
@@ -206,8 +214,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
 
-	leaseRequester := service.NewJobLeaseRequester(
-		executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
+	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
 	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
 	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
 
@@ -227,7 +234,7 @@ func setupExecutorApiComponents(
 		submitter,
 		clusterHealthMonitor,
 	)
-	podIssueService := service.NewIssueHandler(
+	podIssueService, err := service.NewIssueHandler(
 		jobRunState,
 		clusterContext,
 		eventReporter,
@@ -235,6 +242,10 @@ func setupExecutorApiComponents(
 		pendingPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
 	)
+	if err != nil {
+		log.Errorf("Failed to create pod issue service: %s", err)
+		os.Exit(-1)
+	}
 
 	taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
 	taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
@@ -242,16 +253,24 @@ func setupExecutorApiComponents(
 	taskManager.Register(jobRequester.RequestJobsRuns, config.Task.AllocateSpareClusterCapacityInterval, "request_runs")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
-	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
+	_, err = pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
+	if err != nil {
+		log.Errorf("Failed to setup cluster context metrics: %s", err)
+		os.Exit(-1)
+	}
 	runStateMetricsCollector := runstate.NewJobRunStateStoreMetricsCollector(jobRunState)
 	prometheus.MustRegister(runStateMetricsCollector)
 
 	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
-		podUtilisationReporter := utilisation.NewUtilisationEventReporter(
+		podUtilisationReporter, err := utilisation.NewUtilisationEventReporter(
 			clusterContext,
 			podUtilisationService,
 			eventReporter,
 			config.Task.UtilisationEventReportingInterval)
+		if err != nil {
+			log.Errorf("Failed to pod utilisation reporter: %s", err)
+			os.Exit(-1)
+		}
 		taskManager.Register(
 			podUtilisationReporter.ReportUtilisationEvents,
 			config.Task.UtilisationEventProcessingInterval,

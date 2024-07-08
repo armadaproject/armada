@@ -18,6 +18,8 @@ from armada_client.armada import (
     submit_pb2,
     submit_pb2_grpc,
     health_pb2,
+    job_pb2,
+    job_pb2_grpc,
 )
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -104,6 +106,7 @@ class ArmadaAsyncIOClient:
     ) -> None:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.job_stub = job_pb2_grpc.JobsStub(channel)
         self.event_timeout = event_timeout
 
     async def get_job_events_stream(
@@ -169,7 +172,7 @@ class ArmadaAsyncIOClient:
     async def submit_jobs(
         self, queue: str, job_set_id: str, job_request_items
     ) -> AsyncIterator[submit_pb2.JobSubmitResponse]:
-        """Submit a armada job.
+        """Submit an armada job.
 
         Uses SubmitJobs RPC to submit a job.
 
@@ -184,6 +187,48 @@ class ArmadaAsyncIOClient:
         )
         response = await self.submit_stub.SubmitJobs(request)
         return response
+
+    async def get_job_status(self, job_ids: List[str]) -> job_pb2.JobStatusResponse:
+        """
+        Asynchronously retrieves the status of a list of jobs from Armada.
+
+        :param job_ids: A list of unique job identifiers.
+        :type job_ids: List[str]
+
+        :returns: The response from the server containing the job status.
+        :rtype: JobStatusResponse
+        """
+        req = job_pb2.JobStatusRequest(job_ids=job_ids)
+        resp = await self.job_stub.GetJobStatus(req)
+        return resp
+
+    async def get_job_details(self, job_ids: List[str]) -> job_pb2.JobDetailsResponse:
+        """
+        Asynchronously retrieves the details of a job from Armada.
+
+        :param job_ids: A list of unique job identifiers.
+        :type job_ids: List[str]
+
+        :returns: The Armada job details response.
+        """
+        req = job_pb2.JobDetailsRequest(job_ids=job_ids, expand_job_run=True)
+        resp = await self.job_stub.GetJobDetails(req)
+        return resp
+
+    async def get_job_run_details(
+        self, run_ids: List[str]
+    ) -> job_pb2.JobRunDetailsResponse:
+        """
+        Asynchronously retrieves the details of a job run from Armada.
+
+        :param run_ids: A list of unique job run identifiers.
+        :type run_ids: List[str]
+
+        :returns: The Armada run details response.
+        """
+        req = job_pb2.JobRunDetailsRequest(run_ids=run_ids)
+        resp = await self.job_stub.GetJobRunDetails(req)
+        return resp
 
     async def cancel_jobs(
         self,

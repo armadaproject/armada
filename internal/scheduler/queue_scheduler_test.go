@@ -30,8 +30,6 @@ import (
 func TestQueueScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
-		// Minimum job size.
-		MinimumJobSize map[string]resource.Quantity
 		// Total resources across all clusters.
 		// Set to the total resources across all nodes if not provided.
 		TotalResources schedulerobjects.ResourceList
@@ -188,9 +186,9 @@ func TestQueueScheduler(t *testing.T) {
 				{
 					Name:           "A",
 					PriorityFactor: 1.0,
-					ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{
+					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 						testfixtures.PriorityClass0: {
-							MaximumResourceFractionByPool: map[string]api.PriorityClassPoolResourceLimits{
+							MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
 								"pool": {
 									MaximumResourceFraction: map[string]float64{"cpu": 0.5, "memory": 1.0},
 								},
@@ -323,44 +321,6 @@ func TestQueueScheduler(t *testing.T) {
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{1},
-		},
-		"minimum job size": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:             armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
-			Queues:           testfixtures.SingleQueuePriorityOne("A"),
-			MinimumJobSize: map[string]resource.Quantity{
-				"cpu": resource.MustParse("2"),
-			},
-			ExpectedScheduledIndices: []int{1},
-		},
-		"minimum job size gpu": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N8GpuNodes(2, testfixtures.TestPriorities),
-			Jobs: armadaslices.Concatenate(
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
-			),
-			Queues: testfixtures.SingleQueuePriorityOne("A"),
-			MinimumJobSize: map[string]resource.Quantity{
-				"nvidia.com/gpu": resource.MustParse("1"),
-			},
-			ExpectedScheduledIndices: []int{2},
-		},
-		"minimum job size two gpu": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N8GpuNodes(2, testfixtures.TestPriorities),
-			Jobs: armadaslices.Concatenate(
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
-			),
-			Queues: testfixtures.SingleQueuePriorityOne("A"),
-			MinimumJobSize: map[string]resource.Quantity{
-				"nvidia.com/gpu": resource.MustParse("2"),
-			},
-			ExpectedScheduledIndices: nil,
 		},
 		"taints and tolerations": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
@@ -549,11 +509,10 @@ func TestQueueScheduler(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
-				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
-				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
 				tc.SchedulingConfig.DefaultPriorityClassName,
@@ -569,6 +528,7 @@ func TestQueueScheduler(t *testing.T) {
 				err := sctx.AddQueueSchedulingContext(
 					q.Name, weight,
 					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
+					schedulerobjects.NewResourceList(0),
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -579,7 +539,6 @@ func TestQueueScheduler(t *testing.T) {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				tc.TotalResources,
-				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				tc.Queues,
 			)
@@ -588,7 +547,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, nodeDb, jobIteratorByQueue)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -725,7 +684,6 @@ func TestQueueScheduler(t *testing.T) {
 func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinterner.StringInterner) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		config.PriorityClasses,
-		config.MaxExtraNodesToConsider,
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,

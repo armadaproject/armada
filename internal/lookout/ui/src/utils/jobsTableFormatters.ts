@@ -28,6 +28,8 @@ export const colorForJobState = (state?: JobState): string | undefined => {
       return pink[100]
     case JobState.Leased:
       return cyan[100]
+    case JobState.Rejected:
+      return red["400"]
     default:
       return purple["A100"]
   }

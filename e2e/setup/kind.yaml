@@ -5,9 +5,9 @@ featureGates:
   "KubeletInUserNamespace": true
 nodes:
 - role: worker
-  image: kindest/node:v1.24.17
+  image: kindest/node:v1.26.15
 - role: control-plane
-  image: kindest/node:v1.24.17
+  image: kindest/node:v1.26.15
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration

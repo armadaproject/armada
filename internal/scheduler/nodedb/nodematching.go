@@ -14,10 +14,6 @@ import (
 )
 
 const (
-	// When checking if a pod fits on a node, this score indicates how well the pods fits.
-	// However, all nodes are currently given the same score.
-	SchedulableScore                                 = 0
-	SchedulableBestScore                             = SchedulableScore
 	PodRequirementsNotMetReasonUnknown               = "unknown"
 	PodRequirementsNotMetReasonInsufficientResources = "insufficient resources available"
 )
@@ -156,16 +152,16 @@ func NodeTypeJobRequirementsMet(nodeType *schedulerobjects.NodeType, jctx *sched
 // - 1: Pod can be scheduled without preempting any running pods.
 // If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
-func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason, error) {
+func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
 	matches, reason, err := StaticJobRequirementsMet(node, jctx)
 	if !matches || err != nil {
-		return matches, 0, reason, err
+		return matches, reason, err
 	}
-	matches, score, reason := DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+	matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 	if !matches {
-		return matches, 0, reason, nil
+		return matches, reason, nil
 	}
-	return true, score, nil, nil
+	return true, nil, nil
 }
 
 // StaticJobRequirementsMet checks if a job can be scheduled onto this node,
@@ -191,7 +187,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, err
 	}
 
-	matches, reason = resourceRequirementsMet(node.TotalResources, jctx.ResourceRequirements)
+	matches, reason = resourceRequirementsMet(node.GetTotalResources(), jctx.ResourceRequirements)
 	if !matches {
 		return matches, reason, nil
 	}
@@ -201,9 +197,9 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 
 // DynamicJobRequirementsMet checks if a pod can be scheduled onto this node,
 // accounting for resources allocated to pods already assigned to this node.
-func DynamicJobRequirementsMet(allocatableResources internaltypes.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason) {
+func DynamicJobRequirementsMet(allocatableResources internaltypes.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason) {
 	matches, reason := resourceRequirementsMet(allocatableResources, jctx.ResourceRequirements)
-	return matches, SchedulableScore, reason
+	return matches, reason
 }
 
 func TolerationRequirementsMet(taints []v1.Taint, tolerations ...[]v1.Toleration) (bool, PodRequirementsNotMetReason) {

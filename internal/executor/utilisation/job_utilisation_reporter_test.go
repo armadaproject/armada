@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -37,8 +38,9 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
-	eventReporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	_, err := submitPod(clusterContext)
+	eventReporter, err := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	require.NoError(t, err)
+	_, err = submitPod(clusterContext)
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Second)
@@ -59,12 +61,12 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	_, ok = fakeEventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
 	assert.True(t, ok)
 
-	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.ComputeResources(event1.ResourceUtilisation.MaxResourcesForPeriod))
-	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.ComputeResources(event1.ResourceUtilisation.TotalCumulativeUsage))
+	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.TotalCumulativeUsage))
 
 	event1CreatedTime := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Created
 	event2CreatedTime := fakeEventReporter.ReceivedEvents[1].Event.Events[0].Created
-	period := event2CreatedTime.Sub(*event1CreatedTime)
+	period := protoutil.ToStdTime(event2CreatedTime).Sub(protoutil.ToStdTime(event1CreatedTime))
 
 	accuracy := time.Millisecond * 20
 	assert.Equal(t, period/accuracy, reportingPeriod/accuracy)
@@ -76,8 +78,9 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
-	eventReporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	_, err := submitPod(clusterContext)
+	eventReporter, err := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	require.NoError(t, err)
+	_, err = submitPod(clusterContext)
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Millisecond * 500)

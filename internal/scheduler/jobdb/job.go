@@ -14,6 +14,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -513,12 +514,6 @@ func (job *Job) EfficientResourceRequirements() internaltypes.ResourceList {
 	return job.resourceRequirements
 }
 
-// QueueTtlSeconds returns the time in seconds that the job should remain queued
-// 0 means that this field is  unset
-func (job *Job) QueueTtlSeconds() int64 {
-	return job.jobSchedulingInfo.QueueTtlSeconds
-}
-
 // PodRequirements returns the pod requirements of the Job
 func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 	return job.jobSchedulingInfo.GetPodRequirements()
@@ -650,12 +645,13 @@ func (job *Job) ValidateResourceRequests() error {
 		return nil
 	}
 
-	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(req)
+	resourcesExclFloating := job.jobDb.floatingResourceTypes.RemoveFloatingResources(adapters.K8sResourceListToMap(req))
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(resourcesExclFloating)
 	return err
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAtPriority int32) *Job {
+func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
 		job.Id(),
@@ -663,6 +659,7 @@ func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAt
 		executor,
 		nodeId,
 		nodeName,
+		pool,
 		&scheduledAtPriority,
 		false,
 		false,
@@ -738,28 +735,6 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
-// HasQueueTtlExpired returns true if the given job has reached its queueTtl expiry.
-// Invariants:
-//   - job.created < `t`
-func (job *Job) HasQueueTtlExpired() bool {
-	ttlSeconds := job.QueueTtlSeconds()
-	if ttlSeconds > 0 {
-		timeSeconds := time.Now().UTC().Unix()
-
-		// job.Created is populated from the `Submitted` field in postgres, which is a UnixNano time hence the conversion.
-		createdSeconds := job.submittedTime / 1_000_000_000
-		duration := timeSeconds - createdSeconds
-		return duration > ttlSeconds
-	} else {
-		return false
-	}
-}
-
-// HasQueueTtlSet returns true if the given job has a queueTtl set.
-func (job *Job) HasQueueTtlSet() bool {
-	return job.QueueTtlSeconds() > 0
-}
-
 // WithJobset returns a copy of the job with the jobSet updated.
 func (job *Job) WithJobset(jobset string) *Job {
 	j := copyJob(*job)
@@ -791,6 +766,11 @@ func (job *Job) WithValidated(validated bool) *Job {
 // Validated returns true if the job has been validated
 func (job *Job) Validated() bool {
 	return job.validated
+}
+
+// Does this job request any floating resources?
+func (job *Job) RequestsFloatingResources() bool {
+	return job.jobDb.floatingResourceTypes.HasFloatingResources(safeGetRequirements(job.jobSchedulingInfo))
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.

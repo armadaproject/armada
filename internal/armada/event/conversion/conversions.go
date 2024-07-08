@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -20,39 +21,38 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 
 	for _, event := range es.Events {
 		var convertedEvents []*api.EventMessage = nil
+		eventTs := protoutil.ToStdTime(event.Created)
 		switch esEvent := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			convertedEvents, err = FromInternalSubmit(es.UserId, es.Groups, es.Queue, es.JobSetName, *event.Created, esEvent.SubmitJob)
+			convertedEvents, err = FromInternalSubmit(es.UserId, es.Groups, es.Queue, es.JobSetName, eventTs, esEvent.SubmitJob)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			convertedEvents, err = FromInternalCancelled(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelledJob)
+			convertedEvents, err = FromInternalCancelled(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.CancelledJob)
 		case *armadaevents.EventSequence_Event_CancelJob:
-			convertedEvents, err = FromInternalCancel(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelJob)
+			convertedEvents, err = FromInternalCancel(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.CancelJob)
 		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
-			convertedEvents, err = FromInternalPreemptionRequested(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.JobPreemptionRequested)
+			convertedEvents, err = FromInternalPreemptionRequested(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobPreemptionRequested)
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			convertedEvents, err = FromInternalReprioritiseJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritiseJob)
+			convertedEvents, err = FromInternalReprioritiseJob(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.ReprioritiseJob)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			convertedEvents, err = FromInternalReprioritisedJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritisedJob)
-		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			convertedEvents, err = FromInternalLogDuplicateDetected(es.Queue, es.JobSetName, *event.Created, esEvent.JobDuplicateDetected)
+			convertedEvents, err = FromInternalReprioritisedJob(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.ReprioritisedJob)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunLeased)
+			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, eventTs, esEvent.JobRunLeased)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunErrors)
+			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, eventTs, esEvent.JobRunErrors)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
-			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, *event.Created, esEvent.JobSucceeded)
+			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, eventTs, esEvent.JobSucceeded)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobErrors)
+			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, eventTs, esEvent.JobErrors)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
-			convertedEvents, err = FromInternalJobRunRunning(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunRunning)
+			convertedEvents, err = FromInternalJobRunRunning(es.Queue, es.JobSetName, eventTs, esEvent.JobRunRunning)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
+			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, eventTs, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
-			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
+			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, eventTs, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
+			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, eventTs, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunPreempted)
+			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
@@ -89,15 +89,15 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 		JobId:    jobId,
 		JobSetId: jobSet,
 		Queue:    queue,
-		Created:  time,
-		Job:      *job,
+		Created:  protoutil.ToTimestamp(time),
+		Job:      job,
 	}
 
 	queuedEvent := &api.JobQueuedEvent{
 		JobId:    jobId,
 		JobSetId: jobSet,
 		Queue:    queue,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	return []*api.EventMessage{
@@ -127,7 +127,7 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
 				},
 			},
@@ -148,7 +148,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
 				},
 			},
@@ -169,7 +169,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
 				},
 			},
@@ -189,7 +189,7 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 					JobId:       jobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
-					Created:     time,
+					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
 					Requestor:   userId,
 				},
@@ -210,33 +210,9 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					JobId:       jobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
-					Created:     time,
+					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
 					Requestor:   userId,
-				},
-			},
-		},
-	}, nil
-}
-
-func FromInternalLogDuplicateDetected(queueName string, jobSetName string, time time.Time, e *armadaevents.JobDuplicateDetected) ([]*api.EventMessage, error) {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(e.NewJobId)
-	if err != nil {
-		return nil, err
-	}
-	originalJobId, err := armadaevents.UlidStringFromProtoUuid(e.OldJobId)
-	if err != nil {
-		return nil, err
-	}
-	return []*api.EventMessage{
-		{
-			Events: &api.EventMessage_DuplicateFound{
-				DuplicateFound: &api.JobDuplicateFoundEvent{
-					JobId:         jobId,
-					JobSetId:      jobSetName,
-					Queue:         queueName,
-					Created:       time,
-					OriginalJobId: originalJobId,
 				},
 			},
 		},
@@ -255,7 +231,7 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
-					Created:   time,
+					Created:   protoutil.ToTimestamp(time),
 					ClusterId: e.ExecutorId,
 				},
 			},
@@ -273,7 +249,7 @@ func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Tim
 		JobId:    jobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -311,7 +287,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 					},
 				},
 			}
@@ -331,7 +307,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						PodNumber:    reason.PodUnschedulable.GetPodNumber(),
 						JobSetId:     jobSetName,
 						Queue:        queueName,
-						Created:      time,
+						Created:      protoutil.ToTimestamp(time),
 					},
 				},
 			}
@@ -344,7 +320,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						JobId:        jobId,
 						JobSetId:     jobSetName,
 						Queue:        queueName,
-						Created:      time,
+						Created:      protoutil.ToTimestamp(time),
 						ClusterId:    objectMeta.GetExecutorId(),
 						Reason:       reason.PodLeaseReturned.GetMessage(),
 						KubernetesId: objectMeta.GetKubernetesId(),
@@ -364,7 +340,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						PodNamespace: objectMeta.GetNamespace(),
 						PodName:      objectMeta.GetName(),
 						Queue:        queueName,
-						Created:      time,
+						Created:      protoutil.ToTimestamp(time),
 						ClusterId:    objectMeta.GetExecutorId(),
 						Reason:       reason.PodTerminated.GetMessage(),
 						KubernetesId: objectMeta.GetKubernetesId(),
@@ -405,7 +381,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   "preempted",
 					},
 				},
@@ -418,7 +394,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   reason.MaxRunsExceeded.Message,
 					},
 				},
@@ -431,7 +407,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   reason.GangJobUnschedulable.Message,
 					},
 				},
@@ -444,7 +420,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 						Reason:   reason.JobRejected.Message,
 						Cause:    api.Cause_Rejected,
 					},
@@ -459,7 +435,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobId:    jobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
-						Created:  time,
+						Created:  protoutil.ToTimestamp(time),
 					},
 				},
 			}
@@ -479,7 +455,7 @@ func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Ti
 		JobId:    jobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -511,7 +487,7 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		JobId:    jobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
-		Created:  time,
+		Created:  protoutil.ToTimestamp(time),
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -566,7 +542,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		JobId:           jobId,
 		JobSetId:        jobSetName,
 		Queue:           queueName,
-		Created:         time,
+		Created:         protoutil.ToTimestamp(time),
 		RunId:           runId,
 		PreemptiveJobId: preemptiveJobId,
 		PreemptiveRunId: preemptiveRunId,
@@ -591,7 +567,7 @@ func FromInternalResourceUtilisation(queueName string, jobSetName string, time t
 		JobId:                 jobId,
 		JobSetId:              jobSetName,
 		Queue:                 queueName,
-		Created:               time,
+		Created:               protoutil.ToTimestamp(time),
 		ClusterId:             e.GetResourceInfo().GetObjectMeta().GetExecutorId(),
 		KubernetesId:          e.GetResourceInfo().GetObjectMeta().GetKubernetesId(),
 		MaxResourcesForPeriod: e.MaxResourcesForPeriod,
@@ -621,7 +597,7 @@ func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time
 		JobId:            jobId,
 		JobSetId:         jobSetName,
 		Queue:            queueName,
-		Created:          time,
+		Created:          protoutil.ToTimestamp(time),
 		ClusterId:        e.GetObjectMeta().GetExecutorId(),
 		KubernetesId:     e.GetObjectMeta().GetKubernetesId(),
 		NodeName:         e.GetNodeName(),
@@ -646,7 +622,7 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 		JobId:        jobId,
 		JobSetId:     jobSetName,
 		Queue:        queueName,
-		Created:      time,
+		Created:      protoutil.ToTimestamp(time),
 		ClusterId:    podError.GetObjectMeta().GetExecutorId(),
 		PodNamespace: podError.GetObjectMeta().GetNamespace(),
 		KubernetesId: podError.GetObjectMeta().GetKubernetesId(),

@@ -9,10 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -33,7 +34,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
-		poolMappings map[string]string
+		poolMappings map[string][]string
 		queues       []*api.Queue
 		expected     []prometheus.Metric
 	}{
@@ -111,6 +112,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				executorRepository,
 				poolAssigner,
 				2*time.Second,
+				testfixtures.TestEmptyFloatingResources,
 			)
 			collector.clock = testClock
 			err = collector.refresh(ctx)
@@ -155,9 +157,10 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 	executorWithJobs := createExecutor("cluster-1", nodeWithJobs)
 
 	tests := map[string]struct {
-		jobDbJobs []*jobdb.Job
-		executors []*schedulerobjects.Executor
-		expected  []prometheus.Metric
+		jobDbJobs             []*jobdb.Job
+		floatingResourceTypes *floatingresources.FloatingResourceTypes
+		executors             []*schedulerobjects.Executor
+		expected              []prometheus.Metric
 	}{
 		"empty cluster single node type": {
 			jobDbJobs: []*jobdb.Job{},
@@ -233,6 +236,15 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
 			},
 		},
+		"floating resources": {
+			jobDbJobs:             []*jobdb.Job{},
+			floatingResourceTypes: testfixtures.TestFloatingResources,
+			executors:             []*schedulerobjects.Executor{},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(10, "floating", "pool", "test-floating-resource", ""),
+				commonmetrics.NewClusterTotalCapacity(10, "floating", "pool", "test-floating-resource", ""),
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -250,10 +262,14 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
-			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string]string{}}
+			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string][]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(tc.executors, nil)
+
+			if tc.floatingResourceTypes == nil {
+				tc.floatingResourceTypes = testfixtures.TestEmptyFloatingResources
+			}
 
 			collector := NewMetricsCollector(
 				jobDb,
@@ -261,6 +277,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				executorRepository,
 				poolAssigner,
 				2*time.Second,
+				tc.floatingResourceTypes,
 			)
 			collector.clock = testClock
 			err = collector.refresh(ctx)
@@ -302,17 +319,17 @@ func createNode(nodeType string) *schedulerobjects.Node {
 
 type MockPoolAssigner struct {
 	defaultPool string
-	poolsById   map[string]string
+	poolsById   map[string][]string
 }
 
 func (m MockPoolAssigner) Refresh(_ *armadacontext.Context) error {
 	return nil
 }
 
-func (m MockPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
-	pool, ok := m.poolsById[j.Id()]
+func (m MockPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
+	pools, ok := m.poolsById[j.Id()]
 	if !ok {
-		pool = m.defaultPool
+		return []string{m.defaultPool}, nil
 	}
-	return pool, nil
+	return pools, nil
 }

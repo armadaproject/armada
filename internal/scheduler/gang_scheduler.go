@@ -10,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -17,9 +18,10 @@ import (
 
 // GangScheduler schedules one gang at a time. GangScheduler is not aware of queues.
 type GangScheduler struct {
-	constraints       schedulerconstraints.SchedulingConstraints
-	schedulingContext *schedulercontext.SchedulingContext
-	nodeDb            *nodedb.NodeDb
+	constraints           schedulerconstraints.SchedulingConstraints
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	schedulingContext     *schedulercontext.SchedulingContext
+	nodeDb                *nodedb.NodeDb
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
 }
@@ -27,12 +29,14 @@ type GangScheduler struct {
 func NewGangScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:       constraints,
-		schedulingContext: sctx,
-		nodeDb:            nodeDb,
+		constraints:           constraints,
+		floatingResourceTypes: floatingResourceTypes,
+		schedulingContext:     sctx,
+		nodeDb:                nodeDb,
 	}, nil
 }
 
@@ -138,6 +142,13 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 			return
 		}
 	}
+
+	if gctx.RequestsFloatingResources {
+		if ok, unschedulableReason = sch.floatingResourceTypes.WithinLimits(sch.schedulingContext.Pool, sch.schedulingContext.Allocated); !ok {
+			return
+		}
+	}
+
 	return sch.trySchedule(ctx, gctx)
 }
 

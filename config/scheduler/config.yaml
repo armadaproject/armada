@@ -37,6 +37,7 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
+  maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 #4Mi
 armadaApi:
   armadaUrl: "server:50051"
@@ -85,9 +86,8 @@ scheduling:
       resolution: "1"
   disableScheduling: false
   enableAssertions: false
-  nodeEvictionProbability: 1.0
-  nodeOversubscriptionEvictionProbability: 1.0
   protectedFractionOfFairShare: 1.0
+  useAdjustedFairShareProtection: true
   nodeIdLabel: "kubernetes.io/hostname"
   priorityClasses:
     armada-default:

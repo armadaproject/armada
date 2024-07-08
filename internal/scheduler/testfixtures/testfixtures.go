@@ -16,11 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -33,6 +35,8 @@ const (
 	TestQueue                    = "testQueue"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
+	ClusterNameLabel             = "cluster"
+	PoolNameLabel                = "pool"
 	PriorityClass0               = "priority-0"
 	PriorityClass1               = "priority-1"
 	PriorityClass2               = "priority-2"
@@ -41,9 +45,23 @@ const (
 )
 
 var (
-	TestResourceListFactory = MakeTestResourceListFactory()
-	BaseTime, _             = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses     = map[string]types.PriorityClass{
+	TestResourceListFactory    = MakeTestResourceListFactory()
+	TestEmptyFloatingResources = MakeTestFloatingResourceTypes(nil)
+	TestFloatingResources      = MakeTestFloatingResourceTypes(TestFloatingResourceConfig)
+	TestFloatingResourceConfig = []schedulerconfiguration.FloatingResourceConfig{
+		{
+			Name: "test-floating-resource",
+			Pools: []schedulerconfiguration.FloatingResourcePoolConfig{
+				{
+					Name:     "pool",
+					Quantity: resource.MustParse("10"),
+				},
+			},
+		},
+	}
+	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	BasetimeProto       = protoutil.ToTimestamp(BaseTime)
+	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -52,10 +70,9 @@ var (
 		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
 		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
-	TestDefaultPriorityClass         = PriorityClass3
-	TestPriorities                   = []int32{0, 1, 2, 3}
-	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []schedulerconfiguration.ResourceType{
+	TestDefaultPriorityClass = PriorityClass3
+	TestPriorities           = []int32{0, 1, 2, 3}
+	TestResources            = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1")},
@@ -65,7 +82,7 @@ var (
 		func(v schedulerconfiguration.ResourceType) string { return v.Name },
 	)
 	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
-	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
+	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu", ClusterNameLabel, PoolNameLabel}
 	TestWellKnownNodeTypes = []schedulerconfiguration.WellKnownNodeType{
 		{
 			Name:   "gpu",
@@ -101,6 +118,7 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		resourceListFactory,
+		TestFloatingResources,
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
@@ -134,6 +152,7 @@ func NewJob(
 		cancelled,
 		created,
 		validated,
+		[]string{},
 	)
 	if err != nil {
 		panic(err)
@@ -161,13 +180,10 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 	return schedulerconfiguration.SchedulingConfig{
 		PriorityClasses:                             maps.Clone(TestPriorityClasses),
 		DefaultPriorityClassName:                    TestDefaultPriorityClass,
-		NodeEvictionProbability:                     1.0,
-		NodeOversubscriptionEvictionProbability:     1.0,
 		MaximumSchedulingRate:                       math.Inf(1),
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
 		MaximumPerQueueSchedulingBurst:              math.MaxInt,
-		MaxExtraNodesToConsider:                     TestMaxExtraNodesToConsider,
 		IndexedResources:                            TestResources,
 		IndexedNodeLabels:                           TestIndexedNodeLabels,
 		IndexedTaints:                               TestIndexedTaints,
@@ -176,6 +192,7 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
 		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
+		UseAdjustedFairShareProtection:              true,
 	}
 }
 
@@ -186,16 +203,6 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config schedulerconfigur
 
 func WithProtectedFractionOfFairShareConfig(v float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.ProtectedFractionOfFairShare = v
-	return config
-}
-
-func WithNodeEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
-	config.NodeEvictionProbability = p
-	return config
-}
-
-func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
-	config.NodeOversubscriptionEvictionProbability = p
 	return config
 }
 
@@ -395,6 +402,15 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	)
 }
 
+func WithNodeUniformityGangAnnotationsJobs(jobs []*jobdb.Job, nodeUniformityLabel string) []*jobdb.Job {
+	gangId := uuid.NewString()
+	gangCardinality := fmt.Sprintf("%d", len(jobs))
+	return WithAnnotationsJobs(
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangNodeUniformityLabelAnnotation: nodeUniformityLabel},
+		jobs,
+	)
+}
+
 func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
 		for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
@@ -482,6 +498,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		false,
 		created,
 		false,
+		[]string{},
 	)
 	return job
 }
@@ -652,6 +669,7 @@ func TestCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:       "node1",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 1},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
@@ -670,6 +688,7 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:       "node2",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 2},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
@@ -688,6 +707,7 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:       "node3",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 3},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
@@ -740,6 +760,7 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 	return &schedulerobjects.Node{
 		Id:             id,
 		Name:           id,
+		Pool:           TestPool,
 		TotalResources: schedulerobjects.ResourceList{Resources: resources},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
@@ -799,10 +820,31 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
 	node.Name = fmt.Sprintf("%s-node", executorId)
 	node.Executor = executorId
+	node.Labels[ClusterNameLabel] = executorId
 	return &schedulerobjects.Executor{
 		Id:             executorId,
 		Pool:           TestPool,
 		Nodes:          []*schedulerobjects.Node{node},
+		LastUpdateTime: BaseTime,
+	}
+}
+
+func MakeTestExecutor(executorId string, nodePools ...string) *schedulerobjects.Executor {
+	nodes := []*schedulerobjects.Node{}
+
+	for _, nodePool := range nodePools {
+		node := Test32CpuNode(TestPriorities)
+		node.Name = fmt.Sprintf("%s-node", executorId)
+		node.Executor = executorId
+		node.Pool = nodePool
+		node.Labels[PoolNameLabel] = nodePool
+		nodes = append(nodes, node)
+	}
+
+	return &schedulerobjects.Executor{
+		Id:             executorId,
+		Pool:           TestPool,
+		Nodes:          nodes,
 		LastUpdateTime: BaseTime,
 	}
 }
@@ -838,6 +880,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		BaseTime.UnixNano(),
 		false,
+		[]string{},
 	)
 	return job
 }
@@ -961,6 +1004,11 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
 	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	return result
+}
+
+func MakeTestFloatingResourceTypes(config []schedulerconfiguration.FloatingResourceConfig) *floatingresources.FloatingResourceTypes {
+	result, _ := floatingresources.NewFloatingResourceTypes(config)
 	return result
 }
 

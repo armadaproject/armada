@@ -380,7 +380,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := JobRequirementsMet(
+			matches, reason, err := JobRequirementsMet(
 				tc.node,
 				tc.req.Priority,
 				// TODO(albin): Define a jctx in the test case instead.
@@ -653,6 +653,7 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 		1,
 		"executor",
 		"name",
+		"pool",
 		taints,
 		labels,
 		internaltypes.ResourceList{},
@@ -665,12 +666,12 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 }
 
 func makeTestNodeResources(t *testing.T, allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType, totalResources schedulerobjects.ResourceList) *internaltypes.Node {
-	tr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(totalResources))
+	tr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(totalResources.Resources)
 	assert.Nil(t, err)
 
 	abp := map[int32]internaltypes.ResourceList{}
 	for pri, rl := range allocatableByPriority {
-		abp[pri], err = testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(rl))
+		abp[pri], err = testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(rl.Resources)
 		assert.Nil(t, err)
 	}
 
@@ -680,6 +681,7 @@ func makeTestNodeResources(t *testing.T, allocatableByPriority schedulerobjects.
 		1,
 		"executor",
 		"name",
+		"pool",
 		[]v1.Taint{},
 		map[string]string{},
 		tr,

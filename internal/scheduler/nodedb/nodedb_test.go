@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -69,13 +71,11 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	require.NotEmpty(t, nodeId)
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	jobs := testfixtures.WithNodeSelectorJobs(
-		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
-		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-	)
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
 	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
+		jctx.SetAssignedNodeId(nodeId)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
 		require.NoError(t, err)
@@ -96,13 +96,11 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	require.NotEmpty(t, nodeId)
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	jobs := testfixtures.WithNodeSelectorJobs(
-		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
-		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-	)
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
 	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
+		jctx.SetAssignedNodeId("non-existent node")
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
 		if !assert.NoError(t, err) {
@@ -127,7 +125,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	request := job.EfficientResourceRequirements()
-	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(job.ResourceRequirements().Requests)
+	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(job.ResourceRequirements().Requests))
 	assert.Nil(t, err)
 
 	jobId := job.Id()
@@ -199,7 +197,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 		),
 	)
 
-	expectedAllocatable := boundNode.TotalResources
+	expectedAllocatable := boundNode.GetTotalResources()
 	expectedAllocatable = expectedAllocatable.Subtract(request)
 	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
 	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
@@ -554,7 +552,6 @@ func TestScheduleMany(t *testing.T) {
 func TestAwayNodeTypes(t *testing.T) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
@@ -722,7 +719,6 @@ func TestMakeIndexedResourceResolution_ErrorsOnInvalidResolution(t *testing.T) {
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
@@ -763,7 +759,6 @@ func BenchmarkUpsert100000(b *testing.B) {
 func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []*jobdb.Job) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
@@ -890,7 +885,6 @@ func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,

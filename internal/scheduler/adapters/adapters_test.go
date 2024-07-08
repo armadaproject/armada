@@ -10,10 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -165,41 +163,6 @@ func TestPodRequirementsFromPodSpecPreemptionPolicy(t *testing.T) {
 	}
 }
 
-func TestPodRequirementsFromPod(t *testing.T) {
-	podSpec := &v1.PodSpec{
-		Priority: &priority,
-		Containers: []v1.Container{
-			{
-				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{
-						v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-						v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-					},
-					Requests: v1.ResourceList{
-						v1.ResourceName("cpu"):    *resource.NewMilliQuantity(300, resource.DecimalSI),
-						v1.ResourceName("memory"): *resource.NewQuantity(2*1024*1024*1024, resource.BinarySI),
-					},
-				},
-			},
-		},
-	}
-	pod := v1.Pod{
-		Spec: *podSpec,
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				configuration.GangIdAnnotation:          "gang-id",
-				configuration.GangCardinalityAnnotation: "1",
-			},
-		},
-	}
-	rv := PodRequirementsFromPod(&pod, priorityByPriorityClassName)
-	rv.Annotations["something"] = "test"
-	// Ensures that any modification made to the returned value of PodRequirementsFromPod function, "rv", does not
-	// affect the original pod definition. This assertion checks if the length of "pod.Annotation" is altered
-	// in view of the modification made to "rv" above.
-	assert.Len(t, pod.Annotations, 2)
-}
-
 func TestPriorityFromPodSpec(t *testing.T) {
 	tests := map[string]struct {
 		podSpec          *v1.PodSpec
@@ -241,4 +204,21 @@ func TestPriorityFromPodSpec(t *testing.T) {
 			assert.Equal(t, tc.expectedOk, ok)
 		})
 	}
+}
+
+func TestK8sResourceListToMap(t *testing.T) {
+	result := K8sResourceListToMap(v1.ResourceList{
+		"one": resource.MustParse("1"),
+		"two": resource.MustParse("2"),
+	})
+	expected := map[string]resource.Quantity{
+		"one": resource.MustParse("1"),
+		"two": resource.MustParse("2"),
+	}
+
+	assert.Equal(t, expected, result)
+}
+
+func TestK8sResourceListToMap_PreservesNil(t *testing.T) {
+	assert.Nil(t, K8sResourceListToMap(nil))
 }

@@ -3,7 +3,6 @@ package jobdb
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -250,18 +249,6 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 
-	// Modify the resource requirements so that limits and requests point to the same object. This saves memory because
-	// we no longer have to store both objects, while it is safe because at the api we assert that limits and requests
-	// must be equal. Long term this is undesirable as if we ever want to have limits != requests this trick will not work.
-	// instead we should find a more efficient mechanism for representing this data
-	if schedulingInfo.GetPodRequirements() != nil {
-		resourceRequirements := schedulingInfo.GetPodRequirements().GetResourceRequirements()
-		schedulingInfo.GetPodRequirements().ResourceRequirements = v1.ResourceRequirements{
-			Limits:   resourceRequirements.Limits,
-			Requests: resourceRequirements.Limits,
-		}
-	}
-
 	job, err := jobDb.NewJob(
 		dbJob.JobID,
 		dbJob.JobSet,
@@ -275,6 +262,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.Cancelled,
 		dbJob.Submitted,
 		dbJob.Validated,
+		dbJob.Pools,
 	)
 	if err != nil {
 		return nil, err
@@ -305,6 +293,7 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.Executor,
 		nodeId,
 		dbRun.Node,
+		dbRun.Pool,
 		dbRun.ScheduledAtPriority,
 		dbRun.LeasedTimestamp != nil,
 		dbRun.Pending,

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -15,6 +15,7 @@ import (
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -24,11 +25,18 @@ import (
 type queueState struct {
 	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
 	runningJobRecorder *commonmetrics.JobMetricsRecorder
+	priority           float64
 }
 
 // metricProvider is a simple implementation of QueueMetricProvider
 type metricProvider struct {
 	queueStates map[string]*queueState
+}
+
+func (m metricProvider) GetQueuePriorites() map[string]float64 {
+	return armadamaps.MapValues(m.queueStates, func(v *queueState) float64 {
+		return v.priority
+	})
 }
 
 func (m metricProvider) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
@@ -50,13 +58,14 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 // MetricsCollector is a Prometheus Collector that handles scheduler metrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
-	jobDb              *jobdb.JobDb
-	queueCache         queue.QueueCache
-	executorRepository database.ExecutorRepository
-	poolAssigner       PoolAssigner
-	refreshPeriod      time.Duration
-	clock              clock.Clock
-	state              atomic.Value
+	jobDb                 *jobdb.JobDb
+	queueCache            queue.QueueCache
+	executorRepository    database.ExecutorRepository
+	poolAssigner          PoolAssigner
+	refreshPeriod         time.Duration
+	clock                 clock.WithTicker
+	state                 atomic.Value
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 func NewMetricsCollector(
@@ -65,15 +74,17 @@ func NewMetricsCollector(
 	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *MetricsCollector {
 	return &MetricsCollector{
-		jobDb:              jobDb,
-		queueCache:         queueCache,
-		executorRepository: executorRepository,
-		poolAssigner:       poolAssigner,
-		refreshPeriod:      refreshPeriod,
-		clock:              clock.RealClock{},
-		state:              atomic.Value{},
+		jobDb:                 jobDb,
+		queueCache:            queueCache,
+		executorRepository:    executorRepository,
+		poolAssigner:          poolAssigner,
+		refreshPeriod:         refreshPeriod,
+		clock:                 clock.RealClock{},
+		state:                 atomic.Value{},
+		floatingResourceTypes: floatingResourceTypes,
 	}
 }
 
@@ -143,6 +154,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		provider.queueStates[queue.Name] = &queueState{
 			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
 			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
+			priority:           queue.PriorityFactor,
 		}
 		queuedJobsCount[queue.Name] = 0
 		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
@@ -165,7 +177,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			continue
 		}
 
-		pool, err := c.poolAssigner.AssignPool(job)
+		pools, err := c.poolAssigner.AssignPools(job)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +217,10 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.runningJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 		}
-		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
-		recorder.RecordResources(pool, priorityClass, jobResources)
+		for _, pool := range pools {
+			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
+			recorder.RecordResources(pool, priorityClass, jobResources)
+		}
 	}
 
 	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[schedulerobjects.SchedulingKey]bool) int {
@@ -256,9 +270,10 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
+			pool := GetNodePool(node, executor)
 			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
-				pool:     executor.Pool,
+				pool:     pool,
 				nodeType: node.ReportingNodeType,
 			}
 			if !node.Unschedulable {
@@ -271,7 +286,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			for queueName, resourceUsage := range node.ResourceUsageByQueue {
 				queueKey := queueMetricKey{
 					cluster:   executor.Id,
-					pool:      executor.Pool,
+					pool:      pool,
 					queueName: queueName,
 					nodeType:  node.ReportingNodeType,
 				}
@@ -284,7 +299,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := queuePhaseMetricKey{
 						cluster:   executor.Id,
-						pool:      executor.Pool,
+						pool:      pool,
 						queueName: job.Queue(),
 						nodeType:  node.ReportingNodeType,
 						// Convert to string with first letter capitalised
@@ -296,7 +311,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					if podRequirements != nil {
 						queueKey := queueMetricKey{
 							cluster:       executor.Id,
-							pool:          executor.Pool,
+							pool:          pool,
 							queueName:     job.Queue(),
 							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
@@ -306,6 +321,17 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				}
 			}
 		}
+	}
+
+	for _, pool := range c.floatingResourceTypes.AllPools() {
+		totalFloatingResources := c.floatingResourceTypes.GetTotalAvailableForPool(pool)
+		clusterKey := clusterMetricKey{
+			cluster:  "floating",
+			pool:     pool,
+			nodeType: "",
+		}
+		addToResourceListMap(availableResourceByCluster, clusterKey, totalFloatingResources)
+		addToResourceListMap(totalResourceByCluster, clusterKey, totalFloatingResources)
 	}
 
 	clusterMetrics := make([]prometheus.Metric, 0, len(phaseCountByQueue))

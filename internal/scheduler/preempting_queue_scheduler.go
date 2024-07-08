@@ -1,7 +1,8 @@
 package scheduler
 
 import (
-	"math/rand"
+	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -14,10 +15,10 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -27,13 +28,13 @@ import (
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
 // Uses QueueScheduler as a building block.
 type PreemptingQueueScheduler struct {
-	schedulingContext                       *schedulercontext.SchedulingContext
-	constraints                             schedulerconstraints.SchedulingConstraints
-	nodeEvictionProbability                 float64
-	nodeOversubscriptionEvictionProbability float64
-	protectedFractionOfFairShare            float64
-	jobRepo                                 JobRepository
-	nodeDb                                  *nodedb.NodeDb
+	schedulingContext              *schedulercontext.SchedulingContext
+	constraints                    schedulerconstraints.SchedulingConstraints
+	floatingResourceTypes          *floatingresources.FloatingResourceTypes
+	protectedFractionOfFairShare   float64
+	useAdjustedFairShareProtection bool
+	jobRepo                        JobRepository
+	nodeDb                         *nodedb.NodeDb
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -51,9 +52,9 @@ type PreemptingQueueScheduler struct {
 func NewPreemptingQueueScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
-	nodeEvictionProbability float64,
-	nodeOversubscriptionEvictionProbability float64,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	protectedFractionOfFairShare float64,
+	useAdjustedFairShareProtection bool,
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
@@ -74,16 +75,16 @@ func NewPreemptingQueueScheduler(
 		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
 	return &PreemptingQueueScheduler{
-		schedulingContext:                       sctx,
-		constraints:                             constraints,
-		nodeEvictionProbability:                 nodeEvictionProbability,
-		nodeOversubscriptionEvictionProbability: nodeOversubscriptionEvictionProbability,
-		protectedFractionOfFairShare:            protectedFractionOfFairShare,
-		jobRepo:                                 jobRepo,
-		nodeDb:                                  nodeDb,
-		nodeIdByJobId:                           maps.Clone(initialNodeIdByJobId),
-		jobIdsByGangId:                          initialJobIdsByGangId,
-		gangIdByJobId:                           maps.Clone(initialGangIdByJobId),
+		schedulingContext:              sctx,
+		constraints:                    constraints,
+		floatingResourceTypes:          floatingResourceTypes,
+		protectedFractionOfFairShare:   protectedFractionOfFairShare,
+		useAdjustedFairShareProtection: useAdjustedFairShareProtection,
+		jobRepo:                        jobRepo,
+		nodeDb:                         nodeDb,
+		nodeIdByJobId:                  maps.Clone(initialNodeIdByJobId),
+		jobIdsByGangId:                 initialJobIdsByGangId,
+		gangIdByJobId:                  maps.Clone(initialGangIdByJobId),
 	}
 }
 
@@ -120,7 +121,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.jobRepo,
 			sch.nodeDb,
 			sch.schedulingContext.PriorityClasses,
-			sch.nodeEvictionProbability,
 			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
 				priorityClass := job.PriorityClass()
 				if !priorityClass.Preemptible {
@@ -135,8 +135,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
-					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
-					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
+					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx) / totalCost
+					fairShare := qctx.FairShare
+					if sch.useAdjustedFairShareProtection {
+						fairShare = math.Max(qctx.AdjustedFairShare, fairShare)
+					}
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
@@ -144,7 +147,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				}
 				return true
 			},
-			nil,
 		),
 	)
 	if err != nil {
@@ -157,7 +159,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
-	ctx.WithField("stage", "scheduling-algo").Info("Performing initial scheduling jobs onto nodes")
+	ctx.WithField("stage", "scheduling-algo").Info("Performing initial scheduling of jobs onto nodes")
 	schedulerResult, err := sch.schedule(
 		armadacontext.WithLogField(ctx, "stage", "re-schedule after balancing eviction"),
 		inMemoryJobRepo,
@@ -185,8 +187,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.jobRepo,
 			sch.nodeDb,
 			sch.schedulingContext.PriorityClasses,
-			sch.nodeOversubscriptionEvictionProbability,
-			nil,
 		),
 	)
 	if err != nil {
@@ -286,6 +286,9 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err != nil {
 		return nil, nil, err
 	}
+
+	ctx.Infof("Evicting for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
+
 	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
 		return nil, nil, err
 	}
@@ -358,7 +361,13 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 		// No gangs to evict.
 		return &EvictorResult{}, nil
 	}
-	return evictor.Evict(ctx, txn)
+
+	result, err := evictor.Evict(ctx, txn)
+	if err != nil {
+		ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
+	}
+
+	return result, err
 }
 
 // Collect job ids for any gangs that were partially evicted and the ids of nodes those jobs are on.
@@ -437,7 +446,7 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 		if !jctx.IsEvicted {
 			return errors.New("evicted job %s is not marked as such")
 		}
-		if nodeId, ok := jctx.GetNodeSelector(schedulerconfig.NodeIdLabel); ok {
+		if nodeId := jctx.GetAssignedNodeId(); nodeId != "" {
 			if _, ok := evictorResult.AffectedNodesById[nodeId]; !ok {
 				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, jobId)
 			}
@@ -507,7 +516,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	defer txn.Abort()
 	i := 0
 	for {
-		if gctx, err := candidateGangIterator.Peek(); err != nil {
+		if gctx, _, err := candidateGangIterator.Peek(); err != nil {
 			return err
 		} else if gctx == nil {
 			break
@@ -547,6 +556,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 	sched, err := NewQueueScheduler(
 		sch.schedulingContext,
 		sch.constraints,
+		sch.floatingResourceTypes,
 		sch.nodeDb,
 		jobIteratorByQueue,
 	)
@@ -705,26 +715,36 @@ type EvictorResult struct {
 	NodeIdByJobId map[string]string
 }
 
+func (er *EvictorResult) SummaryString() string {
+	type queueStats struct {
+		evictedJobCount  int
+		evictedResources internaltypes.ResourceList
+	}
+	statsPerQueue := map[string]queueStats{}
+	for _, jctx := range er.EvictedJctxsByJobId {
+		queue := jctx.Job.Queue()
+		stats := statsPerQueue[queue]
+		stats.evictedJobCount++
+		stats.evictedResources = stats.evictedResources.Add(jctx.Job.EfficientResourceRequirements())
+		statsPerQueue[queue] = stats
+	}
+	return fmt.Sprintf("%v", armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
+		return fmt.Sprintf("{evictedJobCount=%d, evictedResources={%s}}", s.evictedJobCount, s.evictedResources.String())
+	}))
+}
+
 func NewNodeEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	priorityClasses map[string]types.PriorityClass,
-	perNodeEvictionProbability float64,
 	jobFilter func(*armadacontext.Context, *jobdb.Job) bool,
-	random *rand.Rand,
 ) *Evictor {
-	if perNodeEvictionProbability <= 0 {
-		return nil
-	}
-	if random == nil {
-		random = rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
-	}
 	return &Evictor{
 		jobRepo:         jobRepo,
 		nodeDb:          nodeDb,
 		priorityClasses: priorityClasses,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
-			return len(node.AllocatedByJobId) > 0 && random.Float64() < perNodeEvictionProbability
+			return len(node.AllocatedByJobId) > 0
 		},
 		jobFilter: jobFilter,
 	}
@@ -759,20 +779,11 @@ func NewFilteredEvictor(
 
 // NewOversubscribedEvictor returns a new evictor that
 // for each node evicts all preemptible jobs of a priority class for which at least one job could not be scheduled
-// with probability perNodeEvictionProbability.
 func NewOversubscribedEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	priorityClasses map[string]types.PriorityClass,
-	perNodeEvictionProbability float64,
-	random *rand.Rand,
 ) *Evictor {
-	if perNodeEvictionProbability <= 0 {
-		return nil
-	}
-	if random == nil {
-		random = rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
-	}
 	// Populating overSubscribedPriorities relies on
 	// - nodeFilter being called once before all calls to jobFilter and
 	// - jobFilter being called for all jobs on that node before moving on to another node.
@@ -792,7 +803,7 @@ func NewOversubscribedEvictor(
 					overSubscribedPriorities[p] = true
 				}
 			}
-			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability
+			return len(overSubscribedPriorities) > 0
 		},
 		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) bool {
 			priorityClass := job.PriorityClass()
@@ -858,7 +869,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			// TODO(albin): We can remove the checkOnlyDynamicRequirements flag in the nodeDb now that we've added the tolerations.
 			jctx := schedulercontext.JobSchedulingContextFromJob(job)
 			jctx.IsEvicted = true
-			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.GetId())
+			jctx.SetAssignedNodeId(node.GetId())
 			evictedJctxsByJobId[job.Id()] = jctx
 			jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, node.GetTolerationsForTaints()...)
 
@@ -873,5 +884,6 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		AffectedNodesById:   affectedNodesById,
 		NodeIdByJobId:       nodeIdByJobId,
 	}
+
 	return result, nil
 }

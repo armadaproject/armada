@@ -15,6 +15,7 @@ message Executor {
     string pool = 2;
     // The nodes available for scheduling via this executor.
     repeated Node nodes = 3;
+    // Deprecated - not currently in use
     // Minimum resources which a job must request in order to be considered for scheduling on this executor.
     ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
     // Last time the executor provided a heartbeat to say it was still accepting job.
@@ -66,6 +67,8 @@ message Node {
     // This should only be used for metrics
     // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
     string reporting_node_type = 17;
+  // The pool that this node belongs to, this is used for scheduling purposes
+    string pool = 18;
 }
 
 enum JobRunState {
@@ -131,8 +134,7 @@ message JobSchedulingInfo {
     // Kubernetes objects that make up this job and their respective scheduling requirements.
     repeated ObjectRequirements object_requirements = 5;
     uint32 version = 9;
-    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
-    int64 queue_ttl_seconds = 10;
+    // ordinal 10 was previously used for queue_ttl_seconds
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.

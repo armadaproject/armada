@@ -30,10 +30,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -79,6 +81,12 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
+
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources)
+	if err != nil {
+		return err
+	}
+	ctx.Infof("Floating resource types: %s", floatingResourceTypes.SummaryString())
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -131,7 +139,7 @@ func Run(config schedulerconfig.Configuration) error {
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.PulsarSendTimeout)
+	}, config.Pulsar.MaxAllowedEventsPerMessage, config.PulsarSendTimeout)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
@@ -175,9 +183,11 @@ func Run(config schedulerconfig.Configuration) error {
 		jobRepository,
 		executorRepository,
 		types.AllowedPriorities(config.Scheduling.PriorityClasses),
+		slices.Map(config.Scheduling.SupportedResourceTypes, func(rt schedulerconfig.ResourceType) string { return rt.Name }),
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
+		config.Pulsar.MaxAllowedEventsPerMessage,
 		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
@@ -230,6 +240,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		stringInterner,
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -239,6 +250,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
 	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
@@ -279,16 +291,14 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository, resourceListFactory)
-	if err != nil {
-		return errors.WithMessage(err, "error creating pool assigner")
-	}
+	poolAssigner := NewPoolAssigner(executorRepository)
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,
 		executorRepository,
 		poolAssigner,
 		config.Metrics.RefreshInterval,
+		floatingResourceTypes,
 	)
 	if err := prometheus.Register(metricsCollector); err != nil {
 		return errors.WithStack(err)

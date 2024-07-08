@@ -3,8 +3,6 @@ package validation
 import (
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
@@ -210,28 +208,36 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 // Ensures that the JobSubmitRequestItem's limits and requests are equal.
 // Also  checks that  any resources defined are above minimum values set in  config
 func validateResources(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
-	// Function which tells us if two k8s resource lists contain exactly the same elements
-	resourceListEquals := func(a v1.ResourceList, b v1.ResourceList) bool {
-		if len(a) != len(b) {
-			return false
-		}
-		for k, v := range a {
-			if v != b[k] {
-				return false
-			}
-		}
-		return true
-	}
-
 	spec := j.GetMainPodSpec()
+	maxOversubscriptionByResource := config.MaxOversubscriptionByResourceRequest
+	if maxOversubscriptionByResource == nil {
+		maxOversubscriptionByResource = map[string]float64{}
+	}
 	for _, container := range spec.Containers {
 
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
-		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
-			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
+		if len(container.Resources.Requests) != len(container.Resources.Limits) {
+			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
+		}
+
+		for resource, request := range container.Resources.Requests {
+			limit, ok := container.Resources.Limits[resource]
+			if !ok {
+				return fmt.Errorf("container %v defines %s for requests but not limits", container.Name, resource)
+			}
+			if limit.MilliValue() < request.MilliValue() {
+				return fmt.Errorf("container %v defines %s with limits smaller than requests", container.Name, resource)
+			}
+			maxOversubscription, ok := maxOversubscriptionByResource[resource.String()]
+			if !ok {
+				maxOversubscription = 1.0
+			}
+			if float64(limit.MilliValue()) > maxOversubscription*float64(request.MilliValue()) {
+				return fmt.Errorf("container %v defines %s with limits great than %.2f*requests", container.Name, resource, maxOversubscription)
+			}
 		}
 
 		for rc, containerRsc := range container.Resources.Requests {

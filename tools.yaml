@@ -2,6 +2,7 @@
 # TODO: Use latest goreleaser. After upgrading k8s.io packages.
 tools:
 - github.com/go-swagger/go-swagger/cmd/swagger@v0.29.0
+- github.com/golang/mock/mockgen@v1.6.0
 - github.com/gordonklaus/ineffassign@v0.0.0-20210914165742-4cc7213b9bc8
 - github.com/goreleaser/goreleaser@v1.20.0
 - github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.16.0
@@ -12,4 +13,4 @@ tools:
 - github.com/mitchellh/gox@v1.0.1
 - github.com/wlbr/templify@v0.0.0-20210816202250-7b8044ca19e9
 - golang.org/x/tools/cmd/goimports@v0.5.0
-- sigs.k8s.io/kind@v0.14.0
+- sigs.k8s.io/kind@v0.23.0

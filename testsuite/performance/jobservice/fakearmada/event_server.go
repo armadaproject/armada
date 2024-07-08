@@ -33,8 +33,6 @@ func (s *PerformanceTestEventServer) Watch(req *api.WatchRequest, stream api.Eve
 		FromMessageId:  req.FromId,
 		Queue:          req.Queue,
 		ErrorIfMissing: true,
-		ForceLegacy:    req.ForceLegacy,
-		ForceNew:       req.ForceNew,
 	}
 	return s.GetJobSetEvents(request, stream)
 }
@@ -54,14 +52,14 @@ var messageScript = []*scriptedMessage{
 						JobId:    "fake_job_id",
 						JobSetId: request.Id,
 						Queue:    request.Queue,
-						Created:  time.Now(),
-						Job: api.Job{
+						Created:  types.TimestampNow(),
+						Job: &api.Job{
 							Id:        "fake_job_id",
 							ClientId:  "",
 							Queue:     request.Queue,
 							JobSetId:  request.Id,
 							Namespace: "fakeNamespace",
-							Created:   time.Now(),
+							Created:   types.TimestampNow(),
 						},
 					},
 				},
@@ -77,7 +75,7 @@ var messageScript = []*scriptedMessage{
 						JobId:    "fake_job_id",
 						JobSetId: request.Id,
 						Queue:    request.Queue,
-						Created:  time.Now(),
+						Created:  types.TimestampNow(),
 					},
 				},
 			}
@@ -92,7 +90,7 @@ var messageScript = []*scriptedMessage{
 						JobId:        "fake_job_id",
 						JobSetId:     request.Id,
 						Queue:        request.Queue,
-						Created:      time.Now(),
+						Created:      types.TimestampNow(),
 						ClusterId:    "fakeCluster",
 						KubernetesId: "fakeK8s",
 						NodeName:     "fakeNode",
@@ -113,7 +111,7 @@ var messageScript = []*scriptedMessage{
 						JobId:        "fake_job_id",
 						JobSetId:     request.Id,
 						Queue:        request.Queue,
-						Created:      time.Now(),
+						Created:      types.TimestampNow(),
 						ClusterId:    "fakeCluster",
 						KubernetesId: "fakeK8s",
 						NodeName:     "fakeNode",

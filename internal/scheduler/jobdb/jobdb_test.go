@@ -18,10 +18,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func NewTestJobDb() *JobDb {
+	emptyFloatingResourceTypes, _ := floatingresources.NewFloatingResourceTypes(nil)
 	return NewJobDb(
 		map[string]types.PriorityClass{
 			"foo": {},
@@ -30,6 +32,7 @@ func NewTestJobDb() *JobDb {
 		"foo",
 		stringinterner.New(1024),
 		TestResourceListFactory,
+		emptyFloatingResourceTypes,
 	)
 }
 
@@ -97,8 +100,8 @@ func TestJobDb_TestGetUnvalidated(t *testing.T) {
 
 func TestJobDb_TestGetByRunId(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", 5)
-	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", 10)
+	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
 	txn := jobDb.WriteTxn()
 
 	err := txn.Upsert([]*Job{job1, job2})
@@ -114,8 +117,8 @@ func TestJobDb_TestGetByRunId(t *testing.T) {
 
 func TestJobDb_TestHasQueuedJobs(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", 5)
-	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", 10)
+	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
 	txn := jobDb.WriteTxn()
 
 	err := txn.Upsert([]*Job{job1, job2})
@@ -185,8 +188,8 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 
 func TestJobDb_TestGetAll(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", 5)
-	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", 10)
+	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
 	txn := jobDb.WriteTxn()
 	assert.Equal(t, []*Job{}, txn.GetAll())
 
@@ -236,8 +239,8 @@ func TestJobDb_TestTransactions(t *testing.T) {
 
 func TestJobDb_TestBatchDelete(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", 5)
-	job2 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", 10)
+	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job2 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
 	txn := jobDb.WriteTxn()
 
 	// Insert Job
@@ -269,7 +272,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		},
 	}
 	jobDb := NewTestJobDb()
-	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false)
+	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
 	assert.Nil(t, err)
 	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), job.SchedulingKey())
 }

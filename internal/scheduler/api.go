@@ -12,11 +12,12 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
@@ -40,6 +41,11 @@ type ExecutorApi struct {
 	allowedPriorities []int32
 	// Known priority classes
 	priorityClasses map[string]priorityTypes.PriorityClass
+	// Allowed resource names - resource requests/limits not on this list are dropped.
+	// This is needed to ensure floating resources are not passed to k8s.
+	allowedResources map[string]bool
+	// Max number of events in published Pulsar messages
+	maxEventsPerPulsarMessage int
 	// Max size of Pulsar messages produced.
 	maxPulsarMessageSizeBytes uint
 	// See scheduling schedulingConfig.
@@ -53,9 +59,11 @@ func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
+	allowedResources []string,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
+	maxEventsPerPulsarMessage int,
 	maxPulsarMessageSizeBytes uint,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
@@ -66,6 +74,8 @@ func NewExecutorApi(producer pulsar.Producer,
 		jobRepository:             jobRepository,
 		executorRepository:        executorRepository,
 		allowedPriorities:         allowedPriorities,
+		allowedResources:          maps.FromSlice(allowedResources, func(name string) string { return name }, func(name string) bool { return true }),
+		maxEventsPerPulsarMessage: maxEventsPerPulsarMessage,
 		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
@@ -105,7 +115,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return err
 	}
 	ctx.Infof(
-		"executor currently has %d job runs; sending %d cancellations and %d new runs",
+		"Executor currently has %d job runs; sending %d cancellations and %d new runs",
 		len(requestRuns), len(runsToCancel), len(newRuns),
 	)
 
@@ -144,6 +154,8 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		}
 
 		srv.addPreemptibleLabel(submitMsg)
+
+		srv.dropDisallowedResources(submitMsg.MainObject.GetPodSpec().PodSpec)
 
 		// This must happen after anything that relies on the priorityClassName
 		if srv.priorityClassNameOverride != nil {
@@ -210,6 +222,29 @@ func (srv *ExecutorApi) addPreemptibleLabel(job *armadaevents.SubmitJob) {
 	isPremptible := srv.isPreemptible(job)
 	labels := map[string]string{armadaJobPreemptibleLabel: strconv.FormatBool(isPremptible)}
 	addLabels(job, labels)
+}
+
+// Drop non-supported resources. This is needed to ensure floating resources
+// are not passed to k8s.
+func (srv *ExecutorApi) dropDisallowedResources(pod *v1.PodSpec) {
+	if pod == nil {
+		return
+	}
+	srv.dropDisallowedResourcesFromContainers(pod.InitContainers)
+	srv.dropDisallowedResourcesFromContainers(pod.Containers)
+}
+
+func (srv *ExecutorApi) dropDisallowedResourcesFromContainers(containers []v1.Container) {
+	for _, container := range containers {
+		removeDisallowedKeys(container.Resources.Limits, srv.allowedResources)
+		removeDisallowedKeys(container.Resources.Requests, srv.allowedResources)
+	}
+}
+
+func removeDisallowedKeys(rl v1.ResourceList, allowedKeys map[string]bool) {
+	maps.RemoveInPlace(rl, func(name v1.ResourceName) bool {
+		return !allowedKeys[string(name)]
+	})
 }
 
 func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
@@ -310,7 +345,7 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes)
+	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxEventsPerPulsarMessage, srv.maxPulsarMessageSizeBytes)
 	return &types.Empty{}, err
 }
 
@@ -331,10 +366,9 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:             req.ExecutorId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
-		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: now,
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId armadaevents.Uuid) string {
-			return strings.ToLower(armadaevents.UuidFromProtoUuid(&jobId).String())
+		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId *armadaevents.Uuid) string {
+			return strings.ToLower(armadaevents.UuidFromProtoUuid(jobId).String())
 		}),
 	}
 }
@@ -352,7 +386,7 @@ func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]uuid.UUID, error) 
 		}
 	}
 	for _, runId := range req.UnassignedJobRunIds {
-		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
+		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId))
 	}
 	return runIds, nil
 }

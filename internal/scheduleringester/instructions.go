@@ -57,6 +57,7 @@ func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithId
 			operations = AppendDbOperation(operations, op)
 		}
 	}
+	log.Infof("Converted sequences into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
 		MessageIds: sequencesWithIds.MessageIds,
@@ -72,10 +73,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 	}
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
-		eventTime := time.Now().UTC()
-		if event.Created != nil {
-			eventTime = *event.Created
-		}
+		eventTime := protoutil.ToStdTime(event.Created)
 		var err error = nil
 		var operationsFromEvent []DbOperation
 		switch eventType := event.GetEvent().(type) {
@@ -116,8 +114,8 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_JobValidated:
 			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
-			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_JobRunCancelled,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
@@ -212,6 +210,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				Queue:                  meta.queue,
 				Executor:               jobRunLeased.GetExecutorId(),
 				Node:                   jobRunLeased.GetNodeId(),
+				Pool:                   jobRunLeased.GetPool(),
 				ScheduledAtPriority:    scheduledAtPriority,
 				LeasedTimestamp:        &eventTime,
 				PodRequirementsOverlay: PodRequirementsOverlay,
@@ -438,7 +437,6 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		SubmitTime:      submitTime,
 		Priority:        submitJob.Priority,
 		Version:         0,
-		QueueTtlSeconds: submitJob.QueueTtlSeconds,
 	}
 
 	// Scheduling requirements specific to the objects that make up this job.

@@ -31,7 +31,7 @@ type ArmadaConfig struct {
 
 	EventsApiRedis redis.UniversalOptions
 	Pulsar         PulsarConfig
-	Postgres       PostgresConfig // Used for Pulsar submit API deduplication
+	Postgres       PostgresConfig // Needs to point to the lookout db
 	QueryApi       QueryApiConfig
 
 	// Period At which the Queue cache will be refreshed
@@ -66,6 +66,8 @@ type PulsarConfig struct {
 	CompressionLevel pulsar.CompressionLevel
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
+	// Maximum allowed Events per message
+	MaxAllowedEventsPerMessage int `validate:"gte=0"`
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
 	// Timeout when polling pulsar for messages
@@ -123,6 +125,9 @@ type SubmissionConfig struct {
 	// will have activeDeadlineSeconds set to 1.
 	// Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+	// Maximum ratio of limits:requests per resource. Jobs who have a higher limits:resource ratio than this will be rejected.
+	// Any resource type missing from this map will default to 1.0.
+	MaxOversubscriptionByResourceRequest map[string]float64
 }
 
 // TODO: we can probably just typedef this to map[string]string
@@ -131,7 +136,5 @@ type PostgresConfig struct {
 }
 
 type QueryApiConfig struct {
-	Enabled       bool
-	Postgres      PostgresConfig
 	MaxQueryItems int
 }

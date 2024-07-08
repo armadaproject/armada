@@ -1,27 +1,16 @@
 package adapters
 
 import (
-	"time"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-// PodRequirementsFromPod function creates the schedulerobjects and creates a value for the
-// annotation field by supplying it with a cloned value of pod.Annotations
-func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
-	rv := PodRequirementsFromPodSpec(&pod.Spec, priorityByPriorityClassName)
-	rv.Annotations = maps.Clone(pod.Annotations)
-	return rv
-}
 
 // PodRequirementsFromPodSpec function returns *schedulerobjects.PodRequirements for podSpec.
 // An error is logged if the podSpec uses an unknown priority class.
@@ -46,49 +35,6 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 		PreemptionPolicy:     preemptionPolicy,
 		ResourceRequirements: api.SchedulingResourceRequirementsFromPodSpec(podSpec),
 	}
-}
-
-// SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
-func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time, priorityClasses map[string]types.PriorityClass) (*schedulerobjects.JobSchedulingInfo, error) {
-	// Component common to all jobs.
-	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		Lifetime:        submitJob.Lifetime,
-		AtMostOnce:      submitJob.AtMostOnce,
-		Preemptible:     submitJob.Preemptible,
-		ConcurrencySafe: submitJob.ConcurrencySafe,
-		SubmitTime:      submitTime,
-		Priority:        submitJob.Priority,
-		Version:         0,
-		QueueTtlSeconds: submitJob.QueueTtlSeconds,
-	}
-
-	// Scheduling requirements specific to the objects that make up this job.
-	switch object := submitJob.MainObject.Object.(type) {
-	case *armadaevents.KubernetesMainObject_PodSpec:
-		podSpec := object.PodSpec.PodSpec
-		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
-		podRequirements := PodRequirementsFromPodSpec(podSpec, priorityClasses)
-		if submitJob.ObjectMeta != nil {
-			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
-		}
-		if submitJob.MainObject.ObjectMeta != nil {
-			if podRequirements.Annotations == nil {
-				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
-			}
-			maps.Copy(podRequirements.Annotations, submitJob.MainObject.ObjectMeta.Annotations)
-		}
-		schedulingInfo.ObjectRequirements = append(
-			schedulingInfo.ObjectRequirements,
-			&schedulerobjects.ObjectRequirements{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: podRequirements,
-				},
-			},
-		)
-	default:
-		return nil, errors.Errorf("unsupported object type %T", object)
-	}
-	return schedulingInfo, nil
 }
 
 // PriorityFromPodSpec returns the priority in a pod spec.
@@ -116,4 +62,15 @@ func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.P
 
 	// Couldn't find anything
 	return 0, false
+}
+
+func K8sResourceListToMap(resources v1.ResourceList) map[string]k8sResource.Quantity {
+	if resources == nil {
+		return nil
+	}
+	result := make(map[string]k8sResource.Quantity, len(resources))
+	for k, v := range resources {
+		result[string(k)] = v
+	}
+	return result
 }

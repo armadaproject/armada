@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -48,6 +48,8 @@ func TestSchedule(t *testing.T) {
 
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
+		// Number of jobs expected to be scheduled by pool
+		expectedScheduledByPool map[string]int
 	}{
 		"scheduling": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -58,6 +60,18 @@ func TestSchedule(t *testing.T) {
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
+			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 4},
+		},
+		"scheduling - mixed pool clusters": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.MakeTestExecutor("executor-1", "pool-1", "pool-2"),
+				testfixtures.MakeTestExecutor("executor-2", "pool-1"),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{0, 1, 2, 3, 4, 5},
+			expectedScheduledByPool:  map[string]int{"pool-1": 4, "pool-2": 2},
 		},
 		"Fair share": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -297,6 +311,17 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
 		},
+		"gang scheduling successful - mixed pool clusters": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.MakeTestExecutor("executor1", "pool-1", "pool-2"),
+				testfixtures.MakeTestExecutor("executor2", "pool-1"),
+			},
+			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
+			queuedJobs:               testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.PoolNameLabel),
+			expectedScheduledIndices: []int{0, 1, 2},
+			expectedScheduledByPool:  map[string]int{"pool-1": 3},
+		},
 		"not scheduling a gang that does not fit on any executor": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
@@ -304,7 +329,13 @@ func TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
-			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 3)),
+			queuedJobs: testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel),
+		},
+		"not scheduling a gang that does not fit on any pool": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors:        []*schedulerobjects.Executor{testfixtures.MakeTestExecutor("executor1", "pool-1", "pool-2")},
+			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
+			queuedJobs:       testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel),
 		},
 		"urgency-based gang preemption": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -378,6 +409,7 @@ func TestSchedule(t *testing.T) {
 				schedulingContextRepo,
 				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
+				testfixtures.TestEmptyFloatingResources,
 			)
 			require.NoError(t, err)
 
@@ -402,7 +434,7 @@ func TestSchedule(t *testing.T) {
 				for nodeIndex, existingJobs := range existingJobsByExecutorNodeIndex {
 					node := executor.Nodes[nodeIndex]
 					for jobIndex, job := range existingJobs.jobs {
-						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, job.PodRequirements().Priority)
+						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, node.Pool, job.PodRequirements().Priority)
 						if existingJobs.acknowledged {
 							run := job.LatestRun()
 							node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
@@ -463,6 +495,15 @@ func TestSchedule(t *testing.T) {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
 			}
 
+			scheduledJobsPerPool := armadaslices.GroupByFunc(scheduledJobs, func(j *jobdb.Job) string {
+				return j.LatestRun().Pool()
+			})
+			for pool, expectedScheduledCount := range tc.expectedScheduledByPool {
+				jobsSchedulerOnPool, present := scheduledJobsPerPool[pool]
+				assert.True(t, present)
+				assert.Len(t, jobsSchedulerOnPool, expectedScheduledCount)
+			}
+
 			// Check that preempted jobs are marked as such consistently.
 			for _, job := range preemptedJobs {
 				dbJob := txn.GetById(job.Id())
@@ -491,6 +532,14 @@ func TestSchedule(t *testing.T) {
 				dbJob := txn.GetById(job.Id())
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
+
+			// Check that we calculated fair share and adjusted fair share
+			for _, schCtx := range schedulerResult.SchedulingContexts {
+				for _, qtx := range schCtx.QueueSchedulingContexts {
+					assert.NotEqual(t, 0, qtx.AdjustedFairShare)
+					assert.NotEqual(t, 0, qtx.FairShare)
+				}
+			}
 		})
 	}
 }
@@ -503,7 +552,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, jobs[j].PodRequirements().Priority)
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, node.Pool, jobs[j].PodRequirements().Priority)
 				}
 			}
 			armadaslices.Shuffle(jobs)
@@ -520,13 +569,13 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					stringInterner,
 					testfixtures.TestResourceListFactory,
+					testfixtures.TestEmptyFloatingResources,
 				)
 				require.NoError(b, err)
 				b.StartTimer()
 
 				nodeDb, err := nodedb.NewNodeDb(
 					schedulingConfig.PriorityClasses,
-					schedulingConfig.MaxExtraNodesToConsider,
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
@@ -535,7 +584,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
-				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)
+				err = algo.populateNodeDb(nodeDb, jobs, nodes)
 				require.NoError(b, err)
 			}
 		})
@@ -578,7 +627,7 @@ func TestSortExecutorGroups(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			sortExecutorGroups(tc.groups, tc.groupToPriority, tc.defaultPriority)
+			sortGroups(tc.groups, tc.groupToPriority, tc.defaultPriority)
 			assert.Equal(t, tc.expected, tc.groups)
 		})
 	}

@@ -136,8 +136,6 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Submitted.JobId
 	case *EventMessage_Queued:
 		return e.Queued.JobId
-	case *EventMessage_DuplicateFound:
-		return e.DuplicateFound.JobId
 	case *EventMessage_Leased:
 		return e.Leased.JobId
 	case *EventMessage_LeaseReturned:
@@ -168,8 +166,6 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.IngressInfo.JobId
 	case *EventMessage_Reprioritizing:
 		return e.Reprioritizing.JobId
-	case *EventMessage_Updated:
-		return e.Updated.JobId
 	case *EventMessage_Preempted:
 		return e.Preempted.JobId
 	}
@@ -182,8 +178,6 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Submitted.JobSetId
 	case *EventMessage_Queued:
 		return e.Queued.JobSetId
-	case *EventMessage_DuplicateFound:
-		return e.DuplicateFound.JobSetId
 	case *EventMessage_Leased:
 		return e.Leased.JobSetId
 	case *EventMessage_LeaseReturned:
@@ -214,8 +208,6 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.IngressInfo.JobSetId
 	case *EventMessage_Reprioritizing:
 		return e.Reprioritizing.JobSetId
-	case *EventMessage_Updated:
-		return e.Updated.JobSetId
 	case *EventMessage_Preempted:
 		return e.Preempted.JobSetId
 	}

@@ -38,6 +38,7 @@ var baseJob, _ = jobDb.NewJob(
 	false,
 	3,
 	false,
+	[]string{},
 )
 
 var baseRun = &JobRun{
@@ -125,12 +126,12 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", 5).HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", 5).HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
 	scheduledAtPriority := int32(10)
-	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", scheduledAtPriority)
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", scheduledAtPriority)
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
@@ -143,6 +144,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 			executor:            "test-executor",
 			nodeId:              "test-nodeId",
 			nodeName:            "nodeId",
+			pool:                "pool",
 			scheduledAtPriority: &scheduledAtPriority,
 		},
 		run,
@@ -308,10 +310,10 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false)
+	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false)
+	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 
@@ -364,7 +366,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
 
-	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false)
+	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	assert.NotNil(t, job.NodeSelector())
 	assert.NotNil(t, job.Annotations())

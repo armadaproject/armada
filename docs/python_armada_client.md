@@ -255,6 +255,28 @@ Health check for Event Service.
 
 
 
+#### get_job_details(job_ids)
+Retrieves the details of a job from Armada.
+
+
+* **Parameters**
+
+    **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+    The Armada job details response.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobDetailsResponse
+
+
+
 #### get_job_events_stream(queue, job_set_id, from_message_id=None)
 Get event stream for a job set.
 
@@ -293,6 +315,50 @@ for event in events:
 * **Return type**
 
     *Iterator*[armada.event_pb2.EventStreamMessage]
+
+
+
+#### get_job_run_details(run_ids)
+Retrieves the details of a job run from Armada.
+
+
+* **Parameters**
+
+    **run_ids** (*List**[**str**]*) – A list of unique job run identifiers.
+
+
+
+* **Returns**
+
+    The Armada run details response.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobRunDetailsResponse
+
+
+
+#### get_job_status(job_ids)
+Retrieves the status of a list of jobs from Armada.
+
+
+* **Parameters**
+
+    **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+    The response from the server containing the job status.
+
+
+
+* **Return type**
+
+    JobStatusResponse
 
 
 
@@ -398,7 +464,7 @@ Health check for Submit Service.
 
 
 #### submit_jobs(queue, job_set_id, job_request_items)
-Submit a armada job.
+Submit an armada job.
 
 Uses SubmitJobs RPC to submit a job.
 
