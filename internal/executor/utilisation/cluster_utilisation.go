@@ -140,6 +140,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			Unschedulable:               !isSchedulable,
 			ResourceUsageByQueue:        resourceUsageByQueue,
 			NodeType:                    cls.nodeInfoService.GetType(node),
+			Pool:                        cls.nodeInfoService.GetPool(node),
 		})
 	}
 

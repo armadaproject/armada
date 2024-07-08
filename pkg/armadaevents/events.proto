@@ -321,6 +321,9 @@ message JobRunLeased {
     schedulerobjects.PodRequirements pod_requirements_overlay = 9;
     string job_id_str = 10;
     string run_id_str = 11;
+    // pool is the pool this run was scheduled on to
+    // This would be determined by the pool of the node this run was scheduled on to, at the time of scheduling
+    string pool = 12;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

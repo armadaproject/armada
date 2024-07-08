@@ -20,7 +20,15 @@ func TestPoolAssigner_AssignPools(t *testing.T) {
 	cpuExecutor := testfixtures.TestExecutor(testfixtures.BaseTime)
 	runningJob := queuedJob.
 		WithQueued(false).
-		WithNewRun(cpuExecutor.Id, "testNode", "testNode", 0)
+		WithNewRun(cpuExecutor.Id, "testNode", "testNode", "cpu", 0)
+
+	runningJobWithoutPoolSetOnLatestRun := queuedJob.
+		WithQueued(false).
+		WithNewRun(cpuExecutor.Id, testfixtures.TestCluster()[0].Id, testfixtures.TestCluster()[0].Name, "", 0)
+
+	runningJobWithoutPoolSetOnLatestRunOrExistingAssociatedNode := queuedJob.
+		WithQueued(false).
+		WithNewRun(cpuExecutor.Id, "unknownNode", "unknownNode", "", 0)
 
 	tests := map[string]struct {
 		executorTimout time.Duration
@@ -36,15 +44,20 @@ func TestPoolAssigner_AssignPools(t *testing.T) {
 			job:           queuedJob.WithPools([]string{"cpu", "gpu"}),
 			expectedPools: []string{"cpu", "gpu"},
 		},
-		"running job matches pool": {
-			executors:     []*schedulerobjects.Executor{cpuExecutor},
+		"running job returns pool from latest run": {
+			executors:     []*schedulerobjects.Executor{},
 			job:           runningJob,
 			expectedPools: []string{"cpu"},
 		},
-		"running job doesn't match pool": {
-			executors:     []*schedulerobjects.Executor{},
-			job:           runningJob,
-			expectedPools: []string{""},
+		"running job without pool set returns pool of associated node": {
+			executors:     []*schedulerobjects.Executor{cpuExecutor},
+			job:           runningJobWithoutPoolSetOnLatestRun,
+			expectedPools: []string{testfixtures.TestPool},
+		},
+		"running job without pool set returns pool of associated cluster if associated node does not exist": {
+			executors:     []*schedulerobjects.Executor{cpuExecutor},
+			job:           runningJobWithoutPoolSetOnLatestRunOrExistingAssociatedNode,
+			expectedPools: []string{cpuExecutor.Pool},
 		},
 	}
 	for name, tc := range tests {

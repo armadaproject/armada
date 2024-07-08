@@ -19,6 +19,7 @@ func TestNode(t *testing.T) {
 
 	const id = "id"
 	const nodeTypeId = uint64(123)
+	const pool = "pool"
 	const index = uint64(1)
 	const executor = "executor"
 	const name = "name"
@@ -89,6 +90,7 @@ func TestNode(t *testing.T) {
 		index,
 		executor,
 		name,
+		pool,
 		taints,
 		labels,
 		totalResources,

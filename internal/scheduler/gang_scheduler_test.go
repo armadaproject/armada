@@ -30,8 +30,6 @@ import (
 func TestGangScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
-		// Minimum job size.
-		MinimumJobSize map[string]resource.Quantity
 		// Nodes to be considered by the scheduler.
 		Nodes []*schedulerobjects.Node
 		// Total resources across all clusters.
@@ -557,7 +555,6 @@ func TestGangScheduler(t *testing.T) {
 			)
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
-				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
 				tc.SchedulingConfig.DefaultPriorityClassName,
@@ -584,7 +581,6 @@ func TestGangScheduler(t *testing.T) {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				tc.TotalResources,
-				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				nil,
 			)
