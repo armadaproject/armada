@@ -19,7 +19,6 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -79,8 +78,6 @@ type Scheduler struct {
 	metrics *SchedulerMetrics
 	// New scheduler metrics due to replace the above.
 	schedulerMetrics *metrics.Metrics
-	// Used to estimate the probability of a job from a particular queue succeeding on a particular node.
-	failureEstimator *failureestimator.FailureEstimator
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
@@ -101,7 +98,6 @@ func NewScheduler(
 	nodeIdLabel string,
 	metrics *SchedulerMetrics,
 	schedulerMetrics *metrics.Metrics,
-	failureEstimator *failureestimator.FailureEstimator,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -122,7 +118,6 @@ func NewScheduler(
 		runsSerial:                 -1,
 		metrics:                    metrics,
 		schedulerMetrics:           schedulerMetrics,
-		failureEstimator:           failureEstimator,
 	}, nil
 }
 
@@ -288,32 +283,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
 			return overallSchedulerResult, err
 		}
-	}
-
-	// Update success probability estimates.
-	if !s.failureEstimator.IsDisabled() {
-		for _, jst := range jsts {
-			if jst.Job == nil {
-				continue
-			}
-			run := jst.Job.LatestRun()
-			if run == nil {
-				continue
-			}
-			var t time.Time
-			if terminatedTime := run.TerminatedTime(); terminatedTime != nil {
-				t = *terminatedTime
-			} else {
-				t = time.Now()
-			}
-			if jst.Failed {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.Queue(), run.Executor(), false, t)
-			}
-			if jst.Succeeded {
-				s.failureEstimator.Push(run.NodeName(), jst.Job.Queue(), run.Executor(), true, t)
-			}
-		}
-		s.failureEstimator.Update()
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
