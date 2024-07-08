@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/types"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -14,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
@@ -542,7 +545,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.Uuid, time time.Time) []*armadaevents.EventSequence_Event {
 	return []*armadaevents.EventSequence_Event{
 		{
-			Created: &time,
+			Created: protoutil.ToTimestamp(time),
 			Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 				JobRunPreempted: &armadaevents.JobRunPreempted{
 					PreemptedRunId:    runId,
@@ -553,7 +556,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			},
 		},
 		{
-			Created: &time,
+			Created: protoutil.ToTimestamp(time),
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId:    runId,
@@ -572,7 +575,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 			},
 		},
 		{
-			Created: &time,
+			Created: protoutil.ToTimestamp(time),
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId:    jobId,
@@ -609,7 +612,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 			JobSetName: job.Jobset(), // TODO: Rename to JobSet.
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: &runCreationTime,
+					Created: protoutil.ToTimestamp(runCreationTime),
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      armadaevents.ProtoUuidFromUuid(run.Id()),
@@ -1043,11 +1046,9 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 	return events, nil
 }
 
-// now is a convenience function for generating a pointer to a time.Time (as required by armadaevents).
-// It exists because Go won't let you do &s.clock.Now().
-func (s *Scheduler) now() *time.Time {
-	now := s.clock.Now()
-	return &now
+// now is a convenience function for generating a proto timestamp representing the current time according to the clock
+func (s *Scheduler) now() *types.Timestamp {
+	return protoutil.ToTimestamp(s.clock.Now())
 }
 
 // initialise builds the initial job db based on the current database state

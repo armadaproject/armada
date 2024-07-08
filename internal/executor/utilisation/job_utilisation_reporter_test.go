@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -65,7 +66,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 
 	event1CreatedTime := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Created
 	event2CreatedTime := fakeEventReporter.ReceivedEvents[1].Event.Events[0].Created
-	period := event2CreatedTime.Sub(*event1CreatedTime)
+	period := protoutil.ToStdTime(event2CreatedTime).Sub(protoutil.ToStdTime(event1CreatedTime))
 
 	accuracy := time.Millisecond * 20
 	assert.Equal(t, period/accuracy, reportingPeriod/accuracy)

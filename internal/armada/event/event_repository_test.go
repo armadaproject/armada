@@ -26,6 +26,7 @@ var (
 	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
 	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto = protoutil.ToTimestamp(baseTime)
 )
 
 const (
@@ -43,7 +44,7 @@ const (
 
 // Assigned
 var assigned = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
+	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
 			RunId: runIdProto,
@@ -69,7 +70,7 @@ var assigned = &armadaevents.EventSequence_Event{
 
 // Running
 var running = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
+	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
 			RunId: runIdProto,
@@ -89,7 +90,7 @@ var running = &armadaevents.EventSequence_Event{
 }
 
 var runSucceeded = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
+	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
 			RunId: runIdProto,

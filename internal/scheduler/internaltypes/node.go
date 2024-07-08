@@ -9,7 +9,7 @@ import (
 )
 
 // Node is a scheduler-internal representation of one Kubernetes node.
-// Its private fields should be immmutable! Do not change these!
+// Its private fields should be immutable! Do not change these!
 type Node struct {
 	// Unique id and index of this node.
 	// TODO(albin): Having both id and index is redundant.
