@@ -161,7 +161,7 @@ var leasedJob = testfixtures.NewJob(
 	false,
 	1,
 	true,
-).WithNewRun("testExecutor", "test-node", "node", 5)
+).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var preemptibleLeasedJob = testfixtures.NewJob(
 	util.NewULID(),
@@ -176,7 +176,7 @@ var preemptibleLeasedJob = testfixtures.NewJob(
 	false,
 	1,
 	true,
-).WithNewRun("testExecutor", "test-node", "node", 5)
+).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var cancelledJob = testfixtures.NewJob(
 	util.NewULID(),
@@ -191,7 +191,7 @@ var cancelledJob = testfixtures.NewJob(
 	true,
 	1,
 	true,
-).WithNewRun("testExecutor", "test-node", "node", 5)
+).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var returnedOnceLeasedJob = testfixtures.NewJob(
 	"01h3w2wtdchtc80hgyp782shrv",
@@ -213,6 +213,7 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	"testExecutor",
 	"testNodeId",
 	"testNodeName",
+	"pool",
 	&scheduledAtPriority,
 	false,
 	false,
@@ -229,7 +230,7 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	nil,
 	true,
 	true,
-)).WithNewRun("testExecutor", "test-node", "node", 5)
+)).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var defaultJobError = &armadaevents.Error{
 	Terminal: true,
@@ -268,11 +269,12 @@ var leasedFailFastJob = testfixtures.NewJob(
 	false,
 	1,
 	true,
-).WithNewRun("testExecutor", "test-node", "node", 5)
+).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var (
 	testExecutor        = "test-executor"
 	testNode            = "test-node"
+	testPool            = "test-pool"
 	testNodeId          = api.NodeIdFromExecutorAndNodeName(testExecutor, testNode)
 	scheduledAtPriority = int32(10)
 	requeuedJobId       = util.NewULID()
@@ -296,6 +298,7 @@ var (
 		"testExecutor",
 		"test-node",
 		"node",
+		"pool",
 		&scheduledAtPriority,
 		false,
 		false,
@@ -1144,6 +1147,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						"test-executor",
 						"test-executor-test-node",
 						"test-node",
+						"pool",
 						pointer.Int32(5),
 						false,
 						false,
@@ -1406,6 +1410,7 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 			testExecutor,
 			testNodeId,
 			testNode,
+			testPool,
 			priority,
 		)
 		scheduledJobs = append(scheduledJobs, job)
@@ -1842,7 +1847,7 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			expectedJobDbCycleOne: []*jobdb.Job{
 				func() *jobdb.Job {
-					job := jobDbJobFromDbJob(resourceListFactory, runningCancelRequestedJobA).WithCancelled(true).WithNewRun(testExecutor, testNodeId, testNode, 10)
+					job := jobDbJobFromDbJob(resourceListFactory, runningCancelRequestedJobA).WithCancelled(true).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10)
 					return job.WithUpdatedRun(job.LatestRun().WithCancelled(true).WithAttempted(true))
 				}(),
 			},
@@ -1888,7 +1893,7 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			expectedJobDbCycleOne: []*jobdb.Job{
 				func() *jobdb.Job {
-					job := jobDbJobFromDbJob(resourceListFactory, runningCancelByJobSetRequestedJobA).WithCancelled(true).WithNewRun(testExecutor, testNodeId, testNode, 10)
+					job := jobDbJobFromDbJob(resourceListFactory, runningCancelByJobSetRequestedJobA).WithCancelled(true).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10)
 					return job.WithUpdatedRun(job.LatestRun().WithCancelled(true).WithAttempted(true))
 				}(),
 			},
@@ -1940,13 +1945,13 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedJobDbCycleTwo: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedJobDbCycleThree: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
@@ -1967,6 +1972,7 @@ func TestCycleConsistency(t *testing.T) {
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
 									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
+									Pool:                   testPool,
 								},
 							},
 						},
@@ -1987,11 +1993,11 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedJobDbCycleTwo: []*jobdb.Job{
 				func() *jobdb.Job {
-					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithSucceeded(true)
+					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10).WithSucceeded(true)
 					return job.WithUpdatedRun(job.LatestRun().WithSucceeded(true).WithAttempted(true))
 				}(),
 			},
@@ -2015,6 +2021,7 @@ func TestCycleConsistency(t *testing.T) {
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
 									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
+									Pool:                   testPool,
 								},
 							},
 						},
@@ -2053,11 +2060,11 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedJobDbCycleTwo: []*jobdb.Job{
 				func() *jobdb.Job {
-					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithFailed(true)
+					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10).WithFailed(true)
 					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true))
 				}(),
 			},
@@ -2081,6 +2088,7 @@ func TestCycleConsistency(t *testing.T) {
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
 									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
+									Pool:                   testPool,
 								},
 							},
 						},
@@ -2129,11 +2137,11 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedJobDbCycleTwo: []*jobdb.Job{
 				func() *jobdb.Job {
-					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithFailed(true)
+					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10).WithFailed(true)
 					// TODO(albin): RunAttempted is implicitly set to true for failed runs with error other than PodLeaseReturned.
 					//              See func (c *InstructionConverter) handleJobRunErrors.
 					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true))
@@ -2157,11 +2165,11 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10),
 			},
 			expectedJobDbCycleTwo: []*jobdb.Job{
 				func() *jobdb.Job {
-					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithFailed(true)
+					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 10).WithFailed(true)
 					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true).WithReturned(true))
 				}(),
 			},

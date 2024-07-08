@@ -366,7 +366,6 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:             req.ExecutorId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
-		MinimumJobSize: executorapi.ResourceListFromProtoResources(req.MinimumJobSize),
 		LastUpdateTime: now,
 		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId *armadaevents.Uuid) string {
 			return strings.ToLower(armadaevents.UuidFromProtoUuid(jobId).String())

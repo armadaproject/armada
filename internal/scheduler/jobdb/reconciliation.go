@@ -293,6 +293,7 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.Executor,
 		nodeId,
 		dbRun.Node,
+		dbRun.Pool,
 		dbRun.ScheduledAtPriority,
 		dbRun.LeasedTimestamp != nil,
 		dbRun.Pending,

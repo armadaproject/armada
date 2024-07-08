@@ -35,6 +35,8 @@ const (
 	TestQueue                    = "testQueue"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
+	ClusterNameLabel             = "cluster"
+	PoolNameLabel                = "pool"
 	PriorityClass0               = "priority-0"
 	PriorityClass1               = "priority-1"
 	PriorityClass2               = "priority-2"
@@ -80,7 +82,7 @@ var (
 		func(v schedulerconfiguration.ResourceType) string { return v.Name },
 	)
 	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
-	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
+	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu", ClusterNameLabel, PoolNameLabel}
 	TestWellKnownNodeTypes = []schedulerconfiguration.WellKnownNodeType{
 		{
 			Name:   "gpu",
@@ -400,6 +402,15 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	)
 }
 
+func WithNodeUniformityGangAnnotationsJobs(jobs []*jobdb.Job, nodeUniformityLabel string) []*jobdb.Job {
+	gangId := uuid.NewString()
+	gangCardinality := fmt.Sprintf("%d", len(jobs))
+	return WithAnnotationsJobs(
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangNodeUniformityLabelAnnotation: nodeUniformityLabel},
+		jobs,
+	)
+}
+
 func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
 		for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
@@ -658,6 +669,7 @@ func TestCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:       "node1",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 1},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
@@ -676,6 +688,7 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:       "node2",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 2},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
@@ -694,6 +707,7 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:       "node3",
+			Pool:     TestPool,
 			NodeType: &schedulerobjects.NodeType{Id: 3},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
@@ -746,6 +760,7 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 	return &schedulerobjects.Node{
 		Id:             id,
 		Name:           id,
+		Pool:           TestPool,
 		TotalResources: schedulerobjects.ResourceList{Resources: resources},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
@@ -805,10 +820,31 @@ func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
 	node.Name = fmt.Sprintf("%s-node", executorId)
 	node.Executor = executorId
+	node.Labels[ClusterNameLabel] = executorId
 	return &schedulerobjects.Executor{
 		Id:             executorId,
 		Pool:           TestPool,
 		Nodes:          []*schedulerobjects.Node{node},
+		LastUpdateTime: BaseTime,
+	}
+}
+
+func MakeTestExecutor(executorId string, nodePools ...string) *schedulerobjects.Executor {
+	nodes := []*schedulerobjects.Node{}
+
+	for _, nodePool := range nodePools {
+		node := Test32CpuNode(TestPriorities)
+		node.Name = fmt.Sprintf("%s-node", executorId)
+		node.Executor = executorId
+		node.Pool = nodePool
+		node.Labels[PoolNameLabel] = nodePool
+		nodes = append(nodes, node)
+	}
+
+	return &schedulerobjects.Executor{
+		Id:             executorId,
+		Pool:           TestPool,
+		Nodes:          nodes,
 		LastUpdateTime: BaseTime,
 	}
 }

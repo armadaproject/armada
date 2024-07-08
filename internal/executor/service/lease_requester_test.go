@@ -21,15 +21,11 @@ import (
 )
 
 var (
-	lease1                = createJobRunLease("queue-1", "set-1")
-	lease2                = createJobRunLease("queue-2", "set-1")
-	id1                   = armadaevents.ProtoUuidFromUuid(uuid.New())
-	id2                   = armadaevents.ProtoUuidFromUuid(uuid.New())
-	id3                   = armadaevents.ProtoUuidFromUuid(uuid.New())
-	defaultMinimumJobSize = armadaresource.ComputeResources{
-		"cpu":    resource.MustParse("1"),
-		"memory": resource.MustParse("640Ki"),
-	}
+	lease1                 = createJobRunLease("queue-1", "set-1")
+	lease2                 = createJobRunLease("queue-2", "set-1")
+	id1                    = armadaevents.ProtoUuidFromUuid(uuid.New())
+	id2                    = armadaevents.ProtoUuidFromUuid(uuid.New())
+	id3                    = armadaevents.ProtoUuidFromUuid(uuid.New())
 	defaultClusterIdentity = fake.NewFakeClusterIdentity("cluster-id", "cluster-pool")
 	endMarker              = &executorapi.LeaseStreamMessage{
 		Event: &executorapi.LeaseStreamMessage_End{
@@ -109,7 +105,6 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 		ExecutorId:          defaultClusterIdentity.GetClusterId(),
 		Pool:                defaultClusterIdentity.GetClusterPool(),
 		Resources:           leaseRequest.AvailableResource.ToProtoMap(),
-		MinimumJobSize:      defaultMinimumJobSize.ToProtoMap(),
 		Nodes:               leaseRequest.Nodes,
 		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
 		MaxJobsToLease:      leaseRequest.MaxJobsToLease,
@@ -224,7 +219,7 @@ func setup(t *testing.T) (*JobLeaseRequester, *mocks.MockExecutorApiClient, *moc
 	ctrl := gomock.NewController(t)
 	mockExecutorApiClient := mocks.NewMockExecutorApiClient(ctrl)
 	mockStream := mocks.NewMockExecutorApi_LeaseJobRunsClient(ctrl)
-	jobLeaseRequester := NewJobLeaseRequester(mockExecutorApiClient, defaultClusterIdentity, defaultMinimumJobSize)
+	jobLeaseRequester := NewJobLeaseRequester(mockExecutorApiClient, defaultClusterIdentity)
 
 	return jobLeaseRequester, mockExecutorApiClient, mockStream
 }

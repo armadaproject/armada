@@ -61,6 +61,7 @@ func TestConvertSequence(t *testing.T) {
 					Queue:                  f.Queue,
 					Executor:               f.ExecutorId,
 					Node:                   f.NodeName,
+					Pool:                   f.Pool,
 					ScheduledAtPriority:    &f.ScheduledAtPriority,
 					Created:                f.BaseTime.UnixNano(),
 					LeasedTimestamp:        &f.BaseTime,

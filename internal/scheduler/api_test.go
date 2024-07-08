@@ -90,7 +90,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				ReportingNodeType:    "node-type-1",
 			},
 		},
-		MinimumJobSize:    schedulerobjects.NewResourceList(0),
 		LastUpdateTime:    testClock.Now().UTC(),
 		UnassignedJobRuns: []string{runId3.String()},
 	}

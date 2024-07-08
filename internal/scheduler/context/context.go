@@ -34,9 +34,7 @@ type SchedulingContext struct {
 	Started time.Time
 	// Time at which the scheduling cycle finished.
 	Finished time.Time
-	// Executor for which we're currently scheduling jobs.
-	ExecutorId string
-	// Resource pool of this executor.
+	// Pool for which we're currently scheduling jobs.
 	Pool string
 	// Allowed priority classes.
 	PriorityClasses map[string]types.PriorityClass
@@ -79,7 +77,6 @@ type SchedulingContext struct {
 }
 
 func NewSchedulingContext(
-	executorId string,
 	pool string,
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
@@ -89,7 +86,6 @@ func NewSchedulingContext(
 ) *SchedulingContext {
 	return &SchedulingContext{
 		Started:                           time.Now(),
-		ExecutorId:                        executorId,
 		Pool:                              pool,
 		PriorityClasses:                   priorityClasses,
 		DefaultPriorityClass:              defaultPriorityClass,
@@ -137,7 +133,6 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
 		Created:                           time.Now(),
-		ExecutorId:                        sctx.ExecutorId,
 		Queue:                             queue,
 		Weight:                            weight,
 		Limiter:                           limiter,
@@ -406,8 +401,6 @@ type QueueSchedulingContext struct {
 	SchedulingContext *SchedulingContext
 	// Time at which this context was created.
 	Created time.Time
-	// Executor this job was attempted to be assigned to.
-	ExecutorId string
 	// Queue name.
 	Queue string
 	// Determines the fair share of this queue relative to other queues.

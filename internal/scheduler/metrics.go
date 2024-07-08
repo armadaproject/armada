@@ -270,9 +270,10 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
+			pool := GetNodePool(node, executor)
 			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
-				pool:     executor.Pool,
+				pool:     pool,
 				nodeType: node.ReportingNodeType,
 			}
 			if !node.Unschedulable {
@@ -285,7 +286,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			for queueName, resourceUsage := range node.ResourceUsageByQueue {
 				queueKey := queueMetricKey{
 					cluster:   executor.Id,
-					pool:      executor.Pool,
+					pool:      pool,
 					queueName: queueName,
 					nodeType:  node.ReportingNodeType,
 				}
@@ -298,7 +299,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := queuePhaseMetricKey{
 						cluster:   executor.Id,
-						pool:      executor.Pool,
+						pool:      pool,
 						queueName: job.Queue(),
 						nodeType:  node.ReportingNodeType,
 						// Convert to string with first letter capitalised
@@ -310,7 +311,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					if podRequirements != nil {
 						queueKey := queueMetricKey{
 							cluster:       executor.Id,
-							pool:          executor.Pool,
+							pool:          pool,
 							queueName:     job.Queue(),
 							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
