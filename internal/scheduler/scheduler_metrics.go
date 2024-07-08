@@ -89,7 +89,7 @@ var demandPerQueueDesc = prometheus.NewDesc(
 
 var fairnessErrorDesc = prometheus.NewDesc(
 	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "fairness_error"),
-	"Cumulative delta between adjusted fair share and actual share for all users who\n// are below their fair share",
+	"Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
 	[]string{
 		"pool",
 	}, nil,
