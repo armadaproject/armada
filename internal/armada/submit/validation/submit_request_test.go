@@ -979,6 +979,132 @@ func TestValidateTerminationGracePeriod(t *testing.T) {
 	}
 }
 
+func TestValidateInitContainerCpu(t *testing.T) {
+	tests := map[string]struct {
+		initContainers []v1.Container
+		disableCheck   bool
+		expectSuccess  bool
+	}{
+		"no init containers": {
+			initContainers: []v1.Container{},
+			expectSuccess:  true,
+		},
+		"init container with no resource requests": {
+			initContainers: []v1.Container{
+				{},
+			},
+			expectSuccess: true,
+		},
+		"init container that doesn't specify cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"memory": resource.MustParse("1Gi"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"memory": resource.MustParse("1Gi"),
+						},
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"init container with fractional cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"check disabled": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+					},
+				},
+			},
+			disableCheck:  true,
+			expectSuccess: true,
+		},
+		"limits with integer cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"requests with integer cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"cpu specified as millis": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1000m"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1000m"),
+						},
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateInitContainerCpu(&api.JobSubmitRequestItem{
+				PodSpec: &v1.PodSpec{
+					InitContainers: tc.initContainers,
+				},
+			}, configuration.SubmissionConfig{
+				AssertInitContainersRequestFractionalCpu: !tc.disableCheck,
+			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func reqFromContainer(container v1.Container) *api.JobSubmitRequestItem {
 	return reqFromContainers([]v1.Container{container})
 }

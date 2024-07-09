@@ -128,6 +128,8 @@ type SubmissionConfig struct {
 	// Maximum ratio of limits:requests per resource. Jobs who have a higher limits:resource ratio than this will be rejected.
 	// Any resource type missing from this map will default to 1.0.
 	MaxOversubscriptionByResourceRequest map[string]float64
+	// Enforce that an init containers requestion non-integer cpu. This is due to https://github.com/kubernetes/kubernetes/issues/112228
+	AssertInitContainersRequestFractionalCpu bool
 }
 
 // TODO: we can probably just typedef this to map[string]string
