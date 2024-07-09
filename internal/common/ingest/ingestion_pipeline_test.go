@@ -284,6 +284,7 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
 }
+
 func TestRun_LimitsProcessingBatchSize(t *testing.T) {
 	tests := map[string]struct {
 		numberOfEventsPerMessage         int
