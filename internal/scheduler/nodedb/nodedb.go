@@ -37,48 +37,42 @@ const (
 var empty struct{}
 
 func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, error) {
-		if len(node.AllocatedByJobId) > 0 {
-		 panic("AllocatedByJobId")
+
+	if len(node.AllocatedByJobId) > 0 {
+		panic("AllocatedByJobId")
 	}
 	if len(node.AllocatedByQueue) > 0 {
-		 panic("AllocatedByQueue")
+		panic("AllocatedByQueue")
 	}
 	if len(node.EvictedJobRunIds) > 0 {
-		 panic("EvictedJobRunIds")
-	}
-
-	allowedPriorities := []int32{}
-	for _, p := range nodeDb.nodeDbPriorities {
-		 if p != evictedPriority {
-			  allowedPriorities = append(allowedPriorities, p)
-		 }
+		panic("EvictedJobRunIds")
 	}
 
 	robAllocatable := schedulerobjects.NewAllocatableByPriorityAndResourceType(
-		 allowedPriorities,
-		 node.TotalResources,
+		types.AllowedPriorities(nodeDb.priorityClasses),
+		node.TotalResources,
 	)
 	for p, rl := range node.NonArmadaAllocatedResources {
-		 robAllocatable.MarkAllocated(p, rl)
+		robAllocatable.MarkAllocated(p, rl)
 	}
 
 	if len(robAllocatable) != len(node.AllocatableByPriorityAndResource) {
-		 fmt.Printf("existing %v, rob %v", node.AllocatableByPriorityAndResource, robAllocatable)
-		 panic("AllocatableByPriorityAndResource lengths")
+		fmt.Printf("existing %v, rob %v", node.AllocatableByPriorityAndResource, robAllocatable)
+		panic("AllocatableByPriorityAndResource lengths")
 	}
 
 	for p, a := range node.AllocatableByPriorityAndResource {
-		 robA, exists := robAllocatable[p]
-		 if !exists {
-			  fmt.Printf("existing %v, rob %v", node.AllocatableByPriorityAndResource, robAllocatable)
-			  panic("AllocatableByPriorityAndResource missing")
-		 }
-		 cpy := a.DeepCopy()
-		 cpy.Sub(robA)
-		 if !cpy.IsZero() {
-			  fmt.Printf("existing %v, rob %v", node.AllocatableByPriorityAndResource, robAllocatable)
-			  panic("AllocatableByPriorityAndResource ne")
-		 }
+		robA, exists := robAllocatable[p]
+		if !exists {
+			fmt.Printf("existing %v, rob %v", node.AllocatableByPriorityAndResource, robAllocatable)
+			panic("AllocatableByPriorityAndResource missing")
+		}
+		cpy := a.DeepCopy()
+		cpy.Sub(robA)
+		if !cpy.IsZero() {
+			fmt.Printf("existing %v, rob %v", node.AllocatableByPriorityAndResource, robAllocatable)
+			panic("AllocatableByPriorityAndResource ne")
+		}
 	}
 
 	fmt.Printf("All is good for %s\n", node.Name)
