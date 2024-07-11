@@ -7,7 +7,8 @@ import (
 )
 
 type LookoutV2Config struct {
-	ApiPort int
+	ApiPort     int
+	MetricsPort int
 	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
 	PprofPort *uint16
 

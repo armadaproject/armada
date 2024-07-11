@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
@@ -16,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
+	"github.com/armadaproject/armada/internal/lookoutv2/metrics"
 )
 
 //go:generate swagger generate server --target ../../gen --name Lookout --spec ../../swagger.yaml --principal interface{} --exclude-main
@@ -89,7 +91,7 @@ var UIConfig configuration.UIConfig
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics.
 func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
-	return allowCORS(uiHandler(apiHandler), corsAllowedOrigins)
+	return recordRequestDuration(allowCORS(uiHandler(apiHandler), corsAllowedOrigins))
 }
 
 func uiHandler(apiHandler http.Handler) http.Handler {
@@ -134,6 +136,19 @@ func allowCORS(handler http.Handler, corsAllowedOrigins []string) http.Handler {
 			}
 		}
 		handler.ServeHTTP(w, r)
+	})
+}
+
+func recordRequestDuration(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: for autheticated users, record the username
+		const unknownUser = "unknown"
+		start := time.Now()
+		handler.ServeHTTP(w, r)
+		duration := time.Since(start)
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			metrics.RecordRequestDuration(unknownUser, r.URL.Path, float64(duration.Milliseconds()))
+		}
 	})
 }
 
