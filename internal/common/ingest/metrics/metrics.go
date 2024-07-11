@@ -28,7 +28,7 @@ type Metrics struct {
 	dbErrorsCounter         *prometheus.CounterVec
 	pulsarConnectionError   prometheus.Counter
 	pulsarMessageError      *prometheus.CounterVec
-	pulsarMessagesProcessed *prometheus.CounterVec
+	pulsarMessagesProcessed prometheus.Counter
 	eventsProcessed         *prometheus.CounterVec
 }
 
@@ -58,7 +58,7 @@ func NewMetrics(prefix string) *Metrics {
 		dbErrorsCounter:         promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
 		pulsarMessageError:      promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
 		pulsarConnectionError:   promauto.NewCounter(pulsarConnectionErrorOpts),
-		pulsarMessagesProcessed: promauto.NewCounterVec(pulsarMessagesProcessedOpts, []string{"queue"}),
+		pulsarMessagesProcessed: promauto.NewCounter(pulsarMessagesProcessedOpts),
 		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue"}),
 	}
 }
@@ -73,4 +73,12 @@ func (m *Metrics) RecordPulsarMessageError(error PulsarMessageError) {
 
 func (m *Metrics) RecordPulsarConnectionError() {
 	m.pulsarConnectionError.Inc()
+}
+
+func (m *Metrics) RecordPulsarMessageProcessed() {
+	m.pulsarMessagesProcessed.Inc()
+}
+
+func (m *Metrics) RecordEventSequenceProcessed(queue, msgTpe string) {
+	m.eventsProcessed.With(map[string]string{"queue": queue, "msgType": msgTpe}).Inc()
 }

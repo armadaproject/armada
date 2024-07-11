@@ -45,8 +45,3 @@ func (m *Metrics) RecordRowsChange(table, operation string, numRows int) {
 		With(map[string]string{"table": table, "operation": operation}).
 		Add(float64(numRows))
 }
-
-// time taken per row change
-// rows change by table, operation (insert, update)
-// events processed by type and queue
-// pulsar messages processed
