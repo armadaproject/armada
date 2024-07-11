@@ -20,15 +20,16 @@ const (
 )
 
 const (
-	ArmadaLookoutIngesterMetricsPrefix   = "armada_lookout_ingester_"
 	ArmadaLookoutIngesterV2MetricsPrefix = "armada_lookout_ingester_v2_"
 	ArmadaEventIngesterMetricsPrefix     = "armada_event_ingester_"
 )
 
 type Metrics struct {
-	dbErrorsCounter       *prometheus.CounterVec
-	pulsarConnectionError prometheus.Counter
-	pulsarMessageError    *prometheus.CounterVec
+	dbErrorsCounter         *prometheus.CounterVec
+	pulsarConnectionError   prometheus.Counter
+	pulsarMessageError      *prometheus.CounterVec
+	pulsarMessagesProcessed *prometheus.CounterVec
+	eventsProcessed         *prometheus.CounterVec
 }
 
 func NewMetrics(prefix string) *Metrics {
@@ -44,10 +45,21 @@ func NewMetrics(prefix string) *Metrics {
 		Name: prefix + "pulsar_connection_errors",
 		Help: "Number of Pulsar connection errors",
 	}
+	pulsarMessagesProcessedOpts := prometheus.CounterOpts{
+		Name: prefix + "pulsar_messages_processed",
+		Help: "Number of pulsar messages processed",
+	}
+	eventsProcessedOpts := prometheus.CounterOpts{
+		Name: prefix + "pulsar_messages_processed",
+		Help: "Number of events processed",
+	}
+
 	return &Metrics{
-		dbErrorsCounter:       promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
-		pulsarMessageError:    promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
-		pulsarConnectionError: promauto.NewCounter(pulsarConnectionErrorOpts),
+		dbErrorsCounter:         promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
+		pulsarMessageError:      promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
+		pulsarConnectionError:   promauto.NewCounter(pulsarConnectionErrorOpts),
+		pulsarMessagesProcessed: promauto.NewCounterVec(pulsarMessagesProcessedOpts, []string{"queue"}),
+		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue"}),
 	}
 }
 
