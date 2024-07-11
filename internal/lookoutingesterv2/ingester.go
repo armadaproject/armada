@@ -60,7 +60,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		}()
 	}
 
-	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor)
+	converter := instructions.NewInstructionConverter(m.Metrics, config.UserAnnotationPrefix, compressor)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet](
 		config.Pulsar,
@@ -71,7 +71,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		converter,
 		lookoutDb,
 		config.MetricsPort,
-		m,
+		m.Metrics,
 	)
 
 	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {

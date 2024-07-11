@@ -13,7 +13,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 )
 
@@ -82,7 +83,9 @@ func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model
 		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobsScalar(ctx, instructions)
 	}
-	log.Infof("Inserted %d jobs in %s", len(instructions), time.Since(start))
+	taken := time.Since(start)
+	l.metrics.RecordRowsChange("job", "insert", len(instructions))
+	log.Infof("Inserted %d jobs in %s", len(instructions), taken)
 }
 
 func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
@@ -96,7 +99,9 @@ func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobsScalar(ctx, instructions)
 	}
-	log.Infof("Updated %d jobs in %s", len(instructions), time.Since(start))
+	taken := time.Since(start)
+	l.metrics.RecordRowsChange("job", "update", len(instructions))
+	log.Infof("Updated %d jobs in %s", len(instructions), taken)
 }
 
 func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) {
@@ -109,7 +114,9 @@ func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*mo
 		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobRunsScalar(ctx, instructions)
 	}
-	log.Infof("Inserted %d job runs in %s", len(instructions), time.Since(start))
+	taken := time.Since(start)
+	l.metrics.RecordRowsChange("job_run", "insert", len(instructions))
+	log.Infof("Inserted %d job runs in %s", len(instructions), taken)
 }
 
 func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
@@ -122,7 +129,9 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
-	log.Infof("Updated %d job runs in %s", len(instructions), time.Since(start))
+	taken := time.Since(start)
+	l.metrics.RecordRowsChange("job_run", "update", len(instructions))
+	log.Infof("Updated %d job runs in %s", len(instructions), taken)
 }
 
 func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {
@@ -135,7 +144,9 @@ func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*
 		log.WithError(err).Warn("Creating job errors via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobErrorsScalar(ctx, instructions)
 	}
-	log.Infof("Inserted %d job errors in %s", len(instructions), time.Since(start))
+	taken := time.Since(start)
+	l.metrics.RecordRowsChange("job_error", "insert", len(instructions))
+	log.Infof("Inserted %d job errors in %s", len(instructions), taken)
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
@@ -165,7 +176,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					annotations                  jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -243,7 +254,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
 			return err
 		}
@@ -297,7 +308,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.Annotations,
 			)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
 			return err
 		})
@@ -325,7 +336,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 					cancel_reason                varchar(512)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -377,7 +388,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}
 			return err
 		}
@@ -411,7 +422,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.LatestRunId,
 				i.CancelReason)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}
 			return err
 		})
@@ -437,7 +448,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					job_run_state smallint
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -484,7 +495,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
 			return err
 		}
@@ -514,7 +525,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.Pending,
 				i.JobRunState)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
 			return err
 		})
@@ -542,7 +553,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				    exit_code     int
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -594,7 +605,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}
 			return err
 		}
@@ -628,7 +639,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.Pending,
 				i.Debug)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}
 			return err
 		})
@@ -648,7 +659,7 @@ func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instruction
 					error bytea
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -680,7 +691,7 @@ func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instruction
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
 			return err
 		}
@@ -698,7 +709,7 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 				i.JobId,
 				i.Error)
 			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
 			return err
 		})
@@ -871,7 +882,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 		return db.Query(ctx, "SELECT DISTINCT job_id, state FROM JOB where state = any($1) AND job_id = any($2)", terminalStates, jobIds)
 	})
 	if err != nil {
-		m.RecordDBError(metrics.DBOperationRead)
+		m.RecordDBError(commonmetrics.DBOperationRead)
 		log.WithError(err).Warnf("Cannot retrieve job state from the database- Cancelled jobs may not be filtered out")
 		return instructions
 	}
