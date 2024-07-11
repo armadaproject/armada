@@ -61,18 +61,12 @@ func (r *SqlGroupJobsRepository) GroupBy(
 
 	var groups []*model.JobGroup
 
-	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
-		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadOnly,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		groupRows, err := tx.Query(ctx, query.Sql, query.Args...)
-		if err != nil {
-			return err
-		}
-		groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
-		return err
-	}); err != nil {
+	groupRows, err := r.db.Query(ctx, query.Sql, query.Args...)
+	if err != nil {
+		return nil, err
+	}
+	groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
+	if err != nil {
 		return nil, err
 	}
 
