@@ -5,14 +5,14 @@ metadata:
   name: {{ include "lookout_v2.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "lookout_v2.name.labels.all" . | nindent 4 -}}
+    {{- include "lookout_v2.labels.all" . | nindent 4 -}}
     {{- if .Values.prometheus.labels }}
     {{- toYaml .Values.prometheus.labels | nindent 4 -}}
     {{- end }}
 spec:
   selector:
     matchLabels:
-      {{- include "lookout_v2.name.labels.identity" . | nindent 6 }}
+      {{- include "lookout_v2.labels.identity" . | nindent 6 }}
   endpoints:
     - port: metrics
       interval: {{ .Values.prometheus.scrapeInterval }}
