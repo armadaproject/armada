@@ -169,7 +169,7 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	preprocessedBatchEventSequences := make(chan *EventSequencesWithIds)
 	go func() {
 		for msg := range batchedEventSequences {
-			logSummaryOfEventSequences(msg)
+			i.recordSummaryOfEventSequences(msg)
 			preprocessedBatchEventSequences <- msg
 		}
 		close(preprocessedBatchEventSequences)
@@ -214,6 +214,7 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 							time.Sleep(i.pulsarConfig.BackoffTime)
 						},
 					)
+					i.metrics.RecordPulsarMessageProcessed()
 				}
 			}
 		}
@@ -291,7 +292,7 @@ func combineEventSequences(sequences []*EventSequencesWithIds) *EventSequencesWi
 	}
 }
 
-func logSummaryOfEventSequences(sequence *EventSequencesWithIds) {
+func (i *IngestionPipeline[T]) recordSummaryOfEventSequences(sequence *EventSequencesWithIds) {
 	numberOfEvents := 0
 	countOfEventsByType := map[string]int{}
 	for _, eventSequence := range sequence.EventSequences {
@@ -299,6 +300,11 @@ func logSummaryOfEventSequences(sequence *EventSequencesWithIds) {
 		for _, e := range eventSequence.Events {
 			typeString := e.GetEventName()
 			countOfEventsByType[typeString] = countOfEventsByType[typeString] + 1
+
+			// Record the event sequence as processed here.  This is technically not true as we haven't finished
+			// processing yet but it saves us having to pass all these details down the pipeline and as the
+			// pipeline is single threaded, the error here should be inconsequential.
+			i.metrics.RecordEventSequenceProcessed(eventSequence.Queue, typeString)
 		}
 	}
 	log.Infof("Batch being processed contains %d event messages and %d events of type %v", len(sequence.MessageIds), numberOfEvents, countOfEventsByType)

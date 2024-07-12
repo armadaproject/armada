@@ -476,7 +476,7 @@ func TestConvert(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
 			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
@@ -542,7 +542,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
-	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
 	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema
