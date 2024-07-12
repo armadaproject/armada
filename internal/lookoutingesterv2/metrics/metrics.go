@@ -48,13 +48,15 @@ func Get() *Metrics {
 }
 
 func (m *Metrics) RecordAvRowChangeTime(numRows int, duration time.Duration) {
-	avRowChangeTimeHist.Observe(float64(numRows) / float64(duration.Microseconds()*1000))
+	rowsPerMilli := float64(duration.Milliseconds()) / float64(numRows)
+	avRowChangeTimeHist.Observe(rowsPerMilli)
 }
 
 func (m *Metrics) RecordAvRowChangeTimeByOperation(table string, operation metrics.DBOperation, numRows int, duration time.Duration) {
+	rowsPerMilli := float64(duration.Milliseconds()) / float64(numRows)
 	avRowChangeTimeByOperationHist.
 		With(map[string]string{"table": table, "operation": string(operation)}).
-		Observe(float64(numRows) / float64(duration.Microseconds()*1000))
+		Observe(rowsPerMilli)
 }
 
 func (m *Metrics) RecordRowsChange(table string, operation metrics.DBOperation, numRows int) {
