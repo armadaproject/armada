@@ -18,7 +18,7 @@ var avRowChangeTimeHist = promauto.NewHistogram(
 
 var rowsChangedCounter = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: metrics.ArmadaLookoutIngesterV2MetricsPrefix + "row_change_time",
+		Name: metrics.ArmadaLookoutIngesterV2MetricsPrefix + "rows_changed",
 		Help: "Number of rows changed in the database",
 	},
 	[]string{"table", "operation"},
