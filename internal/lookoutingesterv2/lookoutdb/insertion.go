@@ -83,9 +83,8 @@ func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model
 		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobsScalar(ctx, instructions)
 	}
-	taken := time.Since(start)
-	l.metrics.RecordRowsChange("job", "insert", len(instructions))
-	log.Infof("Inserted %d jobs in %s", len(instructions), taken)
+	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationInsert, len(instructions))
+	log.Infof("Inserted %d jobs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
@@ -99,9 +98,8 @@ func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobsScalar(ctx, instructions)
 	}
-	taken := time.Since(start)
-	l.metrics.RecordRowsChange("job", "update", len(instructions))
-	log.Infof("Updated %d jobs in %s", len(instructions), taken)
+	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationUpdate, len(instructions))
+	log.Infof("Updated %d jobs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) {
@@ -114,9 +112,8 @@ func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*mo
 		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobRunsScalar(ctx, instructions)
 	}
-	taken := time.Since(start)
-	l.metrics.RecordRowsChange("job_run", "insert", len(instructions))
-	log.Infof("Inserted %d job runs in %s", len(instructions), taken)
+	l.metrics.RecordRowsChange("job_run", commonmetrics.DBOperationInsert, len(instructions))
+	log.Infof("Inserted %d job runs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
@@ -129,9 +126,8 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
-	taken := time.Since(start)
-	l.metrics.RecordRowsChange("job_run", "update", len(instructions))
-	log.Infof("Updated %d job runs in %s", len(instructions), taken)
+	l.metrics.RecordRowsChange("job_run", commonmetrics.DBOperationUpdate, len(instructions))
+	log.Infof("Updated %d job runs in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {
@@ -144,9 +140,8 @@ func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*
 		log.WithError(err).Warn("Creating job errors via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobErrorsScalar(ctx, instructions)
 	}
-	taken := time.Since(start)
-	l.metrics.RecordRowsChange("job_error", "insert", len(instructions))
-	log.Infof("Inserted %d job errors in %s", len(instructions), taken)
+	l.metrics.RecordRowsChange("job_error", commonmetrics.DBOperationInsert, len(instructions))
+	log.Infof("Inserted %d job errors in %s", len(instructions), time.Since(start))
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {

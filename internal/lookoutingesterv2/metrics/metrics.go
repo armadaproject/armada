@@ -40,8 +40,8 @@ func (m *Metrics) RecordAvRowChangeTime(duration float64) {
 	avRowChangeTimeHist.Observe(duration)
 }
 
-func (m *Metrics) RecordRowsChange(table, operation string, numRows int) {
+func (m *Metrics) RecordRowsChange(table string, operation metrics.DBOperation, numRows int) {
 	rowsChangedCounter.
-		With(map[string]string{"table": table, "operation": operation}).
+		With(map[string]string{"table": table, "operation": string(operation)}).
 		Add(float64(numRows))
 }

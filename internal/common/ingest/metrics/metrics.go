@@ -50,7 +50,7 @@ func NewMetrics(prefix string) *Metrics {
 		Help: "Number of pulsar messages processed",
 	}
 	eventsProcessedOpts := prometheus.CounterOpts{
-		Name: prefix + "pulsar_messages_processed",
+		Name: prefix + "events_processed",
 		Help: "Number of events processed",
 	}
 
