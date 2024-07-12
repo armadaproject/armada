@@ -47,6 +47,10 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
 	jobRunsToUpdate := conflateJobRunUpdates(instructions.JobRunsToUpdate)
 
+	numRowsToChange := len(instructions.JobsToCreate) + len(jobsToUpdate) + len(instructions.JobRunsToCreate) +
+		len(jobRunsToUpdate) + len(instructions.JobErrorsToCreate)
+
+	start := time.Now()
 	// Jobs need to be ingested first as other updates may reference these
 	l.CreateJobs(ctx, instructions.JobsToCreate)
 
@@ -70,6 +74,11 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 
 	// Finally, we can update the job runs
 	l.UpdateJobRuns(ctx, jobRunsToUpdate)
+
+	taken := time.Since(start).Microseconds()
+	if numRowsToChange != 0 && taken != 0 {
+		l.metrics.RecordAvRowChangeTime(float64(numRowsToChange) / float64(taken))
+	}
 	return nil
 }
 
