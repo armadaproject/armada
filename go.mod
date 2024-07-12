@@ -65,6 +65,7 @@ require (
 )
 
 require (
+	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/benbjohnson/immutable v0.4.3
 	github.com/charmbracelet/glamour v0.7.0
