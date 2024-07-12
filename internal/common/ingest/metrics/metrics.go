@@ -59,7 +59,7 @@ func NewMetrics(prefix string) *Metrics {
 		pulsarMessageError:      promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
 		pulsarConnectionError:   promauto.NewCounter(pulsarConnectionErrorOpts),
 		pulsarMessagesProcessed: promauto.NewCounter(pulsarMessagesProcessedOpts),
-		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue"}),
+		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue", "msgType"}),
 	}
 }
 
