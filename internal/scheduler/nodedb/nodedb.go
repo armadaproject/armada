@@ -67,11 +67,6 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 	allocatableByPriority[evictedPriority] = allocatableByPriority[minimumPriority]
 
-	evictedJobRunIds := node.EvictedJobRunIds
-	if evictedJobRunIds == nil {
-		evictedJobRunIds = make(map[string]bool)
-	}
-
 	nodeDb.mu.Lock()
 	for key := range nodeDb.indexedNodeLabels {
 		if value, ok := labels[key]; ok {
@@ -96,9 +91,9 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 		labels,
 		nodeDb.resourceListFactory.FromNodeProto(totalResources.Resources),
 		allocatableByPriority,
-		fromMapKToJobResourcesIgnoreUnknown(nodeDb.resourceListFactory, node.AllocatedByQueue),
-		fromMapKToJobResourcesIgnoreUnknown(nodeDb.resourceListFactory, node.AllocatedByJobId),
-		evictedJobRunIds,
+		map[string]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
+		map[string]bool{},
 		nil), nil
 }
 
@@ -106,15 +101,6 @@ func (nodeDb *NodeDb) copyMapWithIntern(labels map[string]string) map[string]str
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[nodeDb.stringInterner.Intern(k)] = nodeDb.stringInterner.Intern(v)
-	}
-	return result
-}
-
-// Ignore unknown resources, round up.
-func fromMapKToJobResourcesIgnoreUnknown[K comparable](factory *internaltypes.ResourceListFactory, m map[K]schedulerobjects.ResourceList) map[K]internaltypes.ResourceList {
-	result := make(map[K]internaltypes.ResourceList, len(m))
-	for k, v := range m {
-		result[k] = factory.FromJobResourceListIgnoreUnknown(v.Resources)
 	}
 	return result
 }
