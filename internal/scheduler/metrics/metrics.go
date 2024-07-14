@@ -390,34 +390,27 @@ func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int
 }
 
 func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
-	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+	executor := executorNameFromRun(job.LatestRun())
 	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
 	labels = append(labels, "") // No nodeType.
-	labels = append(labels, nodeName)
 	return labels
 }
 
 func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontext.JobSchedulingContext) []string {
 	job := jctx.Job
-	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+	executor := executorNameFromRun(job.LatestRun())
 	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
-	wellKnownNodeType := ""
-	if pctx := jctx.PodSchedulingContext; pctx != nil {
-		wellKnownNodeType = pctx.WellKnownNodeTypeName
-	}
-	labels = append(labels, wellKnownNodeType)
-	labels = append(labels, nodeName)
 	return labels
 }
 
-func executorAndNodeNameFromRun(run *jobdb.JobRun) (string, string) {
+func executorNameFromRun(run *jobdb.JobRun) string {
 	if run == nil {
 		// This case covers, e.g., jobs failing that have never been scheduled.
-		return "", ""
+		return ""
 	}
-	return run.Executor(), run.NodeName()
+	return run.Executor()
 }
 
 func errorTypeAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.Error) (string, string) {
