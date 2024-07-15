@@ -71,7 +71,7 @@ type SchedulingContext struct {
 	// Used to efficiently generate scheduling keys.
 	SchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
-	// Used to immediately reject new jobs with identical reqirements.
+	// Used to immediately reject new jobs with identical requirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys map[schedulerobjects.SchedulingKey]*JobSchedulingContext
 }
@@ -431,6 +431,9 @@ type QueueSchedulingContext struct {
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Jobs evicted in this round.
 	EvictedJobsById map[string]bool
+	// A queue is considered blocked if at least one queued job could not be scheduled. We need to store this explicitly
+	// because UnsuccessfulJobSchedulingContexts also includes re-scheduling attempts for preempted jobs.
+	Blocked bool
 }
 
 func (qctx *QueueSchedulingContext) String() string {
@@ -555,6 +558,9 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 		}
 	} else {
+		if !evictedInThisRound {
+			qctx.Blocked = true
+		}
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
 	}
 	return evictedInThisRound, nil

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -95,6 +96,24 @@ var fairnessErrorDesc = prometheus.NewDesc(
 	}, nil,
 )
 
+var fairShareAmongstBlockedUsersDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "fair_share_amongst_blocked_users"),
+	"Fair share relative to other blocked users' fair shares",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
+var actualShareAmongstBlockedUsersDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "actual_share_amongst_blocked_users"),
+	"Actual share relative to other blocked users",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
 func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *SchedulerMetrics {
 	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
@@ -178,6 +197,12 @@ func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometh
 		result = append(result, prometheus.MustNewConstMetric(adjustedFairSharePerQueueDesc, prometheus.GaugeValue, float64(value.adjustedFairShare), key.queue, key.pool))
 		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, float64(value.actualShare), key.queue, key.pool))
 		result = append(result, prometheus.MustNewConstMetric(demandPerQueueDesc, prometheus.GaugeValue, float64(value.demand), key.queue, key.pool))
+		if !math.IsNaN(value.fairShareVsBlockedUsers) {
+			result = append(result, prometheus.MustNewConstMetric(fairShareAmongstBlockedUsersDesc, prometheus.GaugeValue, value.fairShareVsBlockedUsers, key.queue, key.pool))
+		}
+		if !math.IsNaN(value.actualShareVsBlockedUsers) {
+			result = append(result, prometheus.MustNewConstMetric(fairShareAmongstBlockedUsersDesc, prometheus.GaugeValue, value.actualShareVsBlockedUsers, key.queue, key.pool))
+		}
 	}
 	for key, value := range schedulingRoundData.scheduledJobData {
 		result = append(result, prometheus.MustNewConstMetric(scheduledJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
@@ -215,21 +240,36 @@ func aggregateJobContexts(previousSchedulingRoundData map[queuePriorityClassKey]
 	return result
 }
 
-func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []*schedulercontext.SchedulingContext) map[queuePoolKey]queuePoolData {
+func (m *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []*schedulercontext.SchedulingContext) map[queuePoolKey]queuePoolData {
 	result := make(map[queuePoolKey]queuePoolData)
 	for _, schedContext := range schedulingContexts {
 		pool := schedContext.Pool
-
+		totalBlockedWeight := 0.0
+		totalBlockedCost := 0.0
+		for _, queueContext := range schedContext.QueueSchedulingContexts {
+			if queueContext.Blocked {
+				totalBlockedWeight += queueContext.Weight
+				totalBlockedCost += schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Allocated)
+			}
+		}
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			key := queuePoolKey{queue: queue, pool: pool}
 			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
+			fairShareVsBlockedUsers := math.NaN()
+			actualShareVsBlockedUsers := math.NaN()
+			if totalBlockedWeight > 0 && queueContext.Blocked {
+				fairShareVsBlockedUsers = queueContext.Weight / totalBlockedWeight
+				actualShareVsBlockedUsers = schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Allocated) / totalBlockedCost
+			}
 			result[key] = queuePoolData{
-				numberOfJobsConsidered: len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
-				fairShare:              queueContext.FairShare,
-				adjustedFairShare:      queueContext.AdjustedFairShare,
-				actualShare:            actualShare,
-				demand:                 demand,
+				numberOfJobsConsidered:    len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
+				fairShare:                 queueContext.FairShare,
+				adjustedFairShare:         queueContext.AdjustedFairShare,
+				actualShare:               actualShare,
+				demand:                    demand,
+				fairShareVsBlockedUsers:   fairShareVsBlockedUsers,
+				actualShareVsBlockedUsers: actualShareVsBlockedUsers,
 			}
 		}
 	}
@@ -269,9 +309,11 @@ type queuePoolKey struct {
 }
 
 type queuePoolData struct {
-	numberOfJobsConsidered int
-	actualShare            float64
-	fairShare              float64
-	adjustedFairShare      float64
-	demand                 float64
+	numberOfJobsConsidered    int
+	actualShare               float64
+	fairShare                 float64
+	adjustedFairShare         float64
+	demand                    float64
+	fairShareVsBlockedUsers   float64
+	actualShareVsBlockedUsers float64
 }
