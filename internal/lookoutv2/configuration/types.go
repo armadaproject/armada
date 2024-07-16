@@ -8,8 +8,8 @@ import (
 )
 
 type LookoutV2Config struct {
-	ApiPort   int
-	Profiling *profilingconfig.ProfilingConfig
+    ApiPort     int
+    Profiling   *profilingconfig.ProfilingConfig
 	MetricsPort int
 
 	CorsAllowedOrigins []string
