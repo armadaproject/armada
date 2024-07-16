@@ -157,9 +157,9 @@ func TestAuthenticateKubernetes(t *testing.T) {
 
 	// Authenticate
 	authService := createTestAuthService(tempdir+"/", true, testName, testTokenIss)
-	principal, err := authService.Authenticate(ctx)
+	principal, err := authService.Authenticate(ctx, payload)
 
-	expected := NewStaticPrincipal(testName, []string{testName})
+	expected := NewStaticPrincipal(testName, KubernetesAuthServiceName, []string{testName})
 	assert.NoError(t, err)
 	assert.Equal(t, expected, principal)
 }

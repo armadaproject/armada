@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
-	"errors"
+	"net/http"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+
 	"github.com/armadaproject/armada/internal/common/util"
 )
 
@@ -18,14 +18,12 @@ const principalKey = "principal"
 // All users are implicitly part of this group.
 const EveryoneGroup = "everyone"
 
-// Default principal used if no principal can be found in a context.
-var anonymousPrincipal = NewStaticPrincipal("anonymous", []string{})
-
 // Principal represents an entity that can be authenticated (e.g., a user).
 // Each principal has a name associated with it and may be part of one or more groups.
 // Scopes and claims are as defined in OpenId.
 type Principal interface {
 	GetName() string
+	GetAuthMethod() string
 	GetGroupNames() []string
 	IsInGroup(group string) bool
 	HasScope(scope string) bool
@@ -35,24 +33,27 @@ type Principal interface {
 // Default implementation of the Principal interface.
 // Here, static refers to the fact that the principal doesn't change once it has been created.
 type StaticPrincipal struct {
-	name   string
-	groups map[string]bool
-	scopes map[string]bool
-	claims map[string]bool
+	name       string
+	authMethod string
+	groups     map[string]bool
+	scopes     map[string]bool
+	claims     map[string]bool
 }
 
-func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
+func NewStaticPrincipal(name string, authMethod string, groups []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
+		authMethod,
 		util.StringListToSet(append(groups, EveryoneGroup)),
 		map[string]bool{},
 		map[string]bool{},
 	}
 }
 
-func NewStaticPrincipalWithScopesAndClaims(name string, groups []string, scopes []string, claims []string) *StaticPrincipal {
+func NewStaticPrincipalWithScopesAndClaims(name string, authMethod string, groups []string, scopes []string, claims []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
+		authMethod,
 		util.StringListToSet(append(groups, EveryoneGroup)),
 		util.StringListToSet(scopes),
 		util.StringListToSet(claims),
@@ -73,6 +74,10 @@ func (p *StaticPrincipal) HasClaim(claim string) bool {
 
 func (p *StaticPrincipal) GetName() string {
 	return p.name
+}
+
+func (p *StaticPrincipal) GetAuthMethod() string {
+	return p.authMethod
 }
 
 func (p *StaticPrincipal) GetGroupNames() []string {
@@ -100,42 +105,56 @@ func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalKey, principal)
 }
 
-// AuthService represents a method of authentication for the gRPC API.
+// AuthService represents a method of authentication for the HTTP or gRPC API.
 // Each implementation represents a particular method, e.g., username/password or OpenID.
-// The gRPC server may be started with multiple AuthService to give several options for authentication.
+// The HTTP/gRPC server may be started with multiple AuthService to give several options for authentication.
 type AuthService interface {
-	Authenticate(ctx context.Context) (Principal, error)
-	Name() string
+	Authenticate(ctx context.Context, authHeader string) (Principal, error)
 }
 
-// CreateMiddlewareAuthFunction returns an authentication function that combines the given
-// authentication services. That function returns success if any service successfully
+// CreateGrpcMiddlewareAuthFunction for use with GRPC.
+// That function returns success if any service successfully
 // authenticates the user, and an error if all services fail to authenticate.
-// The services in authServices are tried one at a time in sequence.
-// Successful authentication short-circuits the process.
 //
 // If authentication succeeds, the username returned by the authentication service is added to the
 // request context for logging purposes.
-func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
+func CreateGrpcMiddlewareAuthFunction(authService AuthService) func(ctx context.Context) (context.Context, error) {
 	return func(ctx context.Context) (context.Context, error) {
-		for _, service := range authServices {
-			principal, err := service.Authenticate(ctx)
-
-			var missingCredsErr *armadaerrors.ErrMissingCredentials
-			if errors.As(err, &missingCredsErr) {
-				// try next auth service
-				continue
-			} else if err != nil {
-				return nil, err
-			}
-
-			// record user name for request logging
-			grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
-			grpc_ctxtags.Extract(ctx).Set("authService", service.Name())
-			return WithPrincipal(ctx, principal), nil
+		authHeader := metautils.ExtractIncoming(ctx).Get("authorization")
+		principal, err := authService.Authenticate(ctx, authHeader)
+		if err != nil {
+			return nil, err
 		}
-		return nil, &armadaerrors.ErrUnauthenticated{
-			Message: "Request could not be authenticated with any of the supported schemes.",
+
+		// record username for request logging
+		grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
+		grpc_ctxtags.Extract(ctx).Set("authService", principal.GetAuthMethod())
+
+		return WithPrincipal(ctx, principal), nil
+	}
+}
+
+// CreateHttpMiddlewareAuthFunction for use with GRPC.
+// That function returns success if any service successfully
+// authenticates the user, and an error if all services fail to authenticate.
+//
+// If authentication succeeds, the username returned by the authentication service is added to the
+// request context for logging purposes.
+func CreateHttpMiddlewareAuthFunction(authService AuthService) func(w http.ResponseWriter, r *http.Request) (context.Context, error) {
+	return func(w http.ResponseWriter, r *http.Request) (context.Context, error) {
+		ctx := r.Context()
+
+		authHeader := r.Header.Get("Authorization")
+		principal, err := authService.Authenticate(ctx, authHeader)
+		if err != nil {
+			http.Error(w, "auth error:"+err.Error(), http.StatusInternalServerError)
+			return nil, err
 		}
+
+		// record username for request logging
+		grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
+		grpc_ctxtags.Extract(ctx).Set("authService", principal.GetAuthMethod())
+
+		return WithPrincipal(ctx, principal), nil
 	}
 }

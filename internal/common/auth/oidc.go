@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"github.com/coreos/go-oidc"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 )
+
+const OidcAuthServiceName = "OIDC"
 
 type PermissionClaimQueries map[permission.Permission]string
 
@@ -37,23 +38,18 @@ func NewOpenIdAuthService(verifier *oidc.IDTokenVerifier, groupsClaim string) *O
 	return &OpenIdAuthService{verifier, groupsClaim}
 }
 
-func (authService *OpenIdAuthService) Name() string {
-	return "OIDC"
-}
-
-func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
-	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
-	if err != nil {
+func (authService *OpenIdAuthService) Authenticate(ctx context.Context, authHeader string) (Principal, error) {
+	authHeaderSplits := strings.SplitN(authHeader, " ", 2)
+	if len(authHeaderSplits) < 2 || !strings.EqualFold(authHeaderSplits[0], "bearer") {
 		return nil, &armadaerrors.ErrMissingCredentials{
-			AuthService: authService.Name(),
-			Message:     err.Error(),
+			AuthService: OidcAuthServiceName,
 		}
 	}
 
-	verifiedToken, err := authService.verifier.Verify(ctx, token)
+	verifiedToken, err := authService.verifier.Verify(ctx, authHeaderSplits[1])
 	if err != nil {
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: OidcAuthServiceName,
 			Message:     err.Error(),
 		}
 	}
@@ -61,13 +57,14 @@ func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Princip
 	rawClaims, err := extractRawClaims(verifiedToken)
 	if err != nil {
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: OidcAuthServiceName,
 			Message:     err.Error(),
 		}
 	}
 
 	return NewStaticPrincipalWithScopesAndClaims(
 		verifiedToken.Subject,
+		OidcAuthServiceName,
 		authService.extractGroups(rawClaims),
 		authService.extractScopes(verifiedToken),
 		authService.extractClaims(rawClaims)), nil
