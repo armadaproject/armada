@@ -1,6 +1,6 @@
 # Use of pprof
 
-- Go provies a profiling tool called pprof. It's documented at https://pkg.go.dev/net/http/pprof.
+- Go provides a profiling tool called pprof. It's documented at https://pkg.go.dev/net/http/pprof.
 - If you wish to use this with Armada, enable the profiling socket with the following config (this should be under `applicationConfig` if using the helm charts). This config will listen on the specified port with no auth.
   ```
   profiling:
