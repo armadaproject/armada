@@ -73,7 +73,7 @@ func CreateGrpcServer(
 	// Authentication
 	// The provided authServices represents a list of services that can be used to authenticate
 	// the client (e.g., username/password and OpenId). authFunction is a combination of these.
-	authFunction := auth.CreateMiddlewareAuthFunction(authServices)
+	authFunction := auth.CreateGrpcMiddlewareAuthFunction(auth.NewMultiAuthService(authServices))
 	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
 	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 

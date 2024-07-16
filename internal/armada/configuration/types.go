@@ -9,6 +9,7 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -19,8 +20,7 @@ type ArmadaConfig struct {
 	GrpcPort    uint16
 	HttpPort    uint16
 	MetricsPort uint16
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	Profiling   *profilingconfig.ProfilingConfig
 
 	CorsAllowedOrigins []string
 	GrpcGatewayPath    string
