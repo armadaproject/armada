@@ -205,3 +205,20 @@ func TestPriorityFromPodSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestK8sResourceListToMap(t *testing.T) {
+	result := K8sResourceListToMap(v1.ResourceList{
+		"one": resource.MustParse("1"),
+		"two": resource.MustParse("2"),
+	})
+	expected := map[string]resource.Quantity{
+		"one": resource.MustParse("1"),
+		"two": resource.MustParse("2"),
+	}
+
+	assert.Equal(t, expected, result)
+}
+
+func TestK8sResourceListToMap_PreservesNil(t *testing.T) {
+	assert.Nil(t, K8sResourceListToMap(nil))
+}

@@ -21,37 +21,38 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 
 	for _, event := range es.Events {
 		var convertedEvents []*api.EventMessage = nil
+		eventTs := protoutil.ToStdTime(event.Created)
 		switch esEvent := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			convertedEvents, err = FromInternalSubmit(es.UserId, es.Groups, es.Queue, es.JobSetName, *event.Created, esEvent.SubmitJob)
+			convertedEvents, err = FromInternalSubmit(es.UserId, es.Groups, es.Queue, es.JobSetName, eventTs, esEvent.SubmitJob)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			convertedEvents, err = FromInternalCancelled(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelledJob)
+			convertedEvents, err = FromInternalCancelled(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.CancelledJob)
 		case *armadaevents.EventSequence_Event_CancelJob:
-			convertedEvents, err = FromInternalCancel(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelJob)
+			convertedEvents, err = FromInternalCancel(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.CancelJob)
 		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
-			convertedEvents, err = FromInternalPreemptionRequested(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.JobPreemptionRequested)
+			convertedEvents, err = FromInternalPreemptionRequested(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobPreemptionRequested)
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			convertedEvents, err = FromInternalReprioritiseJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritiseJob)
+			convertedEvents, err = FromInternalReprioritiseJob(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.ReprioritiseJob)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			convertedEvents, err = FromInternalReprioritisedJob(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritisedJob)
+			convertedEvents, err = FromInternalReprioritisedJob(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.ReprioritisedJob)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunLeased)
+			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, eventTs, esEvent.JobRunLeased)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunErrors)
+			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, eventTs, esEvent.JobRunErrors)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
-			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, *event.Created, esEvent.JobSucceeded)
+			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, eventTs, esEvent.JobSucceeded)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobErrors)
+			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, eventTs, esEvent.JobErrors)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
-			convertedEvents, err = FromInternalJobRunRunning(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunRunning)
+			convertedEvents, err = FromInternalJobRunRunning(es.Queue, es.JobSetName, eventTs, esEvent.JobRunRunning)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
+			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, eventTs, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
-			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
+			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, eventTs, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
+			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, eventTs, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunPreempted)
+			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
@@ -89,7 +90,7 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 		JobSetId: jobSet,
 		Queue:    queue,
 		Created:  protoutil.ToTimestamp(time),
-		Job:      *job,
+		Job:      job,
 	}
 
 	queuedEvent := &api.JobQueuedEvent{

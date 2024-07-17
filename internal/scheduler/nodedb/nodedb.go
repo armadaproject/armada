@@ -67,11 +67,6 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 	allocatableByPriority[evictedPriority] = allocatableByPriority[minimumPriority]
 
-	evictedJobRunIds := node.EvictedJobRunIds
-	if evictedJobRunIds == nil {
-		evictedJobRunIds = make(map[string]bool)
-	}
-
 	nodeDb.mu.Lock()
 	for key := range nodeDb.indexedNodeLabels {
 		if value, ok := labels[key]; ok {
@@ -91,13 +86,14 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 		index,
 		node.Executor,
 		node.Name,
+		node.Pool,
 		taints,
 		labels,
 		nodeDb.resourceListFactory.FromNodeProto(totalResources.Resources),
 		allocatableByPriority,
-		fromMapKToJobResourcesIgnoreUnknown(nodeDb.resourceListFactory, node.AllocatedByQueue),
-		fromMapKToJobResourcesIgnoreUnknown(nodeDb.resourceListFactory, node.AllocatedByJobId),
-		evictedJobRunIds,
+		map[string]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
+		map[string]bool{},
 		nil), nil
 }
 
@@ -105,15 +101,6 @@ func (nodeDb *NodeDb) copyMapWithIntern(labels map[string]string) map[string]str
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[nodeDb.stringInterner.Intern(k)] = nodeDb.stringInterner.Intern(v)
-	}
-	return result
-}
-
-// Ignore unknown resources, round up.
-func fromMapKToJobResourcesIgnoreUnknown[K comparable](factory *internaltypes.ResourceListFactory, m map[K]schedulerobjects.ResourceList) map[K]internaltypes.ResourceList {
-	result := make(map[K]internaltypes.ResourceList, len(m))
-	for k, v := range m {
-		result[k] = factory.FromJobResourceListIgnoreUnknown(v.Resources)
 	}
 	return result
 }
@@ -871,7 +858,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 			continue
 		}
 
-		nodeCopy := node.node.UnsafeCopy()
+		nodeCopy := node.node.DeepCopyNilKeys()
 		for _, job := range node.evictedJobs {
 			// Remove preempted job from node
 			err = nodeDb.unbindJobFromNodeInPlace(nodeDb.priorityClasses, job.JobSchedulingContext.Job, nodeCopy)
@@ -901,7 +888,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 
 // bindJobToNode returns a copy of node with job bound to it.
 func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
-	node = node.UnsafeCopy()
+	node = node.DeepCopyNilKeys()
 	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
 		return nil, err
 	}
@@ -961,7 +948,7 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 	node *internaltypes.Node,
 ) ([]*jobdb.Job, *internaltypes.Node, error) {
 	evicted := make([]*jobdb.Job, 0)
-	node = node.UnsafeCopy()
+	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
 		if jobFilter != nil && !jobFilter(job) {
 			continue
@@ -1024,7 +1011,7 @@ func markAllocatable(allocatableByPriority map[int32]internaltypes.ResourceList,
 
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
 func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []*jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
-	node = node.UnsafeCopy()
+	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
 		if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 			return nil, err
@@ -1035,7 +1022,7 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.Priori
 
 // UnbindJobFromNode returns a copy of node with job unbound from it.
 func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job *jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
-	node = node.UnsafeCopy()
+	node = node.DeepCopyNilKeys()
 	if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 		return nil, err
 	}
@@ -1156,10 +1143,10 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	}
 	newNodes := make([]*internaltypes.Node, 0)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		node = node.UnsafeCopy()
+		node = node.DeepCopyNilKeys()
 		node.AllocatableByPriority = newAllocatableByPriorityAndResourceType(
 			nodeDb.nodeDbPriorities,
-			node.TotalResources,
+			node.GetTotalResources(),
 		)
 		newNodes = append(newNodes, node)
 	}

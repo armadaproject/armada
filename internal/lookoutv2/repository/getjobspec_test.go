@@ -17,7 +17,7 @@ import (
 
 func TestGetJobSpec(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		job := NewJobSimulator(converter, store).

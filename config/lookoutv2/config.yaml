@@ -1,4 +1,5 @@
 apiPort: 10000
+metricsPort: 9003
 corsAllowedOrigins:
   - "http://localhost:3000"
   - "http://localhost:8089"

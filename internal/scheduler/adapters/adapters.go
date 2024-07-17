@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -61,4 +62,15 @@ func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.P
 
 	// Couldn't find anything
 	return 0, false
+}
+
+func K8sResourceListToMap(resources v1.ResourceList) map[string]k8sResource.Quantity {
+	if resources == nil {
+		return nil
+	}
+	result := make(map[string]k8sResource.Quantity, len(resources))
+	for k, v := range resources {
+		result[string(k)] = v
+	}
+	return result
 }

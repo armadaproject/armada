@@ -29,6 +29,8 @@ var (
 	runIdProto                = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	preemptiveJobIdProto, _   = armadaevents.ProtoUuidFromUlidString(preemptiveJobIdString)
 	preemptiveRunIdRunIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(preemptiveRunIdString))
+	baseTime, _               = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto             = protoutil.ToTimestamp(baseTime)
 )
 
 const (
@@ -43,12 +45,10 @@ const (
 	podNumber  = 6
 )
 
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-
 func TestConvertSubmitted(t *testing.T) {
 	// Submit
 	submit := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
 				JobId:    jobIdProto,
@@ -82,7 +82,7 @@ func TestConvertSubmitted(t *testing.T) {
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
-					Job: api.Job{
+					Job: &api.Job{
 						Id:         jobIdString,
 						JobSetId:   jobSetName,
 						Queue:      queue,
@@ -99,7 +99,7 @@ func TestConvertSubmitted(t *testing.T) {
 								},
 							},
 						},
-						SchedulingResourceRequirements: v1.ResourceRequirements{
+						SchedulingResourceRequirements: &v1.ResourceRequirements{
 							Requests: make(v1.ResourceList),
 							Limits:   make(v1.ResourceList),
 						},
@@ -123,7 +123,7 @@ func TestConvertSubmitted(t *testing.T) {
 
 func TestConvertCancel(t *testing.T) {
 	cancel := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJob{
 			CancelJob: &armadaevents.CancelJob{
 				JobId: jobIdProto,
@@ -152,7 +152,7 @@ func TestConvertCancel(t *testing.T) {
 
 func TestConvertCancelled(t *testing.T) {
 	cancel := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
 				JobId: jobIdProto,
@@ -181,7 +181,7 @@ func TestConvertCancelled(t *testing.T) {
 
 func TestConvertReprioritising(t *testing.T) {
 	reprioritising := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 			ReprioritiseJob: &armadaevents.ReprioritiseJob{
 				JobId: jobIdProto,
@@ -210,7 +210,7 @@ func TestConvertReprioritising(t *testing.T) {
 
 func TestConvertReprioritised(t *testing.T) {
 	reprioritised := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
 				JobId: jobIdProto,
@@ -239,7 +239,7 @@ func TestConvertReprioritised(t *testing.T) {
 
 func TestConvertLeased(t *testing.T) {
 	leased := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
 				JobId:      jobIdProto,
@@ -279,7 +279,7 @@ func TestConvertLeased(t *testing.T) {
 
 func TestConvertLeaseExpired(t *testing.T) {
 	leaseExpired := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -316,7 +316,7 @@ func TestConvertLeaseExpired(t *testing.T) {
 
 func TestConvertPodUnschedulable(t *testing.T) {
 	unschedulable := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -370,7 +370,7 @@ func TestConvertPodUnschedulable(t *testing.T) {
 
 func TestConvertPodLeaseReturned(t *testing.T) {
 	leaseReturned := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -422,7 +422,7 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 
 func TestConvertPodTerminated(t *testing.T) {
 	terminated := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -475,7 +475,7 @@ func TestConvertPodTerminated(t *testing.T) {
 
 func TestConvertJobError(t *testing.T) {
 	errored := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId: jobIdProto,
@@ -514,7 +514,7 @@ func TestConvertJobError(t *testing.T) {
 	}
 
 	maxRunsExceeded := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId: jobIdProto,
@@ -581,7 +581,7 @@ func TestConvertJobError(t *testing.T) {
 
 func TestConvertJobSucceeded(t *testing.T) {
 	succeeded := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
 				JobId: jobIdProto,
@@ -631,7 +631,7 @@ func TestConvertJobSucceeded(t *testing.T) {
 
 func TestConvertJobRunning(t *testing.T) {
 	running := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{
 				RunId: runIdProto,
@@ -682,7 +682,7 @@ func TestConvertJobRunning(t *testing.T) {
 
 func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 	leaseExpired := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -700,7 +700,7 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 	}
 
 	cancel := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJobSet{
 			CancelJobSet: &armadaevents.CancelJobSet{},
 		},
@@ -726,7 +726,7 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 
 func TestConvertJobAssigned(t *testing.T) {
 	running := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 			JobRunAssigned: &armadaevents.JobRunAssigned{
 				RunId: runIdProto,
@@ -776,7 +776,7 @@ func TestConvertJobAssigned(t *testing.T) {
 
 func TestConvertResourceUtilisation(t *testing.T) {
 	utilisation := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
 			ResourceUtilisation: &armadaevents.ResourceUtilisation{
 				RunId: runIdProto,
@@ -795,13 +795,13 @@ func TestConvertResourceUtilisation(t *testing.T) {
 						},
 					},
 				},
-				MaxResourcesForPeriod: map[string]resource.Quantity{
-					"cpu": resource.MustParse("2.0"),
-					"mem": resource.MustParse("100Gi"),
+				MaxResourcesForPeriod: map[string]*resource.Quantity{
+					"cpu": resourcePointer("2.0"),
+					"mem": resourcePointer("100Gi"),
 				},
-				TotalCumulativeUsage: map[string]resource.Quantity{
-					"cpu": resource.MustParse("3.0"),
-					"mem": resource.MustParse("200Gi"),
+				TotalCumulativeUsage: map[string]*resource.Quantity{
+					"cpu": resourcePointer("3.0"),
+					"mem": resourcePointer("200Gi"),
 				},
 			},
 		},
@@ -817,17 +817,17 @@ func TestConvertResourceUtilisation(t *testing.T) {
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
 					KubernetesId: runIdString,
-					MaxResourcesForPeriod: map[string]resource.Quantity{
-						"cpu": resource.MustParse("2.0"),
-						"mem": resource.MustParse("100Gi"),
+					MaxResourcesForPeriod: map[string]*resource.Quantity{
+						"cpu": resourcePointer("2.0"),
+						"mem": resourcePointer("100Gi"),
 					},
 					NodeName:     nodeName,
 					PodNumber:    podNumber,
 					PodName:      podName,
 					PodNamespace: namespace,
-					TotalCumulativeUsage: map[string]resource.Quantity{
-						"cpu": resource.MustParse("3.0"),
-						"mem": resource.MustParse("200Gi"),
+					TotalCumulativeUsage: map[string]*resource.Quantity{
+						"cpu": resourcePointer("3.0"),
+						"mem": resourcePointer("200Gi"),
 					},
 				},
 			},
@@ -841,7 +841,7 @@ func TestConvertResourceUtilisation(t *testing.T) {
 
 func TestConvertIngressInfo(t *testing.T) {
 	utilisation := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
 				RunId: runIdProto,
@@ -892,7 +892,7 @@ func TestConvertIngressInfo(t *testing.T) {
 
 func TestConvertJobPreemptionRequested(t *testing.T) {
 	preemptRequest := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 			JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
 				JobId: jobIdProto,
@@ -921,7 +921,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 
 func TestConvertJobRunPreempted(t *testing.T) {
 	preempted := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
 				PreemptedJobId:  jobIdProto,
@@ -981,4 +981,9 @@ func toEventSeq(event ...*armadaevents.EventSequence_Event) *armadaevents.EventS
 		Events:     event,
 		UserId:     userId,
 	}
+}
+
+func resourcePointer(s string) *resource.Quantity {
+	r := resource.MustParse(s)
+	return &r
 }

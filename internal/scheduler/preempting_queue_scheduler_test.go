@@ -12,7 +12,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -51,7 +50,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -101,8 +100,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		// Total resources across all clusters.
 		// If empty, it is computed as the total resources across the provided nodes.
 		TotalResources schedulerobjects.ResourceList
-		// Minimum job size.
-		MinimumJobSize map[string]resource.Quantity
 	}{
 		"balancing three queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -1737,7 +1734,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.
@@ -1835,11 +1832,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 					nodeDb.TotalResources(),
-					tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
 				sctx := schedulercontext.NewSchedulingContext(
-					"executor",
 					"pool",
 					tc.SchedulingConfig.PriorityClasses,
 					tc.SchedulingConfig.DefaultPriorityClassName,
@@ -1863,7 +1859,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				constraints := schedulerconstraints.NewSchedulingConstraints(
 					"pool",
 					tc.TotalResources,
-					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 					nil,
 				)
@@ -1871,6 +1866,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
+					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					tc.SchedulingConfig.UseAdjustedFairShareProtection,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
@@ -2050,7 +2046,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						scheduledJobs,
 						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
-							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority),
+							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority),
 					)
 				}
 				err = jobDbTxn.Upsert(scheduledJobs)
@@ -2076,7 +2072,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		JobFunc           func(queue string, priorityClassName string, n int) []*jobdb.Job
 		NumQueues         int
 		NumJobsPerQueue   int
-		MinimumJobSize    map[string]resource.Quantity
 		MinPriorityFactor int
 		MaxPriorityFactor int
 	}{
@@ -2175,7 +2170,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources)
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {
@@ -2200,11 +2195,10 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				nodeDb.TotalResources(),
-				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
 			sctx := schedulercontext.NewSchedulingContext(
-				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
 				tc.SchedulingConfig.DefaultPriorityClassName,
@@ -2220,13 +2214,13 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				nodeDb.TotalResources(),
-				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				nil,
 			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
+				testfixtures.TestEmptyFloatingResources,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
 				tc.SchedulingConfig.UseAdjustedFairShareProtection,
 				NewSchedulerJobRepositoryAdapter(jobDbTxn),
@@ -2272,7 +2266,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				sctx := schedulercontext.NewSchedulingContext(
-					"executor",
 					"pool",
 					tc.SchedulingConfig.PriorityClasses,
 					tc.SchedulingConfig.DefaultPriorityClassName,
@@ -2288,6 +2281,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
+					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					tc.SchedulingConfig.UseAdjustedFairShareProtection,
 					NewSchedulerJobRepositoryAdapter(jobDbTxn),
@@ -2314,9 +2308,10 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.GetIndex(),
 		node.GetExecutor(),
 		node.GetName(),
+		node.GetPool(),
 		taints,
 		node.GetLabels(),
-		node.TotalResources,
+		node.GetTotalResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,

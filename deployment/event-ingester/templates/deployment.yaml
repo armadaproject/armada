@@ -45,8 +45,8 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           ports:
-            {{- if .Values.applicationConfig.pprofPort }}
-            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+            {{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
+            - containerPort: {{ .Values.applicationConfig.profiling.port }}
               protocol: TCP
               name: pprof
             {{- end }}

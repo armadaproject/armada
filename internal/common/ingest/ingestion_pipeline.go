@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -168,7 +169,7 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	preprocessedBatchEventSequences := make(chan *EventSequencesWithIds)
 	go func() {
 		for msg := range batchedEventSequences {
-			logSummaryOfEventSequences(msg)
+			i.recordSummaryOfEventSequences(msg)
 			preprocessedBatchEventSequences <- msg
 		}
 		close(preprocessedBatchEventSequences)
@@ -213,6 +214,7 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 							time.Sleep(i.pulsarConfig.BackoffTime)
 						},
 					)
+					i.metrics.RecordPulsarMessageProcessed()
 				}
 			}
 		}
@@ -268,8 +270,7 @@ func unmarshalEventSequences(msg pulsar.ConsumerMessage, metrics *commonmetrics.
 		// TODO - once created is set everywhere we can remove this
 		for _, event := range es.Events {
 			if event.GetCreated() == nil {
-				publishTime := msg.PublishTime()
-				event.Created = &publishTime
+				event.Created = protoutil.ToTimestamp(msg.PublishTime())
 			}
 		}
 		sequences = append(sequences, es)
@@ -291,7 +292,7 @@ func combineEventSequences(sequences []*EventSequencesWithIds) *EventSequencesWi
 	}
 }
 
-func logSummaryOfEventSequences(sequence *EventSequencesWithIds) {
+func (i *IngestionPipeline[T]) recordSummaryOfEventSequences(sequence *EventSequencesWithIds) {
 	numberOfEvents := 0
 	countOfEventsByType := map[string]int{}
 	for _, eventSequence := range sequence.EventSequences {
@@ -299,6 +300,11 @@ func logSummaryOfEventSequences(sequence *EventSequencesWithIds) {
 		for _, e := range eventSequence.Events {
 			typeString := e.GetEventName()
 			countOfEventsByType[typeString] = countOfEventsByType[typeString] + 1
+
+			// Record the event sequence as processed here.  This is technically not true as we haven't finished
+			// processing yet but it saves us having to pass all these details down the pipeline and as the
+			// pipeline is single threaded, the error here should be inconsequential.
+			i.metrics.RecordEventSequenceProcessed(eventSequence.Queue, typeString)
 		}
 	}
 	log.Infof("Batch being processed contains %d event messages and %d events of type %v", len(sequence.MessageIds), numberOfEvents, countOfEventsByType)

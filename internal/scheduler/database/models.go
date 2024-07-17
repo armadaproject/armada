@@ -83,4 +83,5 @@ type Run struct {
 	PodRequirementsOverlay []byte     `db:"pod_requirements_overlay"`
 	PreemptRequested       bool       `db:"preempt_requested"`
 	Queue                  string     `db:"queue"`
+	Pool                   string     `db:"pool"`
 }

@@ -20,6 +20,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -29,8 +30,6 @@ import (
 func TestGangScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
-		// Minimum job size.
-		MinimumJobSize map[string]resource.Quantity
 		// Nodes to be considered by the scheduler.
 		Nodes []*schedulerobjects.Node
 		// Total resources across all clusters.
@@ -89,6 +88,22 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
 			ExpectedCumulativeScheduledJobs: []int{64},
 			ExpectedRuntimeGangCardinality:  []int{64},
+		},
+		"floating resources": {
+			SchedulingConfig: func() configuration.SchedulingConfig {
+				cfg := testfixtures.TestSchedulingConfig()
+				cfg.ExperimentalFloatingResources = testfixtures.TestFloatingResourceConfig
+				return cfg
+			}(),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				// we have 10 of test-floating-resource so only the first of these two jobs should fit
+				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
+				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
+			},
+			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs: []int{1, 1},
+			ExpectedRuntimeGangCardinality:  []int{1, 0},
 		},
 		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -536,11 +551,10 @@ func TestGangScheduler(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
-				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
-				"executor",
 				"pool",
 				tc.SchedulingConfig.PriorityClasses,
 				tc.SchedulingConfig.DefaultPriorityClassName,
@@ -567,11 +581,12 @@ func TestGangScheduler(t *testing.T) {
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				tc.TotalResources,
-				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				nil,
 			)
-			sch, err := NewGangScheduler(sctx, constraints, nodeDb)
+			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
+			require.NoError(t, err)
+			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
 			require.NoError(t, err)
 
 			var actualScheduledIndices []int
@@ -637,4 +652,14 @@ func TestGangScheduler(t *testing.T) {
 			assert.Equal(t, tc.ExpectedScheduledIndices, actualScheduledIndices)
 		})
 	}
+}
+
+func addFloatingResourceRequest(request string, jobs []*jobdb.Job) []*jobdb.Job {
+	return testfixtures.WithRequestsJobs(
+		schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"test-floating-resource": resource.MustParse(request),
+			},
+		},
+		jobs)
 }

@@ -1,11 +1,25 @@
 package maps
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slices"
 )
+
+func TestFromSlice(t *testing.T) {
+	actual := FromSlice(
+		[]int{1, 2},
+		func(elem int) string { return strconv.Itoa(elem) },
+		func(elem int) float64 { return float64(elem) * 0.1 },
+	)
+	expected := map[string]float64{
+		"1": 0.1,
+		"2": 0.2,
+	}
+	assert.Equal(t, expected, actual)
+}
 
 func TestMapKeys(t *testing.T) {
 	m := map[string][]int{
@@ -175,4 +189,32 @@ func TestFilterKeys(t *testing.T) {
 		"foobar": {10, 20, 30},
 	}
 	assert.Equal(t, expected, actual)
+}
+
+func TestRemoveInPlace(t *testing.T) {
+	m := map[int]string{
+		1: "one",
+		2: "two",
+		3: "three",
+		4: "four",
+	}
+	RemoveInPlace(m, func(i int) bool {
+		return i > 2
+	})
+	expected := map[int]string{
+		1: "one",
+		2: "two",
+	}
+	assert.Equal(t, expected, m)
+}
+
+func TestKeys(t *testing.T) {
+	m := map[int]string{
+		1: "one",
+		2: "two",
+	}
+	result := Keys(m)
+	slices.Sort(result)
+	expected := []int{1, 2}
+	assert.Equal(t, expected, result)
 }

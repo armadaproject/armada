@@ -2,13 +2,9 @@ syntax = 'proto3';
 package api;
 option go_package = "github.com/armadaproject/armada/pkg/api";
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/submit.proto";
 import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
-
-option (gogoproto.goproto_stringer_all) = false;
-option (gogoproto.stringer_all) = true;
 
 enum JobRunState {
   RUN_STATE_UNKNOWN = 0;

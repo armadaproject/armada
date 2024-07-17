@@ -15,8 +15,6 @@ message Executor {
     string pool = 2;
     // The nodes available for scheduling via this executor.
     repeated Node nodes = 3;
-    // Minimum resources which a job must request in order to be considered for scheduling on this executor.
-    ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
     // Last time the executor provided a heartbeat to say it was still accepting job.
     google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     // Jobs that are owned by the cluster but are not assigned to any node.
@@ -50,12 +48,6 @@ message Node {
     map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false];
     // Ids of the job runs currently assigned to this node and their current state.
     map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
-    // Resource allocated to jobs on this node.
-    map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
-    // Resource allocated to queues on this node.
-    map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
-    // Ids of all runs evicted on this node.
-    map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
     // Resource allocated to non-Armada pods on this node.
     map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
     // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
@@ -66,6 +58,8 @@ message Node {
     // This should only be used for metrics
     // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
     string reporting_node_type = 17;
+  // The pool that this node belongs to, this is used for scheduling purposes
+    string pool = 18;
 }
 
 enum JobRunState {

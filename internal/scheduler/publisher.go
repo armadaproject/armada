@@ -8,6 +8,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
@@ -142,7 +143,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 			JobSetName: "armada-scheduler",
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: now(),
+					Created: types.TimestampNow(),
 					Event: &armadaevents.EventSequence_Event_PartitionMarker{
 						PartitionMarker: pm,
 					},
@@ -194,11 +195,6 @@ func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMe
 		}
 		return defaultRouter(msg, md.NumPartitions())
 	}
-}
-
-func now() *time.Time {
-	t := time.Now()
-	return &t
 }
 
 // JavaStringHash is the default hashing algorithm used by Pulsar

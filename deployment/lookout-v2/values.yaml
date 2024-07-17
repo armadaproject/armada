@@ -37,3 +37,4 @@ applicationConfig:
   tls:
     enabled: false
   apiPort: 10000
+  metricsPort: 9000

@@ -36,10 +36,9 @@ func TestNewGangSchedulingContext(t *testing.T) {
 
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, []string{"cpu"})
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
-		"executor",
 		"pool",
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestDefaultPriorityClass,
@@ -240,10 +239,9 @@ func TestCalculateFairShares(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, []string{"cpu"})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext(
-				"executor",
 				"pool",
 				testfixtures.TestPriorityClasses,
 				testfixtures.TestDefaultPriorityClass,

@@ -73,6 +73,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
 			runIdString := "123e4567-e89b-12d3-a456-426614174000"
 			baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+			baseTimeProto := protoutil.ToTimestamp(baseTime)
 			jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
 			runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
@@ -82,7 +83,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			stream := &eventStreamMock{}
 
 			assigned := &armadaevents.EventSequence_Event{
-				Created: &baseTime,
+				Created: baseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 					JobRunAssigned: &armadaevents.JobRunAssigned{
 						RunId: runIdProto,
@@ -216,11 +217,12 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
 				runIdString := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+				baseTimeProto := protoutil.ToTimestamp(baseTime)
 				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
 				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 				assigned := &armadaevents.EventSequence_Event{
-					Created: &baseTime,
+					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
 							RunId: runIdProto,
@@ -260,11 +262,12 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
 				runIdString := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+				baseTimeProto := protoutil.ToTimestamp(baseTime)
 				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
 				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 				assigned := &armadaevents.EventSequence_Event{
-					Created: &baseTime,
+					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
 							RunId: runIdProto,
@@ -323,7 +326,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
-				principal := auth.NewStaticPrincipal("alice", []string{})
+				principal := auth.NewStaticPrincipal("alice", "test", []string{})
 				ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
@@ -348,7 +351,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
-				principal := auth.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
+				principal := auth.NewStaticPrincipal("alice", "test", []string{"watch-all-events-group"})
 				ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
@@ -370,7 +373,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
-			principal := auth.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
+			principal := auth.NewStaticPrincipal("alice", "test", []string{"watch-events-group", "watch-queue-group"})
 			ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 			stream := &eventStreamMock{ctx: ctx}
 
