@@ -21,7 +21,7 @@ func queueCreateCmdWithApp(a *armadactl.App) *cobra.Command {
 		Short: "Create new queue",
 		Long: `Every job submitted to armada needs to be associated with queue.
 
-Job priority is evaluated inside queue, queue has its own priority.`,
+Job priority is evaluated inside queue, queue has its own priority. Any labels on the queue must have a Kubernetes-like key-value structure, for example: armadaproject.io/submitter=airflow.`,
 		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
@@ -56,7 +56,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("error reading queue labels: %s", err)
 			}
 
-			queue, err := queue.NewQueue(&api.Queue{
+			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:             name,
 				PriorityFactor:   priorityFactor,
 				UserOwners:       owners,
@@ -68,14 +68,14 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("invalid queue data: %s", err)
 			}
 
-			return a.CreateQueue(queue)
+			return a.CreateQueue(newQueue)
 		},
 	}
 	cmd.Flags().Float64("priority-factor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("pause-scheduling", false, "Used to pause scheduling on specified queue. Defaults to false.")
-	cmd.Flags().StringSlice("labels", []string{}, "Comma separated list of queue labels, defaults to empty list.")
+	cmd.Flags().StringSliceP("labels", "l", []string{}, "Comma separated list of key-value queue labels, for example: armadaproject.io/submitter=airflow. Defaults to empty list.")
 	return cmd
 }
 
@@ -156,8 +156,8 @@ func queuesGetCmdWithApp(a *armadactl.App) *cobra.Command {
 			return a.GetAllQueues(queues, labels, inverse)
 		},
 	}
-	cmd.Flags().StringSlice("match-queues", []string{}, "Select queues matching provided queue names.")
-	cmd.Flags().StringSlice("match-labels", []string{}, "Select queues by label.")
+	cmd.Flags().StringSliceP("match-queues", "q", []string{}, "Select queues matching provided queue names.")
+	cmd.Flags().StringSliceP("match-labels", "l", []string{}, "Select queues by label.")
 	cmd.Flags().Bool("inverse", false, "Inverts result to get all queues which don't contain provided set of labels. Defaults to false.")
 
 	return cmd
@@ -205,7 +205,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading queue labels: %s", err)
 			}
 
-			queue, err := queue.NewQueue(&api.Queue{
+			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:             name,
 				PriorityFactor:   priorityFactor,
 				UserOwners:       owners,
@@ -217,7 +217,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("invalid queue data: %s", err)
 			}
 
-			return a.UpdateQueue(queue)
+			return a.UpdateQueue(newQueue)
 		},
 	}
 	// TODO this will overwrite existing values with default values if not all flags are provided
@@ -225,6 +225,6 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("pause-scheduling", false, "Used to pause scheduling on specified queue. Defaults to false.")
-	cmd.Flags().StringSlice("labels", []string{}, "Comma separated list of queue labels to be stored under this queue, defaults to empty list.")
+	cmd.Flags().StringSliceP("labels", "l", []string{}, "Comma separated list of key-value queue labels, for example: armadaproject.io/submitter=airflow. Defaults to empty list.")
 	return cmd
 }

@@ -46,6 +46,7 @@ func (f *DominantResourceFairness) CostFromQueue(queue Queue) float64 {
 	return f.CostFromAllocationAndWeight(queue.GetAllocation(), queue.GetWeight())
 }
 
+// CostFromAllocationAndWeight finds the dominant resource for this queue and determines a scalar fair share value
 func (f *DominantResourceFairness) CostFromAllocationAndWeight(allocation schedulerobjects.ResourceList, weight float64) float64 {
 	var cost float64
 	for _, t := range f.resourcesToConsider {

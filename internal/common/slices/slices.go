@@ -2,10 +2,10 @@ package slices
 
 import (
 	"fmt"
+	goslices "golang.org/x/exp/slices"
 	"math"
 	"math/rand"
-
-	goslices "golang.org/x/exp/slices"
+	"sync"
 
 	"github.com/armadaproject/armada/internal/common/interfaces"
 )
@@ -166,6 +166,32 @@ func Subtract[T comparable](list []T, toRemove []T) []T {
 			out = append(out, val)
 		}
 	}
+	return out
+}
+
+// ParallelFilter is semantically the same as Filter except that results can be returned out of order
+func ParallelFilter[S ~[]E, E any](s S, predicate func(e E) bool) S {
+	if s == nil {
+		return nil
+	}
+
+	mu := &sync.Mutex{}
+	var wg sync.WaitGroup
+	out := make(S, 0, len(s))
+	for _, tmp := range s {
+		wg.Add(1)
+		e := tmp
+		go func() {
+			defer wg.Done()
+			if predicate(e) {
+				mu.Lock()
+				out = append(out, e)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
 	return out
 }
 

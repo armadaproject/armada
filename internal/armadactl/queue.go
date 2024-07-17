@@ -2,6 +2,7 @@ package armadactl
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
@@ -73,7 +74,15 @@ func (a *App) GetQueue(name string) error {
 
 func (a *App) getAllQueuesAsAPIQueue(queueNames []string, labels []string, inverse bool) ([]*api.Queue, error) {
 	queueContainsAllLabelsAndInProvidedNames := func(q *api.Queue) bool {
-		containsAllLabels := slices.AllFunc(labels, func(label string) bool { return slices.Contains(q.Labels, label) })
+		containsAllLabels := slices.AllFunc(labels, func(label string) bool {
+			// If the label is a key, map the labels slice to only keys
+			labelsToCompare := q.Labels
+			if len(strings.Split(label, "=")) == 1 {
+				labelsToCompare = slices.Map(q.Labels, func(queueLabel string) string { return strings.Split(queueLabel, "=")[0] })
+			}
+
+			return slices.Contains(labelsToCompare, label)
+		})
 		inQueues := len(queueNames) == 0 || slices.Contains(queueNames, q.Name)
 		return inverse != (containsAllLabels && inQueues)
 	}
@@ -82,7 +91,8 @@ func (a *App) getAllQueuesAsAPIQueue(queueNames []string, labels []string, inver
 		return nil, errors.Errorf("[armadactl.getAllQueuesAsAPIQueue] error getting all queues: %s", err)
 	}
 
-	return slices.Filter(queuesToReturn, queueContainsAllLabelsAndInProvidedNames), nil
+	// Filter function seems expensive enough to justify parallel filter
+	return slices.ParallelFilter(queuesToReturn, queueContainsAllLabelsAndInProvidedNames), nil
 }
 
 // GetQueue calls app.QueueAPI.GetAll with the provided parameters.

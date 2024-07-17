@@ -8,7 +8,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-func (a *App) pauseScheduling(q *api.Queue) error {
+func (a *App) cordonQueue(q *api.Queue) error {
 	q.SchedulingPaused = true
 	newQueue, err := queue.NewQueue(q)
 	if err := a.Params.QueueAPI.Update(newQueue); err != nil {
@@ -17,7 +17,7 @@ func (a *App) pauseScheduling(q *api.Queue) error {
 	return err
 }
 
-func (a *App) PauseScheduling(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
+func (a *App) CordonQueues(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
 	selectedQueues, err := a.getAllQueuesAsAPIQueue(matchQueues, matchLabels, inverse)
 	if err != nil {
 		return fmt.Errorf("error retrieving queues: %s", err)
@@ -29,7 +29,7 @@ func (a *App) PauseScheduling(matchQueues []string, matchLabels []string, dryRun
 	} else {
 		fmt.Println("Pausing scheduling for the following queues:")
 		for _, q := range selectedQueues {
-			err = a.pauseScheduling(q)
+			err = a.cordonQueue(q)
 			if err != nil {
 				return fmt.Errorf("Could not pause scheduling on queue %s: %s", q.Name, err)
 			} else {
@@ -40,7 +40,7 @@ func (a *App) PauseScheduling(matchQueues []string, matchLabels []string, dryRun
 	return nil
 }
 
-func (a *App) resumeScheduling(q *api.Queue) error {
+func (a *App) uncordonQueue(q *api.Queue) error {
 	q.SchedulingPaused = false
 	newQueue, err := queue.NewQueue(q)
 	if err != nil {
@@ -52,7 +52,7 @@ func (a *App) resumeScheduling(q *api.Queue) error {
 	return err
 }
 
-func (a *App) ResumeScheduling(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
+func (a *App) UncordonQueues(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
 	selectedQueues, err := a.getAllQueuesAsAPIQueue(matchQueues, matchLabels, inverse)
 	if err != nil {
 		return fmt.Errorf("error retrieving queues: %s", err)
@@ -64,7 +64,7 @@ func (a *App) ResumeScheduling(matchQueues []string, matchLabels []string, dryRu
 	} else {
 		fmt.Println("Resuming scheduling for the following queues:")
 		for _, q := range selectedQueues {
-			err = a.resumeScheduling(q)
+			err = a.uncordonQueue(q)
 			if err != nil {
 				return fmt.Errorf("Could not resume scheduling on queue %s: %s", q.Name, err)
 			} else {

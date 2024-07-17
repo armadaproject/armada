@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -16,7 +17,7 @@ type Queue struct {
 }
 
 // NewQueue returns new Queue using the in parameter. Error is returned if
-// any of the queue fields has corresponding value in in that is invalid.
+// any of the queue fields has a corresponding value that is invalid.
 func NewQueue(in *api.Queue) (Queue, error) {
 	if in == nil {
 		return Queue{}, fmt.Errorf("queue is nil")
@@ -38,6 +39,13 @@ func NewQueue(in *api.Queue) (Queue, error) {
 			return Queue{}, fmt.Errorf("failed to map permission with index: %d. %s", index, err)
 		}
 		permissions = append(permissions, perm)
+	}
+
+	// Queue labels must be Kubernetes-like key-value labels
+	for _, label := range in.Labels {
+		if len(strings.Split(label, "=")) != 2 {
+			return Queue{}, fmt.Errorf("queue label must be key-value, not %s", label)
+		}
 	}
 
 	return Queue{
