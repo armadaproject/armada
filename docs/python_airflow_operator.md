@@ -170,10 +170,162 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
-## armada.operators.armada_deferrable module
+## armada.triggers.armada module
 
-## armada.operators.jobservice module
 
-## armada.operators.jobservice_asyncio module
+### _class_ armada.triggers.armada.ArmadaTrigger(job_id, armada_queue, job_set_id, poll_interval, tracking_message, job_acknowledgement_timeout, job_request_namespace, channel_args=None, channel_args_details=None, container_logs=None, k8s_token_retriever=None, k8s_token_retriever_details=None, last_log_time=None)
+Bases: `BaseTrigger`
 
-## armada.operators.utils module
+An Airflow Trigger that can asynchronously manage an Armada job.
+
+
+* **Parameters**
+
+    
+    * **job_id** (*str*) – 
+
+
+    * **armada_queue** (*str*) – 
+
+
+    * **job_set_id** (*str*) – 
+
+
+    * **poll_interval** (*int*) – 
+
+
+    * **tracking_message** (*str*) – 
+
+
+    * **job_acknowledgement_timeout** (*int*) – 
+
+
+    * **job_request_namespace** (*str*) – 
+
+
+    * **channel_args** (*GrpcChannelArgs*) – 
+
+
+    * **channel_args_details** (*Dict**[**str**, **Any**]*) – 
+
+
+    * **container_logs** (*str** | **None*) – 
+
+
+    * **k8s_token_retriever** (*TokenRetriever** | **None*) – 
+
+
+    * **k8s_token_retriever_details** (*Tuple**[**str**, **Dict**[**str**, **Any**]**] **| **None*) – 
+
+
+    * **last_log_time** (*DateTime** | **None*) – 
+
+
+
+#### _property_ client(_: ArmadaAsyncIOClien_ )
+
+#### pod_manager(k8s_context)
+
+* **Parameters**
+
+    **k8s_context** (*str*) – 
+
+
+
+* **Return type**
+
+    *PodLogManagerAsync*
+
+
+
+#### _async_ run()
+Run the Trigger Asynchronously. This will poll Armada until the Job reaches a
+terminal state
+
+
+* **Return type**
+
+    *AsyncIterator*[*TriggerEvent*]
+
+
+
+#### serialize()
+Serialises the state of this Trigger.
+When the Trigger is re-hydrated, these values will be passed to init() as kwargs
+:return:
+
+
+* **Return type**
+
+    tuple
+
+
+## armada.auth module
+
+
+### _class_ armada.auth.TokenRetriever(\*args, \*\*kwargs)
+Bases: `Protocol`
+
+
+#### get_token()
+
+* **Return type**
+
+    str
+
+
+
+#### serialize()
+
+* **Return type**
+
+    *Tuple*[str, *Dict*[str, *Any*]]
+
+
+## armada.model module
+
+
+### _class_ armada.model.GrpcChannelArgs(target, options=None, compression=None, auth=None, auth_details=None)
+Bases: `object`
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – 
+
+
+    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – 
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+    * **auth** (*AuthMetadataPlugin** | **None*) – 
+
+
+    * **auth_details** (*Dict**[**str**, **Any**] **| **None*) – 
+
+
+
+#### aio_channel()
+
+* **Return type**
+
+    *Channel*
+
+
+
+#### channel()
+
+* **Return type**
+
+    *Channel*
+
+
+
+#### serialize()
+
+* **Return type**
+
+    *Dict*[str, *Any*]
