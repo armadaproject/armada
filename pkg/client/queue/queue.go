@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"strings"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/pkg/api"
@@ -45,6 +46,13 @@ func NewQueue(in *api.Queue) (Queue, error) {
 	for k, v := range in.ResourceLimitsByPriorityClassName {
 		if v != nil {
 			resourceLimitsByPriorityClassName[k] = *v
+		}
+	}
+
+	// Queue labels must be Kubernetes-like key-value labels
+	for _, label := range in.Labels {
+		if len(strings.Split(label, "=")) != 2 {
+			return Queue{}, fmt.Errorf("queue label must be key-value, not %s", label)
 		}
 	}
 

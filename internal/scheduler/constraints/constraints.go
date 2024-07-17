@@ -23,6 +23,7 @@ const (
 	// Indicates that the scheduling rate limit has been exceeded.
 	GlobalRateLimitExceededUnschedulableReason = "global scheduling rate limit exceeded"
 	QueueRateLimitExceededUnschedulableReason  = "queue scheduling rate limit exceeded"
+	SchedulingPausedOnQueueUnschedulableReason = "scheduling paused on queue"
 
 	// Indicates that scheduling a gang would exceed the rate limit.
 	GlobalRateLimitExceededByGangUnschedulableReason = "gang would exceed global scheduling rate limit"
@@ -51,7 +52,13 @@ func IsTerminalUnschedulableReason(reason string) bool {
 // IsTerminalQueueUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs from this queue in this round.
 func IsTerminalQueueUnschedulableReason(reason string) bool {
-	return reason == QueueRateLimitExceededUnschedulableReason
+	if reason == QueueRateLimitExceededUnschedulableReason {
+		return true
+	}
+	if reason == SchedulingPausedOnQueueUnschedulableReason {
+		return true
+	}
+	return false
 }
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
@@ -181,6 +188,9 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 
 	// Per-queue rate limiter check.
 	tokens = qctx.Limiter.TokensAt(sctx.Started)
+	if qctx.Limiter.Burst() <= 0 {
+		return false, SchedulingPausedOnQueueUnschedulableReason, nil
+	}
 	if tokens <= 0 {
 		return false, QueueRateLimitExceededUnschedulableReason, nil
 	}

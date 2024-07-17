@@ -407,7 +407,7 @@ func TestSchedule(t *testing.T) {
 			},
 			queues: []*api.Queue{testfixtures.MakeTestQueue(), testfixtures.MakeTestQueue2()},
 			queuedJobs: append(
-				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 2),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue2, testfixtures.PriorityClass3, 2)...,
 			),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
