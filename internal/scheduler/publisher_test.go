@@ -53,6 +53,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 		"Don't publish if not leader": {
 			amLeader:               false,
 			numSuccessfulPublishes: math.MaxInt,
+			expectedError:          true,
 			eventSequences: []*armadaevents.EventSequence{
 				{
 					JobSetName: "jobset1",
