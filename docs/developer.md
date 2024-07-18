@@ -57,7 +57,7 @@ Please see these documents for more information about Armadas Design:
 - [docker](https://docs.docker.com/get-docker/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
 - [protoc](https://github.com/protocolbuffers/protobuf/releases)
-
+- [helm](https://helm.sh/docs/intro/install/) (version 3.10.0 or later)
 
 ## Using Mage
 
