@@ -1,7 +1,7 @@
 # Armada helm charts
 
 Armada provides helm charts to assist with deployment of armada executors and services.
-These work with Helm `3.10.0` or later.
+These require Helm `3.10.0` or later.
 
 ## Executor helm chart
 
