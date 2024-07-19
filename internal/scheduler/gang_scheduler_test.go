@@ -571,6 +571,7 @@ func TestGangScheduler(t *testing.T) {
 					priorityFactor,
 					nil,
 					schedulerobjects.NewResourceList(0),
+					schedulerobjects.NewResourceList(0),
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
