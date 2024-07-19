@@ -53,7 +53,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], schedulerobjects.ResourceList{}, nil)
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], schedulerobjects.ResourceList{}, schedulerobjects.ResourceList{}, nil)
 		require.NoError(t, err)
 	}
 
@@ -251,7 +251,7 @@ func TestCalculateFairShares(t *testing.T) {
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, nil)
+					qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, q.Demand, nil)
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
