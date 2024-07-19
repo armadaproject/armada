@@ -12,34 +12,26 @@ armada.operators.armada module
    :undoc-members:
    :show-inheritance:
 
-armada.operators.armada_deferrable module
------------------------------------------
-
-.. automodule:: armada.operators.armada_deferrable
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-armada.operators.jobservice module
-----------------------------------
-
-.. automodule:: armada.operators.jobservice
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-armada.operators.jobservice_asyncio module
-------------------------------------------
-
-.. automodule:: armada.operators.jobservice_asyncio
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-armada.operators.utils module
+armada.triggers.armada module
 -----------------------------
 
-.. automodule:: armada.operators.utils
+.. automodule:: armada.triggers.armada
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+armada.auth module
+-----------------------------
+
+.. automodule:: armada.auth
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+armada.model module
+-----------------------------
+
+.. automodule:: armada.model
    :members:
    :undoc-members:
    :show-inheritance:

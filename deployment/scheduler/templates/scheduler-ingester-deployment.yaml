@@ -45,10 +45,10 @@ spec:
           resources:
             {{- toYaml .Values.ingester.resources | nindent 12 }}
           ports:
-            {{- if .Values.ingester.applicationConfig.pprofPort }}
-            - containerPort: {{ .Values.ingester.applicationConfig.pprofPort }}
+            {{- if and .Values.ingester.applicationConfig.profiling .Values.ingester.applicationConfig.profiling.port }}
+            - containerPort: {{ .Values.ingester.applicationConfig.profiling.port }}
               protocol: TCP
-              name: pprof
+              name: profiling
             {{- end }}
             - containerPort: {{ .Values.ingester.applicationConfig.metricsPort }}
               protocol: TCP

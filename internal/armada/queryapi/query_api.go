@@ -63,7 +63,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 	detailsById := make(map[string]*api.JobDetails)
 
 	err := pgx.BeginTxFunc(ctx, q.db, pgx.TxOptions{
-		IsoLevel:       pgx.RepeatableRead,
+		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {

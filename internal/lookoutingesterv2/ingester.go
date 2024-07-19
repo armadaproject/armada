@@ -12,9 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
@@ -50,17 +48,12 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 	}
 
 	// Expose profiling endpoints if enabled.
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		go func() {
-			ctx := armadacontext.Background()
-			if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-				logging.WithStacktrace(ctx, err).Error("pprof server failure")
-			}
-		}()
+	err = profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
-	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor)
+	converter := instructions.NewInstructionConverter(m.Metrics, config.UserAnnotationPrefix, compressor)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet](
 		config.Pulsar,
@@ -71,7 +64,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		converter,
 		lookoutDb,
 		config.MetricsPort,
-		m,
+		m.Metrics,
 	)
 
 	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {

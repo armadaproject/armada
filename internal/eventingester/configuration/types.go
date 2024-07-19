@@ -6,6 +6,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
 type EventIngesterConfiguration struct {
@@ -29,8 +30,8 @@ type EventIngesterConfiguration struct {
 	EventRetentionPolicy EventRetentionPolicy
 	// List of Regexes which will identify fatal errors when inserting into redis
 	FatalInsertionErrors []string
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	// If non-nil, configures pprof profiling
+	Profiling *profilingconfig.ProfilingConfig
 }
 
 // TODO: unpack this into just EventExpirtation

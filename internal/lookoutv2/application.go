@@ -3,15 +3,18 @@
 package lookoutv2
 
 import (
+	"github.com/IBM/pgxpoolprometheus"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
-	slices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/conversions"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
@@ -30,6 +33,9 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	if err != nil {
 		return err
 	}
+
+	collector := pgxpoolprometheus.NewCollector(db, map[string]string{})
+	prometheus.MustRegister(collector)
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
@@ -147,6 +153,9 @@ func Serve(configuration configuration.LookoutV2Config) error {
 			})
 		},
 	)
+
+	shutdownMetricServer := common.ServeMetrics(uint16(configuration.MetricsPort))
+	defer shutdownMetricServer()
 
 	server := restapi.NewServer(api)
 	defer func() {

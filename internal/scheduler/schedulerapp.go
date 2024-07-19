@@ -29,7 +29,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -53,13 +52,11 @@ func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	// ////////////////////////////////////////////////////////////////////////
-	// Profiling
+	// Expose profiling endpoints if enabled.
 	// ////////////////////////////////////////////////////////////////////////
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		g.Go(func() error {
-			return serve.ListenAndServe(ctx, pprofServer)
-		})
+	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	// ////////////////////////////////////////////////////////////////////////

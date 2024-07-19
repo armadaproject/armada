@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	"github.com/patrickmn/go-cache"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +19,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
+
+const KubernetesAuthServiceName = "KubernetesNative"
 
 type TokenReviewer interface {
 	ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error)
@@ -71,24 +72,18 @@ type CacheData struct {
 	Valid bool   `json:"valid"`
 }
 
-func (authService *KubernetesNativeAuthService) Name() string {
-	return "KubernetesNative"
-}
-
-func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
-	// Retrieve token from context.
-	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
-
-	if len(authHeader) < 2 || authHeader[0] != "KubernetesAuth" {
+func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context, authHeader string) (Principal, error) {
+	authHeaderSplits := strings.SplitN(authHeader, " ", 2)
+	if len(authHeaderSplits) < 2 || authHeaderSplits[0] != "KubernetesAuth" {
 		return nil, &armadaerrors.ErrMissingCredentials{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 		}
 	}
 
-	token, ca, err := parseAuth(authHeader[1])
+	token, ca, err := parseAuth(authHeaderSplits[1])
 	if err != nil {
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 		}
 	}
 
@@ -96,14 +91,14 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	expirationTime, err := parseTime(token)
 	if err != nil {
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 			Message:     err.Error(),
 		}
 	}
 
 	if authService.Clock.Now().After(expirationTime) {
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 			Message:     "invalid token, expired",
 		}
 	}
@@ -113,10 +108,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	if found {
 		if cacheInfo, ok := data.(CacheData); ok {
 			if cacheInfo.Valid {
-				return NewStaticPrincipal(cacheInfo.Name, []string{cacheInfo.Name}), nil
+				return NewStaticPrincipal(cacheInfo.Name, KubernetesAuthServiceName, []string{cacheInfo.Name}), nil
 			} else {
 				return nil, &armadaerrors.ErrInvalidCredentials{
-					AuthService: authService.Name(),
+					AuthService: KubernetesAuthServiceName,
 					Message:     "token invalid",
 				}
 			}
@@ -127,7 +122,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	url, err := authService.getClusterURL(token)
 	if err != nil {
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 			Message:     err.Error(),
 		}
 	}
@@ -136,7 +131,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	name, err := authService.reviewToken(ctx, url, token, []byte(ca))
 	if err != nil {
 		// reviewToken returns appropriate armadaerrors.
-		return nil, err
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: KubernetesAuthServiceName,
+			Message:     err.Error(),
+		}
 	}
 
 	// Add to cache
@@ -149,7 +147,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		expirationTime.Sub(time.Now()))
 
 	// Return very basic Principal
-	return NewStaticPrincipal(name, []string{name}), nil
+	return NewStaticPrincipal(name, KubernetesAuthServiceName, []string{name}), nil
 }
 
 func (authService *KubernetesNativeAuthService) getClusterURL(token string) (string, error) {
@@ -185,7 +183,7 @@ func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context,
 		// TODO(clif) Hard to tell if this should be internal auth error
 		// or invalid creds still.
 		return "", &armadaerrors.ErrInternalAuthServiceError{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 			Message:     err.Error(),
 		}
 	}
@@ -193,7 +191,7 @@ func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context,
 	if !result.Status.Authenticated {
 		authService.TokenCache.Set(token, CacheData{Valid: false}, time.Duration(authService.InvalidTokenExpiry))
 		return "", &armadaerrors.ErrInvalidCredentials{
-			AuthService: authService.Name(),
+			AuthService: KubernetesAuthServiceName,
 			Message:     "provided token was rejected by TokenReview",
 		}
 	}

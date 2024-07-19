@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
 type LookoutIngesterV2Configuration struct {
@@ -31,8 +32,8 @@ type LookoutIngesterV2Configuration struct {
 	// Between each attempt to store data in the database, there is an exponential backoff (starting out as 1s).
 	// MaxBackoff caps this backoff to whatever it is specified (in seconds)
 	MaxBackoff int
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	// If non-nil, configures pprof profiling
+	Profiling *profilingconfig.ProfilingConfig
 	// List of Regexes which will identify fatal errors when inserting into postgres
 	FatalInsertionErrors []string
 }

@@ -109,6 +109,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	queue string, weight float64,
 	initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string],
 	demand schedulerobjects.ResourceList,
+	cappedDemand schedulerobjects.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -138,6 +139,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Limiter:                           limiter,
 		Allocated:                         allocated,
 		Demand:                            demand,
+		CappedDemand:                      cappedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -186,7 +188,7 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 	for queueName, qctx := range sctx.QueueSchedulingContexts {
 		cappedShare := 1.0
 		if !sctx.TotalResources.IsZero() {
-			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.Demand)
+			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
 		}
 		queueInfos = append(queueInfos, &queueInfo{
 			queueName:     queueName,
@@ -414,6 +416,9 @@ type QueueSchedulingContext struct {
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
 	Demand schedulerobjects.ResourceList
+	// Capped Demand for this queue. This differs from Demand in that it takes into account any limits that we have
+	// placed on the queue
+	CappedDemand schedulerobjects.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
 	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
