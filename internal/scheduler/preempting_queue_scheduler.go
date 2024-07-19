@@ -854,11 +854,6 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			return nil, err
 		}
 
-		// TODO: Should be safe to remove now.
-		for i, evictedJob := range evictedJobs {
-			evictedJobs[i] = evictedJob.DeepCopy()
-		}
-
 		for _, job := range evictedJobs {
 			// Create a scheduling context for the attempt to re-schedule the job, and:
 			// 1. Mark the job as evicted. This ensures total scheduled resources is calculated correctly.

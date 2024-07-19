@@ -15,8 +15,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-
-	protoutil "github.com/armadaproject/armada/internal/common/grpc/protoutils"
 )
 
 // CreateGatewayHandler configures the gRPC API gateway
@@ -35,7 +33,7 @@ func CreateGatewayHandler(
 
 	grpcAddress := fmt.Sprintf(":%d", grpcPort)
 
-	m := new(protoutil.JSONMarshaller)
+	m := new(runtime.JSONBuiltin)
 	gw := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, m),
 		runtime.WithOutgoingHeaderMatcher(func(key string) (string, bool) {

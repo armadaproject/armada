@@ -12,7 +12,6 @@ replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 require (
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/go-openapi/analysis v0.22.2
 	github.com/go-openapi/jsonreference v0.20.4
 	github.com/go-openapi/loads v0.21.5
@@ -28,7 +27,6 @@ require (
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
 	github.com/mattn/go-zglob v0.0.4
@@ -49,7 +47,6 @@ require (
 	golang.org/x/net v0.22.0
 	golang.org/x/oauth2 v0.18.0
 	golang.org/x/sync v0.6.0
-	golang.org/x/tools v0.18.0 // indirect
 	google.golang.org/genproto v0.0.0-20231120223509-83a465c0220f // indirect
 	google.golang.org/grpc v1.59.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -60,7 +57,6 @@ require (
 	k8s.io/kubectl v0.26.15
 	k8s.io/kubelet v0.26.15
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
-	modernc.org/sqlite v1.26.0
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -117,13 +113,11 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/elliotchance/orderedmap/v2 v2.2.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
-	github.com/fatih/color v1.14.1 // indirect
 	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
@@ -158,7 +152,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.17.5 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
@@ -166,7 +159,6 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
@@ -187,7 +179,6 @@ require (
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.2 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
@@ -197,9 +188,6 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xitongsys/parquet-go-source v0.0.0-20200817004010-026bad9b25d0 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/yuin/goldmark v1.5.4 // indirect
@@ -223,15 +211,6 @@ require (
 	k8s.io/cli-runtime v0.26.15 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
-	lukechampine.com/uint128 v1.2.0 // indirect
-	modernc.org/cc/v3 v3.40.0 // indirect
-	modernc.org/ccgo/v3 v3.16.13 // indirect
-	modernc.org/libc v1.24.1 // indirect
-	modernc.org/mathutil v1.5.0 // indirect
-	modernc.org/memory v1.6.0 // indirect
-	modernc.org/opt v0.1.3 // indirect
-	modernc.org/strutil v1.1.3 // indirect
-	modernc.org/token v1.0.1 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.9 // indirect

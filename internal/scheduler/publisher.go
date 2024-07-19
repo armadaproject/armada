@@ -125,7 +125,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 			return errors.New("One or more messages failed to send to Pulsar")
 		}
 	} else {
-		ctx.Debugf("No longer leader so not publishing")
+		return errors.New("Failed to publish as no longer leader")
 	}
 	return nil
 }

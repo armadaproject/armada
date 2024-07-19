@@ -77,8 +77,6 @@ func Tests() error {
 		return err
 	}
 
-	internalPackages := filterPackages(strings.Fields(packages), "jobservice/repository")
-
 	cmd := []string{
 		"--format", "short-verbose",
 		"--junitfile", "test-reports/unit-tests.xml",
@@ -88,7 +86,7 @@ func Tests() error {
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
-	cmd = append(cmd, internalPackages...)
+	cmd = append(cmd, strings.Fields(packages)...)
 
 	testCmd := exec.Command(Gotestsum, cmd...)
 
@@ -109,16 +107,6 @@ func Tests() error {
 	}
 
 	return err
-}
-
-func filterPackages(packages []string, filter string) []string {
-	var filtered []string
-	for _, pkg := range packages {
-		if !strings.Contains(pkg, filter) {
-			filtered = append(filtered, pkg)
-		}
-	}
-	return filtered
 }
 
 func runTest(name, outputFileName string) error {

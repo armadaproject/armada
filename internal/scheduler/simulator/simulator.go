@@ -496,6 +496,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					queue.Weight,
 					s.allocationByPoolAndQueueAndPriorityClass[pool.Name][queue.Name],
 					demand,
+					demand,
 					limiter,
 				)
 				if err != nil {

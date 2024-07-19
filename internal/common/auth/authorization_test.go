@@ -71,8 +71,8 @@ func TestAuthorizer_AuthorizeQueueAction(t *testing.T) {
 		PriorityFactor: 1,
 	}
 
-	authorizedPrincipal := NewStaticPrincipal("alice", []string{"submit-job-group"})
-	unauthorizedPrincipcal := NewStaticPrincipal("alice", []string{})
+	authorizedPrincipal := NewStaticPrincipal("alice", "test", []string{"submit-job-group"})
+	unauthorizedPrincipcal := NewStaticPrincipal("alice", "test", []string{})
 
 	tests := map[string]struct {
 		ctx                     *armadacontext.Context
