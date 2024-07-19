@@ -87,6 +87,15 @@ var demandPerQueueDesc = prometheus.NewDesc(
 	}, nil,
 )
 
+var cappedDemandPerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "capped_demand"),
+	"Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
 var fairnessErrorDesc = prometheus.NewDesc(
 	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "fairness_error"),
 	"Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
@@ -174,10 +183,11 @@ func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometh
 
 	for key, value := range schedulingRoundData.queuePoolData {
 		result = append(result, prometheus.MustNewConstMetric(consideredJobsDesc, prometheus.GaugeValue, float64(value.numberOfJobsConsidered), key.queue, key.pool))
-		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, float64(value.fairShare), key.queue, key.pool))
-		result = append(result, prometheus.MustNewConstMetric(adjustedFairSharePerQueueDesc, prometheus.GaugeValue, float64(value.adjustedFairShare), key.queue, key.pool))
-		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, float64(value.actualShare), key.queue, key.pool))
-		result = append(result, prometheus.MustNewConstMetric(demandPerQueueDesc, prometheus.GaugeValue, float64(value.demand), key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, value.fairShare, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(adjustedFairSharePerQueueDesc, prometheus.GaugeValue, value.adjustedFairShare, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, value.actualShare, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(demandPerQueueDesc, prometheus.GaugeValue, value.demand, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(cappedDemandPerQueueDesc, prometheus.GaugeValue, value.cappedDemand, key.queue, key.pool))
 	}
 	for key, value := range schedulingRoundData.scheduledJobData {
 		result = append(result, prometheus.MustNewConstMetric(scheduledJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
@@ -187,7 +197,7 @@ func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometh
 	}
 
 	for pool, fairnessError := range schedulingRoundData.fairnessError {
-		result = append(result, prometheus.MustNewConstMetric(fairnessErrorDesc, prometheus.CounterValue, fairnessError, pool))
+		result = append(result, prometheus.MustNewConstMetric(fairnessErrorDesc, prometheus.GaugeValue, fairnessError, pool))
 	}
 
 	return result
@@ -224,12 +234,14 @@ func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []
 			key := queuePoolKey{queue: queue, pool: pool}
 			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
+			cappedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.CappedDemand)
 			result[key] = queuePoolData{
 				numberOfJobsConsidered: len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
 				fairShare:              queueContext.FairShare,
 				adjustedFairShare:      queueContext.AdjustedFairShare,
 				actualShare:            actualShare,
 				demand:                 demand,
+				cappedDemand:           cappedDemand,
 			}
 		}
 	}
@@ -274,4 +286,5 @@ type queuePoolData struct {
 	fairShare              float64
 	adjustedFairShare      float64
 	demand                 float64
+	cappedDemand           float64
 }
