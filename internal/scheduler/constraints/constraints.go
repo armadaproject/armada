@@ -150,7 +150,7 @@ func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	return q
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
 	// maximumResourcesToSchedule check.
 	if !isStrictlyLessOrEqual(sctx.ScheduledResources.Resources, constraints.maximumResourcesToSchedule) {
 		return false, MaximumResourcesScheduledUnschedulableReason, nil

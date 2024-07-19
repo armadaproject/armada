@@ -57,8 +57,7 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	evictor := NewOversubscribedEvictor(
 		NewSchedulerJobRepositoryAdapter(jobDbTxn),
-		nodeDb,
-		config.PriorityClasses)
+		nodeDb)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
 
@@ -1797,7 +1796,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							nodeId := nodeIdByJobId[job.Id()]
 							node, err := nodeDb.GetNode(nodeId)
 							require.NoError(t, err)
-							node, err = nodeDb.UnbindJobFromNode(tc.SchedulingConfig.PriorityClasses, job, node)
+							node, err = nodeDb.UnbindJobFromNode(job, node)
 							require.NoError(t, err)
 							err = nodeDb.Upsert(node)
 							require.NoError(t, err)
@@ -1837,8 +1836,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				sctx := schedulercontext.NewSchedulingContext(
 					"pool",
-					tc.SchedulingConfig.PriorityClasses,
-					tc.SchedulingConfig.DefaultPriorityClassName,
 					fairnessCostProvider,
 					limiter,
 					tc.TotalResources,
@@ -2201,8 +2198,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 			sctx := schedulercontext.NewSchedulingContext(
 				"pool",
-				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				limiter,
 				nodeDb.TotalResources(),
@@ -2269,8 +2264,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				sctx := schedulercontext.NewSchedulingContext(
 					"pool",
-					tc.SchedulingConfig.PriorityClasses,
-					tc.SchedulingConfig.DefaultPriorityClassName,
 					fairnessCostProvider,
 					limiter,
 					nodeDb.TotalResources(),

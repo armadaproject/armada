@@ -501,10 +501,7 @@ func TestQueueScheduler(t *testing.T) {
 			}
 			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(
-				schedulercontext.JobSchedulingContextsFromJobs(
-					tc.SchedulingConfig.PriorityClasses,
-					legacySchedulerJobs,
-				),
+				schedulercontext.JobSchedulingContextsFromJobs(legacySchedulerJobs),
 			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
@@ -514,8 +511,6 @@ func TestQueueScheduler(t *testing.T) {
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
 				"pool",
-				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
