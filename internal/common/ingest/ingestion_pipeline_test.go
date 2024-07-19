@@ -283,8 +283,7 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages] {
 	return &IngestionPipeline[*simpleMessages]{
 		pulsarConfig: configuration.PulsarConfig{
-			ReceiveTimeout: 10 * time.Second,
-			BackoffTime:    time.Second,
+			BackoffTime: time.Second,
 		},
 		pulsarSubscriptionName: "subscription",
 		pulsarBatchDuration:    batchDuration,
