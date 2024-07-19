@@ -158,7 +158,6 @@ func TestConstraints(t *testing.T) {
 }
 
 func TestCapResources(t *testing.T) {
-
 	tests := map[string]struct {
 		constraints       SchedulingConstraints
 		queue             string
@@ -186,7 +185,8 @@ func TestCapResources(t *testing.T) {
 							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
 								"pool-1": {"cpu": 0.1, "memory": 0.9},
 							},
-						}},
+						},
+					},
 				},
 				[]*api.Queue{},
 			),
@@ -204,7 +204,8 @@ func TestCapResources(t *testing.T) {
 							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
 								"pool-1": {"cpu": 0.1, "memory": 0.9},
 							},
-						}},
+						},
+					},
 				},
 				[]*api.Queue{},
 			),
@@ -222,7 +223,8 @@ func TestCapResources(t *testing.T) {
 							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
 								"pool-1": {"cpu": 0.1, "memory": 0.9},
 							},
-						}},
+						},
+					},
 				},
 				[]*api.Queue{
 					{
