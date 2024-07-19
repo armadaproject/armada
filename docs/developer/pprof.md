@@ -5,6 +5,9 @@
   ```
   profiling:
     port: 6060
+    hostnames:
+    - "armada-scheduler-profiling.armada.my-k8s-cluster.com"
+    clusterIssuer: "k8s-cluster-issuer"  # CertManager cluster-issuer
     auth:
       anonymousAuth: true
       permissionGroupMapping:
@@ -12,4 +15,5 @@
   ```
 - It's possible to put pprof behind auth, see [api.md#authentication](./api.md#authentication) and [oidc.md](./oidc.md).
 - For the scheduler, the helm chart will make a service and ingress for every pod. These are named `armada-scheduler-0-profiling` etc.
+- For the scheduler ingester, the helm chart will make a single service and ingress called `armada-scheduler-ingester-profiling`. Note calls to these may not consistently go to the same pod. Use `kubectl port-forward`, or scale the deployment to size 1, if you need to consistently target one pod.
 - For other services, the helm charts do not currently expose the profiling port. You can use `kubectl port-forward` to access these.
