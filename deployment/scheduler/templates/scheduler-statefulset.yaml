@@ -79,7 +79,7 @@ spec:
             {{- if and .Values.scheduler.applicationConfig.profiling .Values.scheduler.applicationConfig.profiling.port }}
             - containerPort: {{ .Values.scheduler.applicationConfig.profiling.port }}
               protocol: TCP
-              name: pprof
+              name: profiling
             {{- end }}
           volumeMounts:
             - name: user-config
