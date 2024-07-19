@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

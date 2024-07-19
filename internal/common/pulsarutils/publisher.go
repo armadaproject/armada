@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

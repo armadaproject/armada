@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/mocks"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/mocks"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
