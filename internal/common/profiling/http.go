@@ -79,7 +79,7 @@ func setupPprofHttpServerWithAuth(port uint16, authFunc func(w http.ResponseWrit
 	}
 
 	return &http.Server{
-		Addr:    fmt.Sprintf("localhost:%d", port),
+		Addr:    fmt.Sprintf(":%d", port),
 		Handler: authInterceptor,
 	}
 }
