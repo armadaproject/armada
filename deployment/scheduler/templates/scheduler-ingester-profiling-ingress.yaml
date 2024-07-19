@@ -1,0 +1,35 @@
+{{- if and .Values.ingester.applicationConfig.profiling .Values.ingester.applicationConfig.profiling.hostnames }}
+{{- $root := . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "armada-scheduler.name" . }}-ingester-profiling
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.ingester.applicationConfig.profiling.clusterIssuer" .Values.ingester.applicationConfig.profiling.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ required "A value is required for .Values.ingester.applicationConfig.profiling.clusterIssuer" .Values.ingester.applicationConfig.profiling.clusterIssuer }}
+  labels:
+    {{- include "armada-scheduler-ingester.labels.all" . | nindent 4 }}
+spec:
+  rules:
+  {{- range required "A value is required for .Values.ingester.applicationConfig.profiling.hostnames" .Values.ingester.applicationConfig.profiling.hostnames }}
+  - host: {{ .  }}
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ include "armada-scheduler.name" $root }}-ingester-profiling
+              port:
+                number: {{ $root.Values.ingester.applicationConfig.profiling.port }}
+  {{ end -}}
+  tls:
+    - hosts:
+       {{- range required "A value is required for .Values.ingester.applicationConfig.profiling.hostnames" .Values.ingester.applicationConfig.profiling.hostnames }}
+      - {{ . -}}
+       {{ end }}
+      secretName: armada-scheduler-ingester-profiling-service-tls
+---
+{{- end }}
+
