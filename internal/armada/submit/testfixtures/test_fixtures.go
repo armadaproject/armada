@@ -22,7 +22,7 @@ var (
 	DefaultOwner         = "testUser"
 	DefaultJobset        = "testJobset"
 	DefaultQueue         = queue.Queue{Name: "testQueue"}
-	DefaultPrincipal     = auth.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
+	DefaultPrincipal     = auth.NewStaticPrincipal(DefaultOwner, "test", []string{"groupA"})
 	DefaultContainerPort = v1.ContainerPort{
 		Name:          "testContainerPort",
 		ContainerPort: 8080,

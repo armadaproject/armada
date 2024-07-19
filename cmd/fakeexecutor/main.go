@@ -5,14 +5,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/fake"
 	"github.com/armadaproject/armada/internal/executor/fake/context"
@@ -38,14 +37,9 @@ func main() {
 	v := common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
 	// Expose profiling endpoints if enabled.
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		go func() {
-			ctx := armadacontext.Background()
-			if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-				logging.WithStacktrace(ctx, err).Error("pprof server failure")
-			}
-		}()
+	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	var nodes []*context.NodeSpec

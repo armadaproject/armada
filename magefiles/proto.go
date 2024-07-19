@@ -98,7 +98,6 @@ func protoGenerate() error {
 		"internal/scheduler/schedulerobjects/*.proto",
 		"internal/scheduler/simulator/*.proto",
 		"pkg/api/binoculars/*.proto",
-		"pkg/api/jobservice/*.proto",
 		"pkg/executorapi/*.proto",
 	}
 	for _, pattern := range patterns {

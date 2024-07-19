@@ -4,13 +4,13 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
 type LookoutV2Config struct {
 	ApiPort     int
+	Profiling   *profilingconfig.ProfilingConfig
 	MetricsPort int
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
 
 	CorsAllowedOrigins []string
 	Tls                TlsConfig

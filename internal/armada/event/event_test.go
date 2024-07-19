@@ -326,7 +326,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
-				principal := auth.NewStaticPrincipal("alice", []string{})
+				principal := auth.NewStaticPrincipal("alice", "test", []string{})
 				ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
@@ -351,7 +351,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				assert.NoError(t, err)
 
-				principal := auth.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
+				principal := auth.NewStaticPrincipal("alice", "test", []string{"watch-all-events-group"})
 				ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
@@ -373,7 +373,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			assert.NoError(t, err)
 
-			principal := auth.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
+			principal := auth.NewStaticPrincipal("alice", "test", []string{"watch-events-group", "watch-queue-group"})
 			ctx := auth.WithPrincipal(armadacontext.Background(), principal)
 			stream := &eventStreamMock{ctx: ctx}
 

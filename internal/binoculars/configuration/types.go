@@ -3,6 +3,7 @@ package configuration
 import (
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
 type BinocularsConfig struct {
@@ -12,8 +13,7 @@ type BinocularsConfig struct {
 	GrpcPort    uint16
 	HttpPort    uint16
 	MetricsPort uint16
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	Profiling   *profilingconfig.ProfilingConfig
 
 	CorsAllowedOrigins []string
 

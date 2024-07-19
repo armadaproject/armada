@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -40,8 +41,8 @@ type Configuration struct {
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	Http       HttpConfig
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	// If non-nil, configures pprof profiling
+	Profiling *profilingconfig.ProfilingConfig
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
