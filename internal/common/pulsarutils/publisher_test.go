@@ -84,10 +84,11 @@ func TestPublishMessages(t *testing.T) {
 									DeduplicationId: "2000000000000000000000000000000000000",
 								},
 							},
-						}},
+						},
+					},
 				},
 			},
-			//Set this very low, expect it to spit every event into its own message
+			// Set this very low, expect it to spit every event into its own message
 			maxAllowedMessageSize:    160,
 			expectedNumberOfMessages: 2,
 			expectedNumberOfEvents:   2,
@@ -235,7 +236,6 @@ func setUpPublisherTest(t *testing.T, maxEventsPerMessage int, maxAllowedMessage
 	require.NoError(t, err)
 
 	return publisher, mockPulsarProducer
-
 }
 
 func countEvents(es []*armadaevents.EventSequence) map[string]int {
