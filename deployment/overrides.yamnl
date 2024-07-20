@@ -1,5 +1,0 @@
-scheduler:
-  ingressClass: fish
-  clusterIssuer: chips
-  hostnames:
-    - foo
