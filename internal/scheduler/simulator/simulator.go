@@ -32,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -543,7 +544,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			// Update jobDb to reflect the decisions by the scheduler.
 			// Sort jobs to ensure deterministic event ordering.
-			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult(result)
+			preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
 			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {

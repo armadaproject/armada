@@ -1,4 +1,4 @@
-package scheduler
+package schedulerresult
 
 import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"

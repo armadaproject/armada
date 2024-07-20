@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -55,8 +55,7 @@ func (m *Metrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	reconciliationCycleTimeMetric.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *Metrics) ReportSchedulerResult(result scheduler.SchedulerResult) {
-
+func (m *Metrics) ReportSchedulerResult(result schedulerresult.SchedulerResult) {
 	// Metrics that depend on pool
 	for _, schedContext := range result.SchedulingContexts {
 		pool := schedContext.Pool
