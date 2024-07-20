@@ -6,12 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
-
-	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
-
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,7 +29,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
