@@ -74,10 +74,8 @@ type Scheduler struct {
 	runsSerial int64
 	// Function that is called every time a cycle is completed. Useful for testing.
 	onCycleCompleted func()
-	// metrics set for the scheduler.
-	metrics *SchedulerMetrics
-	// New scheduler metrics due to replace the above.
-	schedulerMetrics *metrics.Metrics
+	// Prometheus metrics which report the state of the scheduler
+	metrics *metrics.Metrics
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
@@ -96,8 +94,7 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
-	metrics *SchedulerMetrics,
-	schedulerMetrics *metrics.Metrics,
+	metrics *metrics.Metrics,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -117,7 +114,6 @@ func NewScheduler(
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
 		metrics:                    metrics,
-		schedulerMetrics:           schedulerMetrics,
 	}, nil
 }
 
@@ -241,13 +237,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Finished syncing state")
 
 	// Only the leader may make decisions; exit if not leader.
-	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
 		ctx.Info("Not the leader so will not attempt to schedule")
-		s.schedulerMetrics.Disable()
 		return overallSchedulerResult, err
-	} else {
-		s.schedulerMetrics.Enable()
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -278,12 +270,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
-	// Update metrics.
-	if !s.schedulerMetrics.IsDisabled() {
-		if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
-			return overallSchedulerResult, err
-		}
-	}
+	s.metrics.UpdateJobStateTransitinMetrics(jsts, jobRepoRunErrorsByRunId)
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	ctx.Info("Generating update messages based on reconciliation changes")
@@ -350,26 +337,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
 
-	// Update metrics based on overallSchedulerResult.
-	if err := s.updateMetricsFromSchedulerResult(ctx, overallSchedulerResult); err != nil {
-		return overallSchedulerResult, err
-	}
-
 	return overallSchedulerResult, nil
-}
-
-func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context, overallSchedulerResult SchedulerResult) error {
-	if s.schedulerMetrics.IsDisabled() {
-		return nil
-	}
-	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
-			return err
-		}
-	}
-	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
-	// This is to make sure that preemption is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
-	return nil
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.

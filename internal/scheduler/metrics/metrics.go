@@ -24,14 +24,14 @@ const (
 	succeeded = "succeeded"
 )
 
-type SchedulerMetrics struct {
+type Metrics struct {
 	// Pre-compiled regexes for error categorisation.
 	errorRegexes []*regexp.Regexp
 	// resources we want to provide metrics for
 	trackedResourceNames []v1.ResourceName
 }
 
-func NewSchedulerMetrics(trackedErrorRegexes []string, trackedResourceNames []v1.ResourceName) (*SchedulerMetrics, error) {
+func New(trackedErrorRegexes []string, trackedResourceNames []v1.ResourceName) (*Metrics, error) {
 	errorRegexes := make([]*regexp.Regexp, len(trackedErrorRegexes))
 	for i, errorRegex := range trackedErrorRegexes {
 		if r, err := regexp.Compile(errorRegex); err != nil {
@@ -41,21 +41,21 @@ func NewSchedulerMetrics(trackedErrorRegexes []string, trackedResourceNames []v1
 		}
 	}
 
-	return &SchedulerMetrics{
+	return &Metrics{
 		errorRegexes:         errorRegexes,
 		trackedResourceNames: trackedResourceNames,
 	}, nil
 }
 
-func (m *SchedulerMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
+func (m *Metrics) ReportScheduleCycleTime(cycleTime time.Duration) {
 	scheduleCycleTimeMetric.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
+func (m *Metrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	reconciliationCycleTimeMetric.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *SchedulerMetrics) ReportSchedulerResult(result scheduler.SchedulerResult) {
+func (m *Metrics) ReportSchedulerResult(result scheduler.SchedulerResult) {
 
 	// Metrics that depend on pool
 	for _, schedContext := range result.SchedulingContexts {
@@ -85,55 +85,53 @@ func (m *SchedulerMetrics) ReportSchedulerResult(result scheduler.SchedulerResul
 	}
 }
 
-func (m *SchedulerMetrics) UpdateJobStateTransitinMetrics(
-	jst jobdb.JobStateTransitions,
+func (m *Metrics) UpdateJobStateTransitinMetrics(
+	jst []jobdb.JobStateTransitions,
 	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
-) error {
-	job := jst.Job
-	run := job.LatestRun()
+) {
+	for _, jst := range jst {
+		job := jst.Job
+		run := job.LatestRun()
 
-	if jst.Leased {
-		duration, priorState := stateDuration(job, run, run.LeaseTime())
-		m.updateStateDuration(job, leased, priorState, duration)
+		if jst.Leased {
+			duration, priorState := stateDuration(job, run, run.LeaseTime())
+			m.updateStateDuration(job, leased, priorState, duration)
+		}
+		if jst.Pending {
+			duration, priorState := stateDuration(job, run, run.PendingTime())
+			m.updateStateDuration(job, pending, priorState, duration)
+		}
+		if jst.Running {
+			duration, priorState := stateDuration(job, run, run.RunningTime())
+			m.updateStateDuration(job, running, priorState, duration)
+		}
+		if jst.Cancelled {
+			duration, priorState := stateDuration(job, run, run.TerminatedTime())
+			m.updateStateDuration(job, cancelled, priorState, duration)
+			completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
+		}
+		if jst.Failed {
+			duration, priorState := stateDuration(job, run, run.TerminatedTime())
+			m.updateStateDuration(job, failed, priorState, duration)
+			completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
+			jobRunError := jobRunErrorsByRunId[run.Id()]
+			category, subCategory := m.failedCategoryAndSubCategoryFromJob(jobRunError)
+			jobErrorsMetric.WithLabelValues(job.Queue(), run.Executor(), category, subCategory).Inc()
+		}
+		if jst.Succeeded {
+			duration, priorState := stateDuration(job, run, run.TerminatedTime())
+			m.updateStateDuration(job, succeeded, priorState, duration)
+			completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
+		}
+		if jst.Preempted {
+			duration, priorState := stateDuration(job, run, run.PreemptedTime())
+			m.updateStateDuration(job, preempted, priorState, duration)
+			completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
+		}
 	}
-	if jst.Pending {
-		duration, priorState := stateDuration(job, run, run.PendingTime())
-		m.updateStateDuration(job, pending, priorState, duration)
-	}
-	if jst.Running {
-		duration, priorState := stateDuration(job, run, run.RunningTime())
-		m.updateStateDuration(job, running, priorState, duration)
-	}
-	if jst.Cancelled {
-		duration, priorState := stateDuration(job, run, run.TerminatedTime())
-		m.updateStateDuration(job, cancelled, priorState, duration)
-		completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
-	}
-	if jst.Failed {
-		duration, priorState := stateDuration(job, run, run.TerminatedTime())
-		m.updateStateDuration(job, failed, priorState, duration)
-		completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
-		jobRunError := jobRunErrorsByRunId[run.Id()]
-		category, subCategory := m.failedCategoryAndSubCategoryFromJob(jobRunError)
-		jobErrorsMetric.WithLabelValues(job.Queue(), run.Executor(), category, subCategory).Inc()
-	}
-	if jst.Succeeded {
-		duration, priorState := stateDuration(job, run, run.TerminatedTime())
-		m.updateStateDuration(job, succeeded, priorState, duration)
-		completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
-	}
-	if jst.Preempted {
-		duration, priorState := stateDuration(job, run, run.PreemptedTime())
-		m.updateStateDuration(job, preempted, priorState, duration)
-		completedRunDurationsMetric.WithLabelValues(job.Queue()).Observe(duration)
-	}
-
-	// UpdateLeased is called by the scheduler directly once a job is leased.
-	// It is not called here to avoid double counting.
-	return nil
 }
 
-func (m *SchedulerMetrics) updateStateDuration(job *jobdb.Job, state string, priorState string, duration float64) {
+func (m *Metrics) updateStateDuration(job *jobdb.Job, state string, priorState string, duration float64) {
 	queue := job.Queue()
 	requests := job.ResourceRequirements().Requests
 	latestRun := job.LatestRun()
@@ -152,7 +150,7 @@ func (m *SchedulerMetrics) updateStateDuration(job *jobdb.Job, state string, pri
 	}
 }
 
-func (m *SchedulerMetrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.Error) (string, string) {
+func (m *Metrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.Error) (string, string) {
 	category, message := errorTypeAndMessageFromError(err)
 	for _, r := range m.errorRegexes {
 		if r.MatchString(message) {
