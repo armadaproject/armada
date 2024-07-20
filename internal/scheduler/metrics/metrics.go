@@ -332,6 +332,7 @@ func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
 	labels = append(labels, "") // No category for running.
 	labels = append(labels, "") // No subCategory for running.
 	labels = appendLabelsFromJob(labels, job)
+	labels = appendLabelsFromJob(labels, job)
 
 	return m.updateMetrics(labels, job, duration)
 }

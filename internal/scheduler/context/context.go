@@ -396,6 +396,20 @@ func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]schedule
 	return rv
 }
 
+// FairnessError returns the cumulative delta between adjusted fair share and actual share for all users who
+// are below their fair share
+func (sctx *SchedulingContext) FairnessError() float64 {
+	fairnessError := 0.0
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		actualShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
+		delta := qctx.AdjustedFairShare - actualShare
+		if delta > 0 {
+			fairnessError += delta
+		}
+	}
+	return fairnessError
+}
+
 // QueueSchedulingContext captures the decisions made by the scheduler during one invocation
 // for a particular queue.
 type QueueSchedulingContext struct {

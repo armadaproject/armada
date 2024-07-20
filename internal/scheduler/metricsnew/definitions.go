@@ -5,58 +5,146 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var scheduledJobsMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "events_processed",
-		Help: "Number of events processed",
-	},
-	QueueAndPriorityClass)
+const (
+	MetricsPrefix         = "armada_scheduler_"
+	PoolLabel             = "pool"
+	QueueLabel            = "queue"
+	PriorityClassLabel    = "priority_class"
+	ClusterLabel          = "cluster"
+	ErrorCategoryLabel    = "category"
+	ErrorSubcategoryLabel = "subcategory"
+	StateLabel            = "state"
+	PriorStateLabel       = "priorState"
+	ResourceLabel         = "resource"
+)
 
-var premptedJobsMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "preempted_jobs",
-		Help: "Number of jobs preempted in the most recent round",
-	},
-	QueueAndPriorityClass)
+var (
+	QueueAndPoolLabels          = []string{QueueLabel, PoolLabel}
+	QueueAndPriorityClassLabels = []string{QueueLabel, PriorityClassLabel}
+	ErrorCategorylabels         = []string{QueueLabel, ClusterLabel, ErrorCategoryLabel, ErrorSubcategoryLabel}
+	StateLabels                 = []string{QueueLabel, ClusterLabel, StateLabel, PriorStateLabel}
+	ResourceStateLabels         = []string{QueueLabel, ClusterLabel, StateLabel, PriorStateLabel, ResourceLabel}
+)
 
-var consideredJobsMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "preempted_jobs",
-		Help: "Number of jobs considered in the most recent round",
-	},
-	QueueAndPool)
+var (
+	scheduledJobsMetric = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: MetricsPrefix + "scheduled_jobs",
+			Help: "Number of events scheduled",
+		},
+		QueueAndPriorityClassLabels,
+	)
 
-var fairShareMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "fair_share",
-		Help: "Fair share of each queue",
-	},
-	QueueAndPool)
+	premptedJobsMetric = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: MetricsPrefix + "preempted_jobs",
+			Help: "Number of jobs preempted",
+		},
+		QueueAndPriorityClassLabels,
+	)
 
-var adjustedFairShareMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "adjusted_fair_share",
-		Help: "Adjusted Fair share of each queue",
-	},
-	QueueAndPool)
+	consideredJobsMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "considered_jobs",
+			Help: "Number of jobs considered",
+		},
+		QueueAndPoolLabels,
+	)
 
-var actualShareMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "actual_share",
-		Help: "Actual Fair share of each queue",
-	},
-	QueueAndPool)
+	fairShareMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "fair_share",
+			Help: "Fair share of each queue",
+		},
+		QueueAndPoolLabels,
+	)
 
-var demandMetric = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "actual_share",
-		Help: "Actual Fair share of each queue",
-	},
-	QueueAndPool)
+	adjustedFairShareMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "adjusted_fair_share",
+			Help: "Adjusted Fair share of each queue",
+		},
+		QueueAndPoolLabels,
+	)
 
-var fairnessError = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: MetricsPrefix + "fairness_error",
-		Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
-	},
-	QueueAndPool)
+	actualShareMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "actual_share",
+			Help: "Actual Fair share of each queue",
+		},
+		QueueAndPoolLabels,
+	)
+
+	demandMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "demand",
+			Help: "Actual Fair share of each queue",
+		},
+		QueueAndPoolLabels,
+	)
+
+	cappedDemandMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "capped_demand",
+			Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+		},
+		QueueAndPoolLabels,
+	)
+
+	fairnessErrorMetric = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: MetricsPrefix + "fairness_error",
+			Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
+		},
+		QueueAndPoolLabels,
+	)
+
+	scheduleCycleTimeMetric = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    MetricsPrefix + "schedule_cycle_times",
+			Help:    "Cycle time when in a scheduling round.",
+			Buckets: prometheus.ExponentialBuckets(1, 1, 1),
+		},
+	)
+
+	reconciliationCycleTimeMetric = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    MetricsPrefix + "reconciliation_cycle_times",
+			Help:    "Cycle time when in a scheduling round.",
+			Buckets: prometheus.ExponentialBuckets(1, 1, 1),
+		},
+	)
+
+	completedRunDurationsMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    MetricsPrefix + "job_run_completed_duration_seconds",
+			Help:    "Time",
+			Buckets: prometheus.ExponentialBuckets(2, 2, 20),
+		},
+		[]string{QueueLabel},
+	)
+
+	jobStateSecondsMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: MetricsPrefix + "job_state_seconds",
+			Help: "Resource Seconds spend in different states",
+		},
+		StateLabels,
+	)
+
+	jobStateResourceSecondsMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: MetricsPrefix + "job_state_resource_seconds",
+			Help: "Resource Seconds spend in different states",
+		},
+		ResourceStateLabels,
+	)
+
+	jobErrorsMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: MetricsPrefix + "job_error_classification",
+			Help: "Failed jobs ey error classification",
+		},
+		ErrorCategorylabels,
+	)
+)
