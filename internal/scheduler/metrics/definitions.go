@@ -96,7 +96,7 @@ var (
 			Name: MetricsPrefix + "fairness_error",
 			Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
 		},
-		QueueAndPoolLabels,
+		[]string{PoolLabel},
 	)
 
 	scheduleCycleTimeMetric = prometheus.NewHistogram(
