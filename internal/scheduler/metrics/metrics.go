@@ -131,7 +131,6 @@ func (m *Metrics) UpdateJobStateTransitinMetrics(
 }
 
 func (m *Metrics) updateStateDuration(job *jobdb.Job, state string, priorState string, duration float64) {
-
 	if duration <= 0 {
 		return
 	}
