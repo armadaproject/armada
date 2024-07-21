@@ -10,27 +10,11 @@ disableSubmitCheck: false
 metrics:
   port: 9000
   refreshInterval: 30s
-  metrics:
-    scheduleCycleTimeHistogramSettings:
-      start: 10.0
-      factor: 1.1
-      count: 110
-    reconcileCycleTimeHistogramSettings:
-      start: 10.0
-      factor: 1.1
-      count: 110
-schedulerMetrics:
   trackedResourceNames:
     - "cpu"
     - "memory"
     - "ephemeral-storage"
     - "nvidia.com/gpu"
-  resourceRenaming:
-    nvidia.com/gpu: "gpu"
-    amd.com/gpu: "gpu"
-    ephemeral-storage: "ephemeralStorage"
-  matchedRegexIndexByErrorMessageCacheSize: 100
-  resetInterval: "1h"
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"

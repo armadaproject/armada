@@ -103,7 +103,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    MetricsPrefix + "schedule_cycle_times",
 			Help:    "Cycle time when in a scheduling round.",
-			Buckets: prometheus.ExponentialBuckets(1, 1, 1),
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
 	)
 
@@ -111,7 +111,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    MetricsPrefix + "reconciliation_cycle_times",
 			Help:    "Cycle time when in a scheduling round.",
-			Buckets: prometheus.ExponentialBuckets(1, 1, 1),
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
 	)
 

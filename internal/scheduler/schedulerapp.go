@@ -250,7 +250,7 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 	)
 
-	schedulerMetrics, err := metrics.New(config.SchedulerMetrics.TrackedErrorRegexes, config.SchedulerMetrics.TrackedResourceNames)
+	schedulerMetrics, err := metrics.New(config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames)
 	if err != nil {
 		return err
 	}
