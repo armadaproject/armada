@@ -1522,16 +1522,6 @@ var (
 		Validated:             true,
 		Serial:                0,
 	}
-	runningJobWithUpdatedPriorityA = &database.Job{
-		JobID:                 queuedJobA.JobID,
-		JobSet:                "testJobSet",
-		Queue:                 "testQueue",
-		QueuedVersion:         1,
-		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
-		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
-		Validated:             true,
-		Serial:                1,
-	}
 	failedJobA = &database.Job{
 		JobID:                 queuedJobA.JobID,
 		JobSet:                "testJobSet",
