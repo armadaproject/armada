@@ -498,7 +498,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
-		l.schedulingConfig.UseAdjustedFairShareProtection,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
