@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
@@ -31,8 +30,8 @@ const armadaJobPreemptibleLabel = "armada_preemptible"
 
 // ExecutorApi is the gRPC service executors use to synchronise their state with that of the scheduler.
 type ExecutorApi struct {
-	// Used to send Pulsar messages when, e.g., executors report a job has finished.
-	producer pulsar.Producer
+	// Used to send event sequences received from the executors about job state change to Pulsar
+	publisher pulsarutils.Publisher
 	// Interface to the component storing job information, such as which jobs are leased to a particular executor.
 	jobRepository database.JobRepository
 	// Interface to the component storing executor information, such as which when we last heard from an executor.
@@ -44,18 +43,13 @@ type ExecutorApi struct {
 	// Allowed resource names - resource requests/limits not on this list are dropped.
 	// This is needed to ensure floating resources are not passed to k8s.
 	allowedResources map[string]bool
-	// Max number of events in published Pulsar messages
-	maxEventsPerPulsarMessage int
-	// Max size of Pulsar messages produced.
-	maxPulsarMessageSizeBytes uint
-	// See scheduling schedulingConfig.
-	nodeIdLabel string
+	nodeIdLabel      string
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
 }
 
-func NewExecutorApi(producer pulsar.Producer,
+func NewExecutorApi(publisher pulsarutils.Publisher,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
@@ -63,20 +57,16 @@ func NewExecutorApi(producer pulsar.Producer,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
-	maxEventsPerPulsarMessage int,
-	maxPulsarMessageSizeBytes uint,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
 	}
 	return &ExecutorApi{
-		producer:                  producer,
+		publisher:                 publisher,
 		jobRepository:             jobRepository,
 		executorRepository:        executorRepository,
 		allowedPriorities:         allowedPriorities,
 		allowedResources:          maps.FromSlice(allowedResources, func(name string) string { return name }, func(name string) bool { return true }),
-		maxEventsPerPulsarMessage: maxEventsPerPulsarMessage,
-		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
@@ -345,7 +335,7 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxEventsPerPulsarMessage, srv.maxPulsarMessageSizeBytes)
+	err := srv.publisher.PublishMessages(ctx, list.GetEvents()...)
 	return &types.Empty{}, err
 }
 
