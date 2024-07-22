@@ -16,7 +16,7 @@ To work with [Armada website](https://armadaproject.io/), please checkout this b
 
 * [https://github.com/armadaproject/armada/tree/gh-pages](https://github.com/armadaproject/armada/tree/gh-pages)
 
-If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed [below](#discussions).
+If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed [below](#chat--discussions).
 
 ## Contributing Guide
 
