@@ -51,7 +51,7 @@ spec:
             {{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
             - containerPort: {{ .Values.applicationConfig.profiling.port }}
               protocol: TCP
-              name: pprof
+              name: profiling
             {{- end }}
             - containerPort: {{ .Values.applicationConfig.metricsPort }}
               protocol: TCP

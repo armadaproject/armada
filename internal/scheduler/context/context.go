@@ -19,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -36,10 +35,6 @@ type SchedulingContext struct {
 	Finished time.Time
 	// Pool for which we're currently scheduling jobs.
 	Pool string
-	// Allowed priority classes.
-	PriorityClasses map[string]types.PriorityClass
-	// Default priority class.
-	DefaultPriorityClass string
 	// Determines how fairness is computed.
 	FairnessCostProvider fairness.FairnessCostProvider
 	// Limits job scheduling rate globally across all queues.
@@ -78,8 +73,6 @@ type SchedulingContext struct {
 
 func NewSchedulingContext(
 	pool string,
-	priorityClasses map[string]types.PriorityClass,
-	defaultPriorityClass string,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	limiter *rate.Limiter,
 	totalResources schedulerobjects.ResourceList,
@@ -87,8 +80,6 @@ func NewSchedulingContext(
 	return &SchedulingContext{
 		Started:                           time.Now(),
 		Pool:                              pool,
-		PriorityClasses:                   priorityClasses,
-		DefaultPriorityClass:              defaultPriorityClass,
 		FairnessCostProvider:              fairnessCostProvider,
 		Limiter:                           limiter,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
@@ -822,7 +813,7 @@ func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error)
 	return gangInfo, nil
 }
 
-func JobSchedulingContextsFromJobs[J *jobdb.Job](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
 		jctxs[i] = JobSchedulingContextFromJob(job)

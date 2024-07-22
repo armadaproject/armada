@@ -1,0 +1,35 @@
+{{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.hostnames }}
+{{- $root := . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "executor.name" . }}-profiling
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.applicationConfig.profiling.clusterIssuer" .Values.applicationConfig.profiling.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ required "A value is required for .Values.applicationConfig.profiling.clusterIssuer" .Values.applicationConfig.profiling.clusterIssuer }}
+  labels:
+    {{- include "executor.labels.all" . | nindent 4 }}
+spec:
+  rules:
+  {{- range required "A value is required for .Values.applicationConfig.profiling.hostnames" .Values.applicationConfig.profiling.hostnames }}
+  - host: {{ .  }}
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ include "executor.name" $root }}-profiling
+              port:
+                number: {{ $root.Values.applicationConfig.profiling.port }}
+  {{ end -}}
+  tls:
+    - hosts:
+       {{- range required "A value is required for .Values.applicationConfig.profiling.hostnames" .Values.applicationConfig.profiling.hostnames }}
+      - {{ . -}}
+       {{ end }}
+      secretName: {{ include "executor.name" $root }}-profiling-service-tls
+---
+{{- end }}
+

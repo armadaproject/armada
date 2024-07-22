@@ -39,6 +39,7 @@ pulsar:
   compressionLevel: faster
   maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 #4Mi
+  sendTimeout: 5s
 armadaApi:
   armadaUrl: "server:50051"
   forceNoTls: true
