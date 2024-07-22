@@ -1,13 +1,9 @@
 package adapters
 
 import (
-	"io"
-	"os"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -62,69 +58,6 @@ var (
 		PreemptionPolicy:     string(v1.PreemptLowerPriority),
 	}
 )
-
-func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
-	tests := []struct {
-		name                        string
-		podspec                     v1.PodSpec
-		priorityByPriorityClassName map[string]types.PriorityClass
-		loggedError                 bool
-		priority                    int32
-	}{
-		{
-			name: "PriorityClassName not present in priorityByPriorityClassName map",
-			podspec: v1.PodSpec{
-				PriorityClassName: "priority-8",
-				Containers:        containerObj,
-			},
-			priorityByPriorityClassName: priorityByPriorityClassName,
-			loggedError:                 true,
-			priority:                    0,
-		},
-		{
-			name: "PriorityByPriorityClassName map is nil",
-			podspec: v1.PodSpec{
-				PriorityClassName: "priority-3",
-				Containers:        containerObj,
-			},
-			priorityByPriorityClassName: nil,
-			loggedError:                 false,
-			priority:                    0,
-		},
-		{
-			name: "Priority is set directly on podspec",
-			podspec: v1.PodSpec{
-				Priority:   &priority,
-				Containers: containerObj,
-			},
-			priorityByPriorityClassName: priorityByPriorityClassName,
-			loggedError:                 false,
-			priority:                    priority,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			r, w, _ := os.Pipe()
-			// Stderr from this function would be written to file w
-			logrus.SetOutput(w)
-			scheduler := PodRequirementsFromPodSpec(&test.podspec)
-			// Closing file, w
-			err := w.Close()
-			require.NoError(t, err)
-			// Reading from file
-			out, _ := io.ReadAll(r)
-			assert.Equal(t, scheduler, expectedScheduler)
-			// if loggedError is true, bytes should be written to stderr,
-			// Otherwise, no byte is expected to be written to stderr
-			if test.loggedError {
-				assert.NotEqual(t, len(out), 0)
-			} else {
-				assert.Equal(t, len(out), 0)
-			}
-		})
-	}
-}
 
 func TestPodRequirementsFromPodSpecPreemptionPolicy(t *testing.T) {
 	preemptNever := v1.PreemptNever

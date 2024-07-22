@@ -19,6 +19,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	tests := map[string]struct {
 		node          *internaltypes.Node
 		req           *schedulerobjects.PodRequirements
+		priority      int32
 		expectSuccess bool
 	}{
 		"nil taints and labels": {
@@ -288,6 +289,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
+			priority:      0,
 			expectSuccess: true,
 		},
 		"insufficient cpu": {
@@ -312,6 +314,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
+			priority:      0,
 			expectSuccess: false,
 		},
 		"sufficient cpu at priority": {
@@ -342,6 +345,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
+			priority:      1,
 			expectSuccess: true,
 		},
 		"insufficient cpu at priority": {
@@ -379,7 +383,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			matches, reason, err := JobRequirementsMet(
 				tc.node,
-				0, // TODO: fix this!
+				tc.priority,
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
 					PodRequirements:      tc.req,
