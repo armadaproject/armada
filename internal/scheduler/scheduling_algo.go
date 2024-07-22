@@ -438,8 +438,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 	}
 	sctx := schedulercontext.NewSchedulingContext(
 		pool,
-		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.DefaultPriorityClassName,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,
