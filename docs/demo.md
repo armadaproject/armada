@@ -141,4 +141,3 @@ Web UI:
 
 Open [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io) in your browser.
 
-![Lookout UI](./quickstart/img/lookout.png "Lookout UI")

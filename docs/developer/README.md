@@ -32,22 +32,22 @@ Feel free to create a ticket if you encounter any issues, and link them to the r
 
 Please see these documents for more information about Armadas Design:
 
-* [Armada Components Diagram](./design/relationships_diagram.md)
-* [Armada Architecture](./design/architecture.md)
-* [Armada Design](./design/index.md)
-* [How Priority Functions](./design/priority.md)
-* [Armada Scheduler Design](./design/scheduler.md)
+* [Armada Components Diagram](../design/relationships_diagram.md)
+* [Armada Architecture](../design/architecture.md)
+* [Armada Design](../design)
+* [How Priority Functions](../design/priority.md)
+* [Armada Scheduler Design](../design/scheduler.md)
 
 ## Other Useful Developer Docs
 
-* [Armada API](./developer/api.md)
-* [Running Armada in an EC2 Instance](./developer/aws-ec2.md)
-* [Armada UI](./developer/ui.md)
-* [Usage Metrics](./developer/usage_metrics.md)
-* [Using OIDC with Armada](./developer/oidc.md)
-* [Building the Website](./developer/website.md)
-* [Using Localdev Manually](./developer/manual-localdev.md)
-* [Inspecting and Debugging etcd in Localdev setup](./developer/etc-localdev.md)
+* [Armada API](../developer/api.md)
+* [Running Armada in an EC2 Instance](../developer/aws-ec2.md)
+* [Armada UI](../developer/ui.md)
+* [Usage Metrics](../developer/usage_metrics.md)
+* [Using OIDC with Armada](../developer/oidc.md)
+* [Building the Website](../developer/website.md)
+* [Using Localdev Manually](../developer/manual-localdev.md)
+* [Inspecting and Debugging etcd in Localdev setup](../developer/etc-localdev.md)
 
 ## Pre-requisites
 
@@ -91,7 +91,7 @@ Before making any changes, it's essential to identify which port is causing the 
 
 * Open your [kind.yaml](https://github.com/armadaproject/armada/blob/master/e2e/setup/kind.yaml) file.
 
-2. Locate the relevant section where the `hostPort` is set. It may look something like this:
+1. Locate the relevant section where the `hostPort` is set. It may look something like this:
 
    
    ```
@@ -129,7 +129,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 In LocalDev, the UI is built seperately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
-For more information see the [UI Developer Guide](./developer/ui.md).
+For more information see the [UI Developer Guide](../developer/ui.md).
 
 
 ### Choosing components to run
@@ -172,7 +172,7 @@ It supports the following commands:
 ### VSCode Debugging
 
 After running `mage debug vscode`, you can attach to the running processes using VSCode.
-The launch.json file can be found [Here](../developer/debug/launch.json)
+The launch.json file can be found [Here](../../developer/debug/launch.json)
 
 For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
@@ -217,16 +217,16 @@ All outputs of delve can be found in the `./delve` directory.
 
 External Debug Port Mappings:
 
-|Armada service     |Debug host    |
-|-------------------|--------------|
-|server             |localhost:4000|
-|executor           |localhost:4001|
-|binoculars         |localhost:4002|
-|eventingester      |localhost:4003|
-|lookout            |localhost:4004|
-|lookoutv2          |localhost:4005|
-|lookoutingester    |localhost:4006|
-|lookoutingesterv2  |localhost:4007|
+| Armada service    | Debug host     |
+|-------------------|----------------|
+| server            | localhost:4000 |
+| executor          | localhost:4001 |
+| binoculars        | localhost:4002 |
+| eventingester     | localhost:4003 |
+| lookout           | localhost:4004 |
+| lookoutv2         | localhost:4005 |
+| lookoutingester   | localhost:4006 |
+| lookoutingesterv2 | localhost:4007 |
 
 
 ## GoLand Run Configurations
@@ -251,9 +251,9 @@ GoLand does not allow us to specify an ordering for services within docker compo
 
 Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
 
-For required enviromental variables, please see [The Enviromental Variables Guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
+For required enviromental variables, please see [The Enviromental Variables Guide](../../developer/env/README.md).
 
 ## Finer-Grain Control
 
 If you would like to run the individual mage targets yourself, you can do so.
-See the [Manually Running LocalDev](./developer/manual-localdev.md) guide for more information.
+See the [Manually Running LocalDev](../developer/manual-localdev.md) guide for more information.
