@@ -47,3 +47,7 @@ packages
 
 # macOS
 .DS_Store
+
+# Don't include markdown documentation files in website/, place them in the docs/ directory
+*.md
+!README.md
