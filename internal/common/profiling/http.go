@@ -23,6 +23,10 @@ func SetupPprof(config *configuration.ProfilingConfig, ctx *armadacontext.Contex
 	}
 
 	log.Infof("Setting up pprof server on port %d", config.Port)
+	if config.Auth == nil {
+		log.Errorf("Pprof server auth not configured, will not set up pprof")
+		return nil
+	}
 
 	authServices, err := auth.ConfigureAuth(*config.Auth)
 	if err != nil {
@@ -48,15 +52,18 @@ func SetupPprof(config *configuration.ProfilingConfig, ctx *armadacontext.Contex
 		return ctx, authorizer.AuthorizeAction(armadacontext.FromGrpcCtx(ctx), "pprof")
 	})
 
+	serveFunc := func() error {
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+		return err
+	}
+
 	if g != nil {
-		g.Go(func() error {
-			return serve.ListenAndServe(ctx, pprofServer)
-		})
+		g.Go(serveFunc)
 	} else {
 		go func() {
-			if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-				logging.WithStacktrace(ctx, err).Error("pprof server failure")
-			}
+			_ = serveFunc()
 		}()
 	}
 	return nil

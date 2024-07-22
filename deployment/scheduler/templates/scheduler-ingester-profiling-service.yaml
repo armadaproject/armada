@@ -10,7 +10,6 @@ metadata:
 spec:
   selector:
     app: {{ include "armada-scheduler.name" . }}-ingester
-    {{- include "armada-scheduler-ingester.labels.all" . | nindent 4 }}
   ports:
     - name: profiling
       protocol: TCP
