@@ -47,11 +47,3 @@ packages
 
 # macOS
 .DS_Store
-
-# Don't include docs files in website/ folder => should be placed in the docs/ folder
-*.md
-design/
-developer/
-logo/
-quickstart/
-!README.md
