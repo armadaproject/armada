@@ -23,7 +23,6 @@ func TestReportScheduleCycleTime(t *testing.T) {
 
 	assert.Equal(t, 33.0, sum)
 	assert.Equal(t, 3, count)
-
 }
 
 func TestReportReconcileCycleTime(t *testing.T) {
@@ -40,5 +39,4 @@ func TestReportReconcileCycleTime(t *testing.T) {
 
 	assert.Equal(t, 33.0, sum)
 	assert.Equal(t, 3, count)
-
 }
