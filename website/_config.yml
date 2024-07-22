@@ -25,7 +25,7 @@ defaults:
       path: ""
       type: "posts"
     values:
-      layout: "post" 
+      layout: "post"
 
 sass:
   sass_dir: assets/styles
@@ -38,5 +38,6 @@ plugins:
 
 paginate: 6
 paginate_path: "/blog/page:num/"
-exclude: ["internal"]
-
+exclude:
+  - internal
+  - README.md
