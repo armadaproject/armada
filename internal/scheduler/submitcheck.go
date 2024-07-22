@@ -141,7 +141,7 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 		return nil, fmt.Errorf("executor state not loaded")
 	}
 
-	jobContexts := schedulercontext.JobSchedulingContextsFromJobs(srv.schedulingConfig.PriorityClasses, jobs)
+	jobContexts := schedulercontext.JobSchedulingContextsFromJobs(jobs)
 	results := make(map[string]schedulingResult, len(jobs))
 
 	// First, check if all jobs can be scheduled individually.

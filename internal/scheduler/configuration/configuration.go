@@ -165,8 +165,6 @@ type SchedulingConfig struct {
 	EnableAssertions bool
 	// Only queues allocated more than this fraction of their fair share are considered for preemption.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
-	// Use Max(AdjustedFairShare, FairShare) for fair share protection. If false then FairShare will be used.
-	UseAdjustedFairShareProtection bool
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
 	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
 	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",

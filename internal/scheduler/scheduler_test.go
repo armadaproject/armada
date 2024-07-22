@@ -1436,8 +1436,8 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
 	return &SchedulerResult{
-		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs),
-		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs),
+		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
+		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
 		NodeIdByJobId: nodeIdByJobId,
 	}
 }
