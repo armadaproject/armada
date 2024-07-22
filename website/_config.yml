@@ -41,3 +41,6 @@ paginate_path: "/blog/page:num/"
 exclude:
   - internal
   - README.md
+  - copy.sh
+  - Gemfile
+  - Gemfile.lock
