@@ -1,0 +1,118 @@
+<footer class="footer mt-5 pt-4">  
+  <div class="container" id="bottom">
+    <div class="row row-grid align-items-center mb-2 mt-2">
+      <div class="col-lg-6">
+        <h4 class="mb-0 font-weight-light">{{ site.data.settings.footer_settings.footer_tagline }}</h4>
+      </div>
+      <div class="col-lg-6 text-lg-right">
+        {% include socials.html %}
+      </div>
+    </div>
+    <hr>
+    <div class="row align-items-center justify-content-md-between" id="bottom">
+      <div class="col-md-6">
+        <div class="copyright">
+          <span> © {{ 'now' | date: "%Y" }} Armada Project</span>
+        </div>
+        <div class="copyright">
+          <a href="https://www.linuxfoundation.org/legal/trademark-usage">Trademarks</a>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <ul class="nav nav-footer justify-content-end">
+          {% for item in site.data.settings.menu_settings.menu_items %}
+          {% if item.submenu_items %}
+          <li class="nav-item">
+            <a href="{{ item.url | relative_url }}" class="nav-link">
+              <span class="nav-link-inner--text">{{ item.title }}</span>
+            </a>
+          </li>
+
+          {% else %}
+          <li class="nav-item">
+            <a href="{{ item.url | relative_url }}" class="nav-link">
+              <span class="nav-link-inner--text">{{ item.title }}</span>
+            </a>
+          </li>
+          {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+
+<!--   Core JS Files   -->
+<script src="{{ "/assets/js/core/jquery.min.js" | relative_url }}" type="text/javascript"></script>
+<script src="{{ "/assets/js/core/popper.min.js" | relative_url }}" type="text/javascript"></script>
+<script src="{{ "/assets/js/core/bootstrap.min.js" | relative_url }}" type="text/javascript"></script>
+<script src="{{ "/assets/js/plugins/perfect-scrollbar.jquery.min.js" | relative_url }}"></script>
+<!--  Plugin for Switches, full documentation here: http://www.jque.re/plugins/version3/bootstrap.switch/ -->
+<script src="{{ "/assets/js/plugins/bootstrap-switch.js" | relative_url }}"></script>
+<!--  Plugin for the Sliders, full documentation here: http://refreshless.com/nouislider/ -->
+<script src="{{ "/assets/js/plugins/nouislider.min.js" | relative_url }}" type="text/javascript"></script>
+<!--  Plugin for the Carousel, full documentation here: http://jedrzejchalubek.com/ -->
+<script src="{{ "/assets/js/plugins/glide.js"" | relative_url }}" type="text/javascript"></script>
+<!--  Plugin for the DatePicker, full documentation here: https://flatpickr.js.org/ -->
+<script src="{{ "/assets/js/plugins/moment.min.js" | relative_url }}"></script>
+<!--	Plugin for Select, full documentation here: https://joshuajohnson.co.uk/Choices/ -->
+<script src="{{ "/assets/js/plugins/choices.min.js" | relative_url }}" type="text/javascript"></script>
+<!--  Plugin for the DateTimePicker, full documentation here: https://flatpickr.js.org/ -->
+<script src="{{ "/assets/js/plugins/datetimepicker.js"" | relative_url }}" type="text/javascript"></script>
+<!-- Plugin for Fileupload, full documentation here: http://www.jasny.net/bootstrap/javascript/#fileinput -->
+<script src="{{ "/assets/js/plugins/jasny-bootstrap.min.js"" | relative_url }}"></script>
+<!-- Plugin for Headrom, full documentation here: https://wicky.nillia.ms/headroom.js/ -->
+<script src="{{ "/assets/js/plugins/headroom.min.js" | relative_url }}"></script>
+<!-- Control Center for Argon UI Kit: parallax effects, scripts for the example pages etc -->
+
+<script>
+  // Blog Post Carousel
+  if (document.querySelector('.blogGlide') !== null) {
+    new Glide('.blogGlide', {
+      type: 'carousel',
+      startAt: 0,
+      focusAt: 2,
+      perTouch: 1,
+      perView: 4
+    }).mount();
+  }
+
+  if (document.querySelector('.glide') !== null) {
+    // Generic
+     new Glide('.glide', {
+      type: 'carousel',
+      startAt: 0,
+      focusAt: 2,
+      perTouch: 1,
+      perView: 4
+    }).mount();
+  }
+
+  if (document.querySelector('.testimonial-glide') !== null) {
+    // Testimonial Carousel
+    new Glide('.testimonial-glide', {
+      type: 'carousel',
+      startAt: 0,
+      focusAt: 2,
+      perTouch: 1,
+      perView: 4
+    }).mount();
+  }
+
+</script>
+
+<script>
+  $(function () {
+    var navOffset = $('#navbar-main').height();
+    $('.contentWrapper').css('padding-top', navOffset * 2 + 'px');
+  });    
+</script>
+
+{% if site.data.settings.advanced_settings.google_maps_key %}
+<script
+  src='https://maps.googleapis.com/maps/api/js?key={{ site.data.settings.advanced_settings.google_maps_key }}  '></script>
+{% endif %}
+
+<script src="{{ "/assets/js/argon-design-system.min.js?v=1.0.0" | relative_url }}" type="text/javascript"></script>

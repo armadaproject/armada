@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="436px" height="464px" viewBox="0 0 436 464" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Group</title>
+    <defs>
+        <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#F6F9FC" offset="0%"></stop>
+            <stop stop-color="#E9ECEF" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Group">
+            <g id="Armada_Logo-Color" fill-rule="nonzero">
+                <polygon id="Path" fill="#000000" points="217.63 71.31 153.45 149.15 113.86 160.7 218.12 0 322.39 160.7 282.8 149.15"></polygon>
+                <polygon id="Path" fill="#000000" points="103.95 247.05 39.77 324.88 0.17 336.44 104.44 175.73 208.71 336.44 169.12 324.88"></polygon>
+                <polygon id="Path" fill="#000000" points="331.07 247.05 266.88 324.88 227.29 336.44 331.56 175.73 435.83 336.44 396.24 324.88"></polygon>
+                <path d="M217.63,113.12 L170.68,157.86 C170.68,157.86 189.84,195.5 217.63,208.74 C245.42,195.5 264.63,157.86 264.63,157.86 L217.63,113.12 Z" id="Path" fill="#383838"></path>
+                <path d="M104.44,288.63 L57.44,333.37 C57.44,333.37 76.61,371.01 104.44,384.25 C132.23,371.01 151.44,333.37 151.44,333.37 L104.44,288.63 Z" id="Path" fill="#383838"></path>
+                <path d="M331.56,288.63 L284.56,333.37 C284.56,333.37 303.73,371.01 331.56,384.25 C359.35,371.01 378.56,333.37 378.56,333.37 L331.56,288.63 Z" id="Path" fill="#383838"></path>
+            </g>
+            <ellipse id="Oval" stroke="#DFDFDF" stroke-width="0.5" fill="url(#linearGradient-1)" cx="218" cy="438" rx="181.75" ry="25.75"></ellipse>
+        </g>
+    </g>
+</svg>
