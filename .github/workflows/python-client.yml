@@ -17,8 +17,6 @@ on:
       - './magefiles/python.go'
 
   pull_request:
-    branches-ignore:
-      - gh-pages
     paths:
       - 'client/python/**'
       - 'build/python-client/**'

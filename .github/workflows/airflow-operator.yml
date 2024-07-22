@@ -20,8 +20,6 @@ on:
       - './magefiles/python.go'
 
   pull_request:
-    branches-ignore:
-      - gh-pages
     paths:
       - '.github/workflows/airflow-operator.yml'
       - '.github/workflows/python-client.yml'
