@@ -49,19 +49,24 @@ func NewPulsarPublisher(
 	maxAllowedMessageSize uint,
 	sendTimeout time.Duration,
 ) (*PulsarPublisher, error) {
+	id := uuid.NewString()
+	producerOptions.Name = fmt.Sprintf("armada-scheduler-events-%s", id)
+	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, producerOptions, maxEventsPerMessage, maxAllowedMessageSize, sendTimeout)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	partitions, err := pulsarClient.TopicPartitions(producerOptions.Topic)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	producerOptions.Name = fmt.Sprintf("armada-scheduler-partitions-%s", id)
 	producerOptions.MessageRouter = createMessageRouter(producerOptions)
 	producer, err := pulsarClient.CreateProducer(producerOptions)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, producerOptions, maxEventsPerMessage, maxAllowedMessageSize, sendTimeout)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+
 	return &PulsarPublisher{
 		publisher:     publisher,
 		producer:      producer,
