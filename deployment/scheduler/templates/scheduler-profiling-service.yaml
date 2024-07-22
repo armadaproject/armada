@@ -12,7 +12,6 @@ metadata:
 spec:
   selector:
     statefulset.kubernetes.io/pod-name: {{ include "armada-scheduler.name" $root }}-{{ $i }}
-    {{- include "armada-scheduler.labels.identity" $root | nindent 4 }}
   ports:
     - name: profiling
       protocol: TCP
