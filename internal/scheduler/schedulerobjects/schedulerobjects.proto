@@ -147,11 +147,6 @@ message PodRequirements {
     repeated k8s.io.api.core.v1.Toleration tolerations = 3 [(gogoproto.nullable) = false];
     // Kubernetes annotations. Included here since we use annotations with special meaning.
     map<string, string> annotations = 7;
-    // Priority class priority of the pod as submitted. Should be mapped from the priority class name of the submitted pod.
-    //
-    // During scheduling, the priority stored on the podSchedulingContext should be used instead,
-    // since a pod may be scheduled at a priority different from the priority it was submitted with.
-    int32 priority = 4;
     // One of Never, PreemptLowerPriority.
     // Defaults to PreemptLowerPriority if unset.
     string preemptionPolicy = 5;

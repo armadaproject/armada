@@ -497,14 +497,13 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
-	req := jctx.PodRequirements
 	priorityClass := jctx.Job.PriorityClass()
 
 	// If the job has already been scheduled, get the priority at which it was scheduled.
 	// Otherwise, get the original priority the job was submitted with.
 	priority, ok := nodeDb.GetScheduledAtPriority(jctx.JobId)
 	if !ok {
-		priority = req.Priority
+		priority = jctx.Job.PriorityClass().Priority
 	}
 	pctx := &schedulercontext.PodSchedulingContext{
 		Created:                  time.Now(),
@@ -872,7 +871,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 
 			priority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
 			if !ok {
-				priority = evictedJctx.PodRequirements.Priority
+				priority = evictedJctx.Job.PriorityClass().Priority
 			}
 			if priority > maxPriority {
 				maxPriority = priority

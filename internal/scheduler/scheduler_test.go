@@ -53,7 +53,6 @@ var (
 						Annotations: map[string]string{
 							apiconfig.FailFastAnnotation: "true",
 						},
-						Priority: int32(10),
 					},
 				},
 			},
@@ -68,9 +67,7 @@ var (
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Priority: int32(10),
-					},
+					PodRequirements: &schedulerobjects.PodRequirements{},
 				},
 			},
 		},
@@ -81,9 +78,7 @@ var (
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Priority: int32(10),
-					},
+					PodRequirements: &schedulerobjects.PodRequirements{},
 				},
 			},
 		},
@@ -95,9 +90,7 @@ var (
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Priority: int32(10),
-					},
+					PodRequirements: &schedulerobjects.PodRequirements{},
 				},
 			},
 		},
@@ -109,9 +102,7 @@ var (
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Priority: int32(20),
-					},
+					PodRequirements: &schedulerobjects.PodRequirements{},
 				},
 			},
 		},
@@ -1400,9 +1391,6 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 			return nil, errors.Errorf("was asked to lease %s but job is not queued", job.Id())
 		}
 		priority := int32(0)
-		if req := job.PodRequirements(); req != nil {
-			priority = req.Priority
-		}
 		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun(
 			testExecutor,
 			testNodeId,
@@ -1968,7 +1956,6 @@ func TestCycleConsistency(t *testing.T) {
 									UpdateSequenceNumber:   1,
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
-									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
 									Pool:                   testPool,
 								},
 							},
@@ -2017,7 +2004,6 @@ func TestCycleConsistency(t *testing.T) {
 									UpdateSequenceNumber:   1,
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
-									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
 									Pool:                   testPool,
 								},
 							},
@@ -2084,7 +2070,6 @@ func TestCycleConsistency(t *testing.T) {
 									UpdateSequenceNumber:   1,
 									HasScheduledAtPriority: true,
 									ScheduledAtPriority:    10,
-									PodRequirementsOverlay: &schedulerobjects.PodRequirements{Priority: 10},
 									Pool:                   testPool,
 								},
 							},
@@ -2355,10 +2340,7 @@ func TestCycleConsistency(t *testing.T) {
 				queueByJobId[jobUpdate.JobID] = jobUpdate.Queue
 				jobSetByJobId[jobUpdate.JobID] = jobUpdate.JobSet
 			}
-			instructionConverter, err := scheduleringester.NewInstructionConverter(
-				nil,
-				testfixtures.TestPriorityClasses,
-			)
+			instructionConverter, err := scheduleringester.NewInstructionConverter(nil)
 			require.NoError(t, err)
 
 			// Helper function for creating new schedulers for use in tests.

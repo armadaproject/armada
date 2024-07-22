@@ -598,7 +598,6 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 								Tolerations: jctx.AdditionalTolerations,
 								Annotations: additionalAnnotationsByJobId[job.Id()],
-								Priority:    scheduledAtPriority,
 							},
 							Pool: run.Pool(),
 						},

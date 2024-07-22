@@ -130,7 +130,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobId := job.Id()
 
-	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PodRequirements().Priority)
+	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	unboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
@@ -146,7 +146,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PodRequirements().Priority)
+	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, entry)
@@ -155,7 +155,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
 	require.NoError(t, err)
 
-	_, err = nodeDb.bindJobToNode(boundNode, job, job.PodRequirements().Priority)
+	_, err = nodeDb.bindJobToNode(boundNode, job, job.PriorityClass().Priority)
 	require.Error(t, err)
 
 	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, evictedNode)

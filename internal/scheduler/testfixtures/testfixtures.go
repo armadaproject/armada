@@ -561,7 +561,6 @@ func N1GpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRe
 
 func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.ResourceList) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority:             priority,
 		ResourceRequirements: v1.ResourceRequirements{Requests: requests},
 		Annotations:          make(map[string]string),
 		NodeSelector:         make(map[string]string),
@@ -650,9 +649,8 @@ func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 	return req
 }
 
-func TestUnitReqs(priority int32) *schedulerobjects.PodRequirements {
+func TestUnitReqs() *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("1"),
@@ -867,7 +865,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 				{
 					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: TestUnitReqs(1),
+						PodRequirements: TestUnitReqs(),
 					},
 				},
 			},

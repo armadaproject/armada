@@ -169,7 +169,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			&schedulerobjects.PodRequirements{
 				Tolerations: tolerations,
 				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
-				Priority:    1000,
 			},
 		),
 	}

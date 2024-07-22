@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -109,13 +108,12 @@ func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
 			r, w, _ := os.Pipe()
 			// Stderr from this function would be written to file w
 			logrus.SetOutput(w)
-			scheduler := PodRequirementsFromPodSpec(&test.podspec, test.priorityByPriorityClassName)
+			scheduler := PodRequirementsFromPodSpec(&test.podspec)
 			// Closing file, w
 			err := w.Close()
 			require.NoError(t, err)
 			// Reading from file
 			out, _ := io.ReadAll(r)
-			expectedScheduler.Priority = test.priority
 			assert.Equal(t, scheduler, expectedScheduler)
 			// if loggedError is true, bytes should be written to stderr,
 			// Otherwise, no byte is expected to be written to stderr
@@ -157,51 +155,8 @@ func TestPodRequirementsFromPodSpecPreemptionPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			scheduler := PodRequirementsFromPodSpec(&test.podspec, priorityByPriorityClassName)
+			scheduler := PodRequirementsFromPodSpec(&test.podspec)
 			assert.Equal(t, scheduler.PreemptionPolicy, string(test.preemptionpolicy))
-		})
-	}
-}
-
-func TestPriorityFromPodSpec(t *testing.T) {
-	tests := map[string]struct {
-		podSpec          *v1.PodSpec
-		expectedPriority int32
-		expectedOk       bool
-	}{
-		"nil podSpec": {
-			podSpec:          nil,
-			expectedPriority: 0,
-			expectedOk:       false,
-		},
-		"priority already set": {
-			podSpec: &v1.PodSpec{
-				Priority:          pointer.Int32(1),
-				PriorityClassName: PriorityClass2,
-			},
-			expectedPriority: 1,
-			expectedOk:       true,
-		},
-		"existing priorityClass": {
-			podSpec: &v1.PodSpec{
-				PriorityClassName: PriorityClass2,
-			},
-			expectedPriority: 2,
-			expectedOk:       true,
-		},
-		"non-existing priorityClass": {
-			podSpec: &v1.PodSpec{
-				PriorityClassName: "does not exist",
-			},
-			expectedPriority: 0,
-			expectedOk:       false,
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			p, ok := PriorityFromPodSpec(tc.podSpec, priorityByPriorityClassName)
-			assert.Equal(t, tc.expectedPriority, p)
-			assert.Equal(t, tc.expectedOk, ok)
 		})
 	}
 }

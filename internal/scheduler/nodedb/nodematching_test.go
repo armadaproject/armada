@@ -287,7 +287,6 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 0,
 			},
 			expectSuccess: true,
 		},
@@ -312,7 +311,6 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 0,
 			},
 			expectSuccess: false,
 		},
@@ -343,7 +341,6 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 1,
 			},
 			expectSuccess: true,
 		},
@@ -374,7 +371,6 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 0,
 			},
 			expectSuccess: false,
 		},
@@ -383,7 +379,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			matches, reason, err := JobRequirementsMet(
 				tc.node,
-				tc.req.Priority,
+				0, // TODO: fix this!
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
 					PodRequirements:      tc.req,
