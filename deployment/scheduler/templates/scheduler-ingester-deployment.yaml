@@ -48,7 +48,7 @@ spec:
             {{- if and .Values.ingester.applicationConfig.profiling .Values.ingester.applicationConfig.profiling.port }}
             - containerPort: {{ .Values.ingester.applicationConfig.profiling.port }}
               protocol: TCP
-              name: pprof
+              name: profiling
             {{- end }}
             - containerPort: {{ .Values.ingester.applicationConfig.metricsPort }}
               protocol: TCP

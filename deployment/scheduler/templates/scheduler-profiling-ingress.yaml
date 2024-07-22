@@ -1,4 +1,4 @@
-{{- if and .Values.scheduler.applicationConfig.profiling .Values.scheduler.applicationConfig.profiling.port }}
+{{- if and .Values.scheduler.applicationConfig.profiling .Values.scheduler.applicationConfig.profiling.hostnames }}
 {{- $root := . -}}
 {{- range $i := until (int .Values.scheduler.replicas) }}
 apiVersion: networking.k8s.io/v1
@@ -7,15 +7,15 @@ metadata:
   name: {{ $root.Values.scheduler.ingress.nameOverride | default (include "armada-scheduler.name" $root) }}-{{ $i }}-profiling
   namespace: {{ $root.Release.Namespace }}
   annotations:
-    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for $root.Values.scheduler.clusterIssuer" $root.Values.scheduler.clusterIssuer }}
-    cert-manager.io/cluster-issuer: {{ required "A value is required for $root.Values.scheduler.clusterIssuer" $root.Values.scheduler.clusterIssuer }}
+    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for $root.Values.scheduler.applicationConfig.profiling.clusterIssuer" $root.Values.scheduler.applicationConfig.profiling.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ required "A value is required for $root.Values.scheduler.applicationConfig.profiling.clusterIssuer" $root.Values.scheduler.applicationConfig.profiling.clusterIssuer }}
   labels:
     {{- include "armada-scheduler.labels.all" $root | nindent 4 }}
 spec:
   rules:
-  {{- range required "A value is required for .Values.scheduler.hostnames" $root.Values.scheduler.hostnames }}
+  {{- range required "A value is required for .Values.scheduler.applicationConfig.profiling.hostnames" $root.Values.scheduler.applicationConfig.profiling.hostnames }}
   {{- $splits := splitList "." . -}}
-  {{- $hostname := (list (first $splits) "-" $i "-profiling." (rest $splits | join ".")) | join "" }}
+  {{- $hostname := (list (first $splits) "-" $i "." (rest $splits | join ".")) | join "" }}
   - host: {{ $hostname  }}
     http:
       paths:
@@ -29,9 +29,9 @@ spec:
   {{ end -}}
   tls:
     - hosts:
-       {{- range required "A value is required for .Values.scheduler.hostnames" $root.Values.scheduler.hostnames }}
+       {{- range required "A value is required for .Values.scheduler.applicationConfig.profiling.hostnames" $root.Values.scheduler.applicationConfig.profiling.hostnames }}
        {{- $splits := splitList "." . -}}
-       {{- $hostname := (list (first $splits) "-" $i "-profiling." (rest $splits | join ".")) | join "" }}
+       {{- $hostname := (list (first $splits) "-" $i "." (rest $splits | join ".")) | join "" }}
       - {{ $hostname -}}
        {{ end }}
       secretName: armada-scheduler-{{ $i }}-profiling-service-tls
