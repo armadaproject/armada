@@ -1,21 +1,18 @@
 package metrics
 
 import (
+	"testing"
+	"time"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
-	"testing"
-	"time"
 )
 
 func TestUpdate(t *testing.T) {
-
 	ctx := armadacontext.Background()
 
 	metrics, err := New(configuration.MetricsConfig{
@@ -41,7 +38,7 @@ func TestUpdate(t *testing.T) {
 		true)
 
 	jobRunErrorsByRunId := map[uuid.UUID]*armadaevents.Error{
-		uuid.MustParse(queuedJob.Id()): &armadaevents.Error{
+		uuid.MustParse(queuedJob.Id()): {
 			Terminal: true,
 			Reason: &armadaevents.Error_PodError{
 				PodError: &armadaevents.PodError{
