@@ -29,7 +29,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -53,13 +52,11 @@ func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	// ////////////////////////////////////////////////////////////////////////
-	// Profiling
+	// Expose profiling endpoints if enabled.
 	// ////////////////////////////////////////////////////////////////////////
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		g.Go(func() error {
-			return serve.ListenAndServe(ctx, pprofServer)
-		})
+	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -139,7 +136,7 @@ func Run(config schedulerconfig.Configuration) error {
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.Pulsar.MaxAllowedEventsPerMessage, config.PulsarSendTimeout)
+	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
@@ -157,17 +154,18 @@ func Run(config schedulerconfig.Configuration) error {
 	// Executor Api
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
-	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+	apiPublisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	})
+	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
 	if err != nil {
-		return errors.Wrapf(err, "error creating pulsar producer for executor api")
+		return errors.Wrapf(err, "error creating pulsar publisher for executor api")
 	}
-	defer apiProducer.Close()
+	defer apiPublisher.Close()
+
 	authServices, err := auth.ConfigureAuth(config.Auth)
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
@@ -179,7 +177,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
 	executorServer, err := NewExecutorApi(
-		apiProducer,
+		apiPublisher,
 		jobRepository,
 		executorRepository,
 		types.AllowedPriorities(config.Scheduling.PriorityClasses),
@@ -187,8 +185,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
-		config.Pulsar.MaxAllowedEventsPerMessage,
-		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")

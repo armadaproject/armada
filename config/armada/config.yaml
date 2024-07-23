@@ -65,6 +65,7 @@ submission:
   defaultActiveDeadline: "72h" # 3 days.
   defaultActiveDeadlineByResourceRequest:
     nvidia.com/gpu: "336h" # 14 days.
+  assertInitContainersRequestFractionalCpu: true
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -77,6 +78,7 @@ pulsar:
   eventsPrinterSubscription: "EventsPrinter"
   maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 # 4MB
+  sendTimeout: 5s
   receiverQueueSize: 100
 postgres:
   connection:

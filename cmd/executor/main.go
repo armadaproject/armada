@@ -7,16 +7,14 @@ import (
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 )
@@ -41,14 +39,9 @@ func main() {
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
 	// Expose profiling endpoints if enabled.
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		go func() {
-			ctx := armadacontext.Background()
-			if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-				logging.WithStacktrace(ctx, err).Error("pprof server failure")
-			}
-		}()
+	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	mux := http.NewServeMux()
@@ -68,7 +61,7 @@ func main() {
 	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(armadacontext.Background(), logrus.NewEntry(logrus.StandardLogger()), config)
+	shutdown, wg := executor.StartUp(armadacontext.Background(), log.NewEntry(log.StandardLogger()), config)
 	go func() {
 		<-shutdownChannel
 		shutdown()

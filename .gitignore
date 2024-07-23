@@ -9,10 +9,6 @@ armadactl.yaml
 loadtest.yaml
 test_reports
 code_reports
-/jobservice
-jobservice.db
-jobservice.db-shm
-jobservice.db-wal
 /armadactl
 junit.xml
 docker-compose.dev.yaml

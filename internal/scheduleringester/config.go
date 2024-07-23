@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 )
 
@@ -26,6 +27,6 @@ type Configuration struct {
 	PulsarReceiveTimeout time.Duration
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	// If non-nil, configures pprof profiling
+	Profiling *profilingconfig.ProfilingConfig
 }

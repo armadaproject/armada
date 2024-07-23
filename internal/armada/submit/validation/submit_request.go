@@ -28,6 +28,7 @@ var (
 		validatePodSpecSize,
 		validateAffinity,
 		validateResources,
+		validateInitContainerCpu,
 		validatePriorityClasses,
 		validateTerminationGracePeriod,
 		validateIngresses,
@@ -333,6 +334,33 @@ func validateTerminationGracePeriod(j *api.JobSubmitRequestItem, config configur
 				terminationGracePeriodSeconds,
 				config.MinTerminationGracePeriod,
 				config.MaxTerminationGracePeriod)
+		}
+	}
+	return nil
+}
+
+// Ensures that any init containers request non-integer cpu.  This is because when using static cpu manager init
+// containers with integer cpu can cause pods to fail with an error of "Pod Allocate failed due to not enough cpus
+// available to satisfy request, which is unexpected".
+// See https://github.com/kubernetes/kubernetes/issues/112228
+func validateInitContainerCpu(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
+	if !config.AssertInitContainersRequestFractionalCpu {
+		return nil
+	}
+
+	spec := j.GetMainPodSpec()
+	if spec == nil {
+		return nil
+	}
+	const errMsg = "Init container %s contains invalid cpu value %s.  All init containers must set requests/limits to fractional cpu e.g. 900m"
+	for _, container := range spec.InitContainers {
+		requestCpu := container.Resources.Requests.Cpu()
+		limitCpu := container.Resources.Limits.Cpu()
+		if !requestCpu.IsZero() && requestCpu.MilliValue()%1000 == 0 {
+			return fmt.Errorf(errMsg, container.Name, requestCpu)
+		}
+		if !limitCpu.IsZero() && limitCpu.MilliValue()%1000 == 0 {
+			return fmt.Errorf(errMsg, container.Name, limitCpu)
 		}
 	}
 	return nil

@@ -219,7 +219,7 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 type fairSchedulingAlgoContext struct {
 	queues                                   []*api.Queue
 	priorityFactorByQueue                    map[string]float64
-	demandByPoolByQueue                      map[string]map[string]schedulerobjects.ResourceList
+	demandByPoolByQueue                      map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	nodesByPoolAndExecutor                   map[string]map[string][]*schedulerobjects.Node
 	jobsByPoolAndExecutor                    map[string]map[string][]*jobdb.Job
@@ -290,7 +290,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
-	demandByPoolByQueue := make(map[string]map[string]schedulerobjects.ResourceList)
+	demandByPoolByQueue := make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string])
 
 	for _, job := range txn.GetAll() {
 
@@ -315,15 +315,20 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		for _, pool := range pools {
 			poolQueueResources, ok := demandByPoolByQueue[pool]
 			if !ok {
-				poolQueueResources = make(map[string]schedulerobjects.ResourceList, len(queues))
+				poolQueueResources = make(map[string]schedulerobjects.QuantityByTAndResourceType[string], len(queues))
 				demandByPoolByQueue[pool] = poolQueueResources
 			}
 			queueResources, ok := poolQueueResources[job.Queue()]
 			if !ok {
-				queueResources = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+				queueResources = schedulerobjects.QuantityByTAndResourceType[string]{}
 				poolQueueResources[job.Queue()] = queueResources
 			}
-			queueResources.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+			pcResources, ok := queueResources[job.PriorityClassName()]
+			if !ok {
+				pcResources = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+				queueResources[job.PriorityClassName()] = pcResources
+			}
+			pcResources.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 		}
 
 		if job.Queued() {
@@ -433,16 +438,21 @@ func (l *FairSchedulingAlgo) schedulePool(
 	}
 	sctx := schedulercontext.NewSchedulingContext(
 		pool,
-		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.DefaultPriorityClassName,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,
 	)
 
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		pool,
+		fsctx.totalCapacityByPool[pool],
+		l.schedulingConfig,
+		fsctx.queues,
+	)
+
 	demandByQueue, ok := fsctx.demandByPoolByQueue[pool]
 	if !ok {
-		demandByQueue = map[string]schedulerobjects.ResourceList{}
+		demandByQueue = map[string]schedulerobjects.QuantityByTAndResourceType[string]{}
 	}
 
 	now := time.Now()
@@ -452,6 +462,8 @@ func (l *FairSchedulingAlgo) schedulePool(
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 			continue
 		}
+		cappedDemand := constraints.CapResources(queue, demand)
+
 		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 		if allocatedByQueueAndPriorityClass := fsctx.allocationByPoolAndQueueAndPriorityClass[pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
@@ -473,23 +485,17 @@ func (l *FairSchedulingAlgo) schedulePool(
 
 		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate))
 
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, demand, queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, demand.AggregateByResource(), cappedDemand.AggregateByResource(), queueLimiter); err != nil {
 			return nil, nil, err
 		}
 	}
+
 	sctx.UpdateFairShares()
-	constraints := schedulerconstraints.NewSchedulingConstraints(
-		pool,
-		fsctx.totalCapacityByPool[pool],
-		l.schedulingConfig,
-		fsctx.queues,
-	)
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
-		l.schedulingConfig.UseAdjustedFairShareProtection,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,

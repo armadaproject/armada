@@ -1,11 +1,9 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
@@ -18,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -293,7 +290,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := mocks.NewMockProducer(ctrl)
+			mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
@@ -319,7 +316,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				}).AnyTimes()
 
 			server, err := NewExecutorApi(
-				mockPulsarProducer,
+				mockPulsarPublisher,
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{1000, 2000},
@@ -327,8 +324,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
-				1000,
-				4*1024*1024,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -429,25 +424,24 @@ func TestExecutorApi_Publish(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := mocks.NewMockProducer(ctrl)
+			mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
-			mockPulsarProducer.
+			mockPulsarPublisher.
 				EXPECT().
-				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ context.Context, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
-					es := &armadaevents.EventSequence{}
-					err := proto.Unmarshal(msg.Payload, es)
-					require.NoError(t, err)
-					capturedEvents = append(capturedEvents, es)
-					callback(pulsarutils.NewMessageId(1), msg, nil)
+				PublishMessages(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ *armadacontext.Context, sequences ...*armadaevents.EventSequence) error {
+					for _, es := range sequences {
+						capturedEvents = append(capturedEvents, es)
+					}
+					return nil
 				}).AnyTimes()
 
 			server, err := NewExecutorApi(
-				mockPulsarProducer,
+				mockPulsarPublisher,
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{1000, 2000},
@@ -455,8 +449,6 @@ func TestExecutorApi_Publish(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
-				1000,
-				4*1024*1024,
 			)
 
 			require.NoError(t, err)

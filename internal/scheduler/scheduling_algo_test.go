@@ -493,6 +493,13 @@ func TestSchedule(t *testing.T) {
 				assert.Equal(t, 0, len(actualScheduledIndices))
 			} else {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
+				for _, job := range scheduledJobs {
+					index := queueIndexByJobId[job.Id()]
+					// This is to check scheduling hasn't updated the original jobs scheduling details
+					// Ideally we'd be even stricter here and check it has only modified expected fields (i.e added a run, incremented queue version)
+					assert.Equal(t, job.SchedulingKey(), tc.queuedJobs[index].SchedulingKey())
+					assert.Equal(t, job.JobSchedulingInfo(), tc.queuedJobs[index].JobSchedulingInfo())
+				}
 			}
 
 			scheduledJobsPerPool := armadaslices.GroupByFunc(scheduledJobs, func(j *jobdb.Job) string {

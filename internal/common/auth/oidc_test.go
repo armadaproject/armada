@@ -29,23 +29,24 @@ func TestOpenIdAuthService(t *testing.T) {
 	keySet := &fakeKeySet{payload, nil}
 	verifier := oidc.NewVerifier("fake_issuer", keySet, &oidc.Config{SkipClientIDCheck: true})
 
+	authHeader := "bearer " + token
 	ctx := metadata.NewIncomingContext(context.Background(), map[string][]string{
-		"authorization": {"bearer " + token},
+		"authorization": {authHeader},
 	})
 
 	service := NewOpenIdAuthService(verifier, "groups")
 
-	principal, e := service.Authenticate(ctx)
+	principal, e := service.Authenticate(ctx, authHeader)
 	assert.Nil(t, e)
 	assert.Equal(t, "me", principal.GetName())
 	assert.True(t, principal.IsInGroup("test"))
 
-	_, e = service.Authenticate(context.Background())
+	_, e = service.Authenticate(context.Background(), "")
 	var missingCredsErr *armadaerrors.ErrMissingCredentials
 	assert.ErrorAs(t, e, &missingCredsErr)
 
 	keySet.err = errors.New("wrong signature")
-	_, e = service.Authenticate(ctx)
+	_, e = service.Authenticate(ctx, authHeader)
 	assert.NotNil(t, e)
 	assert.NotErrorIs(t, e, missingCredsErr)
 }

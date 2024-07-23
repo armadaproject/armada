@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"k8s.io/utils/clock"
 
@@ -69,66 +68,59 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 	}
 	logQuery(query, "GetJobs")
 	var jobs []*model.Job
-	if err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
-		IsoLevel:       pgx.RepeatableRead,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query.Sql, query.Args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var row jobRow
-			var annotations sql.NullString
-			var runs sql.NullString
-			if err := rows.Scan(
-				&row.jobId,
-				&row.queue,
-				&row.owner,
-				&row.namespace,
-				&row.jobSet,
-				&row.cpu,
-				&row.memory,
-				&row.ephemeralStorage,
-				&row.gpu,
-				&row.priority,
-				&row.submitted,
-				&row.cancelled,
-				&row.state,
-				&row.lastTransitionTime,
-				&row.duplicate,
-				&row.priorityClass,
-				&row.latestRunId,
-				&row.cancelReason,
-				&annotations,
-				&runs,
-			); err != nil {
-				return err
-			}
-			job := jobRowToModel(&row)
-			if annotations.Valid {
-				if err := json.Unmarshal([]byte(annotations.String), &job.Annotations); err != nil {
-					return err
-				}
-			}
-			if runs.Valid {
-				if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
-					return err
-				}
-			}
-			if len(job.Runs) > 0 {
-				lastRun := job.Runs[len(job.Runs)-1] // Get the last run
-				job.Node = lastRun.Node
-				job.Cluster = lastRun.Cluster
-				job.ExitCode = lastRun.ExitCode
-				job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, r.clock)
-			}
-			jobs = append(jobs, job)
-		}
-		return nil
-	}); err != nil {
+
+	rows, err := r.db.Query(ctx, query.Sql, query.Args...)
+	if err != nil {
 		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var row jobRow
+		var annotations sql.NullString
+		var runs sql.NullString
+		if err := rows.Scan(
+			&row.jobId,
+			&row.queue,
+			&row.owner,
+			&row.namespace,
+			&row.jobSet,
+			&row.cpu,
+			&row.memory,
+			&row.ephemeralStorage,
+			&row.gpu,
+			&row.priority,
+			&row.submitted,
+			&row.cancelled,
+			&row.state,
+			&row.lastTransitionTime,
+			&row.duplicate,
+			&row.priorityClass,
+			&row.latestRunId,
+			&row.cancelReason,
+			&annotations,
+			&runs,
+		); err != nil {
+			return nil, err
+		}
+		job := jobRowToModel(&row)
+		if annotations.Valid {
+			if err := json.Unmarshal([]byte(annotations.String), &job.Annotations); err != nil {
+				return nil, err
+			}
+		}
+		if runs.Valid {
+			if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
+				return nil, err
+			}
+		}
+		if len(job.Runs) > 0 {
+			lastRun := job.Runs[len(job.Runs)-1] // Get the last run
+			job.Node = lastRun.Node
+			job.Cluster = lastRun.Cluster
+			job.ExitCode = lastRun.ExitCode
+			job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, r.clock)
+		}
+		jobs = append(jobs, job)
 	}
 	return &GetJobsResult{Jobs: jobs}, nil
 }

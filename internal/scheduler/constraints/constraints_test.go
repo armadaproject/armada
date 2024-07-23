@@ -144,7 +144,7 @@ func TestConstraints(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ok, unscheduledReason, err := tc.constraints.CheckRoundConstraints(tc.sctx, tc.queue)
+			ok, unscheduledReason, err := tc.constraints.CheckRoundConstraints(tc.sctx)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedCheckRoundConstraintsReason == "", ok)
 			require.Equal(t, tc.expectedCheckRoundConstraintsReason, unscheduledReason)
@@ -153,6 +153,149 @@ func TestConstraints(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedCheckConstraintsReason == "", ok)
 			require.Equal(t, tc.expectedCheckConstraintsReason, unscheduledReason)
+		})
+	}
+}
+
+func TestCapResources(t *testing.T) {
+	tests := map[string]struct {
+		constraints       SchedulingConstraints
+		queue             string
+		resources         schedulerobjects.QuantityByTAndResourceType[string]
+		expectedResources schedulerobjects.QuantityByTAndResourceType[string]
+	}{
+		"no contraints": {
+			constraints: NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				makeSchedulingConfig(),
+				[]*api.Queue{},
+			),
+			queue:             "queue-1",
+			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
+			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
+		},
+		"unconstrained": {
+			constraints: NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				configuration.SchedulingConfig{
+					PriorityClasses: map[string]types.PriorityClass{
+						"priority-class-1": {
+							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+								"pool-1": {"cpu": 0.1, "memory": 0.9},
+							},
+						},
+					},
+				},
+				[]*api.Queue{},
+			),
+			queue:             "queue-1",
+			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
+			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
+		},
+		"per pool cap": {
+			constraints: NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				configuration.SchedulingConfig{
+					PriorityClasses: map[string]types.PriorityClass{
+						"priority-class-1": {
+							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+								"pool-1": {"cpu": 0.1, "memory": 0.9},
+							},
+						},
+					},
+				},
+				[]*api.Queue{},
+			),
+			queue:             "queue-1",
+			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
+			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("100", "900Gi")},
+		},
+		"per queue cap": {
+			constraints: NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				configuration.SchedulingConfig{
+					PriorityClasses: map[string]types.PriorityClass{
+						"priority-class-1": {
+							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+								"pool-1": {"cpu": 0.1, "memory": 0.9},
+							},
+						},
+					},
+				},
+				[]*api.Queue{
+					{
+						Name: "queue-1",
+						ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
+							"priority-class-1": {
+								MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9},
+							},
+						},
+					},
+				},
+			),
+			queue:             "queue-1",
+			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
+			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("900", "900Gi")},
+		},
+		"per queue cap with multi pc": {
+			constraints: NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				configuration.SchedulingConfig{
+					PriorityClasses: map[string]types.PriorityClass{
+						"priority-class-1": {
+							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+								"pool-1": {"cpu": 0.1, "memory": 0.9},
+							},
+						},
+					},
+				},
+				[]*api.Queue{
+					{
+						Name: "queue-1",
+						ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
+							"priority-class-1": {
+								MaximumResourceFraction: map[string]float64{"cpu": 0.1, "memory": 0.1},
+							},
+							"priority-class-2": {
+								MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9},
+							},
+						},
+					},
+				},
+			),
+			queue: "queue-1",
+			resources: map[string]schedulerobjects.ResourceList{
+				"priority-class-1": makeResourceList("1000", "1000Gi"),
+				"priority-class-2": makeResourceList("2000", "2000Gi"),
+			},
+			expectedResources: map[string]schedulerobjects.ResourceList{
+				"priority-class-1": makeResourceList("100", "100Gi"),
+				"priority-class-2": makeResourceList("900", "900Gi"),
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			capped := tc.constraints.CapResources(tc.queue, tc.resources)
+
+			// Compare resources for equality. Note that we can't just do assert.Equal(tc.expectedResources, capped)
+			// because the scale may have changed
+			require.Equal(t, len(tc.expectedResources), len(capped), "number of priority classes differs")
+			for pc, rl := range tc.expectedResources {
+				cappedRl, ok := capped[pc]
+				require.True(t, ok, "no resource list found for priority class %s", pc)
+				require.Equal(t, len(rl.Resources), len(cappedRl.Resources), "number of resources differs for priority class %s", pc)
+				for res, qty := range rl.Resources {
+					cappedRes, ok := cappedRl.Resources[res]
+					require.True(t, ok, "resource %s doesn't exist at priority class %s", res, pc)
+					assert.Equal(t, 0, qty.Cmp(cappedRes), "resource %s differs at priority class %s", res, pc)
+				}
+			}
 		})
 	}
 }

@@ -556,8 +556,6 @@ func TestGangScheduler(t *testing.T) {
 			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
 				"pool",
-				tc.SchedulingConfig.PriorityClasses,
-				tc.SchedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				rate.NewLimiter(
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -570,6 +568,7 @@ func TestGangScheduler(t *testing.T) {
 					queue,
 					priorityFactor,
 					nil,
+					schedulerobjects.NewResourceList(0),
 					schedulerobjects.NewResourceList(0),
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
@@ -592,7 +591,7 @@ func TestGangScheduler(t *testing.T) {
 			var actualScheduledIndices []int
 			scheduledGangs := 0
 			for i, gang := range tc.Gangs {
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.SchedulingConfig.PriorityClasses, gang)
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(gang)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 				require.NoError(t, err)

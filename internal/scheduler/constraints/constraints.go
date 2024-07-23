@@ -1,7 +1,6 @@
 package constraints
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/pkg/errors"
@@ -151,7 +150,7 @@ func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	return q
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
 	// maximumResourcesToSchedule check.
 	if !isStrictlyLessOrEqual(sctx.ScheduledResources.Resources, constraints.maximumResourcesToSchedule) {
 		return false, MaximumResourcesScheduledUnschedulableReason, nil
@@ -193,9 +192,7 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	}
 
 	// queueSchedulingConstraintsByQueueName / priorityClassSchedulingConstraintsByPriorityClassName checks.
-	queueAndPriorityClassResourceLimits := constraints.getQueueAndPriorityClassResourceLimits(gctx)
-	priorityClassResourceLimits := constraints.getPriorityClassResourceLimits(gctx)
-	overallResourceLimits := util.MergeMaps(priorityClassResourceLimits, queueAndPriorityClassResourceLimits)
+	overallResourceLimits := constraints.resolveResourceLimitsForQueueAndPriorityClass(gctx.Queue, gctx.PriorityClassName)
 	if !isStrictlyLessOrEqual(qctx.AllocatedByPriorityClass[gctx.PriorityClassName].Resources, overallResourceLimits) {
 		return false, UnschedulableReasonMaximumResourcesExceeded, nil
 	}
@@ -203,30 +200,44 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	return true, "", nil
 }
 
-func (constraints *SchedulingConstraints) getQueueAndPriorityClassResourceLimits(gctx *schedulercontext.GangSchedulingContext) map[string]resource.Quantity {
-	if queueConstraint, ok := constraints.queueSchedulingConstraintsByQueueName[gctx.Queue]; ok {
-		if priorityClassConstraint, ok := queueConstraint.PriorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
+func (constraints *SchedulingConstraints) CapResources(queue string, resourcesByPc schedulerobjects.QuantityByTAndResourceType[string]) schedulerobjects.QuantityByTAndResourceType[string] {
+	cappedResourcesByPc := schedulerobjects.QuantityByTAndResourceType[string]{}
+	for pc, resources := range resourcesByPc {
+		overallResourceLimits := constraints.resolveResourceLimitsForQueueAndPriorityClass(queue, pc)
+		cappedResources := make(map[string]resource.Quantity, len(resources.Resources))
+		for resourceName, qty := range resources.Resources {
+			limit, ok := overallResourceLimits[resourceName]
+			if ok && qty.Cmp(limit) == 1 {
+				cappedResources[resourceName] = limit
+			} else {
+				cappedResources[resourceName] = qty
+			}
+		}
+		cappedResourcesByPc[pc] = schedulerobjects.ResourceList{Resources: cappedResources}
+	}
+	return cappedResourcesByPc
+}
+
+func (constraints *SchedulingConstraints) resolveResourceLimitsForQueueAndPriorityClass(queue string, priorityClass string) map[string]resource.Quantity {
+	queueAndPriorityClassResourceLimits := constraints.getQueueAndPriorityClassResourceLimits(queue, priorityClass)
+	priorityClassResourceLimits := constraints.getPriorityClassResourceLimits(priorityClass)
+	return util.MergeMaps(priorityClassResourceLimits, queueAndPriorityClassResourceLimits)
+}
+
+func (constraints *SchedulingConstraints) getQueueAndPriorityClassResourceLimits(queue string, priorityClass string) map[string]resource.Quantity {
+	if queueConstraint, ok := constraints.queueSchedulingConstraintsByQueueName[queue]; ok {
+		if priorityClassConstraint, ok := queueConstraint.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClass]; ok {
 			return priorityClassConstraint.MaximumResourcesPerQueue
 		}
 	}
 	return map[string]resource.Quantity{}
 }
 
-func (constraints *SchedulingConstraints) getPriorityClassResourceLimits(gctx *schedulercontext.GangSchedulingContext) map[string]resource.Quantity {
-	if priorityClassConstraint, ok := constraints.priorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
+func (constraints *SchedulingConstraints) getPriorityClassResourceLimits(priorityClass string) map[string]resource.Quantity {
+	if priorityClassConstraint, ok := constraints.priorityClassSchedulingConstraintsByPriorityClassName[priorityClass]; ok {
 		return priorityClassConstraint.MaximumResourcesPerQueue
 	}
 	return map[string]resource.Quantity{}
-}
-
-func RequestsAreLargeEnough(totalResourceRequests, minRequest map[string]resource.Quantity) (bool, string) {
-	for t, minQuantity := range minRequest {
-		q := totalResourceRequests[t]
-		if minQuantity.Cmp(q) == 1 {
-			return false, fmt.Sprintf("job requests %s %s, but the minimum is %s", q.String(), t, minQuantity.String())
-		}
-	}
-	return true, ""
 }
 
 func (constraints *SchedulingConstraints) GetMaxQueueLookBack() uint {

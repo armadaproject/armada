@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -40,8 +41,8 @@ type Configuration struct {
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	Http       HttpConfig
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	// If non-nil, configures pprof profiling
+	Profiling *profilingconfig.ProfilingConfig
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
@@ -56,8 +57,6 @@ type Configuration struct {
 	ExecutorTimeout time.Duration `validate:"required"`
 	// Maximum number of rows to fetch in a given query
 	DatabaseFetchSize int `validate:"required"`
-	// Timeout to use when sending messages to pulsar
-	PulsarSendTimeout time.Duration `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
 	// If true then submit checks will be skipped
@@ -166,8 +165,6 @@ type SchedulingConfig struct {
 	EnableAssertions bool
 	// Only queues allocated more than this fraction of their fair share are considered for preemption.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
-	// Use Max(AdjustedFairShare, FairShare) for fair share protection. If false then FairShare will be used.
-	UseAdjustedFairShareProtection bool
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
 	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
 	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",

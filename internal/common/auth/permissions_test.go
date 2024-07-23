@@ -68,16 +68,16 @@ func init() {
 		map[permission.Permission][]string{executeJobsPermission: {executorClaim}},
 	)
 
-	admin = NewStaticPrincipal("admin", []string{adminGroup})
-	submitter = NewStaticPrincipal("submitter", []string{submitterGroup})
-	otherUser = NewStaticPrincipal("otherUser", []string{unimportantGroup})
-	userWithCreatorScope = NewStaticPrincipalWithScopesAndClaims("creatorScopeUser", []string{unimportantGroup}, []string{creatorScope}, []string{})
-	userWithExecutorClaim = NewStaticPrincipalWithScopesAndClaims("executorClaimUser", []string{unimportantGroup}, []string{}, []string{executorClaim})
+	admin = NewStaticPrincipal("admin", "test", []string{adminGroup})
+	submitter = NewStaticPrincipal("submitter", "test", []string{submitterGroup})
+	otherUser = NewStaticPrincipal("otherUser", "test", []string{unimportantGroup})
+	userWithCreatorScope = NewStaticPrincipalWithScopesAndClaims("creatorScopeUser", "test", []string{unimportantGroup}, []string{creatorScope}, []string{})
+	userWithExecutorClaim = NewStaticPrincipalWithScopesAndClaims("executorClaimUser", "test", []string{unimportantGroup}, []string{}, []string{executorClaim})
 
-	thingOwnerDirect = NewStaticPrincipal("thingOwnerDirect", []string{})
-	thingOwnerDirectAndViaGroup = NewStaticPrincipal("thingOwnerDirectAndViaGroup", []string{thingOwningGroup})
-	thingOwnerViaGroup = NewStaticPrincipal("thingOwnerViaGroup", []string{thingOwningGroup})
-	thingNonOwner = NewStaticPrincipal("thingNonOwner", []string{unimportantGroup})
+	thingOwnerDirect = NewStaticPrincipal("thingOwnerDirect", "test", []string{})
+	thingOwnerDirectAndViaGroup = NewStaticPrincipal("thingOwnerDirectAndViaGroup", "test", []string{thingOwningGroup})
+	thingOwnerViaGroup = NewStaticPrincipal("thingOwnerViaGroup", "test", []string{thingOwningGroup})
+	thingNonOwner = NewStaticPrincipal("thingNonOwner", "test", []string{unimportantGroup})
 	ownedThing = &OwnedThing{
 		[]string{thingOwnerDirect.GetName(), thingOwnerDirectAndViaGroup.GetName()},
 		[]string{thingOwningGroup},

@@ -67,11 +67,6 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 	allocatableByPriority[evictedPriority] = allocatableByPriority[minimumPriority]
 
-	evictedJobRunIds := node.EvictedJobRunIds
-	if evictedJobRunIds == nil {
-		evictedJobRunIds = make(map[string]bool)
-	}
-
 	nodeDb.mu.Lock()
 	for key := range nodeDb.indexedNodeLabels {
 		if value, ok := labels[key]; ok {
@@ -96,9 +91,9 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 		labels,
 		nodeDb.resourceListFactory.FromNodeProto(totalResources.Resources),
 		allocatableByPriority,
-		fromMapKToJobResourcesIgnoreUnknown(nodeDb.resourceListFactory, node.AllocatedByQueue),
-		fromMapKToJobResourcesIgnoreUnknown(nodeDb.resourceListFactory, node.AllocatedByJobId),
-		evictedJobRunIds,
+		map[string]internaltypes.ResourceList{},
+		map[string]internaltypes.ResourceList{},
+		map[string]bool{},
 		nil), nil
 }
 
@@ -106,15 +101,6 @@ func (nodeDb *NodeDb) copyMapWithIntern(labels map[string]string) map[string]str
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[nodeDb.stringInterner.Intern(k)] = nodeDb.stringInterner.Intern(v)
-	}
-	return result
-}
-
-// Ignore unknown resources, round up.
-func fromMapKToJobResourcesIgnoreUnknown[K comparable](factory *internaltypes.ResourceListFactory, m map[K]schedulerobjects.ResourceList) map[K]internaltypes.ResourceList {
-	result := make(map[K]internaltypes.ResourceList, len(m))
-	for k, v := range m {
-		result[k] = factory.FromJobResourceListIgnoreUnknown(v.Resources)
 	}
 	return result
 }
@@ -875,7 +861,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		nodeCopy := node.node.DeepCopyNilKeys()
 		for _, job := range node.evictedJobs {
 			// Remove preempted job from node
-			err = nodeDb.unbindJobFromNodeInPlace(nodeDb.priorityClasses, job.JobSchedulingContext.Job, nodeCopy)
+			err = nodeDb.unbindJobFromNodeInPlace(job.JobSchedulingContext.Job, nodeCopy)
 			if err != nil {
 				return nil, err
 			}
@@ -956,7 +942,6 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 //     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
 //     AllocatedByQueue.
 func (nodeDb *NodeDb) EvictJobsFromNode(
-	priorityClasses map[string]types.PriorityClass,
 	jobFilter func(*jobdb.Job) bool,
 	jobs []*jobdb.Job,
 	node *internaltypes.Node,
@@ -968,7 +953,7 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 			continue
 		}
 		evicted = append(evicted, job)
-		if err := nodeDb.evictJobFromNodeInPlace(priorityClasses, job, node); err != nil {
+		if err := nodeDb.evictJobFromNodeInPlace(job, node); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -976,7 +961,7 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
-func (nodeDb *NodeDb) evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job *jobdb.Job, node *internaltypes.Node) error {
+func (nodeDb *NodeDb) evictJobFromNodeInPlace(job *jobdb.Job, node *internaltypes.Node) error {
 	jobId := job.Id()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
@@ -1024,10 +1009,10 @@ func markAllocatable(allocatableByPriority map[int32]internaltypes.ResourceList,
 }
 
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
-func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []*jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
+func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
+		if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
 			return nil, err
 		}
 	}
@@ -1035,16 +1020,16 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(priorityClasses map[string]types.Priori
 }
 
 // UnbindJobFromNode returns a copy of node with job unbound from it.
-func (nodeDb *NodeDb) UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job *jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
+func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := nodeDb.unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
+	if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
 		return nil, err
 	}
 	return node, nil
 }
 
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
-func (nodeDb *NodeDb) unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job *jobdb.Job, node *internaltypes.Node) error {
+func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltypes.Node) error {
 	jobId := job.Id()
 	requests := job.EfficientResourceRequirements()
 
@@ -1192,7 +1177,7 @@ func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, inde
 }
 
 func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int) {
-	nodesTable, indexNameByPriority, keyIndexByPriority := nodesTableSchema(priorities, resources)
+	nodesTable, indexNameByPriority, keyIndexByPriority := nodesTableSchema(priorities)
 	evictionsTable := evictionsTableSchema()
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
@@ -1202,7 +1187,7 @@ func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[
 	}, indexNameByPriority, keyIndexByPriority
 }
 
-func nodesTableSchema(priorities []int32, resources []string) (*memdb.TableSchema, map[int32]string, map[int32]int) {
+func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string, map[int32]int) {
 	indexes := make(map[string]*memdb.IndexSchema, len(priorities)+1)
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",
