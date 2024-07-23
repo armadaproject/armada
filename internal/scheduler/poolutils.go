@@ -3,7 +3,6 @@ package scheduler
 import (
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -28,12 +27,4 @@ func GetNodePool(node *schedulerobjects.Node, executor *schedulerobjects.Executo
 		return DefaultPool
 	}
 	return executor.GetPool()
-}
-
-// TODO Remove this and just use run.Pool() once we have migrated to have all runs have node pool set
-func GetRunPool(run *jobdb.JobRun, node *schedulerobjects.Node, executor *schedulerobjects.Executor) string {
-	if run != nil && run.Pool() != "" {
-		return run.Pool()
-	}
-	return GetNodePool(node, executor)
 }

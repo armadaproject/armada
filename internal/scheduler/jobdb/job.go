@@ -405,6 +405,18 @@ func (job *Job) Pools() []string {
 	return slices.Clone(job.pools)
 }
 
+// ResolvedPools returns the pools associated with the job.
+func (job *Job) ResolvedPools() []string {
+	if !job.Queued() && job.LatestRun() != nil {
+		return []string{job.LatestRun().pool}
+	}
+	return job.Pools()
+}
+
+func (job *Job) InPool(pool string) bool {
+	return slices.Contains(job.ResolvedPools(), pool)
+}
+
 // WithPriority returns a copy of the job with the priority updated.
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := copyJob(*job)
