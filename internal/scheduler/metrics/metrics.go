@@ -393,7 +393,6 @@ func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 	executor := executorNameFromRun(job.LatestRun())
 	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
-	labels = append(labels, "") // No nodeType.
 	return labels
 }
 
@@ -498,7 +497,7 @@ func (m *Metrics) counterVectorsFromResource(resource v1.ResourceName) (*prometh
 				Name:      name,
 				Help:      resource.String() + "resource counter.",
 			},
-			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
+			[]string{"state", "category", "subCategory", "queue", "cluster"},
 		)
 		m.resourceCounters[resource] = c
 	}
@@ -514,7 +513,7 @@ func (m *Metrics) counterVectorsFromResource(resource v1.ResourceName) (*prometh
 				Name:      name,
 				Help:      resource.String() + "-second resource counter.",
 			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "nodeType", "node"},
+			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster"},
 		)
 		m.resourceCounters[resourceSeconds] = cSeconds
 	}
