@@ -78,11 +78,15 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 		return err
 	}
 
+	// A gang should only be globally unschedulable if it doesn't fit, not due to global or queue-level scheduling
+	//  constraints.
+	jobDoesNotFit := schedulerconstraints.UnschedulableReasonIsGlobalGangProperty(unschedulableReason)
+
 	// Register unfeasible scheduling keys.
 	//
 	// Only record unfeasible scheduling keys for single-job gangs.
 	// Since a gang may be unschedulable even if all its members are individually schedulable.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
+	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 && jobDoesNotFit {
 		jctx := gctx.JobSchedulingContexts[0]
 		schedulingKey, ok := jctx.SchedulingKey()
 		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
@@ -138,6 +142,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 			return
 		}
 	}
+
 	return sch.trySchedule(ctx, gctx)
 }
 

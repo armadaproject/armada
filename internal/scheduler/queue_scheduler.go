@@ -125,10 +125,11 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			// instruct the underlying iterator to only yield evicted jobs from now on.
 			sch.schedulingContext.TerminationReason = unschedulableReason
 			sch.candidateGangIterator.OnlyYieldEvicted()
+			MarkGctxUnschedulable(sch.schedulingContext, gctx, unschedulableReason)
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
-			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
+			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue, unschedulableReason)
 		}
 
 		duration := time.Now().Sub(start)
@@ -335,7 +336,8 @@ type CandidateGangIterator struct {
 	onlyYieldEvicted bool
 	// If, e.g., onlyYieldEvictedByQueue["A"] is true,
 	// this iterator only yields gangs where all jobs are evicted for queue A.
-	onlyYieldEvictedByQueue map[string]bool
+	onlyYieldEvictedByQueue       map[string]bool
+	onlyYieldEvictedReasonByQueue map[string]string
 	// Reusable buffer to avoid allocations.
 	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
@@ -349,11 +351,12 @@ func NewCandidateGangIterator(
 	iteratorsByQueue map[string]*QueuedGangIterator,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
-		queueRepository:         queueRepository,
-		fairnessCostProvider:    fairnessCostProvider,
-		onlyYieldEvictedByQueue: make(map[string]bool),
-		buffer:                  schedulerobjects.NewResourceListWithDefaultSize(),
-		pq:                      make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
+		queueRepository:               queueRepository,
+		fairnessCostProvider:          fairnessCostProvider,
+		onlyYieldEvictedByQueue:       make(map[string]bool),
+		onlyYieldEvictedReasonByQueue: make(map[string]string),
+		buffer:                        schedulerobjects.NewResourceListWithDefaultSize(),
+		pq:                            make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
@@ -367,8 +370,9 @@ func (it *CandidateGangIterator) OnlyYieldEvicted() {
 	it.onlyYieldEvicted = true
 }
 
-func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
+func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string, reason string) {
 	it.onlyYieldEvictedByQueue[queue] = true
+	it.onlyYieldEvictedReasonByQueue[queue] = reason
 }
 
 // Clear removes the first item in the iterator.
@@ -417,6 +421,34 @@ func (it *CandidateGangIterator) newPQItem(queue string, queueIt *QueuedGangIter
 	}
 }
 
+func MarkGctxUnschedulable(sctx *schedulercontext.SchedulingContext, gctx *schedulercontext.GangSchedulingContext, reason string) {
+	if gctx != nil {
+		for _, jctx := range gctx.JobSchedulingContexts {
+			jctx.UnschedulableReason = reason
+			sctx.AddJobSchedulingContext(jctx)
+		}
+	}
+}
+
+func (it *CandidateGangIterator) markPQItemAsUnschedulableWithReason(item *QueueCandidateGangIteratorItem, reason string) error {
+	if item == nil {
+		return nil
+	}
+	var err error
+	gctx := item.gctx
+	for {
+		if err != nil {
+			return err
+		} else if gctx != nil {
+			MarkGctxUnschedulable(item.it.schedulingContext, gctx, reason)
+		} else {
+			break
+		}
+		gctx, err = item.it.Next()
+	}
+	return nil
+}
+
 func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIteratorItem) (bool, error) {
 	if err := it.updatePQItem(item); err != nil {
 		return false, err
@@ -424,11 +456,10 @@ func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIte
 	if item.gctx == nil {
 		return false, nil
 	}
-	if it.onlyYieldEvicted && !item.gctx.AllJobsEvicted {
-		return false, nil
-	}
-	if it.onlyYieldEvictedByQueue[item.gctx.Queue] && !item.gctx.AllJobsEvicted {
-		return false, nil
+	if !item.gctx.AllJobsEvicted && it.onlyYieldEvicted {
+		return false, it.markPQItemAsUnschedulableWithReason(item, item.it.schedulingContext.TerminationReason)
+	} else if !item.gctx.AllJobsEvicted && it.onlyYieldEvictedByQueue[item.gctx.Queue] {
+		return false, it.markPQItemAsUnschedulableWithReason(item, it.onlyYieldEvictedReasonByQueue[item.gctx.Queue])
 	}
 	heap.Push(&it.pq, item)
 	return true, nil

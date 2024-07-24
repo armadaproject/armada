@@ -510,6 +510,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		minimumJobSize,
 		l.schedulingConfig,
 		fsctx.queues,
+		fsctx.schedulingStatusByQueue,
 	)
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,

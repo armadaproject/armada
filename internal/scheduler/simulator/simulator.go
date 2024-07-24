@@ -484,13 +484,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					limiter.SetBurstAt(s.time, s.schedulingConfig.MaximumPerQueueSchedulingBurst)
 					s.limiterByQueue[queue.Name] = limiter
 				}
-				err := sctx.AddQueueSchedulingContext(
-					queue.Name,
-					queue.Weight,
-					s.allocationByPoolAndQueueAndPriorityClass[pool.Name][queue.Name],
-					demand,
-					limiter,
-				)
+				err := sctx.AddQueueSchedulingContext(queue.Name, queue.Weight, s.allocationByPoolAndQueueAndPriorityClass[pool.Name][queue.Name], demand, limiter)
 				if err != nil {
 					return err
 				}
@@ -502,6 +496,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				schedulerobjects.ResourceList{},
 				s.schedulingConfig,
 				nil,
+				make(map[string]bool),
 			)
 			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,

@@ -379,7 +379,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue2, testfixtures.PriorityClass3, 2)...,
 			),
-			expectedScheduledIndices: []int{0, 1, 2, 3},
+			expectedScheduledIndices: []int{0, 1, 10, 11},
 		},
 		"multi-queue scheduling with paused and non-paused queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),

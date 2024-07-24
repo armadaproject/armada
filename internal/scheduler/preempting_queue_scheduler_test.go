@@ -1820,13 +1820,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(
-						queue,
-						weight,
-						allocatedByQueueAndPriorityClass[queue],
-						demandByQueue[queue],
-						limiterByQueue[queue],
-					)
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], demandByQueue[queue], limiterByQueue[queue])
 					require.NoError(t, err)
 				}
 				constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -1835,6 +1829,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 					nil,
+					map[string]bool{},
 				)
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
@@ -2192,6 +2187,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				nil,
+				map[string]bool{},
 			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,

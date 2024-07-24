@@ -552,16 +552,10 @@ func TestGangScheduler(t *testing.T) {
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(
-					queue,
-					priorityFactor,
-					nil,
-					schedulerobjects.NewResourceList(0),
-					rate.NewLimiter(
-						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
-						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
-					),
-				)
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, nil, schedulerobjects.NewResourceList(0), rate.NewLimiter(
+					rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
+					tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
+				))
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -570,6 +564,7 @@ func TestGangScheduler(t *testing.T) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				nil,
+				map[string]bool{},
 			)
 			sch, err := NewGangScheduler(sctx, constraints, nodeDb)
 			require.NoError(t, err)

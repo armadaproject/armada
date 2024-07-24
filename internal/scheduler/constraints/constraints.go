@@ -38,6 +38,10 @@ const (
 	UnschedulableReasonMaximumResourcesExceeded = "resource limit exceeded"
 )
 
+func UnschedulableReasonIsGlobalGangProperty(reason string) bool {
+	return reason == GangExceedsGlobalBurstSizeUnschedulableReason
+}
+
 // IsTerminalUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
@@ -83,6 +87,8 @@ type SchedulingConstraints struct {
 type queueSchedulingConstraints struct {
 	// Scheduling constraints by priority class.
 	PriorityClassSchedulingConstraintsByPriorityClassName map[string]priorityClassSchedulingConstraints
+	// Determines whether scheduling is enabled on this queue
+	SchedulingStatus bool
 }
 
 // priorityClassSchedulingConstraints contains scheduling constraints that apply to jobs of a specific priority class.
@@ -98,6 +104,7 @@ func NewSchedulingConstraints(
 	minimumJobSize schedulerobjects.ResourceList,
 	config configuration.SchedulingConfig,
 	queues []*api.Queue,
+	schedulingStatusPerQueue map[string]bool,
 ) SchedulingConstraints {
 	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]priorityClassSchedulingConstraints, len(config.PriorityClasses))
 	for name, priorityClass := range config.PriorityClasses {
@@ -126,10 +133,14 @@ func NewSchedulingConstraints(
 				MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFraction),
 			}
 		}
-		if len(priorityClassSchedulingConstraintsByPriorityClassNameForQueue) > 0 {
-			queueSchedulingConstraintsByQueueName[queue.Name] = queueSchedulingConstraints{
-				PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassNameForQueue,
-			}
+
+		thisQueueSchedulingStatus, ok := schedulingStatusPerQueue[queue.Name]
+		if !ok {
+			thisQueueSchedulingStatus = true
+		}
+		queueSchedulingConstraintsByQueueName[queue.Name] = queueSchedulingConstraints{
+			PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassNameForQueue,
+			SchedulingStatus: thisQueueSchedulingStatus,
 		}
 	}
 
@@ -199,7 +210,8 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 
 	// Per-queue rate limiter check.
 	tokens = qctx.Limiter.TokensAt(sctx.Started)
-	if qctx.Limiter.Burst() <= 0 {
+	queueConstraints, ok := constraints.queueSchedulingConstraintsByQueueName[qctx.Queue]
+	if ok && !queueConstraints.SchedulingStatus {
 		return false, SchedulingPausedOnQueueUnschedulableReason, nil
 	}
 	if tokens <= 0 {

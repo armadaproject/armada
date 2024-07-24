@@ -146,11 +146,10 @@ func TestQueueScheduler(t *testing.T) {
 				map[string]float64{"cpu": 0.5},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Queues:                        testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:                         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:                          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
-			ExpectedScheduledIndices:      testfixtures.IntRange(0, 16),
-			ExpectedNeverAttemptedIndices: testfixtures.IntRange(17, 31),
+			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
+			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+			ExpectedScheduledIndices: testfixtures.IntRange(0, 16),
 		},
 		"PerPriorityLimits": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -566,15 +565,10 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			for _, q := range tc.Queues {
 				weight := 1.0 / float64(q.PriorityFactor)
-				err := sctx.AddQueueSchedulingContext(
-					q.Name, weight,
-					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
-					schedulerobjects.NewResourceList(0),
-					rate.NewLimiter(
-						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
-						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
-					),
-				)
+				err := sctx.AddQueueSchedulingContext(q.Name, weight, tc.InitialAllocatedByQueueAndPriorityClass[q.Name], schedulerobjects.NewResourceList(0), rate.NewLimiter(
+					rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
+					tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
+				))
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -583,6 +577,7 @@ func TestQueueScheduler(t *testing.T) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				tc.Queues,
+				map[string]bool{},
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for _, q := range tc.Queues {

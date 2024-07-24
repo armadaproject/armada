@@ -2,13 +2,15 @@ package queue
 
 import (
 	"encoding/json"
+	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 	"testing/quick"
 )
 
 func TestQueue(t *testing.T) {
-	testCase := func(queue1 Queue) bool {
+	testCaseIgnoreLabels := func(queue1 Queue) bool {
+		queue1.Labels = nil
 		queue2, err := NewQueue(queue1.ToAPI())
 		if err != nil {
 			t.Error(err)
@@ -18,9 +20,34 @@ func TestQueue(t *testing.T) {
 		return reflect.DeepEqual(queue1, queue2)
 	}
 
-	if err := quick.Check(testCase, nil); err != nil {
+	if err := quick.Check(testCaseIgnoreLabels, nil); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestQueueWithLabels(t *testing.T) {
+	queue1 := Queue{
+		Name:           "queue-a",
+		PriorityFactor: 100,
+		Permissions:    []Permissions{},
+		Labels:         []string{"armadaproject.io/gpu-category=gang-user", "armadaproject.io/priority=critical"},
+	}
+	queue2, err := NewQueue(queue1.ToAPI())
+	if err != nil {
+		t.Error(err)
+	}
+
+	require.True(t, reflect.DeepEqual(queue1, queue2))
+}
+
+func TestQueueWithIncorrectLabels(t *testing.T) {
+	queue1 := Queue{
+		Name:           "queue-a",
+		PriorityFactor: 100,
+		Labels:         []string{"armadaproject.io/not-key-value"},
+	}
+	_, err := NewQueue(queue1.ToAPI())
+	require.Error(t, err)
 }
 
 func TestQueueMarshalUnmarshal(t *testing.T) {

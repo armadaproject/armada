@@ -252,8 +252,7 @@ func TestCalculateFairShares(t *testing.T) {
 				tc.availableResources,
 			)
 			for qName, q := range tc.queueCtxs {
-				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, nil)
+				err = sctx.AddQueueSchedulingContext(qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, nil)
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
