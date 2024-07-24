@@ -144,11 +144,10 @@ func TestQueueScheduler(t *testing.T) {
 				map[string]float64{"cpu": 0.5},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Queues:                        testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:                         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:                          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
-			ExpectedScheduledIndices:      testfixtures.IntRange(0, 16),
-			ExpectedNeverAttemptedIndices: testfixtures.IntRange(17, 31),
+			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
+			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+			ExpectedScheduledIndices: testfixtures.IntRange(0, 16),
 		},
 		"PerPriorityLimits": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -537,6 +536,7 @@ func TestQueueScheduler(t *testing.T) {
 				tc.TotalResources,
 				tc.SchedulingConfig,
 				tc.Queues,
+				map[string]bool{},
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for _, q := range tc.Queues {

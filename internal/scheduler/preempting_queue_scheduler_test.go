@@ -1859,6 +1859,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.TotalResources,
 					tc.SchedulingConfig,
 					nil,
+					map[string]bool{},
 				)
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
@@ -2212,6 +2213,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb.TotalResources(),
 				tc.SchedulingConfig,
 				nil,
+				map[string]bool{},
 			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,

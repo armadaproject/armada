@@ -33,12 +33,14 @@ func TestConstraints(t *testing.T) {
 			makeResourceList("1000", "1000Gi"),
 			makeSchedulingConfig(),
 			[]*api.Queue{},
+			map[string]bool{},
 		)),
 		"empty-queue-constraints": makeConstraintsTest(NewSchedulingConstraints(
 			"pool-1",
 			makeResourceList("1000", "1000Gi"),
 			makeSchedulingConfig(),
 			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}},
+			map[string]bool{},
 		)),
 		"within-constraints": makeConstraintsTest(NewSchedulingConstraints(
 			"pool-1",
@@ -49,6 +51,7 @@ func TestConstraints(t *testing.T) {
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
 			},
 			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
+			map[string]bool{},
 		)),
 		"exceeds-queue-priority-class-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints(
@@ -65,6 +68,7 @@ func TestConstraints(t *testing.T) {
 						},
 					},
 				},
+				map[string]bool{},
 			))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
@@ -88,6 +92,7 @@ func TestConstraints(t *testing.T) {
 						},
 					},
 				},
+				map[string]bool{},
 			))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
@@ -102,6 +107,7 @@ func TestConstraints(t *testing.T) {
 					PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 				},
 				[]*api.Queue{},
+				map[string]bool{},
 			))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
@@ -115,6 +121,7 @@ func TestConstraints(t *testing.T) {
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 			},
 			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
+			map[string]bool{},
 		)),
 		"one-constraint-per-level-falls-back-as-expected--within-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
@@ -170,6 +177,13 @@ func TestCapResources(t *testing.T) {
 				makeResourceList("1000", "1000Gi"),
 				makeSchedulingConfig(),
 				[]*api.Queue{},
+				map[string]bool{},
+			))
+			t.expectedCheckConstraintsReason = "job requests 1 cpu, but the minimum is 5"
+			return t
+		}(),
+		"above-maximum-resources-to-schedule": func() *constraintTest {
+			t := makeConstraintsTest(NewSchedulingConstraints(
 			),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
@@ -278,6 +292,23 @@ func TestCapResources(t *testing.T) {
 				"priority-class-2": makeResourceList("900", "900Gi"),
 			},
 		},
+				map[string]bool{},
+			))
+			t.expectedCheckRoundConstraintsReason = "maximum resources scheduled"
+			return t
+		}(),
+		"scheduling-paused-on-queue-constraint": func() *constraintTest {
+			t := makeConstraintsTest(NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				makeResourceList("0", "0"),
+				configuration.SchedulingConfig{},
+				[]*api.Queue{{Name: "queue-1", SchedulingPaused: true}},
+				map[string]bool{"queue-1": false},
+			))
+			t.expectedCheckConstraintsReason = "scheduling paused on queue"
+			return t
+		}(),
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -373,6 +404,7 @@ func makeMultiLevelConstraints() SchedulingConstraints {
 				},
 			},
 		},
+		map[string]bool{},
 	)
 }
 

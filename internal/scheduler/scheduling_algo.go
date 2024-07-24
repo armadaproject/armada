@@ -455,6 +455,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 		fsctx.totalCapacityByPool[pool],
 		l.schedulingConfig,
 		fsctx.queues,
+		fsctx.schedulingStatusByQueue,
 	)
 
 	demandByQueue, ok := fsctx.demandByPoolByQueue[pool]

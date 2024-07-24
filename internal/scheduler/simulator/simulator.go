@@ -506,6 +506,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				totalResources,
 				s.schedulingConfig,
 				nil,
+				make(map[string]bool),
 			)
 
 			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)

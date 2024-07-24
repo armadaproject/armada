@@ -582,6 +582,7 @@ func TestGangScheduler(t *testing.T) {
 				tc.TotalResources,
 				tc.SchedulingConfig,
 				nil,
+				map[string]bool{},
 			)
 			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
 			require.NoError(t, err)
