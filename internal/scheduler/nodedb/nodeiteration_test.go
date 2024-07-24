@@ -941,25 +941,6 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 	}
 }
 
-func testWithNodeTypeId(node *internaltypes.Node, nodeTypeId uint64) *internaltypes.Node {
-	return internaltypes.CreateNode(
-		node.GetId(),
-		nodeTypeId,
-		node.GetIndex(),
-		node.GetExecutor(),
-		node.GetName(),
-		node.GetPool(),
-		node.GetTaints(),
-		node.GetLabels(),
-		node.GetTotalResources(),
-		node.AllocatableByPriority,
-		node.AllocatedByQueue,
-		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
-		node.Keys,
-	)
-}
-
 func withNodeTypeNodes(nodeTypeLabel string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		node.Labels[testfixtures.NodeTypeLabel] = nodeTypeLabel
