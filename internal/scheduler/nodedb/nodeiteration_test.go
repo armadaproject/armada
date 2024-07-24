@@ -957,11 +957,11 @@ func gpuNodeTypeLabelToNodeTypeId(nodeTypeLabel string) uint64 {
 }
 
 func labelsToNodeTypeId(labels map[string]string) uint64 {
-	nodeType := schedulerobjects.NewNodeType(
+	nodeType := internaltypes.NewNodeType(
 		[]v1.Taint{},
 		labels,
 		mapFromSlice(testfixtures.TestIndexedTaints),
 		mapFromSlice(testfixtures.TestIndexedNodeLabels),
 	)
-	return nodeType.Id
+	return nodeType.GetId()
 }

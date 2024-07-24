@@ -1,11 +1,64 @@
-package schedulerobjects
+package internaltypes
 
 import (
 	"github.com/segmentio/fasthash/fnv1a"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+
+	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 )
+
+// NodeType represents a particular combination of taints and labels.
+// The scheduler groups nodes by node type. When assigning pods to nodes,
+// the scheduler only considers nodes with a NodeType for which the taints and labels match.
+// Its fields should be immutable! Do not change these!
+type NodeType struct {
+	// Unique identifier. Used for map lookup.
+	id uint64
+	// Kubernetes taints.
+	// To reduce the number of distinct node types,
+	// may contain only a subset of the taints of the node the node type is created from.
+	taints []v1.Taint
+	// Kubernetes labels.
+	// To reduce the number of distinct node types,
+	// may contain only a subset of the labels of the node the node type is created from.
+	labels map[string]string
+	// Well-known labels not set by this node type.
+	// Used to filter out nodes when looking for nodes for a pod
+	// that requires at least one well-known label to be set.
+	unsetIndexedLabels map[string]string
+}
+
+func (m *NodeType) GetId() uint64 {
+	return m.id
+}
+
+func (m *NodeType) GetTaints() []v1.Taint {
+	return koTaint.DeepCopyTaints(m.taints)
+}
+
+func (m *NodeType) FindMatchingUntoleratedTaint(tolerations ...[]v1.Toleration) (v1.Taint, bool) {
+	return koTaint.FindMatchingUntoleratedTaint(m.taints, tolerations...)
+}
+
+func (m *NodeType) GetLabels() map[string]string {
+	return deepCopyLabels(m.labels)
+}
+
+func (m *NodeType) GetLabelValue(key string) (string, bool) {
+	val, ok := m.labels[key]
+	return val, ok
+}
+
+func (m *NodeType) GetUnsetIndexedLabels() map[string]string {
+	return deepCopyLabels(m.unsetIndexedLabels)
+}
+
+func (m *NodeType) GetUnsetIndexedLabelValue(key string) (string, bool) {
+	val, ok := m.unsetIndexedLabels[key]
+	return val, ok
+}
 
 type (
 	taintsFilterFunc func(*v1.Taint) bool
@@ -63,10 +116,10 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 	}
 
 	return &NodeType{
-		Id:                 nodeTypeIdFromTaintsAndLabels(taints, labels, unsetIndexedLabels),
-		Taints:             taints,
-		Labels:             labels,
-		UnsetIndexedLabels: unsetIndexedLabels,
+		id:                 nodeTypeIdFromTaintsAndLabels(taints, labels, unsetIndexedLabels),
+		taints:             taints,
+		labels:             labels,
+		unsetIndexedLabels: unsetIndexedLabels,
 	}
 }
 
@@ -138,16 +191,4 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 		filteredLabels[key] = value
 	}
 	return filteredLabels
-}
-
-func (nodeType *NodeType) DeepCopy() *NodeType {
-	if nodeType == nil {
-		return nil
-	}
-	return &NodeType{
-		Id:                 nodeType.Id,
-		Taints:             slices.Clone(nodeType.Taints),
-		Labels:             maps.Clone(nodeType.Labels),
-		UnsetIndexedLabels: maps.Clone(nodeType.UnsetIndexedLabels),
-	}
 }

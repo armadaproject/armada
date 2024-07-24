@@ -47,7 +47,7 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 
 	totalResources := node.TotalResources
 
-	nodeType := schedulerobjects.NewNodeType(
+	nodeType := internaltypes.NewNodeType(
 		taints,
 		labels,
 		nodeDb.indexedTaints,
@@ -75,14 +75,14 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 	index := uint64(nodeDb.numNodes)
 	nodeDb.numNodes++
-	nodeDb.numNodesByNodeType[nodeType.Id]++
+	nodeDb.numNodesByNodeType[nodeType.GetId()]++
 	nodeDb.totalResources.Add(totalResources)
-	nodeDb.nodeTypes[nodeType.Id] = nodeType
+	nodeDb.nodeTypes[nodeType.GetId()] = nodeType
 	nodeDb.mu.Unlock()
 
 	return internaltypes.CreateNode(
 		node.Id,
-		nodeType.Id,
+		nodeType.GetId(),
 		index,
 		node.Executor,
 		node.Name,
@@ -199,7 +199,7 @@ type NodeDb struct {
 	totalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
-	nodeTypes map[uint64]*schedulerobjects.NodeType
+	nodeTypes map[uint64]*internaltypes.NodeType
 
 	wellKnownNodeTypes map[string]*configuration.WellKnownNodeType
 
@@ -276,7 +276,7 @@ func NewNodeDb(
 		indexedTaints:             mapFromSlice(indexedTaints),
 		indexedNodeLabels:         mapFromSlice(indexedNodeLabels),
 		indexedNodeLabelValues:    indexedNodeLabelValues,
-		nodeTypes:                 make(map[uint64]*schedulerobjects.NodeType),
+		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
 		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:        make(map[uint64]int),
 		totalResources:            schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
@@ -363,7 +363,7 @@ func (nodeDb *NodeDb) String() string {
 	} else {
 		fmt.Fprint(w, "Node types:\n")
 		for _, nodeType := range nodeDb.nodeTypes {
-			fmt.Fprintf(w, "  %d\n", nodeType.Id)
+			fmt.Fprintf(w, "  %d\n", nodeType.GetId())
 		}
 	}
 	w.Flush()
@@ -1080,12 +1080,12 @@ func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *schedulercontext.JobSchedulingC
 	for _, nodeType := range nodeDb.nodeTypes {
 		matches, reason := NodeTypeJobRequirementsMet(nodeType, jctx)
 		if matches {
-			matchingNodeTypeIds = append(matchingNodeTypeIds, nodeType.Id)
+			matchingNodeTypeIds = append(matchingNodeTypeIds, nodeType.GetId())
 		} else if reason != nil {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
-			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.Id]
+			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.GetId()]
 		} else {
-			numExcludedNodesByReason[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.Id]
+			numExcludedNodesByReason[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.GetId()]
 		}
 	}
 	return matchingNodeTypeIds, numExcludedNodesByReason, nil
