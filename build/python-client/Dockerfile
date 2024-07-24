@@ -1,5 +1,5 @@
 ARG PLATFORM=x86_64
-ARG BASE_IMAGE=python:3.8.18-bookworm
+ARG BASE_IMAGE=python:3.13.0b4-bookworm
 
 FROM --platform=$PLATFORM ${BASE_IMAGE}
 
