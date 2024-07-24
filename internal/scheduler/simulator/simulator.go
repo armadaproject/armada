@@ -469,8 +469,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			sctx := schedulercontext.NewSchedulingContext(
 				pool.Name,
-				s.schedulingConfig.PriorityClasses,
-				s.schedulingConfig.DefaultPriorityClassName,
 				fairnessCostProvider,
 				s.limiter,
 				totalResources,
@@ -521,7 +519,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				constraints,
 				nloatingResourceTypes,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
-				s.schedulingConfig.UseAdjustedFairShareProtection,
 				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
@@ -852,7 +849,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 	} else if node == nil {
 		return errors.Errorf("node %s not found", run.NodeId())
 	}
-	node, err = nodeDb.UnbindJobFromNode(s.schedulingConfig.PriorityClasses, job, node)
+	node, err = nodeDb.UnbindJobFromNode(job, node)
 	if err != nil {
 		return err
 	}

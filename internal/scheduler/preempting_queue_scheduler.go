@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -29,13 +28,12 @@ import (
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
 // Uses QueueScheduler as a building block.
 type PreemptingQueueScheduler struct {
-	schedulingContext              *schedulercontext.SchedulingContext
-	constraints                    schedulerconstraints.SchedulingConstraints
-	floatingResourceTypes          *floatingresources.FloatingResourceTypes
-	protectedFractionOfFairShare   float64
-	useAdjustedFairShareProtection bool
-	jobRepo                        JobRepository
-	nodeDb                         *nodedb.NodeDb
+	schedulingContext            *schedulercontext.SchedulingContext
+	constraints                  schedulerconstraints.SchedulingConstraints
+	floatingResourceTypes        *floatingresources.FloatingResourceTypes
+	protectedFractionOfFairShare float64
+	jobRepo                      JobRepository
+	nodeDb                       *nodedb.NodeDb
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -55,7 +53,6 @@ func NewPreemptingQueueScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	protectedFractionOfFairShare float64,
-	useAdjustedFairShareProtection bool,
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
@@ -76,16 +73,15 @@ func NewPreemptingQueueScheduler(
 		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
 	return &PreemptingQueueScheduler{
-		schedulingContext:              sctx,
-		constraints:                    constraints,
-		floatingResourceTypes:          floatingResourceTypes,
-		protectedFractionOfFairShare:   protectedFractionOfFairShare,
-		useAdjustedFairShareProtection: useAdjustedFairShareProtection,
-		jobRepo:                        jobRepo,
-		nodeDb:                         nodeDb,
-		nodeIdByJobId:                  maps.Clone(initialNodeIdByJobId),
-		jobIdsByGangId:                 initialJobIdsByGangId,
-		gangIdByJobId:                  maps.Clone(initialGangIdByJobId),
+		schedulingContext:            sctx,
+		constraints:                  constraints,
+		floatingResourceTypes:        floatingResourceTypes,
+		protectedFractionOfFairShare: protectedFractionOfFairShare,
+		jobRepo:                      jobRepo,
+		nodeDb:                       nodeDb,
+		nodeIdByJobId:                maps.Clone(initialNodeIdByJobId),
+		jobIdsByGangId:               initialJobIdsByGangId,
+		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
 	}
 }
 
@@ -121,7 +117,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 		NewNodeEvictor(
 			sch.jobRepo,
 			sch.nodeDb,
-			sch.schedulingContext.PriorityClasses,
 			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
 				priorityClass := job.PriorityClass()
 				if !priorityClass.Preemptible {
@@ -137,10 +132,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx) / totalCost
-					fairShare := qctx.FairShare
-					if sch.useAdjustedFairShareProtection {
-						fairShare = math.Max(qctx.AdjustedFairShare, fairShare)
-					}
+					fairShare := math.Max(qctx.AdjustedFairShare, qctx.FairShare)
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
@@ -187,7 +179,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 		NewOversubscribedEvictor(
 			sch.jobRepo,
 			sch.nodeDb,
-			sch.schedulingContext.PriorityClasses,
 		),
 	)
 	if err != nil {
@@ -354,7 +345,6 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 	evictor := NewFilteredEvictor(
 		sch.jobRepo,
 		sch.nodeDb,
-		sch.schedulingContext.PriorityClasses,
 		gangNodeIds,
 		gangJobIds,
 	)
@@ -546,7 +536,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo, sch.schedulingContext.PriorityClasses)
+			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo)
 			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
 		}
 	}
@@ -595,7 +585,7 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jctxs []*schedulercontext.JobSch
 		if err != nil {
 			return err
 		}
-		node, err = sch.nodeDb.UnbindJobsFromNode(sch.schedulingContext.PriorityClasses, jobsOnNode, node)
+		node, err = sch.nodeDb.UnbindJobsFromNode(jobsOnNode, node)
 		if err != nil {
 			return err
 		}
@@ -700,11 +690,10 @@ func (sch *PreemptingQueueScheduler) assertions(
 }
 
 type Evictor struct {
-	jobRepo         JobRepository
-	nodeDb          *nodedb.NodeDb
-	priorityClasses map[string]types.PriorityClass
-	nodeFilter      func(*armadacontext.Context, *internaltypes.Node) bool
-	jobFilter       func(*armadacontext.Context, *jobdb.Job) bool
+	jobRepo    JobRepository
+	nodeDb     *nodedb.NodeDb
+	nodeFilter func(*armadacontext.Context, *internaltypes.Node) bool
+	jobFilter  func(*armadacontext.Context, *jobdb.Job) bool
 }
 
 type EvictorResult struct {
@@ -737,13 +726,11 @@ func (er *EvictorResult) SummaryString() string {
 func NewNodeEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
-	priorityClasses map[string]types.PriorityClass,
 	jobFilter func(*armadacontext.Context, *jobdb.Job) bool,
 ) *Evictor {
 	return &Evictor{
-		jobRepo:         jobRepo,
-		nodeDb:          nodeDb,
-		priorityClasses: priorityClasses,
+		jobRepo: jobRepo,
+		nodeDb:  nodeDb,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
 			return len(node.AllocatedByJobId) > 0
 		},
@@ -756,7 +743,6 @@ func NewNodeEvictor(
 func NewFilteredEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
-	priorityClasses map[string]types.PriorityClass,
 	nodeIdsToEvict map[string]bool,
 	jobIdsToEvict map[string]bool,
 ) *Evictor {
@@ -764,9 +750,8 @@ func NewFilteredEvictor(
 		return nil
 	}
 	return &Evictor{
-		jobRepo:         jobRepo,
-		nodeDb:          nodeDb,
-		priorityClasses: priorityClasses,
+		jobRepo: jobRepo,
+		nodeDb:  nodeDb,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
 			shouldEvict := nodeIdsToEvict[node.GetId()]
 			return shouldEvict
@@ -783,16 +768,14 @@ func NewFilteredEvictor(
 func NewOversubscribedEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
-	priorityClasses map[string]types.PriorityClass,
 ) *Evictor {
 	// Populating overSubscribedPriorities relies on
 	// - nodeFilter being called once before all calls to jobFilter and
 	// - jobFilter being called for all jobs on that node before moving on to another node.
 	var overSubscribedPriorities map[int32]bool
 	return &Evictor{
-		jobRepo:         jobRepo,
-		nodeDb:          nodeDb,
-		priorityClasses: priorityClasses,
+		jobRepo: jobRepo,
+		nodeDb:  nodeDb,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriority {
@@ -850,7 +833,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			}
 		}
 		jobs := evi.jobRepo.GetExistingJobsByIds(jobIds)
-		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(evi.priorityClasses, jobFilter, jobs, node)
+		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(jobFilter, jobs, node)
 		if err != nil {
 			return nil, err
 		}

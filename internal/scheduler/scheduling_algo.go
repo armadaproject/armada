@@ -439,8 +439,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 	}
 	sctx := schedulercontext.NewSchedulingContext(
 		pool,
-		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.DefaultPriorityClassName,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,
@@ -499,7 +497,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
-		l.schedulingConfig.UseAdjustedFairShareProtection,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,

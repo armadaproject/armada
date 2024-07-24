@@ -78,6 +78,7 @@ pulsar:
   eventsPrinterSubscription: "EventsPrinter"
   maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 # 4MB
+  sendTimeout: 5s
   receiverQueueSize: 100
 postgres:
   connection:

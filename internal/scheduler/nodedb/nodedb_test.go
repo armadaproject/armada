@@ -72,7 +72,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+	jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		jctx.SetAssignedNodeId(nodeId)
@@ -97,7 +97,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+	jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		jctx.SetAssignedNodeId("non-existent node")
@@ -133,32 +133,32 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	unboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
+	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
 	require.NoError(t, err)
 
-	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode(testfixtures.TestPriorityClasses, []*jobdb.Job{job}, boundNode)
+	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode([]*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, boundNode)
+	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
 	assert.Equal(t, []*jobdb.Job{job}, evictedJobs)
 
-	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
+	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
 	require.NoError(t, err)
 
 	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, entry)
+	_, _, err = nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, entry)
 	require.Error(t, err)
 
-	_, err = nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
+	_, err = nodeDb.UnbindJobFromNode(job, entry)
 	require.NoError(t, err)
 
 	_, err = nodeDb.bindJobToNode(boundNode, job, job.PodRequirements().Priority)
 	require.Error(t, err)
 
-	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []*jobdb.Job{job}, evictedNode)
+	_, _, err = nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, entry, unboundNode)
@@ -293,7 +293,7 @@ func TestEviction(t *testing.T) {
 			for i, job := range jobs {
 				existingJobs[i] = job
 			}
-			actualEvictions, _, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
+			actualEvictions, _, err := nodeDb.EvictJobsFromNode(tc.jobFilter, existingJobs, entry)
 			require.NoError(t, err)
 			expectedEvictions := make([]*jobdb.Job, 0, len(tc.expectedEvictions))
 			for _, i := range tc.expectedEvictions {
@@ -434,7 +434,7 @@ func TestScheduleIndividually(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 
-			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs)
+			jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.Jobs)
 
 			for i, jctx := range jctxs {
 				nodeDbTxn := nodeDb.Txn(true)
@@ -524,7 +524,7 @@ func TestScheduleMany(t *testing.T) {
 			require.NoError(t, err)
 			for i, jobs := range tc.Jobs {
 				nodeDbTxn := nodeDb.Txn(true)
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
@@ -776,7 +776,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+		jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
 		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 		txn := nodeDb.Txn(true)
 		_, err := nodeDb.ScheduleManyWithTxn(txn, gctx)

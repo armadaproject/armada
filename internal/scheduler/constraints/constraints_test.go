@@ -144,7 +144,7 @@ func TestConstraints(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ok, unscheduledReason, err := tc.constraints.CheckRoundConstraints(tc.sctx, tc.queue)
+			ok, unscheduledReason, err := tc.constraints.CheckRoundConstraints(tc.sctx)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedCheckRoundConstraintsReason == "", ok)
 			require.Equal(t, tc.expectedCheckRoundConstraintsReason, unscheduledReason)

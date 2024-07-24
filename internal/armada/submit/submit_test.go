@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -23,7 +24,7 @@ import (
 )
 
 type mockObjects struct {
-	publisher    *mocks.MockPublisher
+	publisher    *commonMocks.MockPublisher
 	queueRepo    *mocks.MockQueueRepository
 	deduplicator *mocks.MockDeduplicator
 	authorizer   *mocks.MockActionAuthorizer
@@ -32,7 +33,7 @@ type mockObjects struct {
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:    mocks.NewMockPublisher(ctrl),
+		publisher:    commonMocks.NewMockPublisher(ctrl),
 		queueRepo:    mocks.NewMockQueueRepository(ctrl),
 		deduplicator: mocks.NewMockDeduplicator(ctrl),
 		authorizer:   mocks.NewMockActionAuthorizer(ctrl),

@@ -40,8 +40,6 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
 		"pool",
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestDefaultPriorityClass,
 		fairnessCostProvider,
 		nil,
 		totalResources,
@@ -255,8 +253,6 @@ func TestCalculateFairShares(t *testing.T) {
 			require.NoError(t, err)
 			sctx := NewSchedulingContext(
 				"pool",
-				testfixtures.TestPriorityClasses,
-				testfixtures.TestDefaultPriorityClass,
 				fairnessCostProvider,
 				nil,
 				tc.availableResources,
