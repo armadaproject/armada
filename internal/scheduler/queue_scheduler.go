@@ -127,7 +127,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			// instruct the underlying iterator to only yield evicted jobs from now on.
 			sch.schedulingContext.TerminationReason = unschedulableReason
 			sch.candidateGangIterator.OnlyYieldEvicted()
-			MarkGctxUnschedulable(sch.schedulingContext, gctx, unschedulableReason)
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
@@ -423,26 +422,30 @@ func (it *CandidateGangIterator) newPQItem(queue string, queueIt *QueuedGangIter
 	}
 }
 
-func MarkGctxUnschedulable(sctx *schedulercontext.SchedulingContext, gctx *schedulercontext.GangSchedulingContext, reason string) {
+func MarkGctxUnschedulable(sctx *schedulercontext.SchedulingContext, gctx *schedulercontext.GangSchedulingContext, reason string) error {
 	if gctx != nil {
 		for _, jctx := range gctx.JobSchedulingContexts {
-			jctx.UnschedulableReason = reason
-			sctx.AddJobSchedulingContext(jctx)
+			jctx.Fail(reason)
+		}
+		if _, err := sctx.AddGangSchedulingContext(gctx); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
 func (it *CandidateGangIterator) markPQItemAsUnschedulableWithReason(item *QueueCandidateGangIteratorItem, reason string) error {
 	if item == nil {
 		return nil
 	}
-	var err error
-	gctx := item.gctx
+	gctx, err := item.it.Next()
 	for {
 		if err != nil {
 			return err
 		} else if gctx != nil {
-			MarkGctxUnschedulable(item.it.schedulingContext, gctx, reason)
+			if err = MarkGctxUnschedulable(item.it.schedulingContext, gctx, reason); err != nil {
+				return err
+			}
 		} else {
 			break
 		}

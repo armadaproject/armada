@@ -105,13 +105,6 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 }
 
 func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	// Exit immediately if this is a new gang and we've hit any round limits.
-	if !gctx.AllJobsEvicted {
-		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
-			return
-		}
-	}
-
 	// This deferred function ensures unschedulable jobs are registered as such.
 	gangAddedToSchedulingContext := false
 	defer func() {
@@ -135,6 +128,13 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 			err = sch.updateGangSchedulingContextOnFailure(gctx, gangAddedToSchedulingContext, unschedulableReason)
 		}
 	}()
+
+	// Exit immediately if this is a new gang and we've hit any round limits.
+	if !gctx.AllJobsEvicted {
+		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
+			return
+		}
+	}
 
 	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
 		return

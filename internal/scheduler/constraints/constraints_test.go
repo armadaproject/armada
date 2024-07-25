@@ -148,6 +148,17 @@ func TestConstraints(t *testing.T) {
 			UnschedulableReasonMaximumResourcesExceeded,
 			"",
 		),
+		"scheduling-paused-on-queue-constraint": func() *constraintTest {
+			t := makeConstraintsTest(NewSchedulingConstraints(
+				"pool-1",
+				makeResourceList("1000", "1000Gi"),
+				configuration.SchedulingConfig{},
+				[]*api.Queue{{Name: "queue-1", SchedulingPaused: true}},
+				map[string]bool{"queue-1": false},
+			))
+			t.expectedCheckConstraintsReason = "scheduling paused on queue"
+			return t
+		}(),
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -171,24 +182,6 @@ func TestCapResources(t *testing.T) {
 		resources         schedulerobjects.QuantityByTAndResourceType[string]
 		expectedResources schedulerobjects.QuantityByTAndResourceType[string]
 	}{
-		"no contraints": {
-			constraints: NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				makeSchedulingConfig(),
-				[]*api.Queue{},
-				map[string]bool{},
-			))
-			t.expectedCheckConstraintsReason = "job requests 1 cpu, but the minimum is 5"
-			return t
-		}(),
-		"above-maximum-resources-to-schedule": func() *constraintTest {
-			t := makeConstraintsTest(NewSchedulingConstraints(
-			),
-			queue:             "queue-1",
-			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
-			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
-		},
 		"unconstrained": {
 			constraints: NewSchedulingConstraints(
 				"pool-1",
@@ -203,6 +196,7 @@ func TestCapResources(t *testing.T) {
 					},
 				},
 				[]*api.Queue{},
+				map[string]bool{},
 			),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
@@ -222,6 +216,7 @@ func TestCapResources(t *testing.T) {
 					},
 				},
 				[]*api.Queue{},
+				map[string]bool{},
 			),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
@@ -250,6 +245,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
+				map[string]bool{},
 			),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
@@ -281,6 +277,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
+				map[string]bool{},
 			),
 			queue: "queue-1",
 			resources: map[string]schedulerobjects.ResourceList{
@@ -292,23 +289,6 @@ func TestCapResources(t *testing.T) {
 				"priority-class-2": makeResourceList("900", "900Gi"),
 			},
 		},
-				map[string]bool{},
-			))
-			t.expectedCheckRoundConstraintsReason = "maximum resources scheduled"
-			return t
-		}(),
-		"scheduling-paused-on-queue-constraint": func() *constraintTest {
-			t := makeConstraintsTest(NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				makeResourceList("0", "0"),
-				configuration.SchedulingConfig{},
-				[]*api.Queue{{Name: "queue-1", SchedulingPaused: true}},
-				map[string]bool{"queue-1": false},
-			))
-			t.expectedCheckConstraintsReason = "scheduling paused on queue"
-			return t
-		}(),
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

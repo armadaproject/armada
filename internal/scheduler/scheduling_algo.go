@@ -217,13 +217,11 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 }
 
 type fairSchedulingAlgoContext struct {
-	queues                                   []*api.Queue
-	priorityFactorByQueue                    map[string]float64
-	demandByPoolByQueue                      map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
+	queues                []*api.Queue
+	priorityFactorByQueue map[string]float64
+	demandByPoolByQueue   map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	// Determines whether a queue has scheduling enabled. Not the same as a queue being active.
-	schedulingStatusByQueue map[string]bool
-	// A queue is active if it has jobs in the states running or queued
-	isActiveByPoolByQueue                    map[string]map[string]bool
+	schedulingStatusByQueue                  map[string]bool
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	nodesByPoolAndExecutor                   map[string]map[string][]*schedulerobjects.Node
 	jobsByPoolAndExecutor                    map[string]map[string][]*jobdb.Job
@@ -491,20 +489,21 @@ func (l *FairSchedulingAlgo) schedulePool(
 			l.limiterByQueue[queue] = queueLimiter
 		}
 
+		queueContextDemand := demand.AggregateByResource()
+
 		if !fsctx.schedulingStatusByQueue[queue] {
 			queueLimiter.SetLimitAt(now, rate.Limit(float64(0)))
 			queueLimiter.SetBurstAt(now, 0)
-		}
-
 
 			// Queued jobs should not be considered for paused queues, so demand := running
 			allocated := schedulerobjects.NewResourceListWithDefaultSize()
 			for _, rl := range allocatedByPriorityClass.DeepCopy() {
 				allocated.Add(rl)
 			}
-			demand = allocated
+			queueContextDemand = allocated
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, demand.AggregateByResource(), cappedDemand.AggregateByResource(), queueLimiter); err != nil {
+
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueContextDemand, cappedDemand.AggregateByResource(), queueLimiter); err != nil {
 			return nil, nil, err
 		}
 	}

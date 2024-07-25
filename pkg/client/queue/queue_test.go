@@ -2,10 +2,11 @@ package queue
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 	"testing/quick"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -29,10 +30,11 @@ func TestQueue(t *testing.T) {
 
 func TestQueueWithLabels(t *testing.T) {
 	queue1 := Queue{
-		Name:           "queue-a",
-		PriorityFactor: 100,
-		Permissions:    []Permissions{},
-		Labels:         []string{"armadaproject.io/gpu-category=gang-user", "armadaproject.io/priority=critical"},
+		Name:                              "queue-a",
+		PriorityFactor:                    100,
+		Permissions:                       []Permissions{},
+		Labels:                            []string{"armadaproject.io/gpu-category=gang-user", "armadaproject.io/priority=critical"},
+		ResourceLimitsByPriorityClassName: make(map[string]api.PriorityClassResourceLimits),
 	}
 	queue2, err := NewQueue(queue1.ToAPI())
 	if err != nil {

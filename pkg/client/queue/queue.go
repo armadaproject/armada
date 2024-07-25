@@ -60,7 +60,6 @@ func NewQueue(in *api.Queue) (Queue, error) {
 		Name:                              in.Name,
 		PriorityFactor:                    priorityFactor,
 		Permissions:                       permissions,
-		ResourceLimitsByPriorityClassName: in.ResourceLimitsByPriorityClassName,
 		SchedulingPaused:                  in.SchedulingPaused,
 		Labels:                            in.Labels,
 		ResourceLimitsByPriorityClassName: resourceLimitsByPriorityClassName,
@@ -70,11 +69,6 @@ func NewQueue(in *api.Queue) (Queue, error) {
 // ToAPI transforms Queue to *api.Queue structure
 func (q Queue) ToAPI() *api.Queue {
 	rv := &api.Queue{
-		Name:                              q.Name,
-		PriorityFactor:                    float64(q.PriorityFactor),
-		ResourceLimitsByPriorityClassName: q.ResourceLimitsByPriorityClassName,
-		SchedulingPaused:                  q.SchedulingPaused,
-		Labels:                            q.Labels,
 		Name:           q.Name,
 		PriorityFactor: float64(q.PriorityFactor),
 		ResourceLimitsByPriorityClassName: armadamaps.MapValues(
@@ -82,6 +76,8 @@ func (q Queue) ToAPI() *api.Queue {
 			func(p api.PriorityClassResourceLimits) *api.PriorityClassResourceLimits {
 				return &p
 			}),
+		SchedulingPaused: q.SchedulingPaused,
+		Labels:           q.Labels,
 	}
 	for _, permission := range q.Permissions {
 		rv.Permissions = append(rv.Permissions, permission.ToAPI())

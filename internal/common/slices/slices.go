@@ -2,10 +2,11 @@ package slices
 
 import (
 	"fmt"
-	goslices "golang.org/x/exp/slices"
 	"math"
 	"math/rand"
 	"sync"
+
+	goslices "golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/interfaces"
 )

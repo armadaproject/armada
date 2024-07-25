@@ -69,7 +69,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.MakeTestExecutor("executor-2", "pool-1"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue0, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: []int{0, 1, 2, 3, 4, 5},
 			expectedScheduledByPool:  map[string]int{"pool-1": 4, "pool-2": 2},
 		},
