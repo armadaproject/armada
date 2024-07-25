@@ -17,6 +17,27 @@ func (a *App) cordonQueue(q *api.Queue) error {
 	return err
 }
 
+func (a *App) CordonQueue(queue string, dryRun bool) error {
+	selectedQueue, err := a.getQueueAsAPIQueue(queue)
+	if err != nil {
+		return fmt.Errorf("error retrieving queue %s: %s", queue, err)
+	}
+
+	if dryRun {
+		fmt.Printf("Pausing scheduling for the following queues: (DRY RUN)")
+		fmt.Println(queue)
+	} else {
+		fmt.Println("Pausing scheduling for the following queues:")
+		err = a.cordonQueue(selectedQueue)
+		if err != nil {
+			return fmt.Errorf("could not pause scheduling on queue %s: %s", queue, err)
+		} else {
+			fmt.Printf("%s paused\n", queue)
+		}
+	}
+	return nil
+}
+
 func (a *App) CordonQueues(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {
 	selectedQueues, err := a.getAllQueuesAsAPIQueue(matchQueues, matchLabels, inverse)
 	if err != nil {
@@ -50,6 +71,27 @@ func (a *App) uncordonQueue(q *api.Queue) error {
 		return fmt.Errorf("error updating queue %s: %s", q.Name, err)
 	}
 	return err
+}
+
+func (a *App) UncordonQueue(queue string, dryRun bool) error {
+	selectedQueue, err := a.getQueueAsAPIQueue(queue)
+	if err != nil {
+		return fmt.Errorf("error retrieving queue %s: %s", queue, err)
+	}
+
+	if dryRun {
+		fmt.Printf("Resuming scheduling for the following queues: (DRY RUN)")
+		fmt.Println(queue)
+	} else {
+		fmt.Println("Resuming scheduling for the following queues:")
+		err = a.uncordonQueue(selectedQueue)
+		if err != nil {
+			return fmt.Errorf("could not resume scheduling on queue %s: %s", queue, err)
+		} else {
+			fmt.Printf("%s resumed\n", queue)
+		}
+	}
+	return nil
 }
 
 func (a *App) UncordonQueues(matchQueues []string, matchLabels []string, dryRun bool, inverse bool) error {

@@ -58,6 +58,15 @@ func (a *App) DeleteQueue(name string) error {
 	return nil
 }
 
+func (a *App) getQueueAsAPIQueue(queue string) (*api.Queue, error) {
+	queueToReturn, err := a.Params.QueueAPI.Get(queue)
+	if err != nil {
+		return nil, errors.Errorf("[armadactl.getQueueAsAPIQueue] error getting queue %s: %s", queue, err)
+	}
+
+	return queueToReturn, nil
+}
+
 // GetQueue calls app.QueueAPI.Get with the provided parameters.
 func (a *App) GetQueue(name string) error {
 	queue, err := a.Params.QueueAPI.Get(name)

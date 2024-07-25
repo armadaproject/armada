@@ -15,6 +15,7 @@ func cordon() *cobra.Command {
 		Short: "Pause scheduling by resource",
 		Long:  "Pause scheduling by resource. Supported: queue",
 	}
+	cmd.AddCommand(cordonQueues(a))
 	cmd.AddCommand(cordonQueue(a))
 	return cmd
 }
@@ -26,13 +27,14 @@ func uncordon() *cobra.Command {
 		Short: "Resume scheduling by resource",
 		Long:  "Resume scheduling by resource. Supported: queue",
 	}
+	cmd.AddCommand(uncordonQueues(a))
 	cmd.AddCommand(uncordonQueue(a))
 	return cmd
 }
 
-func cordonQueue(a *armadactl.App) *cobra.Command {
+func cordonQueues(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "queue",
+		Use:   "queues",
 		Short: "Pause scheduling for select queues",
 		Long:  "Pause scheduling for select queues. This can be achieved by queue name or by labels.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -73,9 +75,9 @@ func cordonQueue(a *armadactl.App) *cobra.Command {
 	return cmd
 }
 
-func uncordonQueue(a *armadactl.App) *cobra.Command {
+func uncordonQueues(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "queue",
+		Use:   "queues",
 		Short: "Resume scheduling for select queues",
 		Long:  "Resume scheduling for select queues. This can be achieved by queue name or by labels.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -112,6 +114,52 @@ func uncordonQueue(a *armadactl.App) *cobra.Command {
 	cmd.Flags().StringSliceP("match-queues", "q", []string{}, "Provide a comma separated list of queues you'd like to resume scheduling for. Defaults to empty.")
 	cmd.Flags().StringSliceP("match-labels", "l", []string{}, "Provide a comma separated list of labels. Queues matching all provided labels will have scheduling resumed. Defaults to empty.")
 	cmd.Flags().Bool("inverse", false, "Select all queues which do not match the provided parameters")
+	cmd.Flags().Bool("dry-run", false, "Show selection of queues that will be modified in this operation")
+	return cmd
+}
+
+func cordonQueue(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "queue <queue>",
+		Short: "Pause scheduling for a given queue",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			queue := args[0]
+
+			dryRun, err := cmd.Flags().GetBool("dry-run")
+			if err != nil {
+				return fmt.Errorf("error reading dry-run flag: %s", err)
+			}
+
+			return a.CordonQueue(queue, dryRun)
+		},
+	}
+	cmd.Flags().Bool("dry-run", false, "Show selection of queues that will be modified in this operation")
+	return cmd
+}
+
+func uncordonQueue(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "queue <queue>",
+		Short: "Resume scheduling for a given queue",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			queue := args[0]
+
+			dryRun, err := cmd.Flags().GetBool("dry-run")
+			if err != nil {
+				return fmt.Errorf("error reading dry-run flag: %s", err)
+			}
+
+			return a.UncordonQueue(queue, dryRun)
+		},
+	}
 	cmd.Flags().Bool("dry-run", false, "Show selection of queues that will be modified in this operation")
 	return cmd
 }
