@@ -689,7 +689,7 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 }
 
 func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (*jobdb.Job, bool, error) {
-	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.PriorityClasses)
+	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time)
 	if err != nil {
 		return nil, false, err
 	}

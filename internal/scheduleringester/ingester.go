@@ -27,7 +27,7 @@ func Run(config Configuration) error {
 	}
 	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second, 5*time.Second)
 
-	converter, err := NewInstructionConverter(svcMetrics, config.PriorityClasses)
+	converter, err := NewInstructionConverter(svcMetrics)
 	if err != nil {
 		return err
 	}

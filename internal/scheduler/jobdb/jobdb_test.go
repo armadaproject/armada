@@ -259,7 +259,6 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 	podRequirements := &schedulerobjects.PodRequirements{
 		NodeSelector: map[string]string{"foo": "bar"},
-		Priority:     2,
 	}
 	jobSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		PriorityClassName: "foo",
@@ -303,7 +302,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					"fish": "chips",
 					"salt": "pepper",
 				},
-				Priority:         1,
 				PreemptionPolicy: "abc",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
@@ -334,7 +332,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					"foo":  "bar",
 					"fish": "chips",
 				},
-				Priority:         1,
 				PreemptionPolicy: "abc",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
@@ -364,7 +361,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority:         1,
 				PreemptionPolicy: "abc",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
@@ -391,7 +387,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority:         1,
 				PreemptionPolicy: "abcdef",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
@@ -421,7 +416,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority:         1,
 				PreemptionPolicy: "abc",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
@@ -448,7 +442,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority:         1,
 				PreemptionPolicy: "abcdef",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
@@ -478,7 +471,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -499,7 +491,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 2,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -523,7 +514,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -544,7 +534,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -569,7 +558,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -591,7 +579,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -614,7 +601,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -635,7 +621,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -671,7 +656,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -692,7 +676,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -715,7 +698,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -736,7 +718,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -759,7 +740,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -780,7 +760,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -803,7 +782,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -824,7 +802,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d-2",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -847,7 +824,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -868,7 +844,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(2),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -892,7 +867,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("4"),
@@ -913,7 +887,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				Priority: 1,
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{
 						"memory":         resource.MustParse("5"),

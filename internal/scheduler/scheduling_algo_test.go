@@ -434,7 +434,7 @@ func TestSchedule(t *testing.T) {
 				for nodeIndex, existingJobs := range existingJobsByExecutorNodeIndex {
 					node := executor.Nodes[nodeIndex]
 					for jobIndex, job := range existingJobs.jobs {
-						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, node.Pool, job.PodRequirements().Priority)
+						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, node.Pool, job.PriorityClass().Priority)
 						if existingJobs.acknowledged {
 							run := job.LatestRun()
 							node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
@@ -559,7 +559,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, node.Pool, jobs[j].PodRequirements().Priority)
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, node.Pool, jobs[j].PriorityClass().Priority)
 				}
 			}
 			armadaslices.Shuffle(jobs)
