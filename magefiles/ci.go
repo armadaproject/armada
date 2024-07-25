@@ -19,13 +19,6 @@ func createQueue() error {
 		return err
 	}
 
-	out, err = runArmadaCtl("create", "queue", "e2e-test-queue-paused", "--pause-scheduling")
-	// check if err text contains "already exists" and ignore if it does
-	if err != nil && !strings.Contains(out, "already exists") {
-		fmt.Println(out)
-		return err
-	}
-
 	return nil
 }
 
