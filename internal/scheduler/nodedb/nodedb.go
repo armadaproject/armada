@@ -259,13 +259,6 @@ func NewNodeDb(
 	for _, key := range indexedNodeLabels {
 		indexedNodeLabelValues[key] = make(map[string]struct{})
 	}
-	mapFromSlice := func(vs []string) map[string]interface{} {
-		rv := make(map[string]interface{})
-		for _, v := range vs {
-			rv[v] = true
-		}
-		return rv
-	}
 
 	indexedResourceResolution, err := makeIndexedResourceResolution(indexedResources, resourceListFactory)
 	if err != nil {
@@ -302,6 +295,14 @@ func NewNodeDb(
 	}
 
 	return &nodeDb, nil
+}
+
+func mapFromSlice(vs []string) map[string]interface{} {
+	rv := make(map[string]interface{})
+	for _, v := range vs {
+		rv[v] = true
+	}
+	return rv
 }
 
 func makeIndexedResourceResolution(indexedResourceTypes []configuration.ResourceType, resourceListFactory *internaltypes.ResourceListFactory) ([]int64, error) {
