@@ -42,6 +42,9 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 
 	labels := maps.Clone(node.GetLabels())
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	labels[configuration.NodeIdLabel] = node.Id
 
 	totalResources := node.TotalResources
