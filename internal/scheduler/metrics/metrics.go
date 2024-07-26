@@ -305,7 +305,7 @@ func (m *Metrics) UpdateLeased(jctx *schedulercontext.JobSchedulingContext) erro
 	labels = append(labels, leased)
 	labels = append(labels, "") // No category for leased.
 	labels = append(labels, "") // No subCategory for leased.
-	labels = appendLabelsFromJobSchedulingContext(labels, jctx)
+	labels = appendLabelsFromJob(labels, jctx.Job)
 
 	return m.updateMetrics(labels, job, duration)
 }
@@ -391,16 +391,14 @@ func (m *Metrics) indexOfFirstMatchingRegexFromErrorMessage(message string) (int
 
 func appendLabelsFromJob(labels []string, job *jobdb.Job) []string {
 	executor := executorNameFromRun(job.LatestRun())
+	pools := job.ResolvedPools()
+	pool := ""
+	if len(pools) > 0 {
+		pool = pools[0]
+	}
 	labels = append(labels, job.Queue())
 	labels = append(labels, executor)
-	return labels
-}
-
-func appendLabelsFromJobSchedulingContext(labels []string, jctx *schedulercontext.JobSchedulingContext) []string {
-	job := jctx.Job
-	executor := executorNameFromRun(job.LatestRun())
-	labels = append(labels, job.Queue())
-	labels = append(labels, executor)
+	labels = append(labels, pool)
 	return labels
 }
 
@@ -497,7 +495,7 @@ func (m *Metrics) counterVectorsFromResource(resource v1.ResourceName) (*prometh
 				Name:      name,
 				Help:      resource.String() + "resource counter.",
 			},
-			[]string{"state", "category", "subCategory", "queue", "cluster"},
+			[]string{"state", "category", "subCategory", "queue", "cluster", "pool"},
 		)
 		m.resourceCounters[resource] = c
 	}
@@ -513,7 +511,7 @@ func (m *Metrics) counterVectorsFromResource(resource v1.ResourceName) (*prometh
 				Name:      name,
 				Help:      resource.String() + "-second resource counter.",
 			},
-			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster"},
+			[]string{"priorState", "state", "category", "subCategory", "queue", "cluster", "pool"},
 		)
 		m.resourceCounters[resourceSeconds] = cSeconds
 	}
