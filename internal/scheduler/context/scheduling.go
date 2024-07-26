@@ -2,12 +2,12 @@ package context
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/openconfig/goyang/pkg/indent"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"

@@ -3,8 +3,9 @@ package context
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
 func TestJobSchedulingContext_SetAssignedNodeId(t *testing.T) {

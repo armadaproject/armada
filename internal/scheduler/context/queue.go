@@ -3,13 +3,15 @@ package context
 import (
 	"fmt"
 	"strings"
+	"text/tabwriter"
 	"time"
+
+	"text/tabwriter"
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
-	"text/tabwriter"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
