@@ -730,6 +730,16 @@ func (job *Job) LatestRun() *JobRun {
 	return job.activeRun
 }
 
+// ResolvedPools returns the:
+//   - The pools that the job is capable of running on for queued jobs
+//   - The pool the job has been leased to for non-queued jobs
+func (job *Job) ResolvedPools() []string {
+	if job.activeRun != nil && !job.queued {
+		return []string{job.activeRun.Pool()}
+	}
+	return job.pools
+}
+
 // RunById returns the Run corresponding to the provided run id or nil if no such Run exists.
 func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
