@@ -96,8 +96,9 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 10),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 4),
 			),
-			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
-			ExpectedScheduledIndices: []int{0, 11},
+			Queues:                        testfixtures.SingleQueuePriorityOne("A"),
+			ExpectedScheduledIndices:      []int{0, 11},
+			ExpectedNeverAttemptedIndices: []int{13, 14},
 		},
 		"MaximumPerQueueSchedulingBurst": {
 			SchedulingConfig: testfixtures.WithPerQueueSchedulingLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
@@ -108,8 +109,9 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1),
 			),
-			Queues:                   []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
-			ExpectedScheduledIndices: []int{0, 11, 14},
+			Queues:                        []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+			ExpectedScheduledIndices:      []int{0, 11, 14},
+			ExpectedNeverAttemptedIndices: []int{13},
 		},
 		"MaximumSchedulingBurst is not exceeded by gangs": {
 			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
