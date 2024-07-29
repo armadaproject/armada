@@ -377,3 +377,20 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.NotNil(t, updatedJob.NodeSelector())
 	assert.NotNil(t, updatedJob.Annotations())
 }
+
+func TestJob_TestResolvedPools(t *testing.T) {
+	jobWithNoPool := baseJob
+	jobWithPool := baseJob.WithPools([]string{"testPool"})
+	jobWithJobRunPool := jobWithPool.
+		WithQueued(false).
+		WithNewRun("testExecutor", "testNode", "testNode", "testPool2", 1)
+
+	// Job without pool
+	assert.Equal(t, []string{}, jobWithNoPool.ResolvedPools())
+
+	// Queued job withPool
+	assert.Equal(t, []string{"testPool"}, jobWithPool.ResolvedPools())
+
+	// Job with an active run
+	assert.Equal(t, []string{"testPool2"}, jobWithJobRunPool.ResolvedPools())
+}

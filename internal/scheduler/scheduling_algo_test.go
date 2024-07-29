@@ -14,7 +14,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -407,7 +406,6 @@ func TestSchedule(t *testing.T) {
 				mockExecutorRepo,
 				mockQueueCache,
 				schedulingContextRepo,
-				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
 			)
@@ -567,14 +565,12 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				b.StopTimer()
-				stringInterner := stringinterner.New(1024)
 				algo, err := NewFairSchedulingAlgo(
 					schedulingConfig,
 					time.Second*5,
 					nil,
 					nil,
 					nil,
-					stringInterner,
 					testfixtures.TestResourceListFactory,
 					testfixtures.TestEmptyFloatingResources,
 				)
@@ -587,7 +583,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
 					schedulingConfig.WellKnownNodeTypes,
-					stringInterner,
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)

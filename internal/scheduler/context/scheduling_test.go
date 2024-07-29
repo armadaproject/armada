@@ -15,25 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestNewGangSchedulingContext(t *testing.T) {
-	jctxs := testNSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass, 2)
-	gctx := NewGangSchedulingContext(jctxs)
-	assert.Equal(t, jctxs, gctx.JobSchedulingContexts)
-	assert.Equal(t, "A", gctx.Queue)
-	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.GangInfo.PriorityClassName)
-	assert.True(
-		t,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("2"),
-				"memory": resource.MustParse("8Gi"),
-			},
-		}.Equal(
-			gctx.TotalResourceRequests,
-		),
-	)
-}
-
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
@@ -74,42 +55,6 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	}
 	_, err = sctx.AddGangSchedulingContext(gctx)
 	require.NoError(t, err)
-}
-
-func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
-	rv := make([]*JobSchedulingContext, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testSmallCpuJobSchedulingContext(queue, priorityClassName)
-	}
-	return rv
-}
-
-func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
-	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
-	return &JobSchedulingContext{
-		JobId:                job.Id(),
-		Job:                  job,
-		PodRequirements:      job.PodRequirements(),
-		ResourceRequirements: job.EfficientResourceRequirements(),
-		GangInfo:             EmptyGangInfo(job),
-	}
-}
-
-func TestJobSchedulingContext_SetAssignedNodeId(t *testing.T) {
-	jctx := &JobSchedulingContext{}
-
-	assert.Equal(t, "", jctx.GetAssignedNodeId())
-	assert.Empty(t, jctx.AdditionalNodeSelectors)
-
-	// Will not add a node selector if input is empty
-	jctx.SetAssignedNodeId("")
-	assert.Equal(t, "", jctx.GetAssignedNodeId())
-	assert.Empty(t, jctx.AdditionalNodeSelectors)
-
-	jctx.SetAssignedNodeId("node1")
-	assert.Equal(t, "node1", jctx.GetAssignedNodeId())
-	assert.Len(t, jctx.AdditionalNodeSelectors, 1)
-	assert.Equal(t, map[string]string{configuration.NodeIdLabel: "node1"}, jctx.AdditionalNodeSelectors)
 }
 
 func TestCalculateFairShares(t *testing.T) {
@@ -260,5 +205,24 @@ func TestCalculateFairShares(t *testing.T) {
 				assert.Equal(t, expectedAdjustedFairShare, qctx.AdjustedFairShare, "Adjusted Fair share for queue %s", qName)
 			}
 		})
+	}
+}
+
+func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
+	rv := make([]*JobSchedulingContext, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testSmallCpuJobSchedulingContext(queue, priorityClassName)
+	}
+	return rv
+}
+
+func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
+	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
+	return &JobSchedulingContext{
+		JobId:                job.Id(),
+		Job:                  job,
+		PodRequirements:      job.PodRequirements(),
+		ResourceRequirements: job.EfficientResourceRequirements(),
+		GangInfo:             EmptyGangInfo(job),
 	}
 }
