@@ -15,25 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestNewGangSchedulingContext(t *testing.T) {
-	jctxs := testNSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass, 2)
-	gctx := NewGangSchedulingContext(jctxs)
-	assert.Equal(t, jctxs, gctx.JobSchedulingContexts)
-	assert.Equal(t, "A", gctx.Queue)
-	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.GangInfo.PriorityClassName)
-	assert.True(
-		t,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("2"),
-				"memory": resource.MustParse("8Gi"),
-			},
-		}.Equal(
-			gctx.TotalResourceRequests,
-		),
-	)
-}
-
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
@@ -76,42 +57,6 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
-	rv := make([]*JobSchedulingContext, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testSmallCpuJobSchedulingContext(queue, priorityClassName)
-	}
-	return rv
-}
-
-func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
-	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
-	return &JobSchedulingContext{
-		JobId:                job.Id(),
-		Job:                  job,
-		PodRequirements:      job.PodRequirements(),
-		ResourceRequirements: job.EfficientResourceRequirements(),
-		GangInfo:             EmptyGangInfo(job),
-	}
-}
-
-func TestJobSchedulingContext_SetAssignedNodeId(t *testing.T) {
-	jctx := &JobSchedulingContext{}
-
-	assert.Equal(t, "", jctx.GetAssignedNodeId())
-	assert.Empty(t, jctx.AdditionalNodeSelectors)
-
-	// Will not add a node selector if input is empty
-	jctx.SetAssignedNodeId("")
-	assert.Equal(t, "", jctx.GetAssignedNodeId())
-	assert.Empty(t, jctx.AdditionalNodeSelectors)
-
-	jctx.SetAssignedNodeId("node1")
-	assert.Equal(t, "node1", jctx.GetAssignedNodeId())
-	assert.Len(t, jctx.AdditionalNodeSelectors, 1)
-	assert.Equal(t, map[string]string{configuration.NodeIdLabel: "node1"}, jctx.AdditionalNodeSelectors)
-}
-
 func TestCalculateFairShares(t *testing.T) {
 	zeroCpu := schedulerobjects.ResourceList{
 		Resources: map[string]resource.Quantity{"cpu": resource.MustParse("0")},
@@ -133,118 +78,106 @@ func TestCalculateFairShares(t *testing.T) {
 		queueCtxs                  map[string]*QueueSchedulingContext
 		expectedFairShares         map[string]float64
 		expectedAdjustedFairShares map[string]float64
-		expectedFairnessError      float64
 	}{
 		"one queue, demand exceeds capacity": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu, Allocated: fortyCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 1.0},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 1.0},
-			expectedFairnessError:      0.6,
 		},
 		"one queue, demand less than capacity": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu, Allocated: oneCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 1.0},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.01},
-			expectedFairnessError:      0,
 		},
 		"two queues, equal weights, demand exceeds capacity": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu, Allocated: fortyCpu},
-				"queueB": {Weight: 1.0, Demand: oneThousandCpu, Allocated: fortyCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueB": {Weight: 1.0, Demand: oneThousandCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 0.5, "queueB": 0.5},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.5, "queueB": 0.5},
-			expectedFairnessError:      0.2,
 		},
 		"two queues, equal weights, demand less than capacity for both queues": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu, Allocated: oneCpu},
-				"queueB": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu},
+				"queueB": {Weight: 1.0, Demand: oneCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 0.5, "queueB": 0.5},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.01},
-			expectedFairnessError:      0.01,
 		},
 		"two queues, equal weights, demand less than capacity for one queue": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 1.0, Demand: oneThousandCpu, Allocated: oneHundredCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu},
+				"queueB": {Weight: 1.0, Demand: oneThousandCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 0.5, "queueB": 0.5},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.99},
-			expectedFairnessError:      0.01,
 		},
 		"two queues, non equal weights, demand exceeds capacity for both queues": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 3.0, Demand: oneThousandCpu, Allocated: zeroCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueB": {Weight: 3.0, Demand: oneThousandCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 0.25, "queueB": 0.75},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.25, "queueB": 0.75},
-			expectedFairnessError:      1.00,
 		},
 		"two queues, non equal weights, demand exceeds capacity for higher priority queue only": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 3.0, Demand: oneThousandCpu, Allocated: oneHundredCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu},
+				"queueB": {Weight: 3.0, Demand: oneThousandCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 0.25, "queueB": 0.75},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.99},
-			expectedFairnessError:      0.01,
 		},
 		"two queues, non equal weights, demand exceeds capacity for lower priority queue only": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 3.0, Demand: oneCpu, Allocated: zeroCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueB": {Weight: 3.0, Demand: oneCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 0.25, "queueB": 0.75},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.99, "queueB": 0.01},
-			expectedFairnessError:      1.0,
 		},
 		"three queues, equal weights. Adjusted fair share requires multiple iterations": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 1.0, Demand: fortyCpu, Allocated: zeroCpu},
-				"queueC": {Weight: 1.0, Demand: oneThousandCpu, Allocated: oneHundredCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu},
+				"queueB": {Weight: 1.0, Demand: fortyCpu},
+				"queueC": {Weight: 1.0, Demand: oneThousandCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.4, "queueC": 0.59},
-			expectedFairnessError:      0.41,
 		},
 		"No demand": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: zeroCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 1.0, Demand: zeroCpu, Allocated: zeroCpu},
-				"queueC": {Weight: 1.0, Demand: zeroCpu, Allocated: zeroCpu},
+				"queueA": {Weight: 1.0, Demand: zeroCpu},
+				"queueB": {Weight: 1.0, Demand: zeroCpu},
+				"queueC": {Weight: 1.0, Demand: zeroCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 0.0, "queueB": 0.0, "queueC": 0.0},
-			expectedFairnessError:      0,
 		},
 		"No capacity": {
 			availableResources: zeroCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
-				"queueB": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
-				"queueC": {Weight: 1.0, Demand: oneCpu, Allocated: zeroCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu},
+				"queueB": {Weight: 1.0, Demand: oneCpu},
+				"queueC": {Weight: 1.0, Demand: oneCpu},
 			},
 			expectedFairShares:         map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
 			expectedAdjustedFairShares: map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
-			expectedFairnessError:      1.0,
 		},
 	}
 	for name, tc := range tests {
@@ -260,7 +193,6 @@ func TestCalculateFairShares(t *testing.T) {
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
 					qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, q.Demand, nil)
-				sctx.QueueSchedulingContexts[qName].Allocated = q.Allocated
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
@@ -272,8 +204,25 @@ func TestCalculateFairShares(t *testing.T) {
 				assert.Equal(t, expectedFairShare, qctx.FairShare, "Fair share for queue %s", qName)
 				assert.Equal(t, expectedAdjustedFairShare, qctx.AdjustedFairShare, "Adjusted Fair share for queue %s", qName)
 			}
-
-			assert.InDelta(t, tc.expectedFairnessError, sctx.FairnessError(), 0.0001)
 		})
+	}
+}
+
+func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
+	rv := make([]*JobSchedulingContext, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testSmallCpuJobSchedulingContext(queue, priorityClassName)
+	}
+	return rv
+}
+
+func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
+	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
+	return &JobSchedulingContext{
+		JobId:                job.Id(),
+		Job:                  job,
+		PodRequirements:      job.PodRequirements(),
+		ResourceRequirements: job.EfficientResourceRequirements(),
+		GangInfo:             EmptyGangInfo(job),
 	}
 }

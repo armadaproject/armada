@@ -32,10 +32,6 @@ message Node {
     // Time at which this node was last updated.
     // Used to garbage collect nodes that have been removed.
     google.protobuf.Timestamp last_seen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    // The node type captures scheduling requirements of the node;
-    // it's computed from the taints and labels associated with the node.
-    // This field is set automatically by the NodeDb on inserting the node.
-    NodeType node_type = 3;
     // Kubernetes taints.
     repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
     // Kubernetes labels.
@@ -147,11 +143,6 @@ message PodRequirements {
     repeated k8s.io.api.core.v1.Toleration tolerations = 3 [(gogoproto.nullable) = false];
     // Kubernetes annotations. Included here since we use annotations with special meaning.
     map<string, string> annotations = 7;
-    // Priority class priority of the pod as submitted. Should be mapped from the priority class name of the submitted pod.
-    //
-    // During scheduling, the priority stored on the podSchedulingContext should be used instead,
-    // since a pod may be scheduled at a priority different from the priority it was submitted with.
-    int32 priority = 4;
     // One of Never, PreemptLowerPriority.
     // Defaults to PreemptLowerPriority if unset.
     string preemptionPolicy = 5;

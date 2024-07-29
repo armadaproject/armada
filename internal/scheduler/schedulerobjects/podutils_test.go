@@ -209,7 +209,6 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 							"fish": "chips",
 							"salt": "pepper",
 						},
-						Priority:         1,
 						PreemptionPolicy: "abc",
 						ResourceRequirements: v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
@@ -319,7 +318,6 @@ func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
 							"fish": "chips",
 							"salt": "pepper",
 						},
-						Priority:         1,
 						PreemptionPolicy: "abc",
 						ResourceRequirements: v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{

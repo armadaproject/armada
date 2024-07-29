@@ -252,7 +252,6 @@ func TestConvertLeased(t *testing.T) {
 							Effect: v1.TaintEffectNoSchedule,
 						},
 					},
-					Priority: 1000,
 				},
 			},
 		},
