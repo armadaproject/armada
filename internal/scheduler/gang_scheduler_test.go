@@ -13,7 +13,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -528,7 +527,6 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,
 				tc.SchedulingConfig.WellKnownNodeTypes,
-				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
