@@ -82,11 +82,13 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 		return err
 	}
 
-	// Register unfeasible scheduling keys.
+	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
+
+	// Register globally unfeasible scheduling keys.
 	//
 	// Only record unfeasible scheduling keys for single-job gangs.
 	// Since a gang may be unschedulable even if all its members are individually schedulable.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
+	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 && globallyUnschedulable {
 		jctx := gctx.JobSchedulingContexts[0]
 		schedulingKey, ok := jctx.SchedulingKey()
 		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
@@ -233,9 +235,9 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {
-				unschedulableReason = "unable to schedule gang since minimum cardinality not met"
+				unschedulableReason = schedulerconstraints.GangDoesNotFitUnschedulableReason
 			} else {
-				unschedulableReason = "job does not fit on any node"
+				unschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
 			}
 		}
 		return
