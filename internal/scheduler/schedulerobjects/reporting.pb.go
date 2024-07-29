@@ -11,6 +11,7 @@ import (
 	math_bits "math/bits"
 
 	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -117,7 +118,6 @@ func (m *MostRecentForJob) GetJobId() string {
 
 type SchedulingReportRequest struct {
 	// Types that are valid to be assigned to Filter:
-	//
 	//	*SchedulingReportRequest_MostRecentForQueue
 	//	*SchedulingReportRequest_MostRecentForJob
 	Filter    isSchedulingReportRequest_Filter `protobuf_oneof:"filter"`
@@ -437,6 +437,172 @@ func (m *JobReport) GetReport() string {
 	return ""
 }
 
+// Indicates the end of streams
+type EndMarker struct {
+}
+
+func (m *EndMarker) Reset()         { *m = EndMarker{} }
+func (m *EndMarker) String() string { return proto.CompactTextString(m) }
+func (*EndMarker) ProtoMessage()    {}
+func (*EndMarker) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{8}
+}
+func (m *EndMarker) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *EndMarker) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_EndMarker.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *EndMarker) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EndMarker.Merge(m, src)
+}
+func (m *EndMarker) XXX_Size() int {
+	return m.Size()
+}
+func (m *EndMarker) XXX_DiscardUnknown() {
+	xxx_messageInfo_EndMarker.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EndMarker proto.InternalMessageInfo
+
+type StreamingExecutorMessage struct {
+	// Types that are valid to be assigned to Event:
+	//	*StreamingExecutorMessage_Executor
+	//	*StreamingExecutorMessage_End
+	Event isStreamingExecutorMessage_Event `protobuf_oneof:"event"`
+}
+
+func (m *StreamingExecutorMessage) Reset()         { *m = StreamingExecutorMessage{} }
+func (m *StreamingExecutorMessage) String() string { return proto.CompactTextString(m) }
+func (*StreamingExecutorMessage) ProtoMessage()    {}
+func (*StreamingExecutorMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{9}
+}
+func (m *StreamingExecutorMessage) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StreamingExecutorMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StreamingExecutorMessage.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StreamingExecutorMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StreamingExecutorMessage.Merge(m, src)
+}
+func (m *StreamingExecutorMessage) XXX_Size() int {
+	return m.Size()
+}
+func (m *StreamingExecutorMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_StreamingExecutorMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StreamingExecutorMessage proto.InternalMessageInfo
+
+type isStreamingExecutorMessage_Event interface {
+	isStreamingExecutorMessage_Event()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type StreamingExecutorMessage_Executor struct {
+	Executor *Executor `protobuf:"bytes,1,opt,name=executor,proto3,oneof" json:"executor,omitempty"`
+}
+type StreamingExecutorMessage_End struct {
+	End *EndMarker `protobuf:"bytes,2,opt,name=end,proto3,oneof" json:"end,omitempty"`
+}
+
+func (*StreamingExecutorMessage_Executor) isStreamingExecutorMessage_Event() {}
+func (*StreamingExecutorMessage_End) isStreamingExecutorMessage_Event()      {}
+
+func (m *StreamingExecutorMessage) GetEvent() isStreamingExecutorMessage_Event {
+	if m != nil {
+		return m.Event
+	}
+	return nil
+}
+
+func (m *StreamingExecutorMessage) GetExecutor() *Executor {
+	if x, ok := m.GetEvent().(*StreamingExecutorMessage_Executor); ok {
+		return x.Executor
+	}
+	return nil
+}
+
+func (m *StreamingExecutorMessage) GetEnd() *EndMarker {
+	if x, ok := m.GetEvent().(*StreamingExecutorMessage_End); ok {
+		return x.End
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*StreamingExecutorMessage) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*StreamingExecutorMessage_Executor)(nil),
+		(*StreamingExecutorMessage_End)(nil),
+	}
+}
+
+type StreamingExecutorGetRequest struct {
+	Num uint32 `protobuf:"varint,1,opt,name=num,proto3" json:"num,omitempty"`
+}
+
+func (m *StreamingExecutorGetRequest) Reset()         { *m = StreamingExecutorGetRequest{} }
+func (m *StreamingExecutorGetRequest) String() string { return proto.CompactTextString(m) }
+func (*StreamingExecutorGetRequest) ProtoMessage()    {}
+func (*StreamingExecutorGetRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{10}
+}
+func (m *StreamingExecutorGetRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StreamingExecutorGetRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StreamingExecutorGetRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StreamingExecutorGetRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StreamingExecutorGetRequest.Merge(m, src)
+}
+func (m *StreamingExecutorGetRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *StreamingExecutorGetRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_StreamingExecutorGetRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StreamingExecutorGetRequest proto.InternalMessageInfo
+
+func (m *StreamingExecutorGetRequest) GetNum() uint32 {
+	if m != nil {
+		return m.Num
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*MostRecentForQueue)(nil), "schedulerobjects.MostRecentForQueue")
 	proto.RegisterType((*MostRecentForJob)(nil), "schedulerobjects.MostRecentForJob")
@@ -446,6 +612,9 @@ func init() {
 	proto.RegisterType((*QueueReport)(nil), "schedulerobjects.QueueReport")
 	proto.RegisterType((*JobReportRequest)(nil), "schedulerobjects.JobReportRequest")
 	proto.RegisterType((*JobReport)(nil), "schedulerobjects.JobReport")
+	proto.RegisterType((*EndMarker)(nil), "schedulerobjects.EndMarker")
+	proto.RegisterType((*StreamingExecutorMessage)(nil), "schedulerobjects.StreamingExecutorMessage")
+	proto.RegisterType((*StreamingExecutorGetRequest)(nil), "schedulerobjects.StreamingExecutorGetRequest")
 }
 
 func init() {
@@ -453,39 +622,49 @@ func init() {
 }
 
 var fileDescriptor_131a439a3ff6540b = []byte{
-	// 512 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0x5f, 0x6b, 0xd3, 0x50,
-	0x14, 0x6f, 0x2a, 0x2b, 0xf6, 0x4c, 0x34, 0xdc, 0x2a, 0x1b, 0x55, 0x93, 0x12, 0x7c, 0x98, 0x32,
-	0x5a, 0xd8, 0x50, 0x10, 0x61, 0x48, 0x04, 0xab, 0xc5, 0x3f, 0x98, 0xe1, 0x8b, 0x20, 0x21, 0xb7,
-	0x39, 0xeb, 0x52, 0x9a, 0x9c, 0xee, 0xe6, 0x46, 0x18, 0x3e, 0xfa, 0x05, 0xfc, 0x0c, 0x7e, 0x1a,
-	0x1f, 0x7c, 0xd8, 0xa3, 0x4f, 0x41, 0xda, 0xb7, 0x7c, 0x0a, 0x59, 0xda, 0xb5, 0xf9, 0x33, 0xb7,
-	0xd5, 0xb7, 0xe4, 0x77, 0xcf, 0x3d, 0xbf, 0xdf, 0x39, 0xbf, 0x73, 0x2e, 0xec, 0x7a, 0x81, 0x44,
-	0x11, 0x38, 0xa3, 0x4e, 0xd8, 0x3f, 0x44, 0x37, 0x1a, 0xa1, 0x58, 0x7e, 0x11, 0x1f, 0x62, 0x5f,
-	0x86, 0x1d, 0x81, 0x63, 0x12, 0xd2, 0x0b, 0x06, 0xed, 0xb1, 0x20, 0x49, 0x4c, 0x2d, 0x46, 0x18,
-	0x6f, 0x80, 0xbd, 0xa5, 0x50, 0x5a, 0xd8, 0xc7, 0x40, 0xbe, 0x24, 0xf1, 0x21, 0xc2, 0x08, 0xd9,
-	0x13, 0x80, 0xa3, 0xd3, 0x0f, 0x3b, 0x70, 0x7c, 0xdc, 0x54, 0x5a, 0xca, 0x56, 0xdd, 0xdc, 0x48,
-	0x62, 0xbd, 0x91, 0xa2, 0xef, 0x1c, 0x1f, 0xb7, 0xc9, 0xf7, 0x24, 0xfa, 0x63, 0x79, 0x6c, 0xd5,
-	0x17, 0xa0, 0xb1, 0x07, 0x6a, 0x2e, 0x5b, 0x8f, 0x38, 0x7b, 0x04, 0xb5, 0x21, 0x71, 0xdb, 0x73,
-	0xe7, 0x79, 0x1a, 0x49, 0xac, 0xdf, 0x1a, 0x12, 0x7f, 0xed, 0x66, 0x72, 0xac, 0xa5, 0x80, 0xf1,
-	0xab, 0x0a, 0x1b, 0xfb, 0x33, 0x89, 0x5e, 0x30, 0xb0, 0x52, 0xf5, 0x16, 0x1e, 0x45, 0x18, 0x4a,
-	0xf6, 0x15, 0xee, 0xf8, 0x14, 0x4a, 0x5b, 0xa4, 0xc9, 0xed, 0x03, 0x12, 0x76, 0x4a, 0x9c, 0xa6,
-	0x5d, 0xdf, 0x79, 0xd0, 0x2e, 0xd6, 0xd6, 0x2e, 0x17, 0x66, 0xb6, 0x92, 0x58, 0xbf, 0xe7, 0x97,
-	0xf0, 0xa5, 0x92, 0x57, 0x15, 0x8b, 0x95, 0xcf, 0x59, 0x08, 0x8d, 0x22, 0xf9, 0x90, 0xf8, 0x66,
-	0x35, 0xa5, 0x36, 0x2e, 0xa1, 0xee, 0x11, 0x37, 0xb5, 0x24, 0xd6, 0x9b, 0x7e, 0x01, 0xcd, 0xd1,
-	0xaa, 0xc5, 0x53, 0xf6, 0x18, 0xea, 0x5f, 0x50, 0x70, 0x0a, 0x3d, 0x79, 0xbc, 0x79, 0xad, 0xa5,
-	0x6c, 0xad, 0xcd, 0x4c, 0x58, 0x80, 0x59, 0x13, 0x16, 0xa0, 0x79, 0x1d, 0x6a, 0x07, 0xde, 0x48,
-	0xa2, 0x30, 0x9e, 0x83, 0x5a, 0xec, 0x26, 0xdb, 0x86, 0xda, 0x6c, 0x2a, 0xe6, 0x76, 0xdc, 0x4e,
-	0x62, 0x5d, 0x9d, 0x21, 0x99, 0x74, 0xf3, 0x18, 0xe3, 0x9b, 0x02, 0x2c, 0xed, 0x40, 0xde, 0x8b,
-	0xff, 0x9c, 0x8f, 0x7c, 0x45, 0xd5, 0xab, 0x56, 0x64, 0x3c, 0x83, 0xf5, 0x8c, 0x88, 0x15, 0x4b,
-	0xd8, 0x03, 0xb5, 0x47, 0x3c, 0xaf, 0x7f, 0x95, 0x99, 0x7c, 0x0a, 0xf5, 0xc5, 0xfd, 0xd5, 0xa8,
-	0x77, 0x7e, 0x54, 0x81, 0xed, 0x9f, 0x8d, 0x86, 0x75, 0xb6, 0x8b, 0xcc, 0x85, 0x46, 0x17, 0x65,
-	0xc9, 0x99, 0x87, 0xe5, 0x31, 0xfa, 0xc7, 0x2e, 0x34, 0x8d, 0xcb, 0x43, 0xd9, 0x47, 0xb8, 0xd9,
-	0x45, 0x99, 0xed, 0xdb, 0x39, 0x2b, 0x52, 0xf6, 0xb6, 0x79, 0xff, 0xc2, 0x28, 0xf6, 0x1e, 0x6e,
-	0x74, 0x51, 0x2e, 0x3b, 0x72, 0x8e, 0x94, 0x62, 0xbb, 0x9b, 0x77, 0x2f, 0x88, 0x31, 0x3f, 0xff,
-	0x9c, 0x68, 0xca, 0xc9, 0x44, 0x53, 0xfe, 0x4c, 0x34, 0xe5, 0xfb, 0x54, 0xab, 0x9c, 0x4c, 0xb5,
-	0xca, 0xef, 0xa9, 0x56, 0xf9, 0xf4, 0x62, 0xe0, 0xc9, 0xc3, 0x88, 0xb7, 0xfb, 0xe4, 0x77, 0x1c,
-	0xe1, 0x3b, 0xae, 0x33, 0x16, 0x74, 0x7a, 0x7d, 0xfe, 0xd7, 0xb9, 0xc2, 0x13, 0xc8, 0x6b, 0xe9,
-	0xcb, 0xb7, 0xfb, 0x37, 0x00, 0x00, 0xff, 0xff, 0x09, 0x81, 0x96, 0x21, 0x30, 0x05, 0x00, 0x00,
+	// 670 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x55, 0xcd, 0x6e, 0xd3, 0x40,
+	0x10, 0x8e, 0x1b, 0x35, 0x34, 0x53, 0x0a, 0x61, 0x03, 0x34, 0x72, 0x20, 0xae, 0x0c, 0x87, 0x52,
+	0x95, 0x06, 0xb5, 0x02, 0x09, 0x90, 0x2a, 0x64, 0x54, 0x02, 0x15, 0xe5, 0x27, 0x15, 0x17, 0x24,
+	0x14, 0xd9, 0xf1, 0xd4, 0x75, 0x88, 0xbd, 0xe9, 0x7a, 0x5d, 0x51, 0x71, 0xe4, 0x05, 0xe0, 0x71,
+	0x78, 0x03, 0x0e, 0x1c, 0x7a, 0xe4, 0x64, 0xa1, 0xf6, 0xe6, 0xa7, 0x40, 0x59, 0x3b, 0x69, 0x6c,
+	0xa7, 0x6d, 0xca, 0xcd, 0xfe, 0x76, 0xe6, 0x9b, 0x6f, 0x66, 0x3e, 0xed, 0xc2, 0x9a, 0xed, 0x72,
+	0x64, 0xae, 0xde, 0xad, 0x7b, 0xed, 0x5d, 0x34, 0xfd, 0x2e, 0xb2, 0x93, 0x2f, 0x6a, 0x74, 0xb0,
+	0xcd, 0xbd, 0x3a, 0xc3, 0x1e, 0x65, 0xdc, 0x76, 0xad, 0x95, 0x1e, 0xa3, 0x9c, 0x92, 0x52, 0x3a,
+	0x42, 0xae, 0x5a, 0x94, 0x5a, 0x5d, 0xac, 0x8b, 0x73, 0xc3, 0xdf, 0xa9, 0xa3, 0xd3, 0xe3, 0x07,
+	0x51, 0xb8, 0xfc, 0x64, 0x92, 0x1a, 0x69, 0x20, 0xca, 0x55, 0x5f, 0x03, 0xd9, 0xa2, 0x1e, 0x6f,
+	0x62, 0x1b, 0x5d, 0xfe, 0x82, 0xb2, 0xf7, 0x3e, 0xfa, 0x48, 0x1e, 0x01, 0xec, 0xf5, 0x3f, 0x5a,
+	0xae, 0xee, 0x60, 0x45, 0x5a, 0x90, 0x16, 0x8b, 0xda, 0x7c, 0x18, 0x28, 0x65, 0x81, 0xbe, 0xd1,
+	0x1d, 0x5c, 0xa6, 0x8e, 0xcd, 0x85, 0x88, 0x66, 0x71, 0x08, 0xaa, 0xeb, 0x50, 0x4a, 0xb0, 0x6d,
+	0x52, 0x83, 0x2c, 0x41, 0xa1, 0x43, 0x8d, 0x96, 0x6d, 0xc6, 0x3c, 0xe5, 0x30, 0x50, 0xae, 0x76,
+	0xa8, 0xf1, 0xca, 0x1c, 0xe1, 0x98, 0x16, 0x80, 0xfa, 0x7b, 0x0a, 0xe6, 0xb7, 0x23, 0xa1, 0xb6,
+	0x6b, 0x35, 0xc5, 0x58, 0x9a, 0xb8, 0xe7, 0xa3, 0xc7, 0xc9, 0x57, 0xb8, 0xe1, 0x50, 0x8f, 0xb7,
+	0x98, 0x20, 0x6f, 0xed, 0x50, 0xd6, 0x12, 0x85, 0x05, 0xed, 0xec, 0xea, 0xdd, 0x95, 0x4c, 0x87,
+	0xd9, 0xc6, 0xb4, 0x85, 0x30, 0x50, 0x6e, 0x39, 0x19, 0xfc, 0x44, 0xc9, 0xcb, 0x5c, 0x93, 0x64,
+	0xcf, 0x89, 0x07, 0xe5, 0x74, 0xf1, 0x0e, 0x35, 0x2a, 0x53, 0xa2, 0xb4, 0x7a, 0x4e, 0xe9, 0x4d,
+	0x6a, 0x68, 0xb5, 0x30, 0x50, 0x64, 0x27, 0x85, 0x26, 0xca, 0x96, 0xd2, 0xa7, 0xe4, 0x21, 0x14,
+	0xf7, 0x91, 0x19, 0xd4, 0xb3, 0xf9, 0x41, 0x25, 0xbf, 0x20, 0x2d, 0x4e, 0x47, 0x4b, 0x18, 0x82,
+	0xa3, 0x4b, 0x18, 0x82, 0xda, 0x0c, 0x14, 0x76, 0xec, 0x2e, 0x47, 0xa6, 0x3e, 0x83, 0x52, 0x7a,
+	0x9a, 0x64, 0x19, 0x0a, 0x91, 0xdd, 0xe2, 0x75, 0x5c, 0x0f, 0x03, 0xa5, 0x14, 0x21, 0x23, 0x74,
+	0x71, 0x8c, 0xfa, 0x4d, 0x02, 0x22, 0x26, 0x90, 0xdc, 0xc5, 0x7f, 0xfa, 0x23, 0xd9, 0xd1, 0xd4,
+	0xa4, 0x1d, 0xa9, 0x4f, 0x61, 0x76, 0x44, 0xc4, 0x05, 0x5b, 0x58, 0x87, 0xd2, 0x26, 0x35, 0x92,
+	0xfa, 0x2f, 0xe2, 0xc9, 0xc7, 0x50, 0x1c, 0xe6, 0x5f, 0xb0, 0xf4, 0x2c, 0x14, 0x37, 0x5c, 0x73,
+	0x4b, 0x67, 0x9f, 0x91, 0xa9, 0x3f, 0x25, 0xa8, 0x6c, 0x73, 0x86, 0xba, 0x63, 0xbb, 0xd6, 0xc6,
+	0x17, 0x6c, 0xfb, 0x9c, 0xb2, 0x2d, 0xf4, 0x3c, 0xdd, 0x42, 0xf2, 0x0e, 0x66, 0x30, 0x86, 0x62,
+	0x3f, 0xcb, 0x59, 0x53, 0x0d, 0x92, 0xb4, 0x9b, 0x61, 0xa0, 0x90, 0x41, 0x7c, 0xc2, 0x44, 0x43,
+	0x16, 0xa2, 0x41, 0x1e, 0x5d, 0x33, 0x76, 0x68, 0x75, 0x0c, 0xd9, 0x40, 0x98, 0x76, 0x2d, 0x0c,
+	0x94, 0x39, 0x74, 0xcd, 0x04, 0x51, 0x3f, 0x59, 0xbb, 0x04, 0xd3, 0xb8, 0x8f, 0x2e, 0x57, 0x35,
+	0xa8, 0x66, 0xa4, 0x37, 0x70, 0x38, 0xce, 0x3b, 0x90, 0x77, 0x7d, 0x47, 0x08, 0x9f, 0x8b, 0xe8,
+	0x5c, 0xdf, 0x19, 0x99, 0x47, 0xff, 0x74, 0xf5, 0x47, 0x1e, 0xc8, 0xf6, 0x40, 0x45, 0x73, 0x70,
+	0xe3, 0x11, 0x13, 0xca, 0x0d, 0xe4, 0x19, 0x9b, 0xde, 0xcb, 0x2a, 0x3e, 0xe5, 0x62, 0x90, 0xd5,
+	0xf3, 0x43, 0xc9, 0x07, 0xb8, 0xd2, 0x40, 0x3e, 0x6a, 0xa2, 0x31, 0xf7, 0x45, 0xd6, 0xe8, 0xf2,
+	0xed, 0x33, 0xa3, 0xc8, 0x5b, 0xb8, 0xdc, 0x40, 0x7e, 0x62, 0x8f, 0x31, 0x52, 0xd2, 0xde, 0x93,
+	0xab, 0x67, 0xc4, 0x10, 0x47, 0x10, 0x0e, 0x46, 0xec, 0x91, 0xfb, 0x63, 0x7a, 0x3b, 0x7d, 0x11,
+	0xf2, 0xd2, 0x04, 0xe1, 0xb1, 0xe5, 0xd4, 0xdc, 0x03, 0x49, 0xfb, 0xf4, 0xeb, 0xa8, 0x26, 0x1d,
+	0x1e, 0xd5, 0xa4, 0xbf, 0x47, 0x35, 0xe9, 0xfb, 0x71, 0x2d, 0x77, 0x78, 0x5c, 0xcb, 0xfd, 0x39,
+	0xae, 0xe5, 0x3e, 0x3e, 0xb7, 0x6c, 0xbe, 0xeb, 0x1b, 0x2b, 0x6d, 0xea, 0xd4, 0x75, 0xe6, 0xe8,
+	0xa6, 0xde, 0x63, 0xb4, 0xcf, 0x18, 0xff, 0xd5, 0x27, 0x78, 0x73, 0x8c, 0x82, 0x78, 0x63, 0xd6,
+	0xfe, 0x05, 0x00, 0x00, 0xff, 0xff, 0x02, 0x1b, 0x6a, 0x4a, 0x05, 0x07, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -506,6 +685,8 @@ type SchedulerReportingClient interface {
 	GetQueueReport(ctx context.Context, in *QueueReportRequest, opts ...grpc.CallOption) (*QueueReport, error)
 	// Return the most recent scheduling report for each executor for the given job.
 	GetJobReport(ctx context.Context, in *JobReportRequest, opts ...grpc.CallOption) (*JobReport, error)
+	// Return all executors known to the Armada scheduler
+	GetExecutors(ctx context.Context, in *StreamingExecutorGetRequest, opts ...grpc.CallOption) (SchedulerReporting_GetExecutorsClient, error)
 }
 
 type schedulerReportingClient struct {
@@ -543,6 +724,38 @@ func (c *schedulerReportingClient) GetJobReport(ctx context.Context, in *JobRepo
 	return out, nil
 }
 
+func (c *schedulerReportingClient) GetExecutors(ctx context.Context, in *StreamingExecutorGetRequest, opts ...grpc.CallOption) (SchedulerReporting_GetExecutorsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_SchedulerReporting_serviceDesc.Streams[0], "/schedulerobjects.SchedulerReporting/GetExecutors", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &schedulerReportingGetExecutorsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type SchedulerReporting_GetExecutorsClient interface {
+	Recv() (*StreamingExecutorMessage, error)
+	grpc.ClientStream
+}
+
+type schedulerReportingGetExecutorsClient struct {
+	grpc.ClientStream
+}
+
+func (x *schedulerReportingGetExecutorsClient) Recv() (*StreamingExecutorMessage, error) {
+	m := new(StreamingExecutorMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // SchedulerReportingServer is the server API for SchedulerReporting service.
 type SchedulerReportingServer interface {
 	// Return the most recent scheduling report for each executor.
@@ -551,6 +764,8 @@ type SchedulerReportingServer interface {
 	GetQueueReport(context.Context, *QueueReportRequest) (*QueueReport, error)
 	// Return the most recent scheduling report for each executor for the given job.
 	GetJobReport(context.Context, *JobReportRequest) (*JobReport, error)
+	// Return all executors known to the Armada scheduler
+	GetExecutors(*StreamingExecutorGetRequest, SchedulerReporting_GetExecutorsServer) error
 }
 
 // UnimplementedSchedulerReportingServer can be embedded to have forward compatible implementations.
@@ -565,6 +780,9 @@ func (*UnimplementedSchedulerReportingServer) GetQueueReport(ctx context.Context
 }
 func (*UnimplementedSchedulerReportingServer) GetJobReport(ctx context.Context, req *JobReportRequest) (*JobReport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJobReport not implemented")
+}
+func (*UnimplementedSchedulerReportingServer) GetExecutors(req *StreamingExecutorGetRequest, srv SchedulerReporting_GetExecutorsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetExecutors not implemented")
 }
 
 func RegisterSchedulerReportingServer(s *grpc.Server, srv SchedulerReportingServer) {
@@ -625,6 +843,27 @@ func _SchedulerReporting_GetJobReport_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SchedulerReporting_GetExecutors_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamingExecutorGetRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SchedulerReportingServer).GetExecutors(m, &schedulerReportingGetExecutorsServer{stream})
+}
+
+type SchedulerReporting_GetExecutorsServer interface {
+	Send(*StreamingExecutorMessage) error
+	grpc.ServerStream
+}
+
+type schedulerReportingGetExecutorsServer struct {
+	grpc.ServerStream
+}
+
+func (x *schedulerReportingGetExecutorsServer) Send(m *StreamingExecutorMessage) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _SchedulerReporting_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "schedulerobjects.SchedulerReporting",
 	HandlerType: (*SchedulerReportingServer)(nil),
@@ -642,7 +881,13 @@ var _SchedulerReporting_serviceDesc = grpc.ServiceDesc{
 			Handler:    _SchedulerReporting_GetJobReport_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetExecutors",
+			Handler:       _SchedulerReporting_GetExecutors_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "internal/scheduler/schedulerobjects/reporting.proto",
 }
 
@@ -940,6 +1185,131 @@ func (m *JobReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *EndMarker) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *EndMarker) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *EndMarker) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *StreamingExecutorMessage) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *StreamingExecutorMessage) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StreamingExecutorMessage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Event != nil {
+		{
+			size := m.Event.Size()
+			i -= size
+			if _, err := m.Event.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *StreamingExecutorMessage_Executor) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StreamingExecutorMessage_Executor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Executor != nil {
+		{
+			size, err := m.Executor.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintReporting(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *StreamingExecutorMessage_End) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StreamingExecutorMessage_End) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.End != nil {
+		{
+			size, err := m.End.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintReporting(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *StreamingExecutorGetRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *StreamingExecutorGetRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StreamingExecutorGetRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Num != 0 {
+		i = encodeVarintReporting(dAtA, i, uint64(m.Num))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintReporting(dAtA []byte, offset int, v uint64) int {
 	offset -= sovReporting(v)
 	base := offset
@@ -1080,6 +1450,63 @@ func (m *JobReport) Size() (n int) {
 	l = len(m.Report)
 	if l > 0 {
 		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+
+func (m *EndMarker) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *StreamingExecutorMessage) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Event != nil {
+		n += m.Event.Size()
+	}
+	return n
+}
+
+func (m *StreamingExecutorMessage_Executor) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Executor != nil {
+		l = m.Executor.Size()
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+func (m *StreamingExecutorMessage_End) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.End != nil {
+		l = m.End.Size()
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+func (m *StreamingExecutorGetRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Num != 0 {
+		n += 1 + sovReporting(uint64(m.Num))
 	}
 	return n
 }
@@ -1801,6 +2228,245 @@ func (m *JobReport) Unmarshal(dAtA []byte) error {
 			}
 			m.Report = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *EndMarker) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: EndMarker: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: EndMarker: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StreamingExecutorMessage) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StreamingExecutorMessage: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StreamingExecutorMessage: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Executor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Executor{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &StreamingExecutorMessage_Executor{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field End", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &EndMarker{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &StreamingExecutorMessage_End{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StreamingExecutorGetRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StreamingExecutorGetRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StreamingExecutorGetRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Num", wireType)
+			}
+			m.Num = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Num |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipReporting(dAtA[iNdEx:])

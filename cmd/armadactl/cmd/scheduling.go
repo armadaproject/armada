@@ -98,3 +98,18 @@ func getJobSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	}
 	return cmd
 }
+
+func getExecutorsCmd(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "executors",
+		Short: "Retrieves a list of all known executors",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.GetExecutors()
+		},
+	}
+
+	return cmd
+}

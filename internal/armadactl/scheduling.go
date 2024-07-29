@@ -82,3 +82,37 @@ func (a *App) GetJobSchedulingReport(jobId string) error {
 		return nil
 	})
 }
+
+func (a *App) GetExecutors() error {
+	return client.WithSchedulerReportingClient(a.Params.ApiConnectionDetails, func(c schedulerobjects.SchedulerReportingClient) error {
+		ctx, cancel := common.ContextWithDefaultTimeout()
+		defer cancel()
+		executorClient, err := c.GetExecutors(ctx, &schedulerobjects.StreamingExecutorGetRequest{
+			Num: 0,
+		})
+		fmt.Fprint(a.Out, "Available executors:\n")
+		defer executorClient.CloseSend()
+		if err != nil {
+			return err
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("GetExecutors call interrupted")
+			default:
+				msg, err := executorClient.Recv()
+				if err != nil {
+					return err
+				}
+				switch msg.Event.(type) {
+				case *schedulerobjects.StreamingExecutorMessage_Executor:
+					fmt.Fprintf(a.Out, "%s\n", msg.Event.(*schedulerobjects.StreamingExecutorMessage_Executor).Executor.Id)
+				case *schedulerobjects.StreamingExecutorMessage_End:
+					return nil
+				default:
+				}
+			}
+		}
+	})
+}

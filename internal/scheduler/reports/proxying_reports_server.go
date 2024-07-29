@@ -2,6 +2,7 @@ package reports
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -33,6 +34,40 @@ func (s *ProxyingSchedulingReportsServer) GetJobReport(ctx context.Context, requ
 	ctx, cancel := reduceTimeout(ctx)
 	defer cancel()
 	return s.client.GetJobReport(ctx, request)
+}
+
+func (s *ProxyingSchedulingReportsServer) GetExecutors(req *schedulerobjects.StreamingExecutorGetRequest, srv schedulerobjects.SchedulerReporting_GetExecutorsServer) error {
+	ctx, cancel := reduceTimeout(srv.Context())
+	defer cancel()
+	executorClient, err := s.client.GetExecutors(ctx, &schedulerobjects.StreamingExecutorGetRequest{
+		Num: 0,
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("GetExecutors call interrupted")
+		default:
+			msg, err := executorClient.Recv()
+			if err != nil {
+				return err
+			}
+
+			err = srv.Send(msg)
+			if err != nil {
+				return err
+			}
+
+			switch msg.Event.(type) {
+			case *schedulerobjects.StreamingExecutorMessage_End:
+				return nil
+			default:
+			}
+		}
+	}
 }
 
 // We reduce the context deadline here, to prevent our call and the caller who called us from timing out at the same time

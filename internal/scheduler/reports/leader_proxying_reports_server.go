@@ -2,8 +2,12 @@ package reports
 
 import (
 	"context"
+	"fmt"
+
 
 	"google.golang.org/grpc"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -60,6 +64,48 @@ func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx context.Context
 	}
 	leaderClient := s.schedulerReportingClientProvider.GetSchedulerReportingClient(leaderConnection)
 	return leaderClient.GetJobReport(ctx, request)
+}
+
+func (s *LeaderProxyingSchedulingReportsServer) GetExecutors(req *schedulerobjects.StreamingExecutorGetRequest, srv schedulerobjects.SchedulerReporting_GetExecutorsServer) error {
+	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
+	if isCurrentProcessLeader {
+		return s.localReportsServer.GetExecutors(req, srv)
+	}
+	if err != nil {
+		return err
+	}
+	ctx := armadacontext.FromGrpcCtx(srv.Context())
+	leaderClient := s.schedulerReportingClientProvider.GetSchedulerReportingClient(leaderConnection)
+	executorClient, err := leaderClient.GetExecutors(ctx, &schedulerobjects.StreamingExecutorGetRequest{
+		Num: 0,
+	})
+	defer executorClient.CloseSend()
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("GetExecutors call interrupted")
+		default:
+			msg, err := executorClient.Recv()
+			if err != nil {
+				return err
+			}
+
+			err = srv.Send(msg)
+			if err != nil {
+				return err
+			}
+
+			switch msg.Event.(type) {
+			case *schedulerobjects.StreamingExecutorMessage_End:
+				return nil
+			default:
+			}
+		}
+	}
 }
 
 type reportingClientProvider interface {

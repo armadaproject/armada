@@ -3,8 +3,15 @@ package reports
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 
 	"github.com/gogo/status"
 	"github.com/oklog/ulid"
@@ -15,12 +22,14 @@ import (
 )
 
 type Server struct {
-	repository *SchedulingContextRepository
+	schedulingContextRepository *SchedulingContextRepository
+	executorRepository          database.ExecutorRepository
 }
 
-func NewServer(repository *SchedulingContextRepository) *Server {
+func NewServer(schedulingContextRepository *SchedulingContextRepository, executorRepository database.ExecutorRepository) *Server {
 	return &Server{
-		repository: repository,
+		schedulingContextRepository: schedulingContextRepository,
+		executorRepository:          executorRepository,
 	}
 }
 
@@ -58,8 +67,52 @@ func (s *Server) GetJobReport(ctx context.Context, request *schedulerobjects.Job
 	}, nil
 }
 
+func (s *Server) GetExecutors(req *schedulerobjects.StreamingExecutorGetRequest, srv schedulerobjects.SchedulerReporting_GetExecutorsServer) error {
+	ctx := armadacontext.FromGrpcCtx(srv.Context())
+
+	numToReturn := req.GetNum()
+	if numToReturn < 1 {
+		numToReturn = math.MaxUint32
+	}
+
+	executors, err := s.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		return err
+	}
+
+	for i, executor := range executors {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("GetExecutors call interrupted")
+		default:
+			if uint32(i) < numToReturn {
+				err = srv.Send(&schedulerobjects.StreamingExecutorMessage{
+					Event: &schedulerobjects.StreamingExecutorMessage_Executor{
+						Executor: executor,
+					},
+				})
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	err = srv.Send(&schedulerobjects.StreamingExecutorMessage{
+		Event: &schedulerobjects.StreamingExecutorMessage_End{
+			End: &schedulerobjects.EndMarker{},
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Server) getQueueReportString(queue string, verbosity int32) string {
-	poolCtxts := s.repository.QueueSchedulingContext(queue)
+	poolCtxts := s.schedulingContextRepository.QueueSchedulingContext(queue)
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, poolCtx := range poolCtxts {
@@ -76,7 +129,7 @@ func (s *Server) getQueueReportString(queue string, verbosity int32) string {
 }
 
 func (s *Server) getJobReportString(jobId string) string {
-	poolCtxts := s.repository.JobSchedulingContext(jobId)
+	poolCtxts := s.schedulingContextRepository.JobSchedulingContext(jobId)
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, poolCtx := range poolCtxts {
@@ -93,7 +146,7 @@ func (s *Server) getJobReportString(jobId string) string {
 }
 
 func (s *Server) getSchedulingReportString(verbosity int32) string {
-	poolCtxts := s.repository.RoundSchedulingContext()
+	poolCtxts := s.schedulingContextRepository.RoundSchedulingContext()
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, poolCtx := range poolCtxts {

@@ -2,6 +2,9 @@ syntax = 'proto3';
 package schedulerobjects;
 option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
 
+import "google/protobuf/empty.proto";
+import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
+
 message MostRecentForQueue {
     string queue_name = 1;
 }
@@ -41,6 +44,20 @@ message JobReport {
     string report = 1;
 }
 
+// Indicates the end of streams
+message EndMarker{}
+
+message StreamingExecutorMessage{
+  oneof event {
+    Executor executor = 1;
+    EndMarker end = 2;
+  }
+}
+
+message StreamingExecutorGetRequest{
+  uint32 num = 1;
+}
+
 service SchedulerReporting {
     // Return the most recent scheduling report for each executor.
     rpc GetSchedulingReport (SchedulingReportRequest) returns (SchedulingReport);
@@ -48,4 +65,6 @@ service SchedulerReporting {
     rpc GetQueueReport (QueueReportRequest) returns (QueueReport);
     // Return the most recent scheduling report for each executor for the given job.
     rpc GetJobReport (JobReportRequest) returns (JobReport);
+    // Return all executors known to the Armada scheduler
+    rpc GetExecutors(StreamingExecutorGetRequest) returns (stream StreamingExecutorMessage) {}
 }
