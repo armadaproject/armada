@@ -251,7 +251,7 @@ func setupExecutorApiComponents(
 	taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
 	taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
 	taskManager.Register(removeRunProcessor.Run, config.Task.StateProcessorInterval, "remove_runs")
-	taskManager.Register(jobRequester.RequestJobsRuns, config.Task.AllocateSpareClusterCapacityInterval, "request_runs")
+	taskManager.Register(jobRequester.RequestJobsRuns, config.Task.JobLeaseRenewalInterval, "request_runs")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	_, err = pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
