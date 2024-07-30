@@ -1,6 +1,7 @@
 package context
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,21 +59,11 @@ func TestSchedulingContextAccounting(t *testing.T) {
 }
 
 func TestCalculateFairShares(t *testing.T) {
-	zeroCpu := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse("0")},
-	}
-	oneCpu := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")},
-	}
-	fortyCpu := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse("40")},
-	}
-	oneHundredCpu := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse("100")},
-	}
-	oneThousandCpu := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1000")},
-	}
+	zeroCpu := nCpu(0)
+	oneCpu := nCpu(1)
+	fortyCpu := nCpu(40)
+	oneHundredCpu := nCpu(100)
+	oneThousandCpu := nCpu(1000)
 	tests := map[string]struct {
 		availableResources         schedulerobjects.ResourceList
 		queueCtxs                  map[string]*QueueSchedulingContext
@@ -208,6 +199,66 @@ func TestCalculateFairShares(t *testing.T) {
 	}
 }
 
+func TestCalculateFairnessError(t *testing.T) {
+	tests := map[string]struct {
+		availableResources schedulerobjects.ResourceList
+		queueCtxs          map[string]*QueueSchedulingContext
+		expected           float64
+	}{
+		"one queue, no error": {
+			availableResources: nCpu(100),
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Allocated: nCpu(50), AdjustedFairShare: 0.5},
+			},
+			expected: 0,
+		},
+		"two queues, no error": {
+			availableResources: nCpu(100),
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Allocated: nCpu(50), AdjustedFairShare: 0.5},
+				"queueB": {Allocated: nCpu(50), AdjustedFairShare: 0.5},
+			},
+			expected: 0,
+		},
+		"one queue with error": {
+			availableResources: nCpu(100),
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Allocated: nCpu(40), AdjustedFairShare: 0.5},
+			},
+			expected: 0.1,
+		},
+		"two queues with error": {
+			availableResources: nCpu(100),
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Allocated: nCpu(40), AdjustedFairShare: 0.5},
+				"queueB": {Allocated: nCpu(10), AdjustedFairShare: 0.5},
+			},
+			expected: 0.5,
+		},
+		"above fair share is not counted": {
+			availableResources: nCpu(100),
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Allocated: nCpu(100), AdjustedFairShare: 0.5},
+			},
+			expected: 0.0,
+		},
+		"empty": {
+			availableResources: nCpu(100),
+			queueCtxs:          map[string]*QueueSchedulingContext{},
+			expected:           0.0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			require.NoError(t, err)
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, tc.availableResources)
+			sctx.QueueSchedulingContexts = tc.queueCtxs
+			assert.InDelta(t, tc.expected, sctx.FairnessError(), 0.00001)
+		})
+	}
+}
+
 func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
 	rv := make([]*JobSchedulingContext, n)
 	for i := 0; i < n; i++ {
@@ -224,5 +275,11 @@ func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSched
 		PodRequirements:      job.PodRequirements(),
 		ResourceRequirements: job.EfficientResourceRequirements(),
 		GangInfo:             EmptyGangInfo(job),
+	}
+}
+
+func nCpu(n int) schedulerobjects.ResourceList {
+	return schedulerobjects.ResourceList{
+		Resources: map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	}
 }
