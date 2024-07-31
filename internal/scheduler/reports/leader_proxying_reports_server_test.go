@@ -250,26 +250,35 @@ func TestLeaderProxyingSchedulingReportsServer_GetExecutors(t *testing.T) {
 			defer cancel()
 
 			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			getExecutorsServer := NewFakeSchedulerReporting_GetExecutorsServer()
 			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
+			messages := []*schedulerobjects.StreamingExecutorMessage{
+				{
+					Event: &schedulerobjects.StreamingExecutorMessage_Executor{
+						Executor: nil,
+					},
+				},
+				{
+					Event: &schedulerobjects.StreamingExecutorMessage_End{End: nil},
+				},
+			}
+			jobReportsClient.GetExecutorsResponse = NewFakeSchedulerReporting_GetExecutorsClient(messages)
+			jobReportsServer.GetExecutorsResponse = messages
 
 			request := &schedulerobjects.StreamingExecutorGetRequest{Num: 0}
 
-			expectedResult := &schedulerobjects.QueueReport{Report: "report"}
-
-			if tc.err == nil {
-				expectedResult = nil
-			}
-
-			jobReportsServer.GetQueueReportResponse = expectedResult
 			jobReportsServer.Err = tc.err
-			jobReportsClient.GetQueueReportResponse = expectedResult
 			jobReportsClient.Err = tc.err
 
-			err := sut.GetExecutors(request, NewFakeSchedulerReporting_GetExecutorsServer())
+			err := sut.GetExecutors(request, getExecutorsServer)
+
+			if tc.err == nil {
+				assert.Equal(t, messages, getExecutorsServer.Sent)
+			}
 
 			assert.Equal(t, tc.err, err)
-			assert.Len(t, jobReportsServer.GetQueueReportCalls, tc.expectedNumReportServerCalls)
-			assert.Len(t, jobReportsClient.GetQueueReportCalls, tc.expectedNumReportClientCalls)
+			assert.Len(t, jobReportsServer.GetExecutorsCalls, tc.expectedNumReportServerCalls)
+			assert.Len(t, jobReportsClient.GetExecutorsCalls, tc.expectedNumReportClientCalls)
 		})
 	}
 }
@@ -318,8 +327,9 @@ type FakeSchedulerReportingServer struct {
 	GetJobReportCalls    []GetJobReportCall
 	GetJobReportResponse *schedulerobjects.JobReport
 
-	GetExecutorsCalls []GetExecutorsCall
-	Err               error
+	GetExecutorsCalls    []GetExecutorsCall
+	GetExecutorsResponse []*schedulerobjects.StreamingExecutorMessage
+	Err                  error
 }
 
 func NewFakeSchedulerReportingServer() *FakeSchedulerReportingServer {
@@ -348,11 +358,16 @@ func (f *FakeSchedulerReportingServer) GetJobReport(ctx context.Context, request
 
 func (f *FakeSchedulerReportingServer) GetExecutors(request *schedulerobjects.StreamingExecutorGetRequest, srv schedulerobjects.SchedulerReporting_GetExecutorsServer) error {
 	f.GetExecutorsCalls = append(f.GetExecutorsCalls, GetExecutorsCall{Context: srv.Context(), Request: request})
+	for _, msg := range f.GetExecutorsResponse {
+		if err := srv.Send(msg); err != nil {
+			return err
+		}
+	}
 	return f.Err
 }
 
 type FakeSchedulerReporting_GetExecutorsServer struct {
-	stream grpc.ServerStream
+	Sent []*schedulerobjects.StreamingExecutorMessage
 }
 
 func (f *FakeSchedulerReporting_GetExecutorsServer) SetHeader(md metadata.MD) error {
@@ -368,7 +383,7 @@ func (f *FakeSchedulerReporting_GetExecutorsServer) SetTrailer(md metadata.MD) {
 }
 
 func (f *FakeSchedulerReporting_GetExecutorsServer) Context() context.Context {
-	return nil
+	return context.Background()
 }
 
 func (f *FakeSchedulerReporting_GetExecutorsServer) SendMsg(m any) error {
@@ -380,11 +395,57 @@ func (f *FakeSchedulerReporting_GetExecutorsServer) RecvMsg(m any) error {
 }
 
 func NewFakeSchedulerReporting_GetExecutorsServer() *FakeSchedulerReporting_GetExecutorsServer {
-	return &FakeSchedulerReporting_GetExecutorsServer{}
+	return &FakeSchedulerReporting_GetExecutorsServer{
+		Sent: []*schedulerobjects.StreamingExecutorMessage{},
+	}
 }
 
 func (f *FakeSchedulerReporting_GetExecutorsServer) Send(s *schedulerobjects.StreamingExecutorMessage) error {
+	f.Sent = append(f.Sent, s)
 	return nil
+}
+
+type FakeSchedulerReporting_GetExecutorsClient struct {
+	toReceive []*schedulerobjects.StreamingExecutorMessage
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) Recv() (*schedulerobjects.StreamingExecutorMessage, error) {
+	if len(f.toReceive) > 0 {
+		msg := f.toReceive[0]
+		f.toReceive = f.toReceive[1:]
+		return msg, nil
+	}
+	return nil, fmt.Errorf("No more items to receive")
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) Header() (metadata.MD, error) {
+	return metadata.MD{}, nil
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) Trailer() metadata.MD {
+	return metadata.MD{}
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) CloseSend() error {
+	return nil
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) Context() context.Context {
+	return context.Background()
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) SendMsg(m any) error {
+	return nil
+}
+
+func (f *FakeSchedulerReporting_GetExecutorsClient) RecvMsg(m any) error {
+	return nil
+}
+
+func NewFakeSchedulerReporting_GetExecutorsClient(toReceive []*schedulerobjects.StreamingExecutorMessage) *FakeSchedulerReporting_GetExecutorsClient {
+	return &FakeSchedulerReporting_GetExecutorsClient{
+		toReceive: toReceive,
+	}
 }
 
 type FakeSchedulerReportingClient struct {
@@ -445,7 +506,7 @@ func (f *FakeClientProvider) GetCurrentLeaderClientConnection() (bool, *grpc.Cli
 }
 
 type FakeSchedulerReportingClientProvider struct {
-	Client schedulerobjects.SchedulerReportingClient
+	Client *FakeSchedulerReportingClient
 }
 
 func NewFakeSchedulerReportingClientProvider() *FakeSchedulerReportingClientProvider {

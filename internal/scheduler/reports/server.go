@@ -10,9 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/database"
-
 	"github.com/gogo/status"
 	"github.com/oklog/ulid"
 	"github.com/openconfig/goyang/pkg/indent"

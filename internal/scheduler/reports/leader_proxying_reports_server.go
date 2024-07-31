@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -79,7 +78,7 @@ func (s *LeaderProxyingSchedulingReportsServer) GetExecutors(req *schedulerobjec
 	executorClient, err := leaderClient.GetExecutors(ctx, &schedulerobjects.StreamingExecutorGetRequest{
 		Num: 0,
 	})
-	defer executorClient.CloseSend()
+	defer func() { _ = executorClient.CloseSend() }()
 	if err != nil {
 		return err
 	}

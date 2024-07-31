@@ -91,7 +91,7 @@ func (a *App) GetExecutors() error {
 			Num: 0,
 		})
 		fmt.Fprint(a.Out, "Available executors:\n")
-		defer executorClient.CloseSend()
+		defer func() { _ = executorClient.CloseSend() }()
 		if err != nil {
 			return err
 		}
