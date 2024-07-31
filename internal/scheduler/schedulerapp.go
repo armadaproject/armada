@@ -234,7 +234,6 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,
-		stringInterner,
 		resourceListFactory,
 		floatingResourceTypes,
 	)

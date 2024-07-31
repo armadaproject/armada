@@ -18,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -57,7 +56,6 @@ type FairSchedulingAlgo struct {
 	// Pools that need to be scheduled in sorted order
 	poolsToSchedule       []string
 	clock                 clock.Clock
-	stringInterner        *stringinterner.StringInterner
 	resourceListFactory   *internaltypes.ResourceListFactory
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
@@ -68,7 +66,6 @@ func NewFairSchedulingAlgo(
 	executorRepository database.ExecutorRepository,
 	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
-	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) (*FairSchedulingAlgo, error) {
@@ -87,7 +84,6 @@ func NewFairSchedulingAlgo(
 		limiterByQueue:              make(map[string]*rate.Limiter),
 		maxSchedulingDuration:       maxSchedulingDuration,
 		clock:                       clock.RealClock{},
-		stringInterner:              stringInterner,
 		resourceListFactory:         resourceListFactory,
 		floatingResourceTypes:       floatingResourceTypes,
 	}, nil
@@ -410,7 +406,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
 		l.schedulingConfig.WellKnownNodeTypes,
-		l.stringInterner,
 		l.resourceListFactory,
 	)
 	if err != nil {

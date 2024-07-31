@@ -262,7 +262,6 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
-				stringinterner.New(1024),
 				s.resourceListFactory,
 			)
 			if err != nil {
