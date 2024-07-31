@@ -33,19 +33,22 @@ const (
 	GangExceedsGlobalBurstSizeUnschedulableReason = "gang cardinality too large: exceeds global max burst size"
 	GangExceedsQueueBurstSizeUnschedulableReason  = "gang cardinality too large: exceeds queue max burst size"
 
+	// Indicates that jobs cannot be scheduled due current executor state
+	GangDoesNotFitUnschedulableReason = "unable to schedule gang since minimum cardinality not met"
+	JobDoesNotFitUnschedulableReason  = "job does not fit on any node"
+
 	UnschedulableReasonMaximumResourcesExceeded = "resource limit exceeded"
 )
+
+func UnschedulableReasonIsPropertyOfGang(reason string) bool {
+	return reason == GangExceedsGlobalBurstSizeUnschedulableReason || reason == JobDoesNotFitUnschedulableReason || reason == GangDoesNotFitUnschedulableReason
+}
 
 // IsTerminalUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
-	if reason == MaximumResourcesScheduledUnschedulableReason {
-		return true
-	}
-	if reason == GlobalRateLimitExceededUnschedulableReason {
-		return true
-	}
-	return false
+	return reason == MaximumResourcesScheduledUnschedulableReason ||
+		reason == GlobalRateLimitExceededUnschedulableReason
 }
 
 // IsTerminalQueueUnschedulableReason returns true if reason indicates

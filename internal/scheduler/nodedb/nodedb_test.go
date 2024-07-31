@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -130,7 +129,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobId := job.Id()
 
-	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PodRequirements().Priority)
+	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
@@ -146,7 +145,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PodRequirements().Priority)
+	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	_, _, err = nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, entry)
@@ -155,7 +154,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = nodeDb.UnbindJobFromNode(job, entry)
 	require.NoError(t, err)
 
-	_, err = nodeDb.bindJobToNode(boundNode, job, job.PodRequirements().Priority)
+	_, err = nodeDb.bindJobToNode(boundNode, job, job.PriorityClass().Priority)
 	require.Error(t, err)
 
 	_, _, err = nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, evictedNode)
@@ -556,7 +555,6 @@ func TestAwayNodeTypes(t *testing.T) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(t, err)
@@ -723,7 +721,6 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
@@ -763,7 +760,6 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
@@ -889,7 +885,6 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {

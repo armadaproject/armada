@@ -16,7 +16,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -39,10 +38,13 @@ var empty struct{}
 func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, error) {
 	taints := node.GetTaints()
 	if node.Unschedulable {
-		taints = append(koTaint.DeepCopyTaintsInternStrings(taints, nodeDb.stringInterner.Intern), UnschedulableTaint())
+		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
 	}
 
-	labels := nodeDb.copyMapWithIntern(node.GetLabels())
+	labels := maps.Clone(node.GetLabels())
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	labels[configuration.NodeIdLabel] = node.Id
 
 	totalResources := node.TotalResources
@@ -95,14 +97,6 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		nil), nil
-}
-
-func (nodeDb *NodeDb) copyMapWithIntern(labels map[string]string) map[string]string {
-	result := make(map[string]string, len(labels))
-	for k, v := range labels {
-		result[nodeDb.stringInterner.Intern(k)] = nodeDb.stringInterner.Intern(v)
-	}
-	return result
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, node *schedulerobjects.Node) error {
@@ -217,8 +211,6 @@ type NodeDb struct {
 	// scheduling round uses a fresh NodeDb.
 	scheduledAtPriorityByJobId map[string]int32
 
-	stringInterner *stringinterner.StringInterner
-
 	resourceListFactory *internaltypes.ResourceListFactory
 }
 
@@ -228,7 +220,6 @@ func NewNodeDb(
 	indexedTaints []string,
 	indexedNodeLabels []string,
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
-	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
 	nodeDbPriorities := []int32{evictedPriority}
@@ -285,7 +276,6 @@ func NewNodeDb(
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 
 		scheduledAtPriorityByJobId: make(map[string]int32),
-		stringInterner:             stringInterner,
 		resourceListFactory:        resourceListFactory,
 	}
 
@@ -498,14 +488,13 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
-	req := jctx.PodRequirements
 	priorityClass := jctx.Job.PriorityClass()
 
 	// If the job has already been scheduled, get the priority at which it was scheduled.
 	// Otherwise, get the original priority the job was submitted with.
 	priority, ok := nodeDb.GetScheduledAtPriority(jctx.JobId)
 	if !ok {
-		priority = req.Priority
+		priority = jctx.Job.PriorityClass().Priority
 	}
 	pctx := &schedulercontext.PodSchedulingContext{
 		Created:                  time.Now(),
@@ -873,7 +862,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 
 			priority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
 			if !ok {
-				priority = evictedJctx.PodRequirements.Priority
+				priority = evictedJctx.Job.PriorityClass().Priority
 			}
 			if priority > maxPriority {
 				maxPriority = priority

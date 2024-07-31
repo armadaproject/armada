@@ -262,7 +262,6 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
-				stringinterner.New(1024),
 				s.resourceListFactory,
 			)
 			if err != nil {
@@ -689,7 +688,7 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 }
 
 func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (*jobdb.Job, bool, error) {
-	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.PriorityClasses)
+	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time)
 	if err != nil {
 		return nil, false, err
 	}

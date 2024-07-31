@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/oklog/ulid"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -47,6 +47,8 @@ func TestGangScheduler(t *testing.T) {
 		ExpectedNodeUniformity map[int]string
 		// The expected number of jobs we successfully scheduled between min gang cardinality and gang cardinality.
 		ExpectedRuntimeGangCardinality []int
+		// The scheduling keys expected to have been marked as unfeasible by the end of the test.
+		ExpectedUnfeasibleSchedulingKeyIndices []int
 	}{
 		"simple success": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -54,9 +56,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{32},
-			ExpectedRuntimeGangCardinality:  []int{32},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs:        []int{32},
+			ExpectedRuntimeGangCardinality:         []int{32},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"simple failure": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -64,9 +67,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33)),
 			},
-			ExpectedScheduledIndices:        nil,
-			ExpectedCumulativeScheduledJobs: []int{0},
-			ExpectedRuntimeGangCardinality:  []int{0},
+			ExpectedScheduledIndices:               nil,
+			ExpectedCumulativeScheduledJobs:        []int{0},
+			ExpectedRuntimeGangCardinality:         []int{0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"one success and one failure": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -75,9 +79,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{32, 32},
-			ExpectedRuntimeGangCardinality:  []int{32, 0},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs:        []int{32, 32},
+			ExpectedRuntimeGangCardinality:         []int{32, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{1},
 		},
 		"multiple nodes": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -85,9 +90,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 64)),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{64},
-			ExpectedRuntimeGangCardinality:  []int{64},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs:        []int{64},
+			ExpectedRuntimeGangCardinality:         []int{64},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"floating resources": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
@@ -101,9 +107,10 @@ func TestGangScheduler(t *testing.T) {
 				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
 				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{1, 1},
-			ExpectedRuntimeGangCardinality:  []int{1, 0},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs:        []int{1, 1},
+			ExpectedRuntimeGangCardinality:         []int{1, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -116,9 +123,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 16)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 8)),
 			},
-			ExpectedScheduledIndices:        []int{0, 1},
-			ExpectedCumulativeScheduledJobs: []int{8, 24, 24},
-			ExpectedRuntimeGangCardinality:  []int{8, 16, 0},
+			ExpectedScheduledIndices:               []int{0, 1},
+			ExpectedCumulativeScheduledJobs:        []int{8, 24, 24},
+			ExpectedRuntimeGangCardinality:         []int{8, 16, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"MaximumResourceFractionToScheduleByPool": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -136,9 +144,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
-			ExpectedScheduledIndices:        []int{0, 1, 2},
-			ExpectedCumulativeScheduledJobs: []int{1, 2, 3, 3, 3},
-			ExpectedRuntimeGangCardinality:  []int{1, 1, 1, 0, 0},
+			ExpectedScheduledIndices:               []int{0, 1, 2},
+			ExpectedCumulativeScheduledJobs:        []int{1, 2, 3, 3, 3},
+			ExpectedRuntimeGangCardinality:         []int{1, 1, 1, 0, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"MaximumResourceFractionToScheduleByPool non-existing pool": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -156,9 +165,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
-			ExpectedScheduledIndices:        []int{0, 1, 2, 3},
-			ExpectedCumulativeScheduledJobs: []int{1, 2, 3, 4, 4},
-			ExpectedRuntimeGangCardinality:  []int{1, 1, 1, 1, 0},
+			ExpectedScheduledIndices:               []int{0, 1, 2, 3},
+			ExpectedCumulativeScheduledJobs:        []int{1, 2, 3, 4, 4},
+			ExpectedRuntimeGangCardinality:         []int{1, 1, 1, 1, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"MaximumResourceFractionPerQueue": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -181,9 +191,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass3, 4)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass3, 5)),
 			},
-			ExpectedScheduledIndices:        []int{0, 2, 4, 6},
-			ExpectedCumulativeScheduledJobs: []int{1, 1, 3, 3, 6, 6, 10, 10},
-			ExpectedRuntimeGangCardinality:  []int{1, 0, 2, 0, 3, 0, 4, 0},
+			ExpectedScheduledIndices:               []int{0, 2, 4, 6},
+			ExpectedCumulativeScheduledJobs:        []int{1, 1, 3, 3, 6, 6, 10, 10},
+			ExpectedRuntimeGangCardinality:         []int{1, 0, 2, 0, 3, 0, 4, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"resolution has no impact on jobs of size a multiple of the resolution": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
@@ -202,9 +213,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 5),
-			ExpectedCumulativeScheduledJobs: testfixtures.IntRange(1, 6),
-			ExpectedRuntimeGangCardinality:  []int{1, 1, 1, 1, 1, 1},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 5),
+			ExpectedCumulativeScheduledJobs:        testfixtures.IntRange(1, 6),
+			ExpectedRuntimeGangCardinality:         []int{1, 1, 1, 1, 1, 1},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"jobs of size not a multiple of the resolution blocks scheduling new jobs": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
@@ -221,9 +233,10 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 2),
-			ExpectedCumulativeScheduledJobs: []int{1, 2, 3, 3},
-			ExpectedRuntimeGangCardinality:  []int{1, 1, 1, 0},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 2),
+			ExpectedCumulativeScheduledJobs:        []int{1, 2, 3, 3},
+			ExpectedRuntimeGangCardinality:         []int{1, 1, 1, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{3},
 		},
 		"consider all nodes in the bucket": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
@@ -259,9 +272,10 @@ func TestGangScheduler(t *testing.T) {
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)),
 			},
-			ExpectedScheduledIndices:        testfixtures.IntRange(0, 0),
-			ExpectedCumulativeScheduledJobs: []int{1},
-			ExpectedRuntimeGangCardinality:  []int{1},
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 0),
+			ExpectedCumulativeScheduledJobs:        []int{1},
+			ExpectedRuntimeGangCardinality:         []int{1},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"NodeUniformityLabel set but not indexed": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -276,9 +290,10 @@ func TestGangScheduler(t *testing.T) {
 						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
 					)),
 			},
-			ExpectedScheduledIndices:        nil,
-			ExpectedCumulativeScheduledJobs: []int{0},
-			ExpectedRuntimeGangCardinality:  []int{0},
+			ExpectedScheduledIndices:               nil,
+			ExpectedCumulativeScheduledJobs:        []int{0},
+			ExpectedRuntimeGangCardinality:         []int{0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"NodeUniformityLabel not set": {
 			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
@@ -293,9 +308,10 @@ func TestGangScheduler(t *testing.T) {
 						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
 					)),
 			},
-			ExpectedScheduledIndices:        nil,
-			ExpectedCumulativeScheduledJobs: []int{0},
-			ExpectedRuntimeGangCardinality:  []int{0},
+			ExpectedScheduledIndices:               nil,
+			ExpectedCumulativeScheduledJobs:        []int{0},
+			ExpectedRuntimeGangCardinality:         []int{0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"NodeUniformityLabel insufficient capacity": {
 			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
@@ -317,9 +333,10 @@ func TestGangScheduler(t *testing.T) {
 					testfixtures.WithNodeUniformityLabelAnnotationJobs("foo", testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3)),
 				),
 			},
-			ExpectedScheduledIndices:        nil,
-			ExpectedCumulativeScheduledJobs: []int{0},
-			ExpectedRuntimeGangCardinality:  []int{0},
+			ExpectedScheduledIndices:               nil,
+			ExpectedCumulativeScheduledJobs:        []int{0},
+			ExpectedRuntimeGangCardinality:         []int{0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"NodeUniformityLabel": {
 			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
@@ -355,9 +372,10 @@ func TestGangScheduler(t *testing.T) {
 						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 4),
 					)),
 			},
-			ExpectedScheduledIndices:        []int{0},
-			ExpectedCumulativeScheduledJobs: []int{4},
-			ExpectedRuntimeGangCardinality:  []int{4},
+			ExpectedScheduledIndices:               []int{0},
+			ExpectedCumulativeScheduledJobs:        []int{4},
+			ExpectedRuntimeGangCardinality:         []int{4},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"NodeUniformityLabel NumScheduled tiebreak": {
 			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
@@ -382,10 +400,11 @@ func TestGangScheduler(t *testing.T) {
 					),
 				),
 			},
-			ExpectedScheduledIndices:        []int{0},
-			ExpectedCumulativeScheduledJobs: []int{3},
-			ExpectedNodeUniformity:          map[int]string{0: "b"},
-			ExpectedRuntimeGangCardinality:  []int{3},
+			ExpectedScheduledIndices:               []int{0},
+			ExpectedCumulativeScheduledJobs:        []int{3},
+			ExpectedNodeUniformity:                 map[int]string{0: "b"},
+			ExpectedRuntimeGangCardinality:         []int{3},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"AwayNodeTypes": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
@@ -454,9 +473,10 @@ func TestGangScheduler(t *testing.T) {
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away-both", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
 				return
 			}(),
-			ExpectedScheduledIndices:        []int{1},
-			ExpectedCumulativeScheduledJobs: []int{0, 1},
-			ExpectedRuntimeGangCardinality:  []int{0, 1},
+			ExpectedScheduledIndices:               []int{1},
+			ExpectedCumulativeScheduledJobs:        []int{0, 1},
+			ExpectedRuntimeGangCardinality:         []int{0, 1},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{0},
 		},
 		"Home-away scheduling": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
@@ -501,9 +521,39 @@ func TestGangScheduler(t *testing.T) {
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiPodReqs("A", jobId, 30000))})
 				return
 			}(),
-			ExpectedScheduledIndices:        []int{0},
-			ExpectedCumulativeScheduledJobs: []int{1, 1},
-			ExpectedRuntimeGangCardinality:  []int{1, 0},
+			ExpectedScheduledIndices:               []int{0},
+			ExpectedCumulativeScheduledJobs:        []int{1, 1},
+			ExpectedRuntimeGangCardinality:         []int{1, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{1},
+		},
+		"Hitting queue constraint does not make job scheduling key unfeasible": {
+			SchedulingConfig: func() configuration.SchedulingConfig {
+				cfg := testfixtures.TestSchedulingConfig()
+				cfg.MaximumPerQueueSchedulingBurst = 2
+				cfg.MaximumPerQueueSchedulingRate = 2
+				return cfg
+			}(),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2)),
+				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1)),
+			},
+			ExpectedScheduledIndices:               []int{0, 2},
+			ExpectedCumulativeScheduledJobs:        []int{2, 2, 3},
+			ExpectedRuntimeGangCardinality:         []int{2, 0, 1},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
+		},
+		"Hitting globally applicable constraint makes job scheduling key unfeasible": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.WithGangAnnotationsJobs(testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithGangAnnotationsJobs(testfixtures.N1GpuJobs("B", testfixtures.PriorityClass0, 1)),
+			},
+			ExpectedCumulativeScheduledJobs:        []int{0, 0, 0},
+			ExpectedRuntimeGangCardinality:         []int{0, 0, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{0},
 		},
 	}
 	for name, tc := range tests {
@@ -518,6 +568,20 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 
+			expectedUnfeasibleJobSchedulingKeys := make([]schedulerobjects.SchedulingKey, 0)
+			// We need to populate expectedUnfeasibleJobSchedulingKeys from the jobSchedulingContexts of the relevant
+			// gangs, because it's hard to do within the testcase
+			for _, unfeasibleGangIdx := range tc.ExpectedUnfeasibleSchedulingKeyIndices {
+				gang := tc.Gangs[unfeasibleGangIdx]
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(gang)
+				require.Equal(t, 1, len(jctxs), fmt.Sprintf("gangs with cardinality greater than 1 don't have a single scheduling key: %v", gang))
+				jctx := jctxs[0]
+				key, _ := jctx.SchedulingKey()
+				require.NotEqual(t, key, schedulerobjects.EmptySchedulingKey, "expected unfeasible scheduling key cannot be the empty key")
+
+				expectedUnfeasibleJobSchedulingKeys = append(expectedUnfeasibleJobSchedulingKeys, key)
+			}
+
 			nodesById := make(map[string]*schedulerobjects.Node, len(tc.Nodes))
 			for _, node := range tc.Nodes {
 				nodesById[node.Id] = node
@@ -528,7 +592,6 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,
 				tc.SchedulingConfig.WellKnownNodeTypes,
-				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
@@ -649,6 +712,7 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tc.ExpectedScheduledIndices, actualScheduledIndices)
+			assert.Equal(t, expectedUnfeasibleJobSchedulingKeys, maps.Keys(sch.schedulingContext.UnfeasibleSchedulingKeys))
 		})
 	}
 }

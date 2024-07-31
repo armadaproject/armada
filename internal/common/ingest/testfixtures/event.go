@@ -10,7 +10,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -31,8 +30,6 @@ var (
 	RunIdUuid                   = armadaevents.UuidFromProtoUuid(RunIdProto)
 	PartitionMarkerGroupIdUuid  = armadaevents.UuidFromProtoUuid(PartitionMarkerGroupIdProto)
 	PriorityClassName           = "test-priority"
-	PriorityClassValue          = int32(100)
-	PriorityClasses             = map[string]types.PriorityClass{PriorityClassName: {Priority: PriorityClassValue}}
 	Groups                      = []string{"group1", "group2"}
 	NodeSelector                = map[string]string{"foo": "bar"}
 	Affinity                    = &v1.Affinity{
@@ -227,7 +224,6 @@ var Leased = &armadaevents.EventSequence_Event{
 						Effect: v1.TaintEffectNoSchedule,
 					},
 				},
-				Priority: 15,
 			},
 		},
 	},
@@ -347,7 +343,6 @@ var JobRequeued = &armadaevents.EventSequence_Event{
 								NodeSelector:     NodeSelector,
 								Tolerations:      Tolerations,
 								PreemptionPolicy: "PreemptLowerPriority",
-								Priority:         PriorityClassValue,
 								Affinity:         Affinity,
 								ResourceRequirements: v1.ResourceRequirements{
 									Limits: map[v1.ResourceName]resource.Quantity{

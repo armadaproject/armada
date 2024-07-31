@@ -241,7 +241,7 @@ func TestConvertSequence(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := InstructionConverter{m, f.PriorityClasses, compressor}
+			converter := InstructionConverter{m, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
@@ -329,7 +329,6 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 						NodeSelector:     f.NodeSelector,
 						Tolerations:      f.Tolerations,
 						PreemptionPolicy: "PreemptLowerPriority",
-						Priority:         f.PriorityClassValue,
 						ResourceRequirements: v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"memory": resource.MustParse("64Mi"),

@@ -5,7 +5,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
-	"github.com/armadaproject/armada/internal/common/types"
 )
 
 type Configuration struct {
@@ -15,8 +14,6 @@ type Configuration struct {
 	MetricsPort uint16
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
-	// Map of allowed priority classes by name
-	PriorityClasses map[string]types.PriorityClass
 	// Pulsar subscription name
 	SubscriptionName string
 	// Number of event messages that will be batched together before being inserted into the database
