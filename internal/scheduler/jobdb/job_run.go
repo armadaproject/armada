@@ -280,6 +280,13 @@ func (run *JobRun) Executor() string {
 	return run.executor
 }
 
+// WithExecutor returns a copy of the job run with the executor updated.
+func (run *JobRun) WithExecutor(executor string) *JobRun {
+	run = run.DeepCopy()
+	run.executor = executor
+	return run
+}
+
 // NodeId returns the id of the node to which the JobRun is assigned.
 func (run *JobRun) NodeId() string {
 	return run.nodeId

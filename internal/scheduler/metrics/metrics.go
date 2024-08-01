@@ -65,12 +65,12 @@ func (m *Metrics) ReportSchedulerResult(result schedulerresult.SchedulerResult) 
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
 			cappedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.CappedDemand)
 
-			consideredJobsMetric.WithLabelValues(queue, pool).Set(jobsConsidered)
-			fairShareMetric.WithLabelValues(queue, pool).Set(queueContext.FairShare)
-			adjustedFairShareMetric.WithLabelValues(queue, pool).Set(queueContext.AdjustedFairShare)
-			actualShareMetric.WithLabelValues(queue, pool).Set(actualShare)
-			demandMetric.WithLabelValues(queue, pool).Set(demand)
-			cappedDemandMetric.WithLabelValues(queue, pool).Set(cappedDemand)
+			consideredJobsMetric.WithLabelValues(pool, queue).Set(jobsConsidered)
+			fairShareMetric.WithLabelValues(pool, queue).Set(queueContext.FairShare)
+			adjustedFairShareMetric.WithLabelValues(pool, queue).Set(queueContext.AdjustedFairShare)
+			actualShareMetric.WithLabelValues(pool, queue).Set(actualShare)
+			demandMetric.WithLabelValues(pool, queue).Set(demand)
+			cappedDemandMetric.WithLabelValues(pool, queue).Set(cappedDemand)
 		}
 		fairnessErrorMetric.WithLabelValues(pool).Set(schedContext.FairnessError())
 	}
@@ -84,11 +84,11 @@ func (m *Metrics) ReportSchedulerResult(result schedulerresult.SchedulerResult) 
 	}
 }
 
-func (m *Metrics) UpdateJobStateTransitinMetrics(
-	jst []jobdb.JobStateTransitions,
+func (m *Metrics) UpdateJobStateTransitionMetrics(
+	jsts []jobdb.JobStateTransitions,
 	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
 ) {
-	for _, jst := range jst {
+	for _, jst := range jsts {
 		job := jst.Job
 		run := job.LatestRun()
 
