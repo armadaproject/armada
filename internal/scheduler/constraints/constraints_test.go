@@ -28,94 +28,67 @@ type constraintTest struct {
 
 func TestConstraints(t *testing.T) {
 	tests := map[string]*constraintTest{
-		"no-constraints": makeConstraintsTest(NewSchedulingConstraints(
-			"pool-1",
-			makeResourceList("1000", "1000Gi"),
-			makeSchedulingConfig(),
-			[]*api.Queue{},
-		)),
-		"empty-queue-constraints": makeConstraintsTest(NewSchedulingConstraints(
-			"pool-1",
-			makeResourceList("1000", "1000Gi"),
-			makeSchedulingConfig(),
-			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}},
-		)),
-		"within-constraints": makeConstraintsTest(NewSchedulingConstraints(
-			"pool-1",
-			makeResourceList("1000", "1000Gi"),
-			configuration.SchedulingConfig{
-				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
-				MaxQueueLookback:                  1000,
-				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
-			},
-			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
-		)),
-		"exceeds-queue-priority-class-constraint": func() *constraintTest {
-			t := makeConstraintsTest(NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
+		"no-constraints": makeConstraintsTest(
+			NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"),
 				makeSchedulingConfig(),
-				[]*api.Queue{
-					{
-						Name: "queue-1",
-						ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
-							"priority-class-1": {
-								MaximumResourceFraction: map[string]float64{"cpu": 0.000001, "memory": 0.9},
-							},
+				[]*api.Queue{},
+				map[string]bool{})),
+		"empty-queue-constraints": makeConstraintsTest(
+			NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"),
+				makeSchedulingConfig(),
+				[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}},
+				map[string]bool{"queue-1": false})),
+		"within-constraints": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
+			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
+			MaxQueueLookback:                  1000,
+			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
+		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}, map[string]bool{"queue-1": false})),
+		"exceeds-queue-priority-class-constraint": func() *constraintTest {
+			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
+				{
+					Name: "queue-1",
+					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
+						"priority-class-1": {
+							MaximumResourceFraction: map[string]float64{"cpu": 0.000001, "memory": 0.9},
 						},
 					},
 				},
-			))
+			}, map[string]bool{"queue-1": false}))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
 		"exceeds-queue-priority-class-pool-constraint": func() *constraintTest {
-			t := makeConstraintsTest(NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				makeSchedulingConfig(),
-				[]*api.Queue{
-					{
-						Name: "queue-1",
-						ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
-							"priority-class-1": {
-								MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
-									"pool-1": {
-										MaximumResourceFraction: map[string]float64{"cpu": 0.000001, "memory": 0.9},
-									},
+			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
+				{
+					Name: "queue-1",
+					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
+						"priority-class-1": {
+							MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
+								"pool-1": {
+									MaximumResourceFraction: map[string]float64{"cpu": 0.000001, "memory": 0.9},
 								},
 							},
 						},
 					},
 				},
-			))
+			}, map[string]bool{"queue-1": false}))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
 		"exceeds-priority-class-constraint": func() *constraintTest {
-			t := makeConstraintsTest(NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				configuration.SchedulingConfig{
-					MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
-					MaxQueueLookback:                  1000,
-					PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-				},
-				[]*api.Queue{},
-			))
-			t.expectedCheckConstraintsReason = "resource limit exceeded"
-			return t
-		}(),
-		"priority-class-constraint-ignored-if-there-is-a-queue-constraint": makeConstraintsTest(NewSchedulingConstraints(
-			"pool-1",
-			makeResourceList("1000", "1000Gi"),
-			configuration.SchedulingConfig{
+			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
 				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 				MaxQueueLookback:                  1000,
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-			},
-			[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
-		)),
+			}, []*api.Queue{}, map[string]bool{}))
+			t.expectedCheckConstraintsReason = "resource limit exceeded"
+			return t
+		}(),
+		"priority-class-constraint-ignored-if-there-is-a-queue-constraint": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
+			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
+			MaxQueueLookback:                  1000,
+			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
+		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}, nil)),
 		"one-constraint-per-level-falls-back-as-expected--within-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
 			"",
@@ -165,109 +138,84 @@ func TestCapResources(t *testing.T) {
 		expectedResources schedulerobjects.QuantityByTAndResourceType[string]
 	}{
 		"no contraints": {
-			constraints: NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				makeSchedulingConfig(),
-				[]*api.Queue{},
-			),
+			constraints:       NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{}, map[string]bool{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 		},
 		"unconstrained": {
-			constraints: NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				configuration.SchedulingConfig{
-					PriorityClasses: map[string]types.PriorityClass{
-						"priority-class-1": {
-							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
-								"pool-1": {"cpu": 0.1, "memory": 0.9},
-							},
+			constraints: NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
+				PriorityClasses: map[string]types.PriorityClass{
+					"priority-class-1": {
+						MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+							"pool-1": {"cpu": 0.1, "memory": 0.9},
 						},
 					},
 				},
-				[]*api.Queue{},
-			),
+			}, []*api.Queue{}, map[string]bool{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
 		},
 		"per pool cap": {
-			constraints: NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				configuration.SchedulingConfig{
-					PriorityClasses: map[string]types.PriorityClass{
-						"priority-class-1": {
-							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
-								"pool-1": {"cpu": 0.1, "memory": 0.9},
-							},
+			constraints: NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
+				PriorityClasses: map[string]types.PriorityClass{
+					"priority-class-1": {
+						MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+							"pool-1": {"cpu": 0.1, "memory": 0.9},
 						},
 					},
 				},
-				[]*api.Queue{},
-			),
+			}, []*api.Queue{}, map[string]bool{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("100", "900Gi")},
 		},
 		"per queue cap": {
-			constraints: NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				configuration.SchedulingConfig{
-					PriorityClasses: map[string]types.PriorityClass{
+			constraints: NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
+				PriorityClasses: map[string]types.PriorityClass{
+					"priority-class-1": {
+						MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+							"pool-1": {"cpu": 0.1, "memory": 0.9},
+						},
+					},
+				},
+			}, []*api.Queue{
+				{
+					Name: "queue-1",
+					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 						"priority-class-1": {
-							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
-								"pool-1": {"cpu": 0.1, "memory": 0.9},
-							},
+							MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9},
 						},
 					},
 				},
-				[]*api.Queue{
-					{
-						Name: "queue-1",
-						ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
-							"priority-class-1": {
-								MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9},
-							},
-						},
-					},
-				},
-			),
+			}, map[string]bool{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("900", "900Gi")},
 		},
 		"per queue cap with multi pc": {
-			constraints: NewSchedulingConstraints(
-				"pool-1",
-				makeResourceList("1000", "1000Gi"),
-				configuration.SchedulingConfig{
-					PriorityClasses: map[string]types.PriorityClass{
+			constraints: NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
+				PriorityClasses: map[string]types.PriorityClass{
+					"priority-class-1": {
+						MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+							"pool-1": {"cpu": 0.1, "memory": 0.9},
+						},
+					},
+				},
+			}, []*api.Queue{
+				{
+					Name: "queue-1",
+					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 						"priority-class-1": {
-							MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
-								"pool-1": {"cpu": 0.1, "memory": 0.9},
-							},
+							MaximumResourceFraction: map[string]float64{"cpu": 0.1, "memory": 0.1},
+						},
+						"priority-class-2": {
+							MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9},
 						},
 					},
 				},
-				[]*api.Queue{
-					{
-						Name: "queue-1",
-						ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
-							"priority-class-1": {
-								MaximumResourceFraction: map[string]float64{"cpu": 0.1, "memory": 0.1},
-							},
-							"priority-class-2": {
-								MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9},
-							},
-						},
-					},
-				},
-			),
+			}, map[string]bool{}),
 			queue: "queue-1",
 			resources: map[string]schedulerobjects.ResourceList{
 				"priority-class-1": makeResourceList("1000", "1000Gi"),
@@ -340,40 +288,42 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 }
 
 func makeMultiLevelConstraints() SchedulingConstraints {
-	return NewSchedulingConstraints(
-		"pool-1",
-		schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"a": resource.MustParse("1000"), "b": resource.MustParse("1000"), "c": resource.MustParse("1000"), "d": resource.MustParse("1000")}},
-		configuration.SchedulingConfig{
-			MaxQueueLookback: 1000,
-			PriorityClasses: map[string]types.PriorityClass{
+	return NewSchedulingConstraints("pool-1", schedulerobjects.ResourceList{
+		Resources: map[string]resource.Quantity{
+			"a": resource.MustParse("1000"),
+			"b": resource.MustParse("1000"),
+			"c": resource.MustParse("1000"),
+			"d": resource.MustParse("1000"),
+		},
+	}, configuration.SchedulingConfig{
+		MaxQueueLookback: 1000,
+		PriorityClasses: map[string]types.PriorityClass{
+			"priority-class-1": {
+				MaximumResourceFractionPerQueue: map[string]float64{
+					"a": 0.0001, "b": 0.0002, "c": 0.0003, "d": 0.0004,
+				},
+				MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+					"pool-1": {
+						"a": 0.001, "b": 0.002, "c": 0.003,
+					},
+				},
+			},
+		},
+	}, []*api.Queue{
+		{
+			Name: "queue-1",
+			ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 				"priority-class-1": {
-					MaximumResourceFractionPerQueue: map[string]float64{
-						"a": 0.0001, "b": 0.0002, "c": 0.0003, "d": 0.0004,
-					},
-					MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{
+					MaximumResourceFraction: map[string]float64{"a": 0.01, "b": 0.02},
+					MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
 						"pool-1": {
-							"a": 0.001, "b": 0.002, "c": 0.003,
+							MaximumResourceFraction: map[string]float64{"a": 0.1},
 						},
 					},
 				},
 			},
 		},
-		[]*api.Queue{
-			{
-				Name: "queue-1",
-				ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
-					"priority-class-1": {
-						MaximumResourceFraction: map[string]float64{"a": 0.01, "b": 0.02},
-						MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
-							"pool-1": {
-								MaximumResourceFraction: map[string]float64{"a": 0.1},
-							},
-						},
-					},
-				},
-			},
-		},
-	)
+	}, map[string]bool{})
 }
 
 func TestScaleQuantity(t *testing.T) {

@@ -500,12 +500,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					return err
 				}
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(
-				pool.Name,
-				totalResources,
-				s.schedulingConfig,
-				nil,
-			)
+			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil, map[string]bool{})
 
 			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
 			if err != nil {
