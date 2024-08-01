@@ -35,6 +35,8 @@ type QueueRepository interface {
 	CreateQueue(*armadacontext.Context, queue.Queue) error
 	UpdateQueue(*armadacontext.Context, queue.Queue) error
 	DeleteQueue(ctx *armadacontext.Context, name string) error
+	CordonQueue(ctx *armadacontext.Context, name string) error
+	UncordonQueue(ctx *armadacontext.Context, name string) error
 }
 
 type ReadOnlyQueueRepository interface {
@@ -114,6 +116,24 @@ func (r *PostgresQueueRepository) DeleteQueue(ctx *armadacontext.Context, name s
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (r *PostgresQueueRepository) CordonQueue(ctx *armadacontext.Context, name string) error {
+	queueToCordon, err := r.GetQueue(ctx, name)
+	if err != nil {
+		return err
+	}
+	queueToCordon.Cordoned = true
+	return r.upsertQueue(ctx, queueToCordon)
+}
+
+func (r *PostgresQueueRepository) UncordonQueue(ctx *armadacontext.Context, name string) error {
+	queueToUncordon, err := r.GetQueue(ctx, name)
+	if err != nil {
+		return err
+	}
+	queueToUncordon.Cordoned = false
+	return r.upsertQueue(ctx, queueToUncordon)
 }
 
 func (r *PostgresQueueRepository) upsertQueue(ctx *armadacontext.Context, queue queue.Queue) error {

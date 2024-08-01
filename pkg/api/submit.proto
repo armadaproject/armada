@@ -192,6 +192,10 @@ message Queue {
     // If provided for a priority class, global limits for that priority class do not apply to this queue.
     map<string, PriorityClassResourceLimits> resource_limits_by_priority_class_name = 7;
     repeated Permissions permissions = 6;
+    // Determines whether scheduling is enabled for this queue.
+    bool cordoned = 8;
+    // A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical
+    repeated string labels = 9;
 }
 
 message PriorityClassResourceLimits {
@@ -220,6 +224,16 @@ message CancellationResult {
 //swagger:model
 message QueueGetRequest {
     string name = 1;
+}
+
+//swagger:model
+message QueueCordonRequest {
+  string name = 1;
+}
+
+//swagger:model
+message QueueUncordonRequest {
+  string name = 1;
 }
 
 //swagger:model
@@ -274,6 +288,8 @@ service QueueService {
   rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {}
   rpc GetQueue (QueueGetRequest) returns (Queue) {}
   rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {}
+  rpc CordonQueue (QueueCordonRequest) returns (google.protobuf.Empty) {}
+  rpc UncordonQueue (QueueUncordonRequest) returns (google.protobuf.Empty) {}
 }
 
 service Submit {

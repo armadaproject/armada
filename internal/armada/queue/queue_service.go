@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	"github.com/gogo/protobuf/types"
@@ -37,9 +38,9 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
-		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", req.Name, ep)
+		return nil, status.Errorf(codes.PermissionDenied, "error creating queue %s: %s", req.Name, ep)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
 	}
 
 	if len(req.UserOwners) == 0 {
@@ -49,15 +50,15 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 
 	queue, err := queue.NewQueue(req)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[CreateQueue] error validating queue: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "error validating queue: %s", err)
 	}
 
 	err = s.queueRepository.CreateQueue(ctx, queue)
 	var eq *ErrQueueAlreadyExists
 	if errors.As(err, &eq) {
-		return nil, status.Errorf(codes.AlreadyExists, "[CreateQueue] error creating queue: %s", err)
+		return nil, status.Errorf(codes.AlreadyExists, "error creating queue: %s", err)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error creating queue: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "error creating queue: %s", err)
 	}
 
 	return &types.Empty{}, nil
@@ -87,22 +88,22 @@ func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
-		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", req.Name, ep)
+		return nil, status.Errorf(codes.PermissionDenied, "error updating queue %s: %s", req.Name, ep)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[UpdateQueue] error checking permissions: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
 	}
 
 	queue, err := queue.NewQueue(req)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err)
 	}
 
 	err = s.queueRepository.UpdateQueue(ctx, queue)
 	var e *ErrQueueNotFound
 	if errors.As(err, &e) {
-		return nil, status.Errorf(codes.NotFound, "[UpdateQueue] error: %s", err)
+		return nil, status.Errorf(codes.NotFound, "error: %s", err)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[UpdateQueue] error getting queue %q: %s", queue.Name, err)
+		return nil, status.Errorf(codes.Unavailable, "error getting queue %q: %s", queue.Name, err)
 	}
 
 	return &types.Empty{}, nil
@@ -133,13 +134,13 @@ func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteReques
 	err := s.authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
-		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", req.Name, ep)
+		return nil, status.Errorf(codes.PermissionDenied, "error deleting queue %s: %s", req.Name, ep)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[DeleteQueue] error checking permissions: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
 	}
 	err = s.queueRepository.DeleteQueue(ctx, req.Name)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error deleting queue %s: %s", req.Name, err)
+		return nil, status.Errorf(codes.InvalidArgument, "error deleting queue %s: %s", req.Name, err)
 	}
 	return &types.Empty{}, nil
 }
@@ -149,9 +150,9 @@ func (s *Server) GetQueue(grpcCtx context.Context, req *api.QueueGetRequest) (*a
 	queue, err := s.queueRepository.GetQueue(ctx, req.Name)
 	var e *ErrQueueNotFound
 	if errors.As(err, &e) {
-		return nil, status.Errorf(codes.NotFound, "[GetQueue] error: %s", err)
+		return nil, status.Errorf(codes.NotFound, "error: %s", err)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[GetQueue] error getting queue %q: %s", req.Name, err)
+		return nil, status.Errorf(codes.Unavailable, "error getting queue %q: %s", req.Name, err)
 	}
 	return queue.ToAPI(), nil
 }
@@ -188,4 +189,42 @@ func (s *Server) GetQueues(req *api.StreamingQueueGetRequest, stream api.QueueSe
 		return err
 	}
 	return nil
+}
+
+func (s *Server) CordonQueue(grpcCtx context.Context, req *api.QueueCordonRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CordonQueue)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error cordoning queue %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	queueName := req.Name
+	if queueName == "" {
+		return nil, fmt.Errorf("cannot cordon queue with empty name")
+	}
+
+	return &types.Empty{}, s.queueRepository.CordonQueue(ctx, queueName)
+}
+
+func (s *Server) UncordonQueue(grpcCtx context.Context, req *api.QueueUncordonRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CordonQueue)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error uncordoning queue %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	queueName := req.Name
+	if queueName == "" {
+		return nil, fmt.Errorf("cannot uncordon queue with empty name")
+	}
+
+	return &types.Empty{}, s.queueRepository.UncordonQueue(ctx, queueName)
 }
