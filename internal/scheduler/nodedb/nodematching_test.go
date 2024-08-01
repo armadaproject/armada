@@ -528,7 +528,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeType := schedulerobjects.NewNodeType(
+			nodeType := internaltypes.NewNodeType(
 				tc.Taints,
 				tc.Labels,
 				tc.IndexedTaints,

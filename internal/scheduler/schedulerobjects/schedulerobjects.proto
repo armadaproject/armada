@@ -66,26 +66,6 @@ enum JobRunState {
     FAILED = 4;
 }
 
-// NodeType represents a particular combination of taints and labels.
-// The scheduler groups nodes by node type. When assigning pods to nodes,
-// the scheduler only considers nodes with a NodeType for which the taints and labels match.
-message NodeType {
-    // Unique identifier. Used for map lookup.
-    uint64 Id = 1;
-    // Kubernetes taints.
-    // To reduce the number of distinct node types,
-    // may contain only a subset of the taints of the node the node type is created from.
-    repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
-    // Kubernetes labels.
-    // To reduce the number of distinct node types,
-    // may contain only a subset of the labels of the node the node type is created from.
-    map<string, string> labels = 3;
-    // Well-known labels not set by this node type.
-    // Used to filter out nodes when looking for nodes for a pod
-    // that requires at least one well-known label to be set.
-    map<string, string> unsetIndexedLabels = 4;
-}
-
 // Captures the resource usage of a particular queue in a given cluster.
 message QueueClusterResourceUsage {
     google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
