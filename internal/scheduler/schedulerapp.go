@@ -27,21 +27,18 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/optimisation/descent"
-	"github.com/armadaproject/armada/internal/common/optimisation/nesterov"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/serve"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/failureestimator"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -55,13 +52,11 @@ func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	// ////////////////////////////////////////////////////////////////////////
-	// Profiling
+	// Expose profiling endpoints if enabled.
 	// ////////////////////////////////////////////////////////////////////////
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		g.Go(func() error {
-			return serve.ListenAndServe(ctx, pprofServer)
-		})
+	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -83,6 +78,12 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
+
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources)
+	if err != nil {
+		return err
+	}
+	ctx.Infof("Floating resource types: %s", floatingResourceTypes.SummaryString())
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -135,7 +136,7 @@ func Run(config schedulerconfig.Configuration) error {
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.PulsarSendTimeout)
+	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
 	if err != nil {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
@@ -153,17 +154,18 @@ func Run(config schedulerconfig.Configuration) error {
 	// Executor Api
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
-	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+	apiPublisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
-	})
+	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
 	if err != nil {
-		return errors.Wrapf(err, "error creating pulsar producer for executor api")
+		return errors.Wrapf(err, "error creating pulsar publisher for executor api")
 	}
-	defer apiProducer.Close()
+	defer apiPublisher.Close()
+
 	authServices, err := auth.ConfigureAuth(config.Auth)
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
@@ -175,14 +177,14 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
 	executorServer, err := NewExecutorApi(
-		apiProducer,
+		apiPublisher,
 		jobRepository,
 		executorRepository,
 		types.AllowedPriorities(config.Scheduling.PriorityClasses),
+		slices.Map(config.Scheduling.SupportedResourceTypes, func(rt schedulerconfig.ResourceType) string { return rt.Name }),
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
-		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
@@ -219,54 +221,10 @@ func Run(config schedulerconfig.Configuration) error {
 		services = append(services, func() error {
 			return submitCheckerImpl.Run(ctx)
 		})
-		if err != nil {
-			return errors.WithMessage(err, "error creating submit checker")
-		}
 		submitChecker = submitCheckerImpl
 	} else {
 		ctx.Infof("DisableSubmitCheckis true, will use a dummy submit check")
 		submitChecker = &DummySubmitChecker{}
-	}
-
-	// Setup failure estimation and quarantining.
-	failureEstimator, err := failureestimator.New(
-		config.Scheduling.FailureProbabilityEstimation.NumInnerIterations,
-		// Invalid config will have failed validation.
-		descent.MustNew(config.Scheduling.FailureProbabilityEstimation.InnerOptimiserStepSize),
-		// Invalid config will have failed validation.
-		nesterov.MustNew(
-			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserStepSize,
-			config.Scheduling.FailureProbabilityEstimation.OuterOptimiserNesterovAcceleration,
-		),
-	)
-	if err != nil {
-		return err
-	}
-	failureEstimator.Disable(config.Scheduling.FailureProbabilityEstimation.Disabled)
-	if err := prometheus.Register(failureEstimator); err != nil {
-		return errors.WithStack(err)
-	}
-	nodeQuarantiner, err := quarantine.NewNodeQuarantiner(
-		config.Scheduling.NodeQuarantining.FailureProbabilityQuarantineThreshold,
-		config.Scheduling.NodeQuarantining.FailureProbabilityEstimateTimeout,
-		failureEstimator,
-	)
-	if err != nil {
-		return err
-	}
-	if err := prometheus.Register(nodeQuarantiner); err != nil {
-		return errors.WithStack(err)
-	}
-	queueQuarantiner, err := quarantine.NewQueueQuarantiner(
-		config.Scheduling.QueueQuarantining.QuarantineFactorMultiplier,
-		config.Scheduling.QueueQuarantining.FailureProbabilityEstimateTimeout,
-		failureEstimator,
-	)
-	if err != nil {
-		return err
-	}
-	if err := prometheus.Register(queueQuarantiner); err != nil {
-		return errors.WithStack(err)
 	}
 
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
@@ -276,10 +234,8 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,
-		nodeQuarantiner,
-		queueQuarantiner,
-		stringInterner,
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -289,6 +245,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
+		floatingResourceTypes,
 	)
 	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
 	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
@@ -317,7 +274,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		schedulingRoundMetrics,
 		schedulerMetrics,
-		failureEstimator,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
@@ -337,6 +293,7 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		poolAssigner,
 		config.Metrics.RefreshInterval,
+		floatingResourceTypes,
 	)
 	if err := prometheus.Register(metricsCollector); err != nil {
 		return errors.WithStack(err)

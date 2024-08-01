@@ -2,11 +2,6 @@ package domain
 
 import armadaresource "github.com/armadaproject/armada/internal/common/resource"
 
-const (
-	AcceleratorDutyCycle = "armadaproject.io/accelerator-duty-cycle"
-	AcceleratorMemory    = "armadaproject.io/accelerator-memory"
-)
-
 type UtilisationData struct {
 	CurrentUsage    armadaresource.ComputeResources
 	CumulativeUsage armadaresource.ComputeResources

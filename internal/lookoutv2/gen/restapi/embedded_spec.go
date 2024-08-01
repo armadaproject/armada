@@ -27,6 +27,63 @@ func init() {
     "version": "2.0.0"
   },
   "paths": {
+    "/api/v1/jobError": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobError",
+        "parameters": [
+          {
+            "name": "getJobErrorRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "jobId"
+              ],
+              "properties": {
+                "jobId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns error for specific job (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Error for job",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobGroups": {
       "post": {
         "consumes": [
@@ -515,14 +572,9 @@ func init() {
         "annotations",
         "runs",
         "cluster",
-        "RuntimeSeconds"
+        "runtimeSeconds"
       ],
       "properties": {
-        "RuntimeSeconds": {
-          "type": "integer",
-          "format": "int32",
-          "x-nullable": false
-        },
         "annotations": {
           "type": "object",
           "additionalProperties": {
@@ -626,6 +678,11 @@ func init() {
           },
           "x-nullable": false
         },
+        "runtimeSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": false
+        },
         "state": {
           "type": "string",
           "enum": [
@@ -636,7 +693,8 @@ func init() {
             "FAILED",
             "CANCELLED",
             "PREEMPTED",
-            "LEASED"
+            "LEASED",
+            "REJECTED"
           ],
           "x-nullable": false
         },
@@ -762,6 +820,63 @@ func init() {
     "version": "2.0.0"
   },
   "paths": {
+    "/api/v1/jobError": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobError",
+        "parameters": [
+          {
+            "name": "getJobErrorRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "jobId"
+              ],
+              "properties": {
+                "jobId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns error for specific job (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Error for job",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobGroups": {
       "post": {
         "consumes": [
@@ -1279,14 +1394,9 @@ func init() {
         "annotations",
         "runs",
         "cluster",
-        "RuntimeSeconds"
+        "runtimeSeconds"
       ],
       "properties": {
-        "RuntimeSeconds": {
-          "type": "integer",
-          "format": "int32",
-          "x-nullable": false
-        },
         "annotations": {
           "type": "object",
           "additionalProperties": {
@@ -1390,6 +1500,11 @@ func init() {
           },
           "x-nullable": false
         },
+        "runtimeSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": false
+        },
         "state": {
           "type": "string",
           "enum": [
@@ -1400,7 +1515,8 @@ func init() {
             "FAILED",
             "CANCELLED",
             "PREEMPTED",
-            "LEASED"
+            "LEASED",
+            "REJECTED"
           ],
           "x-nullable": false
         },

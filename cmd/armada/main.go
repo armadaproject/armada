@@ -20,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -64,11 +63,9 @@ func main() {
 	})
 
 	// Expose profiling endpoints if enabled.
-	if config.PprofPort != nil {
-		pprofServer := profiling.SetupPprofHttpServer(*config.PprofPort)
-		g.Go(func() error {
-			return serve.ListenAndServe(ctx, pprofServer)
-		})
+	err := profiling.SetupPprof(config.Profiling, ctx, g)
+	if err != nil {
+		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	// TODO This starts a separate HTTP server. Is that intended? Should we have a single mux for everything?

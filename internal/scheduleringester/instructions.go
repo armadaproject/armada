@@ -15,7 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -30,23 +29,20 @@ type eventSequenceCommon struct {
 }
 
 type InstructionConverter struct {
-	metrics         *metrics.Metrics
-	priorityClasses map[string]types.PriorityClass
-	compressor      compress.Compressor
+	metrics    *metrics.Metrics
+	compressor compress.Compressor
 }
 
 func NewInstructionConverter(
 	metrics *metrics.Metrics,
-	priorityClasses map[string]types.PriorityClass,
 ) (*InstructionConverter, error) {
 	compressor, err := compress.NewZlibCompressor(1024)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create compressor")
 	}
 	return &InstructionConverter{
-		metrics:         metrics,
-		priorityClasses: priorityClasses,
-		compressor:      compressor,
+		metrics:    metrics,
+		compressor: compressor,
 	}, nil
 }
 
@@ -57,6 +53,7 @@ func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithId
 			operations = AppendDbOperation(operations, op)
 		}
 	}
+	log.Infof("Converted sequences into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
 		MessageIds: sequencesWithIds.MessageIds,
@@ -72,10 +69,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 	}
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
-		eventTime := time.Now().UTC()
-		if event.Created != nil {
-			eventTime = *event.Created
-		}
+		eventTime := protoutil.ToStdTime(event.Created)
 		var err error = nil
 		var operationsFromEvent []DbOperation
 		switch eventType := event.GetEvent().(type) {
@@ -117,6 +111,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_JobRunCancelled,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
@@ -211,6 +206,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				Queue:                  meta.queue,
 				Executor:               jobRunLeased.GetExecutorId(),
 				Node:                   jobRunLeased.GetNodeId(),
+				Pool:                   jobRunLeased.GetPool(),
 				ScheduledAtPriority:    scheduledAtPriority,
 				LeasedTimestamp:        &eventTime,
 				PodRequirementsOverlay: PodRequirementsOverlay,
@@ -423,11 +419,11 @@ func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValid
 
 // schedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
 func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
-	return SchedulingInfoFromSubmitJob(submitJob, submitTime, c.priorityClasses)
+	return SchedulingInfoFromSubmitJob(submitJob, submitTime)
 }
 
 // SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
-func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time, priorityClasses map[string]types.PriorityClass) (*schedulerobjects.JobSchedulingInfo, error) {
+func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
@@ -444,7 +440,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
 		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
-		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, priorityClasses)
+		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec)
 		if submitJob.ObjectMeta != nil {
 			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
 		}

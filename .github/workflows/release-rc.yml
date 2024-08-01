@@ -6,6 +6,7 @@ on:
     workflows: [CI]
     branches:
       - master
+      - patch/v*
 
 permissions:
   contents: write
@@ -30,11 +31,20 @@ jobs:
           ref='${{ github.event.workflow_run.head_branch }}'
           sha='${{ github.event.workflow_run.head_sha }}'
 
-          [ "$ref" == "master" ] &&
-          [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
-          [ $(git rev-list --count $sha..master) -le 2 ]
+          if [[ "$ref" == "master" ]]; then
+            [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
+            [ $(git rev-list --count $sha..master) -le 2 ]
+          elif [[ "$ref" =~ ^patch/v[0-9]+\.[0-9]+\.[0-9]+-patch[0-9]+$ ]]; then
+            [ $(git branch --contains=$sha "$ref" | wc -l) -eq 1 ] &&
+            base_tag=${ref#patch/}
+            base_tag=${base_tag%-*}
+            [ $(git rev-list --count $sha..$base_tag) -le 5 ]
+          else
+            false
+          fi
+
           if [ $? -ne 0 ]; then
-            echo "::error ::Invalid ref $ref $sha: must be a merge to master branch and not more than 2 commits away"
+            echo "::error ::Invalid ref $ref $sha: must be a merge to master branch (not more than 2 commits away) or a patch branch (not more than 5 commits away from base tag)"
             exit 1
           fi
   release:

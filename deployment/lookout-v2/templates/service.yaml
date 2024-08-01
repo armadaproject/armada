@@ -18,3 +18,7 @@ spec:
       {{- if .Values.httpNodePort }}
       nodePort: {{ .Values.httpNodePort }}
       {{- end }}
+    - name: metrics
+      protocol: TCP
+      port: {{ .Values.applicationConfig.metricsPort }}
+

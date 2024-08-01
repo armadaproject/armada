@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/event/sequence"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -25,6 +26,7 @@ var (
 	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
 	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto = protoutil.ToTimestamp(baseTime)
 )
 
 const (
@@ -42,7 +44,7 @@ const (
 
 // Assigned
 var assigned = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
+	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
 			RunId: runIdProto,
@@ -68,7 +70,7 @@ var assigned = &armadaevents.EventSequence_Event{
 
 // Running
 var running = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
+	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
 			RunId: runIdProto,
@@ -88,7 +90,7 @@ var running = &armadaevents.EventSequence_Event{
 }
 
 var runSucceeded = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
+	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
 			RunId: runIdProto,
@@ -113,7 +115,7 @@ var expectedPending = api.EventMessage{
 			JobId:        jobIdString,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
-			Created:      baseTime,
+			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
 			KubernetesId: runIdString,
 			PodNumber:    podNumber,
@@ -129,7 +131,7 @@ var expectedRunning = api.EventMessage{
 			JobId:        jobIdString,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
-			Created:      baseTime,
+			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
 			KubernetesId: runIdString,
 			NodeName:     nodeName,

@@ -48,6 +48,7 @@ func makeTestNode(id string) *internaltypes.Node {
 		1,
 		"executor",
 		"node_name",
+		"pool",
 		[]v1.Taint{},
 		map[string]string{},
 		internaltypes.ResourceList{},

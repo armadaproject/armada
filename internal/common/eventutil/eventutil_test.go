@@ -286,6 +286,68 @@ func TestSequenceEventListSizeBytes(t *testing.T) {
 	assert.True(t, sequenceSizeBytes < sequenceEventListOverheadSizeBytes)
 }
 
+func TestLimitSequencesEventMessageCount(t *testing.T) {
+	input := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "a"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "b"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "c"}}},
+			},
+		},
+		{
+			Queue:      "queue2",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "d"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "e"}}},
+			},
+		},
+	}
+
+	expected := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "a"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "b"}}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "c"}}},
+			},
+		},
+		{
+			Queue:      "queue2",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "d"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "e"}}},
+			},
+		},
+	}
+
+	result := LimitSequencesEventMessageCount(input, 2)
+	assert.Len(t, result, 3)
+	assert.Equal(t, expected, result)
+}
+
 func TestLimitSequenceByteSize(t *testing.T) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      "queue1",

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "event_ingester.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "event_ingester.labels.all" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "event_ingester.labels.identity" . | nindent 4 }}
+  ports:
+    - name: metrics
+      protocol: TCP
+      port: {{ .Values.applicationConfig.metricsPort }}

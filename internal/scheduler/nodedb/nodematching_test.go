@@ -14,9 +14,12 @@ import (
 )
 
 func TestNodeSchedulingRequirementsMet(t *testing.T) {
+	rlFactory := testfixtures.TestResourceListFactory
+
 	tests := map[string]struct {
 		node          *internaltypes.Node
 		req           *schedulerobjects.PodRequirements
+		priority      int32
 		expectSuccess bool
 	}{
 		"nil taints and labels": {
@@ -266,18 +269,18 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		"sufficient cpu": {
 			node: makeTestNodeResources(
 				t,
-				schedulerobjects.AllocatableByPriorityAndResourceType{
-					0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
+				map[int32]internaltypes.ResourceList{
+					0: rlFactory.FromJobResourceListIgnoreUnknown(
+						map[string]resource.Quantity{
 							"cpu": resource.MustParse("1"),
 						},
-					},
+					),
 				},
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
+				rlFactory.FromJobResourceListIgnoreUnknown(
+					map[string]resource.Quantity{
 						"cpu": resource.MustParse("1"),
 					},
-				},
+				),
 			),
 			req: &schedulerobjects.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
@@ -285,25 +288,24 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 0,
 			},
+			priority:      0,
 			expectSuccess: true,
 		},
 		"insufficient cpu": {
 			node: makeTestNodeResources(
 				t,
-				schedulerobjects.AllocatableByPriorityAndResourceType{
-					0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
+				map[int32]internaltypes.ResourceList{
+					0: rlFactory.FromJobResourceListIgnoreUnknown(
+						map[string]resource.Quantity{
 							"cpu": resource.MustParse("0"),
 						},
-					},
+					),
 				},
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("0"),
-					},
+				rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+					"cpu": resource.MustParse("0"),
 				},
+				),
 			),
 			req: &schedulerobjects.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
@@ -311,30 +313,30 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 0,
 			},
+			priority:      0,
 			expectSuccess: false,
 		},
 		"sufficient cpu at priority": {
 			node: makeTestNodeResources(
 				t,
-				schedulerobjects.AllocatableByPriorityAndResourceType{
-					0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
+				map[int32]internaltypes.ResourceList{
+					0: rlFactory.FromJobResourceListIgnoreUnknown(
+						map[string]resource.Quantity{
 							"cpu": resource.MustParse("0"),
 						},
-					},
-					1: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
+					),
+					1: rlFactory.FromJobResourceListIgnoreUnknown(
+						map[string]resource.Quantity{
 							"cpu": resource.MustParse("1"),
 						},
-					},
+					),
 				},
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
+				rlFactory.FromJobResourceListIgnoreUnknown(
+					map[string]resource.Quantity{
 						"cpu": resource.MustParse("1"),
 					},
-				},
+				),
 			),
 			req: &schedulerobjects.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
@@ -342,30 +344,30 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 1,
 			},
+			priority:      1,
 			expectSuccess: true,
 		},
 		"insufficient cpu at priority": {
 			node: makeTestNodeResources(
 				t,
-				schedulerobjects.AllocatableByPriorityAndResourceType{
-					0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
+				map[int32]internaltypes.ResourceList{
+					0: rlFactory.FromJobResourceListIgnoreUnknown(
+						map[string]resource.Quantity{
 							"cpu": resource.MustParse("0"),
 						},
-					},
-					1: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
+					),
+					1: rlFactory.FromJobResourceListIgnoreUnknown(
+						map[string]resource.Quantity{
 							"cpu": resource.MustParse("1"),
 						},
-					},
+					),
 				},
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
+				rlFactory.FromJobResourceListIgnoreUnknown(
+					map[string]resource.Quantity{
 						"cpu": resource.MustParse("1"),
 					},
-				},
+				),
 			),
 			req: &schedulerobjects.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
@@ -373,7 +375,6 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 						"cpu": resource.MustParse("1"),
 					},
 				},
-				Priority: 0,
 			},
 			expectSuccess: false,
 		},
@@ -382,7 +383,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			matches, reason, err := JobRequirementsMet(
 				tc.node,
-				tc.req.Priority,
+				tc.priority,
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
 					PodRequirements:      tc.req,
@@ -527,7 +528,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeType := schedulerobjects.NewNodeType(
+			nodeType := internaltypes.NewNodeType(
 				tc.Taints,
 				tc.Labels,
 				tc.IndexedTaints,
@@ -653,6 +654,7 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 		1,
 		"executor",
 		"name",
+		"pool",
 		taints,
 		labels,
 		internaltypes.ResourceList{},
@@ -664,26 +666,18 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 	)
 }
 
-func makeTestNodeResources(t *testing.T, allocatableByPriority schedulerobjects.AllocatableByPriorityAndResourceType, totalResources schedulerobjects.ResourceList) *internaltypes.Node {
-	tr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(totalResources))
-	assert.Nil(t, err)
-
-	abp := map[int32]internaltypes.ResourceList{}
-	for pri, rl := range allocatableByPriority {
-		abp[pri], err = testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(rl))
-		assert.Nil(t, err)
-	}
-
+func makeTestNodeResources(t *testing.T, allocatableByPriority map[int32]internaltypes.ResourceList, totalResources internaltypes.ResourceList) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		"id",
 		1,
 		1,
 		"executor",
 		"name",
+		"pool",
 		[]v1.Taint{},
 		map[string]string{},
-		tr,
-		abp,
+		totalResources,
+		allocatableByPriority,
 		map[string]internaltypes.ResourceList{},
 		map[string]internaltypes.ResourceList{},
 		map[string]bool{},

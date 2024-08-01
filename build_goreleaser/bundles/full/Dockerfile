@@ -1,6 +1,6 @@
 ARG NODE_BUILD_IMAGE=node:16.14-buster
 ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
-ARG BASE_IMAGE=alpine:3.18.3
+ARG BASE_IMAGE=alpine:3.20.1
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 LABEL org.opencontainers.image.title=armada-full-bundle
@@ -22,7 +22,7 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
 
-COPY server executor binoculars eventingester lookoutingesterv2 lookoutv2 jobservice scheduler scheduleringester armadactl /app/
+COPY server executor binoculars eventingester lookoutingesterv2 lookoutv2 scheduler scheduleringester armadactl /app/
 COPY config/ /app/config/
 
 WORKDIR /app

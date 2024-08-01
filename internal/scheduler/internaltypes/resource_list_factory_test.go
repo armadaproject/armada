@@ -4,8 +4,6 @@ import (
 	"math"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/stretchr/testify/assert"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
@@ -48,7 +46,7 @@ func TestFromNodeProto(t *testing.T) {
 
 func TestFromJobResourceListFailOnUnknown(t *testing.T) {
 	factory := testFactory()
-	result, err := factory.FromJobResourceListFailOnUnknown(map[v1.ResourceName]k8sResource.Quantity{
+	result, err := factory.FromJobResourceListFailOnUnknown(map[string]k8sResource.Quantity{
 		"memory": k8sResource.MustParse("100Mi"),
 		"cpu":    k8sResource.MustParse("9999999n"),
 	})
@@ -60,7 +58,7 @@ func TestFromJobResourceListFailOnUnknown(t *testing.T) {
 
 func TestFromJobResourceListFailOnUnknownErrorsIfMissing(t *testing.T) {
 	factory := testFactory()
-	_, err := factory.FromJobResourceListFailOnUnknown(map[v1.ResourceName]k8sResource.Quantity{
+	_, err := factory.FromJobResourceListFailOnUnknown(map[string]k8sResource.Quantity{
 		"memory":  k8sResource.MustParse("100Mi"),
 		"missing": k8sResource.MustParse("1"),
 	})

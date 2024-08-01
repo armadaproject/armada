@@ -9,8 +9,6 @@ import (
 
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const (
@@ -126,24 +124,18 @@ func (err *InsufficientResources) String() string {
 // NodeTypeJobRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
-func NodeTypeJobRequirementsMet(nodeType *schedulerobjects.NodeType, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason) {
-	matches, reason := TolerationRequirementsMet(nodeType.GetTaints(), jctx.AdditionalTolerations, jctx.PodRequirements.GetTolerations())
+func NodeTypeJobRequirementsMet(nodeType *internaltypes.NodeType, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason) {
+	matches, reason := TolerationRequirementsMet(nodeType, jctx.AdditionalTolerations, jctx.PodRequirements.GetTolerations())
 	if !matches {
 		return matches, reason
 	}
 
-	nodeTypeLabels := nodeType.GetLabels()
-	nodeTypeLabelGetter := func(key string) (string, bool) {
-		val, ok := nodeTypeLabels[key]
-		return val, ok
-	}
-
-	matches, reason = NodeSelectorRequirementsMet(nodeTypeLabelGetter, nodeType.GetUnsetIndexedLabels(), jctx.AdditionalNodeSelectors)
+	matches, reason = NodeSelectorRequirementsMet(nodeType.GetLabelValue, nodeType.GetUnsetIndexedLabelValue, jctx.AdditionalNodeSelectors)
 	if !matches {
 		return matches, reason
 	}
 
-	return NodeSelectorRequirementsMet(nodeTypeLabelGetter, nodeType.GetUnsetIndexedLabels(), jctx.PodRequirements.GetNodeSelector())
+	return NodeSelectorRequirementsMet(nodeType.GetLabelValue, nodeType.GetUnsetIndexedLabelValue, jctx.PodRequirements.GetNodeSelector())
 }
 
 // JobRequirementsMet determines whether a job can be scheduled onto this node.
@@ -187,7 +179,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, err
 	}
 
-	matches, reason = resourceRequirementsMet(node.TotalResources, jctx.ResourceRequirements)
+	matches, reason = resourceRequirementsMet(node.GetTotalResources(), jctx.ResourceRequirements)
 	if !matches {
 		return matches, reason, nil
 	}
@@ -202,8 +194,8 @@ func DynamicJobRequirementsMet(allocatableResources internaltypes.ResourceList, 
 	return matches, reason
 }
 
-func TolerationRequirementsMet(taints []v1.Taint, tolerations ...[]v1.Toleration) (bool, PodRequirementsNotMetReason) {
-	untoleratedTaint, hasUntoleratedTaint := koTaint.FindMatchingUntoleratedTaint(taints, tolerations...)
+func TolerationRequirementsMet(nodeType *internaltypes.NodeType, tolerations ...[]v1.Toleration) (bool, PodRequirementsNotMetReason) {
+	untoleratedTaint, hasUntoleratedTaint := nodeType.FindMatchingUntoleratedTaint(tolerations...)
 	if hasUntoleratedTaint {
 		return false, &UntoleratedTaint{Taint: untoleratedTaint}
 	}
@@ -218,7 +210,7 @@ func NodeTolerationRequirementsMet(node *internaltypes.Node, tolerations ...[]v1
 	return true, nil
 }
 
-func NodeSelectorRequirementsMet(nodeLabelGetter func(string) (string, bool), unsetIndexedLabels, nodeSelector map[string]string) (bool, PodRequirementsNotMetReason) {
+func NodeSelectorRequirementsMet(nodeLabelGetter func(string) (string, bool), unsetIndexedLabelGetter func(string) (string, bool), nodeSelector map[string]string) (bool, PodRequirementsNotMetReason) {
 	for label, podValue := range nodeSelector {
 		// If the label value differs between nodeLabels and the pod, always return false.
 		if nodeValue, ok := nodeLabelGetter(label); ok {
@@ -233,8 +225,8 @@ func NodeSelectorRequirementsMet(nodeLabelGetter func(string) (string, bool), un
 			// If unsetIndexedLabels is provided, return false only if this label is explicitly marked as not set.
 			//
 			// If unsetIndexedLabels is not provided, we assume that nodeLabels contains all labels and return false.
-			if unsetIndexedLabels != nil {
-				if _, ok := unsetIndexedLabels[label]; ok {
+			if unsetIndexedLabelGetter != nil {
+				if _, ok := unsetIndexedLabelGetter(label); ok {
 					return false, &MissingLabel{Label: label}
 				}
 			} else {

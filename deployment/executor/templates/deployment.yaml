@@ -52,10 +52,10 @@ spec:
             - containerPort: 9001
               protocol: TCP
               name: metrics
-            {{- if .Values.applicationConfig.pprofPort }}
-            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+            {{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
+            - containerPort: {{ .Values.applicationConfig.profiling.port }}
               protocol: TCP
-              name: pprof
+              name: profiling
             {{- end }}
           volumeMounts:
             - name: user-config

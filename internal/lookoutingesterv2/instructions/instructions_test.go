@@ -137,6 +137,18 @@ var expectedUnschedulable = model.UpdateJobRunInstruction{
 	Node:  pointer.String(testfixtures.NodeName),
 }
 
+var expectedRejected = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(lookout.JobRejectedOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+}
+
+var expectedRejectedJobError = model.CreateJobErrorInstruction{
+	JobId: testfixtures.JobIdString,
+	Error: []byte(testfixtures.ErrMsg),
+}
+
 var expectedPreempted = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobIdString,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
@@ -370,13 +382,15 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"duplicate submit is ignored": {
+		"job rejected": {
 			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.SubmitDuplicate)},
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRejected)},
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobsToUpdate:      []*model.UpdateJobInstruction{&expectedRejected},
+				JobErrorsToCreate: []*model.CreateJobErrorInstruction{&expectedRejectedJobError},
+				MessageIds:        []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job preempted": {
@@ -403,7 +417,7 @@ func TestConvert(t *testing.T) {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{
 					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
-						Created: &testfixtures.BaseTime,
+						Created: testfixtures.BaseTimeProto,
 						Event: &armadaevents.EventSequence_Event_JobRunRunning{
 							JobRunRunning: &armadaevents.JobRunRunning{},
 						},
@@ -462,7 +476,7 @@ func TestConvert(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
 			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
@@ -528,7 +542,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
-	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
 	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema

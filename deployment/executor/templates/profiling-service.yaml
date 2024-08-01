@@ -1,0 +1,19 @@
+{{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "executor.name" . }}-profiling
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "executor.labels.all" . | nindent 4 }}
+    name: {{ include "executor.name" . }}-profiling
+spec:
+  selector:
+    app: {{ include "executor.name" . }}
+  ports:
+    - name: profiling
+      protocol: TCP
+      port: {{ .Values.applicationConfig.profiling.port }}
+---
+{{- end }}
+

@@ -3,15 +3,18 @@
 package lookoutv2
 
 import (
+	"github.com/IBM/pgxpoolprometheus"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
-	slices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/conversions"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
@@ -31,9 +34,13 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		return err
 	}
 
+	collector := pgxpoolprometheus.NewCollector(db, map[string]string{})
+	prometheus.MustRegister(collector)
+
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
+	getJobErrorRepo := repository.NewSqlGetJobErrorRepository(db, decompressor)
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobRunDebugMessageRepo := repository.NewSqlGetJobRunDebugMessageRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
@@ -121,6 +128,19 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		},
 	)
 
+	api.GetJobErrorHandler = operations.GetJobErrorHandlerFunc(
+		func(params operations.GetJobErrorParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobErrorRepo.GetJobErrorMessage(ctx, params.GetJobErrorRequest.JobID)
+			if err != nil {
+				return operations.NewGetJobErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobErrorOK().WithPayload(&operations.GetJobErrorOKBody{
+				ErrorString: result,
+			})
+		},
+	)
+
 	api.GetJobSpecHandler = operations.GetJobSpecHandlerFunc(
 		func(params operations.GetJobSpecParams) middleware.Responder {
 			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
@@ -133,6 +153,9 @@ func Serve(configuration configuration.LookoutV2Config) error {
 			})
 		},
 	)
+
+	shutdownMetricServer := common.ServeMetrics(uint16(configuration.MetricsPort))
+	defer shutdownMetricServer()
 
 	server := restapi.NewServer(api)
 	defer func() {

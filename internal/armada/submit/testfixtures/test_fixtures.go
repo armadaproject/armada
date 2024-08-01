@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/auth"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -21,7 +22,7 @@ var (
 	DefaultOwner         = "testUser"
 	DefaultJobset        = "testJobset"
 	DefaultQueue         = queue.Queue{Name: "testQueue"}
-	DefaultPrincipal     = auth.NewStaticPrincipal(DefaultOwner, []string{"groupA"})
+	DefaultPrincipal     = auth.NewStaticPrincipal(DefaultOwner, "test", []string{"groupA"})
 	DefaultContainerPort = v1.ContainerPort{
 		Name:          "testContainerPort",
 		ContainerPort: 8080,
@@ -56,6 +57,7 @@ var (
 	DefaultTerminationGracePeriodSeconds = int64(30)
 	DefaultActiveDeadlineSeconds         = int64(3600)
 	DefaultTime                          = time.Now().UTC()
+	DefaultTimeProto                     = protoutil.ToTimestamp(DefaultTime)
 )
 
 func DefaultSubmissionConfig() configuration.SubmissionConfig {
@@ -76,7 +78,7 @@ func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequen
 	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
 	for i, jobId := range jobIds {
 		events[i] = &armadaevents.EventSequence_Event{
-			Created: &DefaultTime,
+			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
 					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
@@ -92,7 +94,7 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
 	for i, jobId := range jobIds {
 		events[i] = &armadaevents.EventSequence_Event{
-			Created: &DefaultTime,
+			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
 					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
@@ -106,7 +108,7 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 
 func CreateCancelJobSetSequenceEvent() *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
-		Created: &DefaultTime,
+		Created: DefaultTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJobSet{
 			CancelJobSet: &armadaevents.CancelJobSet{
 				States: []armadaevents.JobState{},
@@ -119,7 +121,7 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
 	for i, jobId := range jobIds {
 		events[i] = &armadaevents.EventSequence_Event{
-			Created: &DefaultTime,
+			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
@@ -134,7 +136,7 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 
 func CreateReprioritizedJobSetSequenceEvent(newPriority float64) *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
-		Created: &DefaultTime,
+		Created: DefaultTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 			ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
 				Priority: uint32(newPriority),
@@ -147,7 +149,7 @@ func NEventSequenceEvents(n int) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, n)
 	for i := 0; i < n; i++ {
 		events[i] = &armadaevents.EventSequence_Event{
-			Created: &DefaultTime,
+			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_SubmitJob{
 				SubmitJob: SubmitJob(i + 1),
 			},

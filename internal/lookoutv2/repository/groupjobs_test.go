@@ -22,7 +22,7 @@ import (
 
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
 	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 		repo := NewSqlGroupJobsRepository(db)
 		return f(converter, store, repo)
@@ -658,6 +658,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 						string(lookout.JobFailed):    0,
 						string(lookout.JobCancelled): 0,
 						string(lookout.JobPreempted): 0,
+						string(lookout.JobRejected):  0,
 					},
 				},
 			},
@@ -674,6 +675,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 						string(lookout.JobFailed):    0,
 						string(lookout.JobCancelled): 10,
 						string(lookout.JobPreempted): 9,
+						string(lookout.JobRejected):  0,
 					},
 				},
 			},
@@ -690,6 +692,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 						string(lookout.JobFailed):    12,
 						string(lookout.JobCancelled): 0,
 						string(lookout.JobPreempted): 0,
+						string(lookout.JobRejected):  0,
 					},
 				},
 			},

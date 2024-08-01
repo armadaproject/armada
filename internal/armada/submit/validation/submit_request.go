@@ -3,8 +3,6 @@ package validation
 import (
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
@@ -30,6 +28,7 @@ var (
 		validatePodSpecSize,
 		validateAffinity,
 		validateResources,
+		validateInitContainerCpu,
 		validatePriorityClasses,
 		validateTerminationGracePeriod,
 		validateIngresses,
@@ -210,28 +209,36 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 // Ensures that the JobSubmitRequestItem's limits and requests are equal.
 // Also  checks that  any resources defined are above minimum values set in  config
 func validateResources(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
-	// Function which tells us if two k8s resource lists contain exactly the same elements
-	resourceListEquals := func(a v1.ResourceList, b v1.ResourceList) bool {
-		if len(a) != len(b) {
-			return false
-		}
-		for k, v := range a {
-			if v != b[k] {
-				return false
-			}
-		}
-		return true
-	}
-
 	spec := j.GetMainPodSpec()
+	maxOversubscriptionByResource := config.MaxOversubscriptionByResourceRequest
+	if maxOversubscriptionByResource == nil {
+		maxOversubscriptionByResource = map[string]float64{}
+	}
 	for _, container := range spec.Containers {
 
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
-		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
-			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
+		if len(container.Resources.Requests) != len(container.Resources.Limits) {
+			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
+		}
+
+		for resource, request := range container.Resources.Requests {
+			limit, ok := container.Resources.Limits[resource]
+			if !ok {
+				return fmt.Errorf("container %v defines %s for requests but not limits", container.Name, resource)
+			}
+			if limit.MilliValue() < request.MilliValue() {
+				return fmt.Errorf("container %v defines %s with limits smaller than requests", container.Name, resource)
+			}
+			maxOversubscription, ok := maxOversubscriptionByResource[resource.String()]
+			if !ok {
+				maxOversubscription = 1.0
+			}
+			if float64(limit.MilliValue()) > maxOversubscription*float64(request.MilliValue()) {
+				return fmt.Errorf("container %v defines %s with limits great than %.2f*requests", container.Name, resource, maxOversubscription)
+			}
 		}
 
 		for rc, containerRsc := range container.Resources.Requests {
@@ -327,6 +334,33 @@ func validateTerminationGracePeriod(j *api.JobSubmitRequestItem, config configur
 				terminationGracePeriodSeconds,
 				config.MinTerminationGracePeriod,
 				config.MaxTerminationGracePeriod)
+		}
+	}
+	return nil
+}
+
+// Ensures that any init containers request non-integer cpu.  This is because when using static cpu manager init
+// containers with integer cpu can cause pods to fail with an error of "Pod Allocate failed due to not enough cpus
+// available to satisfy request, which is unexpected".
+// See https://github.com/kubernetes/kubernetes/issues/112228
+func validateInitContainerCpu(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
+	if !config.AssertInitContainersRequestFractionalCpu {
+		return nil
+	}
+
+	spec := j.GetMainPodSpec()
+	if spec == nil {
+		return nil
+	}
+	const errMsg = "Init container %s contains invalid cpu value %s.  All init containers must set requests/limits to fractional cpu e.g. 900m"
+	for _, container := range spec.InitContainers {
+		requestCpu := container.Resources.Requests.Cpu()
+		limitCpu := container.Resources.Limits.Cpu()
+		if !requestCpu.IsZero() && requestCpu.MilliValue()%1000 == 0 {
+			return fmt.Errorf(errMsg, container.Name, requestCpu)
+		}
+		if !limitCpu.IsZero() && limitCpu.MilliValue()%1000 == 0 {
+			return fmt.Errorf(errMsg, container.Name, limitCpu)
 		}
 	}
 	return nil

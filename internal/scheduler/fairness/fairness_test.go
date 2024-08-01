@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -30,18 +31,18 @@ func TestNewDominantResourceFairness(t *testing.T) {
 				"foo": resource.MustParse("1"),
 			},
 		},
-		[]string{},
+		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{}},
 	)
 	require.Error(t, err)
 }
 
 func TestDominantResourceFairness(t *testing.T) {
 	tests := map[string]struct {
-		totalResources      schedulerobjects.ResourceList
-		resourcesToConsider []string
-		allocation          schedulerobjects.ResourceList
-		weight              float64
-		expectedCost        float64
+		totalResources schedulerobjects.ResourceList
+		config         configuration.SchedulingConfig
+		allocation     schedulerobjects.ResourceList
+		weight         float64
+		expectedCost   float64
 	}{
 		"single resource 1": {
 			totalResources: schedulerobjects.ResourceList{
@@ -51,7 +52,7 @@ func TestDominantResourceFairness(t *testing.T) {
 					"baz": resource.MustParse("3"),
 				},
 			},
-			resourcesToConsider: []string{"foo", "bar"},
+			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
 			allocation: schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
 					"foo": resource.MustParse("0.5"),
@@ -68,7 +69,7 @@ func TestDominantResourceFairness(t *testing.T) {
 					"baz": resource.MustParse("3"),
 				},
 			},
-			resourcesToConsider: []string{"foo", "bar"},
+			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
 			allocation: schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
 					"bar": resource.MustParse("0.5"),
@@ -85,7 +86,7 @@ func TestDominantResourceFairness(t *testing.T) {
 					"baz": resource.MustParse("3"),
 				},
 			},
-			resourcesToConsider: []string{"foo", "bar"},
+			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
 			allocation: schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
 					"foo": resource.MustParse("0.5"),
@@ -103,7 +104,7 @@ func TestDominantResourceFairness(t *testing.T) {
 					"baz": resource.MustParse("3"),
 				},
 			},
-			resourcesToConsider: []string{"foo", "bar"},
+			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
 			allocation: schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
 					"foo": resource.MustParse("0.5"),
@@ -121,7 +122,7 @@ func TestDominantResourceFairness(t *testing.T) {
 					"baz": resource.MustParse("3"),
 				},
 			},
-			resourcesToConsider: []string{"foo", "bar"},
+			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
 			allocation: schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
 					"foo": resource.MustParse("0.5"),
@@ -139,7 +140,7 @@ func TestDominantResourceFairness(t *testing.T) {
 					"baz": resource.MustParse("3"),
 				},
 			},
-			resourcesToConsider: []string{"foo", "bar"},
+			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
 			allocation: schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
 					"foo": resource.MustParse("0.5"),
@@ -148,20 +149,74 @@ func TestDominantResourceFairness(t *testing.T) {
 			weight:       2.0,
 			expectedCost: 0.25,
 		},
+		"experimental config": {
+			totalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+					"baz": resource.MustParse("3"),
+				},
+			},
+			config: configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}}},
+			allocation: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0.5"),
+					"bar": resource.MustParse("1.1"),
+				},
+			},
+			weight:       1.0,
+			expectedCost: 1.1 / 2,
+		},
+		"experimental config defaults multipliers to one": {
+			totalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+					"baz": resource.MustParse("3"),
+				},
+			},
+			config: configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 0}, {"bar", 0}}},
+			allocation: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0.5"),
+					"bar": resource.MustParse("1.1"),
+				},
+			},
+			weight:       1.0,
+			expectedCost: 1.1 / 2,
+		},
+		"experimental config non-unit multiplier": {
+			totalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+					"baz": resource.MustParse("3"),
+				},
+			},
+			config: configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 4}, {"bar", 1}}},
+			allocation: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0.5"),
+					"bar": resource.MustParse("1.1"),
+				},
+			},
+			weight:       1.0,
+			expectedCost: 2,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			f, err := NewDominantResourceFairness(tc.totalResources, tc.resourcesToConsider)
+			f, err := NewDominantResourceFairness(tc.totalResources, tc.config)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
 				tc.expectedCost,
-				f.CostFromAllocationAndWeight(tc.allocation, tc.weight),
+				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
 			)
 			assert.Equal(
 				t,
-				f.CostFromAllocationAndWeight(tc.allocation, tc.weight),
-				f.CostFromQueue(MinimalQueue{allocation: tc.allocation, weight: tc.weight}),
+				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
+				f.WeightedCostFromQueue(MinimalQueue{allocation: tc.allocation, weight: tc.weight}),
 			)
 		})
 	}

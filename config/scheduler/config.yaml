@@ -37,7 +37,9 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
+  maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 #4Mi
+  sendTimeout: 5s
 armadaApi:
   armadaUrl: "server:50051"
   forceNoTls: true
@@ -127,15 +129,4 @@ scheduling:
   maxUnacknowledgedJobsPerExecutor: 2500
   alwaysAttemptScheduling: false
   executorUpdateFrequency: "60s"
-  failureProbabilityEstimation:
-    # Optimised default parameters.
-    numInnerIterations: 10
-    innerOptimiserStepSize: 0.05
-    outerOptimiserStepSize: 0.05
-    outerOptimiserNesterovAcceleration: 0.2
-  nodeQuarantining:
-    failureProbabilityQuarantineThreshold: 0.95
-    failureProbabilityEstimateTimeout: "10m"
-  queueQuarantining:
-    quarantineFactorMultiplier: 0.5 # At most halve the scheduling rate of misbehaving queues.
-    failureProbabilityEstimateTimeout: "10m"
+

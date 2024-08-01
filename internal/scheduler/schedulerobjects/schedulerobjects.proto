@@ -15,8 +15,6 @@ message Executor {
     string pool = 2;
     // The nodes available for scheduling via this executor.
     repeated Node nodes = 3;
-    // Minimum resources which a job must request in order to be considered for scheduling on this executor.
-    ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
     // Last time the executor provided a heartbeat to say it was still accepting job.
     google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     // Jobs that are owned by the cluster but are not assigned to any node.
@@ -34,10 +32,6 @@ message Node {
     // Time at which this node was last updated.
     // Used to garbage collect nodes that have been removed.
     google.protobuf.Timestamp last_seen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    // The node type captures scheduling requirements of the node;
-    // it's computed from the taints and labels associated with the node.
-    // This field is set automatically by the NodeDb on inserting the node.
-    NodeType node_type = 3;
     // Kubernetes taints.
     repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
     // Kubernetes labels.
@@ -50,12 +44,6 @@ message Node {
     map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false];
     // Ids of the job runs currently assigned to this node and their current state.
     map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
-    // Resource allocated to jobs on this node.
-    map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
-    // Resource allocated to queues on this node.
-    map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
-    // Ids of all runs evicted on this node.
-    map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
     // Resource allocated to non-Armada pods on this node.
     map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
     // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
@@ -66,6 +54,8 @@ message Node {
     // This should only be used for metrics
     // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
     string reporting_node_type = 17;
+  // The pool that this node belongs to, this is used for scheduling purposes
+    string pool = 18;
 }
 
 enum JobRunState {
@@ -74,26 +64,6 @@ enum JobRunState {
     RUNNING= 2;
     SUCCEEDED = 3;
     FAILED = 4;
-}
-
-// NodeType represents a particular combination of taints and labels.
-// The scheduler groups nodes by node type. When assigning pods to nodes,
-// the scheduler only considers nodes with a NodeType for which the taints and labels match.
-message NodeType {
-    // Unique identifier. Used for map lookup.
-    uint64 Id = 1;
-    // Kubernetes taints.
-    // To reduce the number of distinct node types,
-    // may contain only a subset of the taints of the node the node type is created from.
-    repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
-    // Kubernetes labels.
-    // To reduce the number of distinct node types,
-    // may contain only a subset of the labels of the node the node type is created from.
-    map<string, string> labels = 3;
-    // Well-known labels not set by this node type.
-    // Used to filter out nodes when looking for nodes for a pod
-    // that requires at least one well-known label to be set.
-    map<string, string> unsetIndexedLabels = 4;
 }
 
 // Captures the resource usage of a particular queue in a given cluster.
@@ -153,11 +123,6 @@ message PodRequirements {
     repeated k8s.io.api.core.v1.Toleration tolerations = 3 [(gogoproto.nullable) = false];
     // Kubernetes annotations. Included here since we use annotations with special meaning.
     map<string, string> annotations = 7;
-    // Priority class priority of the pod as submitted. Should be mapped from the priority class name of the submitted pod.
-    //
-    // During scheduling, the priority stored on the podSchedulingContext should be used instead,
-    // since a pod may be scheduled at a priority different from the priority it was submitted with.
-    int32 priority = 4;
     // One of Never, PreemptLowerPriority.
     // Defaults to PreemptLowerPriority if unset.
     string preemptionPolicy = 5;

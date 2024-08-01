@@ -1,0 +1,19 @@
+{{- if and .Values.ingester.applicationConfig.profiling .Values.ingester.applicationConfig.profiling.port }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "armada-scheduler.name" . }}-ingester-profiling
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler-ingester.labels.all" . | nindent 4 }}
+    name: {{ include "armada-scheduler.name" . }}-ingester-profiling
+spec:
+  selector:
+    app: {{ include "armada-scheduler.name" . }}-ingester
+  ports:
+    - name: profiling
+      protocol: TCP
+      port: {{ .Values.ingester.applicationConfig.profiling.port }}
+---
+{{- end }}
+

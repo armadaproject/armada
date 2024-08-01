@@ -3,12 +3,12 @@ import { Job } from "models/lookoutV2Models"
 
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
 export interface SidebarTabJobDetailsProps {
   job: Job
-  jobSpecService: IGetJobSpecService
+  jobSpecService: IGetJobInfoService
 }
 
 export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetailsProps) => {

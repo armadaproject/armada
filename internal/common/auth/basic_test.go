@@ -17,20 +17,22 @@ func TestBasicAuthService(t *testing.T) {
 		"root": {"toor", []string{}},
 	})
 
+	auth1 := basicPassword("root", "toor")
 	principal, e := service.Authenticate(
-		metadata.NewIncomingContext(context.Background(), basicPassword("root", "toor")))
+		metadata.NewIncomingContext(context.Background(), auth1), auth1["authorization"][0])
 
 	assert.Nil(t, e)
 	assert.Equal(t, principal.GetName(), "root")
 
+	auth2 := basicPassword("root", "test")
 	_, e = service.Authenticate(
-		metadata.NewIncomingContext(context.Background(), basicPassword("root", "test")))
+		metadata.NewIncomingContext(context.Background(), auth2), auth2["authorization"][0])
 
 	assert.NotNil(t, e)
 	var invalidCredsErr *armadaerrors.ErrInvalidCredentials
 	assert.ErrorAs(t, e, &invalidCredsErr)
 
-	_, e = service.Authenticate(context.Background())
+	_, e = service.Authenticate(context.Background(), "")
 	var missingCredsErr *armadaerrors.ErrMissingCredentials
 	assert.ErrorAs(t, e, &missingCredsErr)
 }

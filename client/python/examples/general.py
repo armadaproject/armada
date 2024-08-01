@@ -53,8 +53,6 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
     Wait for a job event to occur.
 
     Will automatically return if the event is considered terminal.
-    A list of terminal events can be found here:
-    https://github.com/armadaproject/armada/blob/master/internal/jobservice/eventstojobs/event_job_response_test.go
 
     Please note that this is shown for demonstration purposes only.
     Subscribing to events like this to watch individual events like
