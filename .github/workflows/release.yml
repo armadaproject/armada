@@ -48,7 +48,7 @@ jobs:
           git fetch --all
 
           # Check if it's from master branch or a patch branch
-          if [ $(git branch -r --contains=$sha | grep -E "origin/(master|patch/v[0-9]+\.[0-9]+\.[0-9]+-patch[0-9]+)$" | wc -l) -eq 0 ]; then
+          if [ $(git branch -r --contains=$sha | grep -E "origin/(master|patch/v[0-9]+\.[0-9]+\.[0-9]+.*)$" | wc -l) -eq 0 ]; then
             echo "::error::$sha is not in master or any patch branch"
             echo "Branches containing this SHA:"
             git branch -r --contains=$sha
