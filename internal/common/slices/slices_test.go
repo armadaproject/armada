@@ -88,6 +88,95 @@ func TestMap(t *testing.T) {
 	}
 }
 
+func TestAllFunc(t *testing.T) {
+	tests := map[string]struct {
+		input     []int
+		transform func(int) bool
+		expected  bool
+	}{
+		"returns constant false": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) bool { return false },
+			expected:  false,
+		},
+		"returns constant true": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) bool { return true },
+			expected:  true,
+		},
+		"simple function returns true": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) bool { return i < 4 },
+			expected:  true,
+		},
+		"simple function returns false": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) bool { return i > 3 },
+			expected:  false,
+		},
+		"simple function returns mixed": {
+			input:     []int{1, 2, 3},
+			transform: func(i int) bool { return i < 3 },
+			expected:  false,
+		},
+		"empty input": {
+			input:     []int{},
+			transform: func(i int) bool { return false },
+			expected:  true,
+		},
+		"nil input": {
+			input:     nil,
+			transform: func(i int) bool { return false },
+			expected:  true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := AllFunc(tc.input, tc.transform)
+			assert.Equal(t, tc.expected, output)
+		})
+	}
+}
+
+func TestApply(t *testing.T) {
+	type testType struct {
+		val int
+	}
+	tests := map[string]struct {
+		input     []*testType
+		transform func(*testType)
+		expected  []*testType
+	}{
+		"identity": {
+			input:     []*testType{{1}, {2}, {3}},
+			transform: func(i *testType) { return },
+			expected:  []*testType{{1}, {2}, {3}},
+		},
+		"simple function": {
+			input:     []*testType{{1}, {2}, {3}},
+			transform: func(i *testType) { i.val += 1 },
+			expected:  []*testType{{2}, {3}, {4}},
+		},
+		"empty input": {
+			input:     []*testType{},
+			transform: func(i *testType) { i.val += 1 },
+			expected:  []*testType{},
+		},
+		"nil input": {
+			input:     nil,
+			transform: func(i *testType) { i.val += 1 },
+			expected:  nil,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			Apply(tc.input, tc.transform)
+			output := tc.input
+			assert.Equal(t, tc.expected, output)
+		})
+	}
+}
+
 func TestPartitionToMaxLen(t *testing.T) {
 	tests := map[string]struct {
 		input  []int
