@@ -70,7 +70,6 @@ For documentation, see the following:
 - [API Documentation](./docs/developer/api.md)
 
 We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:
-
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
