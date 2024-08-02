@@ -29,6 +29,10 @@ type Metrics struct {
 	errorRegexes []*regexp.Regexp
 	// resources we want to provide metrics for
 	trackedResourceNames []v1.ResourceName
+	// We periodically reset metrics to reduce metric cardinality
+	resetInterval time.Duration
+	// last time we reset metrics
+	lastResetTime time.Time
 }
 
 func New(trackedErrorRegexes []string, trackedResourceNames []v1.ResourceName) (*Metrics, error) {
@@ -44,6 +48,7 @@ func New(trackedErrorRegexes []string, trackedResourceNames []v1.ResourceName) (
 	return &Metrics{
 		errorRegexes:         errorRegexes,
 		trackedResourceNames: trackedResourceNames,
+		lastResetTime:        time.Now(),
 	}, nil
 }
 
@@ -161,6 +166,15 @@ func (m *Metrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.Error) (
 		}
 	}
 	return category, ""
+}
+
+func (m *Metrics) resetMetricsIfRequired() {
+	if time.Since(m.lastResetTime) > m.resetInterval {
+		jobStateResourceSecondsMetric.Reset()
+		jobStateSecondsMetric.Reset()
+		jobErrorsMetric.Reset()
+		m.lastResetTime = time.Now()
+	}
 }
 
 // stateDuration returns:

@@ -99,7 +99,7 @@ var (
 		[]string{PoolLabel},
 	)
 
-	scheduleCycleTimeMetric = prometheus.NewHistogram(
+	scheduleCycleTimeMetric = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    Prefix + "schedule_cycle_times",
 			Help:    "Cycle time when in a scheduling round.",
@@ -107,7 +107,7 @@ var (
 		},
 	)
 
-	reconciliationCycleTimeMetric = prometheus.NewHistogram(
+	reconciliationCycleTimeMetric = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    Prefix + "reconciliation_cycle_times",
 			Help:    "Cycle time when in a scheduling round.",
@@ -115,7 +115,7 @@ var (
 		},
 	)
 
-	completedRunDurationsMetric = prometheus.NewHistogramVec(
+	completedRunDurationsMetric = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    Prefix + "job_run_completed_duration_seconds",
 			Help:    "Time",
@@ -124,7 +124,7 @@ var (
 		[]string{QueueLabel},
 	)
 
-	jobStateSecondsMetric = prometheus.NewCounterVec(
+	jobStateSecondsMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: Prefix + "job_state_seconds",
 			Help: "Resource Seconds spend in different states",
@@ -132,7 +132,7 @@ var (
 		StateLabels,
 	)
 
-	jobStateResourceSecondsMetric = prometheus.NewCounterVec(
+	jobStateResourceSecondsMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: Prefix + "job_state_resource_seconds",
 			Help: "Resource Seconds spend in different states",
@@ -140,7 +140,7 @@ var (
 		ResourceStateLabels,
 	)
 
-	jobErrorsMetric = prometheus.NewCounterVec(
+	jobErrorsMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: Prefix + "job_error_classification",
 			Help: "Failed jobs ey error classification",

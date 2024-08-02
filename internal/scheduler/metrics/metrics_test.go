@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"strings"
 	"testing"
 	"time"
@@ -247,6 +248,7 @@ func TestReportJobStateTransitionMetrics(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			prometheus.Unregister(jobStateSecondsMetric)
 			metrics, err := New(tc.trackedErrorRegexes, tc.trackedResourceNames)
 			require.NoError(t, err)
 			metrics.UpdateJobStateTransitionMetrics(tc.jsts, tc.jobRunErrorsByRunId)
