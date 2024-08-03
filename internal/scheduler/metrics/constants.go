@@ -2,7 +2,7 @@ package metrics
 
 const (
 
-	// comoon prefix for all metric names
+	// common prefix for all metric names
 	prefix = "armada_scheduler_"
 
 	// Prometheus Labels

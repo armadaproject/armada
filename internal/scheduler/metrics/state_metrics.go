@@ -16,12 +16,7 @@ type jobStateMetrics struct {
 	// Pre-compiled regexes for error categorisation.
 	errorRegexes []*regexp.Regexp
 	// resources we want to provide metrics for
-	trackedResourceNames []v1.ResourceName
-	// We periodically reset metrics to reduce metric cardinality
-	resetInterval time.Duration
-	// last time we reset metrics
-	lastResetTime time.Time
-
+	trackedResourceNames         []v1.ResourceName
 	completedRunDurations        *prometheus.HistogramVec
 	queueJobStateSeconds         *prometheus.CounterVec
 	nodeJobStateSeconds          *prometheus.CounterVec
@@ -35,7 +30,6 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 	return &jobStateMetrics{
 		errorRegexes:         errorRegexes,
 		trackedResourceNames: trackedResourceNames,
-		lastResetTime:        time.Now(),
 		completedRunDurations: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    prefix + "job_run_completed_duration_seconds",
@@ -87,6 +81,26 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 			[]string{nodeLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 		),
 	}
+}
+
+func (m *jobStateMetrics) describe(ch chan<- *prometheus.Desc) {
+	m.completedRunDurations.Describe(ch)
+	m.queueJobStateSeconds.Describe(ch)
+	m.nodeJobStateSeconds.Describe(ch)
+	m.queueJobStateResourceSeconds.Describe(ch)
+	m.nodeJobStateResourceSeconds.Describe(ch)
+	m.queueJobErrors.Describe(ch)
+	m.nodeJobErrors.Describe(ch)
+}
+
+func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
+	m.completedRunDurations.Collect(ch)
+	m.queueJobStateSeconds.Collect(ch)
+	m.nodeJobStateSeconds.Collect(ch)
+	m.queueJobStateResourceSeconds.Collect(ch)
+	m.nodeJobStateResourceSeconds.Collect(ch)
+	m.queueJobErrors.Collect(ch)
+	m.nodeJobErrors.Collect(ch)
 }
 
 func (m *jobStateMetrics) UpdateJobStateTransitionMetrics(

@@ -156,3 +156,31 @@ func (m *cycleMetrics) ReportSchedulerResult(result schedulerresult.SchedulerRes
 		m.premptedJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
 	}
 }
+
+func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
+	m.scheduledJobs.Describe(ch)
+	m.premptedJobs.Describe(ch)
+	m.consideredJobs.Describe(ch)
+	m.fairShare.Describe(ch)
+	m.adjustedFairShare.Describe(ch)
+	m.actualShare.Describe(ch)
+	m.fairnessError.Describe(ch)
+	m.demand.Describe(ch)
+	m.cappedDemand.Describe(ch)
+	m.scheduleCycleTime.Describe(ch)
+	m.reconciliationCycleTime.Describe(ch)
+}
+
+func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
+	m.scheduledJobs.Collect(ch)
+	m.premptedJobs.Collect(ch)
+	m.consideredJobs.Collect(ch)
+	m.fairShare.Collect(ch)
+	m.adjustedFairShare.Collect(ch)
+	m.actualShare.Collect(ch)
+	m.fairnessError.Collect(ch)
+	m.demand.Collect(ch)
+	m.cappedDemand.Collect(ch)
+	m.scheduleCycleTime.Collect(ch)
+	m.reconciliationCycleTime.Collect(ch)
+}
