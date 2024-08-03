@@ -138,7 +138,6 @@ func (c *InstructionConverter) handleSubmitJob(
 	event *armadaevents.SubmitJob,
 	update *model.InstructionSet,
 ) error {
-
 	// Try and marshall the job proto. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the job spec won't be available in the ui
 	var jobProto []byte
@@ -252,7 +251,6 @@ func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
-
 	for _, e := range event.GetErrors() {
 		if !e.Terminal {
 			continue
@@ -326,7 +324,6 @@ func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaeven
 }
 
 func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased, update *model.InstructionSet) error {
-
 	// Update Job
 	job := model.UpdateJobInstruction{
 		JobId:                     event.JobIdStr,

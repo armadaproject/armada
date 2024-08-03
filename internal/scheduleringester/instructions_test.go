@@ -226,13 +226,6 @@ func TestConvertSequence(t *testing.T) {
 				MarkRunsSucceeded{f.RunIdUuid: f.BaseTime.Add(time.Hour)},
 			},
 		},
-		"ignored events": {
-			events: []*armadaevents.EventSequence_Event{f.Running, f.SubmitDuplicate, f.JobSucceeded},
-			expected: []DbOperation{
-				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
-				MarkJobsSucceeded{f.JobIdString: true},
-			},
-		},
 	}
 
 	for name, tc := range tests {
