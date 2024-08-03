@@ -132,46 +132,6 @@ func getPodNumber(pod *v1.Pod) int32 {
 	return int32(podNumber)
 }
 
-func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string) (*armadaevents.EventSequence, error) {
-	sequence := createEmptySequence(pod)
-	jobId, runId, err := extractIds(pod)
-	if err != nil {
-		return nil, err
-	}
-
-	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId:    runId,
-				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-				JobId:    jobId,
-				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false, // EventMessage_UnableToSchedule indicates an issue with job to start up - info only
-						Reason: &armadaevents.Error_PodUnschedulable{
-							PodUnschedulable: &armadaevents.PodUnschedulable{
-								ObjectMeta: &armadaevents.ObjectMeta{
-									KubernetesId: string(pod.ObjectMeta.UID),
-									Name:         pod.Name,
-									Namespace:    pod.Namespace,
-									ExecutorId:   clusterId,
-								},
-								Message:   reason,
-								NodeName:  pod.Spec.NodeName,
-								PodNumber: getPodNumber(pod),
-							},
-						},
-					},
-				},
-			},
-		},
-	})
-
-	return sequence, nil
-}
-
 func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices []*v1.Service, associatedIngresses []*networking.Ingress) (*armadaevents.EventSequence, error) {
 	if pod.Spec.NodeName == "" || pod.Status.HostIP == "" {
 		return nil, errors.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
