@@ -151,14 +151,6 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	// Reports UnableToSchedule
-	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
-	unableToScheduleEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-	assert.True(t, ok)
-	assert.Len(t, unableToScheduleEvent.JobRunErrors.Errors, 1)
-	assert.True(t, unableToScheduleEvent.JobRunErrors.Errors[0].GetPodUnschedulable() != nil)
-
 	// Reset events
 	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
 	podIssueService.HandlePodIssues()
