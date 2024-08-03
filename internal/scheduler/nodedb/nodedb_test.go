@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -556,7 +555,6 @@ func TestAwayNodeTypes(t *testing.T) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(t, err)
@@ -723,7 +721,6 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
@@ -763,7 +760,6 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
@@ -889,7 +885,6 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 		testfixtures.TestWellKnownNodeTypes,
-		stringinterner.New(1024),
 		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {

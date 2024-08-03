@@ -1906,8 +1906,19 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
+        "cordoned": {
+          "description": "Determines whether scheduling is enabled for this queue.",
+          "type": "boolean"
+        },
         "groupOwners": {
           "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "array",
+          "title": "A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical",
           "items": {
             "type": "string"
           }

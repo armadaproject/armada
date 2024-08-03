@@ -1917,8 +1917,19 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cordoned\": {\n" +
+		"          \"description\": \"Determines whether scheduling is enabled for this queue.\",\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"groupOwners\": {\n" +
 		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +

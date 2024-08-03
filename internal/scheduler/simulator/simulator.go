@@ -263,7 +263,6 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
-				stringinterner.New(1024),
 				s.resourceListFactory,
 			)
 			if err != nil {
@@ -502,12 +501,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					return err
 				}
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(
-				pool.Name,
-				totalResources,
-				s.schedulingConfig,
-				nil,
-			)
+			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil, map[string]bool{})
 
 			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
 			if err != nil {

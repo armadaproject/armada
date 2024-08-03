@@ -34,7 +34,7 @@ jobs:
           if [[ "$ref" == "master" ]]; then
             [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
             [ $(git rev-list --count $sha..master) -le 2 ]
-          elif [[ "$ref" =~ ^patch/v[0-9]+\.[0-9]+\.[0-9]+-patch[0-9]+$ ]]; then
+          elif [[ "$ref" =~ ^patch/v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
             [ $(git branch --contains=$sha "$ref" | wc -l) -eq 1 ] &&
             base_tag=${ref#patch/}
             base_tag=${base_tag%-*}

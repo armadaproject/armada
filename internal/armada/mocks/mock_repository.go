@@ -87,6 +87,22 @@ func (m *MockQueueRepository) GetQueue(arg0 *armadacontext.Context, arg1 string)
 	return ret0, ret1
 }
 
+// CordonQueue mocks base method.
+func (m *MockQueueRepository) CordonQueue(arg0 *armadacontext.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CordonQueue", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UncordonQueue mocks base method.
+func (m *MockQueueRepository) UncordonQueue(arg0 *armadacontext.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UncordonQueue", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
 // GetQueue indicates an expected call of GetQueue.
 func (mr *MockQueueRepositoryMockRecorder) GetQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
@@ -105,4 +121,16 @@ func (m *MockQueueRepository) UpdateQueue(arg0 *armadacontext.Context, arg1 queu
 func (mr *MockQueueRepositoryMockRecorder) UpdateQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueue", reflect.TypeOf((*MockQueueRepository)(nil).UpdateQueue), arg0, arg1)
+}
+
+// CordonQueue indicates an expected call of CordonQueue.
+func (mr *MockQueueRepositoryMockRecorder) CordonQueue(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CordonQueue", reflect.TypeOf((*MockQueueRepository)(nil).CordonQueue), arg0, arg1)
+}
+
+// UncordonQueue indicates an expected call of UncordonQueue.
+func (mr *MockQueueRepositoryMockRecorder) UncordonQueue(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UncordonQueue", reflect.TypeOf((*MockQueueRepository)(nil).UncordonQueue), arg0, arg1)
 }

@@ -33,6 +33,8 @@ import (
 const (
 	TestJobset                   = "testJobset"
 	TestQueue                    = "testQueue"
+	TestQueue1                   = "testQueue1"
+	TestQueue2                   = "testQueue2"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
 	ClusterNameLabel             = "cluster"
@@ -841,6 +843,21 @@ func MakeTestQueue() *api.Queue {
 	return &api.Queue{
 		Name:           TestQueue,
 		PriorityFactor: 100,
+	}
+}
+
+func MakeTestQueue2() *api.Queue {
+	return &api.Queue{
+		Name:           TestQueue2,
+		PriorityFactor: 100,
+	}
+}
+
+func MakeTestQueueCordoned() *api.Queue {
+	return &api.Queue{
+		Name:           TestQueue1,
+		PriorityFactor: 100,
+		Cordoned:       true,
 	}
 }
 

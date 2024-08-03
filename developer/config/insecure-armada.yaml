@@ -6,6 +6,7 @@ auth:
     submit_any_jobs: ["everyone"]
     create_queue: ["everyone"]
     delete_queue: ["everyone"]
+    cordon_queue: ["everyone"]
     cancel_any_jobs: ["everyone"]
     reprioritize_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]

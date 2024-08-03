@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"strings"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/pkg/api"
@@ -12,6 +13,8 @@ type Queue struct {
 	Permissions                       []Permissions  `json:"permissions"`
 	PriorityFactor                    PriorityFactor `json:"priorityFactor"`
 	ResourceLimitsByPriorityClassName map[string]api.PriorityClassResourceLimits
+	Cordoned                          bool     `json:"cordoned"`
+	Labels                            []string `json:"labels"`
 }
 
 // NewQueue returns new Queue using the in parameter. Error is returned if
@@ -46,11 +49,20 @@ func NewQueue(in *api.Queue) (Queue, error) {
 		}
 	}
 
+	// Queue labels must be Kubernetes-like key-value labels
+	for _, label := range in.Labels {
+		if len(strings.Split(label, "=")) != 2 {
+			return Queue{}, fmt.Errorf("queue label must be key-value, not %s", label)
+		}
+	}
+
 	return Queue{
 		Name:                              in.Name,
 		PriorityFactor:                    priorityFactor,
 		Permissions:                       permissions,
 		ResourceLimitsByPriorityClassName: resourceLimitsByPriorityClassName,
+		Cordoned:                          in.Cordoned,
+		Labels:                            in.Labels,
 	}, nil
 }
 
@@ -64,6 +76,8 @@ func (q Queue) ToAPI() *api.Queue {
 			func(p api.PriorityClassResourceLimits) *api.PriorityClassResourceLimits {
 				return &p
 			}),
+		Cordoned: q.Cordoned,
+		Labels:   q.Labels,
 	}
 	for _, permission := range q.Permissions {
 		rv.Permissions = append(rv.Permissions, permission.ToAPI())

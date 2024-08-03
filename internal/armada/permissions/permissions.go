@@ -13,5 +13,6 @@ const (
 	WatchAllEvents                            = "watch_all_events"
 	CreateQueue                               = "create_queue"
 	DeleteQueue                               = "delete_queue"
+	CordonQueue                               = "cordon_queue"
 	CordonNodes                               = "cordon_nodes"
 )

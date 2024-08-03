@@ -14,7 +14,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -390,6 +389,57 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass0, 4)),
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
+		"scheduling from paused queue": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueueCordoned()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{},
+		},
+		"multi-queue scheduling": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue(), testfixtures.MakeTestQueue2()},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue2, testfixtures.PriorityClass3, 2)...,
+			),
+			expectedScheduledIndices: []int{0, 1, 10, 11},
+		},
+		"multi-queue scheduling with paused and non-paused queue": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueueCordoned(), testfixtures.MakeTestQueue()},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue1, testfixtures.PriorityClass3, 10)...,
+			),
+			expectedScheduledIndices: []int{0, 1, 2, 3},
+		},
+		"multi-queue scheduling with paused and non-paused queue large": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+				testfixtures.Test1Node32CoreExecutor("executor3"),
+				testfixtures.Test1Node32CoreExecutor("executor4"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueueCordoned(), testfixtures.MakeTestQueue()},
+			queuedJobs: append(
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+				testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue1, testfixtures.PriorityClass3, 10)...,
+			),
+			expectedScheduledIndices: []int{0, 1, 2, 3, 4, 5, 6, 7},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -408,7 +458,6 @@ func TestSchedule(t *testing.T) {
 				mockExecutorRepo,
 				mockQueueCache,
 				schedulingContextRepo,
-				stringinterner.New(1024),
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
 			)
@@ -568,14 +617,12 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				b.StopTimer()
-				stringInterner := stringinterner.New(1024)
 				algo, err := NewFairSchedulingAlgo(
 					schedulingConfig,
 					time.Second*5,
 					nil,
 					nil,
 					nil,
-					stringInterner,
 					testfixtures.TestResourceListFactory,
 					testfixtures.TestEmptyFloatingResources,
 				)
@@ -588,7 +635,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
 					schedulingConfig.WellKnownNodeTypes,
-					stringInterner,
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)

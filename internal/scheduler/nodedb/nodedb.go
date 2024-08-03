@@ -16,7 +16,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -39,15 +38,18 @@ var empty struct{}
 func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, error) {
 	taints := node.GetTaints()
 	if node.Unschedulable {
-		taints = append(koTaint.DeepCopyTaintsInternStrings(taints, nodeDb.stringInterner.Intern), UnschedulableTaint())
+		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
 	}
 
-	labels := nodeDb.copyMapWithIntern(node.GetLabels())
+	labels := maps.Clone(node.GetLabels())
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	labels[configuration.NodeIdLabel] = node.Id
 
 	totalResources := node.TotalResources
 
-	nodeType := schedulerobjects.NewNodeType(
+	nodeType := internaltypes.NewNodeType(
 		taints,
 		labels,
 		nodeDb.indexedTaints,
@@ -75,14 +77,14 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 	}
 	index := uint64(nodeDb.numNodes)
 	nodeDb.numNodes++
-	nodeDb.numNodesByNodeType[nodeType.Id]++
+	nodeDb.numNodesByNodeType[nodeType.GetId()]++
 	nodeDb.totalResources.Add(totalResources)
-	nodeDb.nodeTypes[nodeType.Id] = nodeType
+	nodeDb.nodeTypes[nodeType.GetId()] = nodeType
 	nodeDb.mu.Unlock()
 
 	return internaltypes.CreateNode(
 		node.Id,
-		nodeType.Id,
+		nodeType.GetId(),
 		index,
 		node.Executor,
 		node.Name,
@@ -95,14 +97,6 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		nil), nil
-}
-
-func (nodeDb *NodeDb) copyMapWithIntern(labels map[string]string) map[string]string {
-	result := make(map[string]string, len(labels))
-	for k, v := range labels {
-		result[nodeDb.stringInterner.Intern(k)] = nodeDb.stringInterner.Intern(v)
-	}
-	return result
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, node *schedulerobjects.Node) error {
@@ -199,7 +193,7 @@ type NodeDb struct {
 	totalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
-	nodeTypes map[uint64]*schedulerobjects.NodeType
+	nodeTypes map[uint64]*internaltypes.NodeType
 
 	wellKnownNodeTypes map[string]*configuration.WellKnownNodeType
 
@@ -217,8 +211,6 @@ type NodeDb struct {
 	// scheduling round uses a fresh NodeDb.
 	scheduledAtPriorityByJobId map[string]int32
 
-	stringInterner *stringinterner.StringInterner
-
 	resourceListFactory *internaltypes.ResourceListFactory
 }
 
@@ -228,7 +220,6 @@ func NewNodeDb(
 	indexedTaints []string,
 	indexedNodeLabels []string,
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
-	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
 	nodeDbPriorities := []int32{evictedPriority}
@@ -276,7 +267,7 @@ func NewNodeDb(
 		indexedTaints:             mapFromSlice(indexedTaints),
 		indexedNodeLabels:         mapFromSlice(indexedNodeLabels),
 		indexedNodeLabelValues:    indexedNodeLabelValues,
-		nodeTypes:                 make(map[uint64]*schedulerobjects.NodeType),
+		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
 		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:        make(map[uint64]int),
 		totalResources:            schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
@@ -285,7 +276,6 @@ func NewNodeDb(
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 
 		scheduledAtPriorityByJobId: make(map[string]int32),
-		stringInterner:             stringInterner,
 		resourceListFactory:        resourceListFactory,
 	}
 
@@ -363,7 +353,7 @@ func (nodeDb *NodeDb) String() string {
 	} else {
 		fmt.Fprint(w, "Node types:\n")
 		for _, nodeType := range nodeDb.nodeTypes {
-			fmt.Fprintf(w, "  %d\n", nodeType.Id)
+			fmt.Fprintf(w, "  %d\n", nodeType.GetId())
 		}
 	}
 	w.Flush()
@@ -1079,12 +1069,12 @@ func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *schedulercontext.JobSchedulingC
 	for _, nodeType := range nodeDb.nodeTypes {
 		matches, reason := NodeTypeJobRequirementsMet(nodeType, jctx)
 		if matches {
-			matchingNodeTypeIds = append(matchingNodeTypeIds, nodeType.Id)
+			matchingNodeTypeIds = append(matchingNodeTypeIds, nodeType.GetId())
 		} else if reason != nil {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
-			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.Id]
+			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.GetId()]
 		} else {
-			numExcludedNodesByReason[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.Id]
+			numExcludedNodesByReason[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.GetId()]
 		}
 	}
 	return matchingNodeTypeIds, numExcludedNodesByReason, nil
