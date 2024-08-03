@@ -704,9 +704,6 @@ func SwaggerJsonTemplate() string {
 		"        \"succeeded\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobSucceededEvent\"\n" +
 		"        },\n" +
-		"        \"terminated\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobTerminatedEvent\"\n" +
-		"        },\n" +
 		"        \"unableToSchedule\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobUnableToScheduleEvent\"\n" +
 		"        },\n" +
@@ -1751,43 +1748,6 @@ func SwaggerJsonTemplate() string {
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobTerminatedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"podName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"podNamespace\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"podNumber\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +

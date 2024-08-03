@@ -235,7 +235,6 @@ message EventMessage {
         JobReprioritizedEvent reprioritized = 11;
         JobCancellingEvent cancelling = 12;
         JobCancelledEvent cancelled = 13;
-        JobTerminatedEvent terminated = 14;
         JobUtilisationEvent utilisation = 15;
         JobIngressInfoEvent ingress_info = 17;
         JobReprioritizingEvent reprioritizing = 18;
