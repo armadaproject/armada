@@ -47,10 +47,6 @@ func TestConvertSequence(t *testing.T) {
 				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 			}}},
 		},
-		"ignores duplicate submit": {
-			events:   []*armadaevents.EventSequence_Event{f.SubmitDuplicate},
-			expected: []DbOperation{},
-		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{

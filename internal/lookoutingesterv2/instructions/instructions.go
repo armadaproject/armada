@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
@@ -139,11 +138,6 @@ func (c *InstructionConverter) handleSubmitJob(
 	event *armadaevents.SubmitJob,
 	update *model.InstructionSet,
 ) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
 
 	// Try and marshall the job proto. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the job spec won't be available in the ui
@@ -153,16 +147,16 @@ func (c *InstructionConverter) handleSubmitJob(
 
 		jobProtoUncompressed, err := proto.Marshal(apiJob)
 		if err != nil {
-			log.WithError(err).Warnf("Couldn't marshall job %s in jobset %s as proto.", jobId, jobSet)
+			log.WithError(err).Warnf("Couldn't marshall job %s in jobset %s as proto.", event.JobIdStr, jobSet)
 		}
 
 		jobProto, err = c.compressor.Compress(jobProtoUncompressed)
 		if err != nil {
-			log.WithError(err).Warnf("Couldn't compress proto for job %s in jobset %s.", jobId, jobSet)
+			log.WithError(err).Warnf("Couldn't compress proto for job %s in jobset %s.", event.JobIdStr, jobSet)
 		}
 	} else {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		log.WithError(err).Warnf("Couldn't convert job event for job %s in jobset %s to api job.", jobId, jobSet)
+		log.WithError(err).Warnf("Couldn't convert job event for job %s in jobset %s to api job.", event.JobIdStr, jobSet)
 	}
 
 	resources := getJobResources(apiJob)
@@ -175,7 +169,7 @@ func (c *InstructionConverter) handleSubmitJob(
 	annotations := extractUserAnnotations(c.userAnnotationPrefix, event.GetObjectMeta().GetAnnotations())
 
 	job := model.CreateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.JobIdStr,
 		Queue:                     queue,
 		Owner:                     owner,
 		Namespace:                 apiJob.Namespace,
@@ -215,14 +209,8 @@ func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[stri
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:    jobId,
+		JobId:    event.JobIdStr,
 		Priority: pointer.Int64(int64(event.Priority)),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
@@ -253,14 +241,8 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.JobIdStr,
 		State:                     pointer.Int32(int32(lookout.JobSucceededOrdinal)),
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
@@ -270,11 +252,6 @@ func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
 
 	for _, e := range event.GetErrors() {
 		if !e.Terminal {
@@ -289,13 +266,13 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 		case *armadaevents.Error_JobRejected:
 			state = lookout.JobRejectedOrdinal
 			update.JobErrorsToCreate = append(update.JobErrorsToCreate, &model.CreateJobErrorInstruction{
-				JobId: jobId,
-				Error: tryCompressError(jobId, reason.JobRejected.Message, c.compressor),
+				JobId: event.JobIdStr,
+				Error: tryCompressError(event.JobIdStr, reason.JobRejected.Message, c.compressor),
 			})
 		}
 
 		jobUpdate := model.UpdateJobInstruction{
-			JobId:                     jobId,
+			JobId:                     event.JobIdStr,
 			State:                     pointer.Int32(int32(state)),
 			LastTransitionTime:        &ts,
 			LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
@@ -308,12 +285,6 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 }
 
 func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.GetRunId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -322,7 +293,7 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 
 	// Update Job
 	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.JobIdStr,
 		State:                     pointer.Int32(int32(lookout.JobRunningOrdinal)),
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
@@ -344,14 +315,8 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 }
 
 func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.JobIdStr,
 		State:                     pointer.Int32(int32(lookout.JobQueuedOrdinal)),
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
@@ -361,32 +326,21 @@ func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaeven
 }
 
 func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
 
 	// Update Job
 	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.JobIdStr,
 		State:                     pointer.Int32(int32(lookout.JobLeasedOrdinal)),
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
+		LatestRunId:               &event.RunIdStr,
 	}
 
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 	// Now create a job run
 	jobRun := model.CreateJobRunInstruction{
-		RunId:       runId,
-		JobId:       jobId,
+		RunId:       event.RunIdStr,
+		JobId:       event.JobIdStr,
 		Cluster:     util.Truncate(event.ExecutorId, maxClusterLen),
 		Node:        pointer.String(util.Truncate(event.NodeId, maxNodeLen)),
 		Leased:      &ts,
@@ -397,30 +351,18 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	// Update Job
 	job := model.UpdateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.JobIdStr,
 		State:                     pointer.Int32(int32(lookout.JobPendingOrdinal)),
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
+		LatestRunId:               &event.RunIdStr,
 	}
 
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       runId,
+		RunId:       event.RunIdStr,
 		Pending:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 	}
@@ -429,14 +371,8 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return errors.WithStack(err)
-	}
-
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       runId,
+		RunId:       event.RunIdStr,
 		Finished:    &ts,
 		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 	}
@@ -445,14 +381,8 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 }
 
 func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return errors.WithStack(err)
-	}
-
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       runId,
+		RunId:       event.RunIdStr,
 		Finished:    &ts,
 		JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 		ExitCode:    pointer.Int32(0),
@@ -462,21 +392,9 @@ func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armada
 }
 
 func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return errors.WithStack(err)
-	}
-
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return errors.WithStack(err)
-	}
-
 	for _, e := range event.GetErrors() {
 		jobRunUpdate := &model.UpdateJobRunInstruction{
-			RunId: runId,
+			RunId: event.RunIdStr,
 		}
 		if e.Terminal {
 			jobRunUpdate.Finished = &ts
@@ -486,8 +404,8 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		case *armadaevents.Error_PodError:
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
-			jobRunUpdate.Error = tryCompressError(jobId, reason.PodError.GetMessage(), c.compressor)
-			jobRunUpdate.Debug = tryCompressError(jobId, reason.PodError.DebugMessage, c.compressor)
+			jobRunUpdate.Error = tryCompressError(event.JobIdStr, reason.PodError.GetMessage(), c.compressor)
+			jobRunUpdate.Debug = tryCompressError(event.JobIdStr, reason.PodError.DebugMessage, c.compressor)
 			var exitCode int32 = 0
 			for _, containerError := range reason.PodError.ContainerErrors {
 				if containerError.ExitCode != 0 {
@@ -506,14 +424,14 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 		case *armadaevents.Error_PodLeaseReturned:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
-			jobRunUpdate.Error = tryCompressError(jobId, reason.PodLeaseReturned.GetMessage(), c.compressor)
-			jobRunUpdate.Debug = tryCompressError(jobId, reason.PodLeaseReturned.GetDebugMessage(), c.compressor)
+			jobRunUpdate.Error = tryCompressError(event.JobIdStr, reason.PodLeaseReturned.GetMessage(), c.compressor)
+			jobRunUpdate.Debug = tryCompressError(event.JobIdStr, reason.PodLeaseReturned.GetDebugMessage(), c.compressor)
 		case *armadaevents.Error_LeaseExpired:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
-			jobRunUpdate.Error = tryCompressError(jobId, "Lease expired", c.compressor)
+			jobRunUpdate.Error = tryCompressError(event.JobIdStr, "Lease expired", c.compressor)
 		default:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
-			jobRunUpdate.Error = tryCompressError(jobId, "Unknown error", c.compressor)
+			jobRunUpdate.Error = tryCompressError(event.JobIdStr, "Unknown error", c.compressor)
 			log.Debugf("Ignoring event %T", reason)
 		}
 		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
@@ -523,23 +441,11 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.PreemptedJobId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.PreemptedRunId)
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       runId,
+		RunId:       event.PreemptedRunIdStr,
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
-		Error:       tryCompressError(jobId, "preempted", c.compressor),
+		Error:       tryCompressError(event.PreemptedJobIdStr, "preempted", c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
