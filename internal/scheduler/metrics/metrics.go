@@ -168,15 +168,6 @@ func (m *Metrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.Error) (
 	return category, ""
 }
 
-func (m *Metrics) resetMetricsIfRequired() {
-	if time.Since(m.lastResetTime) > m.resetInterval {
-		jobStateResourceSecondsMetric.Reset()
-		jobStateSecondsMetric.Reset()
-		jobErrorsMetric.Reset()
-		m.lastResetTime = time.Now()
-	}
-}
-
 // stateDuration returns:
 // -  the duration of the current state (stateTime - priorTime)
 // -  the prior state name

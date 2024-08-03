@@ -10,6 +10,7 @@ const (
 	PoolLabel             = "pool"
 	QueueLabel            = "queue"
 	PriorityClassLabel    = "priority_class"
+	NodeLabel             = "node"
 	ClusterLabel          = "cluster"
 	ErrorCategoryLabel    = "category"
 	ErrorSubcategoryLabel = "subcategory"
@@ -21,9 +22,12 @@ const (
 var (
 	PoolAndQueueLabels          = []string{PoolLabel, QueueLabel}
 	QueueAndPriorityClassLabels = []string{QueueLabel, PriorityClassLabel}
-	ErrorCategorylabels         = []string{QueueLabel, ClusterLabel, ErrorCategoryLabel, ErrorSubcategoryLabel}
-	StateLabels                 = []string{QueueLabel, ClusterLabel, StateLabel, PriorStateLabel}
-	ResourceStateLabels         = []string{QueueLabel, ClusterLabel, StateLabel, PriorStateLabel, ResourceLabel}
+	QueueErrorCategorylabels    = []string{QueueLabel, ErrorCategoryLabel, ErrorSubcategoryLabel}
+	NodeErrorCategorylabels     = []string{NodeLabel, ClusterLabel, ErrorCategoryLabel, ErrorSubcategoryLabel}
+	QueueStateLabels            = []string{QueueLabel, StateLabel, PriorStateLabel}
+	NodeStateLabels             = []string{NodeLabel, ClusterLabel, StateLabel, PriorStateLabel}
+	QueueResourceStateLabels    = []string{QueueLabel, StateLabel, PriorStateLabel, ResourceLabel}
+	NodeResourceStateLabels     = []string{NodeLabel, ClusterLabel, StateLabel, PriorStateLabel, ResourceLabel}
 )
 
 var (
@@ -124,27 +128,43 @@ var (
 		[]string{QueueLabel},
 	)
 
-	jobStateSecondsMetric = promauto.NewCounterVec(
+	queueJobStateSecondsMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: Prefix + "job_state_seconds",
-			Help: "Resource Seconds spend in different states",
+			Name: Prefix + "queue_job_state_seconds",
+			Help: "Resource-seconds spend in different states at queue level",
 		},
-		StateLabels,
+		QueueStateLabels,
 	)
 
-	jobStateResourceSecondsMetric = promauto.NewCounterVec(
+	nodeJobStateSecondsMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: Prefix + "job_state_resource_seconds",
-			Help: "Resource Seconds spend in different states",
+			Name: Prefix + "node_job_state_seconds",
+			Help: "Resource-seconds spend in different states at node level",
 		},
-		ResourceStateLabels,
+		NodeStateLabels,
 	)
 
-	jobErrorsMetric = promauto.NewCounterVec(
+	queuejobStateResourceSecondsMetric = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: Prefix + "queue_job_state_resource_seconds",
+			Help: "Resource Seconds spend in different states at queue level",
+		},
+		QueueResourceStateLabels,
+	)
+
+	nodeStateResourceSecondsMetric = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: Prefix + "node_job_state_resource_seconds",
+			Help: "Resource Seconds spend in different states at node level",
+		},
+		NodeStateLabels,
+	)
+
+	queueJobErrorsMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: Prefix + "job_error_classification",
 			Help: "Failed jobs ey error classification",
 		},
-		ErrorCategorylabels,
+		NodeResourceStateLabels,
 	)
 )
