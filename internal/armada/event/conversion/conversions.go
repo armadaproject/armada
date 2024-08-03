@@ -330,25 +330,6 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 				},
 			}
 			events = append(events, event)
-		case *armadaevents.Error_PodTerminated:
-			objectMeta := reason.PodTerminated.GetObjectMeta()
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Terminated{
-					Terminated: &api.JobTerminatedEvent{
-						JobId:        jobId,
-						JobSetId:     jobSetName,
-						PodNamespace: objectMeta.GetNamespace(),
-						PodName:      objectMeta.GetName(),
-						Queue:        queueName,
-						Created:      protoutil.ToTimestamp(time),
-						ClusterId:    objectMeta.GetExecutorId(),
-						Reason:       reason.PodTerminated.GetMessage(),
-						KubernetesId: objectMeta.GetKubernetesId(),
-						PodNumber:    reason.PodTerminated.GetPodNumber(),
-					},
-				},
-			}
-			events = append(events, event)
 		default:
 			log.Debugf("Ignoring event %T", reason)
 		}

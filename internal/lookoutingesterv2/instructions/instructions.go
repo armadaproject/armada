@@ -496,8 +496,6 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				}
 			}
 			jobRunUpdate.ExitCode = pointer.Int32(exitCode)
-		case *armadaevents.Error_PodTerminated:
-			continue
 		case *armadaevents.Error_JobRunPreemptedError:
 			// This case is already handled by the JobRunPreempted event
 			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
