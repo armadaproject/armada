@@ -2,37 +2,21 @@ package metrics
 
 import (
 	"fmt"
-	"testing"
-	"time"
-
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"testing"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 const epsilon = 1e-6
-
-var (
-	baseTime = time.Now()
-
-	baseRun = jobdb.
-		MinimalRun(uuid.New(), baseTime.UnixNano()).
-		WithExecutor("testExecutor")
-
-	baseJob = testfixtures.
-		Test1Cpu16GiJob(testfixtures.TestQueue, testfixtures.PriorityClass0).
-		WithSubmittedTime(baseTime.UnixNano())
-)
 
 func TestReportSchedulerResult(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(

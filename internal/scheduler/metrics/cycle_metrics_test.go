@@ -12,7 +12,20 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+)
+
+var (
+	baseTime = time.Now()
+
+	baseRun = jobdb.
+		MinimalRun(uuid.New(), baseTime.UnixNano()).
+		WithExecutor("testExecutor")
+
+	baseJob = testfixtures.
+		Test1Cpu16GiJob(testfixtures.TestQueue, testfixtures.PriorityClass0).
+		WithSubmittedTime(baseTime.UnixNano())
 )
 
 func TestReportJobStateTransitions(t *testing.T) {
