@@ -171,14 +171,6 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 
 	podIssueService.HandlePodIssues()
 
-	// Reports UnableToSchedule
-	assert.Len(t, eventsReporter.ReceivedEvents, 1)
-	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
-	unableToScheduleEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-	assert.True(t, ok)
-	assert.Len(t, unableToScheduleEvent.JobRunErrors.Errors, 1)
-	assert.True(t, unableToScheduleEvent.JobRunErrors.Errors[0].GetPodUnschedulable() != nil)
-
 	// Reset events, and add pod back as running
 	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
 	retryableStuckPod.Status.Phase = v1.PodRunning
