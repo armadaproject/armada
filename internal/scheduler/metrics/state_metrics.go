@@ -36,49 +36,49 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 				Help:    "Time",
 				Buckets: prometheus.ExponentialBuckets(2, 2, 20),
 			},
-			[]string{queueLabel},
+			[]string{queueLabel, poolLabel},
 		),
 		queueJobStateSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "queue_job_state_seconds",
 				Help: "Resource-seconds spend in different states at queue level",
 			},
-			[]string{queueLabel, stateLabel, priorStateLabel},
+			[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 		),
 		nodeJobStateSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "node_job_state_seconds",
 				Help: "Resource-seconds spend in different states at node level",
 			},
-			[]string{nodeLabel, clusterLabel, stateLabel, priorStateLabel},
+			[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 		),
 		queueJobStateResourceSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "queue_job_state_resource_seconds",
 				Help: "Resource Seconds spend in different states at queue level",
 			},
-			[]string{queueLabel, stateLabel, priorStateLabel, resourceLabel},
+			[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
 		),
 		nodeJobStateResourceSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "node_job_state_resource_seconds",
 				Help: "Resource Seconds spend in different states at node level",
 			},
-			[]string{nodeLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
+			[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
 		),
 		queueJobErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "job_error_classification",
 				Help: "Failed jobs ey error classification",
 			},
-			[]string{queueLabel, errorCategoryLabel, errorSubcategoryLabel},
+			[]string{queueLabel, poolLabel, errorCategoryLabel, errorSubcategoryLabel},
 		),
 		nodeJobErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "job_error_classification",
 				Help: "Failed jobs ey error classification",
 			},
-			[]string{nodeLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
+			[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 		),
 	}
 }
@@ -126,12 +126,14 @@ func (m *jobStateMetrics) UpdateJobStateTransitionMetrics(
 		if jst.Cancelled {
 			duration, priorState := stateDuration(job, run, run.TerminatedTime())
 			m.updateStateDuration(job, cancelled, priorState, duration)
-			m.completedRunDurations.WithLabelValues(job.Queue()).Observe(duration)
+			if job.LatestRun() != nil {
+				m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
+			}
 		}
 		if jst.Failed {
 			duration, priorState := stateDuration(job, run, run.TerminatedTime())
 			m.updateStateDuration(job, failed, priorState, duration)
-			m.completedRunDurations.WithLabelValues(job.Queue()).Observe(duration)
+			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 			jobRunError := jobRunErrorsByRunId[run.Id()]
 			category, subCategory := m.failedCategoryAndSubCategoryFromJob(jobRunError)
 			m.queueJobErrors.WithLabelValues(job.Queue(), run.Executor(), category, subCategory).Inc()
@@ -139,12 +141,12 @@ func (m *jobStateMetrics) UpdateJobStateTransitionMetrics(
 		if jst.Succeeded {
 			duration, priorState := stateDuration(job, run, run.TerminatedTime())
 			m.updateStateDuration(job, succeeded, priorState, duration)
-			m.completedRunDurations.WithLabelValues(job.Queue()).Observe(duration)
+			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 		}
 		if jst.Preempted {
 			duration, priorState := stateDuration(job, run, run.PreemptedTime())
 			m.updateStateDuration(job, preempted, priorState, duration)
-			m.completedRunDurations.WithLabelValues(job.Queue()).Observe(duration)
+			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 		}
 	}
 }
@@ -157,17 +159,32 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 	queue := job.Queue()
 	requests := job.ResourceRequirements().Requests
 	latestRun := job.LatestRun()
+	pool := ""
+	node := ""
+	cluster := ""
+	if latestRun != nil {
+		pool = latestRun.Pool()
+		node = latestRun.NodeName()
+		cluster = latestRun.Executor()
+	}
 
 	// Update job state seconds
 	m.queueJobStateSeconds.
-		WithLabelValues(queue, latestRun.Executor(), state, priorState).
+		WithLabelValues(queue, pool, state, priorState).
+		Add(duration)
+
+	m.nodeJobStateSeconds.
+		WithLabelValues(node, pool, cluster, state, priorState).
 		Add(duration)
 
 	for _, res := range m.trackedResourceNames {
 		resQty := requests[res]
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.queueJobStateResourceSeconds.
-			WithLabelValues(queue, latestRun.Executor(), state, priorState, res.String()).
+			WithLabelValues(queue, pool, state, priorState, res.String()).
+			Add(resSeconds)
+		m.nodeJobStateResourceSeconds.
+			WithLabelValues(node, pool, cluster, state, priorState, res.String()).
 			Add(resSeconds)
 	}
 }

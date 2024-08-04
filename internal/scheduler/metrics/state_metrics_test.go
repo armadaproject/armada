@@ -1,85 +1,190 @@
 package metrics
 
 import (
-	"fmt"
+	"regexp"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-const epsilon = 1e-6
+var (
+	baseTime = time.Now()
 
-func TestReportSchedulerResult(t *testing.T) {
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-		nCpu(100),
-		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
-	require.NoError(t, err)
-	result := schedulerresult.SchedulerResult{
-		SchedulingContexts: []*context.SchedulingContext{
-			{
-				Pool:                 "pool1",
-				FairnessCostProvider: fairnessCostProvider,
-				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
-					"queue1": {
-						Allocated:         nCpu(10),
-						Demand:            nCpu(20),
-						CappedDemand:      nCpu(15),
-						AdjustedFairShare: 0.15,
-						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
-							"job1": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-							"job2": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-						},
-						UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
-							"job2": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-						},
-					},
+	baseRun = jobdb.
+		MinimalRun(uuid.New(), baseTime.UnixNano()).
+		WithPool("testPool").
+		WithExecutor("testExecutor")
+
+	baseJob = testfixtures.
+		Test1Cpu16GiJob(testfixtures.TestQueue, testfixtures.PriorityClass0).
+		WithSubmittedTime(baseTime.UnixNano())
+)
+
+func TestReportJobStateTransitions(t *testing.T) {
+	baseTimePlusSeconds := func(numSeconds int) *time.Time {
+		newTime := baseTime.Add(time.Duration(numSeconds) * time.Second)
+		return &newTime
+	}
+
+	tests := map[string]struct {
+		errorRegexes            []*regexp.Regexp
+		trackedResourceNames    []v1.ResourceName
+		jsts                    []jobdb.JobStateTransitions
+		jobRunErrorsByRunId     map[uuid.UUID]*armadaevents.Error
+		expectedJobStateSeconds map[[4]string]float64
+	}{
+		"Leased": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(baseRun.WithLeasedTime(baseTimePlusSeconds(60))),
+					Leased: true,
 				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "leased", "queued"}: 60,
+			},
+		},
+		"Pending": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62))),
+					Pending: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "pending", "leased"}: 2,
+			},
+		},
+		"Running": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62)).
+								WithRunningTime(baseTimePlusSeconds(72))),
+					Running: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "running", "pending"}: 10,
+			},
+		},
+		"Succeeded": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62)).
+								WithRunningTime(baseTimePlusSeconds(72)).
+								WithTerminatedTime(baseTimePlusSeconds(80))),
+					Succeeded: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "succeeded", "running"}: 8,
+			},
+		},
+		"Cancelled": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62)).
+								WithRunningTime(baseTimePlusSeconds(72)).
+								WithTerminatedTime(baseTimePlusSeconds(80))),
+					Cancelled: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "cancelled", "running"}: 8,
+			},
+		},
+		"Failed": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62)).
+								WithRunningTime(baseTimePlusSeconds(72)).
+								WithTerminatedTime(baseTimePlusSeconds(80))),
+					Failed: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "failed", "running"}: 8,
+			},
+		},
+		"Preempted": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62)).
+								WithRunningTime(baseTimePlusSeconds(72)).
+								WithPreemptedTime(baseTimePlusSeconds(80))),
+					Preempted: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "preempted", "running"}: 8,
+			},
+		},
+		"Multiple transitions": {
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(1)).
+								WithPendingTime(baseTimePlusSeconds(3)).
+								WithRunningTime(baseTimePlusSeconds(6)).
+								WithTerminatedTime(baseTimePlusSeconds(10))),
+					Leased:    true,
+					Pending:   true,
+					Running:   true,
+					Succeeded: true,
+				},
+			},
+			expectedJobStateSeconds: map[[4]string]float64{
+				{"testQueue", "testPool", "leased", "queued"}:     1,
+				{"testQueue", "testPool", "pending", "leased"}:    2,
+				{"testQueue", "testPool", "running", "pending"}:   3,
+				{"testQueue", "testPool", "succeeded", "running"}: 4,
 			},
 		},
 	}
-
-	m := newCycleMetrics()
-	m.ReportSchedulerResult(result)
-
-	poolQueue := []string{"pool1", "queue1"}
-
-	consideredJobs := testutil.ToFloat64(m.consideredJobs.WithLabelValues(poolQueue...))
-	assert.Equal(t, 3.0, consideredJobs, "consideredJobs")
-
-	allocated := testutil.ToFloat64(m.actualShare.WithLabelValues(poolQueue...))
-	assert.InDelta(t, 0.1, allocated, epsilon, "allocated")
-
-	demand := testutil.ToFloat64(m.demand.WithLabelValues(poolQueue...))
-	assert.InDelta(t, 0.2, demand, epsilon, "demand")
-
-	cappedDemand := testutil.ToFloat64(m.cappedDemand.WithLabelValues(poolQueue...))
-	assert.InDelta(t, 0.15, cappedDemand, epsilon, "cappedDemand")
-
-	adjustedFairShare := testutil.ToFloat64(m.adjustedFairShare.WithLabelValues(poolQueue...))
-	assert.InDelta(t, 0.15, adjustedFairShare, epsilon, "adjustedFairShare")
-
-	fairnessError := testutil.ToFloat64(m.fairnessError.WithLabelValues("pool1"))
-	assert.InDelta(t, 0.05, fairnessError, epsilon, "fairnessError")
-}
-
-func nCpu(n int) schedulerobjects.ResourceList {
-	return schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames)
+			metrics.UpdateJobStateTransitionMetrics(tc.jsts, tc.jobRunErrorsByRunId)
+			for k, v := range tc.expectedJobStateSeconds {
+				actualJobStateSeconds := testutil.ToFloat64(metrics.queueJobStateSeconds.WithLabelValues(k[:]...))
+				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateSeconds for %s", strings.Join(k[:], ","))
+			}
+		})
 	}
 }

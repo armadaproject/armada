@@ -297,6 +297,13 @@ func (run *JobRun) Pool() string {
 	return run.pool
 }
 
+// WithPool returns a copy of the job run with the pool updated
+func (run *JobRun) WithPool(pool string) *JobRun {
+	run = run.DeepCopy()
+	run.pool = pool
+	return run
+}
+
 // NodeName returns the name of the node to which the JobRun is assigned.
 func (run *JobRun) NodeName() string {
 	return run.nodeName
