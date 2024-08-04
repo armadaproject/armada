@@ -20,10 +20,6 @@ type Configuration struct {
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
-	// Time for which the pulsar consumer will wait for a new message before retrying
-	PulsarReceiveTimeout time.Duration
-	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
-	PulsarBackoffTime time.Duration
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
 }

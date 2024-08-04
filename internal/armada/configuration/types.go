@@ -64,8 +64,6 @@ type PulsarConfig struct {
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
 	CompressionLevel pulsar.CompressionLevel
-	// Settings for deduplication, which relies on a postgres server.
-	DedupTable string
 	// Maximum allowed Events per message
 	MaxAllowedEventsPerMessage int `validate:"gte=0"`
 	// Maximum allowed message size in bytes
