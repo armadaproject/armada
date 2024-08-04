@@ -309,6 +309,13 @@ func (run *JobRun) NodeName() string {
 	return run.nodeName
 }
 
+// WithNodeName returns a copy of the job run with the node name updated.
+func (run *JobRun) WithNodeName(nodeName string) *JobRun {
+	run = run.DeepCopy()
+	run.nodeName = nodeName
+	return run
+}
+
 func (run *JobRun) ScheduledAtPriority() *int32 {
 	return run.scheduledAtPriority
 }
