@@ -266,7 +266,7 @@ func TestReportJobStateTransitions(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames)
-			metrics.UpdateJobStateTransitionMetrics(tc.jsts, tc.jobRunErrorsByRunId)
+			metrics.ReportStateTransitions(tc.jsts, tc.jobRunErrorsByRunId)
 
 			// queueJobStateSeconds
 			for k, v := range tc.expectedQueueJobStateSeconds {

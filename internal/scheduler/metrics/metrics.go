@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// Metrics is the top level scheduler metrics.
 type Metrics struct {
 	*cycleMetrics
 	*jobStateMetrics
@@ -29,22 +30,23 @@ func New(errorRegexes []string, trackedResourceNames []v1.ResourceName) (*Metric
 	}, nil
 }
 
+// DisableJobStateMetrics stops the jobStateMetrics from being produced.  This is necessary because we only produce
+// these metrics when we are leaser, so as to avoid double counting
 func (m *Metrics) DisableJobStateMetrics() {
-	if m != nil {
-		m.jobStateMetricsDisabled = true
-	}
+	m.jobStateMetricsDisabled = true
 }
 
-func (m *Metrics) Enable() {
-	if m != nil {
-		m.jobStateMetricsDisabled = false
-	}
+// EnableJobStateMetrics starts the jobStateMetrics
+func (m *Metrics) EnableJobStateMetrics() {
+	m.jobStateMetricsDisabled = false
 }
 
-func (m *Metrics) IsDisabled() bool {
+// JobStateMetricsDisabled returns true if job state metrics are disabled
+func (m *Metrics) JobStateMetricsDisabled() bool {
 	return m.jobStateMetricsDisabled
 }
 
+// Describe is necessary to implement the prometheus.Collector inteface
 func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	if !m.jobStateMetricsDisabled {
 		m.jobStateMetrics.describe(ch)
@@ -52,8 +54,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	m.cycleMetrics.describe(ch)
 }
 
-// Collect and then reset all metrics.
-// Resetting ensures we do not build up a large number of counters over time.
+// Collect is necessary to implement the prometheus.Collector inteface
 func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	if !m.jobStateMetricsDisabled {
 		m.jobStateMetrics.collect(ch)

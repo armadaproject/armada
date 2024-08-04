@@ -19,7 +19,7 @@ import (
 
 const epsilon = 1e-6
 
-func TestReportSchedulerResult(t *testing.T) {
+func TestReportStateTransitions(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		nCpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})

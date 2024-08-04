@@ -103,7 +103,7 @@ func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
 	m.nodeJobErrors.Collect(ch)
 }
 
-func (m *jobStateMetrics) UpdateJobStateTransitionMetrics(
+func (m *jobStateMetrics) ReportStateTransitions(
 	jsts []jobdb.JobStateTransitions,
 	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
 ) {
