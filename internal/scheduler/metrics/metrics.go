@@ -1,10 +1,11 @@
 package metrics
 
 import (
+	"regexp"
+
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
-	"regexp"
 )
 
 type Metrics struct {
@@ -48,7 +49,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	if !m.jobStateMetricsDisabled {
 		m.jobStateMetrics.describe(ch)
 	}
-	m.completedRunDurations.Describe(ch)
+	m.cycleMetrics.describe(ch)
 }
 
 // Collect and then reset all metrics.

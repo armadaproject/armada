@@ -29,7 +29,6 @@ var (
 )
 
 func TestReportJobStateTransitions(t *testing.T) {
-
 	baseTimePlusSeconds := func(numSeconds int) *time.Time {
 		newTime := baseTime.Add(time.Duration(numSeconds) * time.Second)
 		return &newTime

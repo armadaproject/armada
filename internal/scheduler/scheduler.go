@@ -270,7 +270,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
-	s.metrics.UpdateJobStateTransitinMetrics(jsts, jobRepoRunErrorsByRunId)
+	s.metrics.UpdateJobStateTransitionMetrics(jsts, jobRepoRunErrorsByRunId)
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	ctx.Info("Generating update messages based on reconciliation changes")
