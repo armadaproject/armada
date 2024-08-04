@@ -5,8 +5,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type EventIngesterConfiguration struct {

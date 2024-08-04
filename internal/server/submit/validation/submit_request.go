@@ -6,8 +6,8 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
 

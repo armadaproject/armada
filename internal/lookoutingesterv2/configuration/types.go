@@ -3,8 +3,8 @@ package configuration
 import (
 	"time"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type LookoutIngesterV2Configuration struct {
