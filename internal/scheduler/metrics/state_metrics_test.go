@@ -45,28 +45,6 @@ func TestReportJobStateTransitions(t *testing.T) {
 		expectedQueueJobStateResourceSeconds map[[5]string]float64
 		expectedNodeJobStateResourceSeconds  map[[6]string]float64
 	}{
-		"Leased": {
-			trackedResourceNames: []v1.ResourceName{"cpu"},
-			jsts: []jobdb.JobStateTransitions{
-				{
-					Job: baseJob.
-						WithUpdatedRun(baseRun.WithLeasedTime(baseTimePlusSeconds(60))),
-					Leased: true,
-				},
-			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
-				{"testQueue", "testPool", "leased", "queued"}: 60,
-			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
-				{"testNode", "testPool", "testCluster", "leased", "queued"}: 60,
-			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
-				{"testQueue", "testPool", "leased", "queued", "cpu"}: 60 * 16,
-			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
-				{"testNode", "testPool", "testCluster", "leased", "queued", "cpu"}: 60 * 16,
-			},
-		},
 		"Pending": {
 			trackedResourceNames: []v1.ResourceName{"cpu"},
 			jsts: []jobdb.JobStateTransitions{

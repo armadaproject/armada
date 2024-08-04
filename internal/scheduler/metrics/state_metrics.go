@@ -103,6 +103,14 @@ func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
 	m.nodeJobErrors.Collect(ch)
 }
 
+// ReportJobLeased reports the job as being leasedJob. This has to be reported separately becuase the state transition
+// logic does work for job leased!
+func (m *jobStateMetrics) ReportJobLeased(job *jobdb.Job) {
+	run := job.LatestRun()
+	duration, priorState := stateDuration(job, run, run.LeaseTime())
+	m.updateStateDuration(job, leased, priorState, duration)
+}
+
 func (m *jobStateMetrics) ReportStateTransitions(
 	jsts []jobdb.JobStateTransitions,
 	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
@@ -110,11 +118,6 @@ func (m *jobStateMetrics) ReportStateTransitions(
 	for _, jst := range jsts {
 		job := jst.Job
 		run := job.LatestRun()
-
-		if jst.Leased {
-			duration, priorState := stateDuration(job, run, run.LeaseTime())
-			m.updateStateDuration(job, leased, priorState, duration)
-		}
 		if jst.Pending {
 			duration, priorState := stateDuration(job, run, run.PendingTime())
 			m.updateStateDuration(job, pending, priorState, duration)

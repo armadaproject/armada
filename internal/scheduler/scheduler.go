@@ -237,9 +237,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Finished syncing state")
 
 	// Only the leader may make decisions; exit if not leader.
+	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
 		ctx.Info("Not the leader so will not attempt to schedule")
+		s.metrics.DisableJobStateMetrics()
 		return overallSchedulerResult, err
+	} else {
+		s.metrics.EnableJobStateMetrics()
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -270,7 +274,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
-	s.metrics.ReportStateTransitions(jsts, jobRepoRunErrorsByRunId)
+	// Update metrics.
+	if !s.metrics.JobStateMetricsEnabled() {
+		s.metrics.ReportStateTransitions(jsts, jobRepoRunErrorsByRunId)
+	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	ctx.Info("Generating update messages based on reconciliation changes")
@@ -336,6 +343,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Committing cycle transaction")
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
+
+	if s.metrics.JobStateMetricsEnabled() {
+		for _, jctx := range overallSchedulerResult.ScheduledJobs {
+			s.metrics.ReportJobLeased(jctx.Job)
+		}
+	}
 
 	return overallSchedulerResult, nil
 }

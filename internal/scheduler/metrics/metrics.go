@@ -41,9 +41,9 @@ func (m *Metrics) EnableJobStateMetrics() {
 	m.jobStateMetricsDisabled = false
 }
 
-// JobStateMetricsDisabled returns true if job state metrics are disabled
-func (m *Metrics) JobStateMetricsDisabled() bool {
-	return m.jobStateMetricsDisabled
+// JobStateMetricsEnabled returns true if job state metrics are enabled
+func (m *Metrics) JobStateMetricsEnabled() bool {
+	return !m.jobStateMetricsDisabled
 }
 
 // Describe is necessary to implement the prometheus.Collector inteface
