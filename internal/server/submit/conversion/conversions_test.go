@@ -8,7 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
-	"github.com/armadaproject/armada/internal/armada/submit/testfixtures"
+	"github.com/armadaproject/armada/internal/server/submit/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
