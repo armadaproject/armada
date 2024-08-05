@@ -103,7 +103,7 @@ func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
 	m.nodeJobErrors.Collect(ch)
 }
 
-// ReportJobLeased reports the job as being leasedJob. This has to be reported separately becuase the state transition
+// ReportJobLeased reports the job as being leasedJob. This has to be reported separately because the state transition
 // logic does work for job leased!
 func (m *jobStateMetrics) ReportJobLeased(job *jobdb.Job) {
 	run := job.LatestRun()
