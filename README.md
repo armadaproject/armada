@@ -64,9 +64,9 @@ Or download it from the [GitHub Release](https://github.com/armadaproject/armada
 For documentation, see the following:
 
 - [System overview](./docs/system_overview.md)
-- [Scheduler](./docs/scheduler.md)
+- [Scheduler](./docs/design/scheduler.md)
 - [User guide](./docs/user.md)
-- [Development guide](./docs/developer.md)
+- [Development guide](./docs/developer/README.md)
 - [Release notes/Version history](https://github.com/armadaproject/armada/releases)
 - [API Documentation](./docs/developer/api.md)
 

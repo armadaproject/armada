@@ -31,7 +31,7 @@ extensions = ['sphinx.ext.autodoc', 'sphinx_jekyll_builder']
 
 # This setting puts information about typing in the description section instead
 # of in the function signature directly. This makes rendered content look much
-# better in our gh-pages template that renders the generated markdown.
+# better in our template that renders the generated markdown into HTML.
 autodoc_typehints = 'description'
 
 # Add any paths that contain templates here, relative to this directory.

@@ -1,6 +1,6 @@
 # Developer Docs
 
-Please refer to the [developer documentation](../docs/developer.md) for information on how to build and test Armada.
+Please refer to the [developer documentation](../docs/developer/README.md) for information on how to build and test Armada.
 
 # Folder Contents
 

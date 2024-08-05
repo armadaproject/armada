@@ -1,0 +1,40 @@
+site: Armada
+
+url: "https://armadaproject.io"
+baseurl: ""
+
+collections:
+  pages:
+    output: true
+    permalink: /:title
+  docs:
+    output: true
+    permalink: /:path
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: "default"
+
+sass:
+  sass_dir: assets/styles
+  style: compressed
+  sourcemap: never
+
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: true
+
+exclude:
+  - README.md
+  - copy.sh
+  - Gemfile
+  - Gemfile.lock
+  - _docs/README.md
+  - _docs/logo/

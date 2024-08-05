@@ -12,11 +12,11 @@ The main project fork lives here in Github:
 
 * [https://github.com/armadaproject/armada](https://github.com/armadaproject/armada)
 
-To work with [Armada website](https://armadaproject.io/), please checkout this branch:
+To work with [Armada website](https://armadaproject.io/), please check the folder website/ within the master branch:
 
-* [https://github.com/armadaproject/armada/tree/gh-pages](https://github.com/armadaproject/armada/tree/gh-pages)
+* [https://github.com/armadaproject/armada/tree/master/website](https://github.com/armadaproject/armada/tree/master/website)
 
-If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed [below](#discussions).
+If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed [below](#chat--discussions).
 
 ## Contributing Guide
 

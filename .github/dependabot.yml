@@ -47,3 +47,9 @@ updates:
     # Check the pip registry for updates monthly
     schedule:
       interval: "monthly"
+
+  # Enable version updates for website/ Gemfile
+  - package-ecosystem: "bundler"
+    directory: "./website"
+    schedule:
+      interval: "monthly"

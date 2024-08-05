@@ -1,3 +1,7 @@
+---
+permalink: /api
+---
+
 # Armada API
 
 Armada exposes an API via gRPC or REST.
@@ -46,7 +50,7 @@ Swagger json specification can be found [here](https://github.com/armadaproject/
 
 Both gRPC and REST API support the same set of authentication methods. In the case of gRPC all authentication methods uses `authorization` key in grpc metadata. The REST API use standard http Authorization header (which is translated by grpc-gateway to `authorization` metadata).
 
-See helm chart [documentation](https://armadaproject.io/helm#Authentication) for different server authentication schemes setup.
+See helm chart [documentation](../helm.md#Authentication) for different server authentication schemes setup.
 
 ### No Auth
 For testing, Armada can be configured to accept no authentication. All operations will use user `anonymous` in this case.
