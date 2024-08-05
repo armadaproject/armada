@@ -75,7 +75,7 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 		),
 		nodeJobErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "job_error_classification",
+				Name: prefix + "node_error_classification",
 				Help: "Failed jobs ey error classification",
 			},
 			[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 )
@@ -30,7 +29,7 @@ type cycleMetrics struct {
 
 func newCycleMetrics() *cycleMetrics {
 	return &cycleMetrics{
-		scheduledJobs: promauto.NewCounterVec(
+		scheduledJobs: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "scheduled_jobs",
 				Help: "Number of events scheduled",
@@ -38,7 +37,7 @@ func newCycleMetrics() *cycleMetrics {
 			queueAndPriorityClassLabels,
 		),
 
-		premptedJobs: promauto.NewCounterVec(
+		premptedJobs: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: prefix + "preempted_jobs",
 				Help: "Number of jobs preempted",
@@ -46,7 +45,7 @@ func newCycleMetrics() *cycleMetrics {
 			queueAndPriorityClassLabels,
 		),
 
-		consideredJobs: promauto.NewGaugeVec(
+		consideredJobs: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "considered_jobs",
 				Help: "Number of jobs considered",
@@ -54,7 +53,7 @@ func newCycleMetrics() *cycleMetrics {
 			poolAndQueueLabels,
 		),
 
-		fairShare: promauto.NewGaugeVec(
+		fairShare: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "fair_share",
 				Help: "Fair share of each queue",
@@ -62,7 +61,7 @@ func newCycleMetrics() *cycleMetrics {
 			poolAndQueueLabels,
 		),
 
-		adjustedFairShare: promauto.NewGaugeVec(
+		adjustedFairShare: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "adjusted_fair_share",
 				Help: "Adjusted Fair share of each queue",
@@ -70,7 +69,7 @@ func newCycleMetrics() *cycleMetrics {
 			poolAndQueueLabels,
 		),
 
-		actualShare: promauto.NewGaugeVec(
+		actualShare: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "actual_share",
 				Help: "Actual Fair share of each queue",
@@ -78,7 +77,7 @@ func newCycleMetrics() *cycleMetrics {
 			poolAndQueueLabels,
 		),
 
-		demand: promauto.NewGaugeVec(
+		demand: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "demand",
 				Help: "Demand of each queue",
@@ -86,7 +85,7 @@ func newCycleMetrics() *cycleMetrics {
 			poolAndQueueLabels,
 		),
 
-		cappedDemand: promauto.NewGaugeVec(
+		cappedDemand: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "capped_demand",
 				Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
@@ -94,7 +93,7 @@ func newCycleMetrics() *cycleMetrics {
 			poolAndQueueLabels,
 		),
 
-		fairnessError: promauto.NewGaugeVec(
+		fairnessError: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: prefix + "fairness_error",
 				Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
@@ -102,7 +101,7 @@ func newCycleMetrics() *cycleMetrics {
 			[]string{poolLabel},
 		),
 
-		scheduleCycleTime: promauto.NewHistogram(
+		scheduleCycleTime: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name:    prefix + "schedule_cycle_times",
 				Help:    "Cycle time when in a scheduling round.",
@@ -110,7 +109,7 @@ func newCycleMetrics() *cycleMetrics {
 			},
 		),
 
-		reconciliationCycleTime: promauto.NewHistogram(
+		reconciliationCycleTime: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name:    prefix + "reconciliation_cycle_times",
 				Help:    "Cycle time when in a scheduling round.",
