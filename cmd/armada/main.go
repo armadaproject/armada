@@ -12,14 +12,14 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/armadaproject/armada/internal/armada"
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/server"
+	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -107,7 +107,7 @@ func main() {
 
 	// Start Armada server
 	g.Go(func() error {
-		return armada.Serve(ctx, &config, healthChecks)
+		return server.Serve(ctx, &config, healthChecks)
 	})
 
 	// Assume the server is ready if there are no errors within 10 seconds.
