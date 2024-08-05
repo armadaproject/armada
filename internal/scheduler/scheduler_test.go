@@ -17,7 +17,6 @@ import (
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
-	apiconfig "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -33,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
+	apiconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

@@ -9,10 +9,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/armada/event/sequence"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/server/event/sequence"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
