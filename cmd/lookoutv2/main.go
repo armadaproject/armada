@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/viper"
 	"k8s.io/utils/clock"
 
-	armada_config "github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -20,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookoutv2/pruner"
 	"github.com/armadaproject/armada/internal/lookoutv2/schema"
+	armada_config "github.com/armadaproject/armada/internal/server/configuration"
 )
 
 const (
