@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func TestCreatePulsarClientHappyPath(t *testing.T) {

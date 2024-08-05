@@ -15,7 +15,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -26,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -33,6 +33,8 @@ import (
 const (
 	TestJobset                   = "testJobset"
 	TestQueue                    = "testQueue"
+	TestQueue1                   = "testQueue1"
+	TestQueue2                   = "testQueue2"
 	TestPool                     = "testPool"
 	TestHostnameLabel            = "kubernetes.io/hostname"
 	ClusterNameLabel             = "cluster"
@@ -841,6 +843,21 @@ func MakeTestQueue() *api.Queue {
 	return &api.Queue{
 		Name:           TestQueue,
 		PriorityFactor: 100,
+	}
+}
+
+func MakeTestQueue2() *api.Queue {
+	return &api.Queue{
+		Name:           TestQueue2,
+		PriorityFactor: 100,
+	}
+}
+
+func MakeTestQueueCordoned() *api.Queue {
+	return &api.Queue{
+		Name:           TestQueue1,
+		PriorityFactor: 100,
+		Cordoned:       true,
 	}
 }
 

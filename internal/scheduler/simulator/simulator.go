@@ -500,12 +500,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					return err
 				}
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(
-				pool.Name,
-				totalResources,
-				s.schedulingConfig,
-				nil,
-			)
+			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil, map[string]bool{})
 
 			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
 			if err != nil {
@@ -598,7 +593,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err != nil {
 				return err
 			}
-			eventSequences, err = scheduler.AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs, make(map[string]map[string]string))
+			eventSequences, err = scheduler.AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs)
 			if err != nil {
 				return err
 			}
