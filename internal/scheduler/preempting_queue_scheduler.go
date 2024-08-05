@@ -103,7 +103,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
 	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
-	additionalAnnotationsByJobId := make(map[string]map[string]string)
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
@@ -170,7 +169,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 		}
 	}
 	maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
-	maps.Copy(additionalAnnotationsByJobId, schedulerResult.AdditionalAnnotationsByJobId)
 
 	// Evict jobs on oversubscribed nodes.
 	ctx.WithField("stage", "scheduling-algo").Info("Evicting jobs from oversubscribed nodes")
@@ -226,7 +224,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 			delete(scheduledAndEvictedJobsById, jctx.JobId)
 		}
 		maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
-		maps.Copy(additionalAnnotationsByJobId, schedulerResult.AdditionalAnnotationsByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
@@ -258,11 +255,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 		ctx.WithField("stage", "scheduling-algo").Infof("Finished running assertions after scheduling round")
 	}
 	return &schedulerresult.SchedulerResult{
-		PreemptedJobs:                preemptedJobs,
-		ScheduledJobs:                scheduledJobs,
-		NodeIdByJobId:                sch.nodeIdByJobId,
-		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
-		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PreemptedJobs:      preemptedJobs,
+		ScheduledJobs:      scheduledJobs,
+		NodeIdByJobId:      sch.nodeIdByJobId,
+		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 

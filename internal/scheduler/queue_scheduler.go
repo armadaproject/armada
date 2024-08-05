@@ -66,7 +66,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresul
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 
 	nodeIdByJobId := make(map[string]string)
-	additionalAnnotationsByJobId := make(map[string]map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sch.schedulingContext.Pool)
 
 	type queueStats struct {
@@ -208,11 +207,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresul
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
 	return &schedulerresult.SchedulerResult{
-		PreemptedJobs:                nil,
-		ScheduledJobs:                scheduledJobs,
-		NodeIdByJobId:                nodeIdByJobId,
-		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
-		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PreemptedJobs:      nil,
+		ScheduledJobs:      scheduledJobs,
+		NodeIdByJobId:      nodeIdByJobId,
+		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 

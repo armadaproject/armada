@@ -18,9 +18,6 @@ type SchedulerResult struct {
 	// These are the corresponding scheduling contexts.
 	// TODO: This doesn't seem like the right approach.
 	SchedulingContexts []*schedulercontext.SchedulingContext
-	// Additional annotations to be appended to the PodSpec.
-	// Format: JobId -> AnnotationName -> AnnotationValue.
-	AdditionalAnnotationsByJobId map[string]map[string]string
 }
 
 // PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result.
