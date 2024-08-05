@@ -13,7 +13,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -24,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -485,7 +485,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs, result.AdditionalAnnotationsByJobId)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs)
 	if err != nil {
 		return nil, err
 	}
@@ -563,7 +563,7 @@ func createEventsForPreemptedJob(jobId *armadaevents.Uuid, runId *armadaevents.U
 	}
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, additionalAnnotationsByJobId map[string]map[string]string) ([]*armadaevents.EventSequence, error) {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext) ([]*armadaevents.EventSequence, error) {
 	for _, jctx := range jctxs {
 		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
@@ -597,7 +597,6 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							ScheduledAtPriority:    scheduledAtPriority,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 								Tolerations: jctx.AdditionalTolerations,
-								Annotations: additionalAnnotationsByJobId[job.Id()],
 							},
 							Pool: run.Pool(),
 						},
