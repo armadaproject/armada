@@ -6,8 +6,8 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func NewPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, error) {
