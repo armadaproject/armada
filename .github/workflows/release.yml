@@ -30,13 +30,32 @@ jobs:
           ref='${{ github.event.workflow_run.head_branch }}'
           sha='${{ github.event.workflow_run.head_sha }}'
 
-          [[ $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-          [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -eq 1 ] &&
-          [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
-          if [ $? -ne 0 ]; then
-            echo "::error ::Invalid ref $ref $sha: must be a tag, belong to the master branch and match the semver regex"
+          echo "Validating ref: $ref, sha: $sha"
+
+          # Check if it's a valid tag format
+          if [[ ! $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-patch[0-9]+)?$ ]]; then
+            echo "::error::Invalid tag format: $ref"
             exit 1
           fi
+
+          # Check if the tag points to the current SHA
+          if [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -ne 1 ]; then
+            echo "::error::Tag $ref does not point to the current SHA $sha"
+            exit 1
+          fi
+
+          # Fetch all branches to ensure we have the necessary information
+          git fetch --all
+
+          # Check if it's from master branch or a patch branch
+          if [ $(git branch -r --contains=$sha | grep -E "origin/(master|patch/v[0-9]+\.[0-9]+\.[0-9]+-patch[0-9]+)$" | wc -l) -eq 0 ]; then
+            echo "::error::$sha is not in master or any patch branch"
+            echo "Branches containing this SHA:"
+            git branch -r --contains=$sha
+            exit 1
+          fi
+
+          echo "Validation successful"
   release:
     name: "Release"
     needs: validate
@@ -76,7 +95,22 @@ jobs:
         run: |
           current_tag='${{ github.event.workflow_run.head_branch }}'
           echo "GORELEASER_CURRENT_TAG=$current_tag" >> $GITHUB_ENV
-          previous_tag=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -Eo '^v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}$' | tail -n 2 | head -n 1)
+
+          # Function to extract base version
+          get_base_version() {
+            echo "$1" | sed -E 's/^v?([0-9]+\.[0-9]+\.[0-9]+).*$/\1/'
+          }
+
+          # Check if current tag is a patch release
+          if [[ $current_tag =~ ^v?[0-9]+\.[0-9]+\.[0-9]+-patch[0-9]+$ ]]; then
+            # For patch releases, find the previous patch or the base version
+            base_version=$(get_base_version "$current_tag")
+            previous_tag=$(git tag --list "v${base_version}*" --sort=-v:refname | grep -v "$current_tag" | head -n1)
+          else
+            # For master releases, find the previous master release
+            previous_tag=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "$current_tag" | head -n1)
+          fi
+
           echo "GORELEASER_PREVIOUS_TAG=$previous_tag" >> $GITHUB_ENV
 
       - name: Run GoReleaser

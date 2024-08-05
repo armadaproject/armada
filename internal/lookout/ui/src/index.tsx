@@ -11,11 +11,11 @@ import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
 import reportWebVitals from "./reportWebVitals"
 import { CordonService } from "./services/lookoutV2/CordonService"
-import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
+import { GetJobInfoService } from "./services/lookoutV2/GetJobInfoService"
 import { GetRunInfoService } from "./services/lookoutV2/GetRunInfoService"
 import { LogService as V2LogService } from "./services/lookoutV2/LogService"
 import { FakeCordonService } from "./services/lookoutV2/mocks/FakeCordonService"
-import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
+import FakeGetJobInfoService from "./services/lookoutV2/mocks/FakeGetJobInfoService"
 import { FakeGetRunInfoService } from "./services/lookoutV2/mocks/FakeGetRunInfoService"
 import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
@@ -43,7 +43,7 @@ import "./index.css"
   const v2LogService = fakeDataEnabled
     ? new FakeLogService()
     : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
-  const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService()
+  const v2JobSpecService = fakeDataEnabled ? new FakeGetJobInfoService() : new GetJobInfoService()
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
   const v2UpdateJobSetsService = new UpdateJobSetsService(submitApi)
   const v2CordonService = fakeDataEnabled

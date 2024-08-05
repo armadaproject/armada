@@ -1,7 +1,6 @@
 package constraints
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/pkg/errors"
@@ -34,19 +33,22 @@ const (
 	GangExceedsGlobalBurstSizeUnschedulableReason = "gang cardinality too large: exceeds global max burst size"
 	GangExceedsQueueBurstSizeUnschedulableReason  = "gang cardinality too large: exceeds queue max burst size"
 
+	// Indicates that jobs cannot be scheduled due current executor state
+	GangDoesNotFitUnschedulableReason = "unable to schedule gang since minimum cardinality not met"
+	JobDoesNotFitUnschedulableReason  = "job does not fit on any node"
+
 	UnschedulableReasonMaximumResourcesExceeded = "resource limit exceeded"
 )
+
+func UnschedulableReasonIsPropertyOfGang(reason string) bool {
+	return reason == GangExceedsGlobalBurstSizeUnschedulableReason || reason == JobDoesNotFitUnschedulableReason || reason == GangDoesNotFitUnschedulableReason
+}
 
 // IsTerminalUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
-	if reason == MaximumResourcesScheduledUnschedulableReason {
-		return true
-	}
-	if reason == GlobalRateLimitExceededUnschedulableReason {
-		return true
-	}
-	return false
+	return reason == MaximumResourcesScheduledUnschedulableReason ||
+		reason == GlobalRateLimitExceededUnschedulableReason
 }
 
 // IsTerminalQueueUnschedulableReason returns true if reason indicates
@@ -59,9 +61,6 @@ func IsTerminalQueueUnschedulableReason(reason string) bool {
 type SchedulingConstraints struct {
 	// Max number of jobs to consider for a queue before giving up.
 	maxQueueLookBack uint
-	// Jobs leased to this executor must be at least this large.
-	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
-	minimumJobSize map[string]resource.Quantity
 	// Scheduling constraints by priority class.
 	priorityClassSchedulingConstraintsByPriorityClassName map[string]priorityClassSchedulingConstraints
 	// Scheduling constraints for specific queues.
@@ -88,7 +87,6 @@ type priorityClassSchedulingConstraints struct {
 func NewSchedulingConstraints(
 	pool string,
 	totalResources schedulerobjects.ResourceList,
-	minimumJobSize schedulerobjects.ResourceList,
 	config configuration.SchedulingConfig,
 	queues []*api.Queue,
 ) SchedulingConstraints {
@@ -133,7 +131,6 @@ func NewSchedulingConstraints(
 	}
 	return SchedulingConstraints{
 		maxQueueLookBack:           config.MaxQueueLookback,
-		minimumJobSize:             minimumJobSize.Resources,
 		maximumResourcesToSchedule: absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFractionToSchedule),
 		priorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassName,
 		queueSchedulingConstraintsByQueueName:                 queueSchedulingConstraintsByQueueName,
@@ -156,7 +153,7 @@ func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	return q
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
 	// maximumResourcesToSchedule check.
 	if !isStrictlyLessOrEqual(sctx.ScheduledResources.Resources, constraints.maximumResourcesToSchedule) {
 		return false, MaximumResourcesScheduledUnschedulableReason, nil
@@ -171,11 +168,6 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	qctx := sctx.QueueSchedulingContexts[gctx.Queue]
 	if qctx == nil {
 		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", gctx.Queue)
-	}
-
-	// Check that the job is large enough for this executor.
-	if ok, unschedulableReason := RequestsAreLargeEnough(gctx.TotalResourceRequests.Resources, constraints.minimumJobSize); !ok {
-		return false, unschedulableReason, nil
 	}
 
 	// Global rate limiter check.
@@ -203,9 +195,7 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	}
 
 	// queueSchedulingConstraintsByQueueName / priorityClassSchedulingConstraintsByPriorityClassName checks.
-	queueAndPriorityClassResourceLimits := constraints.getQueueAndPriorityClassResourceLimits(gctx)
-	priorityClassResourceLimits := constraints.getPriorityClassResourceLimits(gctx)
-	overallResourceLimits := util.MergeMaps(priorityClassResourceLimits, queueAndPriorityClassResourceLimits)
+	overallResourceLimits := constraints.resolveResourceLimitsForQueueAndPriorityClass(gctx.Queue, gctx.PriorityClassName)
 	if !isStrictlyLessOrEqual(qctx.AllocatedByPriorityClass[gctx.PriorityClassName].Resources, overallResourceLimits) {
 		return false, UnschedulableReasonMaximumResourcesExceeded, nil
 	}
@@ -213,30 +203,44 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	return true, "", nil
 }
 
-func (constraints *SchedulingConstraints) getQueueAndPriorityClassResourceLimits(gctx *schedulercontext.GangSchedulingContext) map[string]resource.Quantity {
-	if queueConstraint, ok := constraints.queueSchedulingConstraintsByQueueName[gctx.Queue]; ok {
-		if priorityClassConstraint, ok := queueConstraint.PriorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
+func (constraints *SchedulingConstraints) CapResources(queue string, resourcesByPc schedulerobjects.QuantityByTAndResourceType[string]) schedulerobjects.QuantityByTAndResourceType[string] {
+	cappedResourcesByPc := schedulerobjects.QuantityByTAndResourceType[string]{}
+	for pc, resources := range resourcesByPc {
+		overallResourceLimits := constraints.resolveResourceLimitsForQueueAndPriorityClass(queue, pc)
+		cappedResources := make(map[string]resource.Quantity, len(resources.Resources))
+		for resourceName, qty := range resources.Resources {
+			limit, ok := overallResourceLimits[resourceName]
+			if ok && qty.Cmp(limit) == 1 {
+				cappedResources[resourceName] = limit
+			} else {
+				cappedResources[resourceName] = qty
+			}
+		}
+		cappedResourcesByPc[pc] = schedulerobjects.ResourceList{Resources: cappedResources}
+	}
+	return cappedResourcesByPc
+}
+
+func (constraints *SchedulingConstraints) resolveResourceLimitsForQueueAndPriorityClass(queue string, priorityClass string) map[string]resource.Quantity {
+	queueAndPriorityClassResourceLimits := constraints.getQueueAndPriorityClassResourceLimits(queue, priorityClass)
+	priorityClassResourceLimits := constraints.getPriorityClassResourceLimits(priorityClass)
+	return util.MergeMaps(priorityClassResourceLimits, queueAndPriorityClassResourceLimits)
+}
+
+func (constraints *SchedulingConstraints) getQueueAndPriorityClassResourceLimits(queue string, priorityClass string) map[string]resource.Quantity {
+	if queueConstraint, ok := constraints.queueSchedulingConstraintsByQueueName[queue]; ok {
+		if priorityClassConstraint, ok := queueConstraint.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClass]; ok {
 			return priorityClassConstraint.MaximumResourcesPerQueue
 		}
 	}
 	return map[string]resource.Quantity{}
 }
 
-func (constraints *SchedulingConstraints) getPriorityClassResourceLimits(gctx *schedulercontext.GangSchedulingContext) map[string]resource.Quantity {
-	if priorityClassConstraint, ok := constraints.priorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
+func (constraints *SchedulingConstraints) getPriorityClassResourceLimits(priorityClass string) map[string]resource.Quantity {
+	if priorityClassConstraint, ok := constraints.priorityClassSchedulingConstraintsByPriorityClassName[priorityClass]; ok {
 		return priorityClassConstraint.MaximumResourcesPerQueue
 	}
 	return map[string]resource.Quantity{}
-}
-
-func RequestsAreLargeEnough(totalResourceRequests, minRequest map[string]resource.Quantity) (bool, string) {
-	for t, minQuantity := range minRequest {
-		q := totalResourceRequests[t]
-		if minQuantity.Cmp(q) == 1 {
-			return false, fmt.Sprintf("job requests %s %s, but the minimum is %s", q.String(), t, minQuantity.String())
-		}
-	}
-	return true, ""
 }
 
 func (constraints *SchedulingConstraints) GetMaxQueueLookBack() uint {

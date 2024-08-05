@@ -77,8 +77,6 @@ func Tests() error {
 		return err
 	}
 
-	internalPackages := filterPackages(strings.Fields(packages), "jobservice/repository")
-
 	cmd := []string{
 		"--format", "short-verbose",
 		"--junitfile", "test-reports/unit-tests.xml",
@@ -88,7 +86,7 @@ func Tests() error {
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
-	cmd = append(cmd, internalPackages...)
+	cmd = append(cmd, strings.Fields(packages)...)
 
 	testCmd := exec.Command(Gotestsum, cmd...)
 
@@ -111,16 +109,6 @@ func Tests() error {
 	return err
 }
 
-func filterPackages(packages []string, filter string) []string {
-	var filtered []string
-	for _, pkg := range packages {
-		if !strings.Contains(pkg, filter) {
-			filtered = append(filtered, pkg)
-		}
-	}
-	return filtered
-}
-
 func runTest(name, outputFileName string) error {
 	cmd := exec.Command(Gotestsum, "--", "-v", name, "-count=1")
 	file, err := os.Create(filepath.Join("test_reports", outputFileName))
@@ -136,10 +124,6 @@ func runTest(name, outputFileName string) error {
 // Teste2eAirflow runs e2e tests for airflow
 func Teste2eAirflow() error {
 	mg.Deps(AirflowOperator)
-	if err := BuildDockers("jobservice"); err != nil {
-		return err
-	}
-
 	cmd, err := go_CMD()
 	if err != nil {
 		return err
@@ -149,29 +133,14 @@ func Teste2eAirflow() error {
 		fmt.Println(err)
 	}
 
-	if err := dockerRun("rm", "-f", "jobservice"); err != nil {
-		fmt.Println(err)
-	}
-
-	err = dockerRun("run", "-d", "--name", "jobservice", "--network=kind",
-		"--mount", "type=bind,src=${PWD}/e2e,dst=/e2e", "gresearch/armada-jobservice", "run", "--config",
-		"/e2e/setup/jobservice.yaml")
-	if err != nil {
-		return err
-	}
-
 	err = dockerRun("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
-		"--workdir", "/code", "-e", "ARMADA_SERVER=server", "-e", "ARMADA_PORT=50051", "-e", "JOB_SERVICE_HOST=jobservice",
-		"-e", "JOB_SERVICE_PORT=60003", "--entrypoint", "python3", "--network=kind", "armada-airflow-operator-builder:latest",
-		"-m", "pytest", "-v", "-s", "/code/tests/integration/test_airflow_operator_logic.py")
+		"--workdir", "/code", "-e", "ARMADA_SERVER=server", "-e", "ARMADA_PORT=50051", "--entrypoint",
+		"python3", "--network=kind", "armada-airflow-operator-builder:latest",
+		"-m", "pytest", "-v", "-s", "/code/test/integration/test_airflow_operator_logic.py")
 	if err != nil {
 		return err
 	}
 
-	err = dockerRun("rm", "-f", "jobservice")
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

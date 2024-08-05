@@ -1,0 +1,19 @@
+{{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "armada.name" . }}-server-profiling
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada.labels.all" . | nindent 4 }}
+    name: {{ include "armada.name" . }}-profiling
+spec:
+  selector:
+    app: {{ include "armada.name" . }}
+  ports:
+    - name: profiling
+      protocol: TCP
+      port: {{ .Values.applicationConfig.profiling.port }}
+---
+{{- end }}
+

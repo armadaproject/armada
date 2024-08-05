@@ -26,7 +26,7 @@ definitions:
       - annotations
       - runs
       - cluster
-      - RuntimeSeconds
+      - runtimeSeconds
     properties:
       jobId:
         type: string
@@ -90,6 +90,7 @@ definitions:
           - CANCELLED
           - PREEMPTED
           - LEASED
+          - REJECTED
         x-nullable: false
       lastTransitionTime:
         type: string
@@ -125,7 +126,7 @@ definitions:
         type: integer
         format: int32
         x-nullable: true
-      RuntimeSeconds:
+      runtimeSeconds:
         type: integer
         format: int32
         x-nullable: false
@@ -369,6 +370,44 @@ paths:
               job:
                 type: object
                 description: Job Spec object
+                x-nullable: false
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
+  /api/v1/jobError:
+    post:
+      operationId: getJobError
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobErrorRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - jobId
+            properties:
+              jobId:
+                type: string
+                x-nullable: false
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns error for specific job (if present)
+          schema:
+            type: object
+            properties:
+              errorString:
+                type: string
+                description: Error for job
                 x-nullable: false
         400:
           description: Error response

@@ -5,6 +5,7 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
@@ -56,6 +57,7 @@ type KubernetesConfiguration struct {
 	QPS                       float32
 	Burst                     int
 	Etcd                      EtcdConfiguration
+	NodePoolLabel             string
 	NodeTypeLabel             string
 	NodeIdLabel               string
 	TrackedNodeLabels         []string
@@ -65,7 +67,6 @@ type KubernetesConfiguration struct {
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
 	MaxTerminatedPods         int
-	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
 	StateChecks               StateChecksConfiguration
 	PendingPodChecks          *podchecks.Checks
@@ -160,7 +161,7 @@ const (
 type ExecutorConfiguration struct {
 	HttpPort uint16
 	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort             *uint16
+	Profiling             *profilingconfig.ProfilingConfig
 	Metric                MetricConfiguration
 	Application           ApplicationConfiguration
 	ExecutorApiConnection client.ApiConnectionDetails

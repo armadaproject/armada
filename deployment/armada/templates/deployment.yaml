@@ -69,10 +69,10 @@ spec:
             - containerPort: {{ .Values.applicationConfig.httpPort }}
               protocol: TCP
               name: rest
-            {{- if .Values.applicationConfig.pprofPort }}
-            - containerPort: {{ .Values.applicationConfig.pprofPort }}
+            {{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
+            - containerPort: {{ .Values.applicationConfig.profiling.port }}
               protocol: TCP
-              name: pprof
+              name: profiling
             {{- end }}
           volumeMounts:
             - name: user-config

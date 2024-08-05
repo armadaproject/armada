@@ -124,7 +124,7 @@ func StartUpWithContext(
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.NodeTypeLabel, config.Kubernetes.ToleratedTaints)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.NodeTypeLabel, config.Kubernetes.NodePoolLabel, config.Kubernetes.ToleratedTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
@@ -214,8 +214,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
 
-	leaseRequester := service.NewJobLeaseRequester(
-		executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
+	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
 	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
 	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
 

@@ -6,6 +6,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
 type EventIngesterConfiguration struct {
@@ -19,9 +20,9 @@ type EventIngesterConfiguration struct {
 	SubscriptionName string
 	// Size in bytes above which event message will be compressed when inserting in the database
 	MinMessageCompressionSize int
+	// Max size in bytes that messages inserted into the database will be
+	MaxOutputMessageSizeBytes int
 	// Number of messages that will be batched together before being inserted into the database
-	BatchMessages int
-	// Size of messages that will be batched together before being inserted into the database
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
@@ -29,8 +30,8 @@ type EventIngesterConfiguration struct {
 	EventRetentionPolicy EventRetentionPolicy
 	// List of Regexes which will identify fatal errors when inserting into redis
 	FatalInsertionErrors []string
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	// If non-nil, configures pprof profiling
+	Profiling *profilingconfig.ProfilingConfig
 }
 
 // TODO: unpack this into just EventExpirtation

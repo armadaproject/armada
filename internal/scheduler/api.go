@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
@@ -30,8 +30,8 @@ const armadaJobPreemptibleLabel = "armada_preemptible"
 
 // ExecutorApi is the gRPC service executors use to synchronise their state with that of the scheduler.
 type ExecutorApi struct {
-	// Used to send Pulsar messages when, e.g., executors report a job has finished.
-	producer pulsar.Producer
+	// Used to send event sequences received from the executors about job state change to Pulsar
+	publisher pulsarutils.Publisher
 	// Interface to the component storing job information, such as which jobs are leased to a particular executor.
 	jobRepository database.JobRepository
 	// Interface to the component storing executor information, such as which when we last heard from an executor.
@@ -40,33 +40,33 @@ type ExecutorApi struct {
 	allowedPriorities []int32
 	// Known priority classes
 	priorityClasses map[string]priorityTypes.PriorityClass
-	// Max size of Pulsar messages produced.
-	maxPulsarMessageSizeBytes uint
-	// See scheduling schedulingConfig.
-	nodeIdLabel string
+	// Allowed resource names - resource requests/limits not on this list are dropped.
+	// This is needed to ensure floating resources are not passed to k8s.
+	allowedResources map[string]bool
+	nodeIdLabel      string
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
 }
 
-func NewExecutorApi(producer pulsar.Producer,
+func NewExecutorApi(publisher pulsarutils.Publisher,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
+	allowedResources []string,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
-	maxPulsarMessageSizeBytes uint,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
 	}
 	return &ExecutorApi{
-		producer:                  producer,
+		publisher:                 publisher,
 		jobRepository:             jobRepository,
 		executorRepository:        executorRepository,
 		allowedPriorities:         allowedPriorities,
-		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
+		allowedResources:          maps.FromSlice(allowedResources, func(name string) string { return name }, func(name string) bool { return true }),
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
@@ -105,7 +105,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return err
 	}
 	ctx.Infof(
-		"executor currently has %d job runs; sending %d cancellations and %d new runs",
+		"Executor currently has %d job runs; sending %d cancellations and %d new runs",
 		len(requestRuns), len(runsToCancel), len(newRuns),
 	)
 
@@ -144,6 +144,8 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		}
 
 		srv.addPreemptibleLabel(submitMsg)
+
+		srv.dropDisallowedResources(submitMsg.MainObject.GetPodSpec().PodSpec)
 
 		// This must happen after anything that relies on the priorityClassName
 		if srv.priorityClassNameOverride != nil {
@@ -210,6 +212,29 @@ func (srv *ExecutorApi) addPreemptibleLabel(job *armadaevents.SubmitJob) {
 	isPremptible := srv.isPreemptible(job)
 	labels := map[string]string{armadaJobPreemptibleLabel: strconv.FormatBool(isPremptible)}
 	addLabels(job, labels)
+}
+
+// Drop non-supported resources. This is needed to ensure floating resources
+// are not passed to k8s.
+func (srv *ExecutorApi) dropDisallowedResources(pod *v1.PodSpec) {
+	if pod == nil {
+		return
+	}
+	srv.dropDisallowedResourcesFromContainers(pod.InitContainers)
+	srv.dropDisallowedResourcesFromContainers(pod.Containers)
+}
+
+func (srv *ExecutorApi) dropDisallowedResourcesFromContainers(containers []v1.Container) {
+	for _, container := range containers {
+		removeDisallowedKeys(container.Resources.Limits, srv.allowedResources)
+		removeDisallowedKeys(container.Resources.Requests, srv.allowedResources)
+	}
+}
+
+func removeDisallowedKeys(rl v1.ResourceList, allowedKeys map[string]bool) {
+	maps.RemoveInPlace(rl, func(name v1.ResourceName) bool {
+		return !allowedKeys[string(name)]
+	})
 }
 
 func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
@@ -310,7 +335,7 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes)
+	err := srv.publisher.PublishMessages(ctx, list.GetEvents()...)
 	return &types.Empty{}, err
 }
 
@@ -331,10 +356,9 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:             req.ExecutorId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
-		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: now,
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId armadaevents.Uuid) string {
-			return strings.ToLower(armadaevents.UuidFromProtoUuid(&jobId).String())
+		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId *armadaevents.Uuid) string {
+			return strings.ToLower(armadaevents.UuidFromProtoUuid(jobId).String())
 		}),
 	}
 }
@@ -352,7 +376,7 @@ func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]uuid.UUID, error) 
 		}
 	}
 	for _, runId := range req.UnassignedJobRunIds {
-		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
+		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId))
 	}
 	return runIds, nil
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -111,6 +112,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				executorRepository,
 				poolAssigner,
 				2*time.Second,
+				testfixtures.TestEmptyFloatingResources,
 			)
 			collector.clock = testClock
 			err = collector.refresh(ctx)
@@ -155,9 +157,10 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 	executorWithJobs := createExecutor("cluster-1", nodeWithJobs)
 
 	tests := map[string]struct {
-		jobDbJobs []*jobdb.Job
-		executors []*schedulerobjects.Executor
-		expected  []prometheus.Metric
+		jobDbJobs             []*jobdb.Job
+		floatingResourceTypes *floatingresources.FloatingResourceTypes
+		executors             []*schedulerobjects.Executor
+		expected              []prometheus.Metric
 	}{
 		"empty cluster single node type": {
 			jobDbJobs: []*jobdb.Job{},
@@ -233,6 +236,15 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
 			},
 		},
+		"floating resources": {
+			jobDbJobs:             []*jobdb.Job{},
+			floatingResourceTypes: testfixtures.TestFloatingResources,
+			executors:             []*schedulerobjects.Executor{},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(10, "floating", "pool", "test-floating-resource", ""),
+				commonmetrics.NewClusterTotalCapacity(10, "floating", "pool", "test-floating-resource", ""),
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -255,12 +267,17 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(tc.executors, nil)
 
+			if tc.floatingResourceTypes == nil {
+				tc.floatingResourceTypes = testfixtures.TestEmptyFloatingResources
+			}
+
 			collector := NewMetricsCollector(
 				jobDb,
 				queueCache,
 				executorRepository,
 				poolAssigner,
 				2*time.Second,
+				tc.floatingResourceTypes,
 			)
 			collector.clock = testClock
 			err = collector.refresh(ctx)

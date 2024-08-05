@@ -1,0 +1,21 @@
+{{- if and .Values.scheduler.applicationConfig.profiling .Values.scheduler.applicationConfig.profiling.port }}
+  {{- $root := . -}}
+{{- range $i := until (int .Values.scheduler.replicas) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "armada-scheduler.name" $root }}-{{ $i }}-profiling
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" $root | nindent 4 }}
+    name: {{ include "armada-scheduler.name" $root }}-{{ $i }}-profiling
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: {{ include "armada-scheduler.name" $root }}-{{ $i }}
+  ports:
+    - name: profiling
+      protocol: TCP
+      port: {{ $root.Values.scheduler.applicationConfig.profiling.port }}
+---
+{{- end }}
+{{- end }}

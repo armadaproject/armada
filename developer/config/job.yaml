@@ -11,7 +11,7 @@ jobs:
       containers:
         - name: sleep
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10
+          image: alpine:latest
           args:
             - "exit"
             - "1"

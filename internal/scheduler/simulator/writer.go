@@ -1,7 +1,7 @@
 package simulator
 
 import (
-	io "io"
+	"io"
 	"time"
 
 	"github.com/pkg/errors"
@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -96,15 +97,16 @@ func (w *Writer) flattenStateTransition(flattenedStateTransitions []*FlattenedAr
 		ephemeralStorageLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceEphemeralStorage]
 		gpuLimit := associatedJob.ResourceRequirements().Requests["nvidia.com/gpu"]
 
+		eventTime := protoutil.ToStdTime(event.Created)
 		prevEventType := 0
-		prevEventTime := *event.Created
+		prevEventTime := eventTime
 		if prevSeenEvent != nil {
 			prevEventType = w.encodeEvent(prevSeenEvent)
-			prevEventTime = *prevSeenEvent.Created
+			prevEventTime = protoutil.ToStdTime(prevSeenEvent.Created)
 		}
 
 		flattenedStateTransitions = append(flattenedStateTransitions, &FlattenedArmadaEvent{
-			Time:                  event.Created.Sub(startTime).Milliseconds(),
+			Time:                  eventTime.Sub(startTime).Milliseconds(),
 			Queue:                 events.Queue,
 			JobSet:                events.JobSetName,
 			JobId:                 associatedJob.Id(),
@@ -113,7 +115,7 @@ func (w *Writer) flattenStateTransition(flattenedStateTransitions []*FlattenedAr
 			PriorityClass:         associatedJob.PriorityClassName(),
 			PreviousEventType:     prevEventType,
 			EventType:             w.encodeEvent(event),
-			SecondsSinceLastEvent: event.Created.Sub(prevEventTime).Seconds(),
+			SecondsSinceLastEvent: eventTime.Sub(prevEventTime).Seconds(),
 			Cpu:                   cpuLimit.AsApproximateFloat64(),
 			Memory:                memoryLimit.AsApproximateFloat64(),
 			Gpu:                   gpuLimit.AsApproximateFloat64(),

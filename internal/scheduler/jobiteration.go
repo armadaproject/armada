@@ -7,7 +7,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
@@ -106,19 +105,17 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 type QueuedJobsIterator struct {
-	repo            JobRepository
-	jobIds          []string
-	priorityClasses map[string]types.PriorityClass
-	idx             int
-	ctx             *armadacontext.Context
+	repo   JobRepository
+	jobIds []string
+	idx    int
+	ctx    *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository, priorityClasses map[string]types.PriorityClass) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
-		jobIds:          repo.GetQueueJobIds(queue),
-		repo:            repo,
-		priorityClasses: priorityClasses,
-		ctx:             ctx,
+		jobIds: repo.GetQueueJobIds(queue),
+		repo:   repo,
+		ctx:    ctx,
 	}
 }
 

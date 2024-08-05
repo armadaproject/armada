@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -17,18 +16,17 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/quarantine"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -55,20 +53,11 @@ type FairSchedulingAlgo struct {
 	limiterByQueue map[string]*rate.Limiter
 	// Max amount of time each scheduling round is allowed to take.
 	maxSchedulingDuration time.Duration
-	// Order in which to schedule executor groups.
-	// Executors are grouped by either id (i.e., individually) or by pool.
-	executorGroupsToSchedule []string
-	// Used to avoid scheduling onto broken nodes.
-	nodeQuarantiner *quarantine.NodeQuarantiner
-	// Used to reduce the rate at which jobs are scheduled from misbehaving queues.
-	queueQuarantiner *quarantine.QueueQuarantiner
-	// Function that is called every time an executor is scheduled. Useful for testing.
-	onExecutorScheduled func(executor *schedulerobjects.Executor)
-	// rand and clock injected here for repeatable testing.
-	rand                *rand.Rand
-	clock               clock.Clock
-	stringInterner      *stringinterner.StringInterner
-	resourceListFactory *internaltypes.ResourceListFactory
+	// Pools that need to be scheduled in sorted order
+	poolsToSchedule       []string
+	clock                 clock.Clock
+	resourceListFactory   *internaltypes.ResourceListFactory
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 func NewFairSchedulingAlgo(
@@ -77,10 +66,8 @@ func NewFairSchedulingAlgo(
 	executorRepository database.ExecutorRepository,
 	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
-	nodeQuarantiner *quarantine.NodeQuarantiner,
-	queueQuarantiner *quarantine.QueueQuarantiner,
-	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -96,13 +83,9 @@ func NewFairSchedulingAlgo(
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
 		maxSchedulingDuration:       maxSchedulingDuration,
-		nodeQuarantiner:             nodeQuarantiner,
-		queueQuarantiner:            queueQuarantiner,
-		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
-		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
-		stringInterner:              stringInterner,
 		resourceListFactory:         resourceListFactory,
+		floatingResourceTypes:       floatingResourceTypes,
 	}, nil
 }
 
@@ -135,15 +118,14 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, err
 	}
 
-	executorGroups := l.groupExecutors(fsctx.executors)
-	if len(l.executorGroupsToSchedule) == 0 {
+	if len(l.poolsToSchedule) == 0 {
 		// Cycle over groups in a consistent order.
-		l.executorGroupsToSchedule = maps.Keys(executorGroups)
-		sortExecutorGroups(l.executorGroupsToSchedule, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
+		l.poolsToSchedule = maps.Keys(fsctx.nodesByPoolAndExecutor)
+		sortGroups(l.poolsToSchedule, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
 	}
 
-	ctx.Infof("Looping over executor groups %s", strings.Join(maps.Keys(executorGroups), " "))
-	for len(l.executorGroupsToSchedule) > 0 {
+	ctx.Infof("Looping over pools %s", strings.Join(l.poolsToSchedule, " "))
+	for len(l.poolsToSchedule) > 0 {
 		select {
 		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
@@ -151,48 +133,41 @@ func (l *FairSchedulingAlgo) Schedule(
 			return overallSchedulerResult, nil
 		default:
 		}
-		executorGroupLabel := armadaslices.Pop(&l.executorGroupsToSchedule)
-		executorGroup := executorGroups[executorGroupLabel]
-		if len(executorGroup) == 0 {
-			ctx.Infof("Skipping executor group %s as it has no executors", executorGroupLabel)
+		pool := armadaslices.Pop(&l.poolsToSchedule)
+
+		nodeCountForPool := 0
+		for _, executor := range fsctx.executors {
+			nodeCountForPool += len(fsctx.nodesByPoolAndExecutor[pool][executor.Id])
+		}
+		if nodeCountForPool == 0 {
+			ctx.Infof("Skipping pool %s as it has no active nodes", pool)
 			continue
 		}
-		for _, executor := range executorGroup {
-			if executor == nil {
-				return nil, errors.Errorf("nil executor in group %s", executorGroup)
-			}
-		}
 
-		// Schedule across the executors in this group.
-		// Assume pool and minimumJobSize are consistent within the group.
-		pool := executorGroup[0].Pool
-		minimumJobSize := executorGroup[0].MinimumJobSize
 		ctx.Infof(
-			"scheduling on executor group %s with capacity %s",
-			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
+			"Scheduling on pool %s with capacity %s", pool, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
 
 		start := time.Now()
-		schedulerResult, sctx, err := l.scheduleOnExecutors(
+		schedulerResult, sctx, err := l.schedulePool(
 			ctx,
 			fsctx,
 			pool,
-			minimumJobSize,
-			executorGroup,
+			fsctx.executors,
 		)
 
 		ctx.Infof(
-			"Scheduled on executor group %s in %v with error %v",
-			executorGroupLabel,
+			"Scheduled on executor pool %s in %v with error %v",
+			pool,
 			time.Now().Sub(start),
 			err,
 		)
 
 		if err == context.DeadlineExceeded {
 			// We've reached the scheduling time limit;
-			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
+			// add the executorGroupLabel back to l.poolsToSchedule such that we try it again next time,
 			// and exit gracefully.
-			l.executorGroupsToSchedule = append(l.executorGroupsToSchedule, executorGroupLabel)
+			l.poolsToSchedule = append(l.poolsToSchedule, pool)
 			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
@@ -221,21 +196,8 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		// Update fsctx.
 		fsctx.allocationByPoolAndQueueAndPriorityClass[pool] = sctx.AllocatedByQueueAndPriority()
-
-		for _, executor := range executorGroup {
-			l.onExecutorScheduled(executor)
-		}
 	}
 	return overallSchedulerResult, nil
-}
-
-func (l *FairSchedulingAlgo) groupExecutors(executors []*schedulerobjects.Executor) map[string][]*schedulerobjects.Executor {
-	return armadaslices.GroupByFunc(
-		executors,
-		func(executor *schedulerobjects.Executor) string {
-			return executor.Pool
-		},
-	)
 }
 
 type JobQueueIteratorAdapter struct {
@@ -253,9 +215,10 @@ func (it *JobQueueIteratorAdapter) Next() (*jobdb.Job, error) {
 type fairSchedulingAlgoContext struct {
 	queues                                   []*api.Queue
 	priorityFactorByQueue                    map[string]float64
-	isActiveByPoolByQueue                    map[string]map[string]bool
+	demandByPoolByQueue                      map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
-	jobsByExecutorId                         map[string][]*jobdb.Job
+	nodesByPoolAndExecutor                   map[string]map[string][]*schedulerobjects.Node
+	jobsByPoolAndExecutor                    map[string]map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
 	jobIdsByGangId                           map[string]map[string]bool
 	gangIdByJobId                            map[string]string
@@ -267,18 +230,35 @@ type fairSchedulingAlgoContext struct {
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn) (*fairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 
-	executorToPool := make(map[string]string, len(executors))
+	nodeById := map[string]*schedulerobjects.Node{}
+	executorById := map[string]*schedulerobjects.Executor{}
+	nodesByPoolAndExecutor := map[string]map[string][]*schedulerobjects.Node{}
+	allKnownPools := map[string]bool{}
+
 	for _, executor := range executors {
-		executorToPool[executor.Id] = executor.Pool
+		executorById[executor.Id] = executor
+		for _, node := range executor.Nodes {
+			nodeById[node.GetId()] = node
+			pool := GetNodePool(node, executor)
+			allKnownPools[pool] = true
+
+			if _, present := nodesByPoolAndExecutor[pool]; !present {
+				nodesByPoolAndExecutor[pool] = map[string][]*schedulerobjects.Node{}
+			}
+			if _, present := nodesByPoolAndExecutor[pool][executor.Id]; !present {
+				nodesByPoolAndExecutor[pool][executor.Id] = []*schedulerobjects.Node{}
+			}
+			nodesByPoolAndExecutor[pool][executor.Id] = append(nodesByPoolAndExecutor[pool][executor.Id], node)
+		}
 	}
-	allPools := maps.Values(executorToPool)
+
+	allPools := maps.Keys(allKnownPools)
 
 	if err != nil {
 		return nil, err
 	}
 	executors = l.filterStaleExecutors(ctx, executors)
 
-	// TODO(albin): Skip queues with a high failure rate.
 	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
@@ -292,24 +272,35 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	totalCapacityByPool := make(schedulerobjects.QuantityByTAndResourceType[string])
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			totalCapacityByPool.AddResourceList(executor.Pool, node.TotalResources)
+			totalCapacityByPool.AddResourceList(GetNodePool(node, executor), node.TotalResources)
 		}
 	}
 
+	for pool, poolCapacity := range totalCapacityByPool {
+		poolCapacity.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
+	}
+
 	// Create a map of jobs associated with each executor.
-	isActiveByPoolByQueue := make(map[string]map[string]bool, len(queues))
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
+	jobsByPoolAndExecutor := make(map[string]map[string][]*jobdb.Job)
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
+	demandByPoolByQueue := make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string])
+
 	for _, job := range txn.GetAll() {
+
+		if job.InTerminalState() {
+			continue
+		}
 
 		// Mark a queue being active for a given pool.  A queue is defined as being active if it has a job running
 		// on a pool or if a queued job is eligible for that pool
 		pools := job.Pools()
 
 		if !job.Queued() && job.LatestRun() != nil {
-			pools = []string{executorToPool[job.LatestRun().Executor()]}
+			pool := GetRunPool(job.LatestRun(), nodeById[job.LatestRun().NodeId()], executorById[job.LatestRun().Executor()])
+			pools = []string{pool}
 		} else if len(pools) < 1 {
 			// This occurs if we haven't assigned a job to a pool.  Right now this can occur if a user
 			// has upgraded from a version of armada where pools were not assigned statically.  Eventually we
@@ -318,12 +309,22 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 
 		for _, pool := range pools {
-			isActiveByQueue, ok := isActiveByPoolByQueue[pool]
+			poolQueueResources, ok := demandByPoolByQueue[pool]
 			if !ok {
-				isActiveByQueue = make(map[string]bool, len(queues))
+				poolQueueResources = make(map[string]schedulerobjects.QuantityByTAndResourceType[string], len(queues))
+				demandByPoolByQueue[pool] = poolQueueResources
 			}
-			isActiveByQueue[job.Queue()] = true
-			isActiveByPoolByQueue[pool] = isActiveByQueue
+			queueResources, ok := poolQueueResources[job.Queue()]
+			if !ok {
+				queueResources = schedulerobjects.QuantityByTAndResourceType[string]{}
+				poolQueueResources[job.Queue()] = queueResources
+			}
+			pcResources, ok := queueResources[job.PriorityClassName()]
+			if !ok {
+				pcResources = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
+				queueResources[job.PriorityClassName()] = pcResources
+			}
+			pcResources.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 		}
 
 		if job.Queued() {
@@ -344,6 +345,14 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		if nodeName := run.NodeName(); nodeName == "" {
 			return nil, errors.Errorf("run %s of job %s is not queued but has no nodeName associated with it", run.Id(), job.Id())
 		}
+		pool := GetRunPool(job.LatestRun(), nodeById[job.LatestRun().NodeId()], executorById[job.LatestRun().Executor()])
+		if _, present := jobsByPoolAndExecutor[pool]; !present {
+			jobsByPoolAndExecutor[pool] = map[string][]*jobdb.Job{}
+		}
+		if _, present := jobsByPoolAndExecutor[pool][executorId]; !present {
+			jobsByPoolAndExecutor[pool][executorId] = []*jobdb.Job{}
+		}
+		jobsByPoolAndExecutor[pool][executorId] = append(jobsByPoolAndExecutor[pool][executorId], job)
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
 		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
@@ -362,7 +371,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	// Used to calculate fair share.
-	totalAllocationByPoolAndQueue := l.aggregateAllocationByPoolAndQueueAndPriorityClass(executors, jobsByExecutorId)
+	totalAllocationByPoolAndQueue := l.aggregateAllocationByPoolAndQueueAndPriorityClass(executors, jobsByPoolAndExecutor)
 
 	// Filter out any executor that isn't acknowledging jobs in a timely fashion
 	// Note that we do this after aggregating allocation across clusters for fair share.
@@ -371,9 +380,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	return &fairSchedulingAlgoContext{
 		queues:                                   queues,
 		priorityFactorByQueue:                    priorityFactorByQueue,
-		isActiveByPoolByQueue:                    isActiveByPoolByQueue,
+		demandByPoolByQueue:                      demandByPoolByQueue,
 		totalCapacityByPool:                      totalCapacityByPool,
-		jobsByExecutorId:                         jobsByExecutorId,
+		jobsByPoolAndExecutor:                    jobsByPoolAndExecutor,
+		nodesByPoolAndExecutor:                   nodesByPoolAndExecutor,
 		nodeIdByJobId:                            nodeIdByJobId,
 		jobIdsByGangId:                           jobIdsByGangId,
 		gangIdByJobId:                            gangIdByJobId,
@@ -383,12 +393,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}, nil
 }
 
-// scheduleOnExecutors schedules jobs on a specified set of executors.
-func (l *FairSchedulingAlgo) scheduleOnExecutors(
+// schedulePool schedules jobs on nodes that belong to a given pool.
+func (l *FairSchedulingAlgo) schedulePool(
 	ctx *armadacontext.Context,
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
-	minimumJobSize schedulerobjects.ResourceList,
 	executors []*schedulerobjects.Executor,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
@@ -397,24 +406,19 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
 		l.schedulingConfig.WellKnownNodeTypes,
-		l.stringInterner,
 		l.resourceListFactory,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, executor := range executors {
-		if err := l.addExecutorToNodeDb(nodeDb, fsctx.jobsByExecutorId[executor.Id], executor.Nodes); err != nil {
+		jobs := fsctx.jobsByPoolAndExecutor[pool][executor.Id]
+		nodes := fsctx.nodesByPoolAndExecutor[pool][executor.Id]
+		if err := l.populateNodeDb(nodeDb, jobs, nodes); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	// If there are multiple executors, use pool name instead of executorId.
-	// ExecutorId is only used for reporting so this results in an aggregated report for the pool.
-	executorId := pool
-	if len(executors) == 1 {
-		executorId = executors[0].Id
-	}
 	totalResources := fsctx.totalCapacityByPool[pool]
 	var fairnessCostProvider fairness.FairnessCostProvider
 
@@ -422,32 +426,39 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	// If we want to support other fairness models it would need to be done here
 	fairnessCostProvider, err = fairness.NewDominantResourceFairness(
 		totalResources,
-		l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		l.schedulingConfig,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 	sctx := schedulercontext.NewSchedulingContext(
-		executorId,
 		pool,
-		l.schedulingConfig.PriorityClasses,
-		l.schedulingConfig.DefaultPriorityClassName,
 		fairnessCostProvider,
 		l.limiter,
 		totalResources,
 	)
 
-	activeByQueue, ok := fsctx.isActiveByPoolByQueue[pool]
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		pool,
+		fsctx.totalCapacityByPool[pool],
+		l.schedulingConfig,
+		fsctx.queues,
+	)
+
+	demandByQueue, ok := fsctx.demandByPoolByQueue[pool]
 	if !ok {
-		activeByQueue = map[string]bool{}
+		demandByQueue = map[string]schedulerobjects.QuantityByTAndResourceType[string]{}
 	}
 
 	now := time.Now()
 	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
-		if !activeByQueue[queue] {
+		demand, hasDemand := demandByQueue[queue]
+		if !hasDemand {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 			continue
 		}
+		cappedDemand := constraints.CapResources(queue, demand)
+
 		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 		if allocatedByQueueAndPriorityClass := fsctx.allocationByPoolAndQueueAndPriorityClass[pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
@@ -467,27 +478,18 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			l.limiterByQueue[queue] = queueLimiter
 		}
 
-		// Reduce max the scheduling rate of misbehaving queues by adjusting the per-queue rate-limiter limit.
-		quarantineFactor := 0.0
-		if l.queueQuarantiner != nil {
-			quarantineFactor = l.queueQuarantiner.QuarantineFactor(now, queue)
-		}
-		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate*(1-quarantineFactor)))
+		queueLimiter.SetLimitAt(now, rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate))
 
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, demand.AggregateByResource(), cappedDemand.AggregateByResource(), queueLimiter); err != nil {
 			return nil, nil, err
 		}
 	}
-	constraints := schedulerconstraints.NewSchedulingConstraints(
-		pool,
-		fsctx.totalCapacityByPool[pool],
-		minimumJobSize,
-		l.schedulingConfig,
-		fsctx.queues,
-	)
+
+	sctx.UpdateFairShares()
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
+		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
 		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
@@ -533,7 +535,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		result.ScheduledJobs[i].Job = jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
-			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), priority)
+			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
 	}
 	return result, sctx, nil
 }
@@ -573,8 +575,8 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) []
 	return rv
 }
 
-// addExecutorToNodeDb adds all the nodes and jobs associated with a particular executor to the nodeDb.
-func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) error {
+// populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
+func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	nodesById := armadaslices.GroupByFuncUnique(
@@ -597,15 +599,7 @@ func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 	}
 
-	now := time.Now()
 	for _, node := range nodes {
-		// Taint quarantined nodes to avoid scheduling new jobs onto them.
-		if l.nodeQuarantiner != nil {
-			if taint, ok := l.nodeQuarantiner.IsQuarantined(now, node.Name); ok {
-				node.Taints = append(node.Taints, taint)
-			}
-		}
-
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], node); err != nil {
 			return err
 		}
@@ -676,33 +670,45 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 }
 
 func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(
-	executors []*schedulerobjects.Executor,
-	jobsByExecutorId map[string][]*jobdb.Job,
+	activeExecutors []*schedulerobjects.Executor,
+	jobsByPoolAndExecutor map[string]map[string][]*jobdb.Job,
 ) map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string] {
 	rv := make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string])
-	for _, executor := range executors {
-		allocationByQueue := rv[executor.Pool]
+	activeExecutorsSet := armadamaps.FromSlice(activeExecutors,
+		func(e *schedulerobjects.Executor) string {
+			return e.Id
+		}, func(e *schedulerobjects.Executor) bool {
+			return true
+		})
+
+	for pool, executors := range jobsByPoolAndExecutor {
+		allocationByQueue := rv[pool]
 		if allocationByQueue == nil {
 			allocationByQueue = make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
-			rv[executor.Pool] = allocationByQueue
+			rv[pool] = allocationByQueue
 		}
-		for _, job := range jobsByExecutorId[executor.Id] {
-			queue := job.Queue()
-			allocation := allocationByQueue[queue]
-			if allocation == nil {
-				allocation = make(schedulerobjects.QuantityByTAndResourceType[string])
-				allocationByQueue[queue] = allocation
+		for executorId, jobs := range executors {
+			if _, isActive := activeExecutorsSet[executorId]; !isActive {
+				continue
 			}
-			allocation.AddV1ResourceList(job.PriorityClassName(), job.ResourceRequirements().Requests)
+			for _, job := range jobs {
+				queue := job.Queue()
+				allocation := allocationByQueue[queue]
+				if allocation == nil {
+					allocation = make(schedulerobjects.QuantityByTAndResourceType[string])
+					allocationByQueue[queue] = allocation
+				}
+				allocation.AddV1ResourceList(job.PriorityClassName(), job.ResourceRequirements().Requests)
+			}
 		}
 	}
 	return rv
 }
 
-// sortExecutorGroups sorts the given list of groups based on priorities defined in groupToPriority map.
+// sortGroups sorts the given list of groups based on priorities defined in groupToPriority map.
 // If a group's priority is not specified in the map, the defaultPriority is used. The groups are primarily
 // sorted by descending priority. If two groups have the same priority, they are sorted alphabetically by their names.
-func sortExecutorGroups(groups []string, groupToPriority map[string]int, defaultPriority int) {
+func sortGroups(groups []string, groupToPriority map[string]int, defaultPriority int) {
 	if groupToPriority == nil {
 		groupToPriority = map[string]int{}
 	}

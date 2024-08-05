@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -120,6 +121,12 @@ func TestNodePairIterator(t *testing.T) {
 }
 
 func TestNodeTypeIterator(t *testing.T) {
+	const nodeTypeALabel = "a"
+	const nodeTypeBLabel = "b"
+
+	nodeTypeAId := nodeTypeLabelToNodeTypeId(nodeTypeALabel)
+	gpuNodeTypeAId := gpuNodeTypeLabelToNodeTypeId(nodeTypeALabel)
+
 	tests := map[string]struct {
 		nodes            []*schedulerobjects.Node
 		nodeTypeId       uint64
@@ -129,20 +136,20 @@ func TestNodeTypeIterator(t *testing.T) {
 	}{
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeNodes(
-					1,
+				withNodeTypeNodes(
+					nodeTypeALabel,
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeNodes(
-					2,
+				withNodeTypeNodes(
+					nodeTypeBLabel,
 					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeNodes(
-					1,
+				withNodeTypeNodes(
+					nodeTypeALabel,
 					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeId:       1,
+			nodeTypeId:       nodeTypeAId,
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{},
 			expected: armadaslices.Concatenate(
@@ -151,8 +158,8 @@ func TestNodeTypeIterator(t *testing.T) {
 			),
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
-			nodes: testfixtures.WithNodeTypeNodes(
-				1,
+			nodes: withNodeTypeNodes(
+				nodeTypeALabel,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -171,14 +178,14 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId:       1,
+			nodeTypeId:       nodeTypeAId,
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
-			nodes: testfixtures.WithNodeTypeNodes(
-				1,
+			nodes: withNodeTypeNodes(
+				nodeTypeALabel,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -227,14 +234,14 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId:       1,
+			nodeTypeId:       nodeTypeAId,
 			priority:         1,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
-			nodes: testfixtures.WithNodeTypeNodes(
-				1,
+			nodes: withNodeTypeNodes(
+				nodeTypeALabel,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -309,7 +316,7 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId: 1,
+			nodeTypeId: nodeTypeAId,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
@@ -318,8 +325,8 @@ func TestNodeTypeIterator(t *testing.T) {
 			expected: []int{6, 1, 0},
 		},
 		"double-nested ordering": {
-			nodes: testfixtures.WithNodeTypeNodes(
-				1,
+			nodes: withNodeTypeNodes(
+				nodeTypeALabel,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -406,7 +413,7 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId: 1,
+			nodeTypeId: gpuNodeTypeAId,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":            resource.MustParse("32"),
@@ -429,15 +436,12 @@ func TestNodeTypeIterator(t *testing.T) {
 				entry, err := nodeDb.create(node)
 				require.NoError(t, err)
 
-				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry = testWithNodeTypeId(entry, node.NodeType.Id)
-
 				entries[i] = entry
 			}
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
-			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(tc.resourceRequests))
+			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(tc.resourceRequests.Resources)
 			assert.Nil(t, err)
 			for i, resourceName := range nodeDb.indexedResources {
 				indexedResourceRequests[i], err = rr.GetByName(resourceName)
@@ -488,6 +492,19 @@ func TestNodeTypeIterator(t *testing.T) {
 }
 
 func TestNodeTypesIterator(t *testing.T) {
+	const nodeTypeALabel = "a"
+	const nodeTypeBLabel = "b"
+	const nodeTypeCLabel = "c"
+	const nodeTypeDLabel = "d"
+
+	nodeTypeAId := nodeTypeLabelToNodeTypeId(nodeTypeALabel)
+	nodeTypeBId := nodeTypeLabelToNodeTypeId(nodeTypeBLabel)
+	nodeTypeCId := nodeTypeLabelToNodeTypeId(nodeTypeCLabel)
+
+	gpuNodeTypeAId := gpuNodeTypeLabelToNodeTypeId(nodeTypeALabel)
+	gpuNodeTypeBId := gpuNodeTypeLabelToNodeTypeId(nodeTypeBLabel)
+	gpuNodeTypeCId := gpuNodeTypeLabelToNodeTypeId(nodeTypeCLabel)
+
 	tests := map[string]struct {
 		nodes            []*schedulerobjects.Node
 		nodeTypeIds      []uint64
@@ -497,20 +514,20 @@ func TestNodeTypesIterator(t *testing.T) {
 	}{
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeNodes(
-					1,
+				withNodeTypeNodes(
+					nodeTypeALabel,
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeNodes(
-					2,
+				withNodeTypeNodes(
+					nodeTypeBLabel,
 					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				testfixtures.WithNodeTypeNodes(
-					3,
+				withNodeTypeNodes(
+					nodeTypeCLabel,
 					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeIds:      []uint64{1, 3},
+			nodeTypeIds:      []uint64{nodeTypeAId, nodeTypeCId},
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{},
 			expected: armadaslices.Concatenate(
@@ -520,32 +537,32 @@ func TestNodeTypesIterator(t *testing.T) {
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeNodes(
-					1,
+				withNodeTypeNodes(
+					nodeTypeALabel,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
 						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				testfixtures.WithNodeTypeNodes(
-					2,
+				withNodeTypeNodes(
+					nodeTypeBLabel,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				testfixtures.WithNodeTypeNodes(
-					3,
+				withNodeTypeNodes(
+					nodeTypeCLabel,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
 						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				testfixtures.WithNodeTypeNodes(
-					4,
+				withNodeTypeNodes(
+					nodeTypeDLabel,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("14")}},
@@ -553,14 +570,14 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds:      []uint64{1, 2, 3},
+			nodeTypeIds:      []uint64{nodeTypeAId, nodeTypeBId, nodeTypeCId},
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
-			nodes: testfixtures.WithNodeTypeNodes(
-				1,
+			nodes: withNodeTypeNodes(
+				nodeTypeALabel,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -609,14 +626,14 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds:      []uint64{1},
+			nodeTypeIds:      []uint64{nodeTypeAId},
 			priority:         1,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
-			nodes: testfixtures.WithNodeTypeNodes(
-				1,
+			nodes: withNodeTypeNodes(
+				nodeTypeALabel,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -691,7 +708,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds: []uint64{1},
+			nodeTypeIds: []uint64{nodeTypeAId},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
@@ -701,8 +718,8 @@ func TestNodeTypesIterator(t *testing.T) {
 		},
 		"double-nested ordering": {
 			nodes: armadaslices.Concatenate(
-				testfixtures.WithNodeTypeNodes(
-					1,
+				withNodeTypeNodes(
+					nodeTypeALabel,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -741,8 +758,8 @@ func TestNodeTypesIterator(t *testing.T) {
 						),
 					),
 				),
-				testfixtures.WithNodeTypeNodes(
-					2,
+				withNodeTypeNodes(
+					nodeTypeBLabel,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -779,8 +796,8 @@ func TestNodeTypesIterator(t *testing.T) {
 						),
 					),
 				),
-				testfixtures.WithNodeTypeNodes(
-					3,
+				withNodeTypeNodes(
+					nodeTypeCLabel,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -800,7 +817,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds: []uint64{1, 2, 3},
+			nodeTypeIds: []uint64{gpuNodeTypeAId, gpuNodeTypeBId, gpuNodeTypeCId},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":            resource.MustParse("32"),
@@ -823,14 +840,11 @@ func TestNodeTypesIterator(t *testing.T) {
 				entry, err := nodeDb.create(node)
 				require.NoError(t, err)
 
-				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
-				entry = testWithNodeTypeId(entry, node.NodeType.Id)
-
 				entries[i] = entry
 			}
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
-			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(schedulerobjects.V1ResourceListFromResourceList(tc.resourceRequests))
+			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(tc.resourceRequests.Resources)
 			assert.Nil(t, err)
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
@@ -927,20 +941,27 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 	}
 }
 
-func testWithNodeTypeId(node *internaltypes.Node, nodeTypeId uint64) *internaltypes.Node {
-	return internaltypes.CreateNode(
-		node.GetId(),
-		nodeTypeId,
-		node.GetIndex(),
-		node.GetExecutor(),
-		node.GetName(),
-		node.GetTaints(),
-		node.GetLabels(),
-		node.TotalResources,
-		node.AllocatableByPriority,
-		node.AllocatedByQueue,
-		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
-		node.Keys,
+func withNodeTypeNodes(nodeTypeLabel string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+	for _, node := range nodes {
+		node.Labels[testfixtures.NodeTypeLabel] = nodeTypeLabel
+	}
+	return nodes
+}
+
+func nodeTypeLabelToNodeTypeId(nodeTypeLabel string) uint64 {
+	return labelsToNodeTypeId(map[string]string{testfixtures.NodeTypeLabel: nodeTypeLabel})
+}
+
+func gpuNodeTypeLabelToNodeTypeId(nodeTypeLabel string) uint64 {
+	return labelsToNodeTypeId(map[string]string{testfixtures.NodeTypeLabel: nodeTypeLabel, "gpu": "true"})
+}
+
+func labelsToNodeTypeId(labels map[string]string) uint64 {
+	nodeType := internaltypes.NewNodeType(
+		[]v1.Taint{},
+		labels,
+		mapFromSlice(testfixtures.TestIndexedTaints),
+		mapFromSlice(testfixtures.TestIndexedNodeLabels),
 	)
+	return nodeType.GetId()
 }

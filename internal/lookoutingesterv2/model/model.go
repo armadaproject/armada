@@ -64,15 +64,22 @@ type UpdateJobRunInstruction struct {
 	ExitCode    *int32
 }
 
+// CreateJobErrorInstruction is an instruction to crearte a new row in the job_error table
+type CreateJobErrorInstruction struct {
+	JobId string
+	Error []byte
+}
+
 // InstructionSet represents a set of instructions to apply to the database.  Each type of instruction is stored in its
 // own ordered list representing the order it was received.  We also store the original message ids corresponding to
 // these instructions so that when they are saved to the database, we can ACK the corresponding messages.
 type InstructionSet struct {
-	JobsToCreate    []*CreateJobInstruction
-	JobsToUpdate    []*UpdateJobInstruction
-	JobRunsToCreate []*CreateJobRunInstruction
-	JobRunsToUpdate []*UpdateJobRunInstruction
-	MessageIds      []pulsar.MessageID
+	JobsToCreate      []*CreateJobInstruction
+	JobsToUpdate      []*UpdateJobInstruction
+	JobRunsToCreate   []*CreateJobRunInstruction
+	JobRunsToUpdate   []*UpdateJobRunInstruction
+	JobErrorsToCreate []*CreateJobErrorInstruction
+	MessageIds        []pulsar.MessageID
 }
 
 func (i *InstructionSet) GetMessageIDs() []pulsar.MessageID {

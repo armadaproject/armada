@@ -788,9 +788,10 @@ func TestValidateResources(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		req             *api.JobSubmitRequestItem
-		minJobResources v1.ResourceList
-		expectSuccess   bool
+		req                                  *api.JobSubmitRequestItem
+		minJobResources                      v1.ResourceList
+		maxOversubscriptionByResourceRequest map[string]float64
+		expectSuccess                        bool
 	}{
 		"Requests Missing": {
 			req: reqFromContainer(v1.Container{
@@ -808,13 +809,67 @@ func TestValidateResources(t *testing.T) {
 			}),
 			expectSuccess: false,
 		},
-		"Requests and limits different": {
+		"Limits Less Than Request": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: twoCpu,
+					Limits:   oneCpu,
+				},
+			}),
+			expectSuccess: false,
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu": 2.0,
+			},
+		},
+		"Limits And Requests specify different resources": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceCPU: resource.MustParse("1"),
+					},
+					Limits: v1.ResourceList{
+						v1.ResourceCPU:    resource.MustParse("1"),
+						v1.ResourceMemory: resource.MustParse("2Gi"),
+					},
+				},
+			}),
+			expectSuccess: false,
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu":    2.0,
+				"memory": 2.0,
+			},
+		},
+		"Requests and limits different with MaxResourceOversubscriptionByResourceRequest undefined": {
 			req: reqFromContainer(v1.Container{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
 			}),
+			expectSuccess: false,
+		},
+		"Requests and limits different, passes MaxResourceOversubscriptionByResourceRequest": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   twoCpu,
+				},
+			}),
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu": 2.0,
+			},
+			expectSuccess: true,
+		},
+		"Requests and limits different, fails MaxResourceOversubscriptionByResourceRequest": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   twoCpu,
+				},
+			}),
+			maxOversubscriptionByResourceRequest: map[string]float64{
+				"cpu": 1.9,
+			},
 			expectSuccess: false,
 		},
 		"Request and limits the same": {
@@ -846,7 +901,11 @@ func TestValidateResources(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateResources(tc.req, configuration.SubmissionConfig{})
+			submitConfg := configuration.SubmissionConfig{}
+			if tc.maxOversubscriptionByResourceRequest != nil {
+				submitConfg.MaxOversubscriptionByResourceRequest = tc.maxOversubscriptionByResourceRequest
+			}
+			err := validateResources(tc.req, submitConfg)
 			if tc.expectSuccess {
 				assert.NoError(t, err)
 			} else {
@@ -910,6 +969,132 @@ func TestValidateTerminationGracePeriod(t *testing.T) {
 			err := validateTerminationGracePeriod(tc.req, configuration.SubmissionConfig{
 				MinTerminationGracePeriod: tc.minGracePeriod,
 				MaxTerminationGracePeriod: tc.maxGracePeriod,
+			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateInitContainerCpu(t *testing.T) {
+	tests := map[string]struct {
+		initContainers []v1.Container
+		disableCheck   bool
+		expectSuccess  bool
+	}{
+		"no init containers": {
+			initContainers: []v1.Container{},
+			expectSuccess:  true,
+		},
+		"init container with no resource requests": {
+			initContainers: []v1.Container{
+				{},
+			},
+			expectSuccess: true,
+		},
+		"init container that doesn't specify cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"memory": resource.MustParse("1Gi"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"memory": resource.MustParse("1Gi"),
+						},
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"init container with fractional cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"check disabled": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+					},
+				},
+			},
+			disableCheck:  true,
+			expectSuccess: true,
+		},
+		"limits with integer cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"requests with integer cpu": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("900m"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"cpu specified as millis": {
+			initContainers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1000m"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1000m"),
+						},
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateInitContainerCpu(&api.JobSubmitRequestItem{
+				PodSpec: &v1.PodSpec{
+					InitContainers: tc.initContainers,
+				},
+			}, configuration.SubmissionConfig{
+				AssertInitContainersRequestFractionalCpu: !tc.disableCheck,
 			})
 			if tc.expectSuccess {
 				assert.NoError(t, err)

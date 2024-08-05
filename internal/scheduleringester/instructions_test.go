@@ -61,6 +61,7 @@ func TestConvertSequence(t *testing.T) {
 					Queue:                  f.Queue,
 					Executor:               f.ExecutorId,
 					Node:                   f.NodeName,
+					Pool:                   f.Pool,
 					ScheduledAtPriority:    &f.ScheduledAtPriority,
 					Created:                f.BaseTime.UnixNano(),
 					LeasedTimestamp:        &f.BaseTime,
@@ -240,7 +241,7 @@ func TestConvertSequence(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := InstructionConverter{m, f.PriorityClasses, compressor}
+			converter := InstructionConverter{m, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
@@ -328,7 +329,6 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 						NodeSelector:     f.NodeSelector,
 						Tolerations:      f.Tolerations,
 						PreemptionPolicy: "PreemptLowerPriority",
-						Priority:         f.PriorityClassValue,
 						ResourceRequirements: v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"memory": resource.MustParse("64Mi"),
@@ -352,10 +352,10 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 
 func multipleEventsMultipleTimeStamps() []*armadaevents.EventSequence_Event {
 	events := []*armadaevents.EventSequence_Event{f.JobCancelled, f.JobRunSucceeded, f.Running}
-	created := f.BaseTime.Add(time.Hour)
+	created := protoutil.ToTimestamp(f.BaseTime.Add(time.Hour))
 	anotherCancelled, _ := f.DeepCopy(f.JobCancelled)
 	anotherSucceeded, _ := f.DeepCopy(f.JobRunSucceeded)
-	anotherCancelled.Created = &created
-	anotherSucceeded.Created = &created
+	anotherCancelled.Created = created
+	anotherSucceeded.Created = created
 	return append(events, anotherCancelled, anotherSucceeded)
 }

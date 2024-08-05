@@ -10,19 +10,22 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 var (
 	queueA = queue.Queue{
-		Name:           "queueA",
-		PriorityFactor: 1000,
-		Permissions:    []queue.Permissions{},
+		Name:                              "queueA",
+		PriorityFactor:                    1000,
+		Permissions:                       []queue.Permissions{},
+		ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{},
 	}
 	queueB = queue.Queue{
-		Name:           "queueB",
-		PriorityFactor: 2000,
-		Permissions:    []queue.Permissions{},
+		Name:                              "queueB",
+		PriorityFactor:                    2000,
+		Permissions:                       []queue.Permissions{},
+		ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{},
 	}
 	twoQueues = []queue.Queue{queueA, queueB}
 )
@@ -111,17 +114,19 @@ func TestGetAndUpdateQueue(t *testing.T) {
 		"Queue Doesn't Exist": {
 			intialQueues: twoQueues,
 			queueToUpdate: queue.Queue{
-				Name:           "queueC",
-				PriorityFactor: 1,
-				Permissions:    []queue.Permissions{},
+				Name:                              "queueC",
+				Permissions:                       []queue.Permissions{},
+				PriorityFactor:                    1,
+				ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{},
 			},
 		},
 		"Queue Does Exist": {
 			intialQueues: twoQueues,
 			queueToUpdate: queue.Queue{
-				Name:           "queueA",
-				PriorityFactor: queueA.PriorityFactor + 100,
-				Permissions:    []queue.Permissions{},
+				Name:                              "queueA",
+				PriorityFactor:                    queueA.PriorityFactor + 100,
+				Permissions:                       []queue.Permissions{},
+				ResourceLimitsByPriorityClassName: map[string]api.PriorityClassResourceLimits{},
 			},
 		},
 	}

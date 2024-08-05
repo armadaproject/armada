@@ -76,7 +76,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 				AvailableResource: *capacityReport.AvailableCapacity,
 				Nodes:             []*executorapi.NodeInfo{&capacityReport.Nodes[0]},
 				// Should add any ids in the state but not in the capacity report into unassigned job run ids
-				UnassignedJobRunIds: []armadaevents.Uuid{},
+				UnassignedJobRunIds: []*armadaevents.Uuid{},
 				MaxJobsToLease:      uint32(defaultMaxLeasedJobs),
 			},
 		},
@@ -86,7 +86,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 				AvailableResource: *capacityReport.AvailableCapacity,
 				Nodes:             []*executorapi.NodeInfo{&capacityReport.Nodes[0]},
 				// Should add any ids in the state but not in the capacity report into unassigned job run ids
-				UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(leasedRunId)},
+				UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(leasedRunId)},
 				MaxJobsToLease:      0,
 			},
 		},

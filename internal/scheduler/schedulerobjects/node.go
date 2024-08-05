@@ -18,7 +18,6 @@ func (node *Node) DeepCopy() *Node {
 		Name:           node.Name,
 		Executor:       node.Executor,
 		LastSeen:       node.LastSeen,
-		NodeType:       node.NodeType.DeepCopy(),
 		Taints:         slices.Clone(node.Taints),
 		Labels:         maps.Clone(node.Labels),
 		TotalResources: node.TotalResources.DeepCopy(),
@@ -26,9 +25,6 @@ func (node *Node) DeepCopy() *Node {
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
 		StateByJobRunId:             maps.Clone(node.StateByJobRunId),
-		AllocatedByJobId:            armadamaps.DeepCopy(node.AllocatedByJobId),
-		AllocatedByQueue:            armadamaps.DeepCopy(node.AllocatedByQueue),
-		EvictedJobRunIds:            maps.Clone(node.EvictedJobRunIds),
 		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
 		Unschedulable:               node.Unschedulable,
 	}

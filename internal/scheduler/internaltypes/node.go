@@ -8,6 +8,8 @@ import (
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 )
 
+// Node is a scheduler-internal representation of one Kubernetes node.
+// Its private fields should be immutable! Do not change these!
 type Node struct {
 	// Unique id and index of this node.
 	// TODO(albin): Having both id and index is redundant.
@@ -18,6 +20,7 @@ type Node struct {
 	// Executor this node belongs to and node name, which must be unique per executor.
 	executor   string
 	name       string
+	pool       string
 	nodeTypeId uint64
 
 	// We need to store taints and labels separately from the node type: the latter only includes
@@ -25,7 +28,8 @@ type Node struct {
 	taints []v1.Taint
 	labels map[string]string
 
-	TotalResources ResourceList
+	// Total space allocatable on this node
+	totalResources ResourceList
 
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
@@ -42,6 +46,7 @@ func CreateNode(
 	index uint64,
 	executor string,
 	name string,
+	pool string,
 	taints []v1.Taint,
 	labels map[string]string,
 	totalResources ResourceList,
@@ -57,9 +62,10 @@ func CreateNode(
 		index:                 index,
 		executor:              executor,
 		name:                  name,
+		pool:                  pool,
 		taints:                koTaint.DeepCopyTaints(taints),
 		labels:                deepCopyLabels(labels),
-		TotalResources:        totalResources,
+		totalResources:        totalResources,
 		AllocatableByPriority: maps.Clone(allocatableByPriority),
 		AllocatedByQueue:      maps.Clone(allocatedByQueue),
 		AllocatedByJobId:      maps.Clone(allocatedByJobId),
@@ -74,6 +80,10 @@ func (node *Node) GetId() string {
 
 func (node *Node) GetName() string {
 	return node.name
+}
+
+func (node *Node) GetPool() string {
+	return node.pool
 }
 
 func (node *Node) GetIndex() uint64 {
@@ -117,22 +127,27 @@ func (node *Node) GetTolerationsForTaints() []v1.Toleration {
 	return tolerations
 }
 
-// UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
-// shallow copies of fields that are not mutated by methods of NodeDb.
-func (node *Node) UnsafeCopy() *Node {
+func (node *Node) GetTotalResources() ResourceList {
+	return node.totalResources
+}
+
+func (node *Node) DeepCopyNilKeys() *Node {
 	return &Node{
-		id:         node.id,
-		index:      node.index,
-		executor:   node.executor,
-		name:       node.name,
-		nodeTypeId: node.nodeTypeId,
-		taints:     node.taints,
-		labels:     node.labels,
+		// private fields are immutable so a shallow copy is fine
+		id:             node.id,
+		index:          node.index,
+		executor:       node.executor,
+		name:           node.name,
+		pool:           node.pool,
+		nodeTypeId:     node.nodeTypeId,
+		taints:         node.taints,
+		labels:         node.labels,
+		totalResources: node.totalResources,
 
-		TotalResources: node.TotalResources,
-
+		// keys set to nil
 		Keys: nil,
 
+		// these maps are mutable but their keys and values are immutable
 		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
 		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
 		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),

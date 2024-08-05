@@ -10,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -17,9 +18,10 @@ import (
 
 // GangScheduler schedules one gang at a time. GangScheduler is not aware of queues.
 type GangScheduler struct {
-	constraints       schedulerconstraints.SchedulingConstraints
-	schedulingContext *schedulercontext.SchedulingContext
-	nodeDb            *nodedb.NodeDb
+	constraints           schedulerconstraints.SchedulingConstraints
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	schedulingContext     *schedulercontext.SchedulingContext
+	nodeDb                *nodedb.NodeDb
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
 }
@@ -27,12 +29,14 @@ type GangScheduler struct {
 func NewGangScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:       constraints,
-		schedulingContext: sctx,
-		nodeDb:            nodeDb,
+		constraints:           constraints,
+		floatingResourceTypes: floatingResourceTypes,
+		schedulingContext:     sctx,
+		nodeDb:                nodeDb,
 	}, nil
 }
 
@@ -78,11 +82,13 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 		return err
 	}
 
-	// Register unfeasible scheduling keys.
+	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
+
+	// Register globally unfeasible scheduling keys.
 	//
 	// Only record unfeasible scheduling keys for single-job gangs.
 	// Since a gang may be unschedulable even if all its members are individually schedulable.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
+	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 && globallyUnschedulable {
 		jctx := gctx.JobSchedulingContexts[0]
 		schedulingKey, ok := jctx.SchedulingKey()
 		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
@@ -99,7 +105,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// Exit immediately if this is a new gang and we've hit any round limits.
 	if !gctx.AllJobsEvicted {
-		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext, gctx.Queue); err != nil || !ok {
+		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
 			return
 		}
 	}
@@ -138,6 +144,13 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 			return
 		}
 	}
+
+	if gctx.RequestsFloatingResources {
+		if ok, unschedulableReason = sch.floatingResourceTypes.WithinLimits(sch.schedulingContext.Pool, sch.schedulingContext.Allocated); !ok {
+			return
+		}
+	}
+
 	return sch.trySchedule(ctx, gctx)
 }
 
@@ -222,9 +235,9 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {
-				unschedulableReason = "unable to schedule gang since minimum cardinality not met"
+				unschedulableReason = schedulerconstraints.GangDoesNotFitUnschedulableReason
 			} else {
-				unschedulableReason = "job does not fit on any node"
+				unschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
 			}
 		}
 		return

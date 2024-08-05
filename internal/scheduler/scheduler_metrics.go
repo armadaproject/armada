@@ -60,11 +60,46 @@ var fairSharePerQueueDesc = prometheus.NewDesc(
 	}, nil,
 )
 
+var adjustedFairSharePerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "adjusted_fair_share"),
+	"Adjusted Fair share of each queue and pool.",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
 var actualSharePerQueueDesc = prometheus.NewDesc(
 	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "actual_share"),
 	"Actual share of each queue and pool.",
 	[]string{
 		"queue",
+		"pool",
+	}, nil,
+)
+
+var demandPerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "demand"),
+	"Demand of each queue and pool.",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
+var cappedDemandPerQueueDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "capped_demand"),
+	"Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+	[]string{
+		"queue",
+		"pool",
+	}, nil,
+)
+
+var fairnessErrorDesc = prometheus.NewDesc(
+	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "fairness_error"),
+	"Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
+	[]string{
 		"pool",
 	}, nil,
 )
@@ -114,10 +149,12 @@ func (m *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 }
 
 func (m *SchedulerMetrics) ReportSchedulerResult(result SchedulerResult) {
+	qpd := m.calculateQueuePoolMetrics(result.SchedulingContexts)
 	currentSchedulingMetrics := schedulingRoundData{
-		queuePoolData:    m.calculateQueuePoolMetrics(result.SchedulingContexts),
+		queuePoolData:    qpd,
 		scheduledJobData: aggregateJobContexts(m.mostRecentSchedulingRoundData.scheduledJobData, result.ScheduledJobs),
 		preemptedJobData: aggregateJobContexts(m.mostRecentSchedulingRoundData.preemptedJobData, result.PreemptedJobs),
+		fairnessError:    calculateFairnessError(qpd),
 	}
 
 	m.mostRecentSchedulingRoundData = currentSchedulingMetrics
@@ -146,14 +183,21 @@ func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometh
 
 	for key, value := range schedulingRoundData.queuePoolData {
 		result = append(result, prometheus.MustNewConstMetric(consideredJobsDesc, prometheus.GaugeValue, float64(value.numberOfJobsConsidered), key.queue, key.pool))
-		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, float64(value.fairShare), key.queue, key.pool))
-		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, float64(value.actualShare), key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, value.fairShare, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(adjustedFairSharePerQueueDesc, prometheus.GaugeValue, value.adjustedFairShare, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, value.actualShare, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(demandPerQueueDesc, prometheus.GaugeValue, value.demand, key.queue, key.pool))
+		result = append(result, prometheus.MustNewConstMetric(cappedDemandPerQueueDesc, prometheus.GaugeValue, value.cappedDemand, key.queue, key.pool))
 	}
 	for key, value := range schedulingRoundData.scheduledJobData {
 		result = append(result, prometheus.MustNewConstMetric(scheduledJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
 	}
 	for key, value := range schedulingRoundData.preemptedJobData {
 		result = append(result, prometheus.MustNewConstMetric(preemptedJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
+	}
+
+	for pool, fairnessError := range schedulingRoundData.fairnessError {
+		result = append(result, prometheus.MustNewConstMetric(fairnessErrorDesc, prometheus.GaugeValue, fairnessError, pool))
 	}
 
 	return result
@@ -184,19 +228,20 @@ func aggregateJobContexts(previousSchedulingRoundData map[queuePriorityClassKey]
 func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []*schedulercontext.SchedulingContext) map[queuePoolKey]queuePoolData {
 	result := make(map[queuePoolKey]queuePoolData)
 	for _, schedContext := range schedulingContexts {
-		totalCost := schedContext.TotalCost()
-		totalWeight := schedContext.WeightSum
 		pool := schedContext.Pool
 
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			key := queuePoolKey{queue: queue, pool: pool}
-			fairShare := queueContext.Weight / totalWeight
-			actualShare := schedContext.FairnessCostProvider.CostFromQueue(queueContext) / totalCost
-
+			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
+			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
+			cappedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.CappedDemand)
 			result[key] = queuePoolData{
 				numberOfJobsConsidered: len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts),
-				fairShare:              fairShare,
+				fairShare:              queueContext.FairShare,
+				adjustedFairShare:      queueContext.AdjustedFairShare,
 				actualShare:            actualShare,
+				demand:                 demand,
+				cappedDemand:           cappedDemand,
 			}
 		}
 	}
@@ -204,7 +249,22 @@ func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []
 	return result
 }
 
+// calculateFairnessError returns the cumulative delta between adjusted fair share and actual share for all users who
+// are below their fair share
+func calculateFairnessError(data map[queuePoolKey]queuePoolData) map[string]float64 {
+	errors := map[string]float64{}
+	for k, v := range data {
+		pool := k.pool
+		delta := v.adjustedFairShare - v.actualShare
+		if delta > 0 {
+			errors[pool] += delta
+		}
+	}
+	return errors
+}
+
 type schedulingRoundData struct {
+	fairnessError    map[string]float64
 	queuePoolData    map[queuePoolKey]queuePoolData
 	scheduledJobData map[queuePriorityClassKey]int
 	preemptedJobData map[queuePriorityClassKey]int
@@ -224,4 +284,7 @@ type queuePoolData struct {
 	numberOfJobsConsidered int
 	actualShare            float64
 	fairShare              float64
+	adjustedFairShare      float64
+	demand                 float64
+	cappedDemand           float64
 }

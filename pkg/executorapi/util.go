@@ -4,8 +4,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -28,20 +32,19 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 
 	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(
 		allowedPriorities,
-		schedulerobjects.ResourceList{
-			Resources: nodeInfo.TotalResources,
-		},
+		ResourceListFromProtoResources(nodeInfo.TotalResources),
 	)
 	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
-		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rl.Resources})
+		allocatableByPriorityAndResource.MarkAllocated(p, ResourceListFromProtoResources(rl.Resources))
 	}
 	nonArmadaAllocatedResources := make(map[int32]schedulerobjects.ResourceList)
 	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
-		nonArmadaAllocatedResources[p] = schedulerobjects.ResourceList{Resources: rl.Resources}
+		nonArmadaAllocatedResources[p] = ResourceListFromProtoResources(rl.Resources)
 	}
 	resourceUsageByQueue := make(map[string]*schedulerobjects.ResourceList)
 	for queueName, resourceUsage := range nodeInfo.ResourceUsageByQueue {
-		resourceUsageByQueue[queueName] = &schedulerobjects.ResourceList{Resources: resourceUsage.Resources}
+		rl := ResourceListFromProtoResources(resourceUsage.Resources)
+		resourceUsageByQueue[queueName] = &rl
 	}
 
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
@@ -49,13 +52,19 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		jobRunsByState[jobId] = api.JobRunStateFromApiJobState(state)
 	}
 	return &schedulerobjects.Node{
-		Id:                               api.NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
-		Name:                             nodeInfo.Name,
-		Executor:                         executor,
-		LastSeen:                         lastSeen,
-		Taints:                           nodeInfo.GetTaints(),
+		Id:       api.NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
+		Name:     nodeInfo.Name,
+		Executor: executor,
+		Pool:     nodeInfo.Pool,
+		LastSeen: lastSeen,
+		Taints: armadaslices.Map(nodeInfo.GetTaints(), func(v *v1.Taint) v1.Taint {
+			if v != nil {
+				return *v
+			}
+			return v1.Taint{}
+		}),
 		Labels:                           nodeInfo.GetLabels(),
-		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
+		TotalResources:                   ResourceListFromProtoResources(nodeInfo.TotalResources),
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		StateByJobRunId:                  jobRunsByState,
@@ -63,4 +72,24 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		ResourceUsageByQueue:             resourceUsageByQueue,
 		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
+}
+
+func ResourceListFromProtoResources(r map[string]*resource.Quantity) schedulerobjects.ResourceList {
+	return schedulerobjects.ResourceList{
+		Resources: armadamaps.MapValues(r, func(v *resource.Quantity) resource.Quantity {
+			if v != nil {
+				return *v
+			}
+			return resource.Quantity{}
+		}),
+	}
+}
+
+func ComputeResourceFromProtoResources(r map[string]resource.Quantity) *ComputeResource {
+	resources := make(map[string]*resource.Quantity, len(r))
+	for k, v := range r {
+		r := v.DeepCopy()
+		resources[k] = &r
+	}
+	return &ComputeResource{Resources: resources}
 }

@@ -9,6 +9,7 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -19,8 +20,7 @@ type ArmadaConfig struct {
 	GrpcPort    uint16
 	HttpPort    uint16
 	MetricsPort uint16
-	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	PprofPort *uint16
+	Profiling   *profilingconfig.ProfilingConfig
 
 	CorsAllowedOrigins []string
 	GrpcGatewayPath    string
@@ -66,10 +66,12 @@ type PulsarConfig struct {
 	CompressionLevel pulsar.CompressionLevel
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
+	// Maximum allowed Events per message
+	MaxAllowedEventsPerMessage int `validate:"gte=0"`
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
-	// Timeout when polling pulsar for messages
-	ReceiveTimeout time.Duration
+	// Timeout when sending messages asynchronously
+	SendTimeout time.Duration `validate:"required"`
 	// Backoff from polling when Pulsar returns an error
 	BackoffTime time.Duration
 	// Number of pulsar messages that will be queued by the pulsar consumer.
@@ -123,6 +125,11 @@ type SubmissionConfig struct {
 	// will have activeDeadlineSeconds set to 1.
 	// Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+	// Maximum ratio of limits:requests per resource. Jobs who have a higher limits:resource ratio than this will be rejected.
+	// Any resource type missing from this map will default to 1.0.
+	MaxOversubscriptionByResourceRequest map[string]float64
+	// Enforce that an init containers requestion non-integer cpu. This is due to https://github.com/kubernetes/kubernetes/issues/112228
+	AssertInitContainersRequestFractionalCpu bool
 }
 
 // TODO: we can probably just typedef this to map[string]string
