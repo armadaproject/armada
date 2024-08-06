@@ -566,46 +566,6 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	return js
 }
 
-func (js *JobSimulator) RunTerminated(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
-	ts := timestampOrNow(timestamp)
-	terminatedTime := protoutil.ToStdTime(ts)
-	terminated := &armadaevents.EventSequence_Event{
-		Created: ts,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId:    js.jobId,
-				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(js.jobId),
-				RunId:    armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
-				RunIdStr: runId,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false,
-						Reason: &armadaevents.Error_PodTerminated{
-							PodTerminated: &armadaevents.PodTerminated{
-								NodeName: node,
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: cluster,
-								},
-								Message: message,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	js.events = append(js.events, terminated)
-
-	js.updateRun(js.job, &runPatch{
-		runId:       runId,
-		cluster:     &cluster,
-		finished:    &terminatedTime,
-		jobRunState: lookout.JobRunTerminated,
-		node:        &node,
-	})
-	return js
-}
-
 func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	unschedulableTime := protoutil.ToStdTime(ts)

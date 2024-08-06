@@ -449,7 +449,6 @@ message Error {
         MaxRunsExceeded maxRunsExceeded = 7;
         PodError podError = 8;
         PodLeaseReturned podLeaseReturned = 9;
-        PodTerminated podTerminated = 10;
         JobRunPreemptedError jobRunPreemptedError = 11;
         GangJobUnschedulable gangJobUnschedulable = 12;
         JobRejected jobRejected = 13;

@@ -8,10 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -416,32 +416,6 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 							ContainerErrors: []*armadaevents.ContainerError{
 								{ExitCode: ExitCode},
 							},
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-var JobRunTerminated = &armadaevents.EventSequence_Event{
-	Created: testfixtures.BasetimeProto,
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId:    JobIdProto,
-			JobIdStr: JobIdString,
-			RunId:    RunIdProto,
-			RunIdStr: RunIdString,
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: false,
-					Reason: &armadaevents.Error_PodTerminated{
-						PodTerminated: &armadaevents.PodTerminated{
-							NodeName: NodeName,
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId: ExecutorId,
-							},
-							Message: TerminatedMsg,
 						},
 					},
 				},

@@ -103,8 +103,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId:                make(map[string]string),
-		AdditionalAnnotationsByJobId: make(map[string]map[string]string),
+		NodeIdByJobId: make(map[string]string),
 	}
 
 	// Exit immediately if scheduling is disabled.
@@ -192,7 +191,6 @@ func (l *FairSchedulingAlgo) Schedule(
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
 		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
-		maps.Copy(overallSchedulerResult.AdditionalAnnotationsByJobId, schedulerResult.AdditionalAnnotationsByJobId)
 
 		// Update fsctx.
 		fsctx.allocationByPoolAndQueueAndPriorityClass[pool] = sctx.AllocatedByQueueAndPriority()

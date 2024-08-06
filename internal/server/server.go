@@ -1,4 +1,4 @@
-package armada
+package server
 
 import (
 	"fmt"
@@ -15,11 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/armada/event"
-	"github.com/armadaproject/armada/internal/armada/queryapi"
-	"github.com/armadaproject/armada/internal/armada/queue"
-	"github.com/armadaproject/armada/internal/armada/submit"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -29,6 +24,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/internal/server/event"
+	"github.com/armadaproject/armada/internal/server/queryapi"
+	"github.com/armadaproject/armada/internal/server/queue"
+	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
