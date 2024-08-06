@@ -36,14 +36,16 @@ func TestReportJobStateTransitions(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		errorRegexes                         []*regexp.Regexp
-		trackedResourceNames                 []v1.ResourceName
-		jsts                                 []jobdb.JobStateTransitions
-		jobRunErrorsByRunId                  map[uuid.UUID]*armadaevents.Error
-		expectedQueueJobStateSeconds         map[[4]string]float64
-		expectedNodeJobStateSeconds          map[[5]string]float64
-		expectedQueueJobStateResourceSeconds map[[5]string]float64
-		expectedNodeJobStateResourceSeconds  map[[6]string]float64
+		errorRegexes                           []*regexp.Regexp
+		trackedResourceNames                   []v1.ResourceName
+		jsts                                   []jobdb.JobStateTransitions
+		jobRunErrorsByRunId                    map[uuid.UUID]*armadaevents.Error
+		expectedJobStateCounterByQueue         map[[4]string]float64
+		expectedJobStateCounterByNode          map[[5]string]float64
+		expectedJobStateSecondsByQueue         map[[4]string]float64
+		expectedJobStateSecondsByNode          map[[5]string]float64
+		expectedJobStateResourceSecondsByQueue map[[5]string]float64
+		expectedJobStateResourceSecondsByNode  map[[6]string]float64
 	}{
 		"Pending": {
 			trackedResourceNames: []v1.ResourceName{"cpu"},
@@ -57,16 +59,22 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Pending: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "pending", "leased"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "pending", "leased"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "pending", "leased"}: 2,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "pending", "leased"}: 2,
 			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
 				{"testQueue", "testPool", "pending", "leased", "cpu"}: 2 * 16,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "pending", "leased", "cpu"}: 2 * 16,
 			},
 		},
@@ -83,16 +91,22 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Running: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "running", "pending"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "running", "pending"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "running", "pending"}: 10,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "running", "pending"}: 10,
 			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
 				{"testQueue", "testPool", "running", "pending", "cpu"}: 10 * 16,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "running", "pending", "cpu"}: 10 * 16,
 			},
 		},
@@ -110,16 +124,22 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Succeeded: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "succeeded", "running"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "succeeded", "running"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "succeeded", "running"}: 8,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "succeeded", "running"}: 8,
 			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
 				{"testQueue", "testPool", "succeeded", "running", "cpu"}: 8 * 16,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "succeeded", "running", "cpu"}: 8 * 16,
 			},
 		},
@@ -137,16 +157,22 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Cancelled: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "cancelled", "running"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "cancelled", "running"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "cancelled", "running"}: 8,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "cancelled", "running"}: 8,
 			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
 				{"testQueue", "testPool", "cancelled", "running", "cpu"}: 8 * 16,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "cancelled", "running", "cpu"}: 8 * 16,
 			},
 		},
@@ -164,16 +190,22 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Failed: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "failed", "running"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "failed", "running"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "failed", "running"}: 8,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "failed", "running"}: 8,
 			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
 				{"testQueue", "testPool", "failed", "running", "cpu"}: 8 * 16,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "failed", "running", "cpu"}: 8 * 16,
 			},
 		},
@@ -191,16 +223,22 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Preempted: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "preempted", "running"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "preempted", "running"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "preempted", "running"}: 8,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "preempted", "running"}: 8,
 			},
-			expectedQueueJobStateResourceSeconds: map[[5]string]float64{
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
 				{"testQueue", "testPool", "preempted", "running", "cpu"}: 8 * 16,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "preempted", "running", "cpu"}: 8 * 16,
 			},
 		},
@@ -221,17 +259,27 @@ func TestReportJobStateTransitions(t *testing.T) {
 					Succeeded: true,
 				},
 			},
-			expectedQueueJobStateSeconds: map[[4]string]float64{
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{"testQueue", "testPool", "pending", "leased"}:    1,
+				{"testQueue", "testPool", "running", "pending"}:   1,
+				{"testQueue", "testPool", "succeeded", "running"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{"testNode", "testPool", "testCluster", "pending", "leased"}:    1,
+				{"testNode", "testPool", "testCluster", "running", "pending"}:   1,
+				{"testNode", "testPool", "testCluster", "succeeded", "running"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
 				{"testQueue", "testPool", "pending", "leased"}:    2,
 				{"testQueue", "testPool", "running", "pending"}:   3,
 				{"testQueue", "testPool", "succeeded", "running"}: 4,
 			},
-			expectedNodeJobStateSeconds: map[[5]string]float64{
+			expectedJobStateSecondsByNode: map[[5]string]float64{
 				{"testNode", "testPool", "testCluster", "pending", "leased"}:    2,
 				{"testNode", "testPool", "testCluster", "running", "pending"}:   3,
 				{"testNode", "testPool", "testCluster", "succeeded", "running"}: 4,
 			},
-			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
 				{"testNode", "testPool", "testCluster", "pending", "leased", "cpu"}:    32,
 				{"testNode", "testPool", "testCluster", "running", "pending", "cpu"}:   48,
 				{"testNode", "testPool", "testCluster", "succeeded", "running", "cpu"}: 64,
@@ -243,26 +291,38 @@ func TestReportJobStateTransitions(t *testing.T) {
 			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames)
 			metrics.ReportStateTransitions(tc.jsts, tc.jobRunErrorsByRunId)
 
+			// foo
+			for k, v := range tc.expectedJobStateCounterByQueue {
+				actualCounter := testutil.ToFloat64(metrics.jobStateCounterByQueue.WithLabelValues(k[:]...))
+				assert.InDelta(t, v, actualCounter, epsilon, "jobStateCounterByQueue for %s", strings.Join(k[:], ","))
+			}
+
+			// jobStateSecondsByNode
+			for k, v := range tc.expectedJobStateSecondsByNode {
+				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateSecondsByNode.WithLabelValues(k[:]...))
+				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateSecondsByNode for %s", strings.Join(k[:], ","))
+			}
+
 			// jobStateSecondsByQueue
-			for k, v := range tc.expectedQueueJobStateSeconds {
+			for k, v := range tc.expectedJobStateSecondsByQueue {
 				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateSecondsByQueue.WithLabelValues(k[:]...))
 				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateSecondsByQueue for %s", strings.Join(k[:], ","))
 			}
 
 			// jobStateSecondsByNode
-			for k, v := range tc.expectedNodeJobStateSeconds {
+			for k, v := range tc.expectedJobStateSecondsByNode {
 				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateSecondsByNode.WithLabelValues(k[:]...))
 				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateSecondsByNode for %s", strings.Join(k[:], ","))
 			}
 
 			// jobStateResourceSecondsByQueue
-			for k, v := range tc.expectedQueueJobStateResourceSeconds {
+			for k, v := range tc.expectedJobStateResourceSecondsByQueue {
 				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateResourceSecondsByQueue.WithLabelValues(k[:]...))
 				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateResourceSecondsByQueue for %s", strings.Join(k[:], ","))
 			}
 
 			// jobStateResourceSecondsByNode
-			for k, v := range tc.expectedNodeJobStateResourceSeconds {
+			for k, v := range tc.expectedJobStateResourceSecondsByNode {
 				actualJobStateSeconds := testutil.ToFloat64(metrics.nodeJobStateResourceSeconds.WithLabelValues(k[:]...))
 				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateResourceSecondsByNode for %s", strings.Join(k[:], ","))
 			}
