@@ -158,8 +158,6 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Cancelling.JobId
 	case *EventMessage_Cancelled:
 		return e.Cancelled.JobId
-	case *EventMessage_Terminated:
-		return e.Terminated.JobId
 	case *EventMessage_Utilisation:
 		return e.Utilisation.JobId
 	case *EventMessage_IngressInfo:
@@ -200,8 +198,6 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Cancelling.JobSetId
 	case *EventMessage_Cancelled:
 		return e.Cancelled.JobSetId
-	case *EventMessage_Terminated:
-		return e.Terminated.JobSetId
 	case *EventMessage_Utilisation:
 		return e.Utilisation.JobSetId
 	case *EventMessage_IngressInfo:

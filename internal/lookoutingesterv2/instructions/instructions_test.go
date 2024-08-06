@@ -363,15 +363,6 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"terminated": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunTerminated)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
 		"unschedulable": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunUnschedulable)},

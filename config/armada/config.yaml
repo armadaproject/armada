@@ -69,13 +69,9 @@ submission:
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
-  redisFromPulsarSubscription: "RedisFromPulsar"
-  dedupTable: pulsar_submit_dedup
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
-  eventsPrinter: false
-  eventsPrinterSubscription: "EventsPrinter"
   maxAllowedEventsPerMessage: 1000
   maxAllowedMessageSize: 4194304 # 4MB
   sendTimeout: 5s
