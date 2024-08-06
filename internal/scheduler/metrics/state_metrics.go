@@ -40,42 +40,42 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 		),
 		queueJobStateSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "queue_job_state_seconds",
+				Name: prefix + "job_state_seconds_by_queue",
 				Help: "Resource-seconds spend in different states at queue level",
 			},
 			[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 		),
 		nodeJobStateSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "node_job_state_seconds",
+				Name: prefix + "job_state_seconds_by_node",
 				Help: "Resource-seconds spend in different states at node level",
 			},
 			[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 		),
 		queueJobStateResourceSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "queue_job_state_resource_seconds",
+				Name: prefix + "job_state_resource_seconds_by_queue",
 				Help: "Resource Seconds spend in different states at queue level",
 			},
 			[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
 		),
 		nodeJobStateResourceSeconds: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "node_job_state_resource_seconds",
+				Name: prefix + "job_state_resource_seconds_by_node",
 				Help: "Resource Seconds spend in different states at node level",
 			},
 			[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
 		),
 		queueJobErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "job_error_classification",
+				Name: prefix + "job_error_classification_by_queue",
 				Help: "Failed jobs ey error classification",
 			},
 			[]string{queueLabel, poolLabel, errorCategoryLabel, errorSubcategoryLabel},
 		),
 		nodeJobErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: prefix + "node_error_classification",
+				Name: prefix + "error_classification_by_node",
 				Help: "Failed jobs ey error classification",
 			},
 			[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},

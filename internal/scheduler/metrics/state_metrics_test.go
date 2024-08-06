@@ -222,19 +222,16 @@ func TestReportJobStateTransitions(t *testing.T) {
 				},
 			},
 			expectedQueueJobStateSeconds: map[[4]string]float64{
-				{"testQueue", "testPool", "leased", "queued"}:     1,
 				{"testQueue", "testPool", "pending", "leased"}:    2,
 				{"testQueue", "testPool", "running", "pending"}:   3,
 				{"testQueue", "testPool", "succeeded", "running"}: 4,
 			},
 			expectedNodeJobStateSeconds: map[[5]string]float64{
-				{"testNode", "testPool", "testCluster", "leased", "queued"}:     1,
 				{"testNode", "testPool", "testCluster", "pending", "leased"}:    2,
 				{"testNode", "testPool", "testCluster", "running", "pending"}:   3,
 				{"testNode", "testPool", "testCluster", "succeeded", "running"}: 4,
 			},
 			expectedNodeJobStateResourceSeconds: map[[6]string]float64{
-				{"testNode", "testPool", "testCluster", "leased", "queued", "cpu"}:     16,
 				{"testNode", "testPool", "testCluster", "pending", "leased", "cpu"}:    32,
 				{"testNode", "testPool", "testCluster", "running", "pending", "cpu"}:   48,
 				{"testNode", "testPool", "testCluster", "succeeded", "running", "cpu"}: 64,
