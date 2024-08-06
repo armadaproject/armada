@@ -274,7 +274,7 @@ class TestArmadaOperatorDeferrable(unittest.IsolatedAsyncioTestCase):
             containers=[
                 core_v1.Container(
                     name="sleep",
-                    image="alpine:3.20.1",
+                    image="alpine:3.20.2",
                     args=[pod_arg],
                     securityContext=core_v1.SecurityContext(runAsUser=1000),
                     resources=core_v1.ResourceRequirements(
