@@ -175,7 +175,7 @@ jobs:
       containers:
         - name: ls
           imagePullPolicy: IfNotPresent
-          image: alpine:3.20.1
+          image: alpine:3.20.2
           command:
             - sh
             - -c

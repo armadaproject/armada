@@ -57,15 +57,13 @@ type PulsarConfig struct {
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
-	JwtTokenPath                string
-	JobsetEventsTopic           string
-	RedisFromPulsarSubscription string
+	JwtTokenPath string
+	// The pulsar topic that Jobset Events will be published to
+	JobsetEventsTopic string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
 	CompressionLevel pulsar.CompressionLevel
-	// Settings for deduplication, which relies on a postgres server.
-	DedupTable string
 	// Maximum allowed Events per message
 	MaxAllowedEventsPerMessage int `validate:"gte=0"`
 	// Maximum allowed message size in bytes
