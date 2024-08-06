@@ -376,6 +376,7 @@ func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 //
 // If the pod becomes Running/Completed/Failed in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
 func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
+	log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 	if issue.CurrentPodState != nil {
 		if issue.CurrentPodState.Status.Phase != v1.PodPending {
 			p.markIssuesResolved(issue.RunIssue)
