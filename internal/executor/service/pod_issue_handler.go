@@ -350,24 +350,12 @@ func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
 
-		events := make([]reporter.EventMessage, 0, 2)
-		if podIssue.Type == StuckStartingUp || podIssue.Type == UnableToSchedule {
-			unableToScheduleEvent, err := reporter.CreateJobUnableToScheduleEvent(podIssue.OriginalPodState, podIssue.Message, p.clusterContext.GetClusterId())
-			if err != nil {
-				log.Errorf("Failed to create unable to schedule event for job %s because %s", issue.RunIssue.JobId, err)
-				return
-			}
-			events = append(events, reporter.EventMessage{Event: unableToScheduleEvent, JobRunId: issue.RunIssue.RunId})
-		}
 		failedEvent, err := reporter.CreateSimpleJobFailedEvent(podIssue.OriginalPodState, podIssue.Message, podIssue.DebugMessage, p.clusterContext.GetClusterId(), podIssue.Cause)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
 		}
-
-		events = append(events, reporter.EventMessage{Event: failedEvent, JobRunId: issue.RunIssue.RunId})
-
-		err = p.eventReporter.Report(events)
+		err = p.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: issue.RunIssue.RunId}})
 		if err != nil {
 			log.Errorf("Failed to report failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
@@ -384,28 +372,11 @@ func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 }
 
 // For retryable issues we must:
-//   - Report JobUnableToScheduleEvent
 //   - Report JobReturnLeaseEvent
 //
 // If the pod becomes Running/Completed/Failed in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
 func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
-	if !issue.RunIssue.Reported {
-		log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
-		if issue.RunIssue.PodIssue.Type == StuckStartingUp || issue.RunIssue.PodIssue.Type == UnableToSchedule {
-			event, err := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId())
-			if err != nil {
-				log.Errorf("Failed to create unable to schedule event for job %s because %s", issue.RunIssue.JobId, err)
-				return
-			}
-			err = p.eventReporter.Report([]reporter.EventMessage{{Event: event, JobRunId: issue.RunIssue.RunId}})
-			if err != nil {
-				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
-				return
-			}
-		}
-		p.markIssueReported(issue.RunIssue)
-	}
-
+	log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 	if issue.CurrentPodState != nil {
 		if issue.CurrentPodState.Status.Phase != v1.PodPending {
 			p.markIssuesResolved(issue.RunIssue)
