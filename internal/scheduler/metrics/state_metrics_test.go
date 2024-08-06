@@ -243,28 +243,28 @@ func TestReportJobStateTransitions(t *testing.T) {
 			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames)
 			metrics.ReportStateTransitions(tc.jsts, tc.jobRunErrorsByRunId)
 
-			// queueJobStateSeconds
+			// jobStateSecondsByQueue
 			for k, v := range tc.expectedQueueJobStateSeconds {
-				actualJobStateSeconds := testutil.ToFloat64(metrics.queueJobStateSeconds.WithLabelValues(k[:]...))
-				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "queueJobStateSeconds for %s", strings.Join(k[:], ","))
+				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateSecondsByQueue.WithLabelValues(k[:]...))
+				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateSecondsByQueue for %s", strings.Join(k[:], ","))
 			}
 
-			// nodeJobStateSeconds
+			// jobStateSecondsByNode
 			for k, v := range tc.expectedNodeJobStateSeconds {
-				actualJobStateSeconds := testutil.ToFloat64(metrics.nodeJobStateSeconds.WithLabelValues(k[:]...))
-				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "nodeJobStateSeconds for %s", strings.Join(k[:], ","))
+				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateSecondsByNode.WithLabelValues(k[:]...))
+				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateSecondsByNode for %s", strings.Join(k[:], ","))
 			}
 
-			// queueJobStateSeconds
+			// jobStateResourceSecondsByQueue
 			for k, v := range tc.expectedQueueJobStateResourceSeconds {
-				actualJobStateSeconds := testutil.ToFloat64(metrics.queueJobStateResourceSeconds.WithLabelValues(k[:]...))
-				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "queueJobStateResourceSeconds for %s", strings.Join(k[:], ","))
+				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateResourceSecondsByQueue.WithLabelValues(k[:]...))
+				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateResourceSecondsByQueue for %s", strings.Join(k[:], ","))
 			}
 
-			// nodeJobStateSeconds
+			// jobStateResourceSecondsByNode
 			for k, v := range tc.expectedNodeJobStateResourceSeconds {
 				actualJobStateSeconds := testutil.ToFloat64(metrics.nodeJobStateResourceSeconds.WithLabelValues(k[:]...))
-				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "nodeJobStateResourceSeconds for %s", strings.Join(k[:], ","))
+				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateResourceSecondsByNode for %s", strings.Join(k[:], ","))
 			}
 		})
 	}
