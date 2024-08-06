@@ -419,59 +419,6 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestConvertPodTerminated(t *testing.T) {
-	terminated := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false,
-						Reason: &armadaevents.Error_PodTerminated{
-							PodTerminated: &armadaevents.PodTerminated{
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId:   executorId,
-									Namespace:    namespace,
-									Name:         podName,
-									KubernetesId: runIdString,
-								},
-								Message:   "The pod was terminated",
-								NodeName:  nodeName,
-								PodNumber: podNumber,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_Terminated{
-				Terminated: &api.JobTerminatedEvent{
-					JobId:        jobIdString,
-					ClusterId:    executorId,
-					PodNamespace: namespace,
-					PodName:      podName,
-					KubernetesId: runIdString,
-					Reason:       "The pod was terminated",
-					PodNumber:    podNumber,
-					JobSetId:     jobSetName,
-					Queue:        queue,
-					Created:      protoutil.ToTimestamp(baseTime),
-				},
-			},
-		},
-	}
-
-	apiEvents, err := FromEventSequence(toEventSeq(terminated))
-	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
-}
-
 func TestConvertJobError(t *testing.T) {
 	errored := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,

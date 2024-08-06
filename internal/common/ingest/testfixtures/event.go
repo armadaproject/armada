@@ -447,30 +447,6 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
-var JobRunTerminated = &armadaevents.EventSequence_Event{
-	Created: testfixtures.BasetimeProto,
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId: JobIdProto,
-			RunId: RunIdProto,
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: false,
-					Reason: &armadaevents.Error_PodTerminated{
-						PodTerminated: &armadaevents.PodTerminated{
-							NodeName: NodeName,
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId: ExecutorId,
-							},
-							Message: TerminatedMsg,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
 var JobRunUnschedulable = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
