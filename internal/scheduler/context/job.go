@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -123,7 +122,7 @@ type GangInfo struct {
 }
 
 // EmptyGangInfo returns a GangInfo for a job that is not in a gang.
-func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
+func EmptyGangInfo(job *jobdb.Job) GangInfo {
 	return GangInfo{
 		// An Id of "" indicates that this job is not in a gang; we set
 		// Cardinality (as well as the other fields,
@@ -135,7 +134,7 @@ func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
 	}
 }
 
-func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error) {
+func GangInfoFromJob(job *jobdb.Job) (GangInfo, error) {
 	gangInfo := EmptyGangInfo(job)
 
 	annotations := job.Annotations()
@@ -174,7 +173,7 @@ func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingConte
 }
 
 func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
-	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
+	gangInfo, err := GangInfoFromJob(job)
 	if err != nil {
 		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
 	}
