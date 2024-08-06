@@ -323,7 +323,7 @@ func TestReportJobStateTransitions(t *testing.T) {
 
 			// jobStateResourceSecondsByNode
 			for k, v := range tc.expectedJobStateResourceSecondsByNode {
-				actualJobStateSeconds := testutil.ToFloat64(metrics.nodeJobStateResourceSeconds.WithLabelValues(k[:]...))
+				actualJobStateSeconds := testutil.ToFloat64(metrics.jobStateResourceSecondsByNode.WithLabelValues(k[:]...))
 				assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobStateResourceSecondsByNode for %s", strings.Join(k[:], ","))
 			}
 		})
