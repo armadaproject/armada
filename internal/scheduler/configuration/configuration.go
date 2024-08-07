@@ -104,8 +104,9 @@ type HttpConfig struct {
 }
 
 type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
+	Port                         uint16
+	RefreshInterval              time.Duration
+	JobStateMetricsResetInterval time.Duration
 	// Regexes used for job error categorisation.
 	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
 	// If no regex matches, the subCategory label is the empty string.

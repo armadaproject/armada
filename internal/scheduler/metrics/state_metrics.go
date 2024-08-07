@@ -12,11 +12,18 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+type resettableMetric interface {
+	prometheus.Collector
+	Reset()
+}
+
 type jobStateMetrics struct {
-	// Pre-compiled regexes for error categorisation.
-	errorRegexes []*regexp.Regexp
-	// resources we want to provide metrics for
-	trackedResourceNames           []v1.ResourceName
+	errorRegexes         []*regexp.Regexp
+	resetInterval        time.Duration
+	lastResetTime        time.Time
+	enabled              bool
+	trackedResourceNames []v1.ResourceName
+
 	completedRunDurations          *prometheus.HistogramVec
 	jobStateCounterByQueue         *prometheus.CounterVec
 	jobStateCounterByNode          *prometheus.CounterVec
@@ -26,10 +33,10 @@ type jobStateMetrics struct {
 	jobStateResourceSecondsByNode  *prometheus.CounterVec
 	jobErrorsByQueue               *prometheus.CounterVec
 	jobErrorsByNode                *prometheus.CounterVec
-	allMetrics                     []prometheus.Collector
+	allMetrics                     []resettableMetric
 }
 
-func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1.ResourceName) *jobStateMetrics {
+func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1.ResourceName, resetInterval time.Duration) *jobStateMetrics {
 	completedRunDurations := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    prefix + "job_run_completed_duration_seconds",
@@ -55,48 +62,51 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 	jobStateSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_seconds_by_queue",
-			Help: "Resource-seconds spend in different states at queue level",
+			Help: "time spend in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_seconds_by_node",
-			Help: "Resource-seconds spend in different states at node level",
+			Help: "time spend in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 	)
 	jobStateResourceSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_resource_seconds_by_queue",
-			Help: "Resource Seconds spend in different states at queue level",
+			Help: "Resource-seconds spend in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobStateResourceSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_resource_seconds_by_node",
-			Help: "Resource Seconds spend in different states at node level",
+			Help: "Resource-seconds spend in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobErrorsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_error_classification_by_queue",
-			Help: "Failed jobs ey error classification",
+			Help: "Failed jobs ey error classification at the queue level",
 		},
 		[]string{queueLabel, poolLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
 	jobErrorsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "error_classification_by_node",
-			Help: "Failed jobs ey error classification",
+			Help: "Failed jobs ey error classification at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
 	return &jobStateMetrics{
 		errorRegexes:                   errorRegexes,
 		trackedResourceNames:           trackedResourceNames,
+		resetInterval:                  resetInterval,
+		lastResetTime:                  time.Now(),
+		enabled:                        true,
 		completedRunDurations:          completedRunDurations,
 		jobStateCounterByQueue:         jobStateCounterByQueue,
 		jobStateCounterByNode:          jobStateCounterByNode,
@@ -106,7 +116,7 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 		jobStateResourceSecondsByNode:  jobStateResourceSecondsByNode,
 		jobErrorsByQueue:               jobErrorsByQueue,
 		jobErrorsByNode:                jobErrorsByNode,
-		allMetrics: []prometheus.Collector{
+		allMetrics: []resettableMetric{
 			completedRunDurations,
 			jobStateCounterByQueue,
 			jobStateCounterByNode,
@@ -121,14 +131,22 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 }
 
 func (m *jobStateMetrics) describe(ch chan<- *prometheus.Desc) {
-	for _, metric := range m.allMetrics {
-		metric.Describe(ch)
+	if m.enabled {
+		for _, metric := range m.allMetrics {
+			metric.Describe(ch)
+		}
 	}
 }
 
 func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
-	for _, metric := range m.allMetrics {
-		metric.Collect(ch)
+	if m.enabled {
+		// Reset metrics periodically.
+		if time.Now().Sub(m.lastResetTime) > m.resetInterval {
+			m.reset()
+		}
+		for _, metric := range m.allMetrics {
+			metric.Collect(ch)
+		}
 	}
 }
 
@@ -235,6 +253,28 @@ func (m *jobStateMetrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.
 	return category, ""
 }
 
+func (m *jobStateMetrics) reset() {
+	m.jobStateCounterByNode.Reset()
+	for _, metric := range m.allMetrics {
+		metric.Reset()
+	}
+	m.lastResetTime = time.Now()
+}
+
+func (m *jobStateMetrics) disable() {
+	m.reset()
+	m.enabled = false
+}
+
+func (m *jobStateMetrics) enable() {
+	m.enabled = true
+}
+
+// isEnabled returns true if job state metrics are enabled
+func (m *jobStateMetrics) isEnabled() bool {
+	return m.enabled
+}
+
 // stateDuration returns:
 // -  the duration of the current state (stateTime - priorTime)
 // -  the prior state name
@@ -287,8 +327,6 @@ func errorTypeAndMessageFromError(err *armadaevents.Error) (string, string) {
 		return "podError", reason.PodError.Message
 	case *armadaevents.Error_PodLeaseReturned:
 		return "podLeaseReturned", reason.PodLeaseReturned.Message
-	case *armadaevents.Error_PodTerminated:
-		return "podTerminated", reason.PodTerminated.Message
 	case *armadaevents.Error_JobRunPreemptedError:
 		return "jobRunPreempted", ""
 	default:

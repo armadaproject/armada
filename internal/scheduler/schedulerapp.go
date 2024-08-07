@@ -248,7 +248,8 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 	)
 
-	schedulerMetrics, err := metrics.New(config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames)
+	schedulerMetrics, err := metrics.New(
+		config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames, config.Metrics.JobStateMetricsResetInterval)
 	if err != nil {
 		return err
 	}
