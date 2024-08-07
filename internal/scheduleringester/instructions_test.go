@@ -47,10 +47,6 @@ func TestConvertSequence(t *testing.T) {
 				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 			}}},
 		},
-		"ignores duplicate submit": {
-			events:   []*armadaevents.EventSequence_Event{f.SubmitDuplicate},
-			expected: []DbOperation{},
-		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
@@ -228,13 +224,6 @@ func TestConvertSequence(t *testing.T) {
 				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
 				MarkJobsCancelled{f.JobIdString: f.BaseTime.Add(time.Hour)},
 				MarkRunsSucceeded{f.RunIdUuid: f.BaseTime.Add(time.Hour)},
-			},
-		},
-		"ignored events": {
-			events: []*armadaevents.EventSequence_Event{f.Running, f.SubmitDuplicate, f.JobSucceeded},
-			expected: []DbOperation{
-				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
-				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
 	}

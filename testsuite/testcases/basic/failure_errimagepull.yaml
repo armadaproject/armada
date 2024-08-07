@@ -24,5 +24,4 @@ jobs:
 timeout: "300s"
 expectedEvents:
   - submitted:
-  - unableToSchedule:
   - failed:
