@@ -1,18 +1,17 @@
 import unittest
 from math import ceil
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from airflow.exceptions import AirflowException
-from armada_client.armada import submit_pb2, job_pb2
+from armada.model import GrpcChannelArgs
+from armada.operators.armada import ArmadaOperator
+from armada.triggers.armada import ArmadaTrigger
+from armada_client.armada import job_pb2, submit_pb2
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-
-from armada.model import GrpcChannelArgs
-from armada.operators.armada import ArmadaOperator
-from armada.triggers.armada import ArmadaTrigger
 
 DEFAULT_JOB_ID = "test_job"
 DEFAULT_TASK_ID = "test_task_1"

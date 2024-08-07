@@ -1,12 +1,11 @@
 import unittest
-from unittest.mock import AsyncMock, patch, PropertyMock
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 from airflow.triggers.base import TriggerEvent
-from armada_client.armada.submit_pb2 import JobState
-from armada_client.armada import submit_pb2, job_pb2
-
 from armada.model import GrpcChannelArgs
 from armada.triggers.armada import ArmadaTrigger
+from armada_client.armada import job_pb2, submit_pb2
+from armada_client.armada.submit_pb2 import JobState
 
 DEFAULT_JOB_ID = "test_job"
 DEFAULT_QUEUE = "test_queue"
