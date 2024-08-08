@@ -34,9 +34,8 @@ class KubernetesPodLogManager(LoggingMixin):
     def _k8s_client(self, k8s_context) -> client.CoreV1Api:
         """
         K8S Clients are expensive to initialize (especially loading configuration).
-        We want to setup as few of them as possible, instead of one per long-running job.
-        We cache them in class level cache. 
-        
+        We cache them per context in class level cache.
+
         Access to this method can be from multiple-threads.
         """
         if k8s_context not in KubernetesPodLogManager.CLIENTS:

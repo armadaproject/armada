@@ -124,10 +124,9 @@ class _ArmadaClientFactory:
     @staticmethod
     def client_for(args: GrpcChannelArgs) -> ArmadaClient:
         """
-        Armada clients, maintain GRPC connection to Armada API. 
-        We want to setup as few of them as possible, instead of one per long-running job.
-        We cache them in class level cache. 
-        
+        Armada clients, maintain GRPC connection to Armada API.
+        We cache them per channel args config in class level cache.
+
         Access to this method can be from multiple-threads.
         """
         channel_args_key = str(args.serialize())
