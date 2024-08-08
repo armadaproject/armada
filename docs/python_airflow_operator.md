@@ -176,14 +176,6 @@ Bases: `Protocol`
     str
 
 
-
-#### serialize()
-
-* **Return type**
-
-    *Tuple*[str, *Dict*[str, *Any*]]
-
-
 ## armada.model module
 
 
