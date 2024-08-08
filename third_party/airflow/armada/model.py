@@ -1,8 +1,7 @@
 import importlib
-from typing import Tuple, Any, Optional, Sequence, Dict
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import grpc
-
 
 """ This class exists so that we can retain our connection to the Armada Query API
     when using the deferrable Armada Airflow Operator. Airflow requires any state
