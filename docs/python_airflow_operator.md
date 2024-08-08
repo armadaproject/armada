@@ -36,19 +36,19 @@ and handles job cancellation if the Airflow task is killed.
     * **job_request** (*JobSubmitRequestItem*) – 
 
 
-    * **job_set_prefix** (*str** | **None*) – 
+    * **job_set_prefix** (*Optional**[**str**]*) – 
 
 
-    * **lookout_url_template** (*str** | **None*) – 
+    * **lookout_url_template** (*Optional**[**str**]*) – 
 
 
     * **poll_interval** (*int*) – 
 
 
-    * **container_logs** (*str** | **None*) – 
+    * **container_logs** (*Optional**[**str**]*) – 
 
 
-    * **k8s_token_retriever** (*TokenRetriever** | **None*) – 
+    * **k8s_token_retriever** (*Optional**[**TokenRetriever**]*) – 
 
 
     * **deferrable** (*bool*) – 
@@ -89,19 +89,7 @@ operator needs to be cleaned up, or it will leave ghost processes behind.
 
 
 
-#### pod_manager(k8s_context)
-
-* **Parameters**
-
-    **k8s_context** (*str*) – 
-
-
-
-* **Return type**
-
-    *PodLogManager*
-
-
+#### _property_ pod_manager(_: KubernetesPodLogManage_ )
 
 #### render_template_fields(context, jinja_env=None)
 Template all attributes listed in self.template_fields.
@@ -147,7 +135,7 @@ Initializes a new ArmadaOperator.
     * **job_request** (*JobSubmitRequestItem*) – The job to be submitted to Armada.
 
 
-    * **job_set_prefix** (*Optional**[**str**]*) – A string to prepend to the jobSet name
+    * **job_set_prefix** (*Optional**[**str**]*) – A string to prepend to the jobSet name.
 
 
     * **lookout_url_template** – Template for creating lookout links. If not specified
@@ -170,95 +158,9 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
+
+### armada.operators.armada.log_exceptions(method)
 ## armada.triggers.armada module
-
-
-### _class_ armada.triggers.armada.ArmadaTrigger(job_id, armada_queue, job_set_id, poll_interval, tracking_message, job_acknowledgement_timeout, job_request_namespace, channel_args=None, channel_args_details=None, container_logs=None, k8s_token_retriever=None, k8s_token_retriever_details=None, last_log_time=None)
-Bases: `BaseTrigger`
-
-An Airflow Trigger that can asynchronously manage an Armada job.
-
-
-* **Parameters**
-
-    
-    * **job_id** (*str*) – 
-
-
-    * **armada_queue** (*str*) – 
-
-
-    * **job_set_id** (*str*) – 
-
-
-    * **poll_interval** (*int*) – 
-
-
-    * **tracking_message** (*str*) – 
-
-
-    * **job_acknowledgement_timeout** (*int*) – 
-
-
-    * **job_request_namespace** (*str*) – 
-
-
-    * **channel_args** (*GrpcChannelArgs*) – 
-
-
-    * **channel_args_details** (*Dict**[**str**, **Any**]*) – 
-
-
-    * **container_logs** (*str** | **None*) – 
-
-
-    * **k8s_token_retriever** (*TokenRetriever** | **None*) – 
-
-
-    * **k8s_token_retriever_details** (*Tuple**[**str**, **Dict**[**str**, **Any**]**] **| **None*) – 
-
-
-    * **last_log_time** (*DateTime** | **None*) – 
-
-
-
-#### _property_ client(_: ArmadaAsyncIOClien_ )
-
-#### pod_manager(k8s_context)
-
-* **Parameters**
-
-    **k8s_context** (*str*) – 
-
-
-
-* **Return type**
-
-    *PodLogManagerAsync*
-
-
-
-#### _async_ run()
-Run the Trigger Asynchronously. This will poll Armada until the Job reaches a
-terminal state
-
-
-* **Return type**
-
-    *AsyncIterator*[*TriggerEvent*]
-
-
-
-#### serialize()
-Serialises the state of this Trigger.
-When the Trigger is re-hydrated, these values will be passed to init() as kwargs
-:return:
-
-
-* **Return type**
-
-    tuple
-
 
 ## armada.auth module
 
