@@ -1,25 +1,21 @@
 import os
+import threading
 import uuid
+from typing import Any
 from unittest.mock import MagicMock
 
+import grpc
 import pytest
-import threading
-
 from airflow.exceptions import AirflowException
-from armada_client.typings import JobState
-from armada_client.armada import (
-    submit_pb2,
-)
+from armada.model import GrpcChannelArgs
+from armada.operators.armada import ArmadaOperator
+from armada_client.armada import submit_pb2
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-import grpc
-from typing import Any
-
-from armada.model import GrpcChannelArgs
-from armada.operators.armada import ArmadaOperator
+from armada_client.typings import JobState
 
 DEFAULT_TASK_ID = "test_task_1"
 DEFAULT_DAG_ID = "test_dag_1"
