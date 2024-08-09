@@ -253,6 +253,9 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return err
 	}
+	if err := prometheus.Register(schedulerMetrics); err != nil {
+		return errors.WithStack(err)
+	}
 
 	scheduler, err := NewScheduler(
 		jobDb,
