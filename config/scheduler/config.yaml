@@ -9,6 +9,7 @@ queueRefreshPeriod: 10s
 disableSubmitCheck: false
 metrics:
   port: 9000
+  jobStateMetricsResetInterval: 12h
   refreshInterval: 30s
   trackedResourceNames:
     - "cpu"
