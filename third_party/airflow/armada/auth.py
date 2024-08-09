@@ -1,5 +1,4 @@
-from typing import Dict, Any, Tuple, Protocol
-
+from typing import Any, Dict, Protocol, Tuple
 
 """ We use this interface for objects fetching Kubernetes auth tokens. Since
     it's used within the Trigger, it must be serialisable."""

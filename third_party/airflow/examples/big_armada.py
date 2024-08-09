@@ -1,19 +1,12 @@
+import pendulum
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-
 from armada.model import GrpcChannelArgs
 from armada.operators.armada import ArmadaOperator
-
+from armada_client.armada import submit_pb2
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-from armada_client.k8s.io.apimachinery.pkg.api.resource import (
-    generated_pb2 as api_resource,
-)
-
-from armada_client.armada import (
-    submit_pb2,
-)
-
-import pendulum
+from armada_client.k8s.io.apimachinery.pkg.api.resource import \
+  generated_pb2 as api_resource
 
 
 def submit_sleep_job():

@@ -425,8 +425,6 @@ func errorTypeAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.
 		return podError, reason.PodError.Message
 	case *armadaevents.Error_PodLeaseReturned:
 		return podLeaseReturned, reason.PodLeaseReturned.Message
-	case *armadaevents.Error_PodTerminated:
-		return podTerminated, reason.PodTerminated.Message
 	case *armadaevents.Error_JobRunPreemptedError:
 		return jobRunPreempted, ""
 	default:

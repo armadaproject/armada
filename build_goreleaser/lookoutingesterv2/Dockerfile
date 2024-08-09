@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.20.1
+ARG BASE_IMAGE=alpine:3.20.2
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=lookoutingesterv2
