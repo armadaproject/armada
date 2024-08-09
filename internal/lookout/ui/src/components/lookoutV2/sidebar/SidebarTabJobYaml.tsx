@@ -25,6 +25,7 @@ function toJobSubmissionYaml(jobSpec: Record<string, any>): string {
   job.priority = jobSpec.priority
   job.namespace = jobSpec.namespace
   job.annotations = jobSpec.annotations
+  job.labels = jobSpec.labels
   if (jobSpec.podSpec !== undefined) {
     job.podSpecs = [jobSpec.podSpec]
   }
