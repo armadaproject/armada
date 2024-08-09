@@ -62,35 +62,35 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 	jobStateSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_seconds_by_queue",
-			Help: "time spend in different states at the queue level",
+			Help: "time spent in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_seconds_by_node",
-			Help: "time spend in different states at the node level",
+			Help: "time spent in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 	)
 	jobStateResourceSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_resource_seconds_by_queue",
-			Help: "Resource-seconds spend in different states at the queue level",
+			Help: "Resource-seconds spent in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobStateResourceSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_resource_seconds_by_node",
-			Help: "Resource-seconds spend in different states at the node level",
+			Help: "Resource-seconds spent in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobErrorsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_error_classification_by_queue",
-			Help: "Failed jobs ey error classification at the queue level",
+			Help: "Failed jobs by error classification at the queue level",
 		},
 		[]string{queueLabel, poolLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)

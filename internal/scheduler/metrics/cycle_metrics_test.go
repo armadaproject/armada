@@ -21,7 +21,7 @@ const epsilon = 1e-6
 
 func TestReportStateTransitions(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-		nCpu(100),
+		cpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
 	result := schedulerresult.SchedulerResult{
@@ -31,9 +31,9 @@ func TestReportStateTransitions(t *testing.T) {
 				FairnessCostProvider: fairnessCostProvider,
 				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 					"queue1": {
-						Allocated:         nCpu(10),
-						Demand:            nCpu(20),
-						CappedDemand:      nCpu(15),
+						Allocated:         cpu(10),
+						Demand:            cpu(20),
+						CappedDemand:      cpu(15),
 						AdjustedFairShare: 0.15,
 						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 							"job1": {
@@ -78,7 +78,7 @@ func TestReportStateTransitions(t *testing.T) {
 	assert.InDelta(t, 0.05, fairnessError, epsilon, "fairnessError")
 }
 
-func nCpu(n int) schedulerobjects.ResourceList {
+func cpu(n int) schedulerobjects.ResourceList {
 	return schedulerobjects.ResourceList{
 		Resources: map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	}
