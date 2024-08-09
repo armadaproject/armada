@@ -247,11 +247,9 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 		floatingResourceTypes,
 	)
-	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
-	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
-		return errors.WithStack(err)
-	}
-	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
+
+	schedulerMetrics, err := metrics.New(
+		config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames, config.Metrics.JobStateMetricsResetInterval)
 	if err != nil {
 		return err
 	}
@@ -272,7 +270,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.NodeIdLabel,
-		schedulingRoundMetrics,
 		schedulerMetrics,
 	)
 	if err != nil {
@@ -340,7 +337,7 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 
 func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
-	if err == rest.ErrNotInCluster {
+	if errors.Is(err, rest.ErrNotInCluster) {
 		ctx.Info("Running with default client configuration")
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}

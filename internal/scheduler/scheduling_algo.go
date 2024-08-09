@@ -30,6 +30,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -38,7 +39,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*schedulerresult.SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -96,13 +97,13 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-) (*SchedulerResult, error) {
+) (*schedulerresult.SchedulerResult, error) {
 	var cancel context.CancelFunc
 	if l.maxSchedulingDuration != 0 {
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
-	overallSchedulerResult := &SchedulerResult{
+	overallSchedulerResult := &schedulerresult.SchedulerResult{
 		NodeIdByJobId: make(map[string]string),
 	}
 
@@ -176,8 +177,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
 		}
 
-		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
-		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+		preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(schedulerResult)
+		scheduledJobs := schedulerresult.ScheduledJobsFromSchedulerResult(schedulerResult)
 
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
@@ -404,7 +405,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
 	executors []*schedulerobjects.Executor,
-) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
+) (*schedulerresult.SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,

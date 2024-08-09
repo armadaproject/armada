@@ -21,7 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -29,7 +28,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	apiconfig "github.com/armadaproject/armada/internal/server/configuration"
@@ -113,18 +114,7 @@ var (
 	}
 	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
 
-	schedulerMetrics = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
-		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
-			Start:  1,
-			Factor: 1.1,
-			Count:  100,
-		},
-		ReconcileCycleTimeHistogramSettings: configuration.HistogramConfig{
-			Start:  1,
-			Factor: 1.1,
-			Count:  100,
-		},
-	})
+	schedulerMetrics, _ = metrics.New(nil, nil, 12*time.Hour)
 )
 
 var queuedJob = testfixtures.NewJob(
@@ -850,7 +840,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
-				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1013,7 +1002,6 @@ func TestRun(t *testing.T) {
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
-		nil,
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1239,7 +1227,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
-				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1358,14 +1345,14 @@ type testSchedulingAlgo struct {
 	persisted bool
 }
 
-func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*schedulerresult.SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
 	if t.persisted {
 		// Exit right away if decisions have already been persisted.
-		return &SchedulerResult{}, nil
+		return &schedulerresult.SchedulerResult{}, nil
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
@@ -1424,8 +1411,8 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
 	nodeIdByJobId map[string]string,
-) *SchedulerResult {
-	return &SchedulerResult{
+) *schedulerresult.SchedulerResult {
+	return &schedulerresult.SchedulerResult{
 		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
 		NodeIdByJobId: nodeIdByJobId,
@@ -2346,7 +2333,6 @@ func TestCycleConsistency(t *testing.T) {
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,
-					nil,
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock
