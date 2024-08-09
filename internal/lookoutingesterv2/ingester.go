@@ -60,7 +60,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,
-		pulsar.KeyShared,
+		pulsar.Failover,
 		converter,
 		lookoutDb,
 		config.MetricsPort,
