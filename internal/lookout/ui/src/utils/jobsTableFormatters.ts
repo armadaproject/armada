@@ -59,6 +59,9 @@ export const formatTimeSince = (date?: string, now = Date.now()): string => {
     })
 
     const difference = now - parseISO(date).getTime()
+    if (difference < 0) {
+      return ""
+    }
     const days = Math.floor(difference / (1000 * 3600 * 24))
     const denominations = [
       { symbol: "d", value: days ?? 0 },
