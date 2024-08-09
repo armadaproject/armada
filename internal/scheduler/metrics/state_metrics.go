@@ -47,14 +47,14 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 	)
 	jobStateCounterByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_seconds_by_queue",
+			Name: prefix + "job_state_counter_by_queue",
 			Help: "Job states at queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateCounterByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_seconds_by_node",
+			Name: prefix + "job_state_counter_by_node",
 			Help: "Job states at node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
