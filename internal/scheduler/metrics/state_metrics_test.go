@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -344,7 +344,6 @@ func TestReportJobStateTransitions(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-
 	byQueueLabels := []string{testQueue, testPool, "running", "pending"}
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
 	byQueueResourceLabels := append(byQueueLabels, "cpu")
@@ -371,7 +370,6 @@ func TestReset(t *testing.T) {
 }
 
 func TestDisable(t *testing.T) {
-
 	byQueueLabels := []string{testQueue, testPool, "running", "pending"}
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
 	byQueueResourceLabels := append(byQueueLabels, "cpu")
