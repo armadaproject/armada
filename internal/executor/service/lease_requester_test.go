@@ -72,6 +72,7 @@ func TestLeaseJobRuns(t *testing.T) {
 			mockStream.EXPECT().Send(gomock.Any()).Return(nil)
 			setStreamExpectations(mockStream, tc.leaseMessages, tc.cancelMessages, tc.preemptMessages)
 			mockStream.EXPECT().Recv().Return(endMarker, nil)
+			mockStream.EXPECT().Recv().Return(nil, io.EOF)
 
 			response, err := jobRequester.LeaseJobRuns(ctx, &LeaseRequest{})
 			assert.NoError(t, err)
@@ -114,6 +115,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 	mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil)
 	mockStream.EXPECT().Send(expectedRequest).Return(nil)
 	mockStream.EXPECT().Recv().Return(endMarker, nil)
+	mockStream.EXPECT().Recv().Return(nil, io.EOF)
 
 	_, err := jobRequester.LeaseJobRuns(shortCtx, leaseRequest)
 	assert.NoError(t, err)
