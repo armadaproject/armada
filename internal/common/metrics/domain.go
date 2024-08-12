@@ -5,12 +5,13 @@ import (
 	"time"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type QueueMetricProvider interface {
 	GetQueuedJobMetrics(queueName string) []*QueueMetrics
 	GetRunningJobMetrics(queueName string) []*QueueMetrics
-	GetQueuePriorites() map[string]float64
+	GetAllQueues() []*api.Queue
 }
 
 type QueueMetrics struct {
