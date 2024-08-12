@@ -1,8 +1,9 @@
 package service
 
 import (
-	"context"
+	"fmt"
 	"io"
+	"time"
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
@@ -69,20 +70,14 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	leaseRuns := []*executorapi.JobRunLease{}
 	runIdsToCancel := []*armadaevents.Uuid{}
 	runIdsToPreempt := []*armadaevents.Uuid{}
-	for {
-		shouldEndStreamCall := false
+	streamEndMessageSeen := false
+	for !streamEndMessageSeen {
 		select {
 		case <-ctx.Done():
-			if ctx.Err() == context.DeadlineExceeded {
-				shouldEndStreamCall = true
-			} else {
-				return nil, ctx.Err()
-			}
+			return nil, ctx.Err()
 		default:
 			res, err := stream.Recv()
-			if err == io.EOF {
-				shouldEndStreamCall = true
-			} else if err != nil {
+			if err != nil {
 				return nil, err
 			}
 
@@ -94,15 +89,16 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 			case *executorapi.LeaseStreamMessage_CancelRuns:
 				runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
 			case *executorapi.LeaseStreamMessage_End:
-				shouldEndStreamCall = true
+				streamEndMessageSeen = true
 			default:
 				log.Errorf("unexpected lease stream message type %T", typed)
 			}
 		}
+	}
 
-		if shouldEndStreamCall {
-			break
-		}
+	err = closeStream(stream)
+	if err != nil {
+		return nil, err
 	}
 
 	return &LeaseResponse{
@@ -110,4 +106,28 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		RunIdsToCancel:  runIdsToCancel,
 		RunIdsToPreempt: runIdsToPreempt,
 	}, nil
+}
+
+func closeStream(stream executorapi.ExecutorApi_LeaseJobRunsClient) error {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			res, err := stream.Recv()
+			if err == io.EOF {
+				return nil
+			} else if err != nil {
+				return err
+			}
+
+			switch typed := res.GetEvent().(type) {
+			default:
+				return fmt.Errorf("failed closing stream - unexpectedly received event of tyope %T", typed)
+			}
+		}
+	}
 }
