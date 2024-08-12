@@ -200,7 +200,14 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 				continue
 			}
 			recorder = qs.queuedJobRecorder
-			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
+			queuedTime := time.Unix(0, job.Created())
+			if job.HasRuns() {
+				terminationTimeOfLatestRun := job.LatestRun().TerminatedTime()
+				if terminationTimeOfLatestRun != nil && terminationTimeOfLatestRun.After(queuedTime) {
+					queuedTime = *terminationTimeOfLatestRun
+				}
+			}
+			timeInState = currentTime.Sub(queuedTime)
 			queuedJobsCount[job.Queue()]++
 			schedulingKeysByQueue[job.Queue()][job.SchedulingKey()] = true
 		} else {
