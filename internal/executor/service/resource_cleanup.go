@@ -175,13 +175,12 @@ func (r *ResourceCleanupService) canPodBeRemoved(pod *v1.Pod) bool {
 		return false
 	}
 
-	lastContainerStart := util.FindLastContainerStartTime(pod)
-	if lastContainerStart.Add(r.kubernetesConfiguration.MinimumPodAge).After(time.Now()) {
+	lastChange, err := util.LastStatusChange(pod)
+	if err == nil && lastChange.Add(r.kubernetesConfiguration.MinimumPodAge).After(time.Now()) {
 		return false
 	}
 
 	if pod.Status.Phase == v1.PodFailed {
-		lastChange, err := util.LastStatusChange(pod)
 		if err == nil && lastChange.Add(r.kubernetesConfiguration.FailedPodExpiry).After(time.Now()) {
 			return false
 		}
