@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -44,6 +43,9 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	jobCreationTime := testfixtures.BaseTime.Add(-time.Duration(500) * time.Second).UnixNano()
 	jobWithTerminatedRun := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithUpdatedRun(run)
 
+	queue := testfixtures.MakeTestQueue()
+	queue.Labels = map[string]string{"foo": "bar"}
+
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
@@ -53,7 +55,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{queue},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
@@ -74,13 +76,15 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewQueuePriorityMetric(100, testfixtures.TestQueue),
+				commonmetrics.NewQueueLabelsMetric(testfixtures.TestQueue, map[string]string{"foo": "bar"}),
 			},
 		},
 		"queued metrics for requeued job": {
 			// This job was been requeued and has a terminated run
 			// The queue duration stats should count from the time the last run finished instead of job creation time
 			initialJobs: []*jobdb.Job{jobWithTerminatedRun},
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{queue},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
@@ -105,7 +109,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		},
 		"running metrics": {
 			initialJobs: runningJobs,
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{queue},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
@@ -168,9 +172,6 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			for i := 0; i < len(tc.expected); i++ {
 				a1 := actual[i]
 				e1 := tc.expected[i]
-				if !assert.Equal(t, e1, a1) {
-					fmt.Println("here")
-				}
 				require.Equal(t, e1, a1)
 			}
 		})
