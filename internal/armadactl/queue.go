@@ -16,11 +16,16 @@ import (
 	"github.com/armadaproject/armada/pkg/client/util"
 )
 
+// QueueQueryArgs is used for retrieving queues or for cordoning/uncordoning
 type QueueQueryArgs struct {
-	InQueueNames      []string
+	// Filter for queues where the InQueueNames slice contains the queue name
+	InQueueNames []string
+	// Filter for queues where the queue contains all labels specified in the ContainsAllLabels slice
 	ContainsAllLabels []string
-	InvertResult      bool
-	OnlyCordoned      bool
+	// Filter for cordoned queues only
+	OnlyCordoned bool
+	// Applies the above filters and inverts the result
+	InvertResult bool
 }
 
 // CreateQueue calls app.QueueAPI.Create with the provided parameters.
@@ -83,18 +88,22 @@ func (a *App) GetQueue(name string) error {
 func (a *App) getAllQueuesAsAPIQueue(args *QueueQueryArgs) ([]*api.Queue, error) {
 	queueFilters := func(q *api.Queue) bool {
 		containsAllLabels := slices.AllFunc(args.ContainsAllLabels, func(label string) bool {
-			// If the label is a key, map the labels slice to only keys
-			labelsToCompare := q.Labels
-			if len(strings.Split(label, "=")) == 1 {
-				labelsToCompare = slices.Map(q.Labels, func(queueLabel string) string { return strings.Split(queueLabel, "=")[0] })
+			splitLabel := strings.Split(label, "=")
+			if len(splitLabel) >= 2 {
+				queueLabelValue, ok := q.Labels[splitLabel[0]]
+				return ok && queueLabelValue == strings.Join(splitLabel[1:], "")
+			} else if len(splitLabel) == 1 {
+				// If the label is a key, we compare on keys
+				_, ok := q.Labels[splitLabel[0]]
+				return ok
 			}
 
-			return goslices.Contains(labelsToCompare, label)
+			return false
 		})
 		inQueues := len(args.InQueueNames) == 0 || goslices.Contains(args.InQueueNames, q.Name)
-		invertedResult := args.InvertResult != (containsAllLabels && inQueues)
+		matchesLabelsAndQueues := containsAllLabels && inQueues
 		onlyCordonedCheck := (args.OnlyCordoned && q.Cordoned) || !args.OnlyCordoned
-		return invertedResult && onlyCordonedCheck
+		return args.InvertResult != (matchesLabelsAndQueues && onlyCordonedCheck)
 	}
 	queuesToReturn, err := a.Params.QueueAPI.GetAll()
 	if err != nil {
