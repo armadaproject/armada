@@ -176,6 +176,22 @@ var QueuePriorityDesc = prometheus.NewDesc(
 	nil,
 )
 
+var (
+	queueLabelMetricName        = MetricPrefix + "queue_labels"
+	queueLabelMetricDescription = "Queue labels"
+	queueLabelDefaultLabels     = []string{"queueName", "queue"}
+)
+
+// QueueLabelDesc so it can be added to AllDescs which makes Describe() work properly
+//
+//	actual describe for this metric is generated dynamically as the labels are dynamic
+var QueueLabelDesc = prometheus.NewDesc(
+	queueLabelMetricName,
+	queueLabelMetricDescription,
+	queueLabelDefaultLabels,
+	nil,
+)
+
 var AllDescs = []*prometheus.Desc{
 	QueueSizeDesc,
 	QueuePriorityDesc,
@@ -202,6 +218,7 @@ var AllDescs = []*prometheus.Desc{
 	ClusterCapacityDesc,
 	ClusterAvailableCapacityDesc,
 	QueuePriorityDesc,
+	QueueLabelDesc,
 }
 
 func Describe(out chan<- *prometheus.Desc) {
@@ -265,8 +282,9 @@ func CollectQueueMetrics(queueCounts map[string]int, queueDistinctSchedulingKeyC
 			}
 		}
 	}
-	for q, priority := range metricsProvider.GetQueuePriorites() {
-		metrics = append(metrics, NewQueuePriorityMetric(priority, q))
+	for _, queue := range metricsProvider.GetAllQueues() {
+		metrics = append(metrics, NewQueuePriorityMetric(queue.PriorityFactor, queue.Name))
+		metrics = append(metrics, NewQueueLabelsMetric(queue.Name, queue.Labels))
 	}
 	return metrics
 }
@@ -365,4 +383,27 @@ func NewQueueUsed(value float64, queue string, cluster string, pool string, reso
 
 func NewQueuePriorityMetric(value float64, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueuePriorityDesc, prometheus.GaugeValue, value, queue, queue)
+}
+
+func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Metric {
+	metricLabels := make([]string, 0, len(labels)+len(queueLabelDefaultLabels))
+	values := make([]string, 0, len(labels)+len(queueLabelDefaultLabels))
+
+	metricLabels = append(metricLabels, queueLabelDefaultLabels...)
+	values = append(values, queue)
+	values = append(values, queue)
+
+	for key, value := range labels {
+		metricLabels = append(metricLabels, key)
+		values = append(values, value)
+	}
+
+	queueLabelsDesc := prometheus.NewDesc(
+		queueLabelMetricName,
+		queueLabelMetricDescription,
+		metricLabels,
+		nil,
+	)
+
+	return prometheus.MustNewConstMetric(queueLabelsDesc, prometheus.GaugeValue, 1, values...)
 }

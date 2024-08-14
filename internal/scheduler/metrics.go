@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/maps"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -14,18 +15,20 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // Metrics Recorders associated with a queue
 type queueState struct {
 	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
 	runningJobRecorder *commonmetrics.JobMetricsRecorder
-	priority           float64
+	queue              *api.Queue
 }
 
 // metricProvider is a simple implementation of QueueMetricProvider
@@ -33,9 +36,9 @@ type metricProvider struct {
 	queueStates map[string]*queueState
 }
 
-func (m metricProvider) GetQueuePriorites() map[string]float64 {
-	return armadamaps.MapValues(m.queueStates, func(v *queueState) float64 {
-		return v.priority
+func (m metricProvider) GetAllQueues() []*api.Queue {
+	return slices.Map(maps.Values(m.queueStates), func(state *queueState) *api.Queue {
+		return state.queue
 	})
 }
 
@@ -154,7 +157,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		provider.queueStates[queue.Name] = &queueState{
 			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
 			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
-			priority:           queue.PriorityFactor,
+			queue:              queue,
 		}
 		queuedJobsCount[queue.Name] = 0
 		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
