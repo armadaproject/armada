@@ -2,7 +2,6 @@ package queue
 
 import (
 	"fmt"
-	"strings"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/pkg/api"
@@ -13,8 +12,8 @@ type Queue struct {
 	Permissions                       []Permissions  `json:"permissions"`
 	PriorityFactor                    PriorityFactor `json:"priorityFactor"`
 	ResourceLimitsByPriorityClassName map[string]api.PriorityClassResourceLimits
-	Cordoned                          bool     `json:"cordoned"`
-	Labels                            []string `json:"labels"`
+	Cordoned                          bool              `json:"cordoned"`
+	Labels                            map[string]string `json:"labels"`
 }
 
 // NewQueue returns new Queue using the in parameter. Error is returned if
@@ -50,9 +49,9 @@ func NewQueue(in *api.Queue) (Queue, error) {
 	}
 
 	// Queue labels must be Kubernetes-like key-value labels
-	for _, label := range in.Labels {
-		if len(strings.Split(label, "=")) != 2 {
-			return Queue{}, fmt.Errorf("queue label must be key-value, not %s", label)
+	for k, v := range in.Labels {
+		if k == "" || v == "" {
+			return Queue{}, fmt.Errorf("queue labels must not have an empty key or value, key: %s, value: %s", k, v)
 		}
 	}
 

@@ -1877,6 +1877,12 @@
           }
         },
         "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "labelsDeprecated": {
           "type": "array",
           "title": "A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical",
           "items": {
