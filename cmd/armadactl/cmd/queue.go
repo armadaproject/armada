@@ -58,13 +58,18 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 				return fmt.Errorf("error reading queue labels: %s", err)
 			}
 
+			labelsAsMap, err := labelSliceAsMap(labels)
+			if err != nil {
+				return fmt.Errorf("error converting queue labels to map: %s", err)
+			}
+
 			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
 				UserOwners:     owners,
 				GroupOwners:    groups,
 				Cordoned:       cordoned,
-				Labels:         labels,
+				Labels:         labelsAsMap,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -220,13 +225,18 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading queue labels: %s", err)
 			}
 
+			labelsAsMap, err := labelSliceAsMap(labels)
+			if err != nil {
+				return fmt.Errorf("error converting queue labels to map: %s", err)
+			}
+
 			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
 				UserOwners:     owners,
 				GroupOwners:    groups,
 				Cordoned:       cordoned,
-				Labels:         labels,
+				Labels:         labelsAsMap,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
