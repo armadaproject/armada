@@ -734,10 +734,12 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 	return prefixed
 }
 
-func logQuery(query *Query, description string) {
+func logQuery(query *Query, description string, duration time.Duration) {
 	log.
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
+		WithField("duration", duration).
+		WithField("slow_query", duration > time.Second*3).
 		Debug(description)
 }
 
