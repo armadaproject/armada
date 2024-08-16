@@ -920,6 +920,9 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobCancellingEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cause\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
@@ -931,9 +934,6 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"requestor\": {\n" +
@@ -1263,6 +1263,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"runId\": {\n" +

@@ -6,15 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/domain"
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type LoadTester interface {
@@ -133,15 +130,15 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 		err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 			defer submissionComplete.Done()
 
-			e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
-			if status.Code(e) == codes.AlreadyExists {
-				log.Infof("queue %s already exists so no need to create it.\n", queue)
-			} else if e != nil {
-				log.Errorf("failed to create queue: %s because: %s\n", queue, e)
-				return nil
-			} else {
-				log.Infof("queue %s created.\n", queue)
-			}
+			//e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
+			//if status.Code(e) == codes.AlreadyExists {
+			//	log.Infof("queue %s already exists so no need to create it.\n", queue)
+			//} else if e != nil {
+			//	log.Errorf("failed to create queue: %s because: %s\n", queue, e)
+			//	return nil
+			//} else {
+			//	log.Infof("queue %s created.\n", queue)
+			//}
 
 			for len(jobs) > 0 {
 				select {
