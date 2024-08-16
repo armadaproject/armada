@@ -56,6 +56,10 @@ type JobSchedulingContext struct {
 	// This is the node the pod is assigned to.
 	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
 	AssignedNodeId string
+	// Id of job that preempted this pod
+	PreemptingJobId string
+	// Description of the cause of preemption
+	PreemptionDescription string
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -93,6 +97,7 @@ func (jctx *JobSchedulingContext) Fail(unschedulableReason string) {
 	jctx.UnschedulableReason = unschedulableReason
 	if pctx := jctx.PodSchedulingContext; pctx != nil {
 		pctx.NodeId = ""
+		pctx.SchedulingMethod = None
 	}
 }
 

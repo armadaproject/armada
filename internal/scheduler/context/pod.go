@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type SchedulingType int
+
+const (
+	None SchedulingType = iota
+	Rescheduled
+	ScheduledWithoutPreemption
+	ScheduledWithFairSharePreemption
+	ScheduledWithUrgencyBasedPreemption
+	ScheduledAsAwayJob
+)
+
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and
 // contains detailed information on the scheduling decision made for this pod.
 type PodSchedulingContext struct {
@@ -25,6 +36,8 @@ type PodSchedulingContext struct {
 	NumNodes int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
+	// The method of scheduling that was used to schedule this job
+	SchedulingMethod SchedulingType
 }
 
 func (pctx *PodSchedulingContext) IsSuccessful() bool {
