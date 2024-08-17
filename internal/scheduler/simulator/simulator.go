@@ -154,6 +154,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		enableFastForward:           enableFastForward,
 		hardTerminationMinutes:      hardTerminationMinutes,
 		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
+		time:                        time.Unix(0, 0).UTC(),
 	}
 	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
@@ -185,7 +186,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 	s.pushScheduleEvent(s.time)
 
 	simTerminationTime := s.time.Add(time.Minute * time.Duration(s.hardTerminationMinutes))
-
+	lastLogTime := s.time
 	// Then run the scheduler until all jobs have completed.
 	for s.eventLog.Len() > 0 {
 		select {
@@ -196,6 +197,10 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 			if err := s.handleSimulatorEvent(ctx, event); err != nil {
 				return err
 			}
+		}
+		if s.time.Unix()-lastLogTime.Unix() >= 60 {
+			ctx.Infof("Simulator time %s", s.time)
+			lastLogTime = s.time
 		}
 		if s.time.After(simTerminationTime) {
 			ctx.Infof("Current simulated time (%s) exceeds runtime deadline (%s). Terminating", s.time, simTerminationTime)
