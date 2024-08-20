@@ -176,6 +176,15 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
+
+	authorizer := auth.NewAuthorizer(
+		auth.NewPrincipalPermissionChecker(
+			config.Auth.PermissionGroupMapping,
+			config.Auth.PermissionScopeMapping,
+			config.Auth.PermissionClaimMapping,
+		),
+	)
+
 	executorServer, err := NewExecutorApi(
 		apiPublisher,
 		jobRepository,
@@ -185,6 +194,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
+		authorizer,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
