@@ -10,8 +10,8 @@ def test_roundtrip_running_job_context():
         "queue_123",
         "job_id_123",
         "job_set_id_123",
-        "cluster-1.armada.localhost",
         DateTime.utcnow(),
+        "cluster-1.armada.localhost",
         DateTime.utcnow().add(minutes=-2),
         JobState.RUNNING.name,
     )

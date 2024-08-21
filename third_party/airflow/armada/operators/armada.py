@@ -237,6 +237,7 @@ acknowledged by Armada.
                 armada_queue=existing_run["armada_queue"],
                 job_id=existing_run["armada_job_id"],
                 job_set_id=existing_run["armada_job_set_id"],
+                submit_time=DateTime.utcnow(),
             )
 
         # We haven't got a running job, submit a new one and persist state to xcom.
@@ -276,7 +277,7 @@ acknowledged by Armada.
     def _not_acknowledged_within_timeout(self) -> bool:
         if self.job_context.state == JobState.UNKNOWN:
             if (
-                DateTime.utcnow().diff(self.job_context.start_time).in_seconds()
+                DateTime.utcnow().diff(self.job_context.submit_time).in_seconds()
                 > self.job_acknowledgement_timeout
             ):
                 return True
@@ -284,7 +285,7 @@ acknowledged by Armada.
 
     @log_exceptions
     def _check_job_status_and_fetch_logs(self) -> None:
-        self.job_context = self.hook.update_context(
+        self.job_context = self.hook.refresh_context(
             self.job_context, self._trigger_tracking_message(self.job_context.job_id)
         )
 

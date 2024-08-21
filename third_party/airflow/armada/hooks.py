@@ -13,6 +13,7 @@ from armada_client.armada.job_pb2 import JobRunDetails
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 from armada_client.typings import JobState
+from pendulum import DateTime
 
 from .model import RunningJobContext
 
@@ -33,12 +34,12 @@ class ArmadaClientFactory:
         with ArmadaClientFactory.CLIENTS_LOCK:
             if channel_args_key not in ArmadaClientFactory.CLIENTS:
                 ArmadaClientFactory.CLIENTS[channel_args_key] = ArmadaClient(
-                    channel=ArmadaClientFactory.create_channel(args)
+                    channel=ArmadaClientFactory._create_channel(args)
                 )
             return ArmadaClientFactory.CLIENTS[channel_args_key]
 
     @staticmethod
-    def create_channel(args: GrpcChannelArgs) -> grpc.Channel:
+    def _create_channel(args: GrpcChannelArgs) -> grpc.Channel:
         if args.auth is None:
             return grpc.insecure_channel(
                 target=args.target, options=args.options, compression=args.compression
@@ -97,9 +98,9 @@ class ArmadaHook(LoggingMixin):
         if job.error:
             raise AirflowException(f"Error submitting job to Armada: {job.error}")
 
-        return RunningJobContext(queue, job.job_id, job_set_id, None)
+        return RunningJobContext(queue, job.job_id, job_set_id, DateTime.utcnow())
 
-    def update_context(
+    def refresh_context(
         self, job_context: RunningJobContext, tracking_url: str
     ) -> RunningJobContext:
         response = self.client.get_job_status([job_context.job_id])

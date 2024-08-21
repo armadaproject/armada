@@ -119,6 +119,8 @@ Args:
 
 
 #### template_fields(_: Sequence[str_ _ = ('job_request', 'job_set_prefix'_ )
+
+#### template_fields_renderers(_: Dict[str, str_ _ = {'job_request': 'py'_ )
 Initializes a new ArmadaOperator.
 
 
@@ -225,7 +227,7 @@ Bases: `object`
 
 
 
-### _class_ armada.model.RunningJobContext(armada_queue: 'str', job_id: 'str', job_set_id: 'str', cluster: 'Optional[str]' = None, start_time: 'DateTime' = DateTime(2024, 8, 21, 14, 36, 0, 499682, tzinfo=Timezone('UTC')), last_log_time: 'Optional[DateTime]' = None, job_state: 'str' = 'UNKNOWN')
+### _class_ armada.model.RunningJobContext(armada_queue: 'str', job_id: 'str', job_set_id: 'str', submit_time: 'DateTime', cluster: 'Optional[str]' = None, last_log_time: 'Optional[DateTime]' = None, job_state: 'str' = 'UNKNOWN')
 Bases: `object`
 
 
@@ -241,10 +243,10 @@ Bases: `object`
     * **job_set_id** (*str*) – 
 
 
+    * **submit_time** (*DateTime*) – 
+
+
     * **cluster** (*str** | **None*) – 
-
-
-    * **start_time** (*DateTime*) – 
 
 
     * **last_log_time** (*DateTime** | **None*) – 
@@ -266,6 +268,6 @@ Bases: `object`
 
 #### last_log_time(_: DateTime | Non_ _ = Non_ )
 
-#### start_time(_: DateTim_ _ = DateTime(2024, 8, 21, 14, 36, 0, 499682, tzinfo=Timezone('UTC')_ )
-
 #### _property_ state(_: JobStat_ )
+
+#### submit_time(_: DateTim_ )

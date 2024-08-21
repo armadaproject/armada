@@ -22,7 +22,6 @@ class GrpcChannelArgs:
         options: Optional[Sequence[Tuple[str, Any]]] = None,
         compression: Optional[grpc.Compression] = None,
         auth: Optional[grpc.AuthMetadataPlugin] = None,
-        # auth_details: Optional[Dict[str, Any]] = None,
     ):
         self.target = target
         self.options = options
@@ -59,8 +58,8 @@ class RunningJobContext:
     armada_queue: str
     job_id: str
     job_set_id: str
+    submit_time: DateTime
     cluster: Optional[str] = None
-    start_time: DateTime = DateTime.utcnow()
     last_log_time: Optional[DateTime] = None
     job_state: str = JobState.UNKNOWN.name
 

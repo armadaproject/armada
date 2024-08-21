@@ -24,7 +24,7 @@ def default_hook() -> MagicMock:
     mock = MagicMock()
     job_context = running_job_context()
     mock.submit_job.return_value = job_context
-    mock.update_context.return_value = dataclasses.replace(
+    mock.refresh_context.return_value = dataclasses.replace(
         job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
     )
     mock.cancel_job.return_value = dataclasses.replace(
@@ -88,15 +88,15 @@ def operator(
 
 def running_job_context(
     cluster: str = None,
-    start_time: DateTime = DateTime.now(),
+    submit_time: DateTime = DateTime.now(),
     job_state: str = JobState.UNKNOWN.name,
 ) -> RunningJobContext:
     return RunningJobContext(
         DEFAULT_QUEUE,
         DEFAULT_JOB_ID,
         DEFAULT_JOB_SET,
+        submit_time,
         cluster,
-        start_time,
         job_state=job_state,
     )
 
@@ -118,7 +118,7 @@ def running_job_context(
 def test_execute(job_states, context):
     op = operator(JobSubmitRequestItem())
 
-    op.hook.update_context.side_effect = [
+    op.hook.refresh_context.side_effect = [
         running_job_context(cluster="cluster-1", job_state=s.name) for s in job_states
     ]
 
@@ -127,7 +127,7 @@ def test_execute(job_states, context):
     op.hook.submit_job.assert_called_once_with(
         DEFAULT_QUEUE, DEFAULT_JOB_SET, op.job_request
     )
-    assert op.hook.update_context.call_count == len(job_states)
+    assert op.hook.refresh_context.call_count == len(job_states)
 
     # We're not polling for logs
     op.pod_manager.fetch_container_logs.assert_not_called()
@@ -136,7 +136,7 @@ def test_execute(job_states, context):
 @patch("pendulum.DateTime.utcnow", return_value=DEFAULT_CURRENT_TIME)
 def test_execute_in_deferrable(_, context):
     op = operator(JobSubmitRequestItem(), deferrable=True)
-    op.hook.update_context.side_effect = [
+    op.hook.refresh_context.side_effect = [
         running_job_context(cluster="cluster-1", job_state=s.name)
         for s in [JobState.QUEUED, JobState.QUEUED]
     ]
@@ -164,7 +164,7 @@ def test_execute_in_deferrable(_, context):
 def test_execute_fail(terminal_state, context):
     op = operator(JobSubmitRequestItem())
 
-    op.hook.update_context.side_effect = [
+    op.hook.refresh_context.side_effect = [
         running_job_context(cluster="cluster-1", job_state=s.name)
         for s in [JobState.RUNNING, terminal_state]
     ]
@@ -179,7 +179,7 @@ def test_execute_fail(terminal_state, context):
     op.hook.submit_job.assert_called_once_with(
         DEFAULT_QUEUE, DEFAULT_JOB_SET, op.job_request
     )
-    assert op.hook.update_context.call_count == 2
+    assert op.hook.refresh_context.call_count == 2
 
     # We're not polling for logs
     op.pod_manager.fetch_container_logs.assert_not_called()
@@ -200,7 +200,7 @@ def test_on_kill_terminates_running_job():
 def test_not_acknowledged_within_timeout_terminates_running_job(context):
     job_context = running_job_context()
     op = operator(JobSubmitRequestItem(), job_acknowledgement_timeout_s=-1)
-    op.hook.update_context.return_value = job_context
+    op.hook.refresh_context.return_value = job_context
 
     with pytest.raises(AirflowException) as exec_info:
         op.execute(context)
