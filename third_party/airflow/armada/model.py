@@ -1,7 +1,11 @@
-import importlib
-from typing import Any, Dict, Optional, Sequence, Tuple
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, ClassVar, Dict, Optional, Sequence, Tuple
 
 import grpc
+from armada_client.typings import JobState
+from pendulum import DateTime
 
 """ This class exists so that we can retain our connection to the Armada Query API
     when using the deferrable Armada Airflow Operator. Airflow requires any state
@@ -10,73 +14,56 @@ import grpc
 
 
 class GrpcChannelArgs:
+    __version__: ClassVar[int] = 1
+
     def __init__(
         self,
         target: str,
         options: Optional[Sequence[Tuple[str, Any]]] = None,
         compression: Optional[grpc.Compression] = None,
         auth: Optional[grpc.AuthMetadataPlugin] = None,
-        auth_details: Optional[Dict[str, Any]] = None,
+        # auth_details: Optional[Dict[str, Any]] = None,
     ):
         self.target = target
         self.options = options
         self.compression = compression
-        if auth:
-            self.auth = auth
-        elif auth_details:
-            classpath, kwargs = auth_details
-            module_path, class_name = classpath.rsplit(
-                ".", 1
-            )  # Split the classpath to module and class name
-            module = importlib.import_module(
-                module_path
-            )  # Dynamically import the module
-            cls = getattr(module, class_name)  # Get the class from the module
-            self.auth = cls(
-                **kwargs
-            )  # Instantiate the class with the deserialized kwargs
-        else:
-            self.auth = None
+        self.auth = auth
 
     def serialize(self) -> Dict[str, Any]:
-        auth_details = self.auth.serialize() if self.auth else None
         return {
             "target": self.target,
             "options": self.options,
             "compression": self.compression,
-            "auth_details": auth_details,
+            "auth": self.auth,
         }
 
-    def channel(self) -> grpc.Channel:
-        if self.auth is None:
-            return grpc.insecure_channel(
-                target=self.target, options=self.options, compression=self.compression
-            )
+    @staticmethod
+    def deserialize(data: dict[str, Any], version: int) -> GrpcChannelArgs:
+        if version > GrpcChannelArgs.__version__:
+            raise TypeError("serialized version > class version")
+        return GrpcChannelArgs(**data)
 
-        return grpc.secure_channel(
-            target=self.target,
-            options=self.options,
-            compression=self.compression,
-            credentials=grpc.composite_channel_credentials(
-                grpc.ssl_channel_credentials(),
-                grpc.metadata_call_credentials(self.auth),
-            ),
+    def __eq__(self, value: object) -> bool:
+        if type(value) is not GrpcChannelArgs:
+            return False
+        return (
+            self.target == value.target
+            and self.options == value.options
+            and self.compression == value.compression
+            and self.auth == value.auth
         )
 
-    def aio_channel(self) -> grpc.aio.Channel:
-        if self.auth is None:
-            return grpc.aio.insecure_channel(
-                target=self.target,
-                options=self.options,
-                compression=self.compression,
-            )
 
-        return grpc.aio.secure_channel(
-            target=self.target,
-            options=self.options,
-            compression=self.compression,
-            credentials=grpc.composite_channel_credentials(
-                grpc.ssl_channel_credentials(),
-                grpc.metadata_call_credentials(self.auth),
-            ),
-        )
+@dataclass(frozen=True)
+class RunningJobContext:
+    armada_queue: str
+    job_id: str
+    job_set_id: str
+    cluster: Optional[str] = None
+    start_time: DateTime = DateTime.utcnow()
+    last_log_time: Optional[DateTime] = None
+    job_state: str = JobState.UNKNOWN.name
+
+    @property
+    def state(self) -> JobState:
+        return JobState[self.job_state]
