@@ -37,12 +37,12 @@ def default_hook() -> MagicMock:
 @pytest.fixture(scope="function", autouse=True)
 def mock_operator_dependencies():
     # We no-op time.sleep in tests.
-    with patch("time.sleep", return_value=None) as s, patch(
+    with patch("time.sleep", return_value=None) as sleep, patch(
         "armada.log_manager.KubernetesPodLogManager.fetch_container_logs"
-    ) as l, patch(
+    ) as logs, patch(
         "armada.operators.armada.ArmadaOperator.hook", new_callable=default_hook
-    ) as h:
-        yield s, l, h
+    ) as hook:
+        yield sleep, logs, hook
 
 
 @pytest.fixture
