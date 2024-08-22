@@ -112,7 +112,7 @@ def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChann
 
     operator.execute(context)
 
-    response = operator.client.get_job_status([job_id])
+    response = client.get_job_status([job_id])
     assert JobState(response.job_states[job_id]) == JobState.SUCCEEDED
 
 
