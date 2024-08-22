@@ -31,6 +31,9 @@ test = ["pytest==7.3.1", "coverage==7.3.2", "pytest-asyncio==0.21.1",
 # note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
 docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
 
+[project.entry-points.apache_airflow_provider]
+provider_info = "armada.__init__:get_provider_info"
+
 [project.urls]
 repository='https://github.com/armadaproject/armada'
 

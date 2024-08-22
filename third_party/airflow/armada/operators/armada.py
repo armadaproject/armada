@@ -26,7 +26,8 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import jinja2
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
-from airflow.models import BaseOperator
+from airflow.models import BaseOperator, BaseOperatorLink, XCom
+from airflow.models.taskinstancekey import TaskInstanceKey
 from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -44,6 +45,17 @@ from ..triggers import ArmadaPollJobTrigger
 from ..utils import log_exceptions
 
 
+class LookoutLink(BaseOperatorLink):
+    name = "Lookout"
+
+    def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
+        task_state = XCom.get_value(ti_key=ti_key)
+        if not task_state:
+            return ""
+
+        return task_state.get("armada_lookout_url", "")
+
+
 class ArmadaOperator(BaseOperator, LoggingMixin):
     """
     An Airflow operator that manages Job submission to Armada.
@@ -51,6 +63,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
     This operator submits a job to an Armada cluster, polls for its completion,
     and handles job cancellation if the Airflow task is killed.
     """
+
+    operator_extra_links = (LookoutLink(),)
 
     template_fields: Sequence[str] = ("job_request", "job_set_prefix")
     template_fields_renderers: Dict[str, str] = {"job_request": "py"}

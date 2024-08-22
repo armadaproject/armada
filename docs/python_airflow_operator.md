@@ -91,6 +91,8 @@ operator needs to be cleaned up, or it will leave ghost processes behind.
 
 
 
+#### operator_extra_links(_: Collection[BaseOperatorLink_ _ = (LookoutLink(),_ )
+
 #### _property_ pod_manager(_: KubernetesPodLogManage_ )
 
 #### render_template_fields(context, jinja_env=None)
@@ -162,6 +164,35 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
+
+### _class_ armada.operators.armada.LookoutLink()
+Bases: `BaseOperatorLink`
+
+
+#### get_link(operator, \*, ti_key)
+Link to external system.
+
+Note: The old signature of this function was `(self, operator, dttm: datetime)`. That is still
+supported at runtime but is deprecated.
+
+
+* **Parameters**
+
+    
+    * **operator** (*BaseOperator*) – The Airflow operator object this link is associated to.
+
+
+    * **ti_key** (*TaskInstanceKey*) – TaskInstance ID to return link for.
+
+
+
+* **Returns**
+
+    link to external system
+
+
+
+#### name(_ = 'Lookout_ )
 ## armada.triggers.armada module
 
 ## armada.auth module
