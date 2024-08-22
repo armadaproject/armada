@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	v11 "k8s.io/api/networking/v1"
@@ -18,19 +17,13 @@ import (
 )
 
 const (
-	jobIdString           = "01f3j0g1md4qx7z5qb148qnh4r"
-	preemptiveJobIdString = "02f3j0g1md4qx7z5qb148qnh4r"
-	runIdString           = "123e4567-e89b-12d3-a456-426614174000"
-	preemptiveRunIdString = "123e4567-e89b-12d3-a456-426614174001"
+	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString = "123e4567-e89b-12d3-a456-426614174000"
 )
 
 var (
-	jobIdProto, _             = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto                = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-	preemptiveJobIdProto, _   = armadaevents.ProtoUuidFromUlidString(preemptiveJobIdString)
-	preemptiveRunIdRunIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(preemptiveRunIdString))
-	baseTime, _               = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	baseTimeProto             = protoutil.ToTimestamp(baseTime)
+	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto = protoutil.ToTimestamp(baseTime)
 )
 
 const (
@@ -51,7 +44,7 @@ func TestConvertSubmitted(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobId:    jobIdProto,
+				JobIdStr: jobIdString,
 				Priority: priority,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Namespace: namespace,
@@ -126,7 +119,7 @@ func TestConvertCancel(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJob{
 			CancelJob: &armadaevents.CancelJob{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 			},
 		},
 	}
@@ -155,7 +148,7 @@ func TestConvertCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 			},
 		},
 	}
@@ -184,7 +177,7 @@ func TestConvertReprioritising(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 			ReprioritiseJob: &armadaevents.ReprioritiseJob{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 			},
 		},
 	}
@@ -213,7 +206,7 @@ func TestConvertReprioritised(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 			},
 		},
 	}
@@ -242,7 +235,7 @@ func TestConvertLeased(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
-				JobId:      jobIdProto,
+				JobIdStr:   jobIdString,
 				ExecutorId: executorId,
 				PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 					Tolerations: []v1.Toleration{
@@ -281,8 +274,8 @@ func TestConvertLeaseExpired(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobIdStr: jobIdString,
+				RunIdStr: runIdString,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -318,8 +311,8 @@ func TestConvertPodUnschedulable(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobIdStr: jobIdString,
+				RunIdStr: runIdString,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: false,
@@ -372,8 +365,8 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobIdStr: jobIdString,
+				RunIdStr: runIdString,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -424,7 +417,7 @@ func TestConvertJobError(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -463,7 +456,7 @@ func TestConvertJobError(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -530,7 +523,7 @@ func TestConvertJobSucceeded(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -580,8 +573,8 @@ func TestConvertJobRunning(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{
-				RunId: runIdProto,
-				JobId: jobIdProto,
+				RunIdStr: runIdString,
+				JobIdStr: jobIdString,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -631,8 +624,8 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobIdStr: jobIdString,
+				RunIdStr: runIdString,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -675,8 +668,8 @@ func TestConvertJobAssigned(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 			JobRunAssigned: &armadaevents.JobRunAssigned{
-				RunId: runIdProto,
-				JobId: jobIdProto,
+				RunIdStr: runIdString,
+				JobIdStr: jobIdString,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -725,8 +718,8 @@ func TestConvertResourceUtilisation(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
 			ResourceUtilisation: &armadaevents.ResourceUtilisation{
-				RunId: runIdProto,
-				JobId: jobIdProto,
+				RunIdStr: runIdString,
+				JobIdStr: jobIdString,
 				ResourceInfo: &armadaevents.KubernetesResourceInfo{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						ExecutorId:   executorId,
@@ -790,8 +783,8 @@ func TestConvertIngressInfo(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
-				RunId: runIdProto,
-				JobId: jobIdProto,
+				RunIdStr: runIdString,
+				JobIdStr: jobIdString,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					ExecutorId:   executorId,
 					Namespace:    namespace,
@@ -841,7 +834,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 			JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-				JobId: jobIdProto,
+				JobIdStr: jobIdString,
 			},
 		},
 	}
@@ -870,10 +863,8 @@ func TestConvertJobRunPreempted(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId:  jobIdProto,
-				PreemptedRunId:  runIdProto,
-				PreemptiveJobId: preemptiveJobIdProto,
-				PreemptiveRunId: preemptiveRunIdRunIdProto,
+				PreemptedJobIdStr: jobIdString,
+				PreemptedRunIdStr: runIdString,
 			},
 		},
 	}
@@ -882,13 +873,11 @@ func TestConvertJobRunPreempted(t *testing.T) {
 		{
 			Events: &api.EventMessage_Preempted{
 				Preempted: &api.JobPreemptedEvent{
-					JobId:           jobIdString,
-					JobSetId:        jobSetName,
-					Queue:           queue,
-					Created:         protoutil.ToTimestamp(baseTime),
-					RunId:           runIdString,
-					PreemptiveJobId: preemptiveJobIdString,
-					PreemptiveRunId: preemptiveRunIdString,
+					JobId:    jobIdString,
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  protoutil.ToTimestamp(baseTime),
+					RunId:    runIdString,
 				},
 			},
 		},
