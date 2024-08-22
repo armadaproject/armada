@@ -3,8 +3,10 @@ package cmd
 import (
 	"math"
 	"os"
+	"runtime/pprof"
 
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
@@ -151,6 +153,12 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+	f, err := os.Create("profile")
+	if err != nil {
+		log.Fatal(err)
+	}
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
 
 	// Run simulators.
 	g, ctx := armadacontext.ErrGroup(ctx)
