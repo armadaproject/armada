@@ -909,9 +909,6 @@
     "apiJobCancellingEvent": {
       "type": "object",
       "properties": {
-        "cause": {
-          "type": "string"
-        },
         "created": {
           "type": "string",
           "format": "date-time"
@@ -1232,6 +1229,9 @@
     "apiJobPreemptedEvent": {
       "type": "object",
       "properties": {
+        "cause": {
+          "type": "string"
+        },
         "clusterId": {
           "type": "string"
         },
@@ -1252,9 +1252,6 @@
           "type": "string"
         },
         "queue": {
-          "type": "string"
-        },
-        "reason": {
           "type": "string"
         },
         "runId": {

@@ -140,7 +140,7 @@ message JobPreemptedEvent {
     string run_id = 6;
     string preemptive_job_id = 7;
     string preemptive_run_id = 8;
-    string reason = 9;
+    string cause = 9;
 }
 
 message JobSucceededEvent {
@@ -195,7 +195,6 @@ message JobCancellingEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4;
     string requestor = 5;
-    string cause = 6;
 }
 
 message JobCancelledEvent {
