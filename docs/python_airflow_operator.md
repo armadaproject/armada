@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, \*\*kwargs)
 Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
@@ -33,7 +33,7 @@ and handles job cancellation if the Airflow task is killed.
     * **armada_queue** (*str*) – 
 
 
-    * **job_request** (*JobSubmitRequestItem*) – 
+    * **job_request** (*JobSubmitRequestItem** | **Callable**[**[**Context**, **jinja2.Environment**]**, **JobSubmitRequestItem**]*) – 
 
 
     * **job_set_prefix** (*Optional**[**str**]*) – 
@@ -55,6 +55,9 @@ and handles job cancellation if the Airflow task is killed.
 
 
     * **job_acknowledgement_timeout** (*int*) – 
+
+
+    * **dry_run** (*bool*) – 
 
 
 
@@ -138,7 +141,7 @@ Initializes a new ArmadaOperator.
     * **armada_queue** (*str*) – The name of the Armada queue to which the job will be submitted.
 
 
-    * **job_request** (*JobSubmitRequestItem*) – The job to be submitted to Armada.
+    * **job_request** (*JobSubmitRequestItem** | **Callable**[**[**Context**, **jinja2.Environment**]**, **JobSubmitRequestItem**]*) – The job to be submitted to Armada.
 
 
     * **job_set_prefix** (*Optional**[**str**]*) – A string to prepend to the jobSet name.
@@ -162,6 +165,8 @@ for asynchronous execution.
 :param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be
 acknowledged by Armada.
 :type job_acknowledgement_timeout: int
+:param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
+:type dry_run: bool
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
 
