@@ -167,12 +167,17 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 		cappedShare   float64
 	}
 
+	totalCost := sctx.TotalCost()
 	queueInfos := make([]*queueInfo, 0, len(sctx.QueueSchedulingContexts))
 	for queueName, qctx := range sctx.QueueSchedulingContexts {
 		cappedShare := 1.0
-		if !sctx.TotalResources.IsZero() {
-			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
+		if !sctx.TotalResources.IsZero() && totalCost > 0 {
+			cappedCost := sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
+			cappedShare = cappedCost / totalCost
+		} else if qctx.CappedDemand.IsZero() {
+			cappedShare = 0
 		}
+
 		queueInfos = append(queueInfos, &queueInfo{
 			queueName:     queueName,
 			adjustedShare: 0,
