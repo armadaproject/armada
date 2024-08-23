@@ -21,7 +21,7 @@ import dataclasses
 import datetime
 import os
 import time
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jinja2
 from airflow.configuration import conf
@@ -79,7 +79,8 @@ Initializes a new ArmadaOperator.
 :param armada_queue: The name of the Armada queue to which the job will be submitted.
 :type armada_queue: str
 :param job_request: The job to be submitted to Armada.
-:type job_request: JobSubmitRequestItem
+:type job_request: JobSubmitRequestItem | \
+Callable[[Context, jinja2.Environment], JobSubmitRequestItem]
 :param job_set_prefix: A string to prepend to the jobSet name.
 :type job_set_prefix: Optional[str]
 :param lookout_url_template: Template for creating lookout links. If not specified
@@ -98,6 +99,8 @@ for asynchronous execution.
 :param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be
 acknowledged by Armada.
 :type job_acknowledgement_timeout: int
+:param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
+:type dry_run: bool
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 """
 
@@ -106,7 +109,10 @@ acknowledged by Armada.
         name: str,
         channel_args: GrpcChannelArgs,
         armada_queue: str,
-        job_request: JobSubmitRequestItem,
+        job_request: (
+            JobSubmitRequestItem
+            | Callable[[Context, jinja2.Environment], JobSubmitRequestItem]
+        ),
         job_set_prefix: Optional[str] = "",
         lookout_url_template: Optional[str] = None,
         poll_interval: int = 30,
@@ -116,6 +122,7 @@ acknowledged by Armada.
             "operators", "default_deferrable", fallback=True
         ),
         job_acknowledgement_timeout: int = 5 * 60,
+        dry_run: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -131,6 +138,7 @@ acknowledged by Armada.
         self.k8s_token_retriever = k8s_token_retriever
         self.deferrable = deferrable
         self.job_acknowledgement_timeout = job_acknowledgement_timeout
+        self.dry_run = dry_run
         self.job_context = None
 
         if self.container_logs and self.k8s_token_retriever is None:
@@ -152,6 +160,13 @@ acknowledged by Armada.
         self.job_set_id = f"{self.job_set_prefix}{context['run_id']}"
 
         self._annotate_job_request(context, self.job_request)
+
+        if self.dry_run:
+            self.log.info(
+                f"Running in dry_run mode. job_set_id: {self.job_set_id} \n"
+                f"{self.job_request}"
+            )
+            return
 
         # Submit job or reattach to previously submitted job.
         # Always do this synchronously.
@@ -183,6 +198,11 @@ acknowledged by Armada.
         :param context: Airflow Context dict wi1th values to apply on content
         :param jinja_env: jinja’s environment to use for rendering.
         """
+        if callable(self.job_request):
+            if not jinja_env:
+                jinja_env = self.get_template_env()
+            self.job_request = self.job_request(context, jinja_env)
+
         self.job_request = MessageToDict(
             self.job_request, preserving_proto_field_name=True
         )
