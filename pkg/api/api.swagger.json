@@ -909,9 +909,6 @@
     "apiJobCancellingEvent": {
       "type": "object",
       "properties": {
-        "cause": {
-          "type": "string"
-        },
         "created": {
           "type": "string",
           "format": "date-time"
@@ -923,6 +920,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "requestor": {

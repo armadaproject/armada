@@ -195,7 +195,7 @@ message JobCancellingEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4;
     string requestor = 5;
-    string cause = 6;
+    string reason = 6;
 }
 
 message JobCancelledEvent {
