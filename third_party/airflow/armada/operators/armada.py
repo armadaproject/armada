@@ -17,125 +17,31 @@
 # under the License.
 from __future__ import annotations
 
-import asyncio
+import dataclasses
 import datetime
-import functools
 import os
-import threading
 import time
-from dataclasses import dataclass
-from functools import cached_property
-from typing import Any, AsyncIterator, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jinja2
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
-from airflow.triggers.base import BaseTrigger, TriggerEvent
+from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
 from armada.auth import TokenRetriever
 from armada.log_manager import KubernetesPodLogManager
 from armada.model import GrpcChannelArgs
-from armada_client.armada.job_pb2 import JobRunDetails
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
-from armada_client.client import ArmadaClient
 from armada_client.typings import JobState
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
 
-
-def log_exceptions(method):
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        try:
-            return method(self, *args, **kwargs)
-        except Exception as e:
-            if hasattr(self, "log") and hasattr(self.log, "error"):
-                self.log.error(f"Exception in {method.__name__}: {e}")
-            raise
-
-    return wrapper
-
-
-@dataclass(frozen=False)
-class _RunningJobContext:
-    armada_queue: str
-    job_set_id: str
-    job_id: str
-    state: JobState = JobState.UNKNOWN
-    start_time: DateTime = DateTime.utcnow()
-    cluster: Optional[str] = None
-    last_log_time: Optional[DateTime] = None
-
-    def serialize(self) -> tuple[str, Dict[str, Any]]:
-        return (
-            "armada.operators.armada._RunningJobContext",
-            {
-                "armada_queue": self.armada_queue,
-                "job_set_id": self.job_set_id,
-                "job_id": self.job_id,
-                "state": self.state.value,
-                "start_time": self.start_time,
-                "cluster": self.cluster,
-                "last_log_time": self.last_log_time,
-            },
-        )
-
-    def from_payload(payload: Dict[str, Any]) -> _RunningJobContext:
-        return _RunningJobContext(
-            armada_queue=payload["armada_queue"],
-            job_set_id=payload["job_set_id"],
-            job_id=payload["job_id"],
-            state=JobState(payload["state"]),
-            start_time=payload["start_time"],
-            cluster=payload["cluster"],
-            last_log_time=payload["last_log_time"],
-        )
-
-
-class _ArmadaPollJobTrigger(BaseTrigger):
-    def __init__(self, moment: datetime.timedelta, context: _RunningJobContext) -> None:
-        super().__init__()
-        self.moment = moment
-        self.context = context
-
-    def serialize(self) -> tuple[str, dict[str, Any]]:
-        return (
-            "armada.operators.armada._ArmadaPollJobTrigger",
-            {"moment": self.moment, "context": self.context.serialize()},
-        )
-
-    def __eq__(self, value: object) -> bool:
-        if not isinstance(value, _ArmadaPollJobTrigger):
-            return False
-        return self.moment == value.moment and self.context == value.context
-
-    async def run(self) -> AsyncIterator[TriggerEvent]:
-        while self.moment > DateTime.utcnow():
-            await asyncio.sleep(1)
-        yield TriggerEvent(self.context)
-
-
-class _ArmadaClientFactory:
-    CLIENTS_LOCK = threading.Lock()
-    CLIENTS: Dict[str, ArmadaClient] = {}
-
-    @staticmethod
-    def client_for(args: GrpcChannelArgs) -> ArmadaClient:
-        """
-        Armada clients, maintain GRPC connection to Armada API.
-        We cache them per channel args config in class level cache.
-
-        Access to this method can be from multiple-threads.
-        """
-        channel_args_key = str(args.serialize())
-        with _ArmadaClientFactory.CLIENTS_LOCK:
-            if channel_args_key not in _ArmadaClientFactory.CLIENTS:
-                _ArmadaClientFactory.CLIENTS[channel_args_key] = ArmadaClient(
-                    channel=args.channel()
-                )
-            return _ArmadaClientFactory.CLIENTS[channel_args_key]
+from ..hooks import ArmadaHook
+from ..model import RunningJobContext
+from ..triggers import ArmadaPollJobTrigger
+from ..utils import log_exceptions
 
 
 class ArmadaOperator(BaseOperator, LoggingMixin):
@@ -147,6 +53,7 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
     """
 
     template_fields: Sequence[str] = ("job_request", "job_set_prefix")
+    template_fields_renderers: Dict[str, str] = {"job_request": "py"}
 
     """
 Initializes a new ArmadaOperator.
@@ -226,32 +133,24 @@ acknowledged by Armada.
         :param context: The execution context provided by Airflow.
         :type context: Context
         """
-        # We take the job_set_id from Airflow's run_id. This means that all jobs in the
-        # dag will be in the same jobset.
+        # We take the job_set_id from Airflow's run_id.
+        # So all jobs in the dag will be in the same jobset.
         self.job_set_id = f"{self.job_set_prefix}{context['run_id']}"
 
         self._annotate_job_request(context, self.job_request)
 
-        # Submit job or reattach to previously submitted job. We always do this
-        # synchronously.
-        job_id = self._reattach_or_submit_job(
-            context, self.armada_queue, self.job_set_id, self.job_request
+        # Submit job or reattach to previously submitted job.
+        # Always do this synchronously.
+        self.job_context = self._reattach_or_submit_job(
+            context, self.job_set_id, self.job_request
         )
+        self._poll_for_termination()
 
-        # Wait until finished
-        self.job_context = _RunningJobContext(
-            self.armada_queue, self.job_set_id, job_id, start_time=DateTime.utcnow()
-        )
-        if self.deferrable:
-            self._deffered_yield(self.job_context)
-        else:
-            self._poll_for_termination(self.job_context)
+    @property
+    def hook(self) -> ArmadaHook:
+        return ArmadaHook(self.channel_args)
 
-    @cached_property
-    def client(self) -> ArmadaClient:
-        return _ArmadaClientFactory.client_for(self.channel_args)
-
-    @cached_property
+    @property
     def pod_manager(self) -> KubernetesPodLogManager:
         return KubernetesPodLogManager(token_retriever=self.k8s_token_retriever)
 
@@ -276,114 +175,96 @@ acknowledged by Armada.
         super().render_template_fields(context, jinja_env)
         self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
 
-    def _cancel_job(self, job_context) -> None:
-        try:
-            result = self.client.cancel_jobs(
-                queue=job_context.armada_queue,
-                job_set_id=job_context.job_set_id,
-                job_id=job_context.job_id,
-            )
-            if len(list(result.cancelled_ids)) > 0:
-                self.log.info(f"Cancelled job with id {result.cancelled_ids}")
-            else:
-                self.log.warning(f"Failed to cancel job with id {job_context.job_id}")
-        except Exception as e:
-            self.log.warning(f"Failed to cancel job with id {job_context.job_id}: {e}")
-
     def on_kill(self) -> None:
         if self.job_context is not None:
             self.log.info(
                 f"on_kill called, "
-                "cancelling job with id {self.job_context.job_id} in queue "
+                f"cancelling job with id {self.job_context.job_id} in queue "
                 f"{self.job_context.armada_queue}"
             )
-            self._cancel_job(self.job_context)
+            self.hook.cancel_job(self.job_context)
+            self.job_context = None
 
-    def _trigger_tracking_message(self, job_id: str):
+    def lookout_url(self, job_id):
         if self.lookout_url_template:
-            return (
-                f"Job details available at "
-                f'{self.lookout_url_template.replace("<job_id>", job_id)}'
-            )
+            return self.lookout_url_template.replace("<job_id>", job_id)
+        return None
+
+    def _trigger_tracking_message(self, job_id):
+        url = self.lookout_url(job_id)
+        if url:
+            return f"Job details available at {url}"
 
         return ""
 
-    def _deffered_yield(self, context: _RunningJobContext):
-        self.defer(
-            timeout=self.execution_timeout,
-            trigger=_ArmadaPollJobTrigger(
-                DateTime.utcnow() + datetime.timedelta(seconds=self.poll_interval),
-                context,
-            ),
-            method_name="_deffered_poll_for_termination",
-        )
+    def _yield(self):
+        if self.deferrable:
+            self.defer(
+                timeout=self.execution_timeout,
+                trigger=ArmadaPollJobTrigger(
+                    DateTime.utcnow() + datetime.timedelta(seconds=self.poll_interval),
+                    self.job_context,
+                    self.channel_args,
+                ),
+                method_name="_trigger_reentry",
+            )
+        else:
+            time.sleep(self.poll_interval)
 
-    @log_exceptions
-    def _deffered_poll_for_termination(
+    def _trigger_reentry(
         self, context: Context, event: Tuple[str, Dict[str, Any]]
     ) -> None:
-        job_run_context = _RunningJobContext.from_payload(event[1])
-        while job_run_context.state.is_active():
-            job_run_context = self._check_job_status_and_fetch_logs(job_run_context)
-            if job_run_context.state.is_active():
-                self._deffered_yield(job_run_context)
-
-        self._running_job_terminated(job_run_context)
+        self.job_context = deserialize(event)
+        self._poll_for_termination()
 
     def _reattach_or_submit_job(
         self,
         context: Context,
-        queue: str,
         job_set_id: str,
         job_request: JobSubmitRequestItem,
-    ) -> str:
+    ) -> RunningJobContext:
+        # Try to re-initialize job_context from xcom if it exist.
         ti = context["ti"]
-        existing_id = ti.xcom_pull(
+        existing_run = ti.xcom_pull(
             dag_id=ti.dag_id, task_ids=ti.task_id, key=f"{ti.try_number}"
         )
-        if existing_id is not None:
+        if existing_run is not None:
             self.log.info(
-                f"Attached to existing job with id {existing_id['armada_job_id']}."
-                f" {self._trigger_tracking_message(existing_id['armada_job_id'])}"
+                f"Attached to existing job with id {existing_run['armada_job_id']}."
+                f" {self._trigger_tracking_message(existing_run['armada_job_id'])}"
             )
-            return existing_id["armada_job_id"]
+            return RunningJobContext(
+                armada_queue=existing_run["armada_queue"],
+                job_id=existing_run["armada_job_id"],
+                job_set_id=existing_run["armada_job_set_id"],
+                submit_time=DateTime.utcnow(),
+            )
 
-        job_id = self._submit_job(queue, job_set_id, job_request)
-        self.log.info(
-            f"Submitted job with id {job_id}. {self._trigger_tracking_message(job_id)}"
+        # We haven't got a running job, submit a new one and persist state to xcom.
+        ctx = self.hook.submit_job(self.armada_queue, job_set_id, job_request)
+        tracking_msg = self._trigger_tracking_message(ctx.job_id)
+        self.log.info(f"Submitted job with id {ctx.job_id}. {tracking_msg}")
+
+        ti.xcom_push(
+            key=f"{ti.try_number}",
+            value={
+                "armada_queue": ctx.armada_queue,
+                "armada_job_id": ctx.job_id,
+                "armada_job_set_id": ctx.job_set_id,
+                "armada_lookout_url": self.lookout_url(ctx.job_id),
+            },
         )
-        ti.xcom_push(key=f"{ti.try_number}", value={"armada_job_id": job_id})
-        return job_id
+        return ctx
 
-    def _submit_job(
-        self, queue: str, job_set_id: str, job_request: JobSubmitRequestItem
-    ) -> str:
-        resp = self.client.submit_jobs(queue, job_set_id, [job_request])
-        num_responses = len(resp.job_response_items)
+    def _poll_for_termination(self) -> None:
+        while self.job_context.state.is_active():
+            self._check_job_status_and_fetch_logs()
+            if self.job_context.state.is_active():
+                self._yield()
 
-        # We submitted exactly one job to armada, so we expect a single response
-        if num_responses != 1:
-            raise AirflowException(
-                f"No valid received from Armada (expected 1 job to be created "
-                f"but got {num_responses}"
-            )
-        job = resp.job_response_items[0]
+        self._running_job_terminated(self.job_context)
 
-        # Throw if armada told us we had submitted something bad
-        if job.error:
-            raise AirflowException(f"Error submitting job to Armada: {job.error}")
-
-        return job.job_id
-
-    def _poll_for_termination(self, context: _RunningJobContext) -> None:
-        while context.state.is_active():
-            context = self._check_job_status_and_fetch_logs(context)
-            if context.state.is_active():
-                time.sleep(self.poll_interval)
-
-        self._running_job_terminated(context)
-
-    def _running_job_terminated(self, context: _RunningJobContext):
+    def _running_job_terminated(self, context: RunningJobContext):
         self.log.info(
             f"job {context.job_id} terminated with state: {context.state.name}"
         )
@@ -393,57 +274,43 @@ acknowledged by Armada.
                 f"Final status was {context.state.name}"
             )
 
-    @log_exceptions
-    def _check_job_status_and_fetch_logs(
-        self, context: _RunningJobContext
-    ) -> _RunningJobContext:
-        response = self.client.get_job_status([context.job_id])
-        state = JobState(response.job_states[context.job_id])
-        if state != context.state:
-            self.log.info(
-                f"job {context.job_id} is in state: {state.name}. "
-                f"{self._trigger_tracking_message(context.job_id)}"
-            )
-        context.state = state
-
-        if context.state == JobState.UNKNOWN:
+    def _not_acknowledged_within_timeout(self) -> bool:
+        if self.job_context.state == JobState.UNKNOWN:
             if (
-                DateTime.utcnow().diff(context.start_time).in_seconds()
+                DateTime.utcnow().diff(self.job_context.submit_time).in_seconds()
                 > self.job_acknowledgement_timeout
             ):
-                self.log.info(
-                    f"Job {context.job_id} not acknowledged by the Armada within "
-                    f"timeout ({self.job_acknowledgement_timeout}), terminating"
-                )
-                self._cancel_job(context)
-                context.state = JobState.CANCELLED
-                return context
+                return True
+        return False
 
-        if self.container_logs and not context.cluster:
-            if context.state == JobState.RUNNING or context.state.is_terminal():
-                run_details = self._get_latest_job_run_details(context.job_id)
-                context.cluster = run_details.cluster
+    @log_exceptions
+    def _check_job_status_and_fetch_logs(self) -> None:
+        self.job_context = self.hook.refresh_context(
+            self.job_context, self._trigger_tracking_message(self.job_context.job_id)
+        )
 
-        if context.cluster:
+        if self._not_acknowledged_within_timeout():
+            self.log.info(
+                f"Job {self.job_context.job_id} not acknowledged by the Armada within "
+                f"timeout ({self.job_acknowledgement_timeout}), terminating"
+            )
+            self.job_context = self.hook.cancel_job(self.job_context)
+            return
+
+        if self.job_context.cluster and self.container_logs:
             try:
-                context.last_log_time = self.pod_manager.fetch_container_logs(
-                    k8s_context=context.cluster,
+                last_log_time = self.pod_manager.fetch_container_logs(
+                    k8s_context=self.job_context.cluster,
                     namespace=self.job_request.namespace,
-                    pod=f"armada-{context.job_id}-0",
+                    pod=f"armada-{self.job_context.job_id}-0",
                     container=self.container_logs,
-                    since_time=context.last_log_time,
+                    since_time=self.job_context.last_log_time,
+                )
+                self.job_context = dataclasses.replace(
+                    self.job_context, last_log_time=last_log_time
                 )
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
-        return context
-
-    def _get_latest_job_run_details(self, job_id) -> Optional[JobRunDetails]:
-        job_details = self.client.get_job_details([job_id]).job_details[job_id]
-        if job_details and job_details.latest_run_id:
-            for run in job_details.job_runs:
-                if run.run_id == job_details.latest_run_id:
-                    return run
-        return None
 
     @staticmethod
     def _annotate_job_request(context, request: JobSubmitRequestItem):

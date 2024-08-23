@@ -58,8 +58,6 @@ and handles job cancellation if the Airflow task is killed.
 
 
 
-#### _property_ client(_: ArmadaClien_ )
-
 #### execute(context)
 Submits the job to Armada and polls for completion.
 
@@ -75,6 +73,10 @@ Submits the job to Armada and polls for completion.
     None
 
 
+
+#### _property_ hook(_: ArmadaHoo_ )
+
+#### lookout_url(job_id)
 
 #### on_kill()
 Override this method to clean up subprocesses when a task instance gets killed.
@@ -117,6 +119,8 @@ Args:
 
 
 #### template_fields(_: Sequence[str_ _ = ('job_request', 'job_set_prefix'_ )
+
+#### template_fields_renderers(_: Dict[str, str_ _ = {'job_request': 'py'_ )
 Initializes a new ArmadaOperator.
 
 
@@ -158,8 +162,6 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
-
-### armada.operators.armada.log_exceptions(method)
 ## armada.triggers.armada module
 
 ## armada.auth module
@@ -176,18 +178,10 @@ Bases: `Protocol`
     str
 
 
-
-#### serialize()
-
-* **Return type**
-
-    *Tuple*[str, *Dict*[str, *Any*]]
-
-
 ## armada.model module
 
 
-### _class_ armada.model.GrpcChannelArgs(target, options=None, compression=None, auth=None, auth_details=None)
+### _class_ armada.model.GrpcChannelArgs(target, options=None, compression=None, auth=None)
 Bases: `object`
 
 
@@ -197,32 +191,31 @@ Bases: `object`
     * **target** (*str*) – 
 
 
-    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – 
+    * **options** (*Optional**[**Sequence**[**Tuple**[**str**, **Any**]**]**]*) – 
 
 
-    * **compression** (*Compression** | **None*) – 
+    * **compression** (*Optional**[**grpc.Compression**]*) – 
 
 
-    * **auth** (*AuthMetadataPlugin** | **None*) – 
-
-
-    * **auth_details** (*Dict**[**str**, **Any**] **| **None*) – 
+    * **auth** (*Optional**[**grpc.AuthMetadataPlugin**]*) – 
 
 
 
-#### aio_channel()
+#### _static_ deserialize(data, version)
+
+* **Parameters**
+
+    
+    * **data** (*dict**[**str**, **Any**]*) – 
+
+
+    * **version** (*int*) – 
+
+
 
 * **Return type**
 
-    *Channel*
-
-
-
-#### channel()
-
-* **Return type**
-
-    *Channel*
+    *GrpcChannelArgs*
 
 
 
@@ -231,3 +224,50 @@ Bases: `object`
 * **Return type**
 
     *Dict*[str, *Any*]
+
+
+
+### _class_ armada.model.RunningJobContext(armada_queue: 'str', job_id: 'str', job_set_id: 'str', submit_time: 'DateTime', cluster: 'Optional[str]' = None, last_log_time: 'Optional[DateTime]' = None, job_state: 'str' = 'UNKNOWN')
+Bases: `object`
+
+
+* **Parameters**
+
+    
+    * **armada_queue** (*str*) – 
+
+
+    * **job_id** (*str*) – 
+
+
+    * **job_set_id** (*str*) – 
+
+
+    * **submit_time** (*DateTime*) – 
+
+
+    * **cluster** (*str** | **None*) – 
+
+
+    * **last_log_time** (*DateTime** | **None*) – 
+
+
+    * **job_state** (*str*) – 
+
+
+
+#### armada_queue(_: st_ )
+
+#### cluster(_: str | Non_ _ = Non_ )
+
+#### job_id(_: st_ )
+
+#### job_set_id(_: st_ )
+
+#### job_state(_: st_ _ = 'UNKNOWN_ )
+
+#### last_log_time(_: DateTime | Non_ _ = Non_ )
+
+#### _property_ state(_: JobStat_ )
+
+#### submit_time(_: DateTim_ )
