@@ -83,7 +83,6 @@ func ShortSequenceString(sequence *armadaevents.EventSequence) string {
 
 // ApiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-
 	if e == nil || e.MainObject == nil || e.MainObject.Object == nil {
 		return nil, errors.Errorf("SubmitJob or one of its member pointers is nil")
 	}
