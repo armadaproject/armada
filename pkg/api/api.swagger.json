@@ -1232,6 +1232,9 @@
     "apiJobPreemptedEvent": {
       "type": "object",
       "properties": {
+        "cause": {
+          "type": "string"
+        },
         "clusterId": {
           "type": "string"
         },

@@ -527,6 +527,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		RunId:           runId,
 		PreemptiveJobId: preemptiveJobId,
 		PreemptiveRunId: preemptiveRunId,
+		Cause:           e.Cause,
 	}
 
 	return []*api.EventMessage{

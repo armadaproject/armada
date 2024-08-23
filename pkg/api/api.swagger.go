@@ -1243,6 +1243,9 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobPreemptedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cause\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

@@ -528,6 +528,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true); err != nil {
 				return nil, err
 			} else {
+				jctx.PodSchedulingContext.SchedulingMethod = schedulercontext.Rescheduled
 				return node, nil
 			}
 		}
@@ -548,6 +549,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 		}
 		if node != nil {
 			pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
+			pctx.SchedulingMethod = schedulercontext.ScheduledAsAwayJob
 			return node, nil
 		}
 	}
@@ -606,6 +608,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = schedulercontext.ScheduledWithoutPreemption
 		return node, nil
 	}
 
@@ -629,6 +632,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = schedulercontext.ScheduledWithFairSharePreemption
 		return node, nil
 	}
 
@@ -642,6 +646,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = schedulercontext.ScheduledWithUrgencyBasedPreemption
 		return node, nil
 	}
 
@@ -867,6 +872,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 			if priority > maxPriority {
 				maxPriority = priority
 			}
+			job.JobSchedulingContext.PreemptingJobId = jctx.JobId
 		}
 
 		selectedNode = nodeCopy
