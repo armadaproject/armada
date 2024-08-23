@@ -58,7 +58,6 @@ func TestSchedulingContextAccounting(t *testing.T) {
 }
 
 func TestCalculateFairShares(t *testing.T) {
-
 	zeroCpu := cpu("0")
 	oneCpu := cpu("1")
 	fortyCpu := cpu("40")
