@@ -920,6 +920,9 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobCancellingEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cause\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
