@@ -1,3 +1,5 @@
+from airflow.plugins_manager import AirflowPlugin
+
 from .armada.operators.armada import LookoutLink
 
 
