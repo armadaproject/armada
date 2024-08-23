@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -171,7 +170,7 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 func (m *Metrics) UpdateMany(
 	ctx *armadacontext.Context,
 	jsts []jobdb.JobStateTransitions,
-	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
+	jobRunErrorsByRunId map[string]*armadaevents.Error,
 ) error {
 	for _, jst := range jsts {
 		if err := m.Update(ctx, jst, jobRunErrorsByRunId); err != nil {
@@ -184,7 +183,7 @@ func (m *Metrics) UpdateMany(
 func (m *Metrics) Update(
 	ctx *armadacontext.Context,
 	jst jobdb.JobStateTransitions,
-	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
+	jobRunErrorsByRunId map[string]*armadaevents.Error,
 ) error {
 	if jst.Queued {
 		if err := m.UpdateQueued(jst.Job); err != nil {
@@ -263,7 +262,7 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 	return m.updateMetrics(labels, job, duration)
 }
 
-func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[string]*armadaevents.Error) error {
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
 	if category == jobRunPreempted {
 		// It is safer to UpdatePreempted from preemption errors and not from the scheduler cycle result.
@@ -336,7 +335,7 @@ func (m *Metrics) UpdateRunning(job *jobdb.Job) error {
 	return m.updateMetrics(labels, job, duration)
 }
 
-func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) (category, subCategory string) {
+func (m *Metrics) failedCategoryAndSubCategoryFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[string]*armadaevents.Error) (category, subCategory string) {
 	run := job.LatestRun()
 	if run == nil {
 		return

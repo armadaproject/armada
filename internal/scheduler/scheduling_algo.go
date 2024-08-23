@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/immutable"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -641,7 +640,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 				Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
 			continue
 		}
-		executorRunIds := make(map[uuid.UUID]bool, len(executorRuns))
+		executorRunIds := make(map[string]bool, len(executorRuns))
 		for _, run := range executorRuns {
 			executorRunIds[run] = true
 		}

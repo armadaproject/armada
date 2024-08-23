@@ -41,8 +41,8 @@ func TestUpdate(t *testing.T) {
 		time.Now().UnixNano(),
 		true)
 
-	jobRunErrorsByRunId := map[uuid.UUID]*armadaevents.Error{
-		uuid.MustParse(queuedJob.Id()): {
+	jobRunErrorsByRunId := map[string]*armadaevents.Error{
+		queuedJob.Id(): {
 			Terminal: true,
 			Reason: &armadaevents.Error_PodError{
 				PodError: &armadaevents.PodError{

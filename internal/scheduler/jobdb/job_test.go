@@ -42,7 +42,7 @@ var baseJob, _ = jobDb.NewJob(
 )
 
 var baseRun = &JobRun{
-	id:        uuid.New(),
+	id:        uuid.New().String(),
 	created:   3,
 	executor:  "test-executor",
 	running:   true,
@@ -161,7 +161,7 @@ func TestJob_TestWithUpdatedRun_NewRun(t *testing.T) {
 
 func TestJob_TestWithUpdatedRun_UpdateRun(t *testing.T) {
 	run := &JobRun{
-		id:        uuid.New(),
+		id:        uuid.New().String(),
 		created:   3,
 		executor:  "test-executor",
 		running:   true,
@@ -179,7 +179,7 @@ func TestJob_TestWithUpdatedRun_UpdateRun(t *testing.T) {
 
 func TestJob_TestWithUpdatedRun_AdditionalRun(t *testing.T) {
 	additionalRun := &JobRun{
-		id:       uuid.New(),
+		id:       uuid.New().String(),
 		created:  baseRun.created + 1,
 		executor: "test-executor",
 		running:  true,
@@ -192,7 +192,7 @@ func TestJob_TestWithUpdatedRun_AdditionalRun(t *testing.T) {
 
 func TestJob_TestWithUpdatedRun_AdditionalEarlierRun(t *testing.T) {
 	additionalRun := &JobRun{
-		id:       uuid.New(),
+		id:       uuid.New().String(),
 		created:  baseRun.created - 1,
 		executor: "test-executor",
 		running:  true,
@@ -206,7 +206,7 @@ func TestJob_TestWithUpdatedRun_AdditionalEarlierRun(t *testing.T) {
 func TestJob_TestNumReturned(t *testing.T) {
 	returnedRun := func() *JobRun {
 		return &JobRun{
-			id:       uuid.New(),
+			id:       uuid.New().String(),
 			created:  baseRun.created,
 			returned: true,
 		}
@@ -214,7 +214,7 @@ func TestJob_TestNumReturned(t *testing.T) {
 
 	nonReturnedRun := func() *JobRun {
 		return &JobRun{
-			id:       uuid.New(),
+			id:       uuid.New().String(),
 			created:  baseRun.created,
 			returned: false,
 		}
@@ -238,7 +238,7 @@ func TestJob_TestNumReturned(t *testing.T) {
 func TestJob_TestNumAttempts(t *testing.T) {
 	attemptedRun := func() *JobRun {
 		return &JobRun{
-			id:           uuid.New(),
+			id:           uuid.New().String(),
 			created:      baseRun.created,
 			returned:     true,
 			runAttempted: true,
@@ -247,7 +247,7 @@ func TestJob_TestNumAttempts(t *testing.T) {
 
 	nonAttemptedRun := func() *JobRun {
 		return &JobRun{
-			id:           uuid.New(),
+			id:           uuid.New().String(),
 			created:      baseRun.created,
 			returned:     true,
 			runAttempted: false,
@@ -273,7 +273,7 @@ func TestJob_TestRunsById(t *testing.T) {
 	runs := make([]*JobRun, 10)
 	job := baseJob
 	for i := 0; i < len(runs); i++ {
-		runs[i] = &JobRun{id: uuid.New()}
+		runs[i] = &JobRun{id: uuid.New().String()}
 		job = job.WithUpdatedRun(runs[i])
 	}
 	for i := 0; i < len(runs); i++ {

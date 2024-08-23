@@ -486,7 +486,7 @@ func TestSchedule(t *testing.T) {
 						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, node.Pool, job.PriorityClass().Priority)
 						if existingJobs.acknowledged {
 							run := job.LatestRun()
-							node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
+							node.StateByJobRunId[run.Id()] = schedulerobjects.JobRunState_RUNNING
 						}
 						jobsToUpsert = append(jobsToUpsert, job)
 						executorIndexByJobId[job.Id()] = executorIndex

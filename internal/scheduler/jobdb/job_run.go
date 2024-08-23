@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )
@@ -15,7 +14,7 @@ import (
 // such as `pod_requirements_overlay`; these are not represented here.
 type JobRun struct {
 	// Unique identifier for the run.
-	id uuid.UUID
+	id string
 	// Id of the job this run is associated with.
 	jobId string
 	// Time at which the run was created.
@@ -85,8 +84,7 @@ func (run *JobRun) Assert() error {
 	var result *multierror.Error
 
 	// Assert that required fields are set.
-	var emptyUuid uuid.UUID
-	if run.Id() == emptyUuid {
+	if run.String() == "" {
 		result = multierror.Append(result, errors.New("run has an empty id"))
 	}
 	if run.JobId() == "" {
@@ -204,7 +202,7 @@ func (run *JobRun) Equal(other *JobRun) bool {
 	return true
 }
 
-func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
+func MinimalRun(id string, creationTime int64) *JobRun {
 	return &JobRun{
 		id:                  id,
 		created:             creationTime,
@@ -214,7 +212,7 @@ func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
 
 // CreateRun creates a new scheduler job run from a database job run
 func (jobDb *JobDb) CreateRun(
-	id uuid.UUID,
+	id string,
 	jobId string,
 	creationTime int64,
 	executor string,
@@ -266,7 +264,7 @@ func (jobDb *JobDb) CreateRun(
 }
 
 // Id returns the id of the JobRun.
-func (run *JobRun) Id() uuid.UUID {
+func (run *JobRun) Id() string {
 	return run.id
 }
 
