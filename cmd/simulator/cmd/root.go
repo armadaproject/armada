@@ -157,7 +157,10 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	pprof.StartCPUProfile(f)
+	err = pprof.StartCPUProfile(f)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer pprof.StopCPUProfile()
 
 	// Run simulators.
