@@ -32,10 +32,7 @@ type Configuration struct {
 	// Configuration controlling leader election
 	Leader LeaderConfig
 	// Configuration controlling metrics
-	Metrics LegacyMetricsConfig
-	// Configuration for new scheduler metrics.
-	// Due to replace metrics configured via the above entry.
-	SchedulerMetrics MetricsConfig
+	Metrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling SchedulingConfig
 	Auth       authconfig.AuthConfig
@@ -67,28 +64,6 @@ func (c Configuration) Validate() error {
 	validate := validator.New()
 	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
 	return validate.Struct(c)
-}
-
-type MetricsConfig struct {
-	// If true, disable metric collection and publishing.
-	Disabled bool
-	// Regexes used for job error categorisation.
-	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
-	// If no regex matches, the subCategory label is the empty string.
-	TrackedErrorRegexes []string
-	// Metrics are exported for these resources.
-	TrackedResourceNames []v1.ResourceName
-	// Optionally rename resources in exported metrics.
-	// E.g., if ResourceRenaming["nvidia.com/gpu"] = "gpu", then metrics for resource "nvidia.com/gpu" use resource name "gpu" instead.
-	// This can be used to avoid illegal Prometheus metric names (e.g., for "nvidia.com/gpu" as "/" is not allowed).
-	// Allowed characters in resource names are [a-zA-Z_:][a-zA-Z0-9_:]*
-	// It can also be used to track multiple resources within the same metric, e.g., "nvidia.com/gpu" and "amd.com/gpu".
-	ResourceRenaming map[v1.ResourceName]string
-	// The first matching regex of each error message is cached in an LRU cache.
-	// This setting controls the cache size.
-	MatchedRegexIndexByErrorMessageCacheSize uint64
-	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
-	ResetInterval time.Duration
 }
 
 type LeaderConfig struct {
@@ -128,16 +103,16 @@ type HttpConfig struct {
 	Port int `validate:"required"`
 }
 
-// TODO: ALl this needs to be unified with MetricsConfig
-type LegacyMetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
-	Metrics         SchedulerMetricsConfig
-}
-
-type SchedulerMetricsConfig struct {
-	ScheduleCycleTimeHistogramSettings  HistogramConfig
-	ReconcileCycleTimeHistogramSettings HistogramConfig
+type MetricsConfig struct {
+	Port                         uint16
+	RefreshInterval              time.Duration
+	JobStateMetricsResetInterval time.Duration
+	// Regexes used for job error categorisation.
+	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
+	// If no regex matches, the subCategory label is the empty string.
+	TrackedErrorRegexes []string
+	// Metrics are exported for these resources.
+	TrackedResourceNames []v1.ResourceName
 }
 
 type HistogramConfig struct {
