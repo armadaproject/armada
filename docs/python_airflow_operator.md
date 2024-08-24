@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, \*\*kwargs)
 Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
@@ -33,7 +33,7 @@ and handles job cancellation if the Airflow task is killed.
     * **armada_queue** (*str*) – 
 
 
-    * **job_request** (*JobSubmitRequestItem*) – 
+    * **job_request** (*JobSubmitRequestItem** | **Callable**[**[**Context**, **jinja2.Environment**]**, **JobSubmitRequestItem**]*) – 
 
 
     * **job_set_prefix** (*Optional**[**str**]*) – 
@@ -57,8 +57,9 @@ and handles job cancellation if the Airflow task is killed.
     * **job_acknowledgement_timeout** (*int*) – 
 
 
+    * **dry_run** (*bool*) – 
 
-#### _property_ client(_: ArmadaClien_ )
+
 
 #### execute(context)
 Submits the job to Armada and polls for completion.
@@ -76,6 +77,10 @@ Submits the job to Armada and polls for completion.
 
 
 
+#### _property_ hook(_: ArmadaHoo_ )
+
+#### lookout_url(job_id)
+
 #### on_kill()
 Override this method to clean up subprocesses when a task instance gets killed.
 
@@ -88,6 +93,8 @@ operator needs to be cleaned up, or it will leave ghost processes behind.
     None
 
 
+
+#### operator_extra_links(_: Collection[BaseOperatorLink_ _ = (LookoutLink(),_ )
 
 #### _property_ pod_manager(_: KubernetesPodLogManage_ )
 
@@ -117,6 +124,8 @@ Args:
 
 
 #### template_fields(_: Sequence[str_ _ = ('job_request', 'job_set_prefix'_ )
+
+#### template_fields_renderers(_: Dict[str, str_ _ = {'job_request': 'py'_ )
 Initializes a new ArmadaOperator.
 
 
@@ -132,7 +141,7 @@ Initializes a new ArmadaOperator.
     * **armada_queue** (*str*) – The name of the Armada queue to which the job will be submitted.
 
 
-    * **job_request** (*JobSubmitRequestItem*) – The job to be submitted to Armada.
+    * **job_request** (*JobSubmitRequestItem** | **Callable**[**[**Context**, **jinja2.Environment**]**, **JobSubmitRequestItem**]*) – The job to be submitted to Armada.
 
 
     * **job_set_prefix** (*Optional**[**str**]*) – A string to prepend to the jobSet name.
@@ -156,10 +165,39 @@ for asynchronous execution.
 :param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be
 acknowledged by Armada.
 :type job_acknowledgement_timeout: int
+:param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
+:type dry_run: bool
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
 
-### armada.operators.armada.log_exceptions(method)
+### _class_ armada.operators.armada.LookoutLink()
+Bases: `BaseOperatorLink`
+
+
+#### get_link(operator, \*, ti_key)
+Link to external system.
+
+Note: The old signature of this function was `(self, operator, dttm: datetime)`. That is still
+supported at runtime but is deprecated.
+
+
+* **Parameters**
+
+    
+    * **operator** (*BaseOperator*) – The Airflow operator object this link is associated to.
+
+
+    * **ti_key** (*TaskInstanceKey*) – TaskInstance ID to return link for.
+
+
+
+* **Returns**
+
+    link to external system
+
+
+
+#### name(_ = 'Lookout_ )
 ## armada.triggers.armada module
 
 ## armada.auth module
@@ -176,18 +214,10 @@ Bases: `Protocol`
     str
 
 
-
-#### serialize()
-
-* **Return type**
-
-    *Tuple*[str, *Dict*[str, *Any*]]
-
-
 ## armada.model module
 
 
-### _class_ armada.model.GrpcChannelArgs(target, options=None, compression=None, auth=None, auth_details=None)
+### _class_ armada.model.GrpcChannelArgs(target, options=None, compression=None, auth=None)
 Bases: `object`
 
 
@@ -197,32 +227,31 @@ Bases: `object`
     * **target** (*str*) – 
 
 
-    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – 
+    * **options** (*Optional**[**Sequence**[**Tuple**[**str**, **Any**]**]**]*) – 
 
 
-    * **compression** (*Compression** | **None*) – 
+    * **compression** (*Optional**[**grpc.Compression**]*) – 
 
 
-    * **auth** (*AuthMetadataPlugin** | **None*) – 
-
-
-    * **auth_details** (*Dict**[**str**, **Any**] **| **None*) – 
+    * **auth** (*Optional**[**grpc.AuthMetadataPlugin**]*) – 
 
 
 
-#### aio_channel()
+#### _static_ deserialize(data, version)
+
+* **Parameters**
+
+    
+    * **data** (*dict**[**str**, **Any**]*) – 
+
+
+    * **version** (*int*) – 
+
+
 
 * **Return type**
 
-    *Channel*
-
-
-
-#### channel()
-
-* **Return type**
-
-    *Channel*
+    *GrpcChannelArgs*
 
 
 
@@ -231,3 +260,50 @@ Bases: `object`
 * **Return type**
 
     *Dict*[str, *Any*]
+
+
+
+### _class_ armada.model.RunningJobContext(armada_queue: 'str', job_id: 'str', job_set_id: 'str', submit_time: 'DateTime', cluster: 'Optional[str]' = None, last_log_time: 'Optional[DateTime]' = None, job_state: 'str' = 'UNKNOWN')
+Bases: `object`
+
+
+* **Parameters**
+
+    
+    * **armada_queue** (*str*) – 
+
+
+    * **job_id** (*str*) – 
+
+
+    * **job_set_id** (*str*) – 
+
+
+    * **submit_time** (*DateTime*) – 
+
+
+    * **cluster** (*str** | **None*) – 
+
+
+    * **last_log_time** (*DateTime** | **None*) – 
+
+
+    * **job_state** (*str*) – 
+
+
+
+#### armada_queue(_: st_ )
+
+#### cluster(_: str | Non_ _ = Non_ )
+
+#### job_id(_: st_ )
+
+#### job_set_id(_: st_ )
+
+#### job_state(_: st_ _ = 'UNKNOWN_ )
+
+#### last_log_time(_: DateTime | Non_ _ = Non_ )
+
+#### _property_ state(_: JobStat_ )
+
+#### submit_time(_: DateTim_ )
