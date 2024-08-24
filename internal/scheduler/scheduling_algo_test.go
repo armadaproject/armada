@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -507,7 +508,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.
-			preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+			preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(schedulerResult)
 			actualPreemptedJobsByExecutorIndexAndNodeIndex := make(map[int]map[int][]int)
 			for _, job := range preemptedJobs {
 				executorIndex := executorIndexByJobId[job.Id()]
@@ -532,7 +533,7 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that jobs were scheduled as expected.
-			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+			scheduledJobs := schedulerresult.ScheduledJobsFromSchedulerResult(schedulerResult)
 			actualScheduledIndices := make([]int, 0)
 			for _, job := range scheduledJobs {
 				actualScheduledIndices = append(actualScheduledIndices, queueIndexByJobId[job.Id()])
