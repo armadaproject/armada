@@ -1106,7 +1106,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			},
 			runUpdates: []database.Run{
 				{
-					RunID:    uuid.UUID{},
+					RunID:    uuid.MustParse(leasedJob.LatestRun().Id()),
 					JobID:    queuedJob.Id(),
 					JobSet:   queuedJob.Jobset(),
 					Executor: "test-executor",
@@ -1121,7 +1121,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			expectedUpdatedJobs: []*jobdb.Job{
 				queuedJob.WithUpdatedRun(
 					testfixtures.JobDb.CreateRun(
-						"",
+						leasedJob.LatestRun().Id(),
 						queuedJob.Id(),
 						123,
 						"test-executor",
