@@ -1888,6 +1888,12 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"labelsDeprecated\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"title\": \"A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical\",\n" +
 		"          \"items\": {\n" +
