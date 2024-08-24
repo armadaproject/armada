@@ -1,8 +1,9 @@
 package simulator
 
 import (
-	parquetWriter "github.com/xitongsys/parquet-go/writer"
 	"io"
+
+	parquetWriter "github.com/xitongsys/parquet-go/writer"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"

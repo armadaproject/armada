@@ -3,7 +3,6 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
