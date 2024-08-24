@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 )
 
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
@@ -61,7 +62,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
 }
 
-func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresult.SchedulerResult, error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 
 	nodeIdByJobId := make(map[string]string)
@@ -205,7 +206,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	if len(scheduledJobs) != len(nodeIdByJobId) {
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
-	return &SchedulerResult{
+	return &schedulerresult.SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      nodeIdByJobId,
