@@ -3,6 +3,7 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -538,7 +539,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 		// Update jobDb to reflect the decisions by the scheduler.
 		// Sort jobs to ensure deterministic event ordering.
-		preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult(result)
+		preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(result)
 		scheduledJobs := slices.Clone(result.ScheduledJobs)
 		lessJob := func(a, b *jobdb.Job) int {
 			if a.Queue() < b.Queue() {
