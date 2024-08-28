@@ -30,6 +30,7 @@ func RootCmd() *cobra.Command {
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
 	cmd.Flags().Int("logInterval", 0, "Log summary statistics every this many events. Disabled if 0.")
 	cmd.Flags().String("eventsOutputFilePath", "", "Path of file to write events to.")
+	cmd.Flags().String("cycleStatsOutputFilePath", "", "Path of file to write cycle stats to.")
 	cmd.Flags().Bool("enableFastForward", false, "Skips schedule events when we're in a steady state")
 	cmd.Flags().Int("hardTerminationMinutes", math.MaxInt, "Limit the time simulated")
 	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
@@ -58,7 +59,11 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	filePath, err := cmd.Flags().GetString("eventsOutputFilePath")
+	eventsOutputFilePath, err := cmd.Flags().GetString("eventsOutputFilePath")
+	if err != nil {
+		return err
+	}
+	cycleStatsOutputFilePath, err := cmd.Flags().GetString("cycleStatsOutputFilePath")
 	if err != nil {
 		return err
 	}
@@ -97,8 +102,8 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
-	if len(clusterSpecs)*len(workloadSpecs)*len(schedulingConfigsByFilePath) > 1 && filePath != "" {
-		return errors.Errorf("cannot save multiple simulations to file")
+	if len(clusterSpecs)*len(workloadSpecs)*len(schedulingConfigsByFilePath) > 1 && eventsOutputFilePath != "" {
+		return errors.Errorf("cannot save multiple simulations to eventsOutputFile")
 	}
 
 	ctx := armadacontext.Background()
@@ -108,13 +113,25 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	ctx.Infof("SchedulingConfigs: %v", maps.Keys(schedulingConfigsByFilePath))
 
 	var fileWriter *simulator.Writer
-	file, err := os.Create(filePath)
+	eventsOutputFile, err := os.Create(eventsOutputFilePath)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err = file.Close(); err != nil {
-			ctx.Errorf("failed to close file: %s", err)
+		if err = eventsOutputFile.Close(); err != nil {
+			ctx.Errorf("failed to close eventsOutputFile: %s", err)
+			return
+		}
+	}()
+
+	var statsWriter *simulator.StatsWriter
+	cycleStatsOutputFile, err := os.Create(cycleStatsOutputFilePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err = cycleStatsOutputFile.Close(); err != nil {
+			ctx.Errorf("failed to close cycleStatsOutputFile: %s", err)
 			return
 		}
 	}()
@@ -140,12 +157,19 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 					mc.LogSummaryInterval = logInterval
 					metricsCollectors = append(metricsCollectors, mc)
 
-					if filePath != "" {
-						fw, err := simulator.NewWriter(file, s.StateTransitions())
+					if eventsOutputFilePath != "" {
+						fw, err := simulator.NewWriter(eventsOutputFile, s.StateTransitions())
 						if err != nil {
 							return errors.WithStack(err)
 						}
 						fileWriter = fw
+					}
+					if cycleStatsOutputFilePath != "" {
+						sw, err := simulator.NewStatsWriter(cycleStatsOutputFile, s.CycleMetrics())
+						if err != nil {
+							return errors.WithStack(err)
+						}
+						statsWriter = sw
 					}
 					stateTransitionChannels = append(stateTransitionChannels, s.StateTransitions())
 					schedulingConfigPaths = append(schedulingConfigPaths, schedulingConfigPath)
@@ -190,9 +214,14 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Run file writer
+	// Run eventsOutputFile writer
 	g.Go(func() error {
 		return fileWriter.Run(ctx)
+	})
+
+	// Run stats writer
+	g.Go(func() error {
+		return statsWriter.Run(ctx)
 	})
 
 	// Run metric collectors.

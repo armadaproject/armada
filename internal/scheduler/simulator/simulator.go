@@ -71,6 +71,9 @@ type Simulator struct {
 	// Simulated events are emitted on these event channels.
 	// Create a channel by calling s.StateTransitions() before running the simulator.
 	stateTransitionChannels []chan StateTransition
+	// Cycle Metrics are emitted on these channels.
+	// Create a channel by calling s.CycleMetrics() before running the simulator.
+	cycleMetricsChannels []chan CycleStats
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
@@ -182,6 +185,9 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 		for _, c := range s.stateTransitionChannels {
 			close(c)
 		}
+		for _, c := range s.cycleMetricsChannels {
+			close(c)
+		}
 		ctx.Infof("Finished in %s", time.Since(startTime))
 	}()
 	// Bootstrap the simulator by pushing an event that triggers a scheduler run.
@@ -217,6 +223,14 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 func (s *Simulator) StateTransitions() <-chan StateTransition {
 	c := make(chan StateTransition, 128)
 	s.stateTransitionChannels = append(s.stateTransitionChannels, c)
+	return c
+}
+
+// CycleMetrics returns a channel on which end of cycle metrics are sent
+// This function must be called before *Simulator.Run.
+func (s *Simulator) CycleMetrics() <-chan CycleStats {
+	c := make(chan CycleStats, 1024)
+	s.cycleMetricsChannels = append(s.cycleMetricsChannels, c)
 	return c
 }
 
@@ -533,6 +547,27 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 		}
 		result, err := sch.Schedule(schedulerCtx)
+		for _, c := range result.SchedulingContexts {
+			for _, qCtx := range c.QueueSchedulingContexts {
+				for pc, rl := range qCtx.AllocatedByPriorityClass {
+					cpu := rl.Resources["cpu"]
+					memory := rl.Resources["memory"]
+					gpu := rl.Resources["nvidia.com/gpu"]
+					stats := CycleStats{
+						Time:          s.time.Unix(),
+						Queue:         qCtx.Queue,
+						Pool:          c.Pool,
+						PriorityClass: pc,
+						Cpu:           (&cpu).AsApproximateFloat64(),
+						Memory:        (&memory).AsApproximateFloat64(),
+						Gpu:           (&gpu).AsApproximateFloat64(),
+					}
+					for _, channel := range s.cycleMetricsChannels {
+						channel <- stats
+					}
+				}
+			}
+		}
 		if err != nil {
 			return err
 		}
@@ -621,7 +656,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 }
 
 // TODO: Write events to disk unless they should be discarded.
-func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaevents.EventSequence) error {
+func (s *Simulator) handleEventSequence(_ *armadacontext.Context, es *armadaevents.EventSequence) error {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	eventsToPublish := make([]*armadaevents.EventSequence_Event, 0, len(es.Events))
