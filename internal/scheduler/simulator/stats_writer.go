@@ -3,8 +3,9 @@ package simulator
 import (
 	"io"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 type StatsWriter struct {
@@ -20,6 +21,7 @@ func NewStatsWriter(writer io.Writer, c <-chan CycleStats) (*StatsWriter, error)
 
 	return sw, nil
 }
+
 func (w *StatsWriter) Run(ctx *armadacontext.Context) (err error) {
 	pw, err := parquetWriter.NewParquetWriterFromWriter(w.writer, new(CycleStats), 1)
 	if err != nil {
