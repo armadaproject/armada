@@ -14,6 +14,8 @@ import (
 
 // ExecutorRepository is an interface to be implemented by structs which provide executor information
 type ExecutorRepository interface {
+	// GetExecutor returns the stored executor matching the provided id, or an error if the executor doesn't exist.
+	GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error)
 	// GetExecutors returns all known executors, regardless of their last heartbeat time
 	GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error)
 	// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
@@ -37,6 +39,23 @@ func NewPostgresExecutorRepository(db *pgxpool.Pool) *PostgresExecutorRepository
 		compressor:   compress.NewThreadSafeZlibCompressor(1024),
 		decompressor: compress.NewThreadSafeZlibDecompressor(),
 	}
+}
+
+// GetExecutor returns the stored executor matching the provided id
+func (r *PostgresExecutorRepository) GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+	queries := New(r.db)
+	request, err := queries.SelectExecutor(ctx, id)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	executor := &schedulerobjects.Executor{}
+	err = decompressAndMarshall(request.LastRequest, r.decompressor, executor)
+	if err != nil {
+		return nil, err
+	}
+
+	return executor, nil
 }
 
 // GetExecutors returns all known executors, regardless of their last heartbeat time

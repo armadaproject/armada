@@ -36,6 +36,21 @@ func (m *MockExecutorRepository) EXPECT() *MockExecutorRepositoryMockRecorder {
 	return m.recorder
 }
 
+// GetExecutor mocks base method.
+func (m *MockExecutorRepository) GetExecutor(arg0 *armadacontext.Context, arg1 string) (*schedulerobjects.Executor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExecutor", arg0, arg1)
+	ret0, _ := ret[0].(*schedulerobjects.Executor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExecutor indicates an expected call of GetExecutor.
+func (mr *MockExecutorRepositoryMockRecorder) GetExecutor(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutor", reflect.TypeOf((*MockExecutorRepository)(nil).GetExecutor), arg0, arg1)
+}
+
 // GetExecutors mocks base method.
 func (m *MockExecutorRepository) GetExecutors(arg0 *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	m.ctrl.T.Helper()

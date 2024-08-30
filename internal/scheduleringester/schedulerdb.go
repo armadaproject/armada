@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"time"
 
+
+	"github.com/gogo/protobuf/proto"
+
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,6 +32,9 @@ type SchedulerDb struct {
 	initialBackOff time.Duration
 	maxBackOff     time.Duration
 	lockTimeout    time.Duration
+	// proto objects are stored compressed
+	compressor   compress.Compressor
+	decompressor compress.Decompressor
 }
 
 func NewSchedulerDb(
@@ -41,6 +50,8 @@ func NewSchedulerDb(
 		initialBackOff: initialBackOff,
 		maxBackOff:     maxBackOff,
 		lockTimeout:    lockTimeout,
+		compressor:     compress.NewThreadSafeZlibCompressor(1024),
+		decompressor:   compress.NewThreadSafeZlibDecompressor(),
 	}
 }
 
@@ -349,8 +360,68 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	case CordonExecutors:
+		for executorId, toApply := range o {
+			if !toApply {
+				continue
+			}
+			if err := s.setExecutorCordonedStatus(ctx, queries, executorId, true); err != nil {
+				return errors.WithStack(err)
+			}
+		}
+	case UncordonExecutors:
+		for executorId, toApply := range o {
+			if !toApply {
+				continue
+			}
+			if err := s.setExecutorCordonedStatus(ctx, queries, executorId, false); err != nil {
+				return errors.WithStack(err)
+			}
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
+	}
+	return nil
+}
+
+func (s *SchedulerDb) setExecutorCordonedStatus(
+	ctx *armadacontext.Context,
+	queries *schedulerdb.Queries,
+	executorId string,
+	status bool,
+) error {
+	request, err := queries.SelectExecutor(ctx, executorId)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	executor := &schedulerobjects.Executor{}
+	decompressed, err := s.decompressor.Decompress(request.LastRequest)
+	if err != nil {
+		return err
+	}
+	err = proto.Unmarshal(decompressed, executor)
+	if err != nil {
+		return err
+	}
+
+	executor.Cordoned = status
+
+	bytes, err := proto.Marshal(executor)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	compressed, err := s.compressor.Compress(bytes)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	err = queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+		ExecutorID:  executor.Id,
+		LastRequest: compressed,
+		UpdateTime:  executor.LastUpdateTime,
+	})
+	if err != nil {
+		return errors.WithStack(err)
 	}
 	return nil
 }

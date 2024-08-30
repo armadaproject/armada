@@ -382,6 +382,78 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	return &types.Empty{}, err
 }
 
+func (s *Server) CordonExecutor(grpcCtx context.Context, req *api.ExecutorCordonRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CordonExecutor)
+	if err != nil {
+		return nil, err
+	}
+	// We don't yet have a set of executors available to us, so we can't validate them
+	principal := auth.GetPrincipal(ctx)
+	userId := principal.GetName()
+	groups := principal.GetGroupNames()
+
+	eventTime := protoutil.ToTimestamp(s.clock.Now().UTC())
+	pulsarSchedulerSequence := &armadaevents.EventSequence{
+		UserId: userId,
+		Groups: groups,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Created: eventTime,
+				Event: &armadaevents.EventSequence_Event_CordonExecutor{
+					CordonExecutor: &armadaevents.CordonExecutor{
+						Name: req.Name,
+					},
+				},
+			},
+		},
+	}
+	err = s.publisher.PublishMessages(ctx, pulsarSchedulerSequence)
+	if err != nil {
+		log.WithError(err).Error("failed to send cordon executor message to pulsar")
+		return nil, status.Error(codes.Internal, "failed to send cordon executor message to pulsar")
+	}
+
+	return nil, fmt.Errorf("cordoning of executors not supported")
+}
+
+func (s *Server) UncordonExecutor(grpcCtx context.Context, req *api.ExecutorUncordonRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CordonExecutor)
+	if err != nil {
+		return nil, err
+	}
+	// We don't yet have a set of executors available to us, so we can't validate them
+	principal := auth.GetPrincipal(ctx)
+	userId := principal.GetName()
+	groups := principal.GetGroupNames()
+
+	eventTime := protoutil.ToTimestamp(s.clock.Now().UTC())
+	pulsarSchedulerSequence := &armadaevents.EventSequence{
+		UserId: userId,
+		Groups: groups,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Created: eventTime,
+				Event: &armadaevents.EventSequence_Event_UncordonExecutor{
+					UncordonExecutor: &armadaevents.UncordonExecutor{
+						Name: req.Name,
+					},
+				},
+			},
+		},
+	}
+	err = s.publisher.PublishMessages(ctx, pulsarSchedulerSequence)
+	if err != nil {
+		log.WithError(err).Error("failed to send uncordon executor message to pulsar")
+		return nil, status.Error(codes.Internal, "failed to send uncordon executor message to pulsar")
+	}
+
+	return nil, fmt.Errorf("uncordoning of executors not supported")
+}
+
 // Returns event sequence along with all valid job ids in the sequence
 func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, userId string, groups []string, reason string) (*armadaevents.EventSequence, []string) {
 	sequence := &armadaevents.EventSequence{

@@ -146,6 +146,8 @@ type (
 	InsertPartitionMarker struct {
 		markers []*schedulerdb.Marker
 	}
+	CordonExecutors   map[string]bool
+	UncordonExecutors map[string]bool
 )
 
 type JobSetOperation interface {
@@ -277,6 +279,28 @@ func (a *InsertPartitionMarker) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case *InsertPartitionMarker:
 		a.markers = append(a.markers, op.markers...)
+		return true
+	}
+	return false
+}
+
+func (a CordonExecutors) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case CordonExecutors:
+		for executor, cordoned := range op {
+			a[executor] = cordoned
+		}
+		return true
+	}
+	return false
+}
+
+func (a UncordonExecutors) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UncordonExecutors:
+		for executor, cordoned := range op {
+			a[executor] = cordoned
+		}
 		return true
 	}
 	return false
@@ -429,6 +453,22 @@ func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {
 
 func (a MarkJobsValidated) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
+}
+
+func (a CordonExecutors) CanBeAppliedBefore(b DbOperation) bool {
+	switch b.(type) {
+	case UncordonExecutors:
+		return false
+	}
+	return true
+}
+
+func (a UncordonExecutors) CanBeAppliedBefore(b DbOperation) bool {
+	switch b.(type) {
+	case CordonExecutors:
+		return false
+	}
+	return true
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation

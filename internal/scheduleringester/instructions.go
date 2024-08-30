@@ -109,6 +109,10 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned(), eventTime)
 		case *armadaevents.EventSequence_Event_JobValidated:
 			operationsFromEvent, err = c.handleJobValidated(event.GetJobValidated())
+		case *armadaevents.EventSequence_Event_CordonExecutor:
+			operationsFromEvent, err = c.handleCordonExecutor(event.GetCordonExecutor())
+		case *armadaevents.EventSequence_Event_UncordonExecutor:
+			operationsFromEvent, err = c.handleUncordonExecutor(event.GetUncordonExecutor())
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
@@ -414,6 +418,20 @@ func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValid
 	}
 	return []DbOperation{
 		MarkJobsValidated{jobId: checked.Pools},
+	}, nil
+}
+
+func (c *InstructionConverter) handleCordonExecutor(checked *armadaevents.CordonExecutor) ([]DbOperation, error) {
+	executor := checked.GetName()
+	return []DbOperation{
+		CordonExecutors{executor: true},
+	}, nil
+}
+
+func (c *InstructionConverter) handleUncordonExecutor(checked *armadaevents.UncordonExecutor) ([]DbOperation, error) {
+	executor := checked.GetName()
+	return []DbOperation{
+		UncordonExecutors{executor: true},
 	}, nil
 }
 

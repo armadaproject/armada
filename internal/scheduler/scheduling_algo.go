@@ -259,6 +259,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		return nil, err
 	}
 	executors = l.filterStaleExecutors(ctx, executors)
+	executors = l.filterCordonedExecutors(ctx, executors)
 
 	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
@@ -616,6 +617,19 @@ func (l *FairSchedulingAlgo) filterStaleExecutors(ctx *armadacontext.Context, ex
 			activeExecutors = append(activeExecutors, executor)
 		} else {
 			ctx.Infof("Ignoring executor %s because it hasn't heartbeated since %s", executor.Id, executor.LastUpdateTime)
+		}
+	}
+	return activeExecutors
+}
+
+// filterCordonedExecutors returns all executors that haven't been cordoned
+func (l *FairSchedulingAlgo) filterCordonedExecutors(ctx *armadacontext.Context, executors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
+	activeExecutors := make([]*schedulerobjects.Executor, 0)
+	for _, executor := range executors {
+		if !executor.Cordoned {
+			activeExecutors = append(activeExecutors, executor)
+		} else {
+			ctx.Infof("Ignoring executor %s because it's cordoned status is %t", executor.Id, executor.Cordoned)
 		}
 	}
 	return activeExecutors

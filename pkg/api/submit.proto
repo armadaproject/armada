@@ -238,6 +238,16 @@ message QueueUncordonRequest {
 }
 
 //swagger:model
+message ExecutorCordonRequest {
+  string name = 1;
+}
+
+//swagger:model
+message ExecutorUncordonRequest {
+  string name = 1;
+}
+
+//swagger:model
 message StreamingQueueGetRequest {
   uint32 num = 1;
 }
@@ -363,5 +373,15 @@ service Submit {
         get: "/v1/batched/queues"
       };
     }
-    rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
+  rpc CordonExecutor (ExecutorCordonRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      get: "/v1/executor/cordon/{name}"
+    };
+  }
+  rpc UncordonExecutor (ExecutorUncordonRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      get: "/v1/executor/uncordon/{name}"
+    };
+  }
+  rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
 }

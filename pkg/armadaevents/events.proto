@@ -91,6 +91,8 @@ message EventSequence {
             JobPreemptionRequested jobPreemptionRequested = 23;
             JobRunCancelled jobRunCancelled = 24;
             JobValidated jobValidated = 25;
+            CordonExecutor cordonExecutor = 26;
+            UncordonExecutor uncordonExecutor = 27;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -594,4 +596,12 @@ message JobRunCancelled {
     Uuid job_id = 2;
     string job_id_str = 3;
     string run_id_str= 4;
+}
+
+message CordonExecutor {
+  string name = 1;
+}
+
+message UncordonExecutor {
+  string name = 1;
 }

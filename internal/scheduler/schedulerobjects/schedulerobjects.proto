@@ -19,6 +19,8 @@ message Executor {
     google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     // Jobs that are owned by the cluster but are not assigned to any node.
     repeated string unassigned_job_runs = 9;
+    // Determines whether scheduling is enabled for this queue.
+    bool cordoned = 10;
 }
 
 // Node represents a node in a worker cluster.

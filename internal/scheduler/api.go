@@ -78,6 +78,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher,
 // 1. Stores job and capacity information received from the executor to make it available to the scheduler.
 // 2. Notifies the executor if any of its jobs are no longer active, e.g., due to being preempted by the scheduler.
 // 3. Transfers any jobs scheduled on this executor cluster that the executor don't already have.
+// 4. Maintains the executor cordoned status from the scheduler's perspective
 func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRunsServer) error {
 	// Receive once to get info necessary to get jobs to lease.
 	req, err := stream.Recv()
@@ -88,6 +89,12 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
+	storedExecutor, err := srv.executorRepository.GetExecutor(ctx, executor.Id)
+	if err == nil {
+		// Since this is a lease request, we don't want to alter the cordoned status of the executor
+		executor.Cordoned = storedExecutor.Cordoned
+	}
+
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
 		return err
 	}

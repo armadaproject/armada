@@ -1320,6 +1320,10 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
+func (t testExecutorRepository) GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+	panic("not implemented")
+}
+
 func (t testExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	panic("not implemented")
 }

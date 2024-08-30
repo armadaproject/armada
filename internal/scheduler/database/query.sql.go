@@ -222,6 +222,29 @@ func (q *Queries) SelectAllExecutors(ctx context.Context) ([]Executor, error) {
 	return items, nil
 }
 
+const selectExecutor = `-- name: SelectExecutor :one
+SELECT executor_id, last_request, last_updated FROM executors
+WHERE executor_id = $1
+`
+
+func (q *Queries) SelectExecutor(ctx context.Context, id string) (Executor, error) {
+	rows, err := q.db.Query(ctx, selectExecutor)
+	if err != nil {
+		return Executor{}, err
+	}
+	defer rows.Close()
+
+	rows.Next()
+	var executor Executor
+	if err := rows.Scan(&executor.ExecutorID, &executor.LastRequest, &executor.LastUpdated); err != nil {
+		return Executor{}, err
+	}
+	if err := rows.Err(); err != nil {
+		return Executor{}, err
+	}
+	return executor, nil
+}
+
 const selectAllJobIds = `-- name: SelectAllJobIds :many
 SELECT job_id FROM jobs
 `
