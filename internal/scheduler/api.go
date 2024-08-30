@@ -89,8 +89,8 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
-	storedExecutor, err := srv.executorRepository.GetExecutor(ctx, executor.Id)
-	if err == nil {
+	storedExecutor, _ := srv.executorRepository.GetExecutor(ctx, executor.Id)
+	if storedExecutor != nil {
 		// Since this is a lease request, we don't want to alter the cordoned status of the executor
 		executor.Cordoned = storedExecutor.Cordoned
 	}

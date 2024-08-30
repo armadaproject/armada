@@ -114,6 +114,62 @@
         }
       }
     },
+    "/v1/executor/cordon/{name}": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CordonExecutor",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/executor/uncordon/{name}": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "UncordonExecutor",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job-set/{queue}/{id}": {
       "post": {
         "produces": [

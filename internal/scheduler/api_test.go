@@ -63,6 +63,24 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId3)},
 		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
+
+	defaultRequestCordoned := &executorapi.LeaseRequest{
+		ExecutorId: "test-executor-cordoned",
+		Pool:       "test-pool",
+		Nodes: []*executorapi.NodeInfo{
+			{
+				Name: "test-node",
+				RunIdsByState: map[string]api.JobState{
+					runId1.String(): api.JobState_RUNNING,
+					runId2.String(): api.JobState_RUNNING,
+				},
+				NodeType: "node-type-1",
+			},
+		},
+		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId3)},
+		MaxJobsToLease:      uint32(maxJobsPerCall),
+	}
+
 	defaultExpectedExecutor := &schedulerobjects.Executor{
 		Id:   "test-executor",
 		Pool: "test-pool",
@@ -89,6 +107,36 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 		LastUpdateTime:    testClock.Now().UTC(),
 		UnassignedJobRuns: []string{runId3.String()},
+		Cordoned:          false,
+	}
+
+	defaultExpectedExecutorCordoned := &schedulerobjects.Executor{
+		Id:   "test-executor-cordoned",
+		Pool: "test-pool",
+		Nodes: []*schedulerobjects.Node{
+			{
+				Id:                          "test-executor-test-node",
+				Name:                        "test-node",
+				Executor:                    "test-executor",
+				TotalResources:              schedulerobjects.NewResourceList(0),
+				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
+				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
+				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+					1000: {
+						Resources: nil,
+					},
+					2000: {
+						Resources: nil,
+					},
+				},
+				LastSeen:             testClock.Now().UTC(),
+				ResourceUsageByQueue: map[string]*schedulerobjects.ResourceList{},
+				ReportingNodeType:    "node-type-1",
+			},
+		},
+		LastUpdateTime:    testClock.Now().UTC(),
+		UnassignedJobRuns: []string{runId3.String()},
+		Cordoned:          true,
 	}
 
 	submit, compressedSubmit := submitMsg(
@@ -186,6 +234,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		request          *executorapi.LeaseRequest
 		runsToCancel     []uuid.UUID
 		leases           []*database.JobRunLease
+		storedExecutor   *schedulerobjects.Executor
 		expectedExecutor *schedulerobjects.Executor
 		expectedMsgs     []*executorapi.LeaseStreamMessage
 	}{
@@ -193,6 +242,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			request:          defaultRequest,
 			runsToCancel:     []uuid.UUID{runId2},
 			leases:           []*database.JobRunLease{defaultLease},
+			storedExecutor:   defaultExpectedExecutor,
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
@@ -215,9 +265,31 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				},
 			},
 		},
+		"copy cordoned status from stored executor": {
+			request:          defaultRequestCordoned,
+			leases:           []*database.JobRunLease{defaultLease},
+			storedExecutor:   defaultExpectedExecutorCordoned,
+			expectedExecutor: defaultExpectedExecutorCordoned,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: armadaevents.ProtoUuidFromUuid(defaultLease.RunID),
+						Queue:    defaultLease.Queue,
+						Jobset:   defaultLease.JobSet,
+						User:     defaultLease.UserID,
+						Groups:   groups,
+						Job:      submit,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
 		"no node selector when missing in lease": {
 			request:          defaultRequest,
 			leases:           []*database.JobRunLease{leaseWithoutNode},
+			storedExecutor:   defaultExpectedExecutor,
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
@@ -238,6 +310,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		"run with PodRequirementsOverlay": {
 			request:          defaultRequest,
 			leases:           []*database.JobRunLease{leaseWithOverlay},
+			storedExecutor:   defaultExpectedExecutor,
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
@@ -258,6 +331,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		"preemptible job lease": {
 			request:          defaultRequest,
 			leases:           []*database.JobRunLease{preemptibleLease},
+			storedExecutor:   defaultExpectedExecutor,
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
@@ -277,6 +351,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 		"do nothing": {
 			request:          defaultRequest,
+			storedExecutor:   defaultExpectedExecutor,
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
@@ -303,6 +378,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
+			}).Times(1)
+			mockExecutorRepository.EXPECT().GetExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+				assert.Equal(t, tc.expectedExecutor.Id, id)
+				return tc.storedExecutor, nil
 			}).Times(1)
 			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher[uuid.UUID]{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)

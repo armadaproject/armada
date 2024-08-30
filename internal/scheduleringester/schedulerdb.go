@@ -3,8 +3,6 @@ package scheduleringester
 import (
 	"fmt"
 	"time"
-
-
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/compress"
