@@ -115,9 +115,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool: "test-pool",
 		Nodes: []*schedulerobjects.Node{
 			{
-				Id:                          "test-executor-test-node",
+				Id:                          "test-executor-cordoned-test-node",
 				Name:                        "test-node",
-				Executor:                    "test-executor",
+				Executor:                    "test-executor-cordoned",
 				TotalResources:              schedulerobjects.NewResourceList(0),
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
