@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "armada_airflow"
-version = "1.0.2"
+version = "1.0.3"
 description = "Armada Airflow Operator"
 readme='README.md'
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
