@@ -102,7 +102,7 @@ func ProtoUuidFromUuidString(uuidString string) (*Uuid, error) {
 	return ProtoUuidFromUuid(id), nil
 }
 
-// MustProtoUuidFromUuidString parses a ULID string into a proto UUID and returns it.
+// MustProtoUuidFromUuidString parses a UUID string into a proto UUID and returns it.
 func MustProtoUuidFromUuidString(uuidString string) *Uuid {
 	id, err := uuid.Parse(uuidString)
 	if err != nil {
