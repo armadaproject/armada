@@ -19,6 +19,7 @@ type MetricsCollector struct {
 	MetricsByQueue map[string]MetricsVector
 	// If non-zero, log a summary every this many events.
 	LogSummaryInterval int
+	BaseTime           time.Time
 }
 
 type MetricsVector struct {
@@ -38,6 +39,7 @@ func NewMetricsCollector(c <-chan StateTransition) *MetricsCollector {
 	return &MetricsCollector{
 		c:              c,
 		MetricsByQueue: make(map[string]MetricsVector),
+		BaseTime:       time.Unix(0, 0),
 	}
 }
 
@@ -94,7 +96,7 @@ func (mc *MetricsCollector) addEventSequence(eventSequence *armadaevents.EventSe
 	perQueueMetrics := mc.MetricsByQueue[queue]
 	perQueueMetrics.NumEvents += 1
 	for _, event := range eventSequence.Events {
-		d := protoutil.ToStdTime(event.Created).Sub(time.Time{})
+		d := protoutil.ToStdTime(event.Created).Sub(mc.BaseTime)
 		mc.OverallMetrics.TimeOfMostRecentEvent = d
 		perQueueMetrics.TimeOfMostRecentEvent = d
 		switch event.GetEvent().(type) {

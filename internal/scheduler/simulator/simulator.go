@@ -628,7 +628,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		s.allocationByPoolAndQueueAndPriorityClass[pool.Name] = sctx.AllocatedByQueueAndPriority()
 
 		// Generate eventSequences.
-		// TODO: Add time taken to run the scheduler to s.time.
 		eventSequences, err = scheduler.AppendEventSequencesFromPreemptedJobs(eventSequences, preemptedJobs, s.time)
 		if err != nil {
 			return err

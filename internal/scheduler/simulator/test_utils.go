@@ -75,6 +75,24 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 				Resolution: resource.MustParse("1"),
 			},
 		},
+		SupportedResourceTypes: []configuration.ResourceType{
+			{
+				Name:       "memory",
+				Resolution: resource.MustParse("1"),
+			},
+			{
+				Name:       "cpu",
+				Resolution: resource.MustParse("1m"),
+			},
+			{
+				Name:       "ephemeral-storage",
+				Resolution: resource.MustParse("1"),
+			},
+			{
+				Name:       "nvidia.com/gpu",
+				Resolution: resource.MustParse("1"),
+			},
+		},
 		MaximumSchedulingRate:          math.Inf(1),
 		MaximumSchedulingBurst:         math.MaxInt,
 		MaximumPerQueueSchedulingRate:  math.Inf(1),

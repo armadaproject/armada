@@ -1,4 +1,7 @@
-maxQueueLookback: 1000
+maximumSchedulingRate: "+inf"
+maximumSchedulingBurst: 9223372036854775807
+maximumPerQueueSchedulingRate: "+Inf"
+maximumPerQueueSchedulingBurst: 9223372036854775807
 supportedResourceTypes:
   - name: memory
     resolution: "1"
@@ -8,7 +11,6 @@ supportedResourceTypes:
     resolution: "1"
   - name: nvidia.com/gpu
     resolution: "1"
-fairnessModel: "DominantResourceFairness"
 dominantResourceFairnessResourcesToConsider:
   - "cpu"
   - "memory"
@@ -33,7 +35,3 @@ priorityClasses:
     priority: 30000
     preemptible: true
 defaultPriorityClassName: "armada-default"
-maximumSchedulingRate: 9223372036854775807
-maximumSchedulingBurst: 9223372036854775807
-maximumPerQueueSchedulingRate: 9223372036854775807
-maximumPerQueueSchedulingBurst: 9223372036854775807
