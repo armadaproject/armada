@@ -53,7 +53,7 @@ type IDProvider interface {
 	New() string
 }
 
-// RealUUIDProvider generates idsusing a UUID
+// RealUUIDProvider generates an id using a UUID
 type RealUUIDProvider struct{}
 
 func (_ RealUUIDProvider) New() string {
