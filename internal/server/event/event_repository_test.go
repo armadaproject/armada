@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
@@ -23,8 +22,6 @@ const (
 )
 
 var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	baseTimeProto = protoutil.ToTimestamp(baseTime)
 )
@@ -47,8 +44,8 @@ var assigned = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunIdStr: runIdString,
+			JobIdStr: jobIdString,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					ObjectMeta: &armadaevents.ObjectMeta{
@@ -73,8 +70,8 @@ var running = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunIdStr: runIdString,
+			JobIdStr: jobIdString,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -93,8 +90,8 @@ var runSucceeded = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunIdStr: runIdString,
+			JobIdStr: jobIdString,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
