@@ -7,7 +7,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -74,8 +73,6 @@ func TestEventServer_ForceNew(t *testing.T) {
 			runIdString := "123e4567-e89b-12d3-a456-426614174000"
 			baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 			baseTimeProto := protoutil.ToTimestamp(baseTime)
-			jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
-			runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			require.NoError(t, err)
@@ -86,8 +83,8 @@ func TestEventServer_ForceNew(t *testing.T) {
 				Created: baseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 					JobRunAssigned: &armadaevents.JobRunAssigned{
-						RunId: runIdProto,
-						JobId: jobIdProto,
+						RunIdStr: runIdString,
+						JobIdStr: jobIdString,
 					},
 				},
 			}
@@ -218,15 +215,13 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				runIdString := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 				baseTimeProto := protoutil.ToTimestamp(baseTime)
-				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
-				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 				assigned := &armadaevents.EventSequence_Event{
 					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
-							RunId: runIdProto,
-							JobId: jobIdProto,
+							RunIdStr: runIdString,
+							JobIdStr: jobIdString,
 						},
 					},
 				}
@@ -263,15 +258,12 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				runIdString := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 				baseTimeProto := protoutil.ToTimestamp(baseTime)
-				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
-				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-
 				assigned := &armadaevents.EventSequence_Event{
 					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
-							RunId: runIdProto,
-							JobId: jobIdProto,
+							RunIdStr: runIdString,
+							JobIdStr: jobIdString,
 						},
 					},
 				}
