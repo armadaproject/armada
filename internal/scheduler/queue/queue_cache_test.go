@@ -30,7 +30,7 @@ func TestFetch(t *testing.T) {
 				{Name: "testQueue2"},
 			},
 		},
-		"Immediate Steam Error": {
+		"Immediate Stream Error": {
 			queues:      []*api.Queue{},
 			streamError: true,
 		},
