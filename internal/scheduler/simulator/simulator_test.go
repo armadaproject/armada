@@ -164,59 +164,6 @@ func TestSimulator(t *testing.T) {
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
-		"Preemption cascade": {
-			clusterSpec: &ClusterSpec{
-				Name: "test",
-				Pools: []*Pool{
-					WithExecutorGroupsPool(
-						&Pool{Name: "Pool"},
-						ExecutorGroup32Cpu(1, 1),
-						ExecutorGroup32Cpu(1, 1),
-						ExecutorGroup32Cpu(1, 1),
-					),
-				},
-			},
-			workloadSpec: &WorkloadSpec{
-				Queues: []*Queue{
-					WithJobTemplatesQueue(
-						&Queue{Name: "B", Weight: 1},
-						JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
-					),
-					WithJobTemplatesQueue(
-						&Queue{Name: "C", Weight: 1},
-						JobTemplate32Cpu(2, "foo", testfixtures.PriorityClass0),
-					),
-					WithJobTemplatesQueue(
-						&Queue{Name: "A", Weight: 1},
-						WithMinSubmitTimeJobTemplate(
-							JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
-							30*time.Second,
-						),
-					),
-				},
-			},
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			expectedEventSequences: []*armadaevents.EventSequence{
-				SubmitJob(1, "B", "foo"),
-				SubmitJob(2, "C", "foo"),
-				JobRunLeased(1, "B", "foo"),
-				JobRunLeased(1, "C", "foo"),
-				JobRunLeased(1, "C", "foo"),
-				SubmitJob(1, "A", "foo"),
-				JobRunPreempted(1, "B", "foo"),
-				JobRunLeased(1, "A", "foo"),
-				SubmitJob(1, "B", "foo"),
-				JobRunPreempted(1, "C", "foo"),
-				JobRunLeased(1, "B", "foo"),
-				SubmitJob(1, "C", "foo"),
-				JobSucceeded(1, "C", "foo"),
-				JobRunLeased(1, "C", "foo"),
-				JobSucceeded(1, "A", "foo"),
-				JobSucceeded(1, "B", "foo"),
-				JobSucceeded(1, "C", "foo"),
-			},
-			simulatedTimeLimit: 5 * time.Minute,
-		},
 		"No preemption cascade with unified scheduling": {
 			clusterSpec: &ClusterSpec{
 				Name: "test",

@@ -276,18 +276,18 @@ func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
 func (s *Simulator) setupClusters() error {
 	for _, pool := range s.ClusterSpec.Pools {
 		totalResourcesForPool := schedulerobjects.ResourceList{}
+		nodeDb, err := nodedb.NewNodeDb(
+			s.schedulingConfig.PriorityClasses,
+			s.schedulingConfig.IndexedResources,
+			s.schedulingConfig.IndexedTaints,
+			s.schedulingConfig.IndexedNodeLabels,
+			s.schedulingConfig.WellKnownNodeTypes,
+			s.resourceListFactory,
+		)
+		if err != nil {
+			return err
+		}
 		for executorGroupIndex, executorGroup := range pool.ClusterGroups {
-			nodeDb, err := nodedb.NewNodeDb(
-				s.schedulingConfig.PriorityClasses,
-				s.schedulingConfig.IndexedResources,
-				s.schedulingConfig.IndexedTaints,
-				s.schedulingConfig.IndexedNodeLabels,
-				s.schedulingConfig.WellKnownNodeTypes,
-				s.resourceListFactory,
-			)
-			if err != nil {
-				return err
-			}
 			for executorIndex, executor := range executorGroup.Clusters {
 				executorName := fmt.Sprintf("%s-%d-%d", pool.Name, executorGroupIndex, executorIndex)
 				for nodeTemplateIndex, nodeTemplate := range executor.NodeTemplates {
@@ -316,9 +316,9 @@ func (s *Simulator) setupClusters() error {
 					}
 				}
 			}
-			s.nodeDbByPool[pool.Name] = nodeDb
 			totalResourcesForPool.Add(nodeDb.TotalResources())
 		}
+		s.nodeDbByPool[pool.Name] = nodeDb
 		s.totalResourcesByPool[pool.Name] = totalResourcesForPool
 	}
 	return nil
