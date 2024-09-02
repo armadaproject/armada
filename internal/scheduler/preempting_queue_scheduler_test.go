@@ -28,6 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -2233,7 +2234,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range ScheduledJobsFromSchedulerResult(result) {
+			for _, job := range schedulerresult.ScheduledJobsFromSchedulerResult(result) {
 				nodeId := result.NodeIdByJobId[job.Id()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}

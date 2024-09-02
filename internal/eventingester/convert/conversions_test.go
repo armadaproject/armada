@@ -7,7 +7,6 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -26,8 +25,6 @@ const (
 )
 
 var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	baseTimeProto = protoutil.ToTimestamp(baseTime)
 )
@@ -37,8 +34,8 @@ var jobRunSucceeded = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunIdStr: runIdString,
+			JobIdStr: jobIdString,
 		},
 	},
 }
@@ -48,7 +45,7 @@ var cancelled = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId: jobIdProto,
+			JobIdStr: jobIdString,
 		},
 	},
 }
@@ -93,8 +90,8 @@ func TestCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJob{
 			CancelJob: &armadaevents.CancelJob{
-				JobId:  jobIdProto,
-				Reason: "some reason 1",
+				JobIdStr: jobIdString,
+				Reason:   "some reason 1",
 			},
 		},
 	}, &armadaevents.EventSequence_Event{
@@ -108,8 +105,8 @@ func TestCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId:  jobIdProto,
-				Reason: "some reason 3",
+				JobIdStr: jobIdString,
+				Reason:   "some reason 3",
 			},
 		},
 	})
@@ -124,7 +121,7 @@ func TestCancelled(t *testing.T) {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId: jobIdProto,
+					JobIdStr: jobIdString,
 				},
 			},
 		},
@@ -138,7 +135,7 @@ func TestCancelled(t *testing.T) {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobId: jobIdProto,
+					JobIdStr: jobIdString,
 				},
 			},
 		},

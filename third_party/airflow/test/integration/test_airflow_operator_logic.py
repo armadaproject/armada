@@ -85,9 +85,7 @@ def sleep_pod(image: str):
     ]
 
 
-def test_success_job(
-    client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
-):
+def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
     job_set_name = f"test-{uuid.uuid1()}"
     job = client.submit_jobs(
         queue=DEFAULT_QUEUE,
@@ -96,10 +94,11 @@ def test_success_job(
     )
     job_id = job.job_response_items[0].job_id
 
-    mocker.patch(
-        "armada.operators.armada.ArmadaOperator._reattach_or_submit_job",
-        return_value=job_id,
-    )
+    context["ti"].xcom_pull.return_value = {
+        "armada_queue": DEFAULT_QUEUE,
+        "armada_job_id": job_id,
+        "armada_job_set_id": job_set_name,
+    }
 
     operator = ArmadaOperator(
         task_id=DEFAULT_TASK_ID,
@@ -113,13 +112,11 @@ def test_success_job(
 
     operator.execute(context)
 
-    response = operator.client.get_job_status([job_id])
+    response = client.get_job_status([job_id])
     assert JobState(response.job_states[job_id]) == JobState.SUCCEEDED
 
 
-def test_bad_job(
-    client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
-):
+def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
     job_set_name = f"test-{uuid.uuid1()}"
     job = client.submit_jobs(
         queue=DEFAULT_QUEUE,
@@ -128,10 +125,11 @@ def test_bad_job(
     )
     job_id = job.job_response_items[0].job_id
 
-    mocker.patch(
-        "armada.operators.armada.ArmadaOperator._reattach_or_submit_job",
-        return_value=job_id,
-    )
+    context["ti"].xcom_pull.return_value = {
+        "armada_queue": DEFAULT_QUEUE,
+        "armada_job_id": job_id,
+        "armada_job_set_id": job_set_name,
+    }
 
     operator = ArmadaOperator(
         task_id=DEFAULT_TASK_ID,
@@ -149,7 +147,7 @@ def test_bad_job(
             "Operator did not raise AirflowException on job failure as expected"
         )
     except AirflowException:  # Expected
-        response = operator.client.get_job_status([job_id])
+        response = client.get_job_status([job_id])
         assert JobState(response.job_states[job_id]) == JobState.FAILED
     except Exception as e:
         pytest.fail(
@@ -159,7 +157,7 @@ def test_bad_job(
 
 
 def success_job(
-    task_number: int, context: Any, channel_args: GrpcChannelArgs
+    task_number: int, context: Any, channel_args: GrpcChannelArgs, client: ArmadaClient
 ) -> JobState:
     operator = ArmadaOperator(
         task_id=f"{DEFAULT_TASK_ID}_{task_number}",
@@ -173,7 +171,7 @@ def success_job(
 
     operator.execute(context)
 
-    response = operator.client.get_job_status([operator.job_id])
+    response = client.get_job_status([operator.job_id])
     return JobState(response.job_states[operator.job_id])
 
 
@@ -182,7 +180,9 @@ def test_parallel_execution(
     client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
 ):
     threads = []
-    success_job(task_number=0, context=context, channel_args=channel_args)
+    success_job(
+        task_number=0, context=context, channel_args=channel_args, client=client
+    )
     for task_number in range(5):
         t = threading.Thread(
             target=success_job, args=[task_number, context, channel_args]
@@ -199,7 +199,9 @@ def test_parallel_execution_large(
     client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
 ):
     threads = []
-    success_job(task_number=0, context=context, channel_args=channel_args)
+    success_job(
+        task_number=0, context=context, channel_args=channel_args, client=client
+    )
     for task_number in range(80):
         t = threading.Thread(
             target=success_job, args=[task_number, context, channel_args]
@@ -216,7 +218,9 @@ def test_parallel_execution_huge(
     client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
 ):
     threads = []
-    success_job(task_number=0, context=context, channel_args=channel_args)
+    success_job(
+        task_number=0, context=context, channel_args=channel_args, client=client
+    )
     for task_number in range(500):
         t = threading.Thread(
             target=success_job, args=[task_number, context, channel_args]
