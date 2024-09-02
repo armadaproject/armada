@@ -47,15 +47,12 @@ class KubernetesPodLogManager(LoggingMixin):
                 k8s_client = client.CoreV1Api(
                     api_client=client.ApiClient(configuration=configuration)
                 )
-                k8s_client.api_client.configuration.api_key_prefix["authorization"] = (
-                    "Bearer"
-                )
                 KubernetesPodLogManager.CLIENTS[k8s_context] = k8s_client
         return KubernetesPodLogManager.CLIENTS[k8s_context]
 
     def _with_bearer_auth(self, client):
         client.api_client.configuration.api_key["authorization"] = (
-            self._token_retriever.get_token()
+            f"Bearer {self._token_retriever.get_token()}"
         )
 
     def fetch_container_logs(
