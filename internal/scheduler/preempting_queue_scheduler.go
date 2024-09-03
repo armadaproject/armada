@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
@@ -95,7 +96,7 @@ func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
-func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresult.SchedulerResult, error) {
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
 	}()
@@ -236,8 +237,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	}
 	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
-	PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
-	PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
+	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
+	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
 
 	if sch.enableAssertions {
@@ -253,7 +254,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		}
 		ctx.WithField("stage", "scheduling-algo").Infof("Finished running assertions after scheduling round")
 	}
-	return &SchedulerResult{
+	return &schedulerresult.SchedulerResult{
 		PreemptedJobs:      preemptedJobs,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      sch.nodeIdByJobId,
@@ -524,7 +525,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*schedulerresult.SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)

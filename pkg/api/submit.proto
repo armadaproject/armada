@@ -195,7 +195,8 @@ message Queue {
     // Determines whether scheduling is enabled for this queue.
     bool cordoned = 8;
     // A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical
-    repeated string labels = 9;
+    repeated string labels_deprecated = 9 [deprecated=true];
+    map<string,string> labels = 10;
 }
 
 message PriorityClassResourceLimits {

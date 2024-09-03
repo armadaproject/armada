@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/types"
-
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
@@ -23,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -74,10 +74,8 @@ type Scheduler struct {
 	runsSerial int64
 	// Function that is called every time a cycle is completed. Useful for testing.
 	onCycleCompleted func()
-	// metrics set for the scheduler.
-	metrics *SchedulerMetrics
-	// New scheduler metrics due to replace the above.
-	schedulerMetrics *metrics.Metrics
+	// Prometheus metrics which report the state of the scheduler
+	metrics *metrics.Metrics
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
@@ -96,8 +94,7 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
-	metrics *SchedulerMetrics,
-	schedulerMetrics *metrics.Metrics,
+	metrics *metrics.Metrics,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -117,7 +114,6 @@ func NewScheduler(
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
 		metrics:                    metrics,
-		schedulerMetrics:           schedulerMetrics,
 	}, nil
 }
 
@@ -228,9 +224,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (schedulerresult.SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
-	overallSchedulerResult := SchedulerResult{}
+	overallSchedulerResult := schedulerresult.SchedulerResult{}
 
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
@@ -244,10 +240,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
 		ctx.Info("Not the leader so will not attempt to schedule")
-		s.schedulerMetrics.Disable()
+		s.metrics.DisableJobStateMetrics()
 		return overallSchedulerResult, err
 	} else {
-		s.schedulerMetrics.Enable()
+		s.metrics.EnableJobStateMetrics()
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -279,10 +275,8 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
 	// Update metrics.
-	if !s.schedulerMetrics.IsDisabled() {
-		if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
-			return overallSchedulerResult, err
-		}
+	if !s.metrics.JobStateMetricsEnabled() {
+		s.metrics.ReportStateTransitions(jsts, jobRepoRunErrorsByRunId)
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
@@ -311,7 +305,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
-		var result *SchedulerResult
+		var result *schedulerresult.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -350,26 +344,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
 
-	// Update metrics based on overallSchedulerResult.
-	if err := s.updateMetricsFromSchedulerResult(ctx, overallSchedulerResult); err != nil {
-		return overallSchedulerResult, err
+	if s.metrics.JobStateMetricsEnabled() {
+		for _, jctx := range overallSchedulerResult.ScheduledJobs {
+			s.metrics.ReportJobLeased(jctx.Job)
+		}
 	}
 
 	return overallSchedulerResult, nil
-}
-
-func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context, overallSchedulerResult SchedulerResult) error {
-	if s.schedulerMetrics.IsDisabled() {
-		return nil
-	}
-	for _, jctx := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.UpdateLeased(jctx); err != nil {
-			return err
-		}
-	}
-	// UpdatePreempted is called from within UpdateFailed if the job has a JobRunPreemptedError.
-	// This is to make sure that preemption is counted only when the job is actually preempted, not when the scheduler decides to preempt it.
-	return nil
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
@@ -474,14 +455,14 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *arma
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) eventsFromSchedulerResult(result *schedulerresult.SchedulerResult) ([]*armadaevents.EventSequence, error) {
 	return EventsFromSchedulerResult(result, s.clock.Now())
 }
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
+func EventsFromSchedulerResult(result *schedulerresult.SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult(result), time)
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, schedulerresult.PreemptedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ func TestQueueWithLabels(t *testing.T) {
 		Name:                              "queue-a",
 		PriorityFactor:                    100,
 		Permissions:                       []Permissions{},
-		Labels:                            []string{"armadaproject.io/gpu-category=gang-user", "armadaproject.io/priority=critical"},
+		Labels:                            map[string]string{"armadaproject.io/gpu-category": "gang-user", "armadaproject.io/priority": "critical"},
 		ResourceLimitsByPriorityClassName: make(map[string]api.PriorityClassResourceLimits),
 	}
 	queue2, err := NewQueue(queue1.ToAPI())
@@ -48,7 +48,7 @@ func TestQueueWithIncorrectLabels(t *testing.T) {
 	queue1 := Queue{
 		Name:           "queue-a",
 		PriorityFactor: 100,
-		Labels:         []string{"armadaproject.io/not-key-value"},
+		Labels:         map[string]string{"armadaproject.io/not-key-value": ""},
 	}
 	_, err := NewQueue(queue1.ToAPI())
 	require.Error(t, err)

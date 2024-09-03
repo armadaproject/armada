@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,20 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		runningJobs[i] = testfixtures.TestRunningJobDbJob(startTime)
 	}
 
+	// Run that has been returned
+	runStartTime := testfixtures.BaseTime.Add(-time.Duration(400) * time.Second).UnixNano()
+	runTerminatedTime := testfixtures.BaseTime.Add(-time.Duration(200) * time.Second)
+	run := jobdb.MinimalRun(uuid.New(), runStartTime)
+	run = run.WithFailed(true)
+	run = run.WithReturned(true)
+	run = run.WithTerminatedTime(&runTerminatedTime)
+
+	jobCreationTime := testfixtures.BaseTime.Add(-time.Duration(500) * time.Second).UnixNano()
+	jobWithTerminatedRun := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithUpdatedRun(run)
+
+	queue := testfixtures.MakeTestQueue()
+	queue.Labels = map[string]string{"foo": "bar"}
+
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
 		defaultPool  string
@@ -40,7 +55,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{queue},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
@@ -61,11 +76,40 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewQueuePriorityMetric(100, testfixtures.TestQueue),
+				commonmetrics.NewQueueLabelsMetric(testfixtures.TestQueue, map[string]string{"foo": "bar"}),
+			},
+		},
+		"queued metrics for requeued job": {
+			// This job was been requeued and has a terminated run
+			// The queue duration stats should count from the time the last run finished instead of job creation time
+			initialJobs: []*jobdb.Job{jobWithTerminatedRun},
+			queues:      []*api.Queue{queue},
+			defaultPool: testfixtures.TestPool,
+			expected: []prometheus.Metric{
+				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueDuration(1, 200,
+					map[float64]uint64{60: 0, 600: 1, 1800: 1, 3600: 1, 10800: 1, 43200: 1, 86400: 1, 172800: 1, 604800: 1},
+					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMedianQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 			},
 		},
 		"running metrics": {
 			initialJobs: runningJobs,
-			queues:      []*api.Queue{testfixtures.MakeTestQueue()},
+			queues:      []*api.Queue{queue},
 			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
