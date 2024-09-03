@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -70,8 +71,8 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	leaseRuns := []*executorapi.JobRunLease{}
 	runIdsToCancel := []*armadaevents.Uuid{}
 	runIdsToPreempt := []*armadaevents.Uuid{}
-	streamEndMessageSeen := false
-	for !streamEndMessageSeen {
+	shouldEndStream := false
+	for !shouldEndStream {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -89,14 +90,14 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 			case *executorapi.LeaseStreamMessage_CancelRuns:
 				runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
 			case *executorapi.LeaseStreamMessage_End:
-				streamEndMessageSeen = true
+				shouldEndStream = true
 			default:
 				log.Errorf("unexpected lease stream message type %T", typed)
 			}
 		}
 	}
 
-	err = closeStream(stream)
+	err = closeStream(ctx, stream)
 	if err != nil {
 		return nil, err
 	}
@@ -108,26 +109,25 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	}, nil
 }
 
-func closeStream(stream executorapi.ExecutorApi_LeaseJobRunsClient) error {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+func closeStream(ctx *armadacontext.Context, stream executorapi.ExecutorApi_LeaseJobRunsClient) error {
+	closeTimeout, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			res, err := stream.Recv()
-			if err == io.EOF {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
+	select {
+	case <-closeTimeout.Done():
+		return closeTimeout.Err()
+	default:
+		res, err := stream.Recv()
+		if err == nil {
 			switch typed := res.GetEvent().(type) {
 			default:
-				return fmt.Errorf("failed closing stream - unexpectedly received event of tyope %T", typed)
+				return fmt.Errorf("failed closing stream - unexpectedly received event of type %T", typed)
 			}
+		} else if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
 		}
 	}
+	return fmt.Errorf("failed to cleanly close stream")
 }

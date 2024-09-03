@@ -136,10 +136,8 @@ func TestLeaseJobRuns_HandlesNoEndMarkerMessage(t *testing.T) {
 	})
 
 	response, err := jobRequester.LeaseJobRuns(shortCtx, &LeaseRequest{})
-	// Timeout on context expiry
-	assert.NoError(t, err)
-	// Still receive leases that were received prior to the timeout
-	assert.Equal(t, leaseMessages, response.LeasedRuns)
+	assert.Error(t, err)
+	assert.Empty(t, response)
 }
 
 func TestLeaseJobRuns_Error(t *testing.T) {
@@ -174,9 +172,9 @@ func TestLeaseJobRuns_Error(t *testing.T) {
 		},
 		"RecvEOF": {
 			recvEndOfFileError: true,
-			shouldError:        false,
+			shouldError:        true,
 			leaseMessages:      []*executorapi.JobRunLease{lease1, lease2},
-			expectedLeases:     []*executorapi.JobRunLease{lease1, lease2},
+			expectedLeases:     nil,
 		},
 	}
 
