@@ -260,7 +260,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	//              (Each pod can produce at most 12KiB of errors; see
 	//              https://kubernetes.io/docs/tasks/debug/debug-application/determine-reason-pod-failure/#customizing-the-termination-message)
 	//              If so, the scheduler may not be able to progress until a human manually deleted those errors.
-	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
+	failedRunIds := make([]string, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.LatestRun()
 		if run != nil && run.Failed() {
@@ -486,7 +486,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(),
-			Events:     createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(run.Id()), time),
+			Events:     createEventsForPreemptedJob(jobId, armadaevents.MustProtoUuidFromUuidString(run.Id()), time),
 		})
 	}
 	return eventSequences, nil
@@ -565,8 +565,8 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 					Created: protoutil.ToTimestamp(runCreationTime),
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
-							RunId:      armadaevents.ProtoUuidFromUuid(run.Id()),
-							RunIdStr:   run.Id().String(),
+							RunId:      armadaevents.MustProtoUuidFromUuidString(run.Id()),
+							RunIdStr:   run.Id(),
 							JobId:      jobId,
 							JobIdStr:   job.Id(),
 							ExecutorId: run.Executor(),
@@ -591,7 +591,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
-func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
@@ -608,7 +608,7 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobd
 
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages
@@ -647,8 +647,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
-						RunIdStr: lastRun.Id().String(),
+						RunId:    armadaevents.MustProtoUuidFromUuidString(lastRun.Id()),
+						RunIdStr: lastRun.Id(),
 						JobId:    jobId,
 						JobIdStr: job.Id(),
 					},
@@ -681,8 +681,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId:    armadaevents.ProtoUuidFromUuid(lastRun.Id()),
-						RunIdStr: lastRun.Id().String(),
+						RunId:    armadaevents.MustProtoUuidFromUuidString(lastRun.Id()),
+						RunIdStr: lastRun.Id(),
 						JobId:    jobId,
 						JobIdStr: job.Id(),
 					},
@@ -752,7 +752,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				if runError == nil {
 					return nil, errors.Errorf(
 						"no run error found for run %s (job id = %s), this must mean we're out of sync with the database",
-						lastRun.Id().String(), job.Id(),
+						lastRun.Id(), job.Id(),
 					)
 				}
 
@@ -795,7 +795,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
-			events = append(events, createEventsForPreemptedJob(jobId, armadaevents.ProtoUuidFromUuid(lastRun.Id()), s.clock.Now())...)
+			events = append(events, createEventsForPreemptedJob(jobId, armadaevents.MustProtoUuidFromUuidString(lastRun.Id()), s.clock.Now())...)
 		}
 	}
 
@@ -880,8 +880,8 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunErrors{
 							JobRunErrors: &armadaevents.JobRunErrors{
-								RunId:    armadaevents.ProtoUuidFromUuid(run.Id()),
-								RunIdStr: run.Id().String(),
+								RunId:    armadaevents.MustProtoUuidFromUuidString(run.Id()),
+								RunIdStr: run.Id(),
 								JobId:    jobId,
 								JobIdStr: job.Id(),
 								Errors:   []*armadaevents.Error{leaseExpiredError},

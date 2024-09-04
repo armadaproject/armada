@@ -3,7 +3,6 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
@@ -19,7 +18,7 @@ var (
 	executorWithoutPool = &schedulerobjects.Executor{}
 
 	runWithPool = testfixtures.JobDb.CreateRun(
-		uuid.UUID{},
+		"",
 		queuedJob.Id(),
 		123,
 		"test-executor",
