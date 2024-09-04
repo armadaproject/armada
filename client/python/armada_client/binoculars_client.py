@@ -27,15 +27,15 @@ class BinocularsClient:
         self,
         job_id: str,
         pod_namespace: str,
-        since_time: datetime.datetime,
+        since_time: str,
         pod_number: Optional[int] = 0,
-        log_options: Optional[core_v1.PodLogOptions] = None,
+        log_options: Optional[core_v1.PodLogOptions] = core_v1.PodLogOptions(),
     ):
         log_request = binoculars_pb2.LogRequest(
             job_id=job_id,
             pod_number=pod_number,
             pod_namespace=pod_namespace,
-            since_time=since_time.isoformat(),
+            since_time=since_time,
             log_options=log_options,
         )
         return self.binoculars_stub.Logs(log_request)
