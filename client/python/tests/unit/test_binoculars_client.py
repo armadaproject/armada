@@ -1,5 +1,4 @@
 from concurrent import futures
-import datetime
 
 import grpc
 import pytest
