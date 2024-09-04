@@ -340,9 +340,10 @@ acknowledged by Armada.
                     container=self.container_logs,
                     since_time=self.job_context.last_log_time,
                 )
-                self.job_context = dataclasses.replace(
-                    self.job_context, last_log_time=last_log_time
-                )
+                if last_log_time:
+                    self.job_context = dataclasses.replace(
+                        self.job_context, last_log_time=last_log_time
+                    )
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
 
