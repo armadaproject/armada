@@ -9,6 +9,6 @@ pull_request_rules:
           - "#approved-reviews-by>=2"
           - and: 
             - "#approved-reviews-by>=1"
-            - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|JamesMurkin|msumner91|masipauskas|mijovicmia|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx)"
+            - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|JamesMurkin|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx)"
         title:
           Two are checks required.
