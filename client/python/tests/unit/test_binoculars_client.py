@@ -35,7 +35,7 @@ tester = BinocularsClient(
 
 
 def test_logs():
-    resp = tester.logs("fake-job-id", "fake-namespace", datetime.datetime.now())
+    resp = tester.logs("fake-job-id", "fake-namespace", "")
     assert len(resp.log) == 3
 
 
