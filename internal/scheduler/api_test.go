@@ -9,10 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -23,6 +27,8 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	mocks2 "github.com/armadaproject/armada/internal/server/mocks"
+	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -293,6 +299,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
@@ -306,6 +313,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			}).Times(1)
 			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
+			mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
 
 			// capture all sent messages
 			var capturedEvents []*executorapi.LeaseStreamMessage
@@ -323,6 +331,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				mockAuthorizer,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -333,6 +342,64 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
+	request := &executorapi.LeaseRequest{
+		ExecutorId: "test-executor",
+		Pool:       "test-pool",
+		Nodes: []*executorapi.NodeInfo{
+			{
+				Name:          "test-node",
+				RunIdsByState: map[string]api.JobState{},
+				NodeType:      "node-type-1",
+			},
+		},
+		UnassignedJobRunIds: []*armadaevents.Uuid{},
+		MaxJobsToLease:      uint32(100),
+	}
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+
+	// set up mocks
+	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
+	mockStream.EXPECT().Recv().Return(request, nil).Times(1)
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(&armadaerrors.ErrUnauthorized{Message: "authorised"}).Times(1)
+	// capture all sent messages
+	var capturedEvents []*executorapi.LeaseStreamMessage
+	mockStream.EXPECT().Send(gomock.Any()).
+		Do(func(msg *executorapi.LeaseStreamMessage) {
+			capturedEvents = append(capturedEvents, msg)
+		}).AnyTimes()
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+
+	require.NoError(t, err)
+
+	err = server.LeaseJobRuns(mockStream)
+	assert.Error(t, err)
+	assert.Empty(t, capturedEvents)
+
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
 }
 
 func TestAddNodeSelector(t *testing.T) {
@@ -426,6 +493,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 			mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -438,6 +506,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 					}
 					return nil
 				}).AnyTimes()
+			mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
 
 			server, err := NewExecutorApi(
 				mockPulsarPublisher,
@@ -448,6 +517,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				mockAuthorizer,
 			)
 
 			require.NoError(t, err)
@@ -459,6 +529,53 @@ func TestExecutorApi_Publish(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+
+	sequences := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			JobSetName: "jobset1",
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{
+						JobRunErrors: &armadaevents.JobRunErrors{},
+					},
+				},
+			},
+		},
+	}
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(&armadaerrors.ErrUnauthorized{Message: "authorised"}).Times(1)
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+
+	require.NoError(t, err)
+
+	empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: sequences})
+	assert.Error(t, err)
+	assert.Nil(t, empty)
+
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
 }
 
 func submitMsg(t *testing.T, objectMeta *armadaevents.ObjectMeta, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
