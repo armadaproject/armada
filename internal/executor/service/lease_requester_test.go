@@ -122,16 +122,19 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 }
 
 func TestLeaseJobRuns_ReceiveError(t *testing.T) {
+	endStreamMarkerTimeoutErr := fmt.Errorf("end of stream marker timeout")
+	closeStreamTimeoutErr := fmt.Errorf("close stream timeout")
+	receiveErr := fmt.Errorf("recv error")
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 	tests := map[string]struct {
-		recvError          bool
-		recvEndOfFileError bool
-		endOfStreamErr     bool
-		closeStreamErr     bool
-		shouldError        bool
-		leaseMessages      []*executorapi.JobRunLease
-		expectedLeases     []*executorapi.JobRunLease
+		recvError      bool
+		endOfStreamErr bool
+		closeStreamErr bool
+		shouldError    bool
+		expectedError  error
+		leaseMessages  []*executorapi.JobRunLease
+		expectedLeases []*executorapi.JobRunLease
 	}{
 		"Happy Path": {
 			shouldError:    false,
@@ -141,18 +144,21 @@ func TestLeaseJobRuns_ReceiveError(t *testing.T) {
 		"RecvError": {
 			recvError:      true,
 			shouldError:    true,
+			expectedError:  receiveErr,
 			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
 			expectedLeases: nil,
 		},
 		"Timeout - end stream marker": {
 			endOfStreamErr: true,
 			shouldError:    true,
+			expectedError:  endStreamMarkerTimeoutErr,
 			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
 			expectedLeases: nil,
 		},
 		"Timeout - close stream": {
 			closeStreamErr: true,
 			shouldError:    true,
+			expectedError:  closeStreamTimeoutErr,
 			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
 			expectedLeases: nil,
 		},
@@ -165,19 +171,17 @@ func TestLeaseJobRuns_ReceiveError(t *testing.T) {
 			mockStream.EXPECT().Send(gomock.Any()).Return(nil)
 
 			if tc.recvError {
-				mockStream.EXPECT().Recv().Return(nil, fmt.Errorf("recv error")).AnyTimes()
-			} else if tc.recvEndOfFileError {
-				mockStream.EXPECT().Recv().Return(nil, io.EOF).AnyTimes()
+				mockStream.EXPECT().Recv().Return(nil, receiveErr).AnyTimes()
 			} else {
 				setStreamExpectations(mockStream, tc.leaseMessages, nil, nil)
 
 				if tc.endOfStreamErr {
-					mockStream.EXPECT().Recv().Return(nil, fmt.Errorf("timeout"))
+					mockStream.EXPECT().Recv().Return(nil, endStreamMarkerTimeoutErr)
 				} else {
 					mockStream.EXPECT().Recv().Return(endMarker, nil)
 
 					if tc.closeStreamErr {
-						mockStream.EXPECT().Recv().Return(nil, fmt.Errorf("timeout"))
+						mockStream.EXPECT().Recv().Return(nil, closeStreamTimeoutErr)
 					} else {
 						mockStream.EXPECT().Recv().Return(nil, io.EOF)
 					}
@@ -188,6 +192,7 @@ func TestLeaseJobRuns_ReceiveError(t *testing.T) {
 			if tc.shouldError {
 				assert.Error(t, err)
 				assert.Nil(t, response)
+				assert.Contains(t, err.Error(), tc.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedLeases, response.LeasedRuns)
