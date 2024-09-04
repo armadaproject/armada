@@ -654,3 +654,70 @@ Convert this Subject to a grpc Subject.
 * **Return type**
 
     armada.submit_pb2.Subject
+
+
+## armada_client.binoculars_client module
+
+
+### _class_ armada_client.binoculars_client.BinocularsClient(channel)
+Client for accessing Armada’s Binoculars service over gRPC.
+
+
+* **Parameters**
+
+    **channel** – gRPC channel used for authentication. See
+    [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
+    for more information.
+
+
+
+* **Returns**
+
+    an Binoculars client instance
+
+
+
+#### cordon(node_name)
+Send a cordon request for a specific node.
+
+
+* **Parameters**
+
+    **node_name** (*str*) – The name of the node.
+
+
+
+* **Returns**
+
+    Empty grpc object.
+
+
+
+#### logs(job_id, pod_namespace, since_time, pod_number=0, log_options=)
+Retrieve logs for a specific Armada job.
+
+
+* **Parameters**
+
+    
+    * **job_id** (*str*) – The ID of the job for which to retreieve logs.
+
+
+    * **pod_namespace** (*str*) – The namespace of the pod/job.
+
+
+    * **since_time** (*str*) – If the empty string, retrieves all available logs.
+    Otherwise, retrieves logs emitted since given timestamp.
+
+
+    * **pod_number** (*int** | **None*) – The zero-indexed pod number from which to retrieve
+    logs. Defaults to zero.
+
+
+    * **log_options** (*k8s.io.api.core.v1.generated_pb2.PodLogOptions** | **None*) – An optional Kubernetes PodLogOptions object.
+
+
+
+* **Returns**
+
+    A LogResponse object.

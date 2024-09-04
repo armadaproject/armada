@@ -21,3 +21,10 @@ armada\_client.permissions module
 
 .. automodule:: armada_client.permissions
    :members:
+
+
+armada\_client.binoculars_client module
+---------------------------------------
+
+.. automodule:: armada_client.binoculars_client
+   :members:
