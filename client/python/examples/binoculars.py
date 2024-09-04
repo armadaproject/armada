@@ -1,8 +1,7 @@
+import os
+
 import grpc
 from armada_client.binoculars_client import BinocularsClient
-
-import datetime
-import os
 
 
 def main():
