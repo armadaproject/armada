@@ -78,13 +78,20 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 
 	jsts := make([]JobStateTransitions, 0, len(jobRepoJobsById))
 	for jobId, jobRepoJob := range jobRepoJobsById {
-		if jst, err := jobDb.reconcileJobDifferences(
+		jst, err := jobDb.reconcileJobDifferences(
 			txn.GetById(jobId),     // Existing job in the jobDb.
 			jobRepoJob,             // New or updated job from the jobRepo.
 			jobRepoRunsById[jobId], // New or updated runs associated with this job from the jobRepo.
-		); err != nil {
+		)
+
+		if err != nil {
 			return nil, err
-		} else {
+		}
+
+		// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
+		// In this case it is safe to ignore the jst.
+		// TODO: don't generate a jst in the first place if this is the case!
+		if jst.Job != nil {
 			jsts = append(jsts, jst)
 		}
 	}
