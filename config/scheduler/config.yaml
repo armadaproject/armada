@@ -6,7 +6,6 @@ databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 queueRefreshPeriod: 10s
-disableSubmitCheck: false
 metrics:
   port: 9000
   jobStateMetricsResetInterval: 12h
