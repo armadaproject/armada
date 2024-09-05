@@ -125,7 +125,7 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
-	jobDb.SetUUIDProvider(NewMockUUIDProvider())
+	jobDb.SetUUIDProvider(NewMockIDProvider())
 	return jobDb
 }
 
@@ -893,7 +893,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 	return TestQueuedJobDbJob().
 		WithQueued(false).
-		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
+		WithUpdatedRun(jobdb.MinimalRun(uuid.New().String(), startTime))
 }
 
 func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
@@ -963,20 +963,20 @@ func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 	}
 }
 
-type MockUUIDProvider struct {
+type MockIDProvider struct {
 	i  uint64
 	mu sync.Mutex
 }
 
-func NewMockUUIDProvider() *MockUUIDProvider {
-	return &MockUUIDProvider{}
+func NewMockIDProvider() *MockIDProvider {
+	return &MockIDProvider{}
 }
 
-func (p *MockUUIDProvider) New() uuid.UUID {
+func (p *MockIDProvider) New() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.i += 1 // Increment before write to avoid using the all-zeros UUID.
-	return UUIDFromInt(p.i)
+	return UUIDFromInt(p.i).String()
 }
 
 func UUIDFromInt(i uint64) uuid.UUID {

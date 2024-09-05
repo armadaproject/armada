@@ -53,10 +53,10 @@ func (mr *MockJobRepositoryMockRecorder) CountReceivedPartitions(arg0, arg1 inte
 }
 
 // FetchJobRunErrors mocks base method.
-func (m *MockJobRepository) FetchJobRunErrors(arg0 *armadacontext.Context, arg1 []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+func (m *MockJobRepository) FetchJobRunErrors(arg0 *armadacontext.Context, arg1 []string) (map[string]*armadaevents.Error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobRunErrors", arg0, arg1)
-	ret0, _ := ret[0].(map[uuid.UUID]*armadaevents.Error)
+	ret0, _ := ret[0].(map[string]*armadaevents.Error)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -68,7 +68,7 @@ func (mr *MockJobRepositoryMockRecorder) FetchJobRunErrors(arg0, arg1 interface{
 }
 
 // FetchJobRunLeases mocks base method.
-func (m *MockJobRepository) FetchJobRunLeases(arg0 *armadacontext.Context, arg1 string, arg2 uint, arg3 []uuid.UUID) ([]*database.JobRunLease, error) {
+func (m *MockJobRepository) FetchJobRunLeases(arg0 *armadacontext.Context, arg1 string, arg2 uint, arg3 []string) ([]*database.JobRunLease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobRunLeases", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*database.JobRunLease)
@@ -99,10 +99,10 @@ func (mr *MockJobRepositoryMockRecorder) FetchJobUpdates(arg0, arg1, arg2 interf
 }
 
 // FindInactiveRuns mocks base method.
-func (m *MockJobRepository) FindInactiveRuns(arg0 *armadacontext.Context, arg1 []uuid.UUID) ([]uuid.UUID, error) {
+func (m *MockJobRepository) FindInactiveRuns(arg0 *armadacontext.Context, arg1 []string) ([]string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindInactiveRuns", arg0, arg1)
-	ret0, _ := ret[0].([]uuid.UUID)
+	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

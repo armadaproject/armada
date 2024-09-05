@@ -7,7 +7,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -126,8 +125,8 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancel: slices.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
-						return armadaevents.ProtoUuidFromUuid(x)
+					JobRunIdsToCancel: slices.Map(runsToCancel, func(x string) *armadaevents.Uuid {
+						return armadaevents.MustProtoUuidFromUuidString(x)
 					}),
 				},
 			},
@@ -393,19 +392,15 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 }
 
 // runIdsFromLeaseRequest returns the ids of all runs in a lease request, including any not yet assigned to a node.
-func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
-	runIds := make([]uuid.UUID, 0, 256)
+func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]string, error) {
+	runIds := make([]string, 0, 256)
 	for _, node := range req.Nodes {
-		for runIdStr := range node.RunIdsByState {
-			if runId, err := uuid.Parse(runIdStr); err != nil {
-				return nil, errors.WithStack(err)
-			} else {
-				runIds = append(runIds, runId)
-			}
+		for runId := range node.RunIdsByState {
+			runIds = append(runIds, runId)
 		}
 	}
 	for _, runId := range req.UnassignedJobRunIds {
-		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId))
+		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId).String())
 	}
 	return runIds, nil
 }

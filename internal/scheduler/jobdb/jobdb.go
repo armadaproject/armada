@@ -24,7 +24,7 @@ var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 
 type JobDb struct {
 	jobsById        *immutable.Map[string, *Job]
-	jobsByRunId     *immutable.Map[uuid.UUID, string]
+	jobsByRunId     *immutable.Map[string, string]
 	jobsByQueue     map[string]immutable.SortedSet[*Job]
 	unvalidatedJobs *immutable.Set[*Job]
 	// Configured priority classes.
@@ -41,23 +41,23 @@ type JobDb struct {
 	// Set here so that it can be mocked.
 	clock clock.PassiveClock
 	// Used for generating job run ids.
-	uuidProvider UUIDProvider
+	uuidProvider IDProvider
 	// Used to make efficient ResourceList types.
 	resourceListFactory *internaltypes.ResourceListFactory
 	// Info about floating resources
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
-// UUIDProvider is an interface used to mock UUID generation for tests.
-type UUIDProvider interface {
-	New() uuid.UUID
+// IDProvider is an interface used to mock run id  generation for tests.
+type IDProvider interface {
+	New() string
 }
 
-// RealUUIDProvider calls uuid.New.
+// RealUUIDProvider generates an id using a UUID
 type RealUUIDProvider struct{}
 
-func (_ RealUUIDProvider) New() uuid.UUID {
-	return uuid.New()
+func (_ RealUUIDProvider) New() string {
+	return uuid.New().String()
 }
 
 func NewJobDb(priorityClasses map[string]types.PriorityClass,
@@ -92,7 +92,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	unvalidatedJobs := immutable.NewSet[*Job](JobIdHasher{})
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
-		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
+		jobsByRunId:            immutable.NewMap[string, string](nil),
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		unvalidatedJobs:        &unvalidatedJobs,
 		priorityClasses:        priorityClasses,
@@ -110,7 +110,7 @@ func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
 	jobDb.clock = clock
 }
 
-func (jobDb *JobDb) SetUUIDProvider(uuidProvider UUIDProvider) {
+func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
 	jobDb.uuidProvider = uuidProvider
 }
 
@@ -168,7 +168,7 @@ func (jobDb *JobDb) NewJob(
 		cancelByJobSetRequested: cancelByJobSetRequested,
 		cancelled:               cancelled,
 		validated:               validated,
-		runsById:                map[uuid.UUID]*JobRun{},
+		runsById:                map[string]*JobRun{},
 		pools:                   pools,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
@@ -254,7 +254,7 @@ type Txn struct {
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
 	// Note that a job may have multiple runs, i.e., the mapping is many-to-one.
-	jobsByRunId *immutable.Map[uuid.UUID, string]
+	jobsByRunId *immutable.Map[string, string]
 	// Queued jobs for each queue. Stored in the order in which they should be scheduled.
 	jobsByQueue map[string]immutable.SortedSet[*Job]
 	// Jobs that require submit checking
@@ -430,7 +430,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				}
 			}
 		} else {
-			jobsByRunId := immutable.NewMapBuilder[uuid.UUID, string](&UUIDHasher{})
+			jobsByRunId := immutable.NewMapBuilder[string, string](nil)
 			for _, job := range jobs {
 				for _, run := range job.runsById {
 					jobsByRunId.Set(run.id, job.id)
@@ -481,7 +481,7 @@ func (txn *Txn) GetById(id string) *Job {
 
 // GetByRunId returns the job with the given run id or nil if no such job exists
 // The Job returned by this function *must not* be subsequently modified
-func (txn *Txn) GetByRunId(runId uuid.UUID) *Job {
+func (txn *Txn) GetByRunId(runId string) *Job {
 	jobId, _ := txn.jobsByRunId.Get(runId)
 	return txn.GetById(jobId)
 }

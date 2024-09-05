@@ -28,7 +28,7 @@ const (
 var (
 	baseTime = time.Now()
 
-	baseRun = jobdb.MinimalRun(uuid.New(), baseTime.UnixNano()).
+	baseRun = jobdb.MinimalRun(uuid.NewString(), baseTime.UnixNano()).
 		WithPool(testPool).WithNodeName(testNode).
 		WithExecutor(testCluster)
 
@@ -46,7 +46,7 @@ func TestReportJobStateTransitions(t *testing.T) {
 		errorRegexes                           []*regexp.Regexp
 		trackedResourceNames                   []v1.ResourceName
 		jsts                                   []jobdb.JobStateTransitions
-		jobRunErrorsByRunId                    map[uuid.UUID]*armadaevents.Error
+		jobRunErrorsByRunId                    map[string]*armadaevents.Error
 		expectedJobStateCounterByQueue         map[[4]string]float64
 		expectedJobStateCounterByNode          map[[5]string]float64
 		expectedJobStateSecondsByQueue         map[[4]string]float64
