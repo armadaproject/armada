@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -346,7 +346,7 @@ func TestRun_LimitsProcessingBatchSize(t *testing.T) {
 
 func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages] {
 	return &IngestionPipeline[*simpleMessages]{
-		pulsarConfig: configuration.PulsarConfig{
+		pulsarConfig: commonconfig.PulsarConfig{
 			BackoffTime: time.Second,
 		},
 		pulsarSubscriptionName: "subscription",

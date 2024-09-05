@@ -525,7 +525,7 @@ func TestValidateNamespace(t *testing.T) {
 	}
 }
 
-func TestValidateHasJobSetID(t *testing.T) {
+func TestValidateHasJobSetId(t *testing.T) {
 	tests := map[string]struct {
 		req           *api.JobSubmitRequest
 		expectSuccess bool
