@@ -325,7 +325,7 @@ acknowledged by Armada.
 
         if self._not_acknowledged_within_timeout():
             self.log.info(
-                f"Job job-id: {self.job_context.job_id} not acknowledged by the Armada within "
+                f"Armada job job-id: {self.job_context.job_id} not acknowledged within "
                 f"timeout ({self.job_acknowledgement_timeout}), terminating"
             )
             self.job_context = self.hook.cancel_job(self.job_context)
