@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -28,7 +29,7 @@ type Configuration struct {
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
-	Pulsar configuration.PulsarConfig
+	Pulsar commonconfig.PulsarConfig
 	// Configuration controlling leader election
 	Leader LeaderConfig
 	// Configuration controlling metrics

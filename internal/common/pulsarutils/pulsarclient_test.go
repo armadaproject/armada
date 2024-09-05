@@ -6,14 +6,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/server/configuration"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 )
 
 func TestCreatePulsarClientHappyPath(t *testing.T) {
 	cwd, _ := os.Executable() // Need a valid directory for tokens and certs
 
 	// test with auth and tls configured
-	config := &configuration.PulsarConfig{
+	config := &commonconfig.PulsarConfig{
 		URL: "pulsar://pulsarhost:50000",
 
 		TLSTrustCertsFilePath:      cwd,
@@ -28,7 +28,7 @@ func TestCreatePulsarClientHappyPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test without auth or TLS
-	config = &configuration.PulsarConfig{
+	config = &commonconfig.PulsarConfig{
 		URL:                     "pulsar://pulsarhost:50000",
 		MaxConnectionsPerBroker: 100,
 	}
@@ -38,20 +38,20 @@ func TestCreatePulsarClientHappyPath(t *testing.T) {
 
 func TestCreatePulsarClientInvalidAuth(t *testing.T) {
 	// No Auth type
-	_, err := NewPulsarClient(&configuration.PulsarConfig{
+	_, err := NewPulsarClient(&commonconfig.PulsarConfig{
 		AuthenticationEnabled: true,
 	})
 	assert.Error(t, err)
 
 	// Invalid Auth type
-	_, err = NewPulsarClient(&configuration.PulsarConfig{
+	_, err = NewPulsarClient(&commonconfig.PulsarConfig{
 		AuthenticationEnabled: true,
 		AuthenticationType:    "INVALID",
 	})
 	assert.Error(t, err)
 
 	// No Token
-	_, err = NewPulsarClient(&configuration.PulsarConfig{
+	_, err = NewPulsarClient(&commonconfig.PulsarConfig{
 		AuthenticationEnabled: true,
 		AuthenticationType:    "JWT",
 	})
