@@ -42,7 +42,7 @@ var (
 )
 
 var baseJobRun = jobDb.CreateRun(
-	uuid.New(),
+	uuid.New().String(),
 	uuid.NewString(),
 	5,
 	"test-executor",
@@ -119,7 +119,7 @@ func TestJobRun_TestRunAttempted(t *testing.T) {
 
 func TestDeepCopy(t *testing.T) {
 	run := jobDb.CreateRun(
-		uuid.New(),
+		uuid.NewString(),
 		"job id",
 		1,
 		"executor",

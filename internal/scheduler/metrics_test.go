@@ -35,7 +35,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	// Run that has been returned
 	runStartTime := testfixtures.BaseTime.Add(-time.Duration(400) * time.Second).UnixNano()
 	runTerminatedTime := testfixtures.BaseTime.Add(-time.Duration(200) * time.Second)
-	run := jobdb.MinimalRun(uuid.New(), runStartTime)
+	run := jobdb.MinimalRun(uuid.New().String(), runStartTime)
 	run = run.WithFailed(true)
 	run = run.WithReturned(true)
 	run = run.WithTerminatedTime(&runTerminatedTime)
@@ -190,8 +190,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 	job1 := testfixtures.TestRunningJobDbJob(0)
 	job2 := testfixtures.TestRunningJobDbJob(0)
 	nodeWithJobs := createNode("type-1")
-	nodeWithJobs.StateByJobRunId[job1.LatestRun().Id().String()] = schedulerobjects.JobRunState_PENDING
-	nodeWithJobs.StateByJobRunId[job2.LatestRun().Id().String()] = schedulerobjects.JobRunState_RUNNING
+	nodeWithJobs.StateByJobRunId[job1.LatestRun().Id()] = schedulerobjects.JobRunState_PENDING
+	nodeWithJobs.StateByJobRunId[job2.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 	nodeWithJobs.ResourceUsageByQueue[testfixtures.TestQueue] = &schedulerobjects.ResourceList{
 		Resources: map[string]resource.Quantity{
 			"cpu":    resource.MustParse("1"),

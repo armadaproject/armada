@@ -144,15 +144,6 @@ func (sctx *SchedulingContext) GetQueue(queue string) (fairness.Queue, bool) {
 	return qctx, ok
 }
 
-// TotalCost returns the sum of the costs across all queues.
-func (sctx *SchedulingContext) TotalCost() float64 {
-	var rv float64
-	for _, qctx := range sctx.QueueSchedulingContexts {
-		rv += sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
-	}
-	return rv
-}
-
 // UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
 // SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
 // AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)

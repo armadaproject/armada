@@ -139,42 +139,42 @@ func TestFetchJobRunErrors(t *testing.T) {
 
 	tests := map[string]struct {
 		errorsInDb  []JobRunError
-		idsToLookup []uuid.UUID
-		expected    map[uuid.UUID]*armadaevents.Error
+		idsToLookup []string
+		expected    map[string]*armadaevents.Error
 		expectError bool
 	}{
 		"single error": {
 			errorsInDb:  dbErrors,
-			idsToLookup: []uuid.UUID{dbErrors[1].RunID},
-			expected:    map[uuid.UUID]*armadaevents.Error{dbErrors[1].RunID: expectedErrors[1]},
+			idsToLookup: []string{dbErrors[1].RunID.String()},
+			expected:    map[string]*armadaevents.Error{dbErrors[1].RunID.String(): expectedErrors[1]},
 		},
 		"multiple errors": {
 			errorsInDb:  dbErrors,
-			idsToLookup: []uuid.UUID{dbErrors[1].RunID, dbErrors[4].RunID, dbErrors[5].RunID, dbErrors[7].RunID},
-			expected: map[uuid.UUID]*armadaevents.Error{
-				dbErrors[1].RunID: expectedErrors[1],
-				dbErrors[4].RunID: expectedErrors[4],
-				dbErrors[5].RunID: expectedErrors[5],
-				dbErrors[7].RunID: expectedErrors[7],
+			idsToLookup: []string{dbErrors[1].RunID.String(), dbErrors[4].RunID.String(), dbErrors[5].RunID.String(), dbErrors[7].RunID.String()},
+			expected: map[string]*armadaevents.Error{
+				dbErrors[1].RunID.String(): expectedErrors[1],
+				dbErrors[4].RunID.String(): expectedErrors[4],
+				dbErrors[5].RunID.String(): expectedErrors[5],
+				dbErrors[7].RunID.String(): expectedErrors[7],
 			},
 		},
 		"some errors missing": {
 			errorsInDb:  dbErrors,
-			idsToLookup: []uuid.UUID{dbErrors[1].RunID, uuid.New(), uuid.New(), dbErrors[7].RunID},
-			expected: map[uuid.UUID]*armadaevents.Error{
-				dbErrors[1].RunID: expectedErrors[1],
-				dbErrors[7].RunID: expectedErrors[7],
+			idsToLookup: []string{dbErrors[1].RunID.String(), uuid.NewString(), uuid.NewString(), dbErrors[7].RunID.String()},
+			expected: map[string]*armadaevents.Error{
+				dbErrors[1].RunID.String(): expectedErrors[1],
+				dbErrors[7].RunID.String(): expectedErrors[7],
 			},
 		},
 		"all errors missing": {
 			errorsInDb:  dbErrors,
-			idsToLookup: []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New()},
-			expected:    map[uuid.UUID]*armadaevents.Error{},
+			idsToLookup: []string{uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()},
+			expected:    map[string]*armadaevents.Error{},
 		},
 		"emptyDb": {
 			errorsInDb:  []JobRunError{},
-			idsToLookup: []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New()},
-			expected:    map[uuid.UUID]*armadaevents.Error{},
+			idsToLookup: []string{uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()},
+			expected:    map[string]*armadaevents.Error{},
 		},
 		"invalid data": {
 			errorsInDb: []JobRunError{{
@@ -182,7 +182,7 @@ func TestFetchJobRunErrors(t *testing.T) {
 				JobID: dbErrors[0].JobID,
 				Error: []byte{0x1, 0x4, 0x5}, // not a valid compressed proto
 			}},
-			idsToLookup: []uuid.UUID{dbErrors[0].RunID},
+			idsToLookup: []string{dbErrors[0].RunID.String()},
 			expectError: true,
 		},
 	}
@@ -298,21 +298,24 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 }
 
 func TestFindInactiveRuns(t *testing.T) {
+	stringIds := make([]string, 3)
 	uuids := make([]uuid.UUID, 3)
-	for i := 0; i < len(uuids); i++ {
+	for i := 0; i < len(stringIds); i++ {
 		uuids[i] = uuid.New()
+		stringIds[i] = uuids[i].String()
 	}
+
 	tests := map[string]struct {
 		dbRuns           []Run
-		runsToCheck      []uuid.UUID
-		expectedInactive []uuid.UUID
+		runsToCheck      []string
+		expectedInactive []string
 	}{
 		"empty database": {
-			runsToCheck:      uuids,
-			expectedInactive: uuids,
+			runsToCheck:      stringIds,
+			expectedInactive: stringIds,
 		},
 		"no inactive": {
-			runsToCheck: uuids,
+			runsToCheck: stringIds,
 			dbRuns: []Run{
 				{RunID: uuids[0]},
 				{RunID: uuids[1]},
@@ -321,39 +324,39 @@ func TestFindInactiveRuns(t *testing.T) {
 			expectedInactive: nil,
 		},
 		"run succeeded": {
-			runsToCheck: uuids,
+			runsToCheck: stringIds,
 			dbRuns: []Run{
 				{RunID: uuids[0]},
 				{RunID: uuids[1], Succeeded: true},
 				{RunID: uuids[2]},
 			},
-			expectedInactive: []uuid.UUID{uuids[1]},
+			expectedInactive: []string{stringIds[1]},
 		},
 		"run failed": {
-			runsToCheck: uuids,
+			runsToCheck: stringIds,
 			dbRuns: []Run{
 				{RunID: uuids[0]},
 				{RunID: uuids[1], Failed: true},
 				{RunID: uuids[2]},
 			},
-			expectedInactive: []uuid.UUID{uuids[1]},
+			expectedInactive: []string{stringIds[1]},
 		},
 		"run cancelled": {
-			runsToCheck: uuids,
+			runsToCheck: stringIds,
 			dbRuns: []Run{
 				{RunID: uuids[0]},
 				{RunID: uuids[1], Cancelled: true},
 				{RunID: uuids[2]},
 			},
-			expectedInactive: []uuid.UUID{uuids[1]},
+			expectedInactive: []string{stringIds[1]},
 		},
 		"run missing": {
-			runsToCheck: uuids,
+			runsToCheck: stringIds,
 			dbRuns: []Run{
 				{RunID: uuids[0]},
 				{RunID: uuids[2]},
 			},
-			expectedInactive: []uuid.UUID{uuids[1]},
+			expectedInactive: []string{stringIds[1]},
 		},
 	}
 	for name, tc := range tests {
@@ -367,17 +370,8 @@ func TestFindInactiveRuns(t *testing.T) {
 
 				inactive, err := repo.FindInactiveRuns(ctx, tc.runsToCheck)
 				require.NoError(t, err)
-				uuidSort := func(a uuid.UUID, b uuid.UUID) int {
-					if a.String() > b.String() {
-						return -1
-					} else if a.String() < b.String() {
-						return 1
-					} else {
-						return 0
-					}
-				}
-				slices.SortFunc(inactive, uuidSort)
-				slices.SortFunc(tc.expectedInactive, uuidSort)
+				slices.Sort(inactive)
+				slices.Sort(tc.expectedInactive)
 				assert.Equal(t, tc.expectedInactive, inactive)
 				cancel()
 				return nil
@@ -466,7 +460,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 	tests := map[string]struct {
 		dbRuns         []Run
 		dbJobs         []Job
-		excludedRuns   []uuid.UUID
+		excludedRuns   []string
 		maxRowsToFetch uint
 		executor       string
 		expectedLeases []*JobRunLease
@@ -490,7 +484,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 		"exclude one run": {
 			dbJobs:         dbJobs,
 			dbRuns:         dbRuns,
-			excludedRuns:   []uuid.UUID{dbRuns[1].RunID},
+			excludedRuns:   []string{dbRuns[1].RunID.String()},
 			maxRowsToFetch: 100,
 			executor:       executorName,
 			expectedLeases: []*JobRunLease{expectedLeases[0], expectedLeases[2], expectedLeases[3]},
@@ -498,7 +492,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 		"exclude everything": {
 			dbJobs:         dbJobs,
 			dbRuns:         dbRuns,
-			excludedRuns:   []uuid.UUID{dbRuns[0].RunID, dbRuns[1].RunID, dbRuns[2].RunID, dbRuns[3].RunID},
+			excludedRuns:   []string{dbRuns[0].RunID.String(), dbRuns[1].RunID.String(), dbRuns[2].RunID.String(), dbRuns[3].RunID.String()},
 			maxRowsToFetch: 100,
 			executor:       executorName,
 			expectedLeases: nil,
