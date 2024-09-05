@@ -92,7 +92,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 
 	err = closeStream(stream)
 	if err != nil {
-		return nil, err
+		log.Warnf("Failed to close lease jobs stream cleanly - %s", err)
 	}
 
 	return &LeaseResponse{
