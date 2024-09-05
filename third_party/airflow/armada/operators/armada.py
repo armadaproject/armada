@@ -264,7 +264,8 @@ acknowledged by Armada.
         )
         if existing_run is not None:
             self.log.info(
-                f"Attached to existing armada job with job-id {existing_run['armada_job_id']}."
+                "Attached to existing armada job "
+                f"with job-id {existing_run['armada_job_id']}."
                 f" {self._trigger_tracking_message(existing_run['armada_job_id'])}"
             )
             return RunningJobContext(
@@ -325,8 +326,8 @@ acknowledged by Armada.
 
         if self._not_acknowledged_within_timeout():
             self.log.info(
-                f"Armada job with job-id: {self.job_context.job_id} not acknowledged within "
-                f"timeout ({self.job_acknowledgement_timeout}), terminating"
+                f"Armada job with job-id: {self.job_context.job_id} not acknowledged "
+                f"within timeout ({self.job_acknowledgement_timeout}), terminating"
             )
             self.job_context = self.hook.cancel_job(self.job_context)
             return
