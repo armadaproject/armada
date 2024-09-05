@@ -1,7 +1,7 @@
 package service
 
 import (
-	"context"
+	"fmt"
 	"io"
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
@@ -69,40 +69,30 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	leaseRuns := []*executorapi.JobRunLease{}
 	runIdsToCancel := []*armadaevents.Uuid{}
 	runIdsToPreempt := []*armadaevents.Uuid{}
-	for {
-		shouldEndStreamCall := false
-		select {
-		case <-ctx.Done():
-			if ctx.Err() == context.DeadlineExceeded {
-				shouldEndStreamCall = true
-			} else {
-				return nil, ctx.Err()
-			}
+	shouldEndStream := false
+	for !shouldEndStream {
+		res, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+
+		switch typed := res.GetEvent().(type) {
+		case *executorapi.LeaseStreamMessage_Lease:
+			leaseRuns = append(leaseRuns, typed.Lease)
+		case *executorapi.LeaseStreamMessage_PreemptRuns:
+			runIdsToPreempt = append(runIdsToPreempt, typed.PreemptRuns.JobRunIdsToPreempt...)
+		case *executorapi.LeaseStreamMessage_CancelRuns:
+			runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
+		case *executorapi.LeaseStreamMessage_End:
+			shouldEndStream = true
 		default:
-			res, err := stream.Recv()
-			if err == io.EOF {
-				shouldEndStreamCall = true
-			} else if err != nil {
-				return nil, err
-			}
-
-			switch typed := res.GetEvent().(type) {
-			case *executorapi.LeaseStreamMessage_Lease:
-				leaseRuns = append(leaseRuns, typed.Lease)
-			case *executorapi.LeaseStreamMessage_PreemptRuns:
-				runIdsToPreempt = append(runIdsToPreempt, typed.PreemptRuns.JobRunIdsToPreempt...)
-			case *executorapi.LeaseStreamMessage_CancelRuns:
-				runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
-			case *executorapi.LeaseStreamMessage_End:
-				shouldEndStreamCall = true
-			default:
-				log.Errorf("unexpected lease stream message type %T", typed)
-			}
+			log.Errorf("unexpected lease stream message type %T", typed)
 		}
+	}
 
-		if shouldEndStreamCall {
-			break
-		}
+	err = closeStream(stream)
+	if err != nil {
+		log.Warnf("Failed to close lease jobs stream cleanly - %s", err)
 	}
 
 	return &LeaseResponse{
@@ -110,4 +100,20 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		RunIdsToCancel:  runIdsToCancel,
 		RunIdsToPreempt: runIdsToPreempt,
 	}, nil
+}
+
+// This should be called after our end of stream message has been seen (LeaseStreamMessage_End)
+// We call recv one more time and expect an EOF back, indicating the stream is properly closed
+func closeStream(stream executorapi.ExecutorApi_LeaseJobRunsClient) error {
+	res, err := stream.Recv()
+	if err == nil {
+		switch typed := res.GetEvent().(type) {
+		default:
+			return fmt.Errorf("failed closing stream - unexpectedly received event of type %T", typed)
+		}
+	} else if err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
 }
