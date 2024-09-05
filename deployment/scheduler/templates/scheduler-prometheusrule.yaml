@@ -1,0 +1,99 @@
+{{- if .Values.scheduler.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 -}}
+    {{- if .Values.scheduler.prometheus.labels }}
+    {{- toYaml .Values.scheduler.prometheus.labels | nindent 4 -}}
+    {{- end }}
+spec:
+  groups:
+    - name: armada-server-metrics
+      interval: {{ .Values.scheduler.prometheus.scrapeInterval }}
+      rules:
+        # Per-node failures.
+        - record: node:armada_scheduler_failed_jobs
+          expr: sum by (node) (armada_scheduler_job_state_counter_by_node{state="failed"})
+        # Per-cluster failures.
+        - record: cluster_category_subCategory:armada_scheduler_failed_jobs
+          expr: sum by (cluster, category, subCategory) (armada_scheduler_error_classification_by_node)
+        # Per-queue failures.
+        - record: queue_category_subCategory:armada_scheduler_failed_jobs
+          expr: sum by (queue, category, subCategory) (job_error_classification_by_queue)
+        # Per-node successes.
+        - record: node:armada_scheduler_succeeded_jobs
+          expr: sum by (node) (armada_scheduler_job_state_counter_by_node{state="succeeded"})
+        # Per-cluster successes.
+        - record: cluster_category_subCategory:armada_scheduler_succeeded_jobs
+          expr: sum by (cluster, category, subCategory) (armada_scheduler_job_state_counter_by_node{state="succeeded"})
+        # Per-queue successes.
+        - record: queue_category_subCategory:armada_scheduler_succeeded_jobs
+          expr: sum by (queue) (job_state_counter_by_queue{state="succeeded"})
+        # Per-node failures increase.
+        # increase(sum... is safe here, since all metrics that make up the sum reset at the same time.
+        - record: node:armada_scheduler_failed_jobs:increase1m
+          expr: increase(node:armada_scheduler_job_state_counter_by_queue{state="failed"}[1m:])
+        - record: node:armada_scheduler_failed_jobs:increase10m
+          expr: increase(node:armada_scheduler_job_state_counter_by_queue{state="failed"}[10m:])
+        - record: node:armada_scheduler_failed_jobs:increase1h
+          expr: increase(node:armada_scheduler_job_state_counter_by_queue{state="failed"}[10m:])
+        # Per-cluster failures increase.
+        - record: cluster_category_subCategory:armada_scheduler_failed_jobs:increase1m
+          expr: increase(cluster_category_subCategory:armada_scheduler_failed_jobs[1m:])
+        - record: cluster_category_subCategory:armada_scheduler_failed_jobs:increase10m
+          expr: increase(cluster_category_subCategory:armada_scheduler_failed_jobs[10m:])
+        - record: cluster_category_subCategory:armada_scheduler_failed_jobs:increase1h
+          expr: increase(cluster_category_subCategory:armada_scheduler_failed_jobs[1h:])
+        # Per-queue failures increase.
+        - record: queue_category_subCategory:armada_scheduler_failed_jobs:increase1m
+          expr: increase(queue_category_subCategory:armada_scheduler_failed_jobs[1m:])
+        - record: queue_category_subCategory:armada_scheduler_failed_jobs:increase10m
+          expr: increase(queue_category_subCategory:armada_scheduler_failed_jobs[10m:])
+        - record: queue_category_subCategory:armada_scheduler_failed_jobs:increase1h
+          expr: increase(queue_category_subCategory:armada_scheduler_failed_jobs[1h:])
+        # Per-node successes increase.
+        - record: node:armada_scheduler_succeeded_jobs:increase1m
+          expr: increase(node:armada_scheduler_succeeded_jobs[1m:])
+        - record: node:armada_scheduler_succeeded_jobs:increase10m
+          expr: increase(node:armada_scheduler_succeeded_jobs[10m:])
+        - record: node:armada_scheduler_succeeded_jobs:increase1h
+          expr: increase(node:armada_scheduler_succeeded_jobs[1h:])
+        # Per-cluster successes increase.
+        - record: cluster_category_subCategory:armada_scheduler_succeeded_jobs:increase1m
+          expr: increase(cluster_category_subCategory:armada_scheduler_succeeded_jobs[1m:])
+        - record: cluster_category_subCategory:armada_scheduler_succeeded_jobs:increase10m
+          expr: increase(cluster_category_subCategory:armada_scheduler_succeeded_jobs[10m:])
+        - record: cluster_category_subCategory:armada_scheduler_succeeded_jobs:increase1h
+          expr: increase(cluster_category_subCategory:armada_scheduler_succeeded_jobs[1h:])
+        # Per-queue successes increase.
+        - record: queue_category_subCategory:armada_scheduler_succeeded_jobs:increase1m
+          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs[1m:])
+        - record: queue_category_subCategory:armada_scheduler_succeeded_jobs:increase10m
+          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs[1m:])
+        - record: queue_category_subCategory:armada_scheduler_succeeded_jobs:increase1h
+          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs[1m:])
+        # Per-node failure rates.
+        - record: node:armada_scheduler_failed_rate_jobs:increase1m
+          expr: sum by(node) (node:armada_scheduler_failed_jobs:increase1m) / on(node) group_left() ((sum by(node) (node:armada_scheduler_failed_jobs:increase1m)) + (sum by(node) (node:armada_scheduler_succeeded_jobs:increase1m)))
+        - record: node:armada_scheduler_failed_rate_jobs:increase10m
+          expr: sum by(node) (node:armada_scheduler_failed_jobs:increase10m) / on(node) group_left() ((sum by(node) (node:armada_scheduler_failed_jobs:increase10m)) + (sum by(node) (node:armada_scheduler_succeeded_jobs:increase10m)))
+        - record: node:armada_scheduler_failed_rate_jobs:increase1h
+          expr: sum by(node) (node:armada_scheduler_failed_jobs:increase1h) / on(node) group_left() ((sum by(node) (node:armada_scheduler_failed_jobs:increase1h)) + (sum by(node) (node:armada_scheduler_succeeded_jobs:increase1h)))
+        # Per-cluster failure rates.
+        - record: cluster_category_subCategory:armada_scheduler_failed_rate_jobs:increase1m
+          expr: sum by(cluster, category, subCategory) (cluster_category_subCategory:armada_scheduler_failed_jobs:increase1m) / on(cluster) group_left() ((sum by(cluster) (cluster_category_subCategory:armada_scheduler_failed_jobs:increase1m)) + (sum by(cluster) (cluster_category_subCategory:armada_scheduler_succeeded_jobs:increase1m)))
+        - record: cluster_category_subCategory:armada_scheduler_failed_rate_jobs:increase10m
+          expr: sum by(cluster, category, subCategory) (cluster_category_subCategory:armada_scheduler_failed_jobs:increase10m) / on(cluster) group_left() ((sum by(cluster) (cluster_category_subCategory:armada_scheduler_failed_jobs:increase10m)) + (sum by(cluster) (cluster_category_subCategory:armada_scheduler_succeeded_jobs:increase10m)))
+        - record: cluster_category_subCategory:armada_scheduler_failed_rate_jobs:increase1h
+          expr: sum by(cluster, category, subCategory) (cluster_category_subCategory:armada_scheduler_failed_jobs:increase1h) / on(cluster) group_left() ((sum by(cluster) (cluster_category_subCategory:armada_scheduler_failed_jobs:increase1h)) + (sum by(cluster) (cluster_category_subCategory:armada_scheduler_succeeded_jobs:increase1h)))
+        # Per-queue failure rates.
+        - record: queue_category_subCategory:armada_scheduler_failed_rate_jobs:increase1m
+          expr: sum by(queue, category, subCategory) (queue_category_subCategory:armada_scheduler_failed_jobs:increase1m) / on(queue) group_left() ((sum by(queue) (queue_category_subCategory:armada_scheduler_failed_jobs:increase1m)) + (sum by(queue) (queue_category_subCategory:armada_scheduler_succeeded_jobs:increase1m)))
+        - record: queue_category_subCategory:armada_scheduler_failed_rate_jobs:increase10m
+          expr: sum by(queue, category, subCategory) (queue_category_subCategory:armada_scheduler_failed_jobs:increase10m) / on(queue) group_left() ((sum by(queue) (queue_category_subCategory:armada_scheduler_failed_jobs:increase10m)) + (sum by(queue) (queue_category_subCategory:armada_scheduler_succeeded_jobs:increase10m)))
+        - record: queue_category_subCategory:armada_scheduler_failed_rate_jobs:increase1h
+          expr: sum by(queue, category, subCategory) (queue_category_subCategory:armada_scheduler_failed_jobs:increase1h) / on(queue) group_left() ((sum by(queue) (queue_category_subCategory:armada_scheduler_failed_jobs:increase1h)) + (sum by(queue) (queue_category_subCategory:armada_scheduler_succeeded_jobs:increase1h)))
+{{- end }}

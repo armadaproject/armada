@@ -275,7 +275,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
 	// Update metrics.
-	if !s.metrics.JobStateMetricsEnabled() {
+	if s.metrics.JobStateMetricsEnabled() {
 		s.metrics.ReportStateTransitions(jsts, jobRepoRunErrorsByRunId)
 	}
 
