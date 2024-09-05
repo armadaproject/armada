@@ -10,10 +10,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
@@ -22,6 +26,7 @@ import (
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -47,6 +52,7 @@ type ExecutorApi struct {
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
+	authorizer                auth.ActionAuthorizer
 }
 
 func NewExecutorApi(publisher pulsarutils.Publisher,
@@ -57,6 +63,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
+	authorizer auth.ActionAuthorizer,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
@@ -71,6 +78,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher,
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
 		clock:                     clock.RealClock{},
+		authorizer:                authorizer,
 	}, nil
 }
 
@@ -86,6 +94,10 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	}
 
 	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
+	err = srv.authorize(ctx)
+	if err != nil {
+		return err
+	}
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
@@ -335,8 +347,25 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := srv.publisher.PublishMessages(ctx, list.GetEvents()...)
+	err := srv.authorize(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = srv.publisher.PublishMessages(ctx, list.GetEvents()...)
 	return &types.Empty{}, err
+}
+
+func (srv *ExecutorApi) authorize(ctx *armadacontext.Context) error {
+	err := srv.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return status.Errorf(codes.PermissionDenied, err.Error())
+	} else if err != nil {
+		return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	return nil
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
