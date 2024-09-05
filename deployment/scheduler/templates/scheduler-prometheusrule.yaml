@@ -22,7 +22,7 @@ spec:
           expr: sum by (cluster, category, subCategory) (armada_scheduler_error_classification_by_node)
         # Per-queue failures.
         - record: queue_category_subCategory:armada_scheduler_failed_jobs
-          expr: sum by (queue, category, subCategory) (job_error_classification_by_queue)
+          expr: sum by (queue, category, subCategory) (armada_scheduler_job_error_classification_by_queue)
         # Per-node successes.
         - record: node:armada_scheduler_succeeded_jobs
           expr: sum by (node) (armada_scheduler_job_state_counter_by_node{state="succeeded"})
@@ -31,7 +31,7 @@ spec:
           expr: sum by (cluster, category, subCategory) (armada_scheduler_job_state_counter_by_node{state="succeeded"})
         # Per-queue successes.
         - record: queue_category_subCategory:armada_scheduler_succeeded_jobs
-          expr: sum by (queue) (job_state_counter_by_queue{state="succeeded"})
+          expr: sum by (queue) (armada_scheduler_job_state_counter_by_queue{state="succeeded"})
         # Per-node failures increase.
         # increase(sum... is safe here, since all metrics that make up the sum reset at the same time.
         - record: node:armada_scheduler_failed_jobs:increase1m
