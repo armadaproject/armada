@@ -95,7 +95,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	for _, ex := range executors {
 		nodes := ex.GetNodes()
 		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *schedulerobjects.Node) string {
-			return GetNodePool(n, ex)
+			return n.GetPool()
 		})
 		for pool, nodes := range nodesByPool {
 			nodeDb, err := srv.constructNodeDb(nodes)

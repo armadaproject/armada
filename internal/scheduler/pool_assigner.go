@@ -51,7 +51,7 @@ func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.Context) error {
 func (p *DefaultPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
 	// If Job has an active run then use the pool associated with the executor it was assigned to
 	if !j.Queued() && j.HasRuns() {
-		pool := GetRunPool(j.LatestRun(), p.nodeById[j.LatestRun().NodeId()], p.executorById[j.LatestRun().Executor()])
+		pool := j.LatestRun().Pool()
 		return []string{pool}, nil
 	}
 	// otherwise use the pools associated with the job

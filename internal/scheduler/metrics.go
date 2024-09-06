@@ -279,7 +279,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			pool := GetNodePool(node, executor)
+			pool := node.GetPool()
 			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
 				pool:     pool,
