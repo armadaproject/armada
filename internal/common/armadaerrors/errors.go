@@ -10,13 +10,9 @@ package armadaerrors
 import (
 	"context"
 	"fmt"
-	"io"
-	"net"
 	"regexp"
 	"strings"
-	"syscall"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -190,90 +186,6 @@ func CodeFromError(err error) codes.Code {
 	return codes.Unknown
 }
 
-var PULSAR_CONNECTION_ERRORS = []pulsar.Result{
-	pulsar.TimeoutError,
-	pulsar.LookupError,
-	pulsar.ConnectError,
-	pulsar.ReadError,
-	pulsar.NotConnectedError,
-	pulsar.TooManyLookupRequestException,
-	pulsar.ServiceUnitNotReady,
-	pulsar.ProducerQueueIsFull,
-}
-
-// IsNetworkError returns true if err is a network-related error.
-// If err is an error chain, this function returns true if any error in the chain is a network error.
-//
-// For details, see
-// https://stackoverflow.com/questions/22761562/portable-way-to-detect-different-kinds-of-network-error
-func IsNetworkError(err error) bool {
-	// Return immediately on nil.
-	if err == nil {
-		return false
-	}
-
-	// Because deadline exceeded is typically caused by a network timeout, we consider it a network error.
-	if ok := errors.Is(err, context.DeadlineExceeded); ok {
-		return true
-	}
-
-	// EOF indicates a network termination
-	if errors.Is(err, io.EOF) {
-		return true
-	}
-
-	// Generic network errors in the net package. Redis returns these.
-	{
-		var e net.Error
-		if ok := errors.As(err, &e); ok {
-			return true
-		}
-	}
-	{
-		var e *net.OpError
-		if ok := errors.As(err, &e); ok {
-			return true
-		}
-	}
-
-	// Generic syscall errors.
-	// Not sure if anything returns this, but it seems proper to check.
-	{
-		var e syscall.Errno
-		if ok := errors.As(err, &e); ok {
-			if e == syscall.ECONNREFUSED {
-				return true
-			} else if e == syscall.ECONNRESET {
-				return true
-			} else if e == syscall.ECONNABORTED {
-				return true
-			}
-		}
-	}
-
-	// Errors associated with connection problems with Pulsar.
-	{
-		var e *pulsar.Error
-		if ok := errors.As(err, &e); ok {
-			for _, result := range PULSAR_CONNECTION_ERRORS {
-				if e.Result() == result {
-					return true
-				}
-			}
-		}
-	}
-
-	// Pulsar subscribe returns an errors.errorString with a particular message
-	// (as opposed to using its internal error type).
-	if e := errors.Cause(err); e != nil {
-		if strings.Contains(e.Error(), "connection error") { // Pulsar subscribe
-			return true
-		}
-	}
-
-	return false
-}
-
 // Add the action to the error if possible.
 func addAction(err error, action string) {
 	{
@@ -444,40 +356,6 @@ func (err *ErrPodUnschedulable) Error() string {
 		}
 	}
 	return b.String()
-}
-
-// NewCombinedErrPodUnschedulable returns a new ErrPodUnschedulable with
-// countFromReasons aggregated over all arguments.
-func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
-	if len(errs) == 0 {
-		return nil
-	}
-
-	result := &ErrPodUnschedulable{
-		countFromReason: make(map[string]int),
-	}
-	for _, err := range errs {
-		if err == nil {
-			continue
-		}
-
-		// If the error is of type *ErrPodUnschedulable, merge the reasons.
-		if e, ok := err.(*ErrPodUnschedulable); ok {
-			if len(e.countFromReason) == 0 {
-				continue
-			}
-			for reason, count := range e.countFromReason {
-				result.countFromReason[reason] += count
-			}
-		} else { // Otherwise, add the error message as a reason.
-			result.countFromReason[err.Error()] += 1
-		}
-	}
-
-	if len(result.countFromReason) == 0 {
-		return nil
-	}
-	return result
 }
 
 // ErrUnauthenticated represents an error that occurs when a client tries to
