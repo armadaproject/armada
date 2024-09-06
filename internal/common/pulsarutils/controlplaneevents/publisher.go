@@ -1,4 +1,4 @@
-package pulsarutils
+package controlplaneevents
 
 import (
 	"sync"
@@ -11,12 +11,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 // Publisher is an interface to be implemented by structs that handle publishing messages to pulsar
 type Publisher interface {
-	PublishMessages(ctx *armadacontext.Context, events ...*armadaevents.EventSequence) error
+	PublishMessages(ctx *armadacontext.Context, events ...*controlplaneevents.ControlPlaneEventV1) error
 	Close()
 }
 
@@ -24,8 +24,6 @@ type Publisher interface {
 type PulsarPublisher struct {
 	// Used to send messages to pulsar
 	producer pulsar.Producer
-	// Maximum number of Events in each EventSequence
-	maxEventsPerMessage int
 	// Maximum size (in bytes) of produced pulsar messages.
 	// This must be below 4MB which is the pulsar message size limit
 	maxAllowedMessageSize uint
@@ -36,7 +34,6 @@ type PulsarPublisher struct {
 func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
-	maxEventsPerMessage int,
 	maxAllowedMessageSize uint,
 	sendTimeout time.Duration,
 ) (*PulsarPublisher, error) {
@@ -46,30 +43,31 @@ func NewPulsarPublisher(
 	}
 	return &PulsarPublisher{
 		producer:              producer,
-		maxEventsPerMessage:   maxEventsPerMessage,
 		maxAllowedMessageSize: maxAllowedMessageSize,
 		sendTimeout:           sendTimeout,
 	}, nil
 }
 
-// PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
-// single event sequences up to maxMessageBatchSize.
-func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events ...*armadaevents.EventSequence) error {
-	sequences := eventutil.CompactEventSequences(events)
-	sequences = eventutil.LimitSequencesEventMessageCount(sequences, p.maxEventsPerMessage)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxAllowedMessageSize, true)
+// PublishMessages publishes control plane event sequences to pulsar.
+func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events ...*controlplaneevents.ControlPlaneEventV1) error {
+	err := eventutil.ValidateControlPlaneEventsByteSize(events, p.maxAllowedMessageSize)
 	if err != nil {
 		return err
 	}
-	msgs := make([]*pulsar.ProducerMessage, len(sequences))
-	for i, sequence := range sequences {
-		bytes, err := proto.Marshal(sequence)
+	msgs := make([]*pulsar.ProducerMessage, len(events))
+	for i, event := range events {
+		bytes, err := proto.Marshal(event)
+		if err != nil {
+			return err
+		}
+
+		messageKey, err := eventutil.MessageKeyFromControlPlaneEvent(event)
 		if err != nil {
 			return err
 		}
 		msgs[i] = &pulsar.ProducerMessage{
 			Payload: bytes,
-			Key:     sequences[i].JobSetName,
+			Key:     messageKey,
 		}
 	}
 

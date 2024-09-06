@@ -35,7 +35,7 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 	for _, e := range events {
 		sequences = append(sequences, e.Event)
 	}
-	sequences = eventutil.CompactEventSequences(sequences)
+	sequences = eventutil.CompactJobSetEventSequences(sequences)
 	if len(sequences) <= 0 {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 }
 
 func splitIntoEventListWithByteLimit(sequences []*armadaevents.EventSequence, maxEventListSizeBytes int) ([]*executorapi.EventList, error) {
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, uint(maxEventListSizeBytes-eventListOverheadBytes), true)
+	sequences, err := eventutil.LimitJobSetEventSequencesByteSize(sequences, uint(maxEventListSizeBytes-eventListOverheadBytes), true)
 	if err != nil {
 		return nil, err
 	}

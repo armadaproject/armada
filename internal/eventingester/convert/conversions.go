@@ -35,8 +35,8 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *
 		es.Groups = nil
 	}
 
-	sequences := eventutil.CompactEventSequences(sequencesWithIds.EventSequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, ec.MaxMessageBatchSize, false)
+	sequences := eventutil.CompactJobSetEventSequences(sequencesWithIds.EventSequences)
+	sequences, err := eventutil.LimitJobSetEventSequencesByteSize(sequences, ec.MaxMessageBatchSize, false)
 	if err != nil {
 		// This should never happen. We pass strict=false to theabove sequence
 		panic(errors.WithMessage(err, "Failed to limit sequence by size"))

@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
@@ -174,7 +175,7 @@ func K8sObjectMetaFromLogObjectMeta(meta *armadaevents.ObjectMeta) *metav1.Objec
 	}
 }
 
-// CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
+// CompactJobSetEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
 // In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence
 // when doing so is possible without changing the order of events within job sets.
 //
@@ -182,7 +183,7 @@ func K8sObjectMetaFromLogObjectMeta(meta *armadaevents.ObjectMeta) *metav1.Objec
 // could result in the following two sequences [A, B, C, F, G], [D, E],
 // if sequence 1 and 3 share the same (queue, jobSetName, userId, groups)
 // and if the sequence [D, E] is for a different job set.
-func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaevents.EventSequence {
+func CompactJobSetEventSequences(sequences []*armadaevents.EventSequence) []*armadaevents.EventSequence {
 	// We may change ordering between job sets but not within job sets.
 	// To ensure the order of the resulting compacted sequences is deterministic,
 	// store a slice of all unique jobSetNames in the order they occur in sequences.
@@ -249,7 +250,7 @@ func groupsEqual(g1, g2 []string) bool {
 	return true
 }
 
-func LimitSequencesEventMessageCount(sequences []*armadaevents.EventSequence, maxEventsPerSequence int) []*armadaevents.EventSequence {
+func LimitJobSetSequencesEventMessageCount(sequences []*armadaevents.EventSequence, maxEventsPerSequence int) []*armadaevents.EventSequence {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
 		if len(sequence.Events) > maxEventsPerSequence {
@@ -272,12 +273,12 @@ func LimitSequencesEventMessageCount(sequences []*armadaevents.EventSequence, ma
 	return rv
 }
 
-// LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
+// LimitJobSetEventSequencesByteSize calls LimitJobSetSequenceByteSize for each of the provided sequences
 // and returns all resulting sequences.
-func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitJobSetEventSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
-		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes, strict)
+		limitedSequences, err := LimitJobSetSequenceByteSize(sequence, sizeInBytes, strict)
 		if err != nil {
 			return nil, err
 		}
@@ -287,15 +288,15 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 }
 
 // This is an (over)estimate of the byte overhead used to represent the list EventSequence.Events
-// We need this get a safe estimate for the headerSize in LimitSequenceByteSize
+// We need this get a safe estimate for the headerSize in LimitJobSetSequenceByteSize
 // We cannot simply rely on proto.Size on an EventSequence with an empty Event list,
 // as proto is smart enough to realise it is empty and just nils it out for 0 bytes
 const sequenceEventListOverheadSizeBytes = 100
 
-// LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events into separate sequences
+// LimitJobSetSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events into separate sequences
 // If strict is true, each sequence will be at most sizeInBytes bytes in size
 // If strict is false, sizeInBytes can be exceeded by at most the size of a single sequence.Event
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitJobSetSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
@@ -333,4 +334,40 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uin
 		lastSequenceEventSize += eventSize
 	}
 	return sequences, nil
+}
+
+// ValidateControlPlaneEventsByteSize validates that each event is at most sizeInBytes bytes in size. Unlike JobSet events,
+// control plane events are not a sequence.
+func ValidateControlPlaneEventsByteSize(events []*controlplaneevents.ControlPlaneEventV1, sizeInBytes uint) error {
+	for _, event := range events {
+		eventSize := uint(proto.Size(event))
+		if eventSize > sizeInBytes {
+			return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:  "controlplaneevent",
+				Value: event,
+				Message: fmt.Sprintf(
+					"event of %d bytes is larger than the sequence size limit of %d",
+					eventSize,
+					sizeInBytes,
+				),
+			})
+		}
+	}
+
+	return nil
+}
+
+func MessageKeyFromControlPlaneEvent(event *controlplaneevents.ControlPlaneEventV1) (string, error) {
+	switch ev := event.Event.(type) {
+	case *controlplaneevents.ControlPlaneEventV1_CordonExecutor:
+		return proto.MessageName(ev.CordonExecutor), nil
+	case *controlplaneevents.ControlPlaneEventV1_UncordonExecutor:
+		return proto.MessageName(ev.UncordonExecutor), nil
+	default:
+		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "controlplaneevent",
+			Value:   ev,
+			Message: fmt.Sprintf("unknown event type %T", ev),
+		})
+	}
 }

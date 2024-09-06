@@ -95,6 +95,7 @@ func protoGenerate() error {
 	patterns := []string{
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
+		"pkg/controlplaneevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
 		"internal/scheduler/simulator/*.proto",
 		"pkg/api/binoculars/*.proto",
@@ -157,7 +158,7 @@ func protoGenerate() error {
 		return err
 	}
 
-	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./pkg/controlplaneevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/")
 	if err != nil {
 		return err
 	}

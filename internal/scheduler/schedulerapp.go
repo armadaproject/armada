@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -154,7 +155,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// Executor Api
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
-	apiPublisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+	apiPublisher, err := jobsetevents.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,

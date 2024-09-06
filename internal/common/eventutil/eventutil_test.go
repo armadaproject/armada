@@ -63,7 +63,7 @@ func TestCompactSequences_Basic(t *testing.T) {
 		},
 	}
 
-	actual := CompactEventSequences(sequences)
+	actual := CompactJobSetEventSequences(sequences)
 	assert.Equal(t, expected, actual)
 }
 
@@ -166,7 +166,7 @@ func TestCompactSequences_JobSetOrder(t *testing.T) {
 		},
 	}
 
-	actual := CompactEventSequences(sequences)
+	actual := CompactJobSetEventSequences(sequences)
 	assert.Equal(t, expected, actual)
 }
 
@@ -253,7 +253,7 @@ func TestCompactSequences_Groups(t *testing.T) {
 		},
 	}
 
-	actual := CompactEventSequences(sequences)
+	actual := CompactJobSetEventSequences(sequences)
 	assert.Equal(t, expected, actual)
 }
 
@@ -343,7 +343,7 @@ func TestLimitSequencesEventMessageCount(t *testing.T) {
 		},
 	}
 
-	result := LimitSequencesEventMessageCount(input, 2)
+	result := LimitJobSetSequencesEventMessageCount(input, 2)
 	assert.Len(t, result, 3)
 	assert.Equal(t, expected, result)
 }
@@ -370,16 +370,16 @@ func TestLimitSequenceByteSize(t *testing.T) {
 		})
 	}
 
-	actual, err := LimitSequenceByteSize(sequence, 1000, true)
+	actual, err := LimitJobSetSequenceByteSize(sequence, 1000, true)
 	if !assert.NoError(t, err) {
 		return
 	}
 	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
 
-	_, err = LimitSequenceByteSize(sequence, 1, true)
+	_, err = LimitJobSetSequenceByteSize(sequence, 1, true)
 	assert.Error(t, err)
 
-	_, err = LimitSequenceByteSize(sequence, 1, false)
+	_, err = LimitJobSetSequenceByteSize(sequence, 1, false)
 	assert.NoError(t, err)
 
 	expected := make([]*armadaevents.EventSequence, numEvents)
@@ -400,7 +400,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 			},
 		}
 	}
-	actual, err = LimitSequenceByteSize(sequence, 65+sequenceEventListOverheadSizeBytes, true)
+	actual, err = LimitJobSetSequenceByteSize(sequence, 65+sequenceEventListOverheadSizeBytes, true)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -435,7 +435,7 @@ func TestLimitSequencesByteSize(t *testing.T) {
 		sequences = append(sequences, sequence)
 	}
 
-	actual, err := LimitSequencesByteSize(sequences, 65+sequenceEventListOverheadSizeBytes, true)
+	actual, err := LimitJobSetEventSequencesByteSize(sequences, 65+sequenceEventListOverheadSizeBytes, true)
 	if !assert.NoError(t, err) {
 		return
 	}

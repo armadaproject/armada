@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -35,7 +35,7 @@ type Publisher interface {
 // PulsarPublisher is the default implementation of Publisher
 type PulsarPublisher struct {
 	// Used to send events sequences to pulsar
-	publisher pulsarutils.Publisher
+	publisher jobsetevents.Publisher
 	// Used to send position markers to pulsar
 	producer pulsar.Producer
 	// Number of partitions on the pulsar topic
@@ -51,7 +51,7 @@ func NewPulsarPublisher(
 ) (*PulsarPublisher, error) {
 	id := uuid.NewString()
 	producerOptions.Name = fmt.Sprintf("armada-scheduler-events-%s", id)
-	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, producerOptions, maxEventsPerMessage, maxAllowedMessageSize, sendTimeout)
+	publisher, err := jobsetevents.NewPulsarPublisher(pulsarClient, producerOptions, maxEventsPerMessage, maxAllowedMessageSize, sendTimeout)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

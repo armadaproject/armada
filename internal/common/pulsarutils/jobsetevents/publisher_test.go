@@ -1,4 +1,4 @@
-package pulsarutils
+package jobsetevents
 
 import (
 	"math"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/mocks"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -115,7 +116,7 @@ func TestPublishMessages(t *testing.T) {
 					require.NoError(t, err)
 					capturedEvents = append(capturedEvents, es)
 					numberOfEventsPublished += len(es.Events)
-					callback(NewMessageId(numberOfMessagesPublished), msg, nil)
+					callback(pulsarutils.NewMessageId(numberOfMessagesPublished), msg, nil)
 				}).AnyTimes()
 
 			err := publisher.PublishMessages(ctx, tc.eventSequences...)
@@ -196,7 +197,7 @@ func TestPublishMessages_HandlesFailureModes(t *testing.T) {
 						return
 					}
 					if numberOfMessagesPublished >= tc.numSuccessfulPublishes {
-						callback(NewMessageId(numberOfMessagesPublished), msg, errors.New("error from mock pulsar producer"))
+						callback(pulsarutils.NewMessageId(numberOfMessagesPublished), msg, errors.New("error from mock pulsar producer"))
 					} else {
 						es := &armadaevents.EventSequence{}
 						err := proto.Unmarshal(msg.Payload, es)
@@ -204,7 +205,7 @@ func TestPublishMessages_HandlesFailureModes(t *testing.T) {
 
 						numberOfMessagesPublished++
 						numberOfEventsPublished += len(es.Events)
-						callback(NewMessageId(numberOfMessagesPublished), msg, nil)
+						callback(pulsarutils.NewMessageId(numberOfMessagesPublished), msg, nil)
 					}
 				}).AnyTimes()
 

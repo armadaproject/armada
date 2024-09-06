@@ -1,0 +1,26 @@
+syntax = 'proto3';
+package controlplaneevents;
+option go_package = "github.com/armadaproject/armada/pkg/controlplaneevents";
+option csharp_namespace = "ArmadaProject.Io.ControlPlaneEvents";
+
+import "google/protobuf/timestamp.proto";
+
+
+message CordonExecutor {
+  string name = 1;
+  string reason = 2;
+}
+
+message UncordonExecutor {
+  string name = 1;
+  string reason = 2;
+}
+
+message ControlPlaneEventV1 {
+  google.protobuf.Timestamp created = 1;
+  oneof event {
+    // Operational events
+    CordonExecutor cordonExecutor = 2;
+    UncordonExecutor uncordonExecutor = 3;
+  }
+}

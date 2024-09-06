@@ -22,9 +22,12 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/internal/server/controlplaneoperations"
 	"github.com/armadaproject/armada/internal/server/event"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
@@ -122,7 +125,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer pulsarClient.Close()
 
-	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+	jobSetEventsPublisher, err := jobsetevents.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-server-%s", serverId),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
@@ -130,15 +133,27 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
 	if err != nil {
-		return errors.Wrapf(err, "error creating pulsar producer")
+		return errors.Wrapf(err, "error creating pulsar producer for jobset events")
 	}
-	defer publisher.Close()
+	defer jobSetEventsPublisher.Close()
+
+	controlPlaneEventsPublisher, err := controlplaneevents.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+		Name:             fmt.Sprintf("armada-server-%s", serverId),
+		CompressionType:  config.Pulsar.CompressionType,
+		CompressionLevel: config.Pulsar.CompressionLevel,
+		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+		Topic:            config.Pulsar.ControlPlaneEventsTopic,
+	}, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
+	if err != nil {
+		return errors.Wrapf(err, "error creating pulsar producer for control plane events")
+	}
+	defer controlPlaneEventsPublisher.Close()
 
 	queueServer := queue.NewServer(queueRepository, authorizer)
 
 	submitServer := submit.NewServer(
 		queueServer,
-		publisher,
+		jobSetEventsPublisher,
 		queueCache,
 		config.Submission,
 		submit.NewDeduplicator(dbPool),
@@ -157,9 +172,12 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		queueCache,
 	)
 
+	controlPlaneOperationsServer := controlplaneoperations.New(controlPlaneEventsPublisher, authorizer)
+
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
+	api.RegisterControlPlaneOperationsServer(grpcServer, controlPlaneOperationsServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)

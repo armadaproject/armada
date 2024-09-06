@@ -25,6 +25,8 @@ type PulsarConfig struct {
 	JwtTokenPath string
 	// The pulsar topic that Jobset Events will be published to
 	JobsetEventsTopic string
+	// The pulsar topic that Control Plane Events will be published to
+	ControlPlaneEventsTopic string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"

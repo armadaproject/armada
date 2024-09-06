@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
+
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	log "github.com/sirupsen/logrus"
@@ -14,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -31,7 +32,7 @@ import (
 // to Pulsar based on those calls.
 type Server struct {
 	queueService     api.QueueServiceServer
-	publisher        pulsarutils.Publisher
+	publisher        jobsetevents.Publisher
 	queueCache       armadaqueue.ReadOnlyQueueRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
@@ -43,7 +44,7 @@ type Server struct {
 
 func NewServer(
 	queueService api.QueueServiceServer,
-	publisher pulsarutils.Publisher,
+	publisher jobsetevents.Publisher,
 	queueCache armadaqueue.ReadOnlyQueueRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,

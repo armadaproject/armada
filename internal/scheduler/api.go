@@ -20,7 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/slices"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -35,7 +35,7 @@ const armadaJobPreemptibleLabel = "armada_preemptible"
 // ExecutorApi is the gRPC service executors use to synchronise their state with that of the scheduler.
 type ExecutorApi struct {
 	// Used to send event sequences received from the executors about job state change to Pulsar
-	publisher pulsarutils.Publisher
+	publisher jobsetevents.Publisher
 	// Interface to the component storing job information, such as which jobs are leased to a particular executor.
 	jobRepository database.JobRepository
 	// Interface to the component storing executor information, such as which when we last heard from an executor.
@@ -54,7 +54,7 @@ type ExecutorApi struct {
 	authorizer                auth.ActionAuthorizer
 }
 
-func NewExecutorApi(publisher pulsarutils.Publisher,
+func NewExecutorApi(publisher jobsetevents.Publisher,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
