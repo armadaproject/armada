@@ -274,21 +274,12 @@ message JobSetRequest {
     bool errorIfMissing = 5;
 }
 
-message WatchRequest {
-    string queue = 1;
-    string job_set_id = 2;
-    string from_id = 3;
-}
-
 service Event {
     rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
         option (google.api.http) = {
             post: "/v1/job-set/{queue}/{id}"
             body: "*"
         };
-    }
-    rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
-        option deprecated = true;
     }
     rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
 }

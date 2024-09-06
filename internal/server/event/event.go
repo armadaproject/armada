@@ -71,17 +71,6 @@ func (s *EventServer) Health(_ context.Context, _ *types.Empty) (*api.HealthChec
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 
-func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
-	request := &api.JobSetRequest{
-		Id:             req.JobSetId,
-		Watch:          true,
-		FromMessageId:  req.FromId,
-		Queue:          req.Queue,
-		ErrorIfMissing: true,
-	}
-	return s.GetJobSetEvents(request, stream)
-}
-
 func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, eventRepository EventRepository,
 	stream api.Event_GetJobSetEventsServer,
 ) error {
