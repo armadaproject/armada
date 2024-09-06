@@ -221,21 +221,14 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
 
-	var submitChecker SubmitScheduleChecker
-	if !config.DisableSubmitCheck {
-		submitCheckerImpl := NewSubmitChecker(
-			config.Scheduling,
-			executorRepository,
-			resourceListFactory,
-		)
-		services = append(services, func() error {
-			return submitCheckerImpl.Run(ctx)
-		})
-		submitChecker = submitCheckerImpl
-	} else {
-		ctx.Infof("DisableSubmitCheckis true, will use a dummy submit check")
-		submitChecker = &DummySubmitChecker{}
-	}
+	submitChecker := NewSubmitChecker(
+		config.Scheduling,
+		executorRepository,
+		resourceListFactory,
+	)
+	services = append(services, func() error {
+		return submitChecker.Run(ctx)
+	})
 
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
 	schedulingAlgo, err := NewFairSchedulingAlgo(
