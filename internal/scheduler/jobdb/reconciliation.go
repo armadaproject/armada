@@ -83,7 +83,6 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 			jobRepoJob,             // New or updated job from the jobRepo.
 			jobRepoRunsById[jobId], // New or updated runs associated with this job from the jobRepo.
 		)
-
 		if err != nil {
 			return nil, err
 		}
