@@ -123,7 +123,6 @@ func ClusterSpecFromFilePath(filePath string) (*ClusterSpec, error) {
 		fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 		rv.Name = fileName
 	}
-	initialiseClusterSpec(rv)
 
 	return rv, nil
 }
@@ -150,19 +149,6 @@ func WorkloadSpecFromFilePath(filePath string) (*WorkloadSpec, error) {
 
 	initialiseWorkloadSpec(rv)
 	return rv, nil
-}
-
-func initialiseClusterSpec(clusterSpec *ClusterSpec) {
-	// Assign names to executors with none specified.
-	for _, pool := range clusterSpec.Pools {
-		for i, executorGroup := range pool.ClusterGroups {
-			for j, executor := range executorGroup.Clusters {
-				if executor.Name == "" {
-					executor.Name = fmt.Sprintf("%s-%d-%d", pool.Name, i, j)
-				}
-			}
-		}
-	}
 }
 
 func initialiseWorkloadSpec(workloadSpec *WorkloadSpec) {

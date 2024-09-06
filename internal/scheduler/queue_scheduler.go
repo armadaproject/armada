@@ -96,6 +96,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresul
 		if gctx == nil {
 			break
 		}
+		foo := gctx.JobSchedulingContexts[0].PodRequirements.Tolerations
+		if len(foo) > 0 {
+			ctx.Error(foo)
+		}
 		if gctx.Cardinality() == 0 {
 			if err := sch.candidateGangIterator.Clear(); err != nil {
 				return nil, err
