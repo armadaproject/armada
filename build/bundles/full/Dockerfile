@@ -5,7 +5,7 @@ ARG BASE_IMAGE=alpine:3.20.2
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 LABEL org.opencontainers.image.title=armada-full-bundle
 LABEL org.opencontainers.image.description="Armada Full Bundle"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-full-bundle
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada-full-bundle
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/

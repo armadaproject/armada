@@ -19,7 +19,7 @@ FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 LABEL org.opencontainers.image.title=lookoutv2
 LABEL org.opencontainers.image.description="Lookout V2"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/lookoutv2
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/lookoutv2
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
 COPY lookoutv2 /app/
