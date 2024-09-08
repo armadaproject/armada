@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -60,7 +62,10 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		Resources:           request.AvailableResource.ToProtoMap(),
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
-		MaxJobsToLease:      request.MaxJobsToLease,
+		UnassignedJobRunIdsStr: armadaslices.Map(request.UnassignedJobRunIds, func(uuid *armadaevents.Uuid) string {
+			return armadaevents.MustUuidStringFromProtoUuid(uuid)
+		}),
+		MaxJobsToLease: request.MaxJobsToLease,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)

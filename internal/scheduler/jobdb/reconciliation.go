@@ -158,7 +158,7 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 
 	// Reconcile run state transitions.
 	for _, jobRepoRun := range jobRepoRuns {
-		rst := jobDb.reconcileRunDifferences(job.RunById(jobRepoRun.RunID.String()), jobRepoRun)
+		rst := jobDb.reconcileRunDifferences(job.RunById(jobRepoRun.RunID), jobRepoRun)
 		jst = jst.applyRunStateTransitions(rst)
 		job = job.WithUpdatedRun(rst.JobRun)
 	}
@@ -293,7 +293,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
 	return jobDb.CreateRun(
-		dbRun.RunID.String(),
+		dbRun.RunID,
 		dbRun.JobID,
 		dbRun.Created,
 		dbRun.Executor,

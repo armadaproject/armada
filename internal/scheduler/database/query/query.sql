@@ -41,19 +41,19 @@ SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[])
 UPDATE runs SET preempt_requested = true WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobRunsSucceededById :exec
-UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: MarkJobRunsFailedById :exec
-UPDATE runs SET failed = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+UPDATE runs SET failed = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: MarkJobRunsReturnedById :exec
-UPDATE runs SET returned = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+UPDATE runs SET returned = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: MarkJobRunsAttemptedById :exec
-UPDATE runs SET run_attempted = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+UPDATE runs SET run_attempted = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: MarkJobRunsRunningById :exec
-UPDATE runs SET running = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+UPDATE runs SET running = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: MarkRunsCancelledByJobId :exec
 UPDATE runs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
@@ -64,11 +64,11 @@ FROM runs jr
          JOIN jobs j
               ON jr.job_id = j.job_id
 WHERE jr.executor = $1
-  AND jr.run_id NOT IN (sqlc.arg(run_ids)::UUID[])
+  AND jr.run_id NOT IN (sqlc.arg(run_ids)::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false;
 
 -- name: FindActiveRuns :many
-SELECT run_id FROM runs WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[])
+SELECT run_id FROM runs WHERE run_id = ANY(sqlc.arg(run_ids)::text[])
                          AND (succeeded = false AND failed = false AND cancelled = false);
 
 -- name: CountGroup :one
@@ -85,7 +85,7 @@ INSERT INTO markers (group_id, partition_id, created) VALUES ($1, $2, $3) ON CON
 
 -- Run errors
 -- name: SelectRunErrorsById :many
-SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: SelectAllRunErrors :many
 SELECT * FROM job_run_errors;

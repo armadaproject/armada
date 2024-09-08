@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
@@ -239,7 +238,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	case MarkRunsSucceeded:
 		successTimes := make([]interface{}, 0, len(o))
 		succeeded := make([]bool, 0, len(o))
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		for runId, successTime := range o {
 			successTimes = append(successTimes, successTime)
 			runIds = append(runIds, runId)
@@ -251,11 +250,11 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsFailed:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		failTimes := make([]interface{}, 0, len(o))
 		failed := make([]bool, 0, len(o))
-		returned := make([]uuid.UUID, 0)
-		runAttempted := make([]uuid.UUID, 0)
+		returned := make([]string, 0)
+		runAttempted := make([]string, 0)
 		for k, v := range o {
 			runIds = append(runIds, k)
 			failTimes = append(failTimes, v.FailureTime)
@@ -280,7 +279,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsRunning:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		runningTimes := make([]interface{}, 0, len(runIds))
 		running := make([]bool, 0, len(runIds))
 		for runId, failTime := range o {
@@ -294,7 +293,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsPending:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		pendingTimes := make([]interface{}, 0, len(o))
 		pending := make([]bool, 0, len(o))
 		for runId, pendingTime := range o {
@@ -307,7 +306,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsPreempted:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		preemptedTimes := make([]interface{}, 0, len(o))
 		preempted := make([]bool, 0, len(o))
 		for runId, preemptedTime := range o {
