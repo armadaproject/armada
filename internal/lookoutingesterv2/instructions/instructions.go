@@ -277,7 +277,6 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 }
 
 func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
-
 	// Update Job
 	job := model.UpdateJobInstruction{
 		JobId:                     event.JobIdStr,
