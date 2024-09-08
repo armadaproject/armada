@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -108,7 +109,10 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 		Resources:           leaseRequest.AvailableResource.ToProtoMap(),
 		Nodes:               leaseRequest.Nodes,
 		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
-		MaxJobsToLease:      leaseRequest.MaxJobsToLease,
+		UnassignedJobRunIdsStr: armadaslices.Map(leaseRequest.UnassignedJobRunIds, func(uuid *armadaevents.Uuid) string {
+			return armadaevents.MustUuidStringFromProtoUuid(uuid)
+		}),
+		MaxJobsToLease: leaseRequest.MaxJobsToLease,
 	}
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)
