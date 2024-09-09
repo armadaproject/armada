@@ -961,11 +961,7 @@ func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity 
 func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
 	for _, eventSequence := range eventSequences {
 		for _, event := range eventSequence.Events {
-			protoJobId, err := armadaevents.JobIdFromEvent(event)
-			if err != nil {
-				return err
-			}
-			jobId, err := armadaevents.UlidStringFromProtoUuid(protoJobId)
+			jobId, err := armadaevents.JobIdFromEvent(event)
 			if err != nil {
 				return err
 			}
