@@ -104,7 +104,7 @@ class ArmadaClient:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
         self.job_stub = job_pb2_grpc.JobsStub(channel)
-        self.queue_stub = submit_pb2.QueueServiceStub(channel)
+        self.queue_stub = submit_pb2_grpc.QueueServiceStub(channel)
         self.event_timeout = event_timeout
 
     def get_job_events_stream(
