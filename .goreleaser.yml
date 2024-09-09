@@ -19,7 +19,7 @@ env:
   # To use a builder other than "default", set this variable.
   # Necessary for, e.g., GitHub actions cache integration.
   - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.21{{ end }}
+  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.23{{ end }}
 
 builds:
   - env: [CGO_ENABLED=0]
