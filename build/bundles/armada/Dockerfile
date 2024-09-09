@@ -2,7 +2,7 @@ ARG BASE_IMAGE=alpine:3.20.2
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=armada
 LABEL org.opencontainers.image.description="Armada Bundle"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada
 
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
