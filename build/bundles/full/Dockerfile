@@ -3,7 +3,9 @@ ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
 ARG BASE_IMAGE=alpine:3.20.3
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
-
+LABEL org.opencontainers.image.title=armada-full-bundle
+LABEL org.opencontainers.image.description="Armada Full Bundle"
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada-full-bundle
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
@@ -17,14 +19,10 @@ RUN yarn run build
 
 FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
-LABEL org.opencontainers.image.title=lookoutv2
-LABEL org.opencontainers.image.description="Lookout V2"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/lookoutv2
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
-COPY lookoutv2 /app/
-COPY config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
-COPY lookoutingesterv2 /app/
-COPY config/lookoutingesterv2/ /app/config/lookoutingesterv2
+
+COPY server executor binoculars eventingester lookoutingesterv2 lookoutv2 scheduler scheduleringester armadactl /app/
+COPY config/ /app/config/
+
 WORKDIR /app
-ENTRYPOINT ["./lookoutv2"]
