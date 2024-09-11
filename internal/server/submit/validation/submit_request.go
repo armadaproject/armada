@@ -21,6 +21,8 @@ var (
 	requestValidators = []requestValidator{
 		validateHasQueue,
 		validateGangs,
+		validateHasJobSetId,
+		validateJobSetIdLength,
 	}
 	itemValidators = []itemValidator{
 		validateHasNamespace,
@@ -96,6 +98,23 @@ func validateIngresses(j *api.JobSubmitRequestItem, _ configuration.SubmissionCo
 				existingPortSet[port] = index
 			}
 		}
+	}
+	return nil
+}
+
+// Ensures that the request has non-empty job set id field.
+func validateHasJobSetId(j *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
+	if len(j.JobSetId) == 0 {
+		return fmt.Errorf("job set id is a required field")
+	}
+	return nil
+}
+
+// Ensures that the request has job set id field isn't too long.
+func validateJobSetIdLength(j *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
+	const maxJobSetIdChars = 1024
+	if len(j.GetJobSetId()) >= maxJobSetIdChars {
+		return fmt.Errorf("job set id of length %d must be less than max character length %d", len(j.GetJobSetId()), maxJobSetIdChars)
 	}
 	return nil
 }

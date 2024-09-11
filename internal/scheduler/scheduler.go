@@ -275,7 +275,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
 	// Update metrics.
-	if !s.metrics.JobStateMetricsEnabled() {
+	if s.metrics.JobStateMetricsEnabled() {
 		s.metrics.ReportStateTransitions(jsts, jobRepoRunErrorsByRunId)
 	}
 
@@ -373,11 +373,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb
 	// Upsert updated jobs (including associated runs).
 	jobDbJobs := make([]*jobdb.Job, 0, len(jsts))
 	for _, jst := range jsts {
-		if jst.Job != nil {
-			// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
-			// These nil job must be sorted out.
-			jobDbJobs = append(jobDbJobs, jst.Job)
-		}
+		jobDbJobs = append(jobDbJobs, jst.Job)
 	}
 	if err := txn.Upsert(jobDbJobs); err != nil {
 		return nil, nil, err
