@@ -425,15 +425,12 @@ func TestSimulator(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig, enableFastForward, int((tc.simulatedTimeLimit + time.Hour).Minutes()), schedulerCyclePeriodSeconds)
 			require.NoError(t, err)
-			mc := NewMetricsCollector(s.StateTransitions())
+			start := s.time
 			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
 			c := s.StateTransitions()
 
 			ctx := armadacontext.Background()
 			g, ctx := armadacontext.ErrGroup(ctx)
-			g.Go(func() error {
-				return mc.Run(ctx)
-			})
 			g.Go(func() error {
 				for {
 					select {
@@ -454,7 +451,6 @@ func TestSimulator(t *testing.T) {
 			err = g.Wait()
 			require.NoError(t, err)
 
-			t.Logf("Simulation Results: %s", mc.String())
 			for _, es := range actualEventSequences {
 				for _, e := range es.Events {
 					if e.GetJobRunLeased() != nil {
@@ -472,7 +468,7 @@ func TestSimulator(t *testing.T) {
 					EventSequencesSummary(actualEventSequences),
 				)
 			}
-			require.LessOrEqual(t, mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent, tc.simulatedTimeLimit)
+			require.LessOrEqual(t, s.time.Sub(start), tc.simulatedTimeLimit)
 		})
 	}
 }

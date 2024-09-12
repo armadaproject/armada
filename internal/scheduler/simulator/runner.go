@@ -64,46 +64,6 @@ func SchedulingConfigFromFilePath(filePath string) (configuration.SchedulingConf
 	return config, nil
 }
 
-func ClusterSpecsFromPattern(pattern string) ([]*ClusterSpec, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return ClusterSpecsFromFilePaths(filePaths)
-}
-
-func WorkloadsFromPattern(pattern string) ([]*WorkloadSpec, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return WorkloadSpecsFromFilePaths(filePaths)
-}
-
-func ClusterSpecsFromFilePaths(filePaths []string) ([]*ClusterSpec, error) {
-	rv := make([]*ClusterSpec, len(filePaths))
-	for i, filePath := range filePaths {
-		clusterSpec, err := ClusterSpecFromFilePath(filePath)
-		if err != nil {
-			return nil, err
-		}
-		rv[i] = clusterSpec
-	}
-	return rv, nil
-}
-
-func WorkloadSpecsFromFilePaths(filePaths []string) ([]*WorkloadSpec, error) {
-	rv := make([]*WorkloadSpec, len(filePaths))
-	for i, filePath := range filePaths {
-		workloadSpec, err := WorkloadSpecFromFilePath(filePath)
-		if err != nil {
-			return nil, err
-		}
-		rv[i] = workloadSpec
-	}
-	return rv, nil
-}
-
 func ClusterSpecFromFilePath(filePath string) (*ClusterSpec, error) {
 	rv := &ClusterSpec{}
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
