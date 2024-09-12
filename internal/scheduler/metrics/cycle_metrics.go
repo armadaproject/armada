@@ -14,6 +14,8 @@ var (
 )
 
 type cycleMetrics struct {
+	leaderMetricsEnabled bool
+
 	scheduledJobs           *prometheus.CounterVec
 	premptedJobs            *prometheus.CounterVec
 	consideredJobs          *prometheus.GaugeVec
@@ -25,97 +27,137 @@ type cycleMetrics struct {
 	cappedDemand            *prometheus.GaugeVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
+	allResettableMetrics    []resettableMetric
 }
 
 func newCycleMetrics() *cycleMetrics {
+	scheduledJobs := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "scheduled_jobs",
+			Help: "Number of events scheduled",
+		},
+		queueAndPriorityClassLabels,
+	)
+
+	premptedJobs := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "preempted_jobs",
+			Help: "Number of jobs preempted",
+		},
+		queueAndPriorityClassLabels,
+	)
+
+	consideredJobs := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "considered_jobs",
+			Help: "Number of jobs considered",
+		},
+		poolAndQueueLabels,
+	)
+
+	fairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "fair_share",
+			Help: "Fair share of each queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	adjustedFairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "adjusted_fair_share",
+			Help: "Adjusted Fair share of each queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	actualShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "actual_share",
+			Help: "Actual Fair share of each queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	demand := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "demand",
+			Help: "Demand of each queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	cappedDemand := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "capped_demand",
+			Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+		},
+		poolAndQueueLabels,
+	)
+
+	fairnessError := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "fairness_error",
+			Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
+		},
+		[]string{poolLabel},
+	)
+
+	scheduleCycleTime := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    prefix + "schedule_cycle_times",
+			Help:    "Cycle time when in a scheduling round.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+		},
+	)
+
+	reconciliationCycleTime := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    prefix + "reconciliation_cycle_times",
+			Help:    "Cycle time when in a scheduling round.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+		},
+	)
+
 	return &cycleMetrics{
-		scheduledJobs: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: prefix + "scheduled_jobs",
-				Help: "Number of events scheduled",
-			},
-			queueAndPriorityClassLabels,
-		),
+		leaderMetricsEnabled: true,
+		scheduledJobs:        scheduledJobs,
+		premptedJobs:         premptedJobs,
+		consideredJobs:       consideredJobs,
+		fairShare:            fairShare,
+		adjustedFairShare:    adjustedFairShare,
+		actualShare:          actualShare,
+		demand:               demand,
+		cappedDemand:         cappedDemand,
+		fairnessError:        fairnessError,
+		scheduleCycleTime:    scheduleCycleTime,
+		allResettableMetrics: []resettableMetric{
+			scheduledJobs,
+			premptedJobs,
+			consideredJobs,
+			fairShare,
+			adjustedFairShare,
+			actualShare,
+			demand,
+			cappedDemand,
+			fairnessError,
+		},
+		reconciliationCycleTime: reconciliationCycleTime,
+	}
+}
 
-		premptedJobs: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: prefix + "preempted_jobs",
-				Help: "Number of jobs preempted",
-			},
-			queueAndPriorityClassLabels,
-		),
+func (m *cycleMetrics) enableLeaderMetrics() {
+	m.leaderMetricsEnabled = true
+}
 
-		consideredJobs: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "considered_jobs",
-				Help: "Number of jobs considered",
-			},
-			poolAndQueueLabels,
-		),
+func (m *cycleMetrics) disableLeaderMetrics() {
+	m.resetLeaderMetrics()
+	m.leaderMetricsEnabled = false
+}
 
-		fairShare: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "fair_share",
-				Help: "Fair share of each queue",
-			},
-			poolAndQueueLabels,
-		),
-
-		adjustedFairShare: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "adjusted_fair_share",
-				Help: "Adjusted Fair share of each queue",
-			},
-			poolAndQueueLabels,
-		),
-
-		actualShare: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "actual_share",
-				Help: "Actual Fair share of each queue",
-			},
-			poolAndQueueLabels,
-		),
-
-		demand: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "demand",
-				Help: "Demand of each queue",
-			},
-			poolAndQueueLabels,
-		),
-
-		cappedDemand: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "capped_demand",
-				Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
-			},
-			poolAndQueueLabels,
-		),
-
-		fairnessError: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: prefix + "fairness_error",
-				Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
-			},
-			[]string{poolLabel},
-		),
-
-		scheduleCycleTime: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name:    prefix + "schedule_cycle_times",
-				Help:    "Cycle time when in a scheduling round.",
-				Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
-			},
-		),
-
-		reconciliationCycleTime: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name:    prefix + "reconciliation_cycle_times",
-				Help:    "Cycle time when in a scheduling round.",
-				Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
-			},
-		),
+func (m *cycleMetrics) resetLeaderMetrics() {
+	for _, metric := range m.allResettableMetrics {
+		metric.Reset()
 	}
 }
 
@@ -157,29 +199,35 @@ func (m *cycleMetrics) ReportSchedulerResult(result schedulerresult.SchedulerRes
 }
 
 func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
-	m.scheduledJobs.Describe(ch)
-	m.premptedJobs.Describe(ch)
-	m.consideredJobs.Describe(ch)
-	m.fairShare.Describe(ch)
-	m.adjustedFairShare.Describe(ch)
-	m.actualShare.Describe(ch)
-	m.fairnessError.Describe(ch)
-	m.demand.Describe(ch)
-	m.cappedDemand.Describe(ch)
-	m.scheduleCycleTime.Describe(ch)
+	if m.leaderMetricsEnabled {
+		m.scheduledJobs.Describe(ch)
+		m.premptedJobs.Describe(ch)
+		m.consideredJobs.Describe(ch)
+		m.fairShare.Describe(ch)
+		m.adjustedFairShare.Describe(ch)
+		m.actualShare.Describe(ch)
+		m.fairnessError.Describe(ch)
+		m.demand.Describe(ch)
+		m.cappedDemand.Describe(ch)
+		m.scheduleCycleTime.Describe(ch)
+	}
+
 	m.reconciliationCycleTime.Describe(ch)
 }
 
 func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
-	m.scheduledJobs.Collect(ch)
-	m.premptedJobs.Collect(ch)
-	m.consideredJobs.Collect(ch)
-	m.fairShare.Collect(ch)
-	m.adjustedFairShare.Collect(ch)
-	m.actualShare.Collect(ch)
-	m.fairnessError.Collect(ch)
-	m.demand.Collect(ch)
-	m.cappedDemand.Collect(ch)
-	m.scheduleCycleTime.Collect(ch)
+	if m.leaderMetricsEnabled {
+		m.scheduledJobs.Collect(ch)
+		m.premptedJobs.Collect(ch)
+		m.consideredJobs.Collect(ch)
+		m.fairShare.Collect(ch)
+		m.adjustedFairShare.Collect(ch)
+		m.actualShare.Collect(ch)
+		m.fairnessError.Collect(ch)
+		m.demand.Collect(ch)
+		m.cappedDemand.Collect(ch)
+		m.scheduleCycleTime.Collect(ch)
+	}
+
 	m.reconciliationCycleTime.Collect(ch)
 }

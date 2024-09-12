@@ -11,11 +11,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-type resettableMetric interface {
-	prometheus.Collector
-	Reset()
-}
-
 type jobStateMetrics struct {
 	errorRegexes         []*regexp.Regexp
 	resetInterval        time.Duration
@@ -267,11 +262,6 @@ func (m *jobStateMetrics) disable() {
 
 func (m *jobStateMetrics) enable() {
 	m.enabled = true
-}
-
-// isEnabled returns true if job state metrics are enabled
-func (m *jobStateMetrics) isEnabled() bool {
-	return m.enabled
 }
 
 // stateDuration returns:
