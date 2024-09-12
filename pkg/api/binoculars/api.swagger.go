@@ -221,7 +221,9 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SinceSeconds\"\n" +
 		"        },\n" +
 		"        \"sinceTime\": {\n" +
-		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"          \"description\": \"An RFC3339 timestamp from which to show logs. If this value\\nprecedes the time a pod was started, only logs since the pod start will be returned.\\nIf this value is in the future, no logs will be returned.\\nOnly one of sinceSeconds or sinceTime may be specified.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SinceTime\"\n" +
 		"        },\n" +
 		"        \"tailLines\": {\n" +
 		"          \"description\": \"If set, the number of lines from the end of the logs to show. If not specified,\\nlogs are shown from the creation of the container or sinceSeconds or sinceTime\\n+optional\",\n" +
@@ -236,13 +238,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
-		"    },\n" +
-		"    \"v1Time\": {\n" +
-		"      \"description\": \"Programs using times should typically store and pass them as values,\\nnot pointers. That is, time variables and struct fields should be of\\ntype time.Time, not *time.Time.\\n\\nA Time value can be used by multiple goroutines simultaneously except\\nthat the methods GobDecode, UnmarshalBinary, UnmarshalJSON and\\nUnmarshalText are not concurrency-safe.\\n\\nTime instants can be compared using the Before, After, and Equal methods.\\nThe Sub method subtracts two instants, producing a Duration.\\nThe Add method adds a Time and a Duration, producing a Time.\\n\\nThe zero value of type Time is January 1, year 1, 00:00:00.000000000 UTC.\\nAs this time is unlikely to come up in practice, the IsZero method gives\\na simple way of detecting a time that has not been initialized explicitly.\\n\\nEach Time has associated with it a Location, consulted when computing the\\npresentation form of the time, such as in the Format, Hour, and Year methods.\\nThe methods Local, UTC, and In return a Time with a specific location.\\nChanging the location in this way changes only the presentation; it does not\\nchange the instant in time being denoted and therefore does not affect the\\ncomputations described in earlier paragraphs.\\n\\nRepresentations of a Time value saved by the GobEncode, MarshalBinary,\\nMarshalJSON, and MarshalText methods store the Time.Location's offset, but not\\nthe location name. They therefore lose information about Daylight Saving Time.\\n\\nIn addition to the required “wall clock” reading, a Time may contain an optional\\nreading of the current process's monotonic clock, to provide additional precision\\nfor comparison or subtraction.\\nSee the “Monotonic Clocks” section in the package documentation for details.\\n\\nNote that the Go == operator compares not just the time instant but also the\\nLocation and the monotonic clock reading. Therefore, Time values should not\\nbe used as map or database keys without first guaranteeing that the\\nidentical Location has been set for all values, which can be achieved\\nthrough use of the UTC or Local method, and that the monotonic clock reading\\nhas been stripped by setting t = t.Round(0). In general, prefer t.Equal(u)\\nto t == u, since t.Equal uses the most accurate comparison available and\\ncorrectly handles the case when only one of its arguments has a monotonic\\nclock reading.\",\n" +
-		"      \"type\": \"string\",\n" +
-		"      \"format\": \"date-time\",\n" +
-		"      \"title\": \"A Time represents an instant in time with nanosecond precision.\",\n" +
-		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    }\n" +
 		"  }\n" +
 		"}"
