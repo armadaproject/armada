@@ -209,7 +209,7 @@ func TestSimulator(t *testing.T) {
 						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
 					},
 					{
-						Name:          "TestCluster2",
+						Name:          "TestCluster3",
 						Pool:          "TestPool",
 						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
 					},

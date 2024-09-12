@@ -321,7 +321,7 @@ func (s *Simulator) setupClusters() error {
 			}
 		}
 		totalResourcesForPool.Add(nodeDb.TotalResources())
-		s.totalResourcesByPool[cluster.Name] = totalResourcesForPool
+		s.totalResourcesByPool[cluster.Pool] = totalResourcesForPool
 	}
 	return nil
 }

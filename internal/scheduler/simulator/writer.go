@@ -76,7 +76,7 @@ func (w *Writer) createJobRunRow(st StateTransition) ([]*JobRunRow, error) {
 				Queue:            associatedJob.Queue(),
 				JobSet:           associatedJob.Jobset(),
 				JobId:            associatedJob.Id(),
-				RunId:            associatedJob.LatestRun().Id().String(),
+				RunId:            associatedJob.LatestRun().Id(),
 				PriorityClass:    associatedJob.PriorityClassName(),
 				Cpu:              cpuLimit.AsApproximateFloat64(),
 				Memory:           memoryLimit.AsApproximateFloat64(),
