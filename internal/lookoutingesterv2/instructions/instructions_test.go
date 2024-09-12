@@ -404,38 +404,14 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"invalid event without job id or run id": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{
-					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
-						Created: testfixtures.BaseTimeProto,
-						Event: &armadaevents.EventSequence_Event_JobRunRunning{
-							JobRunRunning: &armadaevents.JobRunRunning{},
-						},
-					}),
-					testfixtures.NewEventSequence(submit),
-				},
-				MessageIds: []pulsar.MessageID{
-					pulsarutils.NewMessageId(1),
-					pulsarutils.NewMessageId(2),
-				},
-			},
-			expected: &model.InstructionSet{
-				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
-				MessageIds: []pulsar.MessageID{
-					pulsarutils.NewMessageId(1),
-					pulsarutils.NewMessageId(2),
-				},
-			},
-		},
 		"invalid event without created time": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{
 					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
 						Event: &armadaevents.EventSequence_Event_JobRunRunning{
 							JobRunRunning: &armadaevents.JobRunRunning{
-								RunId: testfixtures.RunIdProto,
-								JobId: testfixtures.JobIdProto,
+								RunIdStr: testfixtures.RunIdString,
+								JobIdStr: testfixtures.JobIdString,
 								ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 									{
 										Info: &armadaevents.KubernetesResourceInfo_PodInfo{

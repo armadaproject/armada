@@ -217,18 +217,12 @@ func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armada
 }
 
 func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	var reason *string
 	if event.Reason != "" {
 		reason = &event.Reason
 	}
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:                     jobId,
+		JobId:                     event.GetJobIdStr(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
 		Cancelled:                 &ts,
 		CancelReason:              reason,
@@ -283,19 +277,13 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 }
 
 func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
-	runId, err := armadaevents.UuidStringFromProtoUuid(event.GetRunId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-
 	// Update Job
 	job := model.UpdateJobInstruction{
 		JobId:                     event.JobIdStr,
 		State:                     pointer.Int32(int32(lookout.JobRunningOrdinal)),
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
-		LatestRunId:               &runId,
+		LatestRunId:               &event.RunIdStr,
 	}
 
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
@@ -303,7 +291,7 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	// Update Job Run
 	node := getNode(event.ResourceInfos)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       runId,
+		RunId:       event.RunIdStr,
 		Node:        node,
 		Started:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),

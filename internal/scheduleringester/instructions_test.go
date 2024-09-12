@@ -50,8 +50,8 @@ func TestConvertSequence(t *testing.T) {
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
-				InsertRuns{f.RunIdUuid: &JobRunDetails{Queue: f.Queue, DbRun: &schedulerdb.Run{
-					RunID:                  f.RunIdUuid,
+				InsertRuns{f.RunIdString: &JobRunDetails{Queue: f.Queue, DbRun: &schedulerdb.Run{
+					RunID:                  f.RunIdString,
 					JobID:                  f.JobIdString,
 					JobSet:                 f.JobSetName,
 					Queue:                  f.Queue,
@@ -71,15 +71,15 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
-			expected: []DbOperation{MarkRunsRunning{f.RunIdUuid: f.BaseTime}},
+			expected: []DbOperation{MarkRunsRunning{f.RunIdString: f.BaseTime}},
 		},
 		"job run succeeded": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
-			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: f.BaseTime}},
+			expected: []DbOperation{MarkRunsSucceeded{f.RunIdString: f.BaseTime}},
 		},
 		"job run pending": {
 			events:   []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{MarkRunsPending{f.RunIdUuid: f.BaseTime}},
+			expected: []DbOperation{MarkRunsPending{f.RunIdString: f.BaseTime}},
 		},
 		"job preemption requested": {
 			events:   []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
@@ -87,28 +87,28 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run preempted": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
-			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
+			expected: []DbOperation{MarkRunsPreempted{f.RunIdString: f.BaseTime}},
 		},
 		"lease returned": {
 			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
 			expected: []DbOperation{
-				InsertJobRunErrors{f.RunIdUuid: &schedulerdb.JobRunError{
-					RunID: f.RunIdUuid,
+				InsertJobRunErrors{f.RunIdString: &schedulerdb.JobRunError{
+					RunID: f.RunIdString,
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: f.BaseTime}},
+				MarkRunsFailed{f.RunIdString: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: f.BaseTime}},
 			},
 		},
 		"job failed": {
 			events: []*armadaevents.EventSequence_Event{f.JobRunFailed},
 			expected: []DbOperation{
-				InsertJobRunErrors{f.RunIdUuid: &schedulerdb.JobRunError{
-					RunID: f.RunIdUuid,
+				InsertJobRunErrors{f.RunIdString: &schedulerdb.JobRunError{
+					RunID: f.RunIdString,
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false, RunAttempted: true, FailureTime: f.BaseTime}},
+				MarkRunsFailed{f.RunIdString: &JobRunFailed{LeaseReturned: false, RunAttempted: true, FailureTime: f.BaseTime}},
 			},
 		},
 		"job errors terminal": {
@@ -212,7 +212,7 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
-				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
+				MarkRunsRunning{f.RunIdString: f.BaseTime},
 				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
@@ -220,10 +220,10 @@ func TestConvertSequence(t *testing.T) {
 			events: multipleEventsMultipleTimeStamps(),
 			expected: []DbOperation{
 				MarkJobsCancelled{f.JobIdString: f.BaseTime},
-				MarkRunsSucceeded{f.RunIdUuid: f.BaseTime},
-				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
+				MarkRunsSucceeded{f.RunIdString: f.BaseTime},
+				MarkRunsRunning{f.RunIdString: f.BaseTime},
 				MarkJobsCancelled{f.JobIdString: f.BaseTime.Add(time.Hour)},
-				MarkRunsSucceeded{f.RunIdUuid: f.BaseTime.Add(time.Hour)},
+				MarkRunsSucceeded{f.RunIdString: f.BaseTime.Add(time.Hour)},
 			},
 		},
 	}
