@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"k8s.io/utils/clock"
@@ -280,7 +279,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			pool := GetNodePool(node, executor)
+			pool := node.GetPool()
 			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
 				pool:     pool,
@@ -304,7 +303,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			}
 
 			for runId, jobRunState := range node.StateByJobRunId {
-				job := txn.GetByRunId(uuid.MustParse(runId))
+				job := txn.GetByRunId(runId)
 				if job != nil {
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := queuePhaseMetricKey{

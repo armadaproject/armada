@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -66,7 +65,7 @@ type Job struct {
 	// True if the scheduler has marked the job as succeeded
 	succeeded bool
 	// Job Runs by run id
-	runsById map[uuid.UUID]*JobRun
+	runsById map[string]*JobRun
 	// The currently active run. The run with the latest timestamp is the active run.
 	activeRun *JobRun
 	// The timestamp of the currently active run.
@@ -690,7 +689,7 @@ func (job *Job) WithUpdatedRun(run *JobRun) *Job {
 		j.runsById = maps.Clone(j.runsById)
 		j.runsById[run.id] = run
 	} else {
-		j.runsById = map[uuid.UUID]*JobRun{run.id: run}
+		j.runsById = map[string]*JobRun{run.id: run}
 	}
 	return j
 }
@@ -741,7 +740,7 @@ func (job *Job) ResolvedPools() []string {
 }
 
 // RunById returns the Run corresponding to the provided run id or nil if no such Run exists.
-func (job *Job) RunById(id uuid.UUID) *JobRun {
+func (job *Job) RunById(id string) *JobRun {
 	return job.runsById[id]
 }
 

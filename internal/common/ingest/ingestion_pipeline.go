@@ -11,12 +11,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -56,7 +56,7 @@ type EventSequencesWithIds struct {
 // Callers must supply two structs, an InstructionConverter for converting event sequences into something that can be
 // exhausted and a Sink capable of exhausting these objects
 type IngestionPipeline[T HasPulsarMessageIds] struct {
-	pulsarConfig           configuration.PulsarConfig
+	pulsarConfig           commonconfig.PulsarConfig
 	metricsPort            uint16
 	metrics                *commonmetrics.Metrics
 	pulsarSubscriptionName string
@@ -70,7 +70,7 @@ type IngestionPipeline[T HasPulsarMessageIds] struct {
 
 // NewIngestionPipeline creates an IngestionPipeline that processes all pulsar messages
 func NewIngestionPipeline[T HasPulsarMessageIds](
-	pulsarConfig configuration.PulsarConfig,
+	pulsarConfig commonconfig.PulsarConfig,
 	pulsarSubscriptionName string,
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,

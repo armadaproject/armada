@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/immutable"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -240,7 +239,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		executorById[executor.Id] = executor
 		for _, node := range executor.Nodes {
 			nodeById[node.GetId()] = node
-			pool := GetNodePool(node, executor)
+			pool := node.GetPool()
 			allKnownPools[pool] = true
 
 			if _, present := nodesByPoolAndExecutor[pool]; !present {
@@ -274,7 +273,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	totalCapacityByPool := make(schedulerobjects.QuantityByTAndResourceType[string])
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			totalCapacityByPool.AddResourceList(GetNodePool(node, executor), node.TotalResources)
+			totalCapacityByPool.AddResourceList(node.GetPool(), node.TotalResources)
 		}
 	}
 
@@ -301,7 +300,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		pools := job.Pools()
 
 		if !job.Queued() && job.LatestRun() != nil {
-			pool := GetRunPool(job.LatestRun(), nodeById[job.LatestRun().NodeId()], executorById[job.LatestRun().Executor()])
+			pool := job.LatestRun().Pool()
 			pools = []string{pool}
 		} else if len(pools) < 1 {
 			// This occurs if we haven't assigned a job to a pool.  Right now this can occur if a user
@@ -350,7 +349,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		if nodeName := run.NodeName(); nodeName == "" {
 			return nil, errors.Errorf("run %s of job %s is not queued but has no nodeName associated with it", run.Id(), job.Id())
 		}
-		pool := GetRunPool(job.LatestRun(), nodeById[job.LatestRun().NodeId()], executorById[job.LatestRun().Executor()])
+		pool := job.LatestRun().Pool()
 		if _, present := jobsByPoolAndExecutor[pool]; !present {
 			jobsByPoolAndExecutor[pool] = map[string][]*jobdb.Job{}
 		}
@@ -642,7 +641,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 				Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
 			continue
 		}
-		executorRunIds := make(map[uuid.UUID]bool, len(executorRuns))
+		executorRunIds := make(map[string]bool, len(executorRuns))
 		for _, run := range executorRuns {
 			executorRunIds[run] = true
 		}

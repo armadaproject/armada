@@ -15,4 +15,5 @@ const (
 	DeleteQueue                               = "delete_queue"
 	CordonQueue                               = "cordon_queue"
 	CordonNodes                               = "cordon_nodes"
+	ExecuteJobs                               = "execute_jobs"
 )

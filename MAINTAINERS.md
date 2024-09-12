@@ -7,10 +7,9 @@
 | Chris Martin         | [d80tb7](https://github.com/d80tb7)                     | G-Research  |
 | Dave Gantenbein      | [dave-gantenbein](https://github.com/dave-gantenbein)   | G-Research  |
 | Dejan Zele Pejchev   | [dejanzele](https://github.com/dejanzele)               | G-Research  |
+| Eleanor Pratt        | [eleanorpratt](https://github.com/eleanorpratt)         | G-Research  |
 | James Murkin         | [JamesMurkin](https://github.com/JamesMurkin)           | G-Research  |
-| Mark Sumner          | [msumner91](https://github.com/msumner91)               | G-Research  |
 | Martynas Asipauskas  | [masipauskas](https://github.com/masipauskas)           | G-Research  |
-| Mia Mijovic          | [mijovicmia](https://github.com/mijovicmia)             | G-Research  |
 | Mustafa Ilyas        | [MustafaI](https://github.com/MustafaI)                 | G-Research  |
 | Noah Held            | [zuqq](https://github.com/zuqq)                         | G-Research  |
 | Rich Scott           | [richscott](https://github.com/richscott)               | G-Research  |
@@ -29,3 +28,5 @@
 | Daniel Rastelli      | [theAntiYeti](https://github.com/theAntiYeti)           | G-Research  |
 | Jamie Poole          | [jimbobby5](https://github.com/jimbobby5)               | G-Research  |
 | Kevin Hannon         | [kannon92](https://github.com/kannon92)                 | G-Research  |
+| Mark Sumner          | [msumner91](https://github.com/msumner91)               | G-Research  |
+| Mia Mijovic          | [mijovicmia](https://github.com/mijovicmia)             | G-Research  |

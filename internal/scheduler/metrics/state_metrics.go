@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 
@@ -160,7 +159,7 @@ func (m *jobStateMetrics) ReportJobLeased(job *jobdb.Job) {
 
 func (m *jobStateMetrics) ReportStateTransitions(
 	jsts []jobdb.JobStateTransitions,
-	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
+	jobRunErrorsByRunId map[string]*armadaevents.Error,
 ) {
 	for _, jst := range jsts {
 		job := jst.Job

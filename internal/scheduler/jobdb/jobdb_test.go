@@ -108,7 +108,7 @@ func TestJobDb_TestGetByRunId(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, job1, txn.GetByRunId(job1.LatestRun().id))
 	assert.Equal(t, job2, txn.GetByRunId(job2.LatestRun().id))
-	assert.Nil(t, txn.GetByRunId(uuid.New()))
+	assert.Nil(t, txn.GetByRunId(uuid.NewString()))
 
 	err = txn.BatchDelete([]string{job1.Id()})
 	require.NoError(t, err)
@@ -1267,7 +1267,7 @@ func newJob() *Job {
 		priority:          0,
 		submittedTime:     0,
 		queued:            false,
-		runsById:          map[uuid.UUID]*JobRun{},
+		runsById:          map[string]*JobRun{},
 		jobSchedulingInfo: jobSchedulingInfo,
 	}
 }

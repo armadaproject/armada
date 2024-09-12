@@ -176,6 +176,15 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
+
+	authorizer := auth.NewAuthorizer(
+		auth.NewPrincipalPermissionChecker(
+			config.Auth.PermissionGroupMapping,
+			config.Auth.PermissionScopeMapping,
+			config.Auth.PermissionClaimMapping,
+		),
+	)
+
 	executorServer, err := NewExecutorApi(
 		apiPublisher,
 		jobRepository,
@@ -185,6 +194,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
+		authorizer,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
@@ -211,21 +221,14 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
 
-	var submitChecker SubmitScheduleChecker
-	if !config.DisableSubmitCheck {
-		submitCheckerImpl := NewSubmitChecker(
-			config.Scheduling,
-			executorRepository,
-			resourceListFactory,
-		)
-		services = append(services, func() error {
-			return submitCheckerImpl.Run(ctx)
-		})
-		submitChecker = submitCheckerImpl
-	} else {
-		ctx.Infof("DisableSubmitCheckis true, will use a dummy submit check")
-		submitChecker = &DummySubmitChecker{}
-	}
+	submitChecker := NewSubmitChecker(
+		config.Scheduling,
+		executorRepository,
+		resourceListFactory,
+	)
+	services = append(services, func() error {
+		return submitChecker.Run(ctx)
+	})
 
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
 	schedulingAlgo, err := NewFairSchedulingAlgo(

@@ -78,13 +78,19 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 
 	jsts := make([]JobStateTransitions, 0, len(jobRepoJobsById))
 	for jobId, jobRepoJob := range jobRepoJobsById {
-		if jst, err := jobDb.reconcileJobDifferences(
+		jst, err := jobDb.reconcileJobDifferences(
 			txn.GetById(jobId),     // Existing job in the jobDb.
 			jobRepoJob,             // New or updated job from the jobRepo.
 			jobRepoRunsById[jobId], // New or updated runs associated with this job from the jobRepo.
-		); err != nil {
+		)
+		if err != nil {
 			return nil, err
-		} else {
+		}
+
+		// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
+		// In this case it is safe to ignore the jst.
+		// TODO: don't generate a jst in the first place if this is the case!
+		if jst.Job != nil {
 			jsts = append(jsts, jst)
 		}
 	}
@@ -152,7 +158,7 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 
 	// Reconcile run state transitions.
 	for _, jobRepoRun := range jobRepoRuns {
-		rst := jobDb.reconcileRunDifferences(job.RunById(jobRepoRun.RunID), jobRepoRun)
+		rst := jobDb.reconcileRunDifferences(job.RunById(jobRepoRun.RunID.String()), jobRepoRun)
 		jst = jst.applyRunStateTransitions(rst)
 		job = job.WithUpdatedRun(rst.JobRun)
 	}
@@ -287,7 +293,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
 	return jobDb.CreateRun(
-		dbRun.RunID,
+		dbRun.RunID.String(),
 		dbRun.JobID,
 		dbRun.Created,
 		dbRun.Executor,

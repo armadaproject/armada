@@ -109,7 +109,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 	snapshot := sch.nodeDb.Txn(false)
 
 	// Evict preemptible jobs.
-	totalCost := sch.schedulingContext.TotalCost()
 	ctx.WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")
 	evictorResult, inMemoryJobRepo, err := sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict for resource balancing"),
@@ -130,7 +129,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
-					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx) / totalCost
+					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
 					fairShare := math.Max(qctx.AdjustedFairShare, qctx.FairShare)
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
@@ -237,8 +236,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 	}
 	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
-	PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
-	PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
+	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
+	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
 
 	if sch.enableAssertions {

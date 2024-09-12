@@ -72,6 +72,7 @@ func TestLeaseJobRuns(t *testing.T) {
 			mockStream.EXPECT().Send(gomock.Any()).Return(nil)
 			setStreamExpectations(mockStream, tc.leaseMessages, tc.cancelMessages, tc.preemptMessages)
 			mockStream.EXPECT().Recv().Return(endMarker, nil)
+			mockStream.EXPECT().Recv().Return(nil, io.EOF)
 
 			response, err := jobRequester.LeaseJobRuns(ctx, &LeaseRequest{})
 			assert.NoError(t, err)
@@ -114,92 +115,76 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 	mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil)
 	mockStream.EXPECT().Send(expectedRequest).Return(nil)
 	mockStream.EXPECT().Recv().Return(endMarker, nil)
+	mockStream.EXPECT().Recv().Return(nil, io.EOF)
 
 	_, err := jobRequester.LeaseJobRuns(shortCtx, leaseRequest)
 	assert.NoError(t, err)
 }
 
-func TestLeaseJobRuns_HandlesNoEndMarkerMessage(t *testing.T) {
-	leaseMessages := []*executorapi.JobRunLease{lease1, lease2}
-	shortCtx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	jobRequester, mockExecutorApiClient, mockStream := setup(t)
-	mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil)
-	mockStream.EXPECT().Send(gomock.Any()).Return(nil)
-	setStreamExpectations(mockStream, leaseMessages, nil, nil)
-	// No end marker, hang. Should
-	mockStream.EXPECT().Recv().Do(func() {
-		time.Sleep(time.Millisecond * 400)
-	})
-
-	response, err := jobRequester.LeaseJobRuns(shortCtx, &LeaseRequest{})
-	// Timeout on context expiry
-	assert.NoError(t, err)
-	// Still receive leases that were received prior to the timeout
-	assert.Equal(t, leaseMessages, response.LeasedRuns)
-}
-
-func TestLeaseJobRuns_Error(t *testing.T) {
+func TestLeaseJobRuns_ReceiveError(t *testing.T) {
+	endStreamMarkerTimeoutErr := fmt.Errorf("end of stream marker timeout")
+	closeStreamErr := fmt.Errorf("close stream timeout")
+	receiveErr := fmt.Errorf("recv error")
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 	tests := map[string]struct {
-		streamError        bool
-		sendError          bool
-		recvError          bool
-		recvEndOfFileError bool
-		shouldError        bool
-		leaseMessages      []*executorapi.JobRunLease
-		expectedLeases     []*executorapi.JobRunLease
+		recvError      bool
+		endOfStreamErr bool
+		closeStreamErr bool
+		shouldError    bool
+		expectedError  error
+		leaseMessages  []*executorapi.JobRunLease
+		expectedLeases []*executorapi.JobRunLease
 	}{
-		"StreamError": {
-			sendError:      true,
-			shouldError:    true,
+		"Happy Path": {
+			shouldError:    false,
 			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
-			expectedLeases: nil,
-		},
-		"SendError": {
-			sendError:      true,
-			shouldError:    true,
-			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
-			expectedLeases: nil,
+			expectedLeases: []*executorapi.JobRunLease{lease1, lease2},
 		},
 		"RecvError": {
 			recvError:      true,
 			shouldError:    true,
+			expectedError:  receiveErr,
 			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
 			expectedLeases: nil,
 		},
-		"RecvEOF": {
-			recvEndOfFileError: true,
-			shouldError:        false,
-			leaseMessages:      []*executorapi.JobRunLease{lease1, lease2},
-			expectedLeases:     []*executorapi.JobRunLease{lease1, lease2},
+		"Timeout - end stream marker": {
+			endOfStreamErr: true,
+			shouldError:    true,
+			expectedError:  endStreamMarkerTimeoutErr,
+			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
+			expectedLeases: nil,
+		},
+		"Close stream error": {
+			closeStreamErr: true,
+			shouldError:    false,
+			expectedError:  closeStreamErr,
+			leaseMessages:  []*executorapi.JobRunLease{lease1, lease2},
+			expectedLeases: []*executorapi.JobRunLease{lease1, lease2},
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			jobRequester, mockExecutorApiClient, mockStream := setup(t)
-			if tc.streamError {
-				mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("stream error")).AnyTimes()
-			} else {
-				mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil).AnyTimes()
-			}
+			mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil)
+			mockStream.EXPECT().Send(gomock.Any()).Return(nil)
 
-			if tc.sendError {
-				mockStream.EXPECT().Send(gomock.Any()).Return(fmt.Errorf("send error")).AnyTimes()
+			if tc.recvError {
+				mockStream.EXPECT().Recv().Return(nil, receiveErr).AnyTimes()
 			} else {
-				mockStream.EXPECT().Send(gomock.Any()).Return(nil).AnyTimes()
-			}
+				setStreamExpectations(mockStream, tc.leaseMessages, nil, nil)
 
-			if tc.recvError || tc.recvEndOfFileError {
-				if tc.recvError {
-					mockStream.EXPECT().Recv().Return(nil, fmt.Errorf("recv error")).AnyTimes()
-				}
-				if tc.recvEndOfFileError {
-					setStreamExpectations(mockStream, tc.leaseMessages, nil, nil)
-					mockStream.EXPECT().Recv().Return(nil, io.EOF).AnyTimes()
+				if tc.endOfStreamErr {
+					mockStream.EXPECT().Recv().Return(nil, endStreamMarkerTimeoutErr)
+				} else {
+					mockStream.EXPECT().Recv().Return(endMarker, nil)
+
+					if tc.closeStreamErr {
+						mockStream.EXPECT().Recv().Return(nil, closeStreamErr)
+					} else {
+						mockStream.EXPECT().Recv().Return(nil, io.EOF)
+					}
 				}
 			}
 
@@ -207,10 +192,56 @@ func TestLeaseJobRuns_Error(t *testing.T) {
 			if tc.shouldError {
 				assert.Error(t, err)
 				assert.Nil(t, response)
+				assert.Contains(t, err.Error(), tc.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedLeases, response.LeasedRuns)
 			}
+		})
+	}
+}
+
+func TestLeaseJobRuns_SendError(t *testing.T) {
+	streamError := fmt.Errorf("stream error")
+	sendError := fmt.Errorf("send error")
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	tests := map[string]struct {
+		streamError   bool
+		sendError     bool
+		expectedError error
+	}{
+		"StreamError": {
+			streamError:   true,
+			expectedError: streamError,
+		},
+		"SendError": {
+			sendError:     true,
+			expectedError: sendError,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobRequester, mockExecutorApiClient, mockStream := setup(t)
+			if tc.streamError {
+				mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, streamError).AnyTimes()
+			} else {
+				mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil).AnyTimes()
+			}
+
+			if tc.sendError {
+				mockStream.EXPECT().Send(gomock.Any()).Return(sendError).AnyTimes()
+			} else {
+				mockStream.EXPECT().Send(gomock.Any()).Return(nil).AnyTimes()
+			}
+
+			mockStream.EXPECT().Recv().Times(0)
+
+			response, err := jobRequester.LeaseJobRuns(ctx, &LeaseRequest{})
+			assert.Error(t, err)
+			assert.Nil(t, response)
+			assert.Contains(t, err.Error(), tc.expectedError.Error())
 		})
 	}
 }

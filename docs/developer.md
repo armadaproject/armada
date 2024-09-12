@@ -51,7 +51,7 @@ Please see these documents for more information about Armadas Design:
 
 ## Pre-requisites
 
-- [Go](https://go.dev/doc/install) (version 1.21 or later)
+- [Go](https://go.dev/doc/install) (version 1.23 or later)
 - gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/))
 - [mage](https://magefile.org/)
 - [docker](https://docs.docker.com/get-docker/)
