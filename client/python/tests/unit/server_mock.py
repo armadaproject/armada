@@ -14,7 +14,6 @@ from armada_client.armada.submit_pb2 import JobState
 
 
 class QueueService(submit_pb2_grpc.QueueServiceServicer):
-
     def CreateQueue(self, request, context):
         return empty_pb2.Empty()
 
@@ -48,7 +47,6 @@ class QueueService(submit_pb2_grpc.QueueServiceServicer):
 
 
 class SubmitService(submit_pb2_grpc.SubmitServicer):
-
     def SubmitJobs(self, request, context):
         # read job_ids from request.job_request_items
         job_ids = [f"job-{i}" for i in range(1, len(request.job_request_items) + 1)]
