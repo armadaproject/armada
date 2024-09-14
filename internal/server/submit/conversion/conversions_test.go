@@ -193,7 +193,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 				tc.jobReq,
 				testfixtures.DefaultSubmissionConfig(),
 				testfixtures.DefaultJobset, testfixtures.DefaultQueue.Name, testfixtures.DefaultOwner,
-				func() *armadaevents.Uuid {
+				func() string {
 					return testfixtures.TestUlid(1)
 				},
 			)

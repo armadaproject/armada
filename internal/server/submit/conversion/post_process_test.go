@@ -17,7 +17,6 @@ import (
 
 func TestTemplateProcessor(t *testing.T) {
 	jobId := util.NewULID()
-	jobIdProto := armadaevents.MustProtoUuidFromUlidString(jobId)
 
 	tests := map[string]struct {
 		input    *armadaevents.SubmitJob
@@ -25,7 +24,7 @@ func TestTemplateProcessor(t *testing.T) {
 	}{
 		"Test Template Annotations": {
 			input: &armadaevents.SubmitJob{
-				JobId: jobIdProto,
+				JobIdStr: jobId,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Annotations: map[string]string{
 						"foo": "http://foo.com/{{JobId}}",
@@ -35,7 +34,7 @@ func TestTemplateProcessor(t *testing.T) {
 				},
 			},
 			expected: &armadaevents.SubmitJob{
-				JobId: jobIdProto,
+				JobIdStr: jobId,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Annotations: map[string]string{
 						"foo": "http://foo.com/JobId",
@@ -47,7 +46,7 @@ func TestTemplateProcessor(t *testing.T) {
 		},
 		"Test Template Labels": {
 			input: &armadaevents.SubmitJob{
-				JobId: jobIdProto,
+				JobIdStr: jobId,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Labels: map[string]string{
 						"foo": "http://foo.com/{{JobId}}",
@@ -57,7 +56,7 @@ func TestTemplateProcessor(t *testing.T) {
 				},
 			},
 			expected: &armadaevents.SubmitJob{
-				JobId: jobIdProto,
+				JobIdStr: jobId,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Labels: map[string]string{
 						"foo": "http://foo.com/JobId",
@@ -69,7 +68,7 @@ func TestTemplateProcessor(t *testing.T) {
 		},
 		"Test Template Nothing": {
 			input: &armadaevents.SubmitJob{
-				JobId: jobIdProto,
+				JobIdStr: jobId,
 				MainObject: &armadaevents.KubernetesMainObject{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						Annotations: map[string]string{
@@ -82,7 +81,7 @@ func TestTemplateProcessor(t *testing.T) {
 				},
 			},
 			expected: &armadaevents.SubmitJob{
-				JobId: jobIdProto,
+				JobIdStr: jobId,
 				MainObject: &armadaevents.KubernetesMainObject{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						Annotations: map[string]string{

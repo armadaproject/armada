@@ -258,10 +258,7 @@ func TestCompactSequences_Groups(t *testing.T) {
 }
 
 func TestSequenceEventListSizeBytes(t *testing.T) {
-	jobId, err := armadaevents.ProtoUuidFromUlidString(util.ULID().String())
-	if !assert.NoError(t, err) {
-		return
-	}
+	jobId := util.NewULID()
 
 	sequence := &armadaevents.EventSequence{
 		Queue:      "",
@@ -272,7 +269,7 @@ func TestSequenceEventListSizeBytes(t *testing.T) {
 			{
 				Event: &armadaevents.EventSequence_Event_CancelledJob{
 					CancelledJob: &armadaevents.CancelledJob{
-						JobId: jobId,
+						JobIdStr: jobId,
 					},
 				},
 			},

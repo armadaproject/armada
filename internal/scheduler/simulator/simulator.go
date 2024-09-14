@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -326,7 +325,7 @@ func (s *Simulator) bootstrapWorkload() error {
 				if len(jobTemplate.Dependencies) > 0 {
 					continue
 				}
-				jobId := util.ULID()
+				jobId := util.NewULID()
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
@@ -336,7 +335,7 @@ func (s *Simulator) bootstrapWorkload() error {
 						},
 					},
 				)
-				s.jobTemplateByJobId[jobId.String()] = jobTemplate
+				s.jobTemplateByJobId[jobId] = jobTemplate
 			}
 			if len(eventSequence.Events) > 0 {
 				s.pushEventSequence(eventSequence)
@@ -367,9 +366,9 @@ func (s *Simulator) bootstrapWorkload() error {
 	return nil
 }
 
-func submitJobFromJobTemplate(jobId ulid.ULID, jobTemplate *JobTemplate) *armadaevents.SubmitJob {
+func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate) *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
-		JobId:    armadaevents.ProtoUuidFromUlid(jobId),
+		JobIdStr: jobId,
 		Priority: jobTemplate.QueuePriority,
 		MainObject: &armadaevents.KubernetesMainObject{
 			ObjectMeta: &armadaevents.ObjectMeta{
@@ -689,7 +688,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		return nil, false, err
 	}
 	job, err := s.jobDb.NewJob(
-		armadaevents.UlidFromProtoUuid(e.JobId).String(),
+		e.JobIdStr,
 		eventSequence.JobSetName,
 		eventSequence.Queue,
 		e.Priority,
@@ -713,7 +712,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 }
 
 func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLeased) (*jobdb.Job, bool, error) {
-	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
+	jobId := e.JobIdStr
 	job := txn.GetById(jobId)
 	jobTemplate := s.jobTemplateByJobId[jobId]
 	if jobTemplate == nil {
@@ -731,7 +730,7 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 					Created: protoutil.ToTimestamp(jobSuccessTime),
 					Event: &armadaevents.EventSequence_Event_JobSucceeded{
 						JobSucceeded: &armadaevents.JobSucceeded{
-							JobId: e.JobId,
+							JobIdStr: e.JobIdStr,
 						},
 					},
 				},
@@ -759,7 +758,7 @@ func generateRandomShiftedExponentialDuration(r *rand.Rand, rv ShiftedExponentia
 }
 
 func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSucceeded) (*jobdb.Job, bool, error) {
-	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
+	jobId := e.JobIdStr
 	job := txn.GetById(jobId)
 	if job == nil || job.InTerminalState() {
 		// Job already terminated; nothing more to do.
@@ -800,7 +799,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 				JobSetName: dependentJobTemplate.JobSet,
 			}
 			for k := 0; k < int(dependentJobTemplate.Number); k++ {
-				jobId := util.ULID()
+				jobId := util.NewULID()
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
@@ -811,7 +810,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 						},
 					},
 				)
-				s.jobTemplateByJobId[jobId.String()] = dependentJobTemplate
+				s.jobTemplateByJobId[jobId] = dependentJobTemplate
 			}
 			if len(eventSequence.Events) > 0 {
 				s.pushEventSequence(eventSequence)
@@ -854,12 +853,12 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 }
 
 func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRunPreempted) (*jobdb.Job, bool, error) {
-	jobId := armadaevents.UlidFromProtoUuid(e.PreemptedJobId).String()
+	jobId := e.PreemptedJobIdStr
 	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.
 	jobTemplate := s.jobTemplateByJobId[job.Id()]
-	retryJobId := util.ULID()
+	retryJobId := util.NewULID()
 	resubmitTime := s.time.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.WorkflowManagerDelayDistribution))
 	s.pushEventSequence(
 		&armadaevents.EventSequence{
@@ -875,7 +874,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 			},
 		},
 	)
-	s.jobTemplateByJobId[retryJobId.String()] = jobTemplate
+	s.jobTemplateByJobId[retryJobId] = jobTemplate
 	updatedJob := job.WithUpdatedRun(job.LatestRun().WithReturned(true))
 	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
 		return nil, false, err

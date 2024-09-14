@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -21,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/slices"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -125,9 +123,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancel: slices.Map(runsToCancel, func(x string) *armadaevents.Uuid {
-						return armadaevents.MustProtoUuidFromUuidString(x)
-					}),
+					JobRunIdsToCancelStr: runsToCancel,
 				},
 			},
 		}); err != nil {
@@ -174,7 +170,6 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
-					JobRunId:    armadaevents.MustProtoUuidFromUuidString(lease.RunID),
 					JobRunIdStr: lease.RunID,
 					Queue:       lease.Queue,
 					Jobset:      lease.JobSet,
@@ -265,12 +260,12 @@ func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
 
 	priority, known := srv.priorityClasses[priorityClassName]
 	if priorityClassName == "" {
-		log.Errorf("priority class name not set on pod %s", job.JobId.String())
+		log.Errorf("priority class name not set on job %s", job.JobIdStr)
 		return false
 	}
 
 	if !known {
-		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobId.String())
+		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobIdStr)
 		return false
 	}
 
@@ -382,13 +377,11 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		}
 	}
 	return &schedulerobjects.Executor{
-		Id:             req.ExecutorId,
-		Pool:           req.Pool,
-		Nodes:          nodes,
-		LastUpdateTime: now,
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId *armadaevents.Uuid) string {
-			return strings.ToLower(armadaevents.UuidFromProtoUuid(jobId).String())
-		}),
+		Id:                req.ExecutorId,
+		Pool:              req.Pool,
+		Nodes:             nodes,
+		LastUpdateTime:    now,
+		UnassignedJobRuns: req.UnassignedJobRunIdsStr,
 	}
 }
 
@@ -400,8 +393,8 @@ func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]string, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	for _, runId := range req.UnassignedJobRunIds {
-		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId).String())
+	for _, runId := range req.UnassignedJobRunIdsStr {
+		runIds = append(runIds, runId)
 	}
 	return runIds, nil
 }

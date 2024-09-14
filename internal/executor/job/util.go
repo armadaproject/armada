@@ -7,7 +7,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -20,19 +19,9 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 		return nil, err
 	}
 
-	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunLease.Job.JobId)
-	if err != nil {
-		return nil, err
-	}
-
-	runId, err := armadaevents.UuidStringFromProtoUuid(jobRunLease.JobRunId)
-	if err != nil {
-		return nil, err
-	}
-
 	runMeta := &RunMeta{
-		JobId:  jobId,
-		RunId:  runId,
+		JobId:  jobRunLease.Job.JobIdStr,
+		RunId:  jobRunLease.JobRunIdStr,
 		JobSet: jobRunLease.Jobset,
 		Queue:  jobRunLease.Queue,
 	}
