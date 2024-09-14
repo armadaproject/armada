@@ -241,9 +241,18 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 		return nil, err
 	}
 
+	jobId := job.Job.JobIdStr
+	if jobId == "" {
+		return nil, fmt.Errorf("job is invalid, jobId is empty")
+	}
+	runId := job.JobRunIdStr
+	if runId == "" {
+		return nil, fmt.Errorf("job %s is invalid, runId is empty", jobId)
+	}
+
 	labels := util.MergeMaps(job.Job.ObjectMeta.Labels, map[string]string{
-		domain.JobId:     job.Job.JobIdStr,
-		domain.JobRunId:  job.JobRunIdStr,
+		domain.JobId:     jobId,
+		domain.JobRunId:  runId,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(0),
 		domain.PodCount:  strconv.Itoa(1),

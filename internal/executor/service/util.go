@@ -17,7 +17,7 @@ func ExtractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta,
 	}
 	runId := jobRun.JobRunIdStr
 	if runId == "" {
-		return nil, fmt.Errorf("job is invalid, jobRunId is empty")
+		return nil, fmt.Errorf("job %s is invalid, runId is empty", jobId)
 	}
 	if jobRun.Queue == "" {
 		return nil, fmt.Errorf("job is invalid, queue is empty")
