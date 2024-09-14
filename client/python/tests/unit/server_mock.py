@@ -59,7 +59,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
 
         return submit_pb2.JobSubmitResponse(job_response_items=job_response_items)
 
-
     def CancelJobs(self, request, context):
         return submit_pb2.CancellationResult(
             cancelled_ids=["job-1"],
