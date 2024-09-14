@@ -71,12 +71,11 @@ func UnmarshalEventSequence(ctx *armadacontext.Context, payload []byte) (*armada
 func ShortSequenceString(sequence *armadaevents.EventSequence) string {
 	s := ""
 	for _, event := range sequence.Events {
-		jobId, _ := armadaevents.JobIdFromEvent(event)
-		jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobId)
+		jobId, err := armadaevents.JobIdFromEvent(event)
 		if err != nil {
-			jobIdString = ""
+			jobId = ""
 		}
-		s += fmt.Sprintf("[%T (job %s)] ", event.Event, jobIdString)
+		s += fmt.Sprintf("[%T (job %s)] ", event.Event, jobId)
 	}
 	return s
 }

@@ -23,7 +23,7 @@ type hasSerial interface {
 }
 
 type JobRunLease struct {
-	RunID                  uuid.UUID
+	RunID                  string
 	Queue                  string
 	JobSet                 string
 	UserID                 string
@@ -106,7 +106,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 			}
 			defer rows.Close()
 			for rows.Next() {
-				var runId uuid.UUID
+				var runId string
 				var errorBytes []byte
 				err := rows.Scan(&runId, &errorBytes)
 				if err != nil {
@@ -116,7 +116,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 				if err != nil {
 					return errors.WithStack(err)
 				}
-				errorsByRunId[runId.String()] = jobError
+				errorsByRunId[runId] = jobError
 			}
 		}
 		return nil
@@ -219,12 +219,12 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 		}
 		defer rows.Close()
 		for rows.Next() {
-			runId := uuid.UUID{}
+			runId := ""
 			err = rows.Scan(&runId)
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			inactiveRuns = append(inactiveRuns, runId.String())
+			inactiveRuns = append(inactiveRuns, runId)
 		}
 		return nil
 	})
@@ -315,7 +315,7 @@ func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T
 func insertRunIdsToTmpTable(ctx *armadacontext.Context, tx pgx.Tx, runIds []string) (string, error) {
 	tmpTable := database.UniqueTableName("job_runs")
 
-	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s (run_id  uuid) ON COMMIT DROP", tmpTable))
+	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s (run_id text) ON COMMIT DROP", tmpTable))
 	if err != nil {
 		return "", errors.WithStack(err)
 	}

@@ -6,51 +6,48 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
-func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
+func JobIdFromEvent(event *EventSequence_Event) (string, error) {
 	switch e := event.Event.(type) {
 	case *EventSequence_Event_SubmitJob:
-		return e.SubmitJob.JobId, nil
+		return e.SubmitJob.JobIdStr, nil
 	case *EventSequence_Event_ReprioritiseJob:
-		return e.ReprioritiseJob.JobId, nil
+		return e.ReprioritiseJob.JobIdStr, nil
 	case *EventSequence_Event_ReprioritisedJob:
-		return e.ReprioritisedJob.JobId, nil
+		return e.ReprioritisedJob.JobIdStr, nil
 	case *EventSequence_Event_CancelJob:
-		return e.CancelJob.JobId, nil
+		return e.CancelJob.JobIdStr, nil
 	case *EventSequence_Event_CancelledJob:
-		return e.CancelledJob.JobId, nil
+		return e.CancelledJob.JobIdStr, nil
 	case *EventSequence_Event_JobSucceeded:
-		return e.JobSucceeded.JobId, nil
+		return e.JobSucceeded.JobIdStr, nil
 	case *EventSequence_Event_JobRunSucceeded:
-		return e.JobRunSucceeded.JobId, nil
+		return e.JobRunSucceeded.JobIdStr, nil
 	case *EventSequence_Event_JobRunLeased:
-		return e.JobRunLeased.JobId, nil
+		return e.JobRunLeased.JobIdStr, nil
 	case *EventSequence_Event_JobRunAssigned:
-		return e.JobRunAssigned.JobId, nil
+		return e.JobRunAssigned.JobIdStr, nil
 	case *EventSequence_Event_JobRunRunning:
-		return e.JobRunRunning.JobId, nil
+		return e.JobRunRunning.JobIdStr, nil
 	case *EventSequence_Event_JobErrors:
-		return e.JobErrors.JobId, nil
+		return e.JobErrors.JobIdStr, nil
 	case *EventSequence_Event_JobRunErrors:
-		return e.JobRunErrors.JobId, nil
+		return e.JobRunErrors.JobIdStr, nil
 	case *EventSequence_Event_StandaloneIngressInfo:
-		return e.StandaloneIngressInfo.JobId, nil
+		return e.StandaloneIngressInfo.JobIdStr, nil
 	case *EventSequence_Event_JobRunPreempted:
-		return e.JobRunPreempted.PreemptedJobId, nil
+		return e.JobRunPreempted.PreemptedJobIdStr, nil
 	case *EventSequence_Event_JobRunCancelled:
-		return e.JobRunCancelled.JobId, nil
+		return e.JobRunCancelled.JobIdStr, nil
 	case *EventSequence_Event_JobRequeued:
-		return e.JobRequeued.JobId, nil
+		return e.JobRequeued.JobIdStr, nil
 	case *EventSequence_Event_JobValidated:
-		return e.JobValidated.JobId, nil
+		return e.JobValidated.JobIdStr, nil
 	default:
 		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "event.Event",
 			Value:   e,
 			Message: "event doesn't contain a jobId",
 		})
-		return &Uuid{
-			High64: 0,
-			Low64:  0,
-		}, err
+		return "", err
 	}
 }

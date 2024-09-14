@@ -33,19 +33,19 @@ func (q *Queries) DeleteOldMarkers(ctx context.Context, cutoff time.Time) error 
 }
 
 const findActiveRuns = `-- name: FindActiveRuns :many
-SELECT run_id FROM runs WHERE run_id = ANY($1::UUID[])
+SELECT run_id FROM runs WHERE run_id = ANY($1::text[])
                          AND (succeeded = false AND failed = false AND cancelled = false)
 `
 
-func (q *Queries) FindActiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+func (q *Queries) FindActiveRuns(ctx context.Context, runIds []string) ([]string, error) {
 	rows, err := q.db.Query(ctx, findActiveRuns, runIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []string
 	for rows.Next() {
-		var run_id uuid.UUID
+		var run_id string
 		if err := rows.Scan(&run_id); err != nil {
 			return nil, err
 		}
@@ -73,19 +73,19 @@ func (q *Queries) InsertMarker(ctx context.Context, arg InsertMarkerParams) erro
 }
 
 const markJobRunsAttemptedById = `-- name: MarkJobRunsAttemptedById :exec
-UPDATE runs SET run_attempted = true WHERE run_id = ANY($1::UUID[])
+UPDATE runs SET run_attempted = true WHERE run_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobRunsAttemptedById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsAttemptedById(ctx context.Context, runIds []string) error {
 	_, err := q.db.Exec(ctx, markJobRunsAttemptedById, runIds)
 	return err
 }
 
 const markJobRunsFailedById = `-- name: MarkJobRunsFailedById :exec
-UPDATE runs SET failed = true WHERE run_id = ANY($1::UUID[])
+UPDATE runs SET failed = true WHERE run_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []string) error {
 	_, err := q.db.Exec(ctx, markJobRunsFailedById, runIds)
 	return err
 }
@@ -106,28 +106,28 @@ func (q *Queries) MarkJobRunsPreemptRequestedByJobId(ctx context.Context, arg Ma
 }
 
 const markJobRunsReturnedById = `-- name: MarkJobRunsReturnedById :exec
-UPDATE runs SET returned = true WHERE run_id = ANY($1::UUID[])
+UPDATE runs SET returned = true WHERE run_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobRunsReturnedById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsReturnedById(ctx context.Context, runIds []string) error {
 	_, err := q.db.Exec(ctx, markJobRunsReturnedById, runIds)
 	return err
 }
 
 const markJobRunsRunningById = `-- name: MarkJobRunsRunningById :exec
-UPDATE runs SET running = true WHERE run_id = ANY($1::UUID[])
+UPDATE runs SET running = true WHERE run_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobRunsRunningById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsRunningById(ctx context.Context, runIds []string) error {
 	_, err := q.db.Exec(ctx, markJobRunsRunningById, runIds)
 	return err
 }
 
 const markJobRunsSucceededById = `-- name: MarkJobRunsSucceededById :exec
-UPDATE runs SET succeeded = true WHERE run_id = ANY($1::UUID[])
+UPDATE runs SET succeeded = true WHERE run_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []string) error {
 	_, err := q.db.Exec(ctx, markJobRunsSucceededById, runIds)
 	return err
 }
@@ -298,15 +298,15 @@ const selectAllRunIds = `-- name: SelectAllRunIds :many
 SELECT run_id FROM runs
 `
 
-func (q *Queries) SelectAllRunIds(ctx context.Context) ([]uuid.UUID, error) {
+func (q *Queries) SelectAllRunIds(ctx context.Context) ([]string, error) {
 	rows, err := q.db.Query(ctx, selectAllRunIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []string
 	for rows.Next() {
-		var run_id uuid.UUID
+		var run_id string
 		if err := rows.Scan(&run_id); err != nil {
 			return nil, err
 		}
@@ -353,22 +353,22 @@ FROM runs jr
          JOIN jobs j
               ON jr.job_id = j.job_id
 WHERE jr.executor = $1
-  AND jr.run_id NOT IN ($2::UUID[])
+  AND jr.run_id NOT IN ($2::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false
 `
 
 type SelectJobsForExecutorParams struct {
-	Executor string      `db:"executor"`
-	RunIds   []uuid.UUID `db:"run_ids"`
+	Executor string   `db:"executor"`
+	RunIds   []string `db:"run_ids"`
 }
 
 type SelectJobsForExecutorRow struct {
-	RunID         uuid.UUID `db:"run_id"`
-	Queue         string    `db:"queue"`
-	JobSet        string    `db:"job_set"`
-	UserID        string    `db:"user_id"`
-	Groups        []byte    `db:"groups"`
-	SubmitMessage []byte    `db:"submit_message"`
+	RunID         string `db:"run_id"`
+	Queue         string `db:"queue"`
+	JobSet        string `db:"job_set"`
+	UserID        string `db:"user_id"`
+	Groups        []byte `db:"groups"`
+	SubmitMessage []byte `db:"submit_message"`
 }
 
 func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForExecutorParams) ([]SelectJobsForExecutorRow, error) {
@@ -562,11 +562,11 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 }
 
 const selectRunErrorsById = `-- name: SelectRunErrorsById :many
-SELECT run_id, job_id, error FROM job_run_errors WHERE run_id = ANY($1::UUID[])
+SELECT run_id, job_id, error FROM job_run_errors WHERE run_id = ANY($1::text[])
 `
 
 // Run errors
-func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []uuid.UUID) ([]JobRunError, error) {
+func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []string) ([]JobRunError, error) {
 	rows, err := q.db.Query(ctx, selectRunErrorsById, runIds)
 	if err != nil {
 		return nil, err
@@ -659,7 +659,7 @@ UPDATE runs SET leased_timestamp = $1 WHERE run_id = $2
 
 type SetLeasedTimeParams struct {
 	LeasedTimestamp *time.Time `db:"leased_timestamp"`
-	RunID           uuid.UUID  `db:"run_id"`
+	RunID           string     `db:"run_id"`
 }
 
 func (q *Queries) SetLeasedTime(ctx context.Context, arg SetLeasedTimeParams) error {
@@ -673,7 +673,7 @@ UPDATE runs SET pending_timestamp = $1 WHERE run_id = $2
 
 type SetPendingTimeParams struct {
 	PendingTimestamp *time.Time `db:"pending_timestamp"`
-	RunID            uuid.UUID  `db:"run_id"`
+	RunID            string     `db:"run_id"`
 }
 
 func (q *Queries) SetPendingTime(ctx context.Context, arg SetPendingTimeParams) error {
@@ -687,7 +687,7 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2
 
 type SetRunningTimeParams struct {
 	RunningTimestamp *time.Time `db:"running_timestamp"`
-	RunID            uuid.UUID  `db:"run_id"`
+	RunID            string     `db:"run_id"`
 }
 
 func (q *Queries) SetRunningTime(ctx context.Context, arg SetRunningTimeParams) error {
@@ -701,7 +701,7 @@ UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2
 
 type SetTerminatedTimeParams struct {
 	TerminatedTimestamp *time.Time `db:"terminated_timestamp"`
-	RunID               uuid.UUID  `db:"run_id"`
+	RunID               string     `db:"run_id"`
 }
 
 func (q *Queries) SetTerminatedTime(ctx context.Context, arg SetTerminatedTimeParams) error {

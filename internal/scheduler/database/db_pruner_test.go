@@ -27,7 +27,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 		runs                     []Run
 		errors                   []JobRunError
 		expectedJobsPostPrune    []string
-		expectedJobRunsPostPrune []uuid.UUID
+		expectedJobRunsPostPrune []string
 		expectedErrorsPostPrune  []JobRunError
 	}{
 		"remove succeeded job": {
@@ -76,7 +76,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 				LastModified: expiredJobTime,
 			}},
 			runs: []Run{{
-				RunID:        uuid.New(),
+				RunID:        uuid.NewString(),
 				JobID:        "test-job",
 				JobSet:       "test-jobset",
 				Running:      true,
@@ -93,7 +93,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 				LastModified: expiredJobTime,
 			}},
 			errors: []JobRunError{{
-				RunID: uuid.New(),
+				RunID: uuid.NewString(),
 				JobID: "test-job",
 				Error: []byte{0x1},
 			}},

@@ -174,12 +174,13 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
-					JobRunId: armadaevents.ProtoUuidFromUuid(lease.RunID),
-					Queue:    lease.Queue,
-					Jobset:   lease.JobSet,
-					User:     lease.UserID,
-					Groups:   groups,
-					Job:      submitMsg,
+					JobRunId:    armadaevents.MustProtoUuidFromUuidString(lease.RunID),
+					JobRunIdStr: lease.RunID,
+					Queue:       lease.Queue,
+					Jobset:      lease.JobSet,
+					User:        lease.UserID,
+					Groups:      groups,
+					Job:         submitMsg,
 				},
 			},
 		})
