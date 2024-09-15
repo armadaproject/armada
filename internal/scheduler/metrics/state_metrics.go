@@ -144,7 +144,7 @@ func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// ReportJobLeased reports the job as being preempted. This has to be reported separately because the state transition
+// ReportJobLeased reports the job as being leased. This has to be reported separately because the state transition
 // logic does work for job leased!
 func (m *jobStateMetrics) ReportJobLeased(job *jobdb.Job) {
 	run := job.LatestRun()
