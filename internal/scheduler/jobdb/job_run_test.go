@@ -1,7 +1,9 @@
 package jobdb
 
 import (
+	clock "k8s.io/utils/clock/testing"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +32,7 @@ var (
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	SchedulingKeyGenerator   = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	testClock                = clock.NewFakeClock(time.Now())
 	jobDb                    = NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
@@ -40,6 +43,10 @@ var (
 	)
 	scheduledAtPriority = int32(5)
 )
+
+func init() {
+	jobDb.clock = testClock
+}
 
 var baseJobRun = jobDb.CreateRun(
 	uuid.New().String(),
