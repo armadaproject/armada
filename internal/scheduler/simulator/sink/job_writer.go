@@ -1,19 +1,17 @@
-package simulator
+package sink
 
 import (
-	"io"
-
+	"github.com/armadaproject/armada/internal/scheduler/simulator"
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
 	v1 "k8s.io/api/core/v1"
+	"os"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-type Writer struct {
-	c      <-chan StateTransition
-	writer io.Writer
+type JobWriter struct {
+	writer *parquetWriter.ParquetWriter
 }
 
 type JobRunRow struct {
@@ -33,31 +31,39 @@ type JobRunRow struct {
 	FinishedTime     int64   `parquet:"name=finished_time, type=INT64"`
 }
 
-func NewWriter(writer io.Writer, c <-chan StateTransition) (*Writer, error) {
-	fw := &Writer{
-		c:      c,
-		writer: writer,
+func NewJobWriter(path string) (*JobWriter, error) {
+	fileWriter, err := os.Create(path)
+	if err != nil {
+		return nil, err
 	}
-
-	return fw, nil
+	pw, err := parquetWriter.NewParquetWriterFromWriter(fileWriter, new(JobRunRow), 1)
+	if err != nil {
+		return nil, err
+	}
+	return &JobWriter{
+		writer: pw,
+	}, nil
 }
 
-// Presently only converts events supported in the simulator
-func (w *Writer) toEventState(e *armadaevents.EventSequence_Event) string {
-	switch e.GetEvent().(type) {
-	case *armadaevents.EventSequence_Event_JobSucceeded:
-		return "SUCCEEDED"
-	case *armadaevents.EventSequence_Event_JobRunPreempted:
-		return "PREEMPTED"
-	case *armadaevents.EventSequence_Event_CancelledJob:
-		return "CANCELLED"
-	default:
-		// Undefined event type
-		return "UNKNOWN"
+func (j *JobWriter) Update(st *simulator.StateTransition) error {
+	jobRunRows, err := j.createJobRunRow(st)
+	if err != nil {
+		return err
 	}
+
+	for _, jobRow := range jobRunRows {
+		if err := j.writer.Write(*jobRow); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (w *Writer) createJobRunRow(st StateTransition) ([]*JobRunRow, error) {
+func (j *JobWriter) Close() {
+	j.writer.WriteStop()
+}
+
+func (j *JobWriter) createJobRunRow(st *simulator.StateTransition) ([]*JobRunRow, error) {
 	rows := make([]*JobRunRow, 0, len(st.EventSequence.Events))
 	events := st.EventSequence
 	jobsList := st.Jobs
@@ -83,7 +89,7 @@ func (w *Writer) createJobRunRow(st StateTransition) ([]*JobRunRow, error) {
 				Gpu:              gpuLimit.AsApproximateFloat64(),
 				EphemeralStorage: ephemeralStorageLimit.AsApproximateFloat64(),
 				ExitCode:         0,
-				State:            w.toEventState(event),
+				State:            j.toEventState(event),
 				SubmittedTime:    associatedJob.SubmitTime().UnixNano() / 1000000000,
 				ScheduledTime:    associatedJob.LatestRun().Created() / 1000000000,
 				FinishedTime:     eventTime.UnixNano() / 1000000000,
@@ -93,42 +99,17 @@ func (w *Writer) createJobRunRow(st StateTransition) ([]*JobRunRow, error) {
 	return rows, nil
 }
 
-func (w *Writer) Run(ctx *armadacontext.Context) (err error) {
-	pw, err := parquetWriter.NewParquetWriterFromWriter(w.writer, new(JobRunRow), 1)
-	if err != nil {
-		return
-	}
-
-	defer func() {
-		if err != nil {
-			return
-		}
-
-		if err = pw.WriteStop(); err != nil {
-			ctx.Errorf("error closing parquet writer: %s", err.Error())
-			return
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case stateTransitions, ok := <-w.c:
-			if !ok {
-				return
-			}
-
-			jobRunRows, err := w.createJobRunRow(stateTransitions)
-			if err != nil {
-				return err
-			}
-
-			for _, flattenedStateTransition := range jobRunRows {
-				if err := pw.Write(*flattenedStateTransition); err != nil {
-					return err
-				}
-			}
-		}
+// Presently only converts events supported in the simulator
+func (j *JobWriter) toEventState(e *armadaevents.EventSequence_Event) string {
+	switch e.GetEvent().(type) {
+	case *armadaevents.EventSequence_Event_JobSucceeded:
+		return "SUCCEEDED"
+	case *armadaevents.EventSequence_Event_JobRunPreempted:
+		return "PREEMPTED"
+	case *armadaevents.EventSequence_Event_CancelledJob:
+		return "CANCELLED"
+	default:
+		// Undefined event type
+		return "UNKNOWN"
 	}
 }

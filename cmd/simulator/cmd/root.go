@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"runtime/pprof"
+	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
@@ -19,13 +21,12 @@ func RootCmd() *cobra.Command {
 		Short: "Simulate running jobs on Armada.",
 		RunE:  runSimulations,
 	}
-	// cmd.Flags().BoolP("verbose", "v", false, "Log detailed output to console.")
 	cmd.Flags().String("cluster", "", "Path specifying cluster configurations to simulate.")
 	cmd.Flags().String("workload", "", "Path specifying workloads to simulate.")
 	cmd.Flags().String("config", "", "Path to scheduler configurations to simulate. Uses a default config if not provided.")
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
-	cmd.Flags().String("eventsOutputFilePath", "", "Path of file to write events to.")
-	cmd.Flags().String("cycleStatsOutputFilePath", "", "Path of file to write cycle stats to.")
+	cmd.Flags().String("outputDir", "", "Path to directory where output files will be written.  Defaults to timestamped directory.")
+	cmd.Flags().Bool("overwriteOutputDir", false, "Overwrite output director if it already exists.  If false then an error will be thrown if the directory already exists")
 	cmd.Flags().Bool("enableFastForward", false, "Skips schedule events when we're in a steady state")
 	cmd.Flags().Int("hardTerminationMinutes", math.MaxInt, "Limit the time simulated")
 	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
@@ -50,11 +51,11 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	eventsOutputFilePath, err := cmd.Flags().GetString("eventsOutputFilePath")
+	outputDirPath, err := cmd.Flags().GetString("outputDir")
 	if err != nil {
 		return err
 	}
-	cycleStatsOutputFilePath, err := cmd.Flags().GetString("cycleStatsOutputFilePath")
+	overwriteDirIfExists, err := cmd.Flags().GetBool("overwriteOutputDir")
 	if err != nil {
 		return err
 	}
@@ -70,6 +71,19 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	schedulerCyclePeriodSeconds, err := cmd.Flags().GetInt("schedulerCyclePeriodSeconds")
 	if err != nil {
 		return err
+	}
+
+	if outputDirPath == "" {
+		outputDirPath = fmt.Sprintf("armada_simulator_%s", time.Now().Format("2006_01_02_15_04_05"))
+	}
+
+	if pathExists(outputDirPath) && overwriteDirIfExists {
+		err := os.Remove(outputDirPath)
+		if err != nil {
+			return err
+		}
+	} else if pathExists(outputDirPath) {
+		return fmt.Errorf("output directory %s already exists and overwriteOutputDir not set", outputDirPath)
 	}
 
 	// Load test specs. and config.
@@ -176,4 +190,12 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return err == nil
 }
