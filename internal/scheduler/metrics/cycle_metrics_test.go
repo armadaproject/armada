@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,6 +77,80 @@ func TestReportStateTransitions(t *testing.T) {
 
 	fairnessError := testutil.ToFloat64(m.fairnessError.WithLabelValues("pool1"))
 	assert.InDelta(t, 0.05, fairnessError, epsilon, "fairnessError")
+}
+
+func TestResetLeaderMetrics(t *testing.T) {
+	m := newCycleMetrics()
+
+	poolQueueLabelValues := []string{"pool1", "queue1"}
+	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
+
+	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
+		vec.WithLabelValues(labelValues...).Inc()
+		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
+		assert.Equal(t, 1.0, counterVal)
+		m.resetLeaderMetrics()
+		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
+		assert.Equal(t, 0.0, counterVal)
+	}
+	testResetGauge := func(vec *prometheus.GaugeVec, labelValues []string) {
+		vec.WithLabelValues(labelValues...).Inc()
+		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
+		assert.Equal(t, 1.0, counterVal)
+		m.resetLeaderMetrics()
+		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
+		assert.Equal(t, 0.0, counterVal)
+	}
+
+	testResetCounter(m.scheduledJobs, queuePriorityClassLabelValues)
+	testResetCounter(m.premptedJobs, queuePriorityClassLabelValues)
+	testResetGauge(m.consideredJobs, poolQueueLabelValues)
+	testResetGauge(m.fairShare, poolQueueLabelValues)
+	testResetGauge(m.adjustedFairShare, poolQueueLabelValues)
+	testResetGauge(m.actualShare, poolQueueLabelValues)
+	testResetGauge(m.fairnessError, []string{"pool1"})
+	testResetGauge(m.demand, poolQueueLabelValues)
+	testResetGauge(m.cappedDemand, poolQueueLabelValues)
+}
+
+func TestDisableLeaderMetrics(t *testing.T) {
+	m := newCycleMetrics()
+
+	poolQueueLabelValues := []string{"pool1", "queue1"}
+	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
+
+	collect := func(m *cycleMetrics) []prometheus.Metric {
+		m.scheduledJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
+		m.premptedJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
+		m.consideredJobs.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.fairShare.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.adjustedFairShare.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.actualShare.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.fairnessError.WithLabelValues("pool1").Inc()
+		m.demand.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.cappedDemand.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.scheduleCycleTime.Observe(float64(1000))
+		m.reconciliationCycleTime.Observe(float64(1000))
+
+		ch := make(chan prometheus.Metric, 1000)
+		m.collect(ch)
+		collected := make([]prometheus.Metric, 0, len(ch))
+		for len(ch) > 0 {
+			collected = append(collected, <-ch)
+		}
+		return collected
+	}
+
+	// Enabled
+	assert.NotZero(t, len(collect(m)))
+
+	// Disabled
+	m.disableLeaderMetrics()
+	assert.Equal(t, 1, len(collect(m)))
+
+	// Enabled
+	m.enableLeaderMetrics()
+	assert.NotZero(t, len(collect(m)))
 }
 
 func cpu(n int) schedulerobjects.ResourceList {

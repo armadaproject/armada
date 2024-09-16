@@ -225,15 +225,17 @@ var defaultJobError = &armadaevents.Error{
 	},
 }
 
-func defaultJobRunError(jobId string, runId uuid.UUID) *armadaevents.JobRunErrors {
+func defaultJobRunError(jobId string, runId string) *armadaevents.JobRunErrors {
 	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
 	if err != nil {
 		panic(err)
 	}
-	protoRunId := armadaevents.ProtoUuidFromUuid(runId)
+	protoRunId := armadaevents.MustProtoUuidFromUuidString(runId)
 	return &armadaevents.JobRunErrors{
-		RunId: protoRunId,
-		JobId: protoJobId,
+		RunId:    protoRunId,
+		JobId:    protoJobId,
+		JobIdStr: jobId,
+		RunIdStr: runId,
 		Errors: []*armadaevents.Error{
 			defaultJobError,
 		},
@@ -457,7 +459,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			},
 			runUpdates: []database.Run{
 				{
-					RunID:        uuid.MustParse(requeuedJob.LatestRun().Id()),
+					RunID:        requeuedJob.LatestRun().Id(),
 					JobID:        requeuedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
@@ -475,7 +477,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:        uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:        leasedJob.LatestRun().Id(),
 					JobID:        leasedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
@@ -496,7 +498,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:        uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:        leasedJob.LatestRun().Id(),
 					JobID:        leasedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
@@ -516,7 +518,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{leasedJob.WithValidated(true)},
 			runUpdates: []database.Run{
 				{
-					RunID:        uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:        leasedJob.LatestRun().Id(),
 					JobID:        leasedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
@@ -538,7 +540,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{returnedOnceLeasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:        uuid.MustParse(returnedOnceLeasedJob.LatestRun().Id()),
+					RunID:        returnedOnceLeasedJob.LatestRun().Id(),
 					JobID:        returnedOnceLeasedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
@@ -561,7 +563,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			// Fail fast should mean there is only ever 1 attempted run
 			runUpdates: []database.Run{
 				{
-					RunID:        uuid.MustParse(leasedFailFastJob.LatestRun().Id()),
+					RunID:        leasedFailFastJob.LatestRun().Id(),
 					JobID:        leasedFailFastJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
@@ -598,7 +600,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{preemptibleLeasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:            uuid.MustParse(preemptibleLeasedJob.LatestRun().Id()),
+					RunID:            preemptibleLeasedJob.LatestRun().Id(),
 					JobID:            preemptibleLeasedJob.Id(),
 					JobSet:           "testJobSet",
 					Executor:         "testExecutor",
@@ -616,7 +618,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:            uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:            leasedJob.LatestRun().Id(),
 					JobID:            leasedJob.Id(),
 					JobSet:           "testJobSet",
 					Executor:         "testExecutor",
@@ -740,7 +742,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:    uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:    leasedJob.LatestRun().Id(),
 					JobID:    leasedJob.Id(),
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
@@ -759,7 +761,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:     uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:     leasedJob.LatestRun().Id(),
 					JobID:     leasedJob.Id(),
 					JobSet:    "testJobSet",
 					Executor:  "testExecutor",
@@ -959,11 +961,7 @@ func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity 
 func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
 	for _, eventSequence := range eventSequences {
 		for _, event := range eventSequence.Events {
-			protoJobId, err := armadaevents.JobIdFromEvent(event)
-			if err != nil {
-				return err
-			}
-			jobId, err := armadaevents.UlidStringFromProtoUuid(protoJobId)
+			jobId, err := armadaevents.JobIdFromEvent(event)
 			if err != nil {
 				return err
 			}
@@ -1106,7 +1104,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			},
 			runUpdates: []database.Run{
 				{
-					RunID:    uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:    leasedJob.LatestRun().Id(),
 					JobID:    queuedJob.Id(),
 					JobSet:   queuedJob.Jobset(),
 					Executor: "test-executor",
@@ -1164,7 +1162,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			},
 			runUpdates: []database.Run{
 				{
-					RunID:     uuid.MustParse(leasedJob.LatestRun().Id()),
+					RunID:     leasedJob.LatestRun().Id(),
 					JobID:     leasedJob.LatestRun().JobId(),
 					JobSet:    leasedJob.Jobset(),
 					Succeeded: true,
@@ -1579,7 +1577,7 @@ var (
 		Serial:                  0,
 	}
 	newRunA = &database.Run{
-		RunID:               testfixtures.UUIDFromInt(1),
+		RunID:               testfixtures.UUIDFromInt(1).String(),
 		JobID:               queuedJobA.JobID,
 		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,
@@ -1589,7 +1587,7 @@ var (
 		ScheduledAtPriority: &scheduledAtPriority,
 	}
 	successfulRunA = &database.Run{
-		RunID:               testfixtures.UUIDFromInt(1),
+		RunID:               testfixtures.UUIDFromInt(1).String(),
 		JobID:               queuedJobA.JobID,
 		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,
@@ -1600,7 +1598,7 @@ var (
 		ScheduledAtPriority: &scheduledAtPriority,
 	}
 	failedAttemptedRunA = &database.Run{
-		RunID:               testfixtures.UUIDFromInt(1),
+		RunID:               testfixtures.UUIDFromInt(1).String(),
 		JobID:               queuedJobA.JobID,
 		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,
@@ -1611,7 +1609,7 @@ var (
 		ScheduledAtPriority: &scheduledAtPriority,
 	}
 	failedRunA = &database.Run{
-		RunID:               testfixtures.UUIDFromInt(1),
+		RunID:               testfixtures.UUIDFromInt(1).String(),
 		JobID:               queuedJobA.JobID,
 		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,
@@ -1621,7 +1619,7 @@ var (
 		ScheduledAtPriority: &scheduledAtPriority,
 	}
 	failedReturnedRunA = &database.Run{
-		RunID:               testfixtures.UUIDFromInt(1),
+		RunID:               testfixtures.UUIDFromInt(1).String(),
 		JobID:               queuedJobA.JobID,
 		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,

@@ -13,6 +13,12 @@ import (
 type Metrics struct {
 	*cycleMetrics
 	*jobStateMetrics
+	leaderMetricsEnabled bool
+}
+
+type resettableMetric interface {
+	prometheus.Collector
+	Reset()
 }
 
 func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobStateMetricsResetInterval time.Duration) (*Metrics, error) {
@@ -30,20 +36,24 @@ func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobState
 	}, nil
 }
 
-// DisableJobStateMetrics stops the jobStateMetrics from being produced.  This is necessary because we only produce
-// these metrics when we are leader in order to avoid double counting
-func (m *Metrics) DisableJobStateMetrics() {
+// DisableLeaderMetrics stops leader metrics from being produced.  This is necessary because we only produce
+// some metrics when we are leader in order to avoid double counting
+func (m *Metrics) DisableLeaderMetrics() {
 	m.jobStateMetrics.disable()
+	m.cycleMetrics.disableLeaderMetrics()
+	m.leaderMetricsEnabled = false
 }
 
-// EnableJobStateMetrics starts the jobStateMetrics
-func (m *Metrics) EnableJobStateMetrics() {
+// EnableLeaderMetrics starts the job state and cycle metrics produced when scheduler is the leader
+func (m *Metrics) EnableLeaderMetrics() {
 	m.jobStateMetrics.enable()
+	m.cycleMetrics.enableLeaderMetrics()
+	m.leaderMetricsEnabled = true
 }
 
-// JobStateMetricsEnabled returns true if job state metrics are enabled
-func (m *Metrics) JobStateMetricsEnabled() bool {
-	return m.jobStateMetrics.isEnabled()
+// LeaderMetricsEnabled returns true if leader metrics are enabled
+func (m *Metrics) LeaderMetricsEnabled() bool {
+	return m.leaderMetricsEnabled
 }
 
 // Describe is necessary to implement the prometheus.Collector interface

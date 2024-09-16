@@ -140,9 +140,9 @@ func TestDbOperationOptimisation(t *testing.T) {
 	for i := range jobIds {
 		jobIds[i] = util.NewULID()
 	}
-	runIds := make([]uuid.UUID, 10)
+	runIds := make([]string, 10)
 	for i := range runIds {
-		runIds[i] = uuid.New()
+		runIds[i] = uuid.NewString()
 	}
 	tests := map[string]struct {
 		N   int           // Expected number of ops after optimisation.
@@ -369,13 +369,13 @@ func TestInsertJobRequestCancel(t *testing.T) {
 
 type mockDb struct {
 	Jobs map[string]*schedulerdb.Job
-	Runs map[uuid.UUID]*schedulerdb.Run
+	Runs map[string]*schedulerdb.Run
 }
 
 func newMockDb() *mockDb {
 	return &mockDb{
 		Jobs: make(map[string]*schedulerdb.Job),
-		Runs: make(map[uuid.UUID]*schedulerdb.Run),
+		Runs: make(map[string]*schedulerdb.Run),
 	}
 }
 

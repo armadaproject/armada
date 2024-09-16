@@ -240,10 +240,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
 		ctx.Info("Not the leader so will not attempt to schedule")
-		s.metrics.DisableJobStateMetrics()
+		s.metrics.DisableLeaderMetrics()
 		return overallSchedulerResult, err
 	} else {
-		s.metrics.EnableJobStateMetrics()
+		s.metrics.EnableLeaderMetrics()
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -275,7 +275,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
 	// Update metrics.
-	if s.metrics.JobStateMetricsEnabled() {
+	if s.metrics.LeaderMetricsEnabled() {
 		s.metrics.ReportStateTransitions(jsts, jobRepoRunErrorsByRunId)
 	}
 
@@ -344,7 +344,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
 
-	if s.metrics.JobStateMetricsEnabled() {
+	if s.metrics.LeaderMetricsEnabled() {
 		for _, jctx := range overallSchedulerResult.ScheduledJobs {
 			s.metrics.ReportJobLeased(jctx.Job)
 		}

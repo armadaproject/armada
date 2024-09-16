@@ -107,7 +107,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 	)
 	defaultLease := &database.JobRunLease{
-		RunID:         uuid.New(),
+		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
@@ -123,7 +123,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		nil,
 	)
 	leaseWithoutNode := &database.JobRunLease{
-		RunID:         uuid.New(),
+		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
@@ -142,7 +142,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 	)
 	preemptibleLease := &database.JobRunLease{
-		RunID:         uuid.New(),
+		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
@@ -159,7 +159,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 	}
 	leaseWithOverlay := &database.JobRunLease{
-		RunID:  uuid.New(),
+		RunID:  uuid.NewString(),
 		Queue:  "test-queue",
 		JobSet: "test-jobset",
 		UserID: "test-user",
@@ -208,12 +208,13 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				},
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(defaultLease.RunID),
-						Queue:    defaultLease.Queue,
-						Jobset:   defaultLease.JobSet,
-						User:     defaultLease.UserID,
-						Groups:   groups,
-						Job:      submit,
+						JobRunId:    armadaevents.MustProtoUuidFromUuidString(defaultLease.RunID),
+						JobRunIdStr: defaultLease.RunID,
+						Queue:       defaultLease.Queue,
+						Jobset:      defaultLease.JobSet,
+						User:        defaultLease.UserID,
+						Groups:      groups,
+						Job:         submit,
 					}},
 				},
 				{
@@ -228,12 +229,13 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithoutNode.RunID),
-						Queue:    leaseWithoutNode.Queue,
-						Jobset:   leaseWithoutNode.JobSet,
-						User:     leaseWithoutNode.UserID,
-						Groups:   groups,
-						Job:      submitWithoutNodeSelector,
+						JobRunId:    armadaevents.MustProtoUuidFromUuidString(leaseWithoutNode.RunID),
+						JobRunIdStr: leaseWithoutNode.RunID,
+						Queue:       leaseWithoutNode.Queue,
+						Jobset:      leaseWithoutNode.JobSet,
+						User:        leaseWithoutNode.UserID,
+						Groups:      groups,
+						Job:         submitWithoutNodeSelector,
 					}},
 				},
 				{
@@ -248,12 +250,13 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithOverlay.RunID),
-						Queue:    leaseWithOverlay.Queue,
-						Jobset:   leaseWithOverlay.JobSet,
-						User:     leaseWithOverlay.UserID,
-						Groups:   groups,
-						Job:      submitWithOverlay,
+						JobRunId:    armadaevents.MustProtoUuidFromUuidString(leaseWithOverlay.RunID),
+						JobRunIdStr: leaseWithOverlay.RunID,
+						Queue:       leaseWithOverlay.Queue,
+						Jobset:      leaseWithOverlay.JobSet,
+						User:        leaseWithOverlay.UserID,
+						Groups:      groups,
+						Job:         submitWithOverlay,
 					}},
 				},
 				{
@@ -268,12 +271,13 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(preemptibleLease.RunID),
-						Queue:    preemptibleLease.Queue,
-						Jobset:   preemptibleLease.JobSet,
-						User:     preemptibleLease.UserID,
-						Groups:   groups,
-						Job:      preemptibleSubmit,
+						JobRunId:    armadaevents.MustProtoUuidFromUuidString(preemptibleLease.RunID),
+						JobRunIdStr: preemptibleLease.RunID,
+						Queue:       preemptibleLease.Queue,
+						Jobset:      preemptibleLease.JobSet,
+						User:        preemptibleLease.UserID,
+						Groups:      groups,
+						Job:         preemptibleSubmit,
 					}},
 				},
 				{

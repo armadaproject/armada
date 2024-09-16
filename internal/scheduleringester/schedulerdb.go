@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
@@ -239,7 +238,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	case MarkRunsSucceeded:
 		successTimes := make([]interface{}, 0, len(o))
 		succeeded := make([]bool, 0, len(o))
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		for runId, successTime := range o {
 			successTimes = append(successTimes, successTime)
 			runIds = append(runIds, runId)
@@ -251,11 +250,11 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsFailed:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		failTimes := make([]interface{}, 0, len(o))
 		failed := make([]bool, 0, len(o))
-		returned := make([]uuid.UUID, 0)
-		runAttempted := make([]uuid.UUID, 0)
+		returned := make([]string, 0)
+		runAttempted := make([]string, 0)
 		for k, v := range o {
 			runIds = append(runIds, k)
 			failTimes = append(failTimes, v.FailureTime)
@@ -280,7 +279,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsRunning:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		runningTimes := make([]interface{}, 0, len(runIds))
 		running := make([]bool, 0, len(runIds))
 		for runId, failTime := range o {
@@ -294,7 +293,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsPending:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		pendingTimes := make([]interface{}, 0, len(o))
 		pending := make([]bool, 0, len(o))
 		for runId, pendingTime := range o {
@@ -307,7 +306,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsPreempted:
-		runIds := make([]uuid.UUID, 0, len(o))
+		runIds := make([]string, 0, len(o))
 		preemptedTimes := make([]interface{}, 0, len(o))
 		preempted := make([]bool, 0, len(o))
 		for runId, preemptedTime := range o {
@@ -372,15 +371,11 @@ func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {
 }
 
 func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
-	idPgType := "uuid"
-	if id == "job_id" {
-		idPgType = "text"
-	}
 	return fmt.Sprintf(`update runs set
 	%[2]v = runs_temp.%[2]v,
 	%[3]v = runs_temp.%[3]v
 	from (select * from unnest($1::%[4]v[], $2::boolean[] ,$3::timestamptz[]))
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
-		id, phaseColumn, timeStampColumn, idPgType)
+		id, phaseColumn, timeStampColumn, "text")
 }
