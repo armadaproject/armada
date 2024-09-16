@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"github.com/go-playground/validator/v10"
 	"time"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
@@ -23,4 +24,9 @@ type Configuration struct {
 	BatchDuration time.Duration
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
+}
+
+func (c Configuration) Validate() error {
+	validate := validator.New()
+	return validate.Struct(c)
 }
