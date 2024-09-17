@@ -1,8 +1,9 @@
 package scheduleringester
 
 import (
-	"github.com/go-playground/validator/v10"
 	"time"
+
+	"github.com/go-playground/validator/v10"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
