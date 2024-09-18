@@ -42,7 +42,7 @@ func BindCommandlineArguments() {
 }
 
 // TODO Move code relating to config out of common into a new package internal/serverconfig
-func LoadConfig(config any, defaultPath string, overrideConfigs []string) *viper.Viper {
+func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigName(baseConfigFileName)
 	v.AddConfigPath(defaultPath)
@@ -87,6 +87,11 @@ func LoadConfig(config any, defaultPath string, overrideConfigs []string) *viper
 	}
 	if len(metadata.Unset) > 0 {
 		log.Debugf("Unset keys: %v", metadata.Unset)
+	}
+
+	if err := config.Validate(); err != nil {
+		log.Error(commonconfig.FormatValidationErrors(err))
+		os.Exit(-1)
 	}
 
 	return v
