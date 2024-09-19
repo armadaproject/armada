@@ -3,7 +3,6 @@ package scheduler
 import (
 	"fmt"
 	"math"
-	"reflect"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
@@ -263,7 +262,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 
 func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
-		return &EvictorResult{}, NewInMemoryJobRepository(), nil
+		return &EvictorResult{}, NewInMemoryJobRepository(nil), nil
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -295,10 +294,12 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 
 	sch.setEvictedGangCardinality(result)
 	evictedJctxs := maps.Values(result.EvictedJctxsByJobId)
-	for _, jctx := range evictedJctxs {
+	evictedJobs := make([]*jobdb.Job, len(evictedJctxs))
+	for i, jctx := range evictedJctxs {
 		if _, err := sch.schedulingContext.EvictJob(jctx.Job); err != nil {
 			return nil, nil, err
 		}
+		evictedJobs[i] = jctx.Job
 	}
 	// TODO: Move gang accounting into context.
 	if err := sch.updateGangAccounting(evictedJctxs, nil); err != nil {
@@ -307,8 +308,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.evictionAssertions(result); err != nil {
 		return nil, nil, err
 	}
-	inMemoryJobRepo := NewInMemoryJobRepository()
-	inMemoryJobRepo.EnqueueMany(evictedJctxs)
+	inMemoryJobRepo := NewInMemoryJobRepository(evictedJobs)
 	txn.Commit()
 
 	if err := sch.nodeDb.Reset(); err != nil {
@@ -488,7 +488,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(
 			sctx,
-			inMemoryJobRepo.GetJobIterator(qctx.Queue),
+			inMemoryJobRepo.QueuedJobs(qctx.Queue),
 			0,
 			false,
 		)
@@ -525,13 +525,13 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 }
 
 func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*schedulerresult.SchedulerResult, error) {
-	jobIteratorByQueue := make(map[string]JobIterator)
+	jobIteratorByQueue := make(map[string]jobdb.JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
-		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
-		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
+		evictedIt := inMemoryJobRepo.QueuedJobs(qctx.Queue)
+		if jobRepo == nil {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo)
+			queueIt := jobRepo.QueuedJobs(qctx.Queue)
 			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
 		}
 	}
@@ -821,13 +821,15 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := make([]string, 0, len(node.AllocatedByJobId))
+		jobs := make([]*jobdb.Job, 0, len(node.AllocatedByJobId))
 		for jobId := range node.AllocatedByJobId {
 			if _, ok := node.EvictedJobRunIds[jobId]; !ok {
-				jobIds = append(jobIds, jobId)
+				job := evi.jobRepo.GetById(jobId)
+				if job != nil {
+					jobs = append(jobs, job)
+				}
 			}
 		}
-		jobs := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(jobFilter, jobs, node)
 		if err != nil {
 			return nil, err

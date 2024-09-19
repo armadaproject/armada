@@ -3,7 +3,7 @@ package scheduler
 import (
 	"container/heap"
 	"fmt"
-	"reflect"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"time"
 
 	"github.com/pkg/errors"
@@ -32,7 +32,7 @@ func NewQueueScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
-	jobIteratorByQueue map[string]JobIterator,
+	jobIteratorByQueue map[string]jobdb.JobIterator,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -219,7 +219,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresul
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
 	schedulingContext  *schedulercontext.SchedulingContext
-	queuedJobsIterator JobIterator
+	queuedJobsIterator jobdb.JobIterator
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
 	// Maximum number of jobs to look at before giving up.
@@ -231,7 +231,7 @@ type QueuedGangIterator struct {
 	next     *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it jobdb.JobIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		schedulingContext:          sctx,
 		queuedJobsIterator:         it,
@@ -269,15 +269,13 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	// 1. get a job that isn't part of a gang, in which case we yield it immediately, or
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
-		jctx, err := it.queuedJobsIterator.Next()
-		if err != nil {
-			return nil, err
-		} else if jctx == nil || reflect.ValueOf(jctx).IsNil() {
+		job, _ := it.queuedJobsIterator.Next()
+		if job == nil {
 			return nil, nil
 		}
 
 		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
-		if !jctx.IsEvicted {
+		if !job.IsEvicted {
 			it.jobsSeen++
 		}
 		if it.hitLookbackLimit() {
