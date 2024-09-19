@@ -42,7 +42,7 @@ func loadConfig() (schedulerconfig.Configuration, error) {
 	common.LoadConfig(&config, "./config/scheduler", viper.GetStringSlice(CustomConfigLocation))
 	err := config.Validate()
 	if err != nil {
-		commonconfig.LogValidationErrors(err)
+		return config, commonconfig.FormatValidationErrors(err)
 	}
 	return config, err
 }
