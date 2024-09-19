@@ -1,7 +1,6 @@
-package scheduler
+package jobiteration
 
 import (
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/benbjohnson/immutable"
 )
@@ -49,36 +48,4 @@ func (repo *InMemoryJobRepository) QueuedJobs(queueName string) jobdb.JobIterato
 		return queue.Iterator()
 	}
 	return nil
-}
-
-// QueuedJobsIterator is an iterator over all jobs in a queue.
-type QueuedJobsIterator struct {
-	repo   JobRepository
-	jobIds []string
-	idx    int
-	ctx    *armadacontext.Context
-}
-
-// MultiJobsIterator chains several JobIterators together in the order provided.
-type MultiJobsIterator struct {
-	i   int
-	its []jobdb.JobIterator
-}
-
-func NewMultiJobsIterator(its ...jobdb.JobIterator) *MultiJobsIterator {
-	return &MultiJobsIterator{
-		its: its,
-	}
-}
-
-func (it *MultiJobsIterator) Next() (*jobdb.Job, bool) {
-	if it.i >= len(it.its) {
-		return nil, false
-	}
-	v, ok := it.its[it.i].Next()
-	if ok {
-		return v, true
-	}
-	it.i++
-	return it.Next()
 }
