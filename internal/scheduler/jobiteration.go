@@ -1,8 +1,6 @@
 package scheduler
 
 import (
-	"sync"
-
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -12,68 +10,39 @@ import (
 )
 
 type JobIterator interface {
-	Next() (*schedulercontext.JobSchedulingContext, error)
+	Next() (*jobdb.Job, error)
 }
 
 type JobRepository interface {
-	GetQueueJobIds(queueName string) []string
-	GetExistingJobsByIds(ids []string) []*jobdb.Job
-}
-
-type InMemoryJobIterator struct {
-	i     int
-	jctxs []*schedulercontext.JobSchedulingContext
-}
-
-func NewInMemoryJobIterator(jctxs []*schedulercontext.JobSchedulingContext) *InMemoryJobIterator {
-	return &InMemoryJobIterator{
-		jctxs: jctxs,
-	}
-}
-
-func (it *InMemoryJobIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
-	if it.i >= len(it.jctxs) {
-		return nil, nil
-	}
-	v := it.jctxs[it.i]
-	it.i++
-	return v, nil
+	GetById(id string) *jobdb.Job
+	JobsForQueue(queue string) JobIterator
 }
 
 type InMemoryJobRepository struct {
 	jctxsByQueue map[string][]*schedulercontext.JobSchedulingContext
 	jctxsById    map[string]*schedulercontext.JobSchedulingContext
-	// Protects the above fields.
-	mu sync.Mutex
 }
 
-func NewInMemoryJobRepository() *InMemoryJobRepository {
-	return &InMemoryJobRepository{
-		jctxsByQueue: make(map[string][]*schedulercontext.JobSchedulingContext),
-		jctxsById:    make(map[string]*schedulercontext.JobSchedulingContext),
-	}
-}
+func NewInMemoryJobRepository(jctxs []*schedulercontext.JobSchedulingContext) *InMemoryJobRepository {
 
-func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSchedulingContext) {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	updatedQueues := make(map[string]bool)
+	jctxsByQueue := make(map[string][]*schedulercontext.JobSchedulingContext)
+	jctxsById := make(map[string]*schedulercontext.JobSchedulingContext, len(jctxs))
+
 	for _, jctx := range jctxs {
 		queue := jctx.Job.Queue()
-		repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
-		repo.jctxsById[jctx.Job.Id()] = jctx
-		updatedQueues[queue] = true
+		jctxsByQueue[queue] = append(jctxsByQueue[queue], jctx)
+		jctxsById[jctx.Job.Id()] = jctx
 	}
-	for queue := range updatedQueues {
-		repo.sortQueue(queue)
+	for _, jobCtxs := range jctxsByQueue {
+		slices.SortFunc(jobCtxs, func(a, b *schedulercontext.JobSchedulingContext) int {
+			return a.Job.SchedulingOrderCompare(b.Job)
+		})
 	}
-}
 
-// sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
-func (repo *InMemoryJobRepository) sortQueue(queue string) {
-	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) int {
-		return a.Job.SchedulingOrderCompare(b.Job)
-	})
+	return &InMemoryJobRepository{
+		jctxsByQueue: jctxsByQueue,
+		jctxsById:    jctxsById,
+	}
 }
 
 func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) []string {
@@ -85,21 +54,14 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) []string {
 	)
 }
 
-func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) []*jobdb.Job {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	rv := make([]*jobdb.Job, 0, len(jobIds))
-	for _, jobId := range jobIds {
-		if jctx, ok := repo.jctxsById[jobId]; ok {
-			rv = append(rv, jctx.Job)
-		}
+func (repo *InMemoryJobRepository) GetById(jobId string) *jobdb.Job {
+	if jctx, ok := repo.jctxsById[jobId]; ok {
+		return jctx.Job
 	}
-	return rv
+	return nil
 }
 
 func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
 	return NewInMemoryJobIterator(slices.Clone(repo.jctxsByQueue[queue]))
 }
 
