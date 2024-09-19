@@ -5,7 +5,7 @@ import (
 )
 
 type GrpcConfig struct {
-	Port                       int `validate:"required"`
+	Port                       int
 	KeepaliveParams            keepalive.ServerParameters
 	KeepaliveEnforcementPolicy keepalive.EnforcementPolicy
 	Tls                        TlsConfig

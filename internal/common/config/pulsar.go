@@ -34,7 +34,7 @@ type PulsarConfig struct {
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
 	// Timeout when sending messages asynchronously
-	SendTimeout time.Duration `validate:"required"`
+	SendTimeout time.Duration
 	// Backoff from polling when Pulsar returns an error
 	BackoffTime time.Duration
 	// Number of pulsar messages that will be queued by the pulsar consumer.
