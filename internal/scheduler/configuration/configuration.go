@@ -1,10 +1,8 @@
 package configuration
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -57,12 +55,6 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
-}
-
-func (c Configuration) Validate() error {
-	validate := validator.New()
-	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
-	return validate.Struct(c)
 }
 
 type LeaderConfig struct {
@@ -250,33 +242,6 @@ const (
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
 )
-
-func SchedulingConfigValidation(sl validator.StructLevel) {
-	c := sl.Current().Interface().(SchedulingConfig)
-
-	wellKnownNodeTypes := make(map[string]bool)
-	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
-		if wellKnownNodeTypes[wellKnownNodeType.Name] {
-			fieldName := fmt.Sprintf("WellKnownNodeTypes[%d].Name", i)
-			sl.ReportError(wellKnownNodeType.Name, fieldName, "", DuplicateWellKnownNodeTypeErrorMessage, "")
-		}
-		wellKnownNodeTypes[wellKnownNodeType.Name] = true
-	}
-
-	for priorityClassName, priorityClass := range c.PriorityClasses {
-		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
-			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
-			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
-		}
-
-		for i, awayNodeType := range priorityClass.AwayNodeTypes {
-			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
-				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
-				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
-			}
-		}
-	}
-}
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
 type ResourceType struct {
