@@ -1868,7 +1868,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 				)
-				sch.EnableAssertions()
 
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)

@@ -487,9 +487,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 	if l.schedulingConfig.AlwaysAttemptScheduling {
 		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
 	}
-	if l.schedulingConfig.EnableAssertions {
-		scheduler.EnableAssertions()
-	}
 
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
