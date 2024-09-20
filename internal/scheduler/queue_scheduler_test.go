@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/jobiteration"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -501,11 +502,7 @@ func TestQueueScheduler(t *testing.T) {
 			for i, job := range tc.Jobs {
 				legacySchedulerJobs[i] = job
 			}
-			jobRepo := NewInMemoryJobRepository()
-			jobRepo.EnqueueMany(
-				schedulercontext.JobSchedulingContextsFromJobs(legacySchedulerJobs),
-			)
-
+			jobRepo := jobiteration.NewInMemoryJobContextRepository(schedulercontext.JobSchedulingContextsFromJobs(legacySchedulerJobs))
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
 				tc.SchedulingConfig,
@@ -535,9 +532,9 @@ func TestQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues, map[string]bool{})
-			jobIteratorByQueue := make(map[string]JobIterator)
+			jobIteratorByQueue := make(map[string]jobiteration.JobContextIterator)
 			for _, q := range tc.Queues {
-				it := jobRepo.GetJobIterator(q.Name)
+				it := jobRepo.GetJobContextsForQueue(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
 			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue)

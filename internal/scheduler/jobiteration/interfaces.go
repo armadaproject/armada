@@ -1,15 +1,14 @@
 package jobiteration
 
 import (
-	"iter"
-
 	"github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/iter"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
 type (
-	JobIterator        = iter.Seq[*jobdb.Job]
-	JobContextIterator = iter.Seq[*context.JobSchedulingContext]
+	JobIterator        = iter.Iterator[*jobdb.Job]
+	JobContextIterator = iter.Iterator[*context.JobSchedulingContext]
 )
 
 // JobRepository is a source of jobs

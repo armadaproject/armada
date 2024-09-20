@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/xiter"
+	"github.com/armadaproject/armada/internal/common/iter"
 	"github.com/armadaproject/armada/internal/scheduler/jobiteration"
 	"math"
 	"time"
@@ -531,7 +531,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, jobRep
 		for i, repo := range jobRepos {
 			iters[i] = repo.GetJobContextsForQueue(qctx.Queue)
 		}
-		jobIteratorByQueue[qctx.Queue] = xiter.Concat(iters...)
+		jobIteratorByQueue[qctx.Queue] = iter.Concat(iters...)
 	}
 
 	// Reset the scheduling keys cache after evicting jobs.

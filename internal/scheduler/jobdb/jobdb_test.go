@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"math/rand"
+	"slices"
 	"sort"
 	"testing"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -147,13 +147,8 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	err := txn.Upsert(jobs)
 	require.NoError(t, err)
 	collect := func() []*Job {
-		retrieved := make([]*Job, 0)
-		iter := txn.QueuedJobs(jobs[0].Queue())
-		for !iter.Done() {
-			j, _ := iter.Next()
-			retrieved = append(retrieved, j)
-		}
-		return retrieved
+		iter := txn.GetJobsForQueue(jobs[0].Queue())
+		return slices.Collect(iter)
 	}
 
 	assert.Equal(t, jobs, collect())
@@ -183,7 +178,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	// clear all jobs
 	err = txn.BatchDelete([]string{updatedJob.id, job10.id, jobs[0].id, jobs[2].id, jobs[6].id, jobs[9].id})
 	require.NoError(t, err)
-	assert.Equal(t, []*Job{}, collect())
+	assert.Equal(t, nil, collect())
 }
 
 func TestJobDb_TestGetAll(t *testing.T) {

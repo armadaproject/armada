@@ -2,8 +2,6 @@ package jobdb
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/xiter"
-	"iter"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
@@ -19,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/iter"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -497,11 +496,12 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 	return queuedJobs.Len() > 0
 }
 
-func (txn *Txn) GetJobsForQueue(queue string) iter.Seq[*Job] {
+func (txn *Txn) GetJobsForQueue(queue string) iter.Iterator[*Job] {
+
 	jobQueue, ok := txn.jobsByQueue[queue]
 
 	if !ok {
-		return xiter.Empty[*Job]()
+		return iter.Empty[*Job]()
 	}
 
 	setIter := jobQueue.Iterator()
