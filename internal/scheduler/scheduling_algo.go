@@ -484,9 +484,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 	)
-	if l.schedulingConfig.AlwaysAttemptScheduling {
-		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
-	}
 	if l.schedulingConfig.EnableAssertions {
 		scheduler.EnableAssertions()
 	}
