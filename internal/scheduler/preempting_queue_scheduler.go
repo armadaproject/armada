@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/xiter"
 	"github.com/armadaproject/armada/internal/scheduler/jobiteration"
-	"iter"
 	"math"
 	"time"
 
@@ -526,9 +525,9 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 }
 
 func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, jobRepos ...jobiteration.JobContextRepository) (*schedulerresult.SchedulerResult, error) {
-	jobIteratorByQueue := make(map[string]iter.Seq[*schedulercontext.JobSchedulingContext])
+	jobIteratorByQueue := make(map[string]jobiteration.JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
-		iters := make([]iter.Seq[*schedulercontext.JobSchedulingContext], len(jobRepos))
+		iters := make([]jobiteration.JobContextIterator, len(jobRepos))
 		for i, repo := range jobRepos {
 			iters[i] = repo.GetJobContextsForQueue(qctx.Queue)
 		}

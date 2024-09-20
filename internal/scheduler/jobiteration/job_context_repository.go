@@ -3,7 +3,6 @@ package jobiteration
 import (
 	"github.com/armadaproject/armada/internal/common/xiter"
 	"github.com/armadaproject/armada/internal/scheduler/context"
-	"iter"
 	"slices"
 )
 
@@ -36,7 +35,7 @@ func NewInMemoryJobContextRepository(jobContexts []*context.JobSchedulingContext
 	}
 }
 
-func (repo *InMemoryJobContextRepository) GetJobContextsForQueue(queueName string) iter.Seq[*context.JobSchedulingContext] {
+func (repo *InMemoryJobContextRepository) GetJobContextsForQueue(queueName string) JobContextIterator {
 	queue, ok := repo.jobContextsByQueue[queueName]
 	if ok {
 		return slices.Values(queue)
