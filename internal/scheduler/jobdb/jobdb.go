@@ -2,6 +2,8 @@ package jobdb
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/xiter"
+	"iter"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
@@ -19,10 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-type JobIterator interface {
-	Next() (*Job, bool)
-}
 
 var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 
@@ -499,13 +497,21 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 	return queuedJobs.Len() > 0
 }
 
-// QueuedJobs returns true if the queue has any jobs in the running state or false otherwise
-func (txn *Txn) QueuedJobs(queue string) JobIterator {
+func (txn *Txn) GetJobsForQueue(queue string) iter.Seq[*Job] {
 	jobQueue, ok := txn.jobsByQueue[queue]
-	if ok {
-		return jobQueue.Iterator()
-	} else {
-		return emptyList.Iterator()
+
+	if !ok {
+		return xiter.Empty[*Job]()
+	}
+
+	setIter := jobQueue.Iterator()
+	return func(yield func(*Job) bool) {
+		for !setIter.Done() {
+			val, _ := setIter.Next()
+			if !yield(val) {
+				return
+			}
+		}
 	}
 }
 
