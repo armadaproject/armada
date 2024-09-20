@@ -3,7 +3,7 @@ package scheduler
 import (
 	"container/heap"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"iter"
 	"time"
 
 	"github.com/pkg/errors"
@@ -32,7 +32,7 @@ func NewQueueScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
-	jobIteratorByQueue map[string]jobdb.JobIterator,
+	jobIteratorByQueue map[string]iter.Seq[*schedulercontext.JobSchedulingContext],
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -219,7 +219,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresul
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
 	schedulingContext  *schedulercontext.SchedulingContext
-	queuedJobsIterator jobdb.JobIterator
+	queuedJobsIterator iter.Seq[*schedulercontext.JobSchedulingContext]
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
 	// Maximum number of jobs to look at before giving up.
@@ -231,7 +231,7 @@ type QueuedGangIterator struct {
 	next     *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it jobdb.JobIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it iter.Seq[*schedulercontext.JobSchedulingContext], maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		schedulingContext:          sctx,
 		queuedJobsIterator:         it,
@@ -268,14 +268,10 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	// Get one job at a time from the underlying iterator until we either
 	// 1. get a job that isn't part of a gang, in which case we yield it immediately, or
 	// 2. get the final job in a gang, in which case we yield the entire gang.
-	for {
-		job, _ := it.queuedJobsIterator.Next()
-		if job == nil {
-			return nil, nil
-		}
+	for jctx := range it.queuedJobsIterator {
 
 		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
-		if !job.IsEvicted {
+		if !jctx.IsEvicted {
 			it.jobsSeen++
 		}
 		if it.hitLookbackLimit() {
@@ -315,6 +311,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			return it.next, nil
 		}
 	}
+	return nil, nil
 }
 
 func (it *QueuedGangIterator) hitLookbackLimit() bool {
