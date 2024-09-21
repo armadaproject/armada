@@ -494,8 +494,9 @@ func (l *FairSchedulingAlgo) schedulePool(
 	}
 	for i, jctx := range result.PreemptedJobs {
 		jobDbJob := jctx.Job
+		now := l.clock.Now()
 		if run := jobDbJob.LatestRun(); run != nil {
-			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
+			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true).WithPreemptedTime(&now))
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
