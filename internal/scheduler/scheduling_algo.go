@@ -53,8 +53,6 @@ type FairSchedulingAlgo struct {
 	limiterByQueue map[string]*rate.Limiter
 	// Max amount of time each scheduling round is allowed to take.
 	maxSchedulingDuration time.Duration
-	// Pools that need to be scheduled in sorted order
-	poolsToSchedule       []string
 	clock                 clock.Clock
 	resourceListFactory   *internaltypes.ResourceListFactory
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
@@ -117,14 +115,11 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, err
 	}
 
-	if len(l.poolsToSchedule) == 0 {
-		// Cycle over groups in a consistent order.
-		l.poolsToSchedule = maps.Keys(fsctx.nodesByPoolAndExecutor)
-		sortGroups(l.poolsToSchedule, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
-	}
+	pools := maps.Keys(fsctx.nodesByPoolAndExecutor)
+	sortGroups(pools, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
 
-	ctx.Infof("Looping over pools %s", strings.Join(l.poolsToSchedule, " "))
-	for len(l.poolsToSchedule) > 0 {
+	ctx.Infof("Looping over pools %s", strings.Join(pools, " "))
+	for _, pool := range pools {
 		select {
 		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
@@ -132,8 +127,6 @@ func (l *FairSchedulingAlgo) Schedule(
 			return overallSchedulerResult, nil
 		default:
 		}
-		pool := armadaslices.Pop(&l.poolsToSchedule)
-
 		nodeCountForPool := 0
 		for _, executor := range fsctx.executors {
 			nodeCountForPool += len(fsctx.nodesByPoolAndExecutor[pool][executor.Id])
@@ -162,11 +155,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			err,
 		)
 
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			// We've reached the scheduling time limit;
-			// add the executorGroupLabel back to l.poolsToSchedule such that we try it again next time,
-			// and exit gracefully.
-			l.poolsToSchedule = append(l.poolsToSchedule, pool)
 			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
