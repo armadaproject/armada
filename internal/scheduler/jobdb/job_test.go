@@ -134,18 +134,20 @@ func TestJob_TestWithNewRun(t *testing.T) {
 	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", scheduledAtPriority)
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
+	created := jobDb.clock.Now()
 	assert.NotNil(t, run)
 	assert.Equal(
 		t,
 		&JobRun{
 			id:                  run.id,
 			jobId:               "test-job",
-			created:             run.created,
+			created:             created.UnixNano(),
 			executor:            "test-executor",
 			nodeId:              "test-nodeId",
 			nodeName:            "nodeId",
 			pool:                "pool",
 			scheduledAtPriority: &scheduledAtPriority,
+			leaseTime:           &created,
 		},
 		run,
 	)
