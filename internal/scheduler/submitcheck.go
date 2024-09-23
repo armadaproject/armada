@@ -41,17 +41,6 @@ type SubmitScheduleChecker interface {
 	Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error)
 }
 
-// DummySubmitChecker  is a  SubmitScheduleChecker that allows every job
-type DummySubmitChecker struct{}
-
-func (srv *DummySubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
-	results := make(map[string]schedulingResult, len(jobs))
-	for _, job := range jobs {
-		results[job.Id()] = schedulingResult{isSchedulable: true}
-	}
-	return results, nil
-}
-
 type SubmitChecker struct {
 	schedulingConfig    configuration.SchedulingConfig
 	executorRepository  database.ExecutorRepository
@@ -106,7 +95,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	for _, ex := range executors {
 		nodes := ex.GetNodes()
 		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *schedulerobjects.Node) string {
-			return GetNodePool(n, ex)
+			return n.GetPool()
 		})
 		for pool, nodes := range nodesByPool {
 			nodeDb, err := srv.constructNodeDb(nodes)

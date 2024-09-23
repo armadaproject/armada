@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 )
 
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
@@ -31,7 +32,7 @@ func NewQueueScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
-	jobIteratorByQueue map[string]JobIterator,
+	jobIteratorByQueue map[string]JobContextIterator,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -61,7 +62,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
 }
 
-func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresult.SchedulerResult, error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 
 	nodeIdByJobId := make(map[string]string)
@@ -205,7 +206,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	if len(scheduledJobs) != len(nodeIdByJobId) {
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
-	return &SchedulerResult{
+	return &schedulerresult.SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      nodeIdByJobId,
@@ -218,7 +219,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
 	schedulingContext  *schedulercontext.SchedulingContext
-	queuedJobsIterator JobIterator
+	queuedJobsIterator JobContextIterator
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
 	// Maximum number of jobs to look at before giving up.
@@ -230,7 +231,7 @@ type QueuedGangIterator struct {
 	next     *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		schedulingContext:          sctx,
 		queuedJobsIterator:         it,

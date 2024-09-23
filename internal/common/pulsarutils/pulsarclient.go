@@ -7,10 +7,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/server/configuration"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 )
 
-func NewPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, error) {
+func NewPulsarClient(config *commonconfig.PulsarConfig) (pulsar.Client, error) {
 	var authentication pulsar.Authentication
 
 	// Sanity check that supplied Pulsar authentication parameters make sense

@@ -1,23 +1,17 @@
 package schedulermocks
 
 import (
-	"sort"
-	"strings"
+	"golang.org/x/exp/slices"
 )
 
-type Stringer interface {
-	String() string
+type SliceMatcher struct {
+	Expected []string
 }
 
-type SliceMatcher[T Stringer] struct {
-	Expected []T
-}
-
-// Matches
 // Matches input against provided expected input
 // This matching ignores the input ordering, so args don't need to be passed in a known order
-func (s SliceMatcher[T]) Matches(x interface{}) bool {
-	inputs, ok := x.([]T)
+func (s SliceMatcher) Matches(x interface{}) bool {
+	inputs, ok := x.([]string)
 	if !ok {
 		return false
 	}
@@ -25,14 +19,10 @@ func (s SliceMatcher[T]) Matches(x interface{}) bool {
 	if len(inputs) != len(expected) {
 		return false
 	}
-	sort.Slice(inputs, func(i, j int) bool {
-		return strings.Compare(inputs[i].String(), inputs[j].String()) < 0
-	})
-	sort.Slice(expected, func(i, j int) bool {
-		return strings.Compare(expected[i].String(), expected[j].String()) < 0
-	})
+	slices.Sort(inputs)
+	slices.Sort(expected)
 	for i, inputValue := range inputs {
-		if inputValue.String() != expected[i].String() {
+		if inputValue != expected[i] {
 			return false
 		}
 	}
@@ -40,6 +30,6 @@ func (s SliceMatcher[T]) Matches(x interface{}) bool {
 }
 
 // String describes what the matcher matches.
-func (s SliceMatcher[T]) String() string {
-	return "checks provided matches expected uuid list"
+func (s SliceMatcher) String() string {
+	return "checks provided matches expected string list ignoring order"
 }

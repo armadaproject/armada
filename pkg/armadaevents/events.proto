@@ -562,6 +562,8 @@ message JobRunPreempted{
 message PartitionMarker {
     // group id ties together multiple messages across different partitions
     Uuid group_id = 1;
+    // string group id
+    string group_id_str = 3;
     // The pulsar partition on which this message was sent
     uint32 partition = 2;
 }

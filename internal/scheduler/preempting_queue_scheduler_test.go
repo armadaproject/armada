@@ -28,6 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -56,7 +57,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	require.NoError(t, err)
 
 	evictor := NewOversubscribedEvictor(
-		NewSchedulerJobRepositoryAdapter(jobDbTxn),
+		jobDbTxn,
 		nodeDb)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
@@ -1861,13 +1862,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					NewSchedulerJobRepositoryAdapter(jobDbTxn),
+					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
 				)
-				sch.EnableAssertions()
 
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
@@ -2208,7 +2208,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				constraints,
 				testfixtures.TestEmptyFloatingResources,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
-				NewSchedulerJobRepositoryAdapter(jobDbTxn),
+				jobDbTxn,
 				nodeDb,
 				nil,
 				nil,
@@ -2233,7 +2233,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range ScheduledJobsFromSchedulerResult(result) {
+			for _, job := range schedulerresult.ScheduledJobsFromSchedulerResult(result) {
 				nodeId := result.NodeIdByJobId[job.Id()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}
@@ -2267,7 +2267,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					NewSchedulerJobRepositoryAdapter(jobDbTxn),
+					jobDbTxn,
 					nodeDb,
 					nil,
 					nil,

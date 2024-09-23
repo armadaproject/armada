@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
@@ -43,8 +44,6 @@ type PreemptingQueueScheduler struct {
 	gangIdByJobId map[string]string
 	// If true, the unsuccessfulSchedulingKeys check of gangScheduler is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
-	// If true, asserts that the nodeDb state is consistent with expected changes.
-	enableAssertions bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -84,10 +83,6 @@ func NewPreemptingQueueScheduler(
 	}
 }
 
-func (sch *PreemptingQueueScheduler) EnableAssertions() {
-	sch.enableAssertions = true
-}
-
 func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
@@ -95,7 +90,7 @@ func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
-func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresult.SchedulerResult, error) {
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
 	}()
@@ -103,12 +98,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
 	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
 
-	// NodeDb snapshot prior to making any changes.
-	// We compare against this snapshot after scheduling to detect changes.
-	snapshot := sch.nodeDb.Txn(false)
-
 	// Evict preemptible jobs.
-	totalCost := sch.schedulingContext.TotalCost()
 	ctx.WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")
 	evictorResult, inMemoryJobRepo, err := sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict for resource balancing"),
@@ -129,7 +119,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
-					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx) / totalCost
+					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
 					fairShare := math.Max(qctx.AdjustedFairShare, qctx.FairShare)
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
@@ -236,24 +226,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	}
 	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
-	PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
-	PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
+	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
+	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
 
-	if sch.enableAssertions {
-		ctx.WithField("stage", "scheduling-algo").Infof("Performing assertions after scheduling round")
-		err := sch.assertions(
-			snapshot,
-			preemptedJobsById,
-			scheduledJobsById,
-			sch.nodeIdByJobId,
-		)
-		if err != nil {
-			return nil, err
-		}
-		ctx.WithField("stage", "scheduling-algo").Infof("Finished running assertions after scheduling round")
-	}
-	return &SchedulerResult{
+	return &schedulerresult.SchedulerResult{
 		PreemptedJobs:      preemptedJobs,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      sch.nodeIdByJobId,
@@ -524,8 +501,8 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
-	jobIteratorByQueue := make(map[string]JobIterator)
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*schedulerresult.SchedulerResult, error) {
+	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
@@ -607,78 +584,6 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(preempted []*scheduler
 			} else {
 				sch.jobIdsByGangId[gangId] = map[string]bool{jctx.JobId: true}
 			}
-		}
-	}
-	return nil
-}
-
-// For each node in the NodeDb, compare assigned jobs relative to the initial snapshot.
-// Jobs no longer assigned to a node are preemtped.
-// Jobs assigned to a node that weren't earlier are scheduled.
-//
-// Compare the nodedb.NodeJobDiff with expected preempted/scheduled jobs to ensure NodeDb is consistent.
-// This is only to validate that nothing unexpected happened during scheduling.
-func (sch *PreemptingQueueScheduler) assertions(
-	snapshot *memdb.Txn,
-	preemptedJobsById map[string]*schedulercontext.JobSchedulingContext,
-	scheduledJobsById map[string]*schedulercontext.JobSchedulingContext,
-	nodeIdByJobId map[string]string,
-) error {
-	// Compare two snapshots of the nodeDb to find jobs that
-	// were preempted/scheduled between creating the snapshots.
-	preempted, scheduled, err := nodedb.NodeJobDiff(snapshot, sch.nodeDb.Txn(false))
-	if err != nil {
-		return err
-	}
-
-	// Assert that jobs we expect to be preempted/scheduled are marked as such in the nodeDb.
-	for jobId := range preemptedJobsById {
-		if _, ok := preempted[jobId]; !ok {
-			return errors.Errorf("inconsistent NodeDb: expected job %s to be preempted in nodeDb", jobId)
-		}
-	}
-	for jobId := range scheduledJobsById {
-		if _, ok := scheduled[jobId]; !ok {
-			return errors.Errorf("inconsistent NodeDb: expected job %s to be scheduled in nodeDb", jobId)
-		}
-	}
-
-	// Assert that jobs marked as preempted (scheduled) in the nodeDb are expected to be preempted (scheduled),
-	// and that jobs are preempted/scheduled on the nodes we expect them to.
-	for jobId, node := range preempted {
-		if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-			if expectedNodeId != node.GetId() {
-				return errors.Errorf(
-					"inconsistent NodeDb: expected job %s to be preempted from node %s, but got %s",
-					jobId, expectedNodeId, node.GetId(),
-				)
-			}
-		} else {
-			return errors.Errorf(
-				"inconsistent NodeDb: expected job %s to be mapped to node %s, but found none",
-				jobId, node.GetId(),
-			)
-		}
-		if _, ok := preemptedJobsById[jobId]; !ok {
-			return errors.Errorf("inconsistent NodeDb: didn't expect job %s to be preempted (job marked as preempted in NodeDb)", jobId)
-		}
-	}
-	for jobId, node := range scheduled {
-		if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-			if expectedNodeId != node.GetId() {
-				return errors.Errorf(
-					"inconsistent NodeDb: expected job %s to be on node %s, but got %s",
-					jobId, expectedNodeId, node.GetId(),
-				)
-			}
-		} else {
-			return errors.Errorf(
-				"inconsistent NodeDb: expected job %s to be mapped to node %s, but found none",
-				jobId, node.GetId(),
-			)
-		}
-		if _, ok := scheduledJobsById[jobId]; !ok {
-			return errors.Errorf("inconsistent NodeDb: didn't expect job %s to be scheduled (job marked as scheduled in NodeDb)", jobId)
 		}
 	}
 	return nil
@@ -821,13 +726,16 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := make([]string, 0, len(node.AllocatedByJobId))
+		jobs := make([]*jobdb.Job, 0, len(node.AllocatedByJobId))
 		for jobId := range node.AllocatedByJobId {
 			if _, ok := node.EvictedJobRunIds[jobId]; !ok {
-				jobIds = append(jobIds, jobId)
+				job := evi.jobRepo.GetById(jobId)
+				if job != nil {
+					jobs = append(jobs, job)
+				}
+
 			}
 		}
-		jobs := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(jobFilter, jobs, node)
 		if err != nil {
 			return nil, err

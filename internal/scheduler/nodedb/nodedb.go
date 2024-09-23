@@ -401,47 +401,6 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
-// NodeJobDiff compares two snapshots of the NodeDb memdb and returns
-// - a map from job ids of all preempted jobs to the node they used to be on
-// - a map from job ids of all scheduled jobs to the node they were scheduled on
-// that happened between the two snapshots.
-func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*internaltypes.Node, map[string]*internaltypes.Node, error) {
-	preempted := make(map[string]*internaltypes.Node)
-	scheduled := make(map[string]*internaltypes.Node)
-	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
-	if err != nil {
-		return nil, nil, err
-	}
-	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
-		if item.NodeA != nil && item.NodeB == nil {
-			// NodeA was removed. All jobs on NodeA are preempted.
-			for jobId := range item.NodeA.AllocatedByJobId {
-				preempted[jobId] = item.NodeA
-			}
-		} else if item.NodeA == nil && item.NodeB != nil {
-			// NodeB was added. All jobs on NodeB are scheduled.
-			for jobId := range item.NodeB.AllocatedByJobId {
-				scheduled[jobId] = item.NodeB
-			}
-		} else if item.NodeA != nil && item.NodeB != nil {
-			// NodeA is the same as NodeB.
-			// Jobs on NodeA that are not on NodeB are preempted.
-			// Jobs on NodeB that are not on NodeA are scheduled.
-			for jobId := range item.NodeA.AllocatedByJobId {
-				if _, ok := item.NodeB.AllocatedByJobId[jobId]; !ok {
-					preempted[jobId] = item.NodeA
-				}
-			}
-			for jobId := range item.NodeB.AllocatedByJobId {
-				if _, ok := item.NodeA.AllocatedByJobId[jobId]; !ok {
-					scheduled[jobId] = item.NodeB
-				}
-			}
-		}
-	}
-	return preempted, scheduled, nil
-}
-
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
 	for _, jctx := range gctx.JobSchedulingContexts {
