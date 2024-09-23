@@ -4,18 +4,17 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	context2 "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
-	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 const epsilon = 1e-6
@@ -25,18 +24,18 @@ func TestReportStateTransitions(t *testing.T) {
 		cpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
-	result := schedulerresult.SchedulerResult{
-		SchedulingContexts: []*context.SchedulingContext{
+	result := scheduling.SchedulerResult{
+		SchedulingContexts: []*context2.SchedulingContext{
 			{
 				Pool:                 "pool1",
 				FairnessCostProvider: fairnessCostProvider,
-				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+				QueueSchedulingContexts: map[string]*context2.QueueSchedulingContext{
 					"queue1": {
 						Allocated:         cpu(10),
 						Demand:            cpu(20),
 						CappedDemand:      cpu(15),
 						AdjustedFairShare: 0.15,
-						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
+						SuccessfulJobSchedulingContexts: map[string]*context2.JobSchedulingContext{
 							"job1": {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
 							},
@@ -44,7 +43,7 @@ func TestReportStateTransitions(t *testing.T) {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
 							},
 						},
-						UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
+						UnsuccessfulJobSchedulingContexts: map[string]*context2.JobSchedulingContext{
 							"job2": {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
 							},

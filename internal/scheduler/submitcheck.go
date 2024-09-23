@@ -14,12 +14,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 type schedulingResult struct {
@@ -129,7 +129,7 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 		return nil, fmt.Errorf("executor state not loaded")
 	}
 
-	jobContexts := schedulercontext.JobSchedulingContextsFromJobs(jobs)
+	jobContexts := context.JobSchedulingContextsFromJobs(jobs)
 	results := make(map[string]schedulingResult, len(jobs))
 
 	// First, check if all jobs can be scheduled individually.
@@ -140,14 +140,14 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	// Then, check if all gangs can be scheduled.
 	for gangId, jctxs := range armadaslices.GroupByFunc(
 		jobContexts,
-		func(jctx *schedulercontext.JobSchedulingContext) string {
+		func(jctx *context.JobSchedulingContext) string {
 			return jctx.GangInfo.Id
 		},
 	) {
 		if gangId == "" {
 			continue
 		}
-		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+		gctx := context.NewGangSchedulingContext(jctxs)
 		if result := srv.getSchedulingResult(gctx, state); !result.isSchedulable {
 			for _, jctx := range gctx.JobSchedulingContexts {
 				results[jctx.JobId] = result
@@ -158,7 +158,7 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	return results, nil
 }
 
-func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedulingContext, state *schedulerState) schedulingResult {
 	schedulingKey := jctx.Job.SchedulingKey()
 
 	if obj, ok := state.jobSchedulingResultsCache.Get(schedulingKey); ok {
@@ -167,12 +167,12 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 
 	gangInfo := jctx.GangInfo
 	// Mark this job context as "not in a gang" for the individual scheduling check.
-	jctx.GangInfo = schedulercontext.EmptyGangInfo(jctx.Job)
+	jctx.GangInfo = context.EmptyGangInfo(jctx.Job)
 	defer func() {
 		jctx.GangInfo = gangInfo
 	}()
 
-	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 	result := srv.getSchedulingResult(gctx, state)
 
 	state.jobSchedulingResultsCache.Add(schedulingKey, result)
@@ -184,7 +184,7 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 // TODO: there are a number of things this won't catch:
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
-func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
 	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
 	for pool, executors := range state.executorsByPoolAndId {

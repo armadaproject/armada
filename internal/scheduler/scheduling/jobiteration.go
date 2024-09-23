@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"sync"
@@ -7,8 +7,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 type JobContextIterator interface {

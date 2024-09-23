@@ -11,15 +11,15 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 type constraintTest struct {
 	constraints                         SchedulingConstraints
-	sctx                                *schedulercontext.SchedulingContext
-	gctx                                *schedulercontext.GangSchedulingContext
+	sctx                                *context.SchedulingContext
+	gctx                                *context.GangSchedulingContext
 	queue                               string
 	priorityClassName                   string
 	expectedCheckRoundConstraintsReason string
@@ -254,12 +254,12 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 	}
 	return &constraintTest{
 		constraints: makeMultiLevelConstraints(),
-		sctx: &schedulercontext.SchedulingContext{
+		sctx: &context.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,
 			ScheduledResources: zeroResources.DeepCopy(),
 			Limiter:            rate.NewLimiter(1e9, 1e6),
-			QueueSchedulingContexts: map[string]*schedulercontext.QueueSchedulingContext{
+			QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 				"queue-1": {
 					Queue:     "queue-1",
 					Weight:    1,
@@ -272,13 +272,13 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 			},
 			Started: time.Now(),
 		},
-		gctx: &schedulercontext.GangSchedulingContext{
-			GangInfo: schedulercontext.GangInfo{
+		gctx: &context.GangSchedulingContext{
+			GangInfo: context.GangInfo{
 				PriorityClassName: "priority-class-1",
 			},
 			Queue:                 "queue-1",
 			TotalResourceRequests: schedulerobjects.ResourceList{Resources: requirements},
-			JobSchedulingContexts: []*schedulercontext.JobSchedulingContext{{}},
+			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
 		},
 		queue:                               "queue-1",
 		priorityClassName:                   "priority-class-1",
@@ -358,12 +358,12 @@ func TestScaleQuantity(t *testing.T) {
 func makeConstraintsTest(constraints SchedulingConstraints) *constraintTest {
 	return &constraintTest{
 		constraints: constraints,
-		sctx: &schedulercontext.SchedulingContext{
+		sctx: &context.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,
 			ScheduledResources: makeResourceList("1", "1Gi"),
 			Limiter:            rate.NewLimiter(1e9, 1e6),
-			QueueSchedulingContexts: map[string]*schedulercontext.QueueSchedulingContext{
+			QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 				"queue-1": {
 					Queue:                    "queue-1",
 					Weight:                   1,
@@ -374,13 +374,13 @@ func makeConstraintsTest(constraints SchedulingConstraints) *constraintTest {
 			},
 			Started: time.Now(),
 		},
-		gctx: &schedulercontext.GangSchedulingContext{
-			GangInfo: schedulercontext.GangInfo{
+		gctx: &context.GangSchedulingContext{
+			GangInfo: context.GangInfo{
 				PriorityClassName: "priority-class-1",
 			},
 			Queue:                 "queue-1",
 			TotalResourceRequests: makeResourceList("1", "1Gi"),
-			JobSchedulingContexts: []*schedulercontext.JobSchedulingContext{{}},
+			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
 		},
 		queue:                               "queue-1",
 		priorityClassName:                   "priority-class-1",

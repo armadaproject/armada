@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"context"
@@ -18,10 +18,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -29,7 +26,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	context2 "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -38,7 +37,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(*armadacontext.Context, *jobdb.Txn) (*schedulerresult.SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -94,13 +93,13 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-) (*schedulerresult.SchedulerResult, error) {
+) (*SchedulerResult, error) {
 	var cancel context.CancelFunc
 	if l.maxSchedulingDuration != 0 {
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
-	overallSchedulerResult := &schedulerresult.SchedulerResult{
+	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId: make(map[string]string),
 	}
 
@@ -166,8 +165,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
 		}
 
-		preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(schedulerResult)
-		scheduledJobs := schedulerresult.ScheduledJobsFromSchedulerResult(schedulerResult)
+		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
@@ -349,7 +348,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		jobsByPoolAndExecutor[pool][executorId] = append(jobsByPoolAndExecutor[pool][executorId], job)
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
+		gangInfo, err := context2.GangInfoFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
@@ -394,7 +393,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
 	executors []*schedulerobjects.Executor,
-) (*schedulerresult.SchedulerResult, *schedulercontext.SchedulingContext, error) {
+) (*SchedulerResult, *context2.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -426,7 +425,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 	if err != nil {
 		return nil, nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(
+	sctx := context2.NewSchedulingContext(
 		pool,
 		fairnessCostProvider,
 		l.limiter,
