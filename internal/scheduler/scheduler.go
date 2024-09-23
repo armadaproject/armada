@@ -348,6 +348,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		for _, jctx := range overallSchedulerResult.ScheduledJobs {
 			s.metrics.ReportJobLeased(jctx.Job)
 		}
+		for _, jctx := range overallSchedulerResult.PreemptedJobs {
+			s.metrics.ReportJobPreempted(jctx.Job)
+		}
 	}
 
 	return overallSchedulerResult, nil
