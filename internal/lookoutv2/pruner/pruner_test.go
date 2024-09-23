@@ -145,6 +145,7 @@ func TestPruneDb(t *testing.T) {
 
 				queriedJobIdsPerTable := []map[string]bool{
 					selectStringSet(t, db, "SELECT job_id FROM job"),
+					selectStringSet(t, db, "SELECT job_id FROM job_spec"),
 					selectStringSet(t, db, "SELECT DISTINCT job_id FROM job_run"),
 				}
 				for _, queriedJobs := range queriedJobIdsPerTable {
