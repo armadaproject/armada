@@ -57,7 +57,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	require.NoError(t, err)
 
 	evictor := NewOversubscribedEvictor(
-		NewSchedulerJobRepositoryAdapter(jobDbTxn),
+		jobDbTxn,
 		nodeDb)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
@@ -1862,7 +1862,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					NewSchedulerJobRepositoryAdapter(jobDbTxn),
+					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
@@ -2208,7 +2208,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				constraints,
 				testfixtures.TestEmptyFloatingResources,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
-				NewSchedulerJobRepositoryAdapter(jobDbTxn),
+				jobDbTxn,
 				nodeDb,
 				nil,
 				nil,
@@ -2267,7 +2267,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					NewSchedulerJobRepositoryAdapter(jobDbTxn),
+					jobDbTxn,
 					nodeDb,
 					nil,
 					nil,

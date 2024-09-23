@@ -502,7 +502,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 }
 
 func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*schedulerresult.SchedulerResult, error) {
-	jobIteratorByQueue := make(map[string]JobIterator)
+	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
@@ -726,13 +726,16 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := make([]string, 0, len(node.AllocatedByJobId))
+		jobs := make([]*jobdb.Job, 0, len(node.AllocatedByJobId))
 		for jobId := range node.AllocatedByJobId {
 			if _, ok := node.EvictedJobRunIds[jobId]; !ok {
-				jobIds = append(jobIds, jobId)
+				job := evi.jobRepo.GetById(jobId)
+				if job != nil {
+					jobs = append(jobs, job)
+				}
+
 			}
 		}
-		jobs := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(jobFilter, jobs, node)
 		if err != nil {
 			return nil, err
