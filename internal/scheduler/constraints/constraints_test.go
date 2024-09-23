@@ -96,22 +96,22 @@ func TestConstraints(t *testing.T) {
 		),
 		"one-constraint-per-level-falls-back-as-expected--a-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("101"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
-			UnschedulableReasonMaximumResourcesExceeded,
+			MaximumResourcesExceeded,
 			"",
 		),
 		"one-constraint-per-level-falls-back-as-expected--b-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("21"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
-			UnschedulableReasonMaximumResourcesExceeded,
+			MaximumResourcesExceeded,
 			"",
 		),
 		"one-constraint-per-level-falls-back-as-expected--c-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("3.1"), "d": resource.MustParse("0.39")},
-			UnschedulableReasonMaximumResourcesExceeded,
+			MaximumResourcesExceeded,
 			"",
 		),
 		"one-constraint-per-level-falls-back-as-expected--d-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.41")},
-			UnschedulableReasonMaximumResourcesExceeded,
+			MaximumResourcesExceeded,
 			"",
 		),
 	}

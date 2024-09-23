@@ -235,9 +235,9 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {
-				unschedulableReason = schedulerconstraints.GangDoesNotFitUnschedulableReason
+				unschedulableReason = schedulerconstraints.GangDoesNotFit
 			} else {
-				unschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
+				unschedulableReason = schedulerconstraints.JobDoesNotFit
 			}
 		}
 		return

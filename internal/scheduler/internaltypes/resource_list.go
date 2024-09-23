@@ -42,6 +42,66 @@ func (rl ResourceList) String() string {
 	return result
 }
 
+func (rl ResourceList) StrictlyLessOrEqualThan(other ResourceList) bool {
+	for i, qty := range rl.resources {
+		if qty > other.resources[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (rl ResourceList) Scale(factor float64) ResourceList {
+	scaledResources := slices.Clone(rl.resources)
+	for i, qty := range scaledResources {
+		scaled := float64(qty) * factor
+		scaledResources[i] = int64(scaled)
+	}
+	return ResourceList{resources: scaledResources, factory: rl.factory}
+}
+
+func (rl ResourceList) ScaleCustom(factors map[string]float64) ResourceList {
+
+	if rl.IsEmpty() || len(factors) < 1 {
+		return rl
+	}
+
+	scaledResources := slices.Clone(rl.resources)
+	for resName, resIdx := range rl.factory.nameToIndex {
+		factor, ok := factors[resName]
+		if ok {
+			scaled := float64(scaledResources[resIdx]) * factor
+			scaledResources[resIdx] = int64(scaled)
+		}
+	}
+
+	return ResourceList{
+		resources: scaledResources,
+		factory:   rl.factory,
+	}
+}
+
+func (rl ResourceList) Cap(limits ResourceList) ResourceList {
+
+	if rl.IsEmpty() || limits.IsEmpty() {
+		return rl
+	}
+
+	rl.assertSameResourceListFactory(limits)
+
+	cappedResources := slices.Clone(rl.resources)
+	for i, qty := range cappedResources {
+		limit := limits.resources[i]
+		if limit > qty {
+			cappedResources[i] = qty
+		} else {
+			cappedResources[i] = limit
+		}
+	}
+
+	return ResourceList{resources: cappedResources, factory: rl.factory}
+}
+
 func (rl ResourceList) GetByName(name string) (int64, error) {
 	if rl.IsEmpty() {
 		return 0, fmt.Errorf("resource type %s not found as resource list is empty", name)
@@ -118,13 +178,12 @@ func (rl ResourceList) IsEmpty() bool {
 // - if no resources in this ResourceList exceed available, the last return value is false.
 // - empty resource lists are considered equivalent to all zero.
 func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sResource.Quantity, k8sResource.Quantity, bool) {
+
 	if rl.IsEmpty() && available.IsEmpty() {
 		return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false
 	}
 
-	if available.factory != nil && rl.factory != nil && rl.factory != available.factory {
-		panic("mismatched ResourceListFactory")
-	}
+	rl.assertSameResourceListFactory(available)
 
 	var factory *ResourceListFactory
 	if available.IsEmpty() {
@@ -152,9 +211,9 @@ func (rl ResourceList) Add(other ResourceList) ResourceList {
 	if other.IsEmpty() {
 		return rl
 	}
-	if rl.factory != other.factory {
-		panic("mismatched ResourceListFactory")
-	}
+
+	rl.assertSameResourceListFactory(other)
+
 	result := make([]int64, len(rl.resources))
 	for i, r := range rl.resources {
 		result[i] = r + other.resources[i]
@@ -169,9 +228,7 @@ func (rl ResourceList) Subtract(other ResourceList) ResourceList {
 	if rl.IsEmpty() {
 		return other.Negate()
 	}
-	if rl.factory != other.factory {
-		panic("mismatched ResourceListFactory")
-	}
+	rl.assertSameResourceListFactory(other)
 	result := make([]int64, len(rl.resources))
 	for i, r := range rl.resources {
 		result[i] = r - other.resources[i]
@@ -202,4 +259,10 @@ func resourcesZeroIfEmpty(resources []int64, factory *ResourceListFactory) []int
 		return make([]int64, len(factory.indexToName))
 	}
 	return resources
+}
+
+func (rl ResourceList) assertSameResourceListFactory(other ResourceList) {
+	if rl.factory != nil && other.factory != nil && rl.factory != other.factory {
+		panic("mismatched ResourceListFactory")
+	}
 }
