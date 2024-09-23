@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"fmt"
@@ -12,16 +12,17 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -503,7 +504,7 @@ func TestQueueScheduler(t *testing.T) {
 			}
 			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(
-				schedulercontext.JobSchedulingContextsFromJobs(legacySchedulerJobs),
+				context.JobSchedulingContextsFromJobs(legacySchedulerJobs),
 			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
@@ -511,7 +512,7 @@ func TestQueueScheduler(t *testing.T) {
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
-			sctx := schedulercontext.NewSchedulingContext(
+			sctx := context.NewSchedulingContext(
 				"pool",
 				fairnessCostProvider,
 				rate.NewLimiter(

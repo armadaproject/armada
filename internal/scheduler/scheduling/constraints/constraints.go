@@ -8,8 +8,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -150,7 +150,7 @@ func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	return q
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *context.SchedulingContext) (bool, string, error) {
 	// maximumResourcesToSchedule check.
 	if !isStrictlyLessOrEqual(sctx.ScheduledResources.Resources, constraints.maximumResourcesToSchedule) {
 		return false, MaximumResourcesScheduledUnschedulableReason, nil
@@ -159,8 +159,8 @@ func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulerc
 }
 
 func (constraints *SchedulingConstraints) CheckConstraints(
-	sctx *schedulercontext.SchedulingContext,
-	gctx *schedulercontext.GangSchedulingContext,
+	sctx *context.SchedulingContext,
+	gctx *context.GangSchedulingContext,
 ) (bool, string, error) {
 	qctx := sctx.QueueSchedulingContexts[gctx.Queue]
 	if qctx == nil {
