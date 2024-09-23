@@ -42,8 +42,6 @@ type PreemptingQueueScheduler struct {
 	jobIdsByGangId map[string]map[string]bool
 	// Maps job ids of gang jobs to the id of that gang.
 	gangIdByJobId map[string]string
-	// If true, the unsuccessfulSchedulingKeys check of gangScheduler is omitted.
-	skipUnsuccessfulSchedulingKeyCheck bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -81,10 +79,6 @@ func NewPreemptingQueueScheduler(
 		jobIdsByGangId:               initialJobIdsByGangId,
 		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
 	}
-}
-
-func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
-	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
 // Schedule
@@ -145,6 +139,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 		armadacontext.WithLogField(ctx, "stage", "re-schedule after balancing eviction"),
 		inMemoryJobRepo,
 		sch.jobRepo,
+		false,
 	)
 	if err != nil {
 		return nil, err
@@ -191,14 +186,13 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 	// Re-schedule evicted jobs/schedule new jobs.
 	// Only necessary if a non-zero number of jobs were evicted.
 	if len(evictorResult.EvictedJctxsByJobId) > 0 {
-		// Since no new jobs are considered in this round, the scheduling key check brings no benefit.
-		sch.SkipUnsuccessfulSchedulingKeyCheck()
 		ctx.WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
 		schedulerResult, err = sch.schedule(
 			armadacontext.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
 			// Only evicted jobs should be scheduled in this round.
 			nil,
+			true, // Since no new jobs are considered in this round, the scheduling key check brings no benefit.
 		)
 		if err != nil {
 			return nil, err
@@ -501,7 +495,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*schedulerresult.SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository, skipUnsuccessfulSchedulingKeyCheck bool) (*schedulerresult.SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
@@ -522,12 +516,10 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		sch.floatingResourceTypes,
 		sch.nodeDb,
 		jobIteratorByQueue,
+		skipUnsuccessfulSchedulingKeyCheck,
 	)
 	if err != nil {
 		return nil, err
-	}
-	if sch.skipUnsuccessfulSchedulingKeyCheck {
-		sched.SkipUnsuccessfulSchedulingKeyCheck()
 	}
 	result, err := sched.Schedule(ctx)
 	if err != nil {
