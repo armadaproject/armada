@@ -3,8 +3,9 @@ package metrics
 import (
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
 
 var (
