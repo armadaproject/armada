@@ -31,17 +31,15 @@ func NewGangScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
+	skipUnsuccessfulSchedulingKeyCheck bool,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:           constraints,
-		floatingResourceTypes: floatingResourceTypes,
-		schedulingContext:     sctx,
-		nodeDb:                nodeDb,
+		constraints:                        constraints,
+		floatingResourceTypes:              floatingResourceTypes,
+		schedulingContext:                  sctx,
+		nodeDb:                             nodeDb,
+		skipUnsuccessfulSchedulingKeyCheck: skipUnsuccessfulSchedulingKeyCheck,
 	}, nil
-}
-
-func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
-	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
 func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool) error {

@@ -227,8 +227,6 @@ type SchedulingConfig struct {
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
 	// the scheduler is excluded from consideration by the scheduler.
 	MaxUnacknowledgedJobsPerExecutor uint
-	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
-	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
 	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first

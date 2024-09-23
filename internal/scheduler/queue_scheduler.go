@@ -33,13 +33,14 @@ func NewQueueScheduler(
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
+	skipUnsuccessfulSchedulingKeyCheck bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
 			return nil, errors.Errorf("no scheduling context for queue %s", queue)
 		}
 	}
-	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
+	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, skipUnsuccessfulSchedulingKeyCheck)
 	if err != nil {
 		return nil, err
 	}
@@ -56,10 +57,6 @@ func NewQueueScheduler(
 		candidateGangIterator: candidateGangIterator,
 		gangScheduler:         gangScheduler,
 	}, nil
-}
-
-func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
-	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
 }
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerresult.SchedulerResult, error) {
