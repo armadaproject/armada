@@ -14,31 +14,32 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
 
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
 // Relies on GangScheduler for scheduling once a gang is chosen.
 type QueueScheduler struct {
-	schedulingContext     *context.SchedulingContext
+	schedulingContext     *schedulercontext.SchedulingContext
 	candidateGangIterator *CandidateGangIterator
 	gangScheduler         *GangScheduler
 }
 
 func NewQueueScheduler(
-	sctx *context.SchedulingContext,
+	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
+	skipUnsuccessfulSchedulingKeyCheck bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
 			return nil, errors.Errorf("no scheduling context for queue %s", queue)
 		}
 	}
-	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
+	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, skipUnsuccessfulSchedulingKeyCheck)
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +58,8 @@ func NewQueueScheduler(
 	}, nil
 }
 
-func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
-	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
-}
-
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
-	var scheduledJobs []*context.JobSchedulingContext
+	var scheduledJobs []*schedulercontext.JobSchedulingContext
 
 	nodeIdByJobId := make(map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sch.schedulingContext.Pool)
@@ -209,7 +206,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      nodeIdByJobId,
-		SchedulingContexts: []*context.SchedulingContext{sch.schedulingContext},
+		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 
@@ -217,30 +214,30 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 // Each gang is yielded once its final member is received from the underlying iterator.
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
-	schedulingContext  *context.SchedulingContext
+	schedulingContext  *schedulercontext.SchedulingContext
 	queuedJobsIterator JobContextIterator
 	// Groups jctxs by the gang they belong to.
-	jctxsByGangId map[string][]*context.JobSchedulingContext
+	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
 	// Maximum number of jobs to look at before giving up.
 	maxLookback uint
 	// If true, do not yield jobs known to be unschedulable.
 	skipKnownUnschedulableJobs bool
 	// Number of jobs we have seen so far.
 	jobsSeen uint
-	next     *context.GangSchedulingContext
+	next     *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *context.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		schedulingContext:          sctx,
 		queuedJobsIterator:         it,
 		maxLookback:                maxLookback,
 		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
-		jctxsByGangId:              make(map[string][]*context.JobSchedulingContext),
+		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
 	}
 }
 
-func (it *QueuedGangIterator) Next() (*context.GangSchedulingContext, error) {
+func (it *QueuedGangIterator) Next() (*schedulercontext.GangSchedulingContext, error) {
 	if gctx, err := it.Peek(); err != nil {
 		return nil, err
 	} else {
@@ -256,7 +253,7 @@ func (it *QueuedGangIterator) Clear() error {
 	return nil
 }
 
-func (it *QueuedGangIterator) Peek() (*context.GangSchedulingContext, error) {
+func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
 	if it.hitLookbackLimit() {
 		return nil, nil
 	}
@@ -305,14 +302,14 @@ func (it *QueuedGangIterator) Peek() (*context.GangSchedulingContext, error) {
 			it.jctxsByGangId[gangId] = gang
 			if len(gang) == jctx.GangInfo.Cardinality {
 				delete(it.jctxsByGangId, gangId)
-				it.next = context.NewGangSchedulingContext(gang)
+				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
 			}
 		} else {
 			// It's not actually necessary to treat this case separately, but
 			// using the empty string as a key in it.jctxsByGangId sounds like
 			// it would get us in trouble later down the line.
-			it.next = context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+			it.next = schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
 			return it.next, nil
 		}
 	}
@@ -401,7 +398,7 @@ func (it *CandidateGangIterator) Clear() error {
 	return nil
 }
 
-func (it *CandidateGangIterator) Peek() (*context.GangSchedulingContext, float64, error) {
+func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
 	if len(it.pq) == 0 {
 		// No queued jobs left.
 		return nil, 0.0, nil
@@ -457,7 +454,7 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 }
 
 // queueCostWithGctx returns the cost associated with a queue if gctx were to be scheduled.
-func (it *CandidateGangIterator) queueCostWithGctx(gctx *context.GangSchedulingContext) (float64, error) {
+func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSchedulingContext) (float64, error) {
 	queue, ok := it.queueRepository.GetQueue(gctx.Queue)
 	if !ok {
 		return 0, errors.Errorf("unknown queue %s", gctx.Queue)
@@ -478,7 +475,7 @@ type QueueCandidateGangIteratorItem struct {
 	it *QueuedGangIterator
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
-	gctx *context.GangSchedulingContext
+	gctx *schedulercontext.GangSchedulingContext
 	// Cost associated with the queue if the topmost gang in the queue were to be scheduled.
 	// Used to order queues fairly.
 	queueCost float64

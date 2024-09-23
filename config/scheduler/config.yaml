@@ -111,6 +111,5 @@ scheduling:
       resolution: "1Gi"
   executorTimeout: "10m"
   maxUnacknowledgedJobsPerExecutor: 2500
-  alwaysAttemptScheduling: false
   executorUpdateFrequency: "60s"
 
