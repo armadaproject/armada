@@ -103,7 +103,8 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 				4, -- Succeeded
 		   		5, -- Failed
 		   		6, -- Cancelled
-		   		7  -- Preempted
+		   		7, -- Preempted
+		   		9  -- Rejected
 		    )
 		)`, cutOffTime)
 	if err != nil {
