@@ -86,7 +86,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
 		gctx, queueCostInclGang, err := sch.candidateGangIterator.Peek()
 		if err != nil {
-			sch.schedulingContext.TerminationReason = err.Error()
 			return nil, err
 		}
 		if gctx == nil {
@@ -102,7 +101,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		case <-ctx.Done():
 			// TODO: Better to push ctx into next and have that control it.
 			err := ctx.Err()
-			sch.schedulingContext.TerminationReason = err.Error()
 			return nil, err
 		default:
 		}
@@ -121,7 +119,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled,
 			// instruct the underlying iterator to only yield evicted jobs from now on.
-			sch.schedulingContext.TerminationReason = unschedulableReason
 			sch.candidateGangIterator.OnlyYieldEvicted()
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
@@ -196,9 +193,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			s.time.Seconds())
 	}))
 
-	if sch.schedulingContext.TerminationReason == "" {
-		sch.schedulingContext.TerminationReason = "no remaining candidate jobs"
-	}
 	if len(scheduledJobs) != len(nodeIdByJobId) {
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}

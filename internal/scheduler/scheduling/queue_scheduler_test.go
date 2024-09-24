@@ -668,9 +668,6 @@ func TestQueueScheduler(t *testing.T) {
 					}
 				}
 			}
-
-			// Check that we were given a termination reason.
-			assert.NotEmpty(t, sch.schedulingContext.TerminationReason)
 		})
 	}
 }

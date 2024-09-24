@@ -19,8 +19,6 @@ import (
 // QueueSchedulingContext captures the decisions made by the scheduler during one invocation
 // for a particular queue.
 type QueueSchedulingContext struct {
-	// The scheduling context to which this QueueSchedulingContext belongs.
-	SchedulingContext *SchedulingContext
 	// Time at which this context was created.
 	Created time.Time
 	// Queue name.
