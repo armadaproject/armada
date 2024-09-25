@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"context"
@@ -18,10 +18,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -29,7 +26,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	context2 "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -38,7 +37,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(*armadacontext.Context, *jobdb.Txn) (*schedulerresult.SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -53,8 +52,6 @@ type FairSchedulingAlgo struct {
 	limiterByQueue map[string]*rate.Limiter
 	// Max amount of time each scheduling round is allowed to take.
 	maxSchedulingDuration time.Duration
-	// Pools that need to be scheduled in sorted order
-	poolsToSchedule       []string
 	clock                 clock.Clock
 	resourceListFactory   *internaltypes.ResourceListFactory
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
@@ -96,13 +93,13 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-) (*schedulerresult.SchedulerResult, error) {
+) (*SchedulerResult, error) {
 	var cancel context.CancelFunc
 	if l.maxSchedulingDuration != 0 {
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
-	overallSchedulerResult := &schedulerresult.SchedulerResult{
+	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId: make(map[string]string),
 	}
 
@@ -117,14 +114,11 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, err
 	}
 
-	if len(l.poolsToSchedule) == 0 {
-		// Cycle over groups in a consistent order.
-		l.poolsToSchedule = maps.Keys(fsctx.nodesByPoolAndExecutor)
-		sortGroups(l.poolsToSchedule, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
-	}
+	pools := maps.Keys(fsctx.nodesByPoolAndExecutor)
+	sortGroups(pools, l.schedulingConfig.PoolSchedulePriority, l.schedulingConfig.DefaultPoolSchedulePriority)
 
-	ctx.Infof("Looping over pools %s", strings.Join(l.poolsToSchedule, " "))
-	for len(l.poolsToSchedule) > 0 {
+	ctx.Infof("Looping over pools %s", strings.Join(pools, " "))
+	for _, pool := range pools {
 		select {
 		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
@@ -132,8 +126,6 @@ func (l *FairSchedulingAlgo) Schedule(
 			return overallSchedulerResult, nil
 		default:
 		}
-		pool := armadaslices.Pop(&l.poolsToSchedule)
-
 		nodeCountForPool := 0
 		for _, executor := range fsctx.executors {
 			nodeCountForPool += len(fsctx.nodesByPoolAndExecutor[pool][executor.Id])
@@ -162,11 +154,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			err,
 		)
 
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			// We've reached the scheduling time limit;
-			// add the executorGroupLabel back to l.poolsToSchedule such that we try it again next time,
-			// and exit gracefully.
-			l.poolsToSchedule = append(l.poolsToSchedule, pool)
 			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
@@ -176,8 +165,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
 		}
 
-		preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(schedulerResult)
-		scheduledJobs := schedulerresult.ScheduledJobsFromSchedulerResult(schedulerResult)
+		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
@@ -359,7 +348,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		jobsByPoolAndExecutor[pool][executorId] = append(jobsByPoolAndExecutor[pool][executorId], job)
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
+		gangInfo, err := context2.GangInfoFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
@@ -404,7 +393,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
 	executors []*schedulerobjects.Executor,
-) (*schedulerresult.SchedulerResult, *schedulercontext.SchedulingContext, error) {
+) (*SchedulerResult, *context2.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -436,7 +425,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 	if err != nil {
 		return nil, nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(
+	sctx := context2.NewSchedulingContext(
 		pool,
 		fairnessCostProvider,
 		l.limiter,
@@ -488,27 +477,21 @@ func (l *FairSchedulingAlgo) schedulePool(
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
-		NewSchedulerJobRepositoryAdapter(fsctx.txn),
+		fsctx.txn,
 		nodeDb,
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 	)
-	if l.schedulingConfig.AlwaysAttemptScheduling {
-		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
-	}
-	if l.schedulingConfig.EnableAssertions {
-		scheduler.EnableAssertions()
-	}
-
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	for i, jctx := range result.PreemptedJobs {
 		jobDbJob := jctx.Job
+		now := l.clock.Now()
 		if run := jobDbJob.LatestRun(); run != nil {
-			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
+			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true).WithPreemptedTime(&now))
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
@@ -535,41 +518,6 @@ func (l *FairSchedulingAlgo) schedulePool(
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
 	}
 	return result, sctx, nil
-}
-
-// SchedulerJobRepositoryAdapter allows jobDb implement the JobRepository interface.
-// TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
-type SchedulerJobRepositoryAdapter struct {
-	txn *jobdb.Txn
-}
-
-func NewSchedulerJobRepositoryAdapter(txn *jobdb.Txn) *SchedulerJobRepositoryAdapter {
-	return &SchedulerJobRepositoryAdapter{
-		txn: txn,
-	}
-}
-
-// GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
-// to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) []string {
-	rv := make([]string, 0)
-	it := repo.txn.QueuedJobs(queue)
-	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
-		rv = append(rv, v.Id())
-	}
-	return rv
-}
-
-// GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
-// old to new scheduler.
-func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) []*jobdb.Job {
-	rv := make([]*jobdb.Job, 0, len(ids))
-	for _, id := range ids {
-		if job := repo.txn.GetById(id); job != nil {
-			rv = append(rv, job)
-		}
-	}
-	return rv
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.

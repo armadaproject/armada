@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"sync"
@@ -7,17 +7,17 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
-type JobIterator interface {
+type JobContextIterator interface {
 	Next() (*schedulercontext.JobSchedulingContext, error)
 }
 
 type JobRepository interface {
-	GetQueueJobIds(queueName string) []string
-	GetExistingJobsByIds(ids []string) []*jobdb.Job
+	QueuedJobs(queueName string) jobdb.JobIterator
+	GetById(id string) *jobdb.Job
 }
 
 type InMemoryJobIterator struct {
@@ -97,7 +97,7 @@ func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) []*jobd
 	return rv
 }
 
-func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
+func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobContextIterator {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	return NewInMemoryJobIterator(slices.Clone(repo.jctxsByQueue[queue]))
@@ -105,17 +105,14 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 type QueuedJobsIterator struct {
-	repo   JobRepository
-	jobIds []string
-	idx    int
-	ctx    *armadacontext.Context
+	jobIter jobdb.JobIterator
+	ctx     *armadacontext.Context
 }
 
 func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
-		jobIds: repo.GetQueueJobIds(queue),
-		repo:   repo,
-		ctx:    ctx,
+		jobIter: repo.QueuedJobs(queue),
+		ctx:     ctx,
 	}
 }
 
@@ -124,22 +121,21 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 	case <-it.ctx.Done():
 		return nil, it.ctx.Err()
 	default:
-		if it.idx >= len(it.jobIds) {
+		job, _ := it.jobIter.Next()
+		if job == nil {
 			return nil, nil
 		}
-		job := it.repo.GetExistingJobsByIds([]string{it.jobIds[it.idx]})
-		it.idx++
-		return schedulercontext.JobSchedulingContextFromJob(job[0]), nil
+		return schedulercontext.JobSchedulingContextFromJob(job), nil
 	}
 }
 
 // MultiJobsIterator chains several JobIterators together in the order provided.
 type MultiJobsIterator struct {
 	i   int
-	its []JobIterator
+	its []JobContextIterator
 }
 
-func NewMultiJobsIterator(its ...JobIterator) *MultiJobsIterator {
+func NewMultiJobsIterator(its ...JobContextIterator) *MultiJobsIterator {
 	return &MultiJobsIterator{
 		its: its,
 	}

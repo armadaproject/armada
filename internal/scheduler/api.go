@@ -128,6 +128,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 					JobRunIdsToCancel: slices.Map(runsToCancel, func(x string) *armadaevents.Uuid {
 						return armadaevents.MustProtoUuidFromUuidString(x)
 					}),
+					JobRunIdsToCancelStr: runsToCancel,
 				},
 			},
 		}); err != nil {

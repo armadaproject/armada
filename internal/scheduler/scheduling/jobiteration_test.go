@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -62,7 +62,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	}
 
 	ctx := armadacontext.Background()
-	its := make([]JobIterator, 3)
+	its := make([]JobContextIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
 		it := NewQueuedJobsIterator(ctx, queue, repo)
 		its[i] = it
@@ -214,20 +214,43 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TODO: Deprecate in favour of InMemoryRepo.
+type mockJobIterator struct {
+	jobs []*jobdb.Job
+	i    int
+}
+
+func (iter *mockJobIterator) Done() bool {
+	return iter.i >= len(iter.jobs)
+}
+
+func (iter *mockJobIterator) Next() (*jobdb.Job, bool) {
+	if iter.Done() {
+		return nil, false
+	}
+	job := iter.jobs[iter.i]
+	iter.i++
+	return job, true
+}
+
 type mockJobRepository struct {
 	jobsByQueue map[string][]*jobdb.Job
 	jobsById    map[string]*jobdb.Job
-	// Ids of all jobs hat were leased to an executor.
-	leasedJobs          map[string]bool
-	getQueueJobIdsDelay time.Duration
+}
+
+func (repo *mockJobRepository) QueuedJobs(queueName string) jobdb.JobIterator {
+	q := repo.jobsByQueue[queueName]
+	return &mockJobIterator{jobs: q}
+}
+
+func (repo *mockJobRepository) GetById(id string) *jobdb.Job {
+	j, _ := repo.jobsById[id]
+	return j
 }
 
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
 		jobsByQueue: make(map[string][]*jobdb.Job),
 		jobsById:    make(map[string]*jobdb.Job),
-		leasedJobs:  make(map[string]bool),
 	}
 }
 
@@ -242,33 +265,8 @@ func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
 	repo.jobsById[job.Id()] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) JobIterator {
+func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) JobContextIterator {
 	return NewQueuedJobsIterator(ctx, queue, repo)
-}
-
-func (repo *mockJobRepository) GetQueueJobIds(queue string) []string {
-	time.Sleep(repo.getQueueJobIdsDelay)
-	if jobs, ok := repo.jobsByQueue[queue]; ok {
-		rv := make([]string, 0, len(jobs))
-		for _, job := range jobs {
-			if !repo.leasedJobs[job.Id()] {
-				rv = append(rv, job.Id())
-			}
-		}
-		return rv
-	} else {
-		return make([]string, 0)
-	}
-}
-
-func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) []*jobdb.Job {
-	rv := make([]*jobdb.Job, len(jobIds))
-	for i, jobId := range jobIds {
-		if job, ok := repo.jobsById[jobId]; ok {
-			rv[i] = job
-		}
-	}
-	return rv
 }
 
 func jobFromPodSpec(queue string, req *schedulerobjects.PodRequirements) *jobdb.Job {
