@@ -1854,7 +1854,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil, map[string]bool{})
+				constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,
@@ -2201,7 +2201,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					schedulerobjects.NewResourceList(0), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalResources(), tc.SchedulingConfig, nil, map[string]bool{})
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalResources(), tc.SchedulingConfig, nil)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
