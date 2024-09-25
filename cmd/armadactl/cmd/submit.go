@@ -17,11 +17,11 @@ func submitCmd() *cobra.Command {
 
 Example jobs.yaml:
 
+queue: test
+jobSetId: set1
 jobs:
-- queue: test
-	priority: 0
-	jobSetId: set1
-	podSpec:
+  - namespace: armada-example
+    podSpec:
 	... kubernetes pod spec ...`,
 		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {

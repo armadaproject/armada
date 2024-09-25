@@ -11,15 +11,15 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 type constraintTest struct {
 	constraints                         SchedulingConstraints
-	sctx                                *schedulercontext.SchedulingContext
-	gctx                                *schedulercontext.GangSchedulingContext
+	sctx                                *context.SchedulingContext
+	gctx                                *context.GangSchedulingContext
 	queue                               string
 	priorityClassName                   string
 	expectedCheckRoundConstraintsReason string
@@ -31,36 +31,36 @@ func TestConstraints(t *testing.T) {
 		"no-constraints": makeConstraintsTest(
 			NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"),
 				makeSchedulingConfig(),
-				[]*api.Queue{},
-				map[string]bool{})),
+				[]*api.Queue{})),
 		"empty-queue-constraints": makeConstraintsTest(
 			NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"),
 				makeSchedulingConfig(),
-				[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}},
-				map[string]bool{"queue-1": false})),
+				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}})),
 		"within-constraints": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), configuration.SchedulingConfig{
 			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 			MaxQueueLookback:                  1000,
 			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
-		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}, map[string]bool{"queue-1": false})),
+		}, []*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}})),
 		"exceeds-queue-priority-class-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
 				{
-					Name: "queue-1",
+					Name:     "queue-1",
+					Cordoned: false,
 					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 						"priority-class-1": {
 							MaximumResourceFraction: map[string]float64{"cpu": 0.000001, "memory": 0.9},
 						},
 					},
 				},
-			}, map[string]bool{"queue-1": false}))
+			}))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
 		"exceeds-queue-priority-class-pool-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
 				{
-					Name: "queue-1",
+					Name:     "queue-1",
+					Cordoned: false,
 					ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
 						"priority-class-1": {
 							MaximumResourceFractionByPool: map[string]*api.PriorityClassPoolResourceLimits{
@@ -71,7 +71,7 @@ func TestConstraints(t *testing.T) {
 						},
 					},
 				},
-			}, map[string]bool{"queue-1": false}))
+			}))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
@@ -80,7 +80,7 @@ func TestConstraints(t *testing.T) {
 				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 				MaxQueueLookback:                  1000,
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-			}, []*api.Queue{}, map[string]bool{}))
+			}, []*api.Queue{}))
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
@@ -88,7 +88,7 @@ func TestConstraints(t *testing.T) {
 			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 			MaxQueueLookback:                  1000,
 			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}, nil)),
+		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}})),
 		"one-constraint-per-level-falls-back-as-expected--within-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
 			"",
@@ -138,7 +138,7 @@ func TestCapResources(t *testing.T) {
 		expectedResources schedulerobjects.QuantityByTAndResourceType[string]
 	}{
 		"no contraints": {
-			constraints:       NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{}, map[string]bool{}),
+			constraints:       NewSchedulingConstraints("pool-1", makeResourceList("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
@@ -152,7 +152,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, []*api.Queue{}, map[string]bool{}),
+			}, []*api.Queue{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1", "1Gi")},
@@ -166,7 +166,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, []*api.Queue{}, map[string]bool{}),
+			}, []*api.Queue{}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("100", "900Gi")},
@@ -189,7 +189,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, map[string]bool{}),
+			}),
 			queue:             "queue-1",
 			resources:         map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("1000", "1000Gi")},
 			expectedResources: map[string]schedulerobjects.ResourceList{"priority-class-1": makeResourceList("900", "900Gi")},
@@ -215,7 +215,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, map[string]bool{}),
+			}),
 			queue: "queue-1",
 			resources: map[string]schedulerobjects.ResourceList{
 				"priority-class-1": makeResourceList("1000", "1000Gi"),
@@ -254,12 +254,12 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 	}
 	return &constraintTest{
 		constraints: makeMultiLevelConstraints(),
-		sctx: &schedulercontext.SchedulingContext{
+		sctx: &context.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,
 			ScheduledResources: zeroResources.DeepCopy(),
 			Limiter:            rate.NewLimiter(1e9, 1e6),
-			QueueSchedulingContexts: map[string]*schedulercontext.QueueSchedulingContext{
+			QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 				"queue-1": {
 					Queue:     "queue-1",
 					Weight:    1,
@@ -272,13 +272,13 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 			},
 			Started: time.Now(),
 		},
-		gctx: &schedulercontext.GangSchedulingContext{
-			GangInfo: schedulercontext.GangInfo{
+		gctx: &context.GangSchedulingContext{
+			GangInfo: context.GangInfo{
 				PriorityClassName: "priority-class-1",
 			},
 			Queue:                 "queue-1",
 			TotalResourceRequests: schedulerobjects.ResourceList{Resources: requirements},
-			JobSchedulingContexts: []*schedulercontext.JobSchedulingContext{{}},
+			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
 		},
 		queue:                               "queue-1",
 		priorityClassName:                   "priority-class-1",
@@ -323,7 +323,7 @@ func makeMultiLevelConstraints() SchedulingConstraints {
 				},
 			},
 		},
-	}, map[string]bool{})
+	})
 }
 
 func TestScaleQuantity(t *testing.T) {
@@ -358,12 +358,12 @@ func TestScaleQuantity(t *testing.T) {
 func makeConstraintsTest(constraints SchedulingConstraints) *constraintTest {
 	return &constraintTest{
 		constraints: constraints,
-		sctx: &schedulercontext.SchedulingContext{
+		sctx: &context.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,
 			ScheduledResources: makeResourceList("1", "1Gi"),
 			Limiter:            rate.NewLimiter(1e9, 1e6),
-			QueueSchedulingContexts: map[string]*schedulercontext.QueueSchedulingContext{
+			QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 				"queue-1": {
 					Queue:                    "queue-1",
 					Weight:                   1,
@@ -374,13 +374,13 @@ func makeConstraintsTest(constraints SchedulingConstraints) *constraintTest {
 			},
 			Started: time.Now(),
 		},
-		gctx: &schedulercontext.GangSchedulingContext{
-			GangInfo: schedulercontext.GangInfo{
+		gctx: &context.GangSchedulingContext{
+			GangInfo: context.GangInfo{
 				PriorityClassName: "priority-class-1",
 			},
 			Queue:                 "queue-1",
 			TotalResourceRequests: makeResourceList("1", "1Gi"),
-			JobSchedulingContexts: []*schedulercontext.JobSchedulingContext{{}},
+			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
 		},
 		queue:                               "queue-1",
 		priorityClassName:                   "priority-class-1",

@@ -79,6 +79,11 @@ type JobRow struct {
 	Annotations               map[string]string
 }
 
+type JobSpecRow struct {
+	JobId    string
+	JobProto []byte
+}
+
 type JobRunRow struct {
 	RunId       string
 	JobId       string
@@ -147,7 +152,7 @@ var expectedJobAfterSubmit = JobRow{
 	State:                     lookout.JobQueuedOrdinal,
 	LastTransitionTime:        baseTime,
 	LastTransitionTimeSeconds: baseTime.Unix(),
-	JobProto:                  []byte(jobProto),
+	JobProto:                  []byte(nil),
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
 	Annotations:               annotations,
@@ -167,7 +172,7 @@ var expectedJobAfterUpdate = JobRow{
 	State:                     lookout.JobFailedOrdinal,
 	LastTransitionTime:        updateTime,
 	LastTransitionTimeSeconds: updateTime.Unix(),
-	JobProto:                  []byte(jobProto),
+	JobProto:                  []byte(nil),
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
 	Annotations:               annotations,
@@ -841,10 +846,10 @@ func TestStoreNullValue(t *testing.T) {
 		err := ldb.Store(armadacontext.Background(), instructions)
 		assert.NoError(t, err)
 
-		job := getJob(t, ldb.db, jobIdString)
+		jobSpec := getJobSpec(t, ldb.db, jobIdString)
 		jobRun := getJobRun(t, ldb.db, runIdString)
 
-		assert.Equal(t, jobProto, job.JobProto)
+		assert.Equal(t, jobProto, jobSpec.JobProto)
 		assert.Equal(t, errorMsg, jobRun.Error)
 		assert.Equal(t, debugMsg, jobRun.Debug)
 		return nil
@@ -986,6 +991,23 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	)
 	assert.Nil(t, err)
 	return job
+}
+
+func getJobSpec(t *testing.T, db *pgxpool.Pool, jobId string) JobSpecRow {
+	jobSpec := JobSpecRow{}
+	r := db.QueryRow(
+		armadacontext.Background(),
+		`SELECT
+    		job_id,
+    		job_spec
+		FROM job_spec WHERE job_id = $1`,
+		jobId)
+	err := r.Scan(
+		&jobSpec.JobId,
+		&jobSpec.JobProto,
+	)
+	assert.Nil(t, err)
+	return jobSpec
 }
 
 func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {

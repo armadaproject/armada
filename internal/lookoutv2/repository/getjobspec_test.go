@@ -3,6 +3,7 @@ package repository
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
@@ -48,6 +49,84 @@ func TestGetJobSpec(t *testing.T) {
 		return nil
 	})
 	assert.NoError(t, err)
+}
+
+func TestMIGRATEDGetJobSpec(t *testing.T) {
+	var migratedResult *api.Job
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+
+		_ = NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
+				JobId:            jobId,
+				Priority:         priority,
+				PriorityClass:    "other-default",
+				Cpu:              cpu,
+				Memory:           memory,
+				EphemeralStorage: ephemeralStorage,
+				Gpu:              gpu,
+				Annotations: map[string]string{
+					"step_path": "/1/2/3",
+					"hello":     "world",
+				},
+			}).
+			Pending(runId, cluster, baseTime).
+			Running(runId, node, baseTime).
+			RunSucceeded(runId, baseTime).
+			Succeeded(baseTime).
+			Build().
+			ApiJob()
+
+		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
+		var err error
+		migratedResult, err = repo.GetJobSpec(armadacontext.TODO(), jobId)
+		assert.NoError(t, err)
+		return nil
+	})
+	assert.NoError(t, err)
+
+	var result *api.Job
+	err = lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		bytes, err := proto.Marshal(migratedResult)
+		assert.NoError(t, err)
+
+		_, err = db.Exec(armadacontext.Background(),
+			`INSERT INTO job (
+			job_id, queue, owner, namespace, jobset,
+			cpu,
+			memory,
+			ephemeral_storage,
+			gpu,
+			priority,
+			submitted,
+			state,
+			last_transition_time,
+			last_transition_time_seconds,
+            job_spec,
+			priority_class,
+			annotations
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		ON CONFLICT DO NOTHING`,
+			jobId, queue, owner, namespace, jobSet,
+			int64(15), int64(48*1024*1024*1024), int64(100*1024*1024*1024), 8,
+			priority, baseTime, 1, baseTime, baseTime.Unix(), bytes, "other-default",
+			map[string]string{
+				"step_path": "/1/2/3",
+				"hello":     "world",
+			})
+		assert.NoError(t, err)
+
+		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
+		result, err = repo.GetJobSpec(armadacontext.TODO(), jobId)
+		assert.NoError(t, err)
+
+		return nil
+	})
+	assert.NoError(t, err)
+
+	assertApiJobsEquivalent(t, migratedResult, result)
 }
 
 func TestGetJobSpecError(t *testing.T) {

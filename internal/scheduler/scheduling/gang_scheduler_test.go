@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"fmt"
@@ -12,18 +12,19 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -573,7 +574,7 @@ func TestGangScheduler(t *testing.T) {
 			// gangs, because it's hard to do within the testcase
 			for _, unfeasibleGangIdx := range tc.ExpectedUnfeasibleSchedulingKeyIndices {
 				gang := tc.Gangs[unfeasibleGangIdx]
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(gang)
+				jctxs := context.JobSchedulingContextsFromJobs(gang)
 				require.Equal(t, 1, len(jctxs), fmt.Sprintf("gangs with cardinality greater than 1 don't have a single scheduling key: %v", gang))
 				jctx := jctxs[0]
 				key, _ := jctx.SchedulingKey()
@@ -617,7 +618,7 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
-			sctx := schedulercontext.NewSchedulingContext(
+			sctx := context.NewSchedulingContext(
 				"pool",
 				fairnessCostProvider,
 				rate.NewLimiter(
@@ -640,17 +641,17 @@ func TestGangScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil, map[string]bool{})
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
 			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
 			require.NoError(t, err)
-			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
+			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)
 			require.NoError(t, err)
 
 			var actualScheduledIndices []int
 			scheduledGangs := 0
 			for i, gang := range tc.Gangs {
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(gang)
-				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+				jctxs := context.JobSchedulingContextsFromJobs(gang)
+				gctx := context.NewGangSchedulingContext(jctxs)
 				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 				require.NoError(t, err)
 

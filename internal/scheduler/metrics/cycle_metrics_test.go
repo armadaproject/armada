@@ -11,10 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -25,7 +25,7 @@ func TestReportStateTransitions(t *testing.T) {
 		cpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
-	result := schedulerresult.SchedulerResult{
+	result := scheduling.SchedulerResult{
 		SchedulingContexts: []*context.SchedulingContext{
 			{
 				Pool:                 "pool1",

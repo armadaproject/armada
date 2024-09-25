@@ -20,10 +20,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 var empty struct{}
@@ -92,7 +92,7 @@ type EvictedJobSchedulingContext struct {
 	// When choosing on which node to schedule a job that would prevent re-scheduling evicted jobs,
 	// nodeDb choses the node that would prevent re-scheduling jobs with as a large an index as possible.
 	Index                int
-	JobSchedulingContext *schedulercontext.JobSchedulingContext
+	JobSchedulingContext *context.JobSchedulingContext
 }
 
 // NodeDb is the scheduler-internal system used to efficiently find nodes on which a pod could be scheduled.
@@ -360,48 +360,7 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
-// NodeJobDiff compares two snapshots of the NodeDb memdb and returns
-// - a map from job ids of all preempted jobs to the node they used to be on
-// - a map from job ids of all scheduled jobs to the node they were scheduled on
-// that happened between the two snapshots.
-func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*internaltypes.Node, map[string]*internaltypes.Node, error) {
-	preempted := make(map[string]*internaltypes.Node)
-	scheduled := make(map[string]*internaltypes.Node)
-	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
-	if err != nil {
-		return nil, nil, err
-	}
-	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
-		if item.NodeA != nil && item.NodeB == nil {
-			// NodeA was removed. All jobs on NodeA are preempted.
-			for jobId := range item.NodeA.AllocatedByJobId {
-				preempted[jobId] = item.NodeA
-			}
-		} else if item.NodeA == nil && item.NodeB != nil {
-			// NodeB was added. All jobs on NodeB are scheduled.
-			for jobId := range item.NodeB.AllocatedByJobId {
-				scheduled[jobId] = item.NodeB
-			}
-		} else if item.NodeA != nil && item.NodeB != nil {
-			// NodeA is the same as NodeB.
-			// Jobs on NodeA that are not on NodeB are preempted.
-			// Jobs on NodeB that are not on NodeA are scheduled.
-			for jobId := range item.NodeA.AllocatedByJobId {
-				if _, ok := item.NodeB.AllocatedByJobId[jobId]; !ok {
-					preempted[jobId] = item.NodeA
-				}
-			}
-			for jobId := range item.NodeB.AllocatedByJobId {
-				if _, ok := item.NodeA.AllocatedByJobId[jobId]; !ok {
-					scheduled[jobId] = item.NodeB
-				}
-			}
-		}
-	}
-	return preempted, scheduled, nil
-}
-
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
 	for _, jctx := range gctx.JobSchedulingContexts {
 		// In general, we may attempt to schedule a gang multiple times (in
@@ -446,7 +405,7 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 }
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
+func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, error) {
 	priorityClass := jctx.Job.PriorityClass()
 
 	// If the job has already been scheduled, get the priority at which it was scheduled.
@@ -455,7 +414,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	if !ok {
 		priority = jctx.Job.PriorityClass().Priority
 	}
-	pctx := &schedulercontext.PodSchedulingContext{
+	pctx := &context.PodSchedulingContext{
 		Created:                  time.Now(),
 		ScheduledAtPriority:      priority,
 		PreemptedAtPriority:      internaltypes.MinPriority,
@@ -516,7 +475,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
-	jctx *schedulercontext.JobSchedulingContext,
+	jctx *context.JobSchedulingContext,
 	awayNodeType types.AwayNodeType,
 ) (node *internaltypes.Node, err error) {
 	// Save the number of additional tolerations that the job originally had; we
@@ -549,7 +508,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	txn *memdb.Txn,
-	jctx *schedulercontext.JobSchedulingContext,
+	jctx *context.JobSchedulingContext,
 ) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
 
@@ -607,7 +566,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	return nil, nil
 }
 
-func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext, node *internaltypes.Node) error {
+func assertPodSchedulingContextNode(pctx *context.PodSchedulingContext, node *internaltypes.Node) error {
 	if node != nil {
 		if pctx.NodeId == "" {
 			return errors.New("pctx.NodeId not set")
@@ -623,7 +582,7 @@ func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext,
 
 func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 	txn *memdb.Txn,
-	jctx *schedulercontext.JobSchedulingContext,
+	jctx *context.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
 ) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
@@ -658,7 +617,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	txn *memdb.Txn,
-	jctx *schedulercontext.JobSchedulingContext,
+	jctx *context.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
 	priority int32,
 ) (*internaltypes.Node, error) {
@@ -699,7 +658,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 
 func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	it memdb.ResultIterator,
-	jctx *schedulercontext.JobSchedulingContext,
+	jctx *context.JobSchedulingContext,
 	priority int32,
 	onlyCheckDynamicRequirements bool,
 ) (*internaltypes.Node, error) {
@@ -743,7 +702,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 //
 // It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
 // from being re-scheduled the jobs that would be scheduled last.
-func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*internaltypes.Node, error) {
+func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, error) {
 	type consideredNode struct {
 		node                     *internaltypes.Node
 		availableResource        internaltypes.ResourceList
@@ -1022,7 +981,7 @@ func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltyp
 
 // NodeTypesMatchingJob returns a slice with all node types a pod could be scheduled on.
 // It also returns the number of nodes excluded by reason for exclusion.
-func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *schedulercontext.JobSchedulingContext) ([]uint64, map[string]int, error) {
+func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *context.JobSchedulingContext) ([]uint64, map[string]int, error) {
 	var matchingNodeTypeIds []uint64
 	numExcludedNodesByReason := make(map[string]int)
 	for _, nodeType := range nodeDb.nodeTypes {
@@ -1113,7 +1072,7 @@ func newAllocatableByPriorityAndResourceType(priorities []int32, rl internaltype
 	return rv
 }
 
-func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, index int, jctx *schedulercontext.JobSchedulingContext) error {
+func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, index int, jctx *context.JobSchedulingContext) error {
 	if it, err := txn.Get("evictedJobs", "id", jctx.JobId); err != nil {
 		return errors.WithStack(err)
 	} else if obj := it.Next(); obj != nil {

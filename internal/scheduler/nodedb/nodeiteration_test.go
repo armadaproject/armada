@@ -73,55 +73,6 @@ func TestNodesIterator(t *testing.T) {
 	}
 }
 
-func TestNodePairIterator(t *testing.T) {
-	nodes := testfixtures.TestCluster()
-	for i, nodeId := range []string{"A", "B", "C"} {
-		nodes[i].Id = nodeId
-	}
-	nodeDb, err := newNodeDbWithNodes(nodes)
-	require.NoError(t, err)
-	entries := make([]*internaltypes.Node, len(nodes))
-	for i, node := range nodes {
-		entry, err := nodeDb.GetNode(node.Id)
-		require.NoError(t, err)
-		entries[i] = entry
-	}
-
-	txn := nodeDb.Txn(true)
-	require.NoError(t, txn.Delete("nodes", entries[2]))
-	txn.Commit()
-	txnA := nodeDb.Txn(false)
-
-	txn = nodeDb.Txn(true)
-	require.NoError(t, txn.Delete("nodes", entries[0]))
-	require.NoError(t, txn.Insert("nodes", entries[2]))
-	txn.Commit()
-	txnB := nodeDb.Txn(false)
-
-	it, err := NewNodePairIterator(txnA, txnB)
-	require.NoError(t, err)
-
-	actual := make([]*NodePairIteratorItem, 0)
-	for item := it.NextItem(); item != nil; item = it.NextItem() {
-		actual = append(actual, item)
-	}
-	expected := []*NodePairIteratorItem{
-		{
-			NodeA: entries[0],
-			NodeB: nil,
-		},
-		{
-			NodeA: entries[1],
-			NodeB: entries[1],
-		},
-		{
-			NodeA: nil,
-			NodeB: entries[2],
-		},
-	}
-	assert.Equal(t, expected, actual)
-}
-
 func TestNodeTypeIterator(t *testing.T) {
 	const nodeTypeALabel = "a"
 	const nodeTypeBLabel = "b"

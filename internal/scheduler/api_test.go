@@ -203,7 +203,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_CancelRuns{CancelRuns: &executorapi.CancelRuns{
-						JobRunIdsToCancel: []*armadaevents.Uuid{armadaevents.MustProtoUuidFromUuidString(runId2)},
+						JobRunIdsToCancel:    []*armadaevents.Uuid{armadaevents.MustProtoUuidFromUuidString(runId2)},
+						JobRunIdsToCancelStr: []string{runId2},
 					}},
 				},
 				{

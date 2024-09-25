@@ -103,7 +103,8 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 				4, -- Succeeded
 		   		5, -- Failed
 		   		6, -- Cancelled
-		   		7  -- Preempted
+		   		7, -- Preempted
+		   		9  -- Rejected
 		    )
 		)`, cutOffTime)
 	if err != nil {
@@ -132,6 +133,7 @@ func deleteBatch(ctx *armadacontext.Context, tx pgx.Tx, batchLimit int) (int, er
 	}
 	_, err = tx.Exec(ctx, `
 		DELETE FROM job WHERE job_id in (SELECT job_id from batch);
+		DELETE FROM job_spec WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_run WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_ids_to_delete WHERE job_id in (SELECT job_id from batch);
 		TRUNCATE TABLE batch;`)
