@@ -54,7 +54,8 @@ def simple_workflow():
     """
 
     # The queue and job_set_id that will be used for all jobs
-    queue = f"simple-queue-{uuid.uuid1()}"
+    # queue = f"simple-queue-{uuid.uuid1()}"
+    queue = "simple-test"
     job_set_id = f"simple-jobset-{uuid.uuid1()}"
 
     # Ensures that the correct channel type is generated
