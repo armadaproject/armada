@@ -1,9 +1,9 @@
 grpcPort: 50051
-httpPort: 8080
+httpPort: 8082
 metricsPort: 9000
 corsAllowedOrigins:
   - http://localhost:3000
-  - http://localhost:8080
+  - http://localhost:8082
 cordon:
   additionalLabels:
     armadaproject.io/cordon-reason: "binoculars"
