@@ -87,7 +87,7 @@ type priorityClassSchedulingConstraints struct {
 	MaximumResourcesPerQueue map[string]resource.Quantity
 }
 
-func NewSchedulingConstraints(pool string, totalResources schedulerobjects.ResourceList, config configuration.SchedulingConfig, queues []*api.Queue, cordonStatusByQueue map[string]bool) SchedulingConstraints {
+func NewSchedulingConstraints(pool string, totalResources schedulerobjects.ResourceList, config configuration.SchedulingConfig, queues []*api.Queue) SchedulingConstraints {
 	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]priorityClassSchedulingConstraints, len(config.PriorityClasses))
 	for name, priorityClass := range config.PriorityClasses {
 		maximumResourceFractionPerQueue := priorityClass.MaximumResourceFractionPerQueue
@@ -117,7 +117,7 @@ func NewSchedulingConstraints(pool string, totalResources schedulerobjects.Resou
 		}
 		queueSchedulingConstraintsByQueueName[queue.Name] = queueSchedulingConstraints{
 			PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassNameForQueue,
-			Cordoned: cordonStatusByQueue[queue.Name],
+			Cordoned: queue.Cordoned,
 		}
 	}
 
