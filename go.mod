@@ -84,7 +84,6 @@ require (
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/time v0.5.0
-	gonum.org/v1/gonum v0.14.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20231120223509-83a465c0220f
 	gopkg.in/inf.v0 v0.9.1
 )
