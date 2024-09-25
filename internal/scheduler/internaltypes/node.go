@@ -1,11 +1,24 @@
 package internaltypes
 
 import (
+	"math"
+
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/pkg/errors"
+)
+
+const (
+	// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
+	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
+	EvictedPriority int32 = -1
+	// MinPriority is the smallest possible priority class priority within the NodeDb.
+	MinPriority int32 = EvictedPriority
 )
 
 // Node is a scheduler-internal representation of one Kubernetes node.
@@ -18,10 +31,10 @@ type Node struct {
 	index uint64
 
 	// Executor this node belongs to and node name, which must be unique per executor.
-	executor   string
-	name       string
-	pool       string
-	nodeTypeId uint64
+	executor string
+	name     string
+	pool     string
+	nodeType *NodeType
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
@@ -40,9 +53,65 @@ type Node struct {
 	EvictedJobRunIds      map[string]bool
 }
 
+func FromSchedulerObjectsNode(node *schedulerobjects.Node,
+	nodeIndex uint64,
+	indexedTaints map[string]bool,
+	indexedNodeLabels map[string]bool,
+	resourceListFactory *ResourceListFactory,
+) (*Node, error) {
+	taints := node.GetTaints()
+	if node.Unschedulable {
+		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
+	}
+
+	labels := maps.Clone(node.GetLabels())
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[configuration.NodeIdLabel] = node.Id
+
+	totalResources := node.TotalResources
+
+	nodeType := NewNodeType(
+		taints,
+		labels,
+		indexedTaints,
+		indexedNodeLabels,
+	)
+
+	allocatableByPriority := map[int32]ResourceList{}
+	minimumPriority := int32(math.MaxInt32)
+	for p, rl := range node.AllocatableByPriorityAndResource {
+		if p < minimumPriority {
+			minimumPriority = p
+		}
+		allocatableByPriority[p] = resourceListFactory.FromNodeProto(rl.Resources)
+	}
+	if minimumPriority < 0 {
+		return nil, errors.Errorf("found negative priority %d on node %s; negative priorities are reserved for internal use", minimumPriority, node.Id)
+	}
+	allocatableByPriority[EvictedPriority] = allocatableByPriority[minimumPriority]
+
+	return CreateNode(
+		node.Id,
+		nodeType,
+		nodeIndex,
+		node.Executor,
+		node.Name,
+		node.Pool,
+		taints,
+		labels,
+		resourceListFactory.FromNodeProto(totalResources.Resources),
+		allocatableByPriority,
+		map[string]ResourceList{},
+		map[string]ResourceList{},
+		map[string]bool{},
+		nil), nil
+}
+
 func CreateNode(
 	id string,
-	nodeTypeId uint64,
+	nodeType *NodeType,
 	index uint64,
 	executor string,
 	name string,
@@ -58,7 +127,7 @@ func CreateNode(
 ) *Node {
 	return &Node{
 		id:                    id,
-		nodeTypeId:            nodeTypeId,
+		nodeType:              nodeType,
 		index:                 index,
 		executor:              executor,
 		name:                  name,
@@ -95,7 +164,11 @@ func (node *Node) GetExecutor() string {
 }
 
 func (node *Node) GetNodeTypeId() uint64 {
-	return node.nodeTypeId
+	return node.nodeType.GetId()
+}
+
+func (node *Node) GetNodeType() *NodeType {
+	return node.nodeType
 }
 
 func (node *Node) GetLabels() map[string]string {
@@ -139,7 +212,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		executor:       node.executor,
 		name:           node.name,
 		pool:           node.pool,
-		nodeTypeId:     node.nodeTypeId,
+		nodeType:       node.nodeType,
 		taints:         node.taints,
 		labels:         node.labels,
 		totalResources: node.totalResources,

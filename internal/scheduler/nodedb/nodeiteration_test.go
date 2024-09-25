@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -960,8 +962,8 @@ func labelsToNodeTypeId(labels map[string]string) uint64 {
 	nodeType := internaltypes.NewNodeType(
 		[]v1.Taint{},
 		labels,
-		mapFromSlice(testfixtures.TestIndexedTaints),
-		mapFromSlice(testfixtures.TestIndexedNodeLabels),
+		util.StringListToSet(testfixtures.TestIndexedTaints),
+		util.StringListToSet(testfixtures.TestIndexedNodeLabels),
 	)
 	return nodeType.GetId()
 }
