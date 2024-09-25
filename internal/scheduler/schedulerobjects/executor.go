@@ -1,6 +1,6 @@
 package schedulerobjects
 
-func (m *Executor) AllRuns() ([]string, error) {
+func (m *Executor) AllRuns() []string {
 	runIds := make([]string, 0)
 	// add all runids from nodes
 	for _, node := range m.Nodes {
@@ -12,5 +12,5 @@ func (m *Executor) AllRuns() ([]string, error) {
 	for _, runId := range m.UnassignedJobRuns {
 		runIds = append(runIds, runId)
 	}
-	return runIds, nil
+	return runIds
 }

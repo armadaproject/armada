@@ -12,9 +12,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -22,6 +19,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
@@ -535,7 +534,7 @@ func TestQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues, map[string]bool{})
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues)
 			jobIteratorByQueue := make(map[string]JobContextIterator)
 			for _, q := range tc.Queues {
 				it := jobRepo.GetJobIterator(q.Name)
