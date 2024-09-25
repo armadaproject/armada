@@ -12,8 +12,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -53,7 +53,7 @@ type Job struct {
 	// Resource requirements of this job stored in efficient form.
 	resourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
-	priorityClass types.PriorityClass
+	priorityClass configuration.PriorityClass
 	// True if the user has requested this job be cancelled
 	cancelRequested bool
 	// True if the user has requested this job's jobSet be cancelled
@@ -377,7 +377,7 @@ func (job *Job) Priority() uint32 {
 }
 
 // PriorityClass returns the priority class of the job.
-func (job *Job) PriorityClass() types.PriorityClass {
+func (job *Job) PriorityClass() configuration.PriorityClass {
 	return job.priorityClass
 }
 
@@ -419,7 +419,7 @@ func (job *Job) WithPools(pools []string) *Job {
 }
 
 // WithPriorityClass returns a copy of the job with the priority class updated.
-func (job *Job) WithPriorityClass(priorityClass types.PriorityClass) *Job {
+func (job *Job) WithPriorityClass(priorityClass configuration.PriorityClass) *Job {
 	j := copyJob(*job)
 	j.priorityClass = priorityClass
 	return j

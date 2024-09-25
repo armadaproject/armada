@@ -6,8 +6,6 @@ import (
 	"math/rand"
 
 	goslices "golang.org/x/exp/slices"
-
-	"github.com/armadaproject/armada/internal/common/interfaces"
 )
 
 // PartitionToMaxLen partitions the elements of s into non-overlapping slices,
@@ -227,9 +225,4 @@ func Fill[T any](v T, n int) []T {
 		rv[i] = v
 	}
 	return rv
-}
-
-// Ones returns a slice T[] of length n with all elements equal to 1.
-func Ones[T interfaces.Number](n int) []T {
-	return Fill[T](1, n)
 }

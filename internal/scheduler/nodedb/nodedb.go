@@ -16,7 +16,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -141,7 +140,7 @@ type NodeDb struct {
 	// Allowed priority classes.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
-	priorityClasses map[string]types.PriorityClass
+	priorityClasses map[string]configuration.PriorityClass
 	// Priority class priorities and NodeDb-internal priority, in increasing order.
 	nodeDbPriorities []int32
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
@@ -215,7 +214,7 @@ type NodeDb struct {
 }
 
 func NewNodeDb(
-	priorityClasses map[string]types.PriorityClass,
+	priorityClasses map[string]configuration.PriorityClass,
 	indexedResources []configuration.ResourceType,
 	indexedTaints []string,
 	indexedNodeLabels []string,
@@ -223,7 +222,7 @@ func NewNodeDb(
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
 	nodeDbPriorities := []int32{evictedPriority}
-	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
+	nodeDbPriorities = append(nodeDbPriorities, configuration.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
 	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
@@ -517,7 +516,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
-	awayNodeType types.AwayNodeType,
+	awayNodeType configuration.AwayNodeType,
 ) (node *internaltypes.Node, err error) {
 	// Save the number of additional tolerations that the job originally had; we
 	// use this value to restore the slice of additional toleration at the end

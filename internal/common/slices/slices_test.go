@@ -456,11 +456,6 @@ func TestZeros(t *testing.T) {
 	assert.Equal(t, make([]string, 3), Zeros[string](3))
 }
 
-func TestOnes(t *testing.T) {
-	assert.Equal(t, []int{1, 1, 1}, Ones[int](3))
-	assert.Equal(t, []float64{1, 1, 1}, Ones[float64](3))
-}
-
 func TestFill(t *testing.T) {
 	assert.Equal(t, []int{2, 2, 2}, Fill[int](2, 3))
 	assert.Equal(t, []float64{0.5, 0.5, 0.5}, Fill[float64](0.5, 3))

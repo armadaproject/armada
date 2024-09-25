@@ -18,7 +18,6 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -64,13 +63,13 @@ var (
 	}
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	BasetimeProto       = protoutil.ToTimestamp(BaseTime)
-	TestPriorityClasses = map[string]types.PriorityClass{
+	TestPriorityClasses = map[string]schedulerconfiguration.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
 		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
 		PriorityClass3:               {Priority: 3, Preemptible: false},
-		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []schedulerconfiguration.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
 		"armada-preemptible":         {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass = PriorityClass3
@@ -225,7 +224,7 @@ func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config sc
 			panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
 		}
 		// We need to make a copy to avoid mutating the priorityClasses, which are used by other tests too.
-		config.PriorityClasses[priorityClassName] = types.PriorityClass{
+		config.PriorityClasses[priorityClassName] = schedulerconfiguration.PriorityClass{
 			Priority:                              priorityClass.Priority,
 			Preemptible:                           priorityClass.Preemptible,
 			MaximumResourceFractionPerQueue:       limit,
