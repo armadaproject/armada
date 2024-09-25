@@ -656,68 +656,57 @@ Convert this Subject to a grpc Subject.
     armada.submit_pb2.Subject
 
 
-## armada_client.binoculars_client module
+## armada_client.log_client module
 
 
-### _class_ armada_client.binoculars_client.BinocularsClient(channel)
-Client for accessing Armada’s Binoculars service over gRPC.
-
-
-* **Parameters**
-
-    **channel** – gRPC channel used for authentication. See
-    [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
-    for more information.
-
-
-
-* **Returns**
-
-    an Binoculars client instance
-
-
-
-#### cordon(node_name)
-Send a cordon request for a specific node.
-
-
-* **Parameters**
-
-    **node_name** (*str*) – The name of the node.
-
-
-
-* **Returns**
-
-    Empty grpc object.
-
-
-
-#### logs(job_id, pod_namespace, since_time, pod_number=0, log_options=)
-Retrieve logs for a specific Armada job.
+### _class_ armada_client.log_client.JobLogClient(url, job_id, disable_ssl=False)
+Client for retrieving logs for a given job.
 
 
 * **Parameters**
 
     
-    * **job_id** (*str*) – The ID of the job for which to retreieve logs.
+    * **url** (*str*) – The url to use for retreiving logs.
 
 
-    * **pod_namespace** (*str*) – The namespace of the pod/job.
+    * **job_id** (*str*) – The ID of the job.
 
 
-    * **since_time** (*str*) – If the empty string, retrieves all available logs.
-    Otherwise, retrieves logs emitted since given timestamp.
-
-
-    * **pod_number** (*int** | **None*) – The zero-indexed pod number from which to retrieve
-    logs. Defaults to zero.
-
-
-    * **log_options** (*k8s.io.api.core.v1.generated_pb2.PodLogOptions** | **None*) – An optional Kubernetes PodLogOptions object.
+    * **disable_ssl** (*bool*) – 
 
 
 
 * **Returns**
 
-    A LogResponse object.
+    A JobLogClient instance.
+
+
+
+#### logs(since_time='')
+Retrieve logs for the job associated with this client.
+
+
+* **Parameters**
+
+    **since_time** (*str** | **None*) – Logs will be retrieved starting at the time
+    specified in this str. Must conform to RFC3339 date time format.
+
+
+
+* **Returns**
+
+    A list of LogLine objects.
+
+
+
+### _class_ armada_client.log_client.LogLine(line, timestamp)
+Represents a single line from a log.
+
+
+* **Parameters**
+
+    
+    * **line** (*str*) – 
+
+
+    * **timestamp** (*str*) –

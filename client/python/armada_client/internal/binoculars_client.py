@@ -1,5 +1,6 @@
 from typing import Optional
 
+import grpc
 
 from armada_client.armada import (
     binoculars_pb2,
@@ -7,6 +8,32 @@ from armada_client.armada import (
 )
 
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+
+
+def new_binoculars_client(url: str, disable_ssl: bool = False):
+    """Constructs and returns a new BinocularsClient object.
+
+    :param url: A url specifying the gRPC binoculars endpoint in the format
+    "host:port".
+
+    :return: A new BinocularsClient object.
+    """
+    parts = url.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"Could not parse url provided: {url}")
+
+    host, port = parts[0], parts[1]
+    if disable_ssl:
+        channel = grpc.insecure_channel(f"{host}:{port}")
+    else:
+        channel_credentials = grpc.ssl_channel_credentials()
+        channel = grpc.secure_channel(
+            f"{host}:{port}",
+            channel_credentials,
+        )
+
+    client = BinocularsClient(channel)
+    return (channel, client)
 
 
 class BinocularsClient:
@@ -25,8 +52,8 @@ class BinocularsClient:
     def logs(
         self,
         job_id: str,
-        pod_namespace: str,
         since_time: str,
+        pod_namespace: Optional[str] = "default",
         pod_number: Optional[int] = 0,
         log_options: Optional[core_v1.PodLogOptions] = core_v1.PodLogOptions(),
     ):

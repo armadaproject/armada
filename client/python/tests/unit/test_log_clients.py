@@ -8,7 +8,8 @@ from google.protobuf import empty_pb2
 from server_mock import BinocularsService
 
 from armada_client.armada import binoculars_pb2_grpc
-from armada_client.binoculars_client import BinocularsClient
+from armada_client.internal.binoculars_client import BinocularsClient
+from armada_client.log_client import JobLogClient, LogLine
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -41,3 +42,12 @@ def test_logs():
 def test_cordon():
     result = tester.cordon("fake-node-name")
     assert result == empty_pb2.Empty()
+
+
+def test_job_log_client():
+    client = JobLogClient("127.0.0.1:4000", "fake-job-id", True)
+    log_lines = client.logs()
+    assert len(log_lines) == 3
+    for line in log_lines:
+        assert isinstance(line, LogLine)
+        assert len(line.line) > 0

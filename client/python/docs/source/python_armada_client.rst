@@ -23,8 +23,8 @@ armada\_client.permissions module
    :members:
 
 
-armada\_client.binoculars_client module
+armada\_client.log_client module
 ---------------------------------------
 
-.. automodule:: armada_client.binoculars_client
+.. automodule:: armada_client.log_client
    :members:
