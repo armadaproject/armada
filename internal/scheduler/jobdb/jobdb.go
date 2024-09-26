@@ -20,6 +20,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+type JobIterator interface {
+	Next() (*Job, bool)
+	Done() bool
+}
+
 var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 
 type JobDb struct {
@@ -496,7 +501,7 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 }
 
 // QueuedJobs returns true if the queue has any jobs in the running state or false otherwise
-func (txn *Txn) QueuedJobs(queue string) *immutable.SortedSetIterator[*Job] {
+func (txn *Txn) QueuedJobs(queue string) JobIterator {
 	jobQueue, ok := txn.jobsByQueue[queue]
 	if ok {
 		return jobQueue.Iterator()

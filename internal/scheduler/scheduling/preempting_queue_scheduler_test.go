@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"fmt"
@@ -21,14 +21,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -57,7 +56,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	require.NoError(t, err)
 
 	evictor := NewOversubscribedEvictor(
-		NewSchedulerJobRepositoryAdapter(jobDbTxn),
+		jobDbTxn,
 		nodeDb)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
@@ -1835,7 +1834,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
-				sctx := schedulercontext.NewSchedulingContext(
+				sctx := context.NewSchedulingContext(
 					"pool",
 					fairnessCostProvider,
 					limiter,
@@ -1855,20 +1854,19 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil, map[string]bool{})
+				constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					NewSchedulerJobRepositoryAdapter(jobDbTxn),
+					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
 				)
-				sch.EnableAssertions()
 
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
@@ -2016,7 +2014,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// which jobs are preempted).
 				slices.SortFunc(
 					result.ScheduledJobs,
-					func(a, b *schedulercontext.JobSchedulingContext) int {
+					func(a, b *context.JobSchedulingContext) int {
 						if a.Job.SubmitTime().Before(b.Job.SubmitTime()) {
 							return -1
 						} else if b.Job.SubmitTime().Before(a.Job.SubmitTime()) {
@@ -2049,7 +2047,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 }
 
-func jobIdsByQueueFromJobContexts(jctxs []*schedulercontext.JobSchedulingContext) map[string][]string {
+func jobIdsByQueueFromJobContexts(jctxs []*context.JobSchedulingContext) map[string][]string {
 	rv := make(map[string][]string)
 	for _, jctx := range jctxs {
 		job := jctx.Job
@@ -2191,7 +2189,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
-			sctx := schedulercontext.NewSchedulingContext(
+			sctx := context.NewSchedulingContext(
 				"pool",
 				fairnessCostProvider,
 				limiter,
@@ -2203,13 +2201,13 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					schedulerobjects.NewResourceList(0), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalResources(), tc.SchedulingConfig, nil, map[string]bool{})
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalResources(), tc.SchedulingConfig, nil)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				testfixtures.TestEmptyFloatingResources,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
-				NewSchedulerJobRepositoryAdapter(jobDbTxn),
+				jobDbTxn,
 				nodeDb,
 				nil,
 				nil,
@@ -2226,7 +2224,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			err = jobDbTxn.BatchDelete(
 				armadaslices.Map(
 					result.ScheduledJobs,
-					func(jctx *schedulercontext.JobSchedulingContext) string {
+					func(jctx *context.JobSchedulingContext) string {
 						return jctx.JobId
 					},
 				),
@@ -2234,7 +2232,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range schedulerresult.ScheduledJobsFromSchedulerResult(result) {
+			for _, job := range ScheduledJobsFromSchedulerResult(result) {
 				nodeId := result.NodeIdByJobId[job.Id()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}
@@ -2251,7 +2249,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				sctx := schedulercontext.NewSchedulingContext(
+				sctx := context.NewSchedulingContext(
 					"pool",
 					fairnessCostProvider,
 					limiter,
@@ -2268,7 +2266,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					NewSchedulerJobRepositoryAdapter(jobDbTxn),
+					jobDbTxn,
 					nodeDb,
 					nil,
 					nil,

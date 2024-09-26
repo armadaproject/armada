@@ -42,6 +42,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -231,7 +232,7 @@ func Run(config schedulerconfig.Configuration) error {
 	})
 
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
-	schedulingAlgo, err := NewFairSchedulingAlgo(
+	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
 		executorRepository,

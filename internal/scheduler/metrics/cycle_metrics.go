@@ -5,7 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
 
 var (
@@ -169,7 +169,7 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *cycleMetrics) ReportSchedulerResult(result schedulerresult.SchedulerResult) {
+func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
 	for _, schedContext := range result.SchedulingContexts {
 		pool := schedContext.Pool

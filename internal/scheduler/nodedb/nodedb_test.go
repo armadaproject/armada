@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -14,11 +12,12 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -71,7 +70,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
+	jctxs := context.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		jctx.SetAssignedNodeId(nodeId)
@@ -96,7 +95,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
+	jctxs := context.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		jctx.SetAssignedNodeId("non-existent node")
@@ -433,11 +432,11 @@ func TestScheduleIndividually(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 
-			jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.Jobs)
+			jctxs := context.JobSchedulingContextsFromJobs(tc.Jobs)
 
 			for i, jctx := range jctxs {
 				nodeDbTxn := nodeDb.Txn(true)
-				gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+				gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
 
@@ -523,8 +522,8 @@ func TestScheduleMany(t *testing.T) {
 			require.NoError(t, err)
 			for i, jobs := range tc.Jobs {
 				nodeDbTxn := nodeDb.Txn(true)
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
-				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+				jctxs := context.JobSchedulingContextsFromJobs(jobs)
+				gctx := context.NewGangSchedulingContext(jctxs)
 				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
 				require.Equal(t, tc.ExpectSuccess[i], ok)
@@ -578,9 +577,9 @@ func TestAwayNodeTypes(t *testing.T) {
 		"armada-preemptible-away",
 		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
 	)
-	jctx := schedulercontext.JobSchedulingContextFromJob(job)
+	jctx := context.JobSchedulingContextFromJob(job)
 	require.Empty(t, jctx.AdditionalTolerations)
-	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 
 	ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 	require.NoError(t, err)
@@ -772,8 +771,8 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
-		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+		jctxs := context.JobSchedulingContextsFromJobs(jobs)
+		gctx := context.NewGangSchedulingContext(jctxs)
 		txn := nodeDb.Txn(true)
 		_, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
 		txn.Abort()

@@ -23,15 +23,15 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -465,7 +465,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err != nil {
 				return err
 			}
-			sctx := schedulercontext.NewSchedulingContext(
+			sctx := context.NewSchedulingContext(
 				pool.Name,
 				fairnessCostProvider,
 				s.limiter,
@@ -500,19 +500,19 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					return err
 				}
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil, map[string]bool{})
+			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil)
 
 			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
 			if err != nil {
 				return err
 			}
 
-			sch := scheduler.NewPreemptingQueueScheduler(
+			sch := scheduling.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				nloatingResourceTypes,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
-				scheduler.NewSchedulerJobRepositoryAdapter(txn),
+				txn,
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
 				nil,
@@ -534,7 +534,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 			// Update jobDb to reflect the decisions by the scheduler.
 			// Sort jobs to ensure deterministic event ordering.
-			preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(result)
+			preemptedJobs := scheduling.PreemptedJobsFromSchedulerResult(result)
 			scheduledJobs := slices.Clone(result.ScheduledJobs)
 			lessJob := func(a, b *jobdb.Job) int {
 				if a.Queue() < b.Queue() {
@@ -550,7 +550,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				return 0
 			}
 			slices.SortFunc(preemptedJobs, lessJob)
-			slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
+			slices.SortFunc(scheduledJobs, func(a, b *context.JobSchedulingContext) int {
 				return lessJob(a.Job, b.Job)
 			})
 			for i, job := range preemptedJobs {
@@ -580,7 +580,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := txn.Upsert(armadaslices.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
+			if err := txn.Upsert(armadaslices.Map(scheduledJobs, func(jctx *context.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
 				return err
 			}
 

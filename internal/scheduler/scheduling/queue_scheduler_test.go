@@ -1,4 +1,4 @@
-package scheduler
+package scheduling
 
 import (
 	"fmt"
@@ -16,12 +16,12 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -503,7 +503,7 @@ func TestQueueScheduler(t *testing.T) {
 			}
 			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(
-				schedulercontext.JobSchedulingContextsFromJobs(legacySchedulerJobs),
+				context.JobSchedulingContextsFromJobs(legacySchedulerJobs),
 			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
@@ -511,7 +511,7 @@ func TestQueueScheduler(t *testing.T) {
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
-			sctx := schedulercontext.NewSchedulingContext(
+			sctx := context.NewSchedulingContext(
 				"pool",
 				fairnessCostProvider,
 				rate.NewLimiter(
@@ -534,13 +534,13 @@ func TestQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues, map[string]bool{})
-			jobIteratorByQueue := make(map[string]JobIterator)
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues)
+			jobIteratorByQueue := make(map[string]JobContextIterator)
 			for _, q := range tc.Queues {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())

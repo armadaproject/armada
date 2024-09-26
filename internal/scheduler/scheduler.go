@@ -15,14 +15,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -42,7 +42,7 @@ type Scheduler struct {
 	executorRepository database.ExecutorRepository
 	// Responsible for assigning jobs to nodes.
 	// TODO: Confusing name. Change.
-	schedulingAlgo SchedulingAlgo
+	schedulingAlgo scheduling.SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leader.LeaderController
 	// This is used to check if jobs are still schedulable.
@@ -85,7 +85,7 @@ func NewScheduler(
 	jobDb *jobdb.JobDb,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
-	schedulingAlgo SchedulingAlgo,
+	schedulingAlgo scheduling.SchedulingAlgo,
 	leaderController leader.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
@@ -224,9 +224,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (schedulerresult.SchedulerResult, error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (scheduling.SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
-	overallSchedulerResult := schedulerresult.SchedulerResult{}
+	overallSchedulerResult := scheduling.SchedulerResult{}
 
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
@@ -305,7 +305,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
-		var result *schedulerresult.SchedulerResult
+		var result *scheduling.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -347,6 +347,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if s.metrics.LeaderMetricsEnabled() {
 		for _, jctx := range overallSchedulerResult.ScheduledJobs {
 			s.metrics.ReportJobLeased(jctx.Job)
+		}
+		for _, jctx := range overallSchedulerResult.PreemptedJobs {
+			s.metrics.ReportJobPreempted(jctx.Job)
 		}
 	}
 
@@ -451,14 +454,14 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *arma
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func (s *Scheduler) eventsFromSchedulerResult(result *schedulerresult.SchedulerResult) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) eventsFromSchedulerResult(result *scheduling.SchedulerResult) ([]*armadaevents.EventSequence, error) {
 	return EventsFromSchedulerResult(result, s.clock.Now())
 }
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func EventsFromSchedulerResult(result *schedulerresult.SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
+func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, schedulerresult.PreemptedJobsFromSchedulerResult(result), time)
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, scheduling.PreemptedJobsFromSchedulerResult(result), time)
 	if err != nil {
 		return nil, err
 	}
