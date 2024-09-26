@@ -197,8 +197,7 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
 	runningPod := makeRunningPod()
-	protoJobId, err := armadaevents.ProtoUuidFromUlidString(util.ExtractJobId(runningPod))
-	require.NoError(t, err)
+	jobId := util.ExtractJobId(runningPod)
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
 	podIssueService.HandlePodIssues()
@@ -210,15 +209,13 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
-	assert.Equal(t, failedEvent.JobRunErrors.JobId, protoJobId)
+	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobIdStr)
 }
 
 func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
 	jobId := commonutil.NewULID()
-	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
-	require.NoError(t, err)
 
 	podIssueService, _, _, eventsReporter, err := setupTestComponents([]*job.RunState{createRunState(jobId, uuid.New().String(), job.Active)})
 	require.NoError(t, err)
@@ -237,7 +234,7 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
-	assert.Equal(t, failedEvent.JobRunErrors.JobId, protoJobId)
+	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobIdStr)
 }
 
 func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T) {

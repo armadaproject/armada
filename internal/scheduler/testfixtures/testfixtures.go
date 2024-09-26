@@ -893,12 +893,12 @@ func TestQueuedJobDbJob() *jobdb.Job {
 func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 	return TestQueuedJobDbJob().
 		WithQueued(false).
-		WithUpdatedRun(jobdb.MinimalRun(uuid.New().String(), startTime))
+		WithUpdatedRun(jobdb.MinimalRun(uuid.NewString(), startTime))
 }
 
 func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
-		JobId: armadaevents.MustProtoUuidFromUlidString(util.NewULID()),
+		JobIdStr: util.NewULID(),
 		MainObject: &armadaevents.KubernetesMainObject{
 			ObjectMeta: &armadaevents.ObjectMeta{},
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
