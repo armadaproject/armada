@@ -28,23 +28,6 @@ import (
 
 var empty struct{}
 
-func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, error) {
-	index := atomic.AddUint64(&nodeDb.numNodes, 1)
-
-	dbNode, err := internaltypes.FromSchedulerObjectsNode(node,
-		index,
-		nodeDb.indexedTaints,
-		nodeDb.indexedNodeLabels,
-		nodeDb.resourceListFactory)
-	if err != nil {
-		return nil, err
-	}
-
-	nodeDb.AddNodeToDb(dbNode)
-
-	return dbNode, nil
-}
-
 func (nodeDb *NodeDb) AddNodeToDb(node *internaltypes.Node) {
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
@@ -60,7 +43,6 @@ func (nodeDb *NodeDb) AddNodeToDb(node *internaltypes.Node) {
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, node *schedulerobjects.Node) error {
-
 	index := atomic.AddUint64(&nodeDb.numNodes, 1)
 
 	entry, err := internaltypes.FromSchedulerObjectsNode(node,
