@@ -12,7 +12,7 @@ import (
 )
 
 const getJobDetails = `-- name: GetJobDetails :many
-SELECT job_id, queue, jobset, namespace, state, submitted, cancelled, cancel_reason, last_transition_time, latest_run_id, job_spec FROM job WHERE job_id = ANY($1::text[])
+SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j join job_spec js on j.job_id = js.job_id WHERE job_id = ANY($1::text[])
 `
 
 type GetJobDetailsRow struct {
@@ -62,7 +62,7 @@ func (q *Queries) GetJobDetails(ctx context.Context, jobIds []string) ([]GetJobD
 }
 
 const getJobRunsByJobIds = `-- name: GetJobRunsByJobIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
 `
 
 func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]JobRun, error) {
@@ -86,6 +86,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 			&i.Error,
 			&i.ExitCode,
 			&i.Leased,
+			&i.Debug,
 		); err != nil {
 			return nil, err
 		}
@@ -98,7 +99,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 }
 
 const getJobRunsByRunIds = `-- name: GetJobRunsByRunIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased FROM job_run WHERE run_id = ANY($1::text[])
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug FROM job_run WHERE run_id = ANY($1::text[])
 `
 
 func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]JobRun, error) {
@@ -122,6 +123,7 @@ func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]Jo
 			&i.Error,
 			&i.ExitCode,
 			&i.Leased,
+			&i.Debug,
 		); err != nil {
 			return nil, err
 		}
