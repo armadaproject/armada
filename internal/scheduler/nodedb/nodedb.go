@@ -242,14 +242,6 @@ func NewNodeDb(
 	return &nodeDb, nil
 }
 
-func mapFromSlice(vs []string) map[string]interface{} {
-	rv := make(map[string]interface{})
-	for _, v := range vs {
-		rv[v] = true
-	}
-	return rv
-}
-
 func makeIndexedResourceResolution(indexedResourceTypes []configuration.ResourceType, resourceListFactory *internaltypes.ResourceListFactory) ([]int64, error) {
 	if len(indexedResourceTypes) < 1 {
 		return nil, errors.New("must specify at least one entry in indexedResources in config")

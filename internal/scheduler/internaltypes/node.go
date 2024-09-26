@@ -3,6 +3,7 @@ package internaltypes
 import (
 	"math"
 
+	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/pkg/errors"
 )
 
 const (
