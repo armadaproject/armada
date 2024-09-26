@@ -2286,7 +2286,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		node.GetId(),
-		node.GetNodeTypeId(),
+		node.GetNodeType(),
 		node.GetIndex(),
 		node.GetExecutor(),
 		node.GetName(),

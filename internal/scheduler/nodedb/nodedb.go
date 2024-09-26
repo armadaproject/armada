@@ -36,7 +36,6 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*internaltypes.Node, 
 		nodeDb.indexedTaints,
 		nodeDb.indexedNodeLabels,
 		nodeDb.resourceListFactory)
-
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +60,20 @@ func (nodeDb *NodeDb) AddNodeToDb(node *internaltypes.Node) {
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, node *schedulerobjects.Node) error {
-	entry, err := nodeDb.create(node)
+
+	index := atomic.AddUint64(&nodeDb.numNodes, 1)
+
+	entry, err := internaltypes.FromSchedulerObjectsNode(node,
+		index,
+		nodeDb.indexedTaints,
+		nodeDb.indexedNodeLabels,
+		nodeDb.resourceListFactory)
+	if err != nil {
+		return err
+	}
+
+	nodeDb.AddNodeToDb(entry)
+
 	if err != nil {
 		return err
 	}

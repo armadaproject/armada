@@ -386,8 +386,15 @@ func TestNodeTypeIterator(t *testing.T) {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
 
-				entry, err := nodeDb.create(node)
+				entry, err := internaltypes.FromSchedulerObjectsNode(node,
+					uint64(i),
+					nodeDb.indexedTaints,
+					nodeDb.indexedNodeLabels,
+					nodeDb.resourceListFactory)
+
 				require.NoError(t, err)
+
+				nodeDb.AddNodeToDb(entry)
 
 				entries[i] = entry
 			}
@@ -790,8 +797,15 @@ func TestNodeTypesIterator(t *testing.T) {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
 
-				entry, err := nodeDb.create(node)
+				entry, err := internaltypes.FromSchedulerObjectsNode(node,
+					uint64(i),
+					nodeDb.indexedTaints,
+					nodeDb.indexedNodeLabels,
+					nodeDb.resourceListFactory)
+
 				require.NoError(t, err)
+
+				nodeDb.AddNodeToDb(entry)
 
 				entries[i] = entry
 			}

@@ -81,6 +81,7 @@ func TestGetResources_HandlesEmptyCorrectly(t *testing.T) {
 	empty := ResourceList{}
 	assert.Equal(t, 0, len(empty.GetResources()))
 }
+
 func TestToMap(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")

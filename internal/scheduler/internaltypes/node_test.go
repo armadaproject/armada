@@ -18,7 +18,6 @@ func TestNode(t *testing.T) {
 	assert.Nil(t, err)
 
 	const id = "id"
-	const nodeTypeId = uint64(123)
 	const pool = "pool"
 	const index = uint64(1)
 	const executor = "executor"
