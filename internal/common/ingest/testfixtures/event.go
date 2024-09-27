@@ -23,12 +23,11 @@ const (
 )
 
 var (
-	PartitionMarkerGroupIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(PartitionMarkerGroupIdString))
-	PartitionMarkerGroupIdUuid  = armadaevents.UuidFromProtoUuid(PartitionMarkerGroupIdProto)
-	PriorityClassName           = "test-priority"
-	Groups                      = []string{"group1", "group2"}
-	NodeSelector                = map[string]string{"foo": "bar"}
-	Affinity                    = &v1.Affinity{
+	PartitionMarkerGroupIdUuid = uuid.MustParse(PartitionMarkerGroupIdString)
+	PriorityClassName          = "test-priority"
+	Groups                     = []string{"group1", "group2"}
+	NodeSelector               = map[string]string{"foo": "bar"}
+	Affinity                   = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
 				NodeSelectorTerms: []v1.NodeSelectorTerm{
@@ -317,8 +316,8 @@ var PartitionMarker = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_PartitionMarker{
 		PartitionMarker: &armadaevents.PartitionMarker{
-			GroupId:   PartitionMarkerGroupIdProto,
-			Partition: PartitionMarkerPartitionId,
+			GroupIdStr: PartitionMarkerGroupIdString,
+			Partition:  PartitionMarkerPartitionId,
 		},
 	},
 }
