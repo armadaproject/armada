@@ -71,6 +71,36 @@
               </arguments>
             </configuration>
           </execution>
+          <execution>
+            <id>clone-apimachinery-repo</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>git</executable>
+              <arguments>
+                <argument>clone</argument>
+                <argument>https://github.com/kubernetes/apimachinery.git</argument>
+                <argument>${project.build.directory}/k8s.io/apimachinery</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>clone-protobuf-repo</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>git</executable>
+              <arguments>
+                <argument>clone</argument>
+                <argument>https://github.com/gogo/protobuf.git</argument>
+                <argument>${project.build.directory}/github.com/gogo/protobuf</argument>
+              </arguments>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
 
@@ -95,10 +125,18 @@
           <protocArtifact>com.google.protobuf:protoc:${com.google.protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
           <pluginId>grpc-java</pluginId>
           <pluginArtifact>io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-          <protoSourceRoot>${project.build.directory}/armada/pkg/api</protoSourceRoot>
+          <protoSourceRoot>${project.build.directory}/armada</protoSourceRoot>
           <additionalProtoPathElements>
-            <additionalProtoPathElement>${project.build.directory}/k8s.io</additionalProtoPathElement>
-            <additionalProtoPathElement>${project.build.directory}/armada/pkg/api</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/api</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/api/core/v1</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/api/networking/v1</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/api/resource</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/apis/meta/v1</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/runtime</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/runtime/schema</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/util/intstr</additionalProtoPathElement>
+            <additionalProtoPathElement>${project.build.directory}/github.com/gogo/protobuf/gogoproto</additionalProtoPathElement>
           </additionalProtoPathElements>
         </configuration>
         <executions>
