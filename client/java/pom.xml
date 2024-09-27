@@ -125,19 +125,6 @@
           <protocArtifact>com.google.protobuf:protoc:${com.google.protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
           <pluginId>grpc-java</pluginId>
           <pluginArtifact>io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-          <protoSourceRoot>${project.build.directory}</protoSourceRoot>
-<!--          <additionalProtoPathElements>-->
-<!--            <additionalProtoPathElement>${project.build.directory}</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/api</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/api/core/v1</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/api/networking/v1</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/api/resource</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/apis/meta/v1</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/runtime</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/runtime/schema</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/k8s.io/apimachinery/pkg/util/intstr</additionalProtoPathElement>-->
-<!--            <additionalProtoPathElement>${project.build.directory}/github.com/gogo/protobuf/gogoproto</additionalProtoPathElement>-->
-<!--          </additionalProtoPathElements>-->
         </configuration>
         <executions>
           <execution>
