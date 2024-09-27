@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
+option csharp_namespace = "ArmadaProject.Io.Api";
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+}
+

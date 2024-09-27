@@ -1,0 +1,49 @@
+syntax = 'proto3';
+
+package binoculars;
+option go_package = "github.com/armadaproject/armada/pkg/api/binoculars";
+option csharp_namespace = "ArmadaProject.Io.Api.Binoculars";
+
+import "k8s.io/api/core/v1/generated.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+// swagger:model
+message LogRequest {
+    string job_id = 1;
+    int32 pod_number = 2;
+    string pod_namespace = 3;
+    string since_time = 4; // allows to specify high precision time as string
+    k8s.io.api.core.v1.PodLogOptions log_options = 5;
+}
+
+// swagger:model
+message LogResponse {
+    repeated LogLine log = 1;
+}
+
+// swagger:model
+message LogLine {
+    string timestamp = 1;
+    string line = 2;
+}
+
+// swagger:model
+message CordonRequest {
+    string node_name = 1;
+}
+
+service Binoculars {
+    rpc Logs(LogRequest) returns (LogResponse) {
+        option (google.api.http) = {
+            post: "/v1/binoculars/log"
+            body: "*"
+        };
+    }
+    rpc Cordon(CordonRequest) returns (google.protobuf.Empty){
+      option (google.api.http) = {
+        post: "/v1/binoculars/cordon"
+        body: "*"
+      };
+    }
+}
