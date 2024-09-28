@@ -197,7 +197,7 @@ dockers:
       - scheduler
       - scheduleringester
     extra_files:
-      - config/armada/config.yaml
+      - config/server/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
@@ -244,7 +244,7 @@ dockers:
       - lookoutingesterv2
       - fakeexecutor
     extra_files:
-      - config/armada/config.yaml
+      - config/server/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
