@@ -41,7 +41,7 @@ const (
 
 var (
 	PartitionMarkerGroupIdUuid = uuid.MustParse(PartitionMarkerGroupId)
-	PriorityClassName          = "test-Priority"
+	PriorityClassName          = "test-priority"
 	Groups                     = []string{"group1", "group2"}
 	NodeSelector               = map[string]string{"foo": "bar"}
 	Affinity                   = &v1.Affinity{

@@ -460,9 +460,9 @@ func (m *JobRunLease) GetJob() *armadaevents.SubmitJob {
 	return nil
 }
 
-func (m *JobRunLease) GetJobRunId() string {
+func (m *JobRunLease) GetJobRunIdStr() string {
 	if m != nil {
-		return m.JobRunId
+		return m.JobRunIdStr
 	}
 	return ""
 }
@@ -1472,10 +1472,10 @@ func (m *JobRunLease) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.JobRunId) > 0 {
-		i -= len(m.JobRunId)
-		copy(dAtA[i:], m.JobRunId)
-		i = encodeVarintExecutorapi(dAtA, i, uint64(len(m.JobRunId)))
+	if len(m.JobRunIdStr) > 0 {
+		i -= len(m.JobRunIdStr)
+		copy(dAtA[i:], m.JobRunIdStr)
+		i = encodeVarintExecutorapi(dAtA, i, uint64(len(m.JobRunIdStr)))
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -1985,7 +1985,7 @@ func (m *JobRunLease) Size() (n int) {
 		l = m.Job.Size()
 		n += 1 + l + sovExecutorapi(uint64(l))
 	}
-	l = len(m.JobRunId)
+	l = len(m.JobRunIdStr)
 	if l > 0 {
 		n += 1 + l + sovExecutorapi(uint64(l))
 	}
@@ -4199,7 +4199,7 @@ func (m *JobRunLease) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobRunId", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field JobRunIdStr", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -4227,7 +4227,7 @@ func (m *JobRunLease) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.JobRunId = string(dAtA[iNdEx:postIndex])
+			m.JobRunIdStr = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
