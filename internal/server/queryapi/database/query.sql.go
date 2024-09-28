@@ -12,7 +12,7 @@ import (
 )
 
 const getJobDetails = `-- name: GetJobDetails :many
-SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j join job_spec js on j.job_id = js.job_id WHERE job_id = ANY($1::text[])
+SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j left join job_spec js on j.job_id = js.job_id WHERE j.job_id = ANY($1::text[])
 `
 
 type GetJobDetailsRow struct {
