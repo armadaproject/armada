@@ -86,7 +86,7 @@ func makeSut() *NodeType {
 	return NewNodeType(
 		taints,
 		labels,
-		map[string]interface{}{"taint1": true, "taint2": true, "taint3": true},
-		map[string]interface{}{"label1": true, "label2": true, "label3": true},
+		map[string]bool{"taint1": true, "taint2": true, "taint3": true},
+		map[string]bool{"label1": true, "label2": true, "label3": true},
 	)
 }
