@@ -268,7 +268,7 @@ dockers:
     ids:
       - server
     extra_files:
-      - config/armada/config.yaml
+      - config/server/config.yaml
     dockerfile: ./build/server/Dockerfile
 
   - id: executor
