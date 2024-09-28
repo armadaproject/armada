@@ -70,7 +70,7 @@ message LeaseRequest{
   // Max number of jobs this request should return
   uint32 max_jobs_to_lease = 7;
   // Run Ids of jobs owned by the executor but not currently assigned to a node.
-  repeated string unassigned_job_run_ids_str = 8;
+  repeated string unassigned_job_run_ids = 8;
 }
 
 // Indicates that a job run is now leased.
@@ -80,17 +80,17 @@ message JobRunLease{
   string user = 4;
   repeated string groups = 5;
   armadaevents.SubmitJob job  = 6;
-  string job_run_id_str = 7;
+  string job_run_id = 7;
 }
 
 // Indicates that the job runs with the given ids should be cancelled.
 message CancelRuns{
-  repeated string job_run_ids_to_cancel_str = 2;
+  repeated string job_run_ids_to_cancel = 2;
 }
 
 // Indicates that the job runs with the given ids should be preempted.
 message PreemptRuns{
-  repeated string job_run_ids_to_preempt_str = 2;
+  repeated string job_run_ids_to_preempt = 2;
 }
 
 // Indicates the end of the lease stream.

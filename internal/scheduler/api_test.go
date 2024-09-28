@@ -67,8 +67,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				NodeType: "node-type-1",
 			},
 		},
-		UnassignedJobRunIdsStr: []string{runId3},
-		MaxJobsToLease:         uint32(maxJobsPerCall),
+		UnassignedJobRunIds: []string{runId3},
+		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
 		Id:   "test-executor",
@@ -204,7 +204,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_CancelRuns{CancelRuns: &executorapi.CancelRuns{
-						JobRunIdsToCancelStr: []string{runId2},
+						JobRunIdsToCancel: []string{runId2},
 					}},
 				},
 				{
@@ -356,8 +356,8 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 				NodeType:      "node-type-1",
 			},
 		},
-		UnassignedJobRunIdsStr: []string{},
-		MaxJobsToLease:         uint32(100),
+		UnassignedJobRunIds: []string{},
+		MaxJobsToLease:      uint32(100),
 	}
 
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)

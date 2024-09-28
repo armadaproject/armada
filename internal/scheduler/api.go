@@ -123,7 +123,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancelStr: runsToCancel,
+					JobRunIdsToCancel: runsToCancel,
 				},
 			},
 		}); err != nil {
@@ -381,7 +381,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Pool:              req.Pool,
 		Nodes:             nodes,
 		LastUpdateTime:    now,
-		UnassignedJobRuns: req.UnassignedJobRunIdsStr,
+		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }
 
@@ -393,7 +393,7 @@ func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]string, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	for _, runId := range req.UnassignedJobRunIdsStr {
+	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, runId)
 	}
 	return runIds, nil
