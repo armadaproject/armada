@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	msg              = &armadaevents.CancelJob{JobId: armadaevents.ProtoUuidFromUuid(uuid.New())}
+	msg              = &armadaevents.CancelJob{JobIdStr: uuid.NewString()}
 	compressor       = compress.NewThreadSafeZlibCompressor(1024)
 	decompressor     = compress.NewThreadSafeZlibDecompressor()
 	marshalledMsg, _ = proto.Marshal(msg)

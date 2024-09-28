@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -48,10 +47,10 @@ func TestRequestJobsRuns_HandlesGetClusterCapacityError(t *testing.T) {
 }
 
 func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
-	activeRunId := uuid.New()
-	leasedRunId := uuid.New()
-	activeRun := createRun(activeRunId.String(), job.Active)
-	leasedRun := createRun(leasedRunId.String(), job.Leased)
+	activeRunId := uuid.NewString()
+	leasedRunId := uuid.NewString()
+	activeRun := createRun(activeRunId, job.Active)
+	leasedRun := createRun(leasedRunId, job.Leased)
 
 	capacityReport := &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{
@@ -61,7 +60,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 		Nodes: []executorapi.NodeInfo{
 			{
 				Name:          "node-1",
-				RunIdsByState: map[string]api.JobState{activeRunId.String(): api.JobState_RUNNING},
+				RunIdsByState: map[string]api.JobState{activeRunId: api.JobState_RUNNING},
 			},
 		},
 	}
@@ -76,7 +75,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 				AvailableResource: *capacityReport.AvailableCapacity,
 				Nodes:             []*executorapi.NodeInfo{&capacityReport.Nodes[0]},
 				// Should add any ids in the state but not in the capacity report into unassigned job run ids
-				UnassignedJobRunIds: []*armadaevents.Uuid{},
+				UnassignedJobRunIds: []string{},
 				MaxJobsToLease:      uint32(defaultMaxLeasedJobs),
 			},
 		},
@@ -86,7 +85,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 				AvailableResource: *capacityReport.AvailableCapacity,
 				Nodes:             []*executorapi.NodeInfo{&capacityReport.Nodes[0]},
 				// Should add any ids in the state but not in the capacity report into unassigned job run ids
-				UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(leasedRunId)},
+				UnassignedJobRunIds: []string{leasedRunId},
 				MaxJobsToLease:      0,
 			},
 		},
@@ -113,16 +112,14 @@ func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 
 	jobId := util.NewULID()
-	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
-	require.NoError(t, err)
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		LeasedRuns: []*executorapi.JobRunLease{
 			{
-				JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
-				Queue:    "queue",
-				Jobset:   "job-set",
+				JobRunIdStr: uuid.NewString(),
+				Queue:       "queue",
+				Jobset:      "job-set",
 				Job: &armadaevents.SubmitJob{
-					JobId: protoJobId,
+					JobIdStr: jobId,
 					ObjectMeta: &armadaevents.ObjectMeta{
 						Labels:      map[string]string{},
 						Annotations: map[string]string{},
@@ -150,18 +147,15 @@ func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
 }
 
 func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
-	runId := uuid.New()
-	activeRun := createRun(runId.String(), job.Active)
+	runId := uuid.NewString()
+	activeRun := createRun(runId, job.Active)
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{activeRun})
 
-	activeRunUuid, err := armadaevents.ProtoUuidFromUuidString(activeRun.Meta.RunId)
-	require.NoError(t, err)
-
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
-		RunIdsToCancel: []*armadaevents.Uuid{
-			nil, // Invalid should be skipped
-			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no known runs, should be skipped
-			activeRunUuid,
+		RunIdsToCancel: []string{
+			"",               // Invalid should be skipped
+			uuid.NewString(), // Belongs to no known runs, should be skipped
+			runId,
 		},
 	}
 
@@ -177,18 +171,15 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 }
 
 func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
-	runId := uuid.New()
-	activeRun := createRun(runId.String(), job.Active)
+	runId := uuid.NewString()
+	activeRun := createRun(runId, job.Active)
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{activeRun})
 
-	activeRunUuid, err := armadaevents.ProtoUuidFromUuidString(activeRun.Meta.RunId)
-	require.NoError(t, err)
-
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
-		RunIdsToPreempt: []*armadaevents.Uuid{
-			nil, // Invalid should be skipped
-			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no known runs, should be skipped
-			activeRunUuid,
+		RunIdsToPreempt: []string{
+			"",               // Invalid should be skipped
+			uuid.NewString(), // Belongs to no known runs, should be skipped
+			runId,
 		},
 	}
 
@@ -207,17 +198,15 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 
 	jobId := util.NewULID()
-	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
-	require.NoError(t, err)
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		LeasedRuns: []*executorapi.JobRunLease{
 			// Valid job id info, but invalid submit job (no pod spec)
 			{
-				JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
-				Queue:    "queue",
-				Jobset:   "job-set",
+				JobRunIdStr: uuid.NewString(),
+				Queue:       "queue",
+				Jobset:      "job-set",
 				Job: &armadaevents.SubmitJob{
-					JobId: protoJobId,
+					JobIdStr: jobId,
 				},
 			},
 		},
@@ -231,7 +220,7 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.NotNil(t, failedEvent.JobRunErrors.Errors[0].GetPodError())
-	assert.Equal(t, failedEvent.JobRunErrors.JobId, protoJobId)
+	assert.Equal(t, failedEvent.JobRunErrors.JobIdStr, jobId)
 
 	allJobRuns := stateStore.GetAll()
 	assert.Len(t, allJobRuns, 1)
@@ -245,7 +234,7 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 		LeasedRuns: []*executorapi.JobRunLease{
 			// Invalid Id info
 			{
-				JobRunId: &armadaevents.Uuid{},
+				JobRunIdStr: "",
 			},
 		},
 	}

@@ -13,9 +13,7 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
-	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -78,11 +76,7 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 		return nil, err
 	}
 
-	unassignedRunIds, err := r.getUnassignedRunIds(capacityReport)
-	if err != nil {
-		return nil, err
-	}
-
+	unassignedRunIds := r.getUnassignedRunIds(capacityReport)
 	nodes := make([]*executorapi.NodeInfo, 0, len(capacityReport.Nodes))
 	for i := range capacityReport.Nodes {
 		nodes = append(nodes, &capacityReport.Nodes[i])
@@ -103,7 +97,7 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 }
 
 // Returns the RunIds of all managed pods that haven't been assigned to a node
-func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAvailableCapacityReport) ([]*armadaevents.Uuid, error) {
+func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAvailableCapacityReport) []string {
 	allAssignedRunIds := []string{}
 	allJobRunIds := []string{}
 
@@ -120,7 +114,7 @@ func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAv
 
 	unassignedIds := slices.Subtract(allJobRunIds, allAssignedRunIds)
 
-	return util.StringUuidsToUuids(unassignedIds)
+	return unassignedIds
 }
 
 type failedJobCreationDetails struct {
@@ -158,25 +152,15 @@ func (r *JobRequester) markJobRunsAsLeased(jobs []*job.SubmitJob) {
 	}
 }
 
-func (r *JobRequester) markJobRunsAsCancelled(runIdsToCancel []*armadaevents.Uuid) {
-	for _, runToCancelId := range runIdsToCancel {
-		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
-		if err != nil {
-			log.Errorf("Skipping removing run because %s", err)
-			continue
-		}
-		r.jobRunStateStore.RequestRunCancellation(runIdStr)
+func (r *JobRequester) markJobRunsAsCancelled(runIdsToCancel []string) {
+	for _, runId := range runIdsToCancel {
+		r.jobRunStateStore.RequestRunCancellation(runId)
 	}
 }
 
-func (r *JobRequester) markJobRunsToPreempt(runIdsToPreempt []*armadaevents.Uuid) {
-	for _, runToCancelId := range runIdsToPreempt {
-		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
-		if err != nil {
-			log.Errorf("Skipping preempting run because %s", err)
-			continue
-		}
-		r.jobRunStateStore.RequestRunPreemption(runIdStr)
+func (r *JobRequester) markJobRunsToPreempt(runIdsToPreempt []string) {
+	for _, runId := range runIdsToPreempt {
+		r.jobRunStateStore.RequestRunPreemption(runId)
 	}
 }
 

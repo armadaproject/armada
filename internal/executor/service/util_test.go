@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -14,7 +13,7 @@ import (
 )
 
 func TestExtractEssentialJobMetadata(t *testing.T) {
-	jobId, runId, jobRunLease := createValidJobRunLease(t, "queue-1", "job-set-1")
+	jobId, runId, jobRunLease := createValidJobRunLease("queue-1", "job-set-1")
 
 	expected := &job.RunMeta{
 		JobId:  jobId,
@@ -30,55 +29,50 @@ func TestExtractEssentialJobMetadata(t *testing.T) {
 
 func TestExtractEssentialJobMetadata_InvalidInput(t *testing.T) {
 	// Invalid run id
-	_, _, jobRunLease := createValidJobRunLease(t, "queue-1", "job-set-1")
-	jobRunLease.JobRunId = nil
+	_, _, jobRunLease := createValidJobRunLease("queue-1", "job-set-1")
+	jobRunLease.JobRunIdStr = ""
 	result, err := ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
 
 	// Empty queue
-	_, _, jobRunLease = createValidJobRunLease(t, "queue-1", "job-set-1")
+	_, _, jobRunLease = createValidJobRunLease("queue-1", "job-set-1")
 	jobRunLease.Queue = ""
 	result, err = ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
 
 	// Empty jobset
-	_, _, jobRunLease = createValidJobRunLease(t, "queue-1", "job-set-1")
+	_, _, jobRunLease = createValidJobRunLease("queue-1", "job-set-1")
 	jobRunLease.Jobset = ""
 	result, err = ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
 
 	// Nil job
-	_, _, jobRunLease = createValidJobRunLease(t, "queue-1", "job-set-1")
+	_, _, jobRunLease = createValidJobRunLease("queue-1", "job-set-1")
 	jobRunLease.Job = nil
 	result, err = ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
 
 	// Invalid jobId
-	_, _, jobRunLease = createValidJobRunLease(t, "queue-1", "job-set-1")
-	jobRunLease.Job.JobId = nil
+	_, _, jobRunLease = createValidJobRunLease("queue-1", "job-set-1")
+	jobRunLease.Job.JobIdStr = ""
 	result, err = ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
 }
 
-func createValidJobRunLease(t *testing.T, queue string, jobSet string) (string, string, *executorapi.JobRunLease) {
+func createValidJobRunLease(queue string, jobSet string) (string, string, *executorapi.JobRunLease) {
 	jobId := util.NewULID()
-	runId := uuid.New().String()
-	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
-	require.NoError(t, err)
-	protoRunId, err := armadaevents.ProtoUuidFromUuidString(runId)
-	require.NoError(t, err)
-
+	runId := uuid.NewString()
 	return jobId, runId, &executorapi.JobRunLease{
-		JobRunId: protoRunId,
-		Queue:    queue,
-		Jobset:   jobSet,
+		JobRunIdStr: runId,
+		Queue:       queue,
+		Jobset:      jobSet,
 		Job: &armadaevents.SubmitJob{
-			JobId: protoJobId,
+			JobIdStr: jobId,
 		},
 	}
 }
