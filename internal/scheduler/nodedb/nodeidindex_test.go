@@ -44,7 +44,11 @@ func TestFromArgsValid(t *testing.T) {
 
 func makeTestNode(id string) *internaltypes.Node {
 	return internaltypes.CreateNode(id,
-		1,
+		internaltypes.NewNodeType([]v1.Taint{},
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{},
+		),
 		1,
 		"executor",
 		"node_name",

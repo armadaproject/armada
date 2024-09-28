@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	v11 "k8s.io/api/networking/v1"
@@ -887,26 +886,6 @@ func TestConvertJobRunPreempted(t *testing.T) {
 	apiEvents, err := FromEventSequence(toEventSeq(preempted))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
-
-	// PreemptiveJobId is nil
-	preemptiveJobIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
-	preemptiveJobIdNil.GetJobRunPreempted().PreemptiveJobId = nil
-
-	expectedPreemptiveJobIdNil := proto.Clone(expected[0]).(*api.EventMessage)
-	expectedPreemptiveJobIdNil.GetPreempted().PreemptiveJobId = ""
-	apiEvents, err = FromEventSequence(toEventSeq(preemptiveJobIdNil))
-	assert.NoError(t, err)
-	assert.Equal(t, []*api.EventMessage{expectedPreemptiveJobIdNil}, apiEvents)
-
-	// PreemptiveRunId is nil
-	preemptiveRunIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
-	preemptiveRunIdNil.GetJobRunPreempted().PreemptiveRunId = nil
-
-	expectedPreemptiveRunIdNil := proto.Clone(expected[0]).(*api.EventMessage)
-	expectedPreemptiveRunIdNil.GetPreempted().PreemptiveRunId = ""
-	apiEvents, err = FromEventSequence(toEventSeq(preemptiveRunIdNil))
-	assert.NoError(t, err)
-	assert.Equal(t, []*api.EventMessage{expectedPreemptiveRunIdNil}, apiEvents)
 }
 
 func toEventSeq(event ...*armadaevents.EventSequence_Event) *armadaevents.EventSequence {

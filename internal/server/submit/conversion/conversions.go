@@ -22,16 +22,14 @@ func SubmitJobFromApiRequest(
 	jobReq *api.JobSubmitRequestItem,
 	config configuration.SubmissionConfig,
 	jobSetId, queue, owner string,
-	idGen func() *armadaevents.Uuid, //  injected so that ids can be stable for testing
+	idGen func() string, //  injected so that ids can be stable for testing
 ) *armadaevents.SubmitJob {
 	jobId := idGen()
-	jobIdStr := armadaevents.MustUlidStringFromProtoUuid(jobId)
 	priority := PriorityAsInt32(jobReq.GetPriority())
-	ingressesAndServices := convertIngressesAndServices(jobReq, jobIdStr, jobSetId, queue, owner)
+	ingressesAndServices := convertIngressesAndServices(jobReq, jobId, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
-		JobId:           jobId,
-		JobIdStr:        jobIdStr,
+		JobIdStr:        jobId,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
 		ObjectMeta: &armadaevents.ObjectMeta{

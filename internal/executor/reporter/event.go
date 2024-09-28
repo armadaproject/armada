@@ -29,10 +29,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 				JobRunAssigned: &armadaevents.JobRunAssigned{
-					RunId:    runId,
-					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-					JobId:    jobId,
-					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+					RunIdStr: runId,
+					JobIdStr: jobId,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -57,10 +55,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId:    runId,
-					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-					JobId:    jobId,
-					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+					RunIdStr: runId,
+					JobIdStr: jobId,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -94,10 +90,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId:    runId,
-					RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-					JobId:    jobId,
-					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+					RunIdStr: runId,
+					JobIdStr: jobId,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -170,10 +164,8 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
-				RunId:    runId,
-				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-				JobId:    jobId,
-				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+				RunIdStr: runId,
+				JobIdStr: jobId,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					KubernetesId: string(pod.ObjectMeta.UID),
 					Namespace:    pod.Namespace,
@@ -201,10 +193,8 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId:    preemptedJobId,
-				PreemptedJobIdStr: armadaevents.MustUlidStringFromProtoUuid(preemptedJobId),
-				PreemptedRunId:    preemptedRunId,
-				PreemptedRunIdStr: armadaevents.MustUuidStringFromProtoUuid(preemptedRunId),
+				PreemptedJobIdStr: preemptedJobId,
+				PreemptedRunIdStr: preemptedRunId,
 			},
 		},
 	})
@@ -228,10 +218,8 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId:    runId,
-				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-				JobId:    jobId,
-				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+				RunIdStr: runId,
+				JobIdStr: jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -259,29 +247,17 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 	return sequence, nil
 }
 
-func CreateMinimalJobFailedEvent(jobIdStr string, runIdStr string, jobSet string, queue string, clusterId string, message string) (*armadaevents.EventSequence, error) {
+func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	sequence.Queue = queue
 	sequence.JobSetName = jobSet
-
-	jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert jobId %s to uuid - %s", jobIdStr, err)
-	}
-
-	runId, err := armadaevents.ProtoUuidFromUuidString(runIdStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert runId %s to uuid - %s", runIdStr, err)
-	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId:    runId,
-				RunIdStr: runIdStr,
-				JobId:    jobId,
-				JobIdStr: jobIdStr,
+				RunIdStr: runId,
+				JobIdStr: jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -315,10 +291,8 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId:    runId,
-				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-				JobId:    jobId,
-				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+				RunIdStr: runId,
+				JobIdStr: jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
@@ -355,10 +329,8 @@ func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationD
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
 			ResourceUtilisation: &armadaevents.ResourceUtilisation{
-				RunId:    runId,
-				RunIdStr: armadaevents.MustUuidStringFromProtoUuid(runId),
-				JobId:    jobId,
-				JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+				RunIdStr: runId,
+				JobIdStr: jobId,
 				ResourceInfo: &armadaevents.KubernetesResourceInfo{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						KubernetesId: string(pod.ObjectMeta.UID),
@@ -388,15 +360,15 @@ func createEmptySequence(pod *v1.Pod) *armadaevents.EventSequence {
 	return sequence
 }
 
-func extractIds(pod *v1.Pod) (*armadaevents.Uuid, *armadaevents.Uuid, error) {
-	jobId, err := armadaevents.ProtoUuidFromUlidString(pod.Labels[domain.JobId])
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to convert jobId %s to uuid - %s", pod.Labels[domain.JobId], err)
+func extractIds(pod *v1.Pod) (string, string, error) {
+	jobId, ok := pod.Labels[domain.JobId]
+	if !ok {
+		return "", "", fmt.Errorf("job Id not found on pod %s", pod.Name)
 	}
 
-	runId, err := armadaevents.ProtoUuidFromUuidString(pod.Labels[domain.JobRunId])
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to convert runId %s to uuid - %s", pod.Labels[domain.JobRunId], err)
+	runId, ok := pod.Labels[domain.JobRunId]
+	if !ok {
+		return "", "", fmt.Errorf("run Id not found on pod %s", pod.Name)
 	}
 
 	return jobId, runId, nil

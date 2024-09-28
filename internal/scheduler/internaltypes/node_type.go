@@ -65,7 +65,7 @@ type (
 	labelsFilterFunc func(key, value string) bool
 )
 
-func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *NodeType {
+func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[string]bool, indexedLabels map[string]bool) *NodeType {
 	if taints == nil {
 		taints = make([]v1.Taint, 0)
 	}

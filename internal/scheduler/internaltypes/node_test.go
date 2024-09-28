@@ -18,7 +18,6 @@ func TestNode(t *testing.T) {
 	assert.Nil(t, err)
 
 	const id = "id"
-	const nodeTypeId = uint64(123)
 	const pool = "pool"
 	const index = uint64(1)
 	const executor = "executor"
@@ -84,9 +83,16 @@ func TestNode(t *testing.T) {
 		},
 	}
 
+	nodeType := NewNodeType(
+		taints,
+		labels,
+		map[string]bool{"foo": true},
+		map[string]bool{"key": true},
+	)
+
 	node := CreateNode(
 		id,
-		nodeTypeId,
+		nodeType,
 		index,
 		executor,
 		name,
@@ -102,7 +108,8 @@ func TestNode(t *testing.T) {
 	)
 
 	assert.Equal(t, id, node.GetId())
-	assert.Equal(t, nodeTypeId, node.GetNodeTypeId())
+	assert.Equal(t, nodeType.GetId(), node.GetNodeTypeId())
+	assert.Equal(t, nodeType.GetId(), node.GetNodeType().GetId())
 	assert.Equal(t, index, node.GetIndex())
 	assert.Equal(t, executor, node.GetExecutor())
 	assert.Equal(t, name, node.GetName())
