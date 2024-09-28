@@ -29,7 +29,7 @@ func SubmitJobFromApiRequest(
 	ingressesAndServices := convertIngressesAndServices(jobReq, jobId, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
-		JobIdStr:        jobId,
+		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
 		ObjectMeta: &armadaevents.ObjectMeta{

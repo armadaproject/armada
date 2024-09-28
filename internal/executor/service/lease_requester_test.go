@@ -291,10 +291,10 @@ func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 
 func createJobRunLease(queue string, jobSet string) *executorapi.JobRunLease {
 	return &executorapi.JobRunLease{
-		JobRunIdStr: uuid.NewString(),
-		Queue:       queue,
-		Jobset:      jobSet,
-		User:        "user",
-		Groups:      []string{"group-1", "group-2"},
+		JobRunId: uuid.NewString(),
+		Queue:    queue,
+		Jobset:   jobSet,
+		User:     "user",
+		Groups:   []string{"group-1", "group-2"},
 	}
 }

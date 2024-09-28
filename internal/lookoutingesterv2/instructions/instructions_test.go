@@ -36,32 +36,32 @@ const (
 )
 
 var expectedLeased = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobLeasedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
-	LatestRunId:               pointer.String(testfixtures.RunIdString),
+	LatestRunId:               pointer.String(testfixtures.RunId),
 }
 
 var expectedPending = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobPendingOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
-	LatestRunId:               pointer.String(testfixtures.RunIdString),
+	LatestRunId:               pointer.String(testfixtures.RunId),
 }
 
 var expectedRunning = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobRunningOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
-	LatestRunId:               pointer.String(testfixtures.RunIdString),
+	LatestRunId:               pointer.String(testfixtures.RunId),
 }
 
 var expectedLeasedRun = model.CreateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	JobId:       testfixtures.JobIdString,
+	RunId:       testfixtures.RunId,
+	JobId:       testfixtures.JobId,
 	Cluster:     testfixtures.ExecutorId,
 	Leased:      &testfixtures.BaseTime,
 	Node:        pointer.String(testfixtures.NodeName),
@@ -69,41 +69,41 @@ var expectedLeasedRun = model.CreateJobRunInstruction{
 }
 
 var expectedPendingRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
+	RunId:       testfixtures.RunId,
 	Pending:     &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 }
 
 var expectedRunningRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
+	RunId:       testfixtures.RunId,
 	Node:        pointer.String(testfixtures.NodeName),
 	Started:     &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
 }
 
 var expectedJobRunSucceeded = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
+	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 	ExitCode:    pointer.Int32(0),
 }
 
 var expectedJobSucceeded = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobSucceededOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
 var expectedJobRequeued = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobQueuedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
 var expectedJobCancelled = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 	Cancelled:                 &testfixtures.BaseTime,
 	LastTransitionTime:        &testfixtures.BaseTime,
@@ -111,19 +111,19 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    testfixtures.JobIdString,
+	JobId:    testfixtures.JobId,
 	Priority: pointer.Int64(testfixtures.NewPriority),
 }
 
 var expectedFailed = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobFailedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
 var expectedFailedRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
+	RunId:       testfixtures.RunId,
 	Node:        pointer.String(testfixtures.NodeName),
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
@@ -133,38 +133,38 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 }
 
 var expectedUnschedulable = model.UpdateJobRunInstruction{
-	RunId: testfixtures.RunIdString,
+	RunId: testfixtures.RunId,
 	Node:  pointer.String(testfixtures.NodeName),
 }
 
 var expectedRejected = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobRejectedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
 var expectedRejectedJobError = model.CreateJobErrorInstruction{
-	JobId: testfixtures.JobIdString,
+	JobId: testfixtures.JobId,
 	Error: []byte(testfixtures.ErrMsg),
 }
 
 var expectedPreempted = model.UpdateJobInstruction{
-	JobId:                     testfixtures.JobIdString,
+	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
+	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:       []byte("preempted"),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
+	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 }
@@ -187,16 +187,16 @@ func TestConvert(t *testing.T) {
 		userAnnotationPrefix + "a": "0",
 		"b":                        "1",
 	}
-	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submit.GetSubmitJob())
+	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobsetName, testfixtures.BaseTime, submit.GetSubmitJob())
 	assert.NoError(t, err)
 	jobProto, err := proto.Marshal(job)
 	assert.NoError(t, err)
 	expectedSubmit := &model.CreateJobInstruction{
-		JobId:                     testfixtures.JobIdString,
+		JobId:                     testfixtures.JobId,
 		Queue:                     testfixtures.Queue,
 		Owner:                     testfixtures.UserId,
 		Namespace:                 testfixtures.Namespace,
-		JobSet:                    testfixtures.JobSetName,
+		JobSet:                    testfixtures.JobsetName,
 		Cpu:                       cpu,
 		Memory:                    memory,
 		EphemeralStorage:          ephemeralStorage,
@@ -313,7 +313,7 @@ func TestConvert(t *testing.T) {
 			},
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{{
-					JobId:                     testfixtures.JobIdString,
+					JobId:                     testfixtures.JobId,
 					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 					CancelReason:              pointer.String("some reason"),
 					Cancelled:                 &testfixtures.BaseTime,
@@ -410,8 +410,8 @@ func TestConvert(t *testing.T) {
 					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
 						Event: &armadaevents.EventSequence_Event_JobRunRunning{
 							JobRunRunning: &armadaevents.JobRunRunning{
-								RunIdStr: testfixtures.RunIdString,
-								JobIdStr: testfixtures.JobIdString,
+								RunId: testfixtures.RunId,
+								JobId: testfixtures.JobId,
 								ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 									{
 										Info: &armadaevents.KubernetesResourceInfo_PodInfo{

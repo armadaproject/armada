@@ -898,7 +898,7 @@ func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 
 func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
-		JobIdStr: util.NewULID(),
+		JobId: util.NewULID(),
 		MainObject: &armadaevents.KubernetesMainObject{
 			ObjectMeta: &armadaevents.ObjectMeta{},
 			Object: &armadaevents.KubernetesMainObject_PodSpec{

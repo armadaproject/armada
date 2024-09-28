@@ -69,8 +69,8 @@ func TestEventServer_ForceNew(t *testing.T) {
 				Name:           "test-queue",
 				PriorityFactor: 1,
 			}
-			jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
-			runIdString := "123e4567-e89b-12d3-a456-426614174000"
+			JobIding := "01f3j0g1md4qx7z5qb148qnh4r"
+			RunIding := "123e4567-e89b-12d3-a456-426614174000"
 			baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 			baseTimeProto := protoutil.ToTimestamp(baseTime)
 
@@ -83,8 +83,8 @@ func TestEventServer_ForceNew(t *testing.T) {
 				Created: baseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 					JobRunAssigned: &armadaevents.JobRunAssigned{
-						RunIdStr: runIdString,
-						JobIdStr: jobIdString,
+						RunId: RunIding,
+						JobId: JobIding,
 					},
 				},
 			}
@@ -100,7 +100,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
 			expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
-				JobId:    jobIdString,
+				JobId:    JobIding,
 				JobSetId: jobSetId,
 				Queue:    q.Name,
 				Created:  protoutil.ToTimestamp(baseTime),
@@ -211,8 +211,8 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
-				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
-				runIdString := "123e4567-e89b-12d3-a456-426614174000"
+				JobIding := "01f3j0g1md4qx7z5qb148qnh4r"
+				RunIding := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 				baseTimeProto := protoutil.ToTimestamp(baseTime)
 
@@ -220,8 +220,8 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
-							RunIdStr: runIdString,
-							JobIdStr: jobIdString,
+							RunId: RunIding,
+							JobId: JobIding,
 						},
 					},
 				}
@@ -254,16 +254,16 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
-				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
-				runIdString := "123e4567-e89b-12d3-a456-426614174000"
+				JobIding := "01f3j0g1md4qx7z5qb148qnh4r"
+				RunIding := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 				baseTimeProto := protoutil.ToTimestamp(baseTime)
 				assigned := &armadaevents.EventSequence_Event{
 					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
-							RunIdStr: runIdString,
-							JobIdStr: jobIdString,
+							RunId: RunIding,
+							JobId: JobIding,
 						},
 					},
 				}

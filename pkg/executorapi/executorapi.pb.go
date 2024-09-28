@@ -384,12 +384,12 @@ func (m *LeaseRequest) GetUnassignedJobRunIdsStr() []string {
 
 // Indicates that a job run is now leased.
 type JobRunLease struct {
-	Queue       string                  `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
-	Jobset      string                  `protobuf:"bytes,3,opt,name=jobset,proto3" json:"jobset,omitempty"`
-	User        string                  `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
-	Groups      []string                `protobuf:"bytes,5,rep,name=groups,proto3" json:"groups,omitempty"`
-	Job         *armadaevents.SubmitJob `protobuf:"bytes,6,opt,name=job,proto3" json:"job,omitempty"`
-	JobRunIdStr string                  `protobuf:"bytes,7,opt,name=job_run_id_str,json=jobRunIdStr,proto3" json:"jobRunIdStr,omitempty"`
+	Queue    string                  `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
+	Jobset   string                  `protobuf:"bytes,3,opt,name=jobset,proto3" json:"jobset,omitempty"`
+	User     string                  `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
+	Groups   []string                `protobuf:"bytes,5,rep,name=groups,proto3" json:"groups,omitempty"`
+	Job      *armadaevents.SubmitJob `protobuf:"bytes,6,opt,name=job,proto3" json:"job,omitempty"`
+	JobRunId string                  `protobuf:"bytes,7,opt,name=job_run_id_str,json=jobRunId,proto3" json:"jobRunId,omitempty"`
 }
 
 func (m *JobRunLease) Reset()         { *m = JobRunLease{} }
@@ -460,9 +460,9 @@ func (m *JobRunLease) GetJob() *armadaevents.SubmitJob {
 	return nil
 }
 
-func (m *JobRunLease) GetJobRunIdStr() string {
+func (m *JobRunLease) GetJobRunId() string {
 	if m != nil {
-		return m.JobRunIdStr
+		return m.JobRunId
 	}
 	return ""
 }
@@ -1472,10 +1472,10 @@ func (m *JobRunLease) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.JobRunIdStr) > 0 {
-		i -= len(m.JobRunIdStr)
-		copy(dAtA[i:], m.JobRunIdStr)
-		i = encodeVarintExecutorapi(dAtA, i, uint64(len(m.JobRunIdStr)))
+	if len(m.JobRunId) > 0 {
+		i -= len(m.JobRunId)
+		copy(dAtA[i:], m.JobRunId)
+		i = encodeVarintExecutorapi(dAtA, i, uint64(len(m.JobRunId)))
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -1985,7 +1985,7 @@ func (m *JobRunLease) Size() (n int) {
 		l = m.Job.Size()
 		n += 1 + l + sovExecutorapi(uint64(l))
 	}
-	l = len(m.JobRunIdStr)
+	l = len(m.JobRunId)
 	if l > 0 {
 		n += 1 + l + sovExecutorapi(uint64(l))
 	}
@@ -4199,7 +4199,7 @@ func (m *JobRunLease) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobRunIdStr", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field JobRunId", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -4227,7 +4227,7 @@ func (m *JobRunLease) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.JobRunIdStr = string(dAtA[iNdEx:postIndex])
+			m.JobRunId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

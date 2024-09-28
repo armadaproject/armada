@@ -368,7 +368,7 @@ func (s *Simulator) bootstrapWorkload() error {
 
 func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate) *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
-		JobIdStr: jobId,
+		JobId:    jobId,
 		Priority: jobTemplate.QueuePriority,
 		MainObject: &armadaevents.KubernetesMainObject{
 			ObjectMeta: &armadaevents.ObjectMeta{
@@ -688,7 +688,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		return nil, false, err
 	}
 	job, err := s.jobDb.NewJob(
-		e.JobIdStr,
+		e.JobId,
 		eventSequence.JobSetName,
 		eventSequence.Queue,
 		e.Priority,
@@ -712,7 +712,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 }
 
 func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLeased) (*jobdb.Job, bool, error) {
-	jobId := e.JobIdStr
+	jobId := e.JobId
 	job := txn.GetById(jobId)
 	jobTemplate := s.jobTemplateByJobId[jobId]
 	if jobTemplate == nil {
@@ -730,7 +730,7 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 					Created: protoutil.ToTimestamp(jobSuccessTime),
 					Event: &armadaevents.EventSequence_Event_JobSucceeded{
 						JobSucceeded: &armadaevents.JobSucceeded{
-							JobIdStr: e.JobIdStr,
+							JobId: e.JobId,
 						},
 					},
 				},
@@ -758,7 +758,7 @@ func generateRandomShiftedExponentialDuration(r *rand.Rand, rv ShiftedExponentia
 }
 
 func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSucceeded) (*jobdb.Job, bool, error) {
-	jobId := e.JobIdStr
+	jobId := e.JobId
 	job := txn.GetById(jobId)
 	if job == nil || job.InTerminalState() {
 		// Job already terminated; nothing more to do.
@@ -853,7 +853,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 }
 
 func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRunPreempted) (*jobdb.Job, bool, error) {
-	jobId := e.PreemptedJobIdStr
+	jobId := e.PreemptedJobId
 	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.

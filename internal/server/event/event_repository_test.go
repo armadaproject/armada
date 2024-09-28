@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+	JobIding = "01f3j0g1md4qx7z5qb148qnh4r"
+	RunIding = "123e4567-e89b-12d3-a456-426614174000"
 )
 
 var (
@@ -44,12 +44,12 @@ var assigned = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
-			RunIdStr: runIdString,
-			JobIdStr: jobIdString,
+			RunId: RunIding,
+			JobId: JobIding,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					ObjectMeta: &armadaevents.ObjectMeta{
-						KubernetesId: runIdString,
+						KubernetesId: RunIding,
 						Name:         podName,
 						Namespace:    namespace,
 						ExecutorId:   executorId,
@@ -70,8 +70,8 @@ var running = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
-			RunIdStr: runIdString,
-			JobIdStr: jobIdString,
+			RunId: RunIding,
+			JobId: JobIding,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -90,8 +90,8 @@ var runSucceeded = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunIdStr: runIdString,
-			JobIdStr: jobIdString,
+			RunId: RunIding,
+			JobId: JobIding,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -109,12 +109,12 @@ var runSucceeded = &armadaevents.EventSequence_Event{
 var expectedPending = api.EventMessage{
 	Events: &api.EventMessage_Pending{
 		Pending: &api.JobPendingEvent{
-			JobId:        jobIdString,
+			JobId:        JobIding,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
 			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
-			KubernetesId: runIdString,
+			KubernetesId: RunIding,
 			PodNumber:    podNumber,
 			PodName:      podName,
 			PodNamespace: namespace,
@@ -125,12 +125,12 @@ var expectedPending = api.EventMessage{
 var expectedRunning = api.EventMessage{
 	Events: &api.EventMessage_Running{
 		Running: &api.JobRunningEvent{
-			JobId:        jobIdString,
+			JobId:        JobIding,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
 			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
-			KubernetesId: runIdString,
+			KubernetesId: RunIding,
 			NodeName:     nodeName,
 			PodNumber:    podNumber,
 			PodName:      podName,

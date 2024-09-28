@@ -30,7 +30,7 @@ func TestExtractEssentialJobMetadata(t *testing.T) {
 func TestExtractEssentialJobMetadata_InvalidInput(t *testing.T) {
 	// Invalid run id
 	_, _, jobRunLease := createValidJobRunLease("queue-1", "job-set-1")
-	jobRunLease.JobRunIdStr = ""
+	jobRunLease.JobRunId = ""
 	result, err := ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -58,7 +58,7 @@ func TestExtractEssentialJobMetadata_InvalidInput(t *testing.T) {
 
 	// Invalid jobId
 	_, _, jobRunLease = createValidJobRunLease("queue-1", "job-set-1")
-	jobRunLease.Job.JobIdStr = ""
+	jobRunLease.Job.JobId = ""
 	result, err = ExtractEssentialJobMetadata(jobRunLease)
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -68,11 +68,11 @@ func createValidJobRunLease(queue string, jobSet string) (string, string, *execu
 	jobId := util.NewULID()
 	runId := uuid.NewString()
 	return jobId, runId, &executorapi.JobRunLease{
-		JobRunIdStr: runId,
-		Queue:       queue,
-		Jobset:      jobSet,
+		JobRunId: runId,
+		Queue:    queue,
+		Jobset:   jobSet,
 		Job: &armadaevents.SubmitJob{
-			JobIdStr: jobId,
+			JobId: jobId,
 		},
 	}
 }
