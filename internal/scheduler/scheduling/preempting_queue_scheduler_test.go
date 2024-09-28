@@ -1818,7 +1818,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for _, j := range round.NodeIndicesToCordon {
 					node, err := nodeDb.GetNode(tc.Nodes[j].Id)
 					require.NoError(t, err)
-					taints := append(slices.Clone(node.GetTaints()), nodedb.UnschedulableTaint())
+					taints := append(slices.Clone(node.GetTaints()), internaltypes.UnschedulableTaint())
 					node = testNodeWithTaints(node, taints)
 					err = nodeDb.Upsert(node)
 					require.NoError(t, err)
@@ -2286,7 +2286,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		node.GetId(),
-		node.GetNodeTypeId(),
+		node.GetNodeType(),
 		node.GetIndex(),
 		node.GetExecutor(),
 		node.GetName(),

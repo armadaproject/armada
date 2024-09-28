@@ -80,6 +80,19 @@ func (rl ResourceList) GetResources() []Resource {
 	return result
 }
 
+func (rl ResourceList) ToMap() map[string]k8sResource.Quantity {
+	if rl.IsEmpty() {
+		return map[string]k8sResource.Quantity{}
+	}
+
+	result := map[string]k8sResource.Quantity{}
+	for i, q := range rl.resources {
+		quantity := k8sResource.NewScaledQuantity(q, rl.factory.scales[i])
+		result[rl.factory.indexToName[i]] = *quantity
+	}
+	return result
+}
+
 func (rl ResourceList) AllZero() bool {
 	if rl.IsEmpty() {
 		return true

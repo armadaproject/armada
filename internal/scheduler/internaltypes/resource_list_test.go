@@ -82,6 +82,23 @@ func TestGetResources_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, 0, len(empty.GetResources()))
 }
 
+func TestToMap(t *testing.T) {
+	factory := testFactory()
+	a := testResourceList(factory, "1", "1Gi")
+	expected := map[string]k8sResource.Quantity{
+		"memory":            *k8sResource.NewScaledQuantity(1024*1024*1024, k8sResource.Scale(0)),
+		"ephemeral-storage": *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0)),
+		"cpu":               *k8sResource.NewScaledQuantity(1000, k8sResource.Milli),
+		"nvidia.com/gpu":    *k8sResource.NewScaledQuantity(0, k8sResource.Milli),
+	}
+	assert.Equal(t, expected, a.ToMap())
+}
+
+func TestToMap_HandlesEmptyCorrectly(t *testing.T) {
+	empty := ResourceList{}
+	assert.Equal(t, map[string]k8sResource.Quantity{}, empty.ToMap())
+}
+
 func TestAllZero(t *testing.T) {
 	factory := testFactory()
 	assert.True(t, testResourceList(factory, "0", "0").AllZero())
