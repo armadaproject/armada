@@ -3,6 +3,8 @@ package scheduleringester
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -357,7 +359,7 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 	return []DbOperation{&InsertPartitionMarker{
 		markers: []*schedulerdb.Marker{
 			{
-				GroupID:     armadaevents.UuidFromProtoUuid(pm.GroupId),
+				GroupID:     uuid.MustParse(pm.GroupIdStr),
 				PartitionID: int32(pm.Partition),
 				Created:     created,
 			},

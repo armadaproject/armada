@@ -1,4 +1,4 @@
-package nodedb
+package internaltypes
 
 import v1 "k8s.io/api/core/v1"
 
@@ -14,13 +14,5 @@ func UnschedulableTaint() v1.Taint {
 		Key:    unschedulableTaintKey,
 		Value:  unschedulableTaintValue,
 		Effect: unschedulableTaintEffect,
-	}
-}
-
-// UnschedulableToleration returns a toleration that tolerates UnschedulableTaint().
-func UnschedulableToleration() v1.Toleration {
-	return v1.Toleration{
-		Key:   unschedulableTaintKey,
-		Value: unschedulableTaintValue,
 	}
 }

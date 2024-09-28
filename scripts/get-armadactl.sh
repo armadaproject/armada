@@ -37,7 +37,7 @@ get_latest_release() {
 
 # TODO: This is commented out due to an issue with release process. Until we fix integration tests run on release, we will use the hardcoded version v0.8.2
 #VERSION=$(get_latest_release)
-VERSION=v0.8.2
+VERSION=v0.12.1
 
 ARMADACTL_URL="https://github.com/armadaproject/armada/releases/download/$VERSION/armadactl_${VERSION#v}_${SYSTEM}_${ARCH}.${ARCHIVE_TYPE}"
 

@@ -81,7 +81,6 @@ func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequen
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
 					JobIdStr: jobId,
 				},
 			},
@@ -97,7 +96,6 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
 					JobIdStr: jobId,
 				},
 			},
@@ -124,7 +122,6 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobId:    armadaevents.MustProtoUuidFromUlidString(jobId),
 					JobIdStr: jobId,
 					Priority: uint32(newPriority),
 				},
@@ -187,8 +184,7 @@ func JobSubmitRequestItem(i int) *api.JobSubmitRequestItem {
 func SubmitJob(i int) *armadaevents.SubmitJob {
 	jobId := TestUlid(i)
 	return &armadaevents.SubmitJob{
-		JobId:           jobId,
-		JobIdStr:        armadaevents.MustUlidStringFromProtoUuid(jobId),
+		JobIdStr:        jobId,
 		Priority:        DefaultPriorityInt,
 		ObjectMeta:      &armadaevents.ObjectMeta{Namespace: DefaultNamespace},
 		Objects:         []*armadaevents.KubernetesObject{},
@@ -211,15 +207,14 @@ func SubmitJob(i int) *armadaevents.SubmitJob {
 
 // TestUlidGenerator returns a function that Generates ulids starting at "00000000000000000000000001" and
 // incrementing by one each time it is called
-func TestUlidGenerator() func() *armadaevents.Uuid {
+func TestUlidGenerator() func() string {
 	counter := 0
-	return func() *armadaevents.Uuid {
+	return func() string {
 		counter++
 		return TestUlid(counter)
 	}
 }
 
-func TestUlid(i int) *armadaevents.Uuid {
-	ulid := fmt.Sprintf("000000000000000000000000%02X", i)
-	return armadaevents.MustProtoUuidFromUlidString(ulid)
+func TestUlid(i int) string {
+	return fmt.Sprintf("000000000000000000000000%02X", i)
 }
