@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="postgresPulsarMigration" type="GoApplicationRunConfiguration" factoryName="Go Application">
+  <configuration default="false" name="schedulerPostgresMigration" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="migrateDatabase" />
