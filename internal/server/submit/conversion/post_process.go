@@ -176,6 +176,6 @@ func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig)
 			labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
 		}
 	}
-	template(msg.GetObjectMeta().GetAnnotations(), msg.JobIdStr)
-	template(msg.GetObjectMeta().GetLabels(), msg.JobIdStr)
+	template(msg.GetObjectMeta().GetAnnotations(), msg.JobId)
+	template(msg.GetObjectMeta().GetLabels(), msg.JobId)
 }

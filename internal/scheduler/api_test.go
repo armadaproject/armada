@@ -67,8 +67,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				NodeType: "node-type-1",
 			},
 		},
-		UnassignedJobRunIdsStr: []string{runId3},
-		MaxJobsToLease:         uint32(maxJobsPerCall),
+		UnassignedJobRunIds: []string{runId3},
+		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
 		Id:   "test-executor",
@@ -187,7 +187,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			Tolerations:  tolerations,
 		},
 	)
-	submitWithOverlay.JobIdStr = submit.JobIdStr
+	submitWithOverlay.JobId = submit.JobId
 
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
@@ -204,17 +204,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_CancelRuns{CancelRuns: &executorapi.CancelRuns{
-						JobRunIdsToCancelStr: []string{runId2},
+						JobRunIdsToCancel: []string{runId2},
 					}},
 				},
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunIdStr: defaultLease.RunID,
-						Queue:       defaultLease.Queue,
-						Jobset:      defaultLease.JobSet,
-						User:        defaultLease.UserID,
-						Groups:      groups,
-						Job:         submit,
+						JobRunId: defaultLease.RunID,
+						Queue:    defaultLease.Queue,
+						Jobset:   defaultLease.JobSet,
+						User:     defaultLease.UserID,
+						Groups:   groups,
+						Job:      submit,
 					}},
 				},
 				{
@@ -229,12 +229,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunIdStr: leaseWithoutNode.RunID,
-						Queue:       leaseWithoutNode.Queue,
-						Jobset:      leaseWithoutNode.JobSet,
-						User:        leaseWithoutNode.UserID,
-						Groups:      groups,
-						Job:         submitWithoutNodeSelector,
+						JobRunId: leaseWithoutNode.RunID,
+						Queue:    leaseWithoutNode.Queue,
+						Jobset:   leaseWithoutNode.JobSet,
+						User:     leaseWithoutNode.UserID,
+						Groups:   groups,
+						Job:      submitWithoutNodeSelector,
 					}},
 				},
 				{
@@ -249,12 +249,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunIdStr: leaseWithOverlay.RunID,
-						Queue:       leaseWithOverlay.Queue,
-						Jobset:      leaseWithOverlay.JobSet,
-						User:        leaseWithOverlay.UserID,
-						Groups:      groups,
-						Job:         submitWithOverlay,
+						JobRunId: leaseWithOverlay.RunID,
+						Queue:    leaseWithOverlay.Queue,
+						Jobset:   leaseWithOverlay.JobSet,
+						User:     leaseWithOverlay.UserID,
+						Groups:   groups,
+						Job:      submitWithOverlay,
 					}},
 				},
 				{
@@ -269,12 +269,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunIdStr: preemptibleLease.RunID,
-						Queue:       preemptibleLease.Queue,
-						Jobset:      preemptibleLease.JobSet,
-						User:        preemptibleLease.UserID,
-						Groups:      groups,
-						Job:         preemptibleSubmit,
+						JobRunId: preemptibleLease.RunID,
+						Queue:    preemptibleLease.Queue,
+						Jobset:   preemptibleLease.JobSet,
+						User:     preemptibleLease.UserID,
+						Groups:   groups,
+						Job:      preemptibleSubmit,
 					}},
 				},
 				{
@@ -356,8 +356,8 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 				NodeType:      "node-type-1",
 			},
 		},
-		UnassignedJobRunIdsStr: []string{},
-		MaxJobsToLease:         uint32(100),
+		UnassignedJobRunIds: []string{},
+		MaxJobsToLease:      uint32(100),
 	}
 
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
@@ -581,7 +581,7 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 
 func submitMsg(t *testing.T, objectMeta *armadaevents.ObjectMeta, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
 	submitMsg := &armadaevents.SubmitJob{
-		JobIdStr:   util.NewULID(),
+		JobId:      util.NewULID(),
 		ObjectMeta: objectMeta,
 		MainObject: &armadaevents.KubernetesMainObject{
 			Object: &armadaevents.KubernetesMainObject_PodSpec{

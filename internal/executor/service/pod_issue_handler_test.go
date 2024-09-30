@@ -209,7 +209,7 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
-	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobIdStr)
+	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobId)
 }
 
 func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T) {
@@ -234,7 +234,7 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
-	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobIdStr)
+	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobId)
 }
 
 func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T) {

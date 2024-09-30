@@ -102,12 +102,12 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 	}
 
 	expectedRequest := &executorapi.LeaseRequest{
-		ExecutorId:             defaultClusterIdentity.GetClusterId(),
-		Pool:                   defaultClusterIdentity.GetClusterPool(),
-		Resources:              leaseRequest.AvailableResource.ToProtoMap(),
-		Nodes:                  leaseRequest.Nodes,
-		UnassignedJobRunIdsStr: leaseRequest.UnassignedJobRunIds,
-		MaxJobsToLease:         leaseRequest.MaxJobsToLease,
+		ExecutorId:          defaultClusterIdentity.GetClusterId(),
+		Pool:                defaultClusterIdentity.GetClusterPool(),
+		Resources:           leaseRequest.AvailableResource.ToProtoMap(),
+		Nodes:               leaseRequest.Nodes,
+		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
+		MaxJobsToLease:      leaseRequest.MaxJobsToLease,
 	}
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)
@@ -271,7 +271,7 @@ func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 		message := &executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancelStr: cancelIds,
+					JobRunIdsToCancel: cancelIds,
 				},
 			},
 		}
@@ -281,7 +281,7 @@ func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 		message := &executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_PreemptRuns{
 				PreemptRuns: &executorapi.PreemptRuns{
-					JobRunIdsToPreemptStr: preemptIds,
+					JobRunIdsToPreempt: preemptIds,
 				},
 			},
 		}
@@ -291,10 +291,10 @@ func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 
 func createJobRunLease(queue string, jobSet string) *executorapi.JobRunLease {
 	return &executorapi.JobRunLease{
-		JobRunIdStr: uuid.NewString(),
-		Queue:       queue,
-		Jobset:      jobSet,
-		User:        "user",
-		Groups:      []string{"group-1", "group-2"},
+		JobRunId: uuid.NewString(),
+		Queue:    queue,
+		Jobset:   jobSet,
+		User:     "user",
+		Groups:   []string{"group-1", "group-2"},
 	}
 }

@@ -11,11 +11,11 @@ func ExtractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta,
 	if jobRun.Job == nil {
 		return nil, fmt.Errorf("job is invalid, job field is nil")
 	}
-	jobId := jobRun.Job.JobIdStr
+	jobId := jobRun.Job.JobId
 	if jobId == "" {
 		return nil, fmt.Errorf("job is invalid, jobId is empty")
 	}
-	runId := jobRun.JobRunIdStr
+	runId := jobRun.JobRunId
 	if runId == "" {
 		return nil, fmt.Errorf("job %s is invalid, runId is empty", jobId)
 	}

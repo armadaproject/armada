@@ -118,7 +118,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobIdStr:        jobId,
+				JobId:           jobId,
 				Priority:        uint32(opts.Priority),
 				AtMostOnce:      true,
 				Preemptible:     true,
@@ -187,8 +187,8 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
-				RunIdStr:   runId,
-				JobIdStr:   js.jobId,
+				RunId:      runId,
+				JobId:      js.jobId,
 				ExecutorId: cluster,
 				NodeId:     node,
 			},
@@ -218,8 +218,8 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 			JobRunAssigned: &armadaevents.JobRunAssigned{
-				RunIdStr: runId,
-				JobIdStr: js.jobId,
+				RunId: runId,
+				JobId: js.jobId,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -261,8 +261,8 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{
-				RunIdStr: runId,
-				JobIdStr: js.jobId,
+				RunId: runId,
+				JobId: js.jobId,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -298,8 +298,8 @@ func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimu
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 			JobRunSucceeded: &armadaevents.JobRunSucceeded{
-				RunIdStr: runId,
-				JobIdStr: js.jobId,
+				RunId: runId,
+				JobId: js.jobId,
 			},
 		},
 	}
@@ -322,7 +322,7 @@ func (js *JobSimulator) Succeeded(timestamp time.Time) *JobSimulator {
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
-				JobIdStr: js.jobId,
+				JobId: js.jobId,
 			},
 		},
 	}
@@ -340,8 +340,8 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: js.jobId,
-				RunIdStr: runId,
+				JobId: js.jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -372,7 +372,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobIdStr: js.jobId,
+				JobId: js.jobId,
 			},
 		},
 	}
@@ -390,7 +390,7 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobIdStr: js.jobId,
+				JobId:    js.jobId,
 				Priority: newPriority,
 			},
 		},
@@ -410,8 +410,8 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: js.jobId,
-				RunIdStr: runId,
+				JobId: js.jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -450,7 +450,7 @@ func (js *JobSimulator) Rejected(message string, timestamp time.Time) *JobSimula
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobIdStr: js.jobId,
+				JobId: js.jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -478,7 +478,7 @@ func (js *JobSimulator) Failed(node string, exitCode int32, message string, time
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobIdStr: js.jobId,
+				JobId: js.jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -511,7 +511,7 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobIdStr: js.jobId,
+				JobId: js.jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -529,8 +529,8 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobIdStr: js.jobId,
-				PreemptedRunIdStr: preemptedRunId,
+				PreemptedJobId: js.jobId,
+				PreemptedRunId: preemptedRunId,
 			},
 		},
 	}
@@ -548,8 +548,8 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: js.jobId,
-				RunIdStr: runId,
+				JobId: js.jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: false,
@@ -586,8 +586,8 @@ func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: js.jobId,
-				RunIdStr: runId,
+				JobId: js.jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
