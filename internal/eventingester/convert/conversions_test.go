@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	jobset   = "testJobset"
-	queue    = "testQueue"
-	JobIding = "01f3j0g1md4qx7z5qb148qnh4r"
-	RunIding = "123e4567-e89b-12d3-a456-426614174000"
+	jobset = "testJobset"
+	queue  = "testQueue"
+	JobId  = "01f3j0g1md4qx7z5qb148qnh4r"
+	RunId  = "123e4567-e89b-12d3-a456-426614174000"
 )
 
 var (
@@ -34,8 +34,8 @@ var jobRunSucceeded = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunId: RunIding,
-			JobId: JobIding,
+			RunId: RunId,
+			JobId: JobId,
 		},
 	},
 }
@@ -45,7 +45,7 @@ var cancelled = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId: JobIding,
+			JobId: JobId,
 		},
 	},
 }
@@ -90,7 +90,7 @@ func TestCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJob{
 			CancelJob: &armadaevents.CancelJob{
-				JobId:  JobIding,
+				JobId:  JobId,
 				Reason: "some reason 1",
 			},
 		},
@@ -105,7 +105,7 @@ func TestCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId:  JobIding,
+				JobId:  JobId,
 				Reason: "some reason 3",
 			},
 		},
@@ -121,7 +121,7 @@ func TestCancelled(t *testing.T) {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId: JobIding,
+					JobId: JobId,
 				},
 			},
 		},
@@ -135,7 +135,7 @@ func TestCancelled(t *testing.T) {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobId: JobIding,
+					JobId: JobId,
 				},
 			},
 		},
