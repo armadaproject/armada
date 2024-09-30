@@ -115,6 +115,7 @@ require (
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/elliotchance/orderedmap/v2 v2.2.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fortytw2/leaktest v1.3.0 // indirect
