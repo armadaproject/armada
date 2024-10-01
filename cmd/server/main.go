@@ -41,7 +41,7 @@ func main() {
 	// TODO Load relevant config in one place: don't use viper here and in LoadConfig.
 	var config configuration.ArmadaConfig
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/armada", userSpecifiedConfigs)
+	common.LoadConfig(&config, "./config/server", userSpecifiedConfigs)
 
 	log.Info("Starting...")
 

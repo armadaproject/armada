@@ -269,7 +269,7 @@ func TestSequenceEventListSizeBytes(t *testing.T) {
 			{
 				Event: &armadaevents.EventSequence_Event_CancelledJob{
 					CancelledJob: &armadaevents.CancelledJob{
-						JobIdStr: jobId,
+						JobId: jobId,
 					},
 				},
 			},
@@ -291,9 +291,9 @@ func TestLimitSequencesEventMessageCount(t *testing.T) {
 			JobSetName: "jobSetName1",
 			Groups:     []string{"group1", "group2"},
 			Events: []*armadaevents.EventSequence_Event{
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "a"}}},
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "b"}}},
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "c"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "a"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "b"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "c"}}},
 			},
 		},
 		{
@@ -302,8 +302,8 @@ func TestLimitSequencesEventMessageCount(t *testing.T) {
 			JobSetName: "jobSetName1",
 			Groups:     []string{"group1", "group2"},
 			Events: []*armadaevents.EventSequence_Event{
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "d"}}},
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "e"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "d"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "e"}}},
 			},
 		},
 	}
@@ -315,8 +315,8 @@ func TestLimitSequencesEventMessageCount(t *testing.T) {
 			JobSetName: "jobSetName1",
 			Groups:     []string{"group1", "group2"},
 			Events: []*armadaevents.EventSequence_Event{
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "a"}}},
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "b"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "a"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "b"}}},
 			},
 		},
 		{
@@ -325,7 +325,7 @@ func TestLimitSequencesEventMessageCount(t *testing.T) {
 			JobSetName: "jobSetName1",
 			Groups:     []string{"group1", "group2"},
 			Events: []*armadaevents.EventSequence_Event{
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "c"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "c"}}},
 			},
 		},
 		{
@@ -334,8 +334,8 @@ func TestLimitSequencesEventMessageCount(t *testing.T) {
 			JobSetName: "jobSetName1",
 			Groups:     []string{"group1", "group2"},
 			Events: []*armadaevents.EventSequence_Event{
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "d"}}},
-				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobIdStr: "e"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "d"}}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{SubmitJob: &armadaevents.SubmitJob{JobId: "e"}}},
 			},
 		},
 	}

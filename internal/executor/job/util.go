@@ -20,8 +20,8 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 	}
 
 	runMeta := &RunMeta{
-		JobId:  jobRunLease.Job.JobIdStr,
-		RunId:  jobRunLease.JobRunIdStr,
+		JobId:  jobRunLease.Job.JobId,
+		RunId:  jobRunLease.JobRunId,
 		JobSet: jobRunLease.Jobset,
 		Queue:  jobRunLease.Queue,
 	}

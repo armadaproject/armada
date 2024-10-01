@@ -81,7 +81,7 @@ func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequen
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobIdStr: jobId,
+					JobId: jobId,
 				},
 			},
 		}
@@ -96,7 +96,7 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobIdStr: jobId,
+					JobId: jobId,
 				},
 			},
 		}
@@ -122,7 +122,7 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobIdStr: jobId,
+					JobId:    jobId,
 					Priority: uint32(newPriority),
 				},
 			},
@@ -184,7 +184,7 @@ func JobSubmitRequestItem(i int) *api.JobSubmitRequestItem {
 func SubmitJob(i int) *armadaevents.SubmitJob {
 	jobId := TestUlid(i)
 	return &armadaevents.SubmitJob{
-		JobIdStr:        jobId,
+		JobId:           jobId,
 		Priority:        DefaultPriorityInt,
 		ObjectMeta:      &armadaevents.ObjectMeta{Namespace: DefaultNamespace},
 		Objects:         []*armadaevents.KubernetesObject{},

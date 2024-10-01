@@ -123,7 +123,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancelStr: runsToCancel,
+					JobRunIdsToCancel: runsToCancel,
 				},
 			},
 		}); err != nil {
@@ -170,12 +170,12 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
-					JobRunIdStr: lease.RunID,
-					Queue:       lease.Queue,
-					Jobset:      lease.JobSet,
-					User:        lease.UserID,
-					Groups:      groups,
-					Job:         submitMsg,
+					JobRunId: lease.RunID,
+					Queue:    lease.Queue,
+					Jobset:   lease.JobSet,
+					User:     lease.UserID,
+					Groups:   groups,
+					Job:      submitMsg,
 				},
 			},
 		})
@@ -260,12 +260,12 @@ func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
 
 	priority, known := srv.priorityClasses[priorityClassName]
 	if priorityClassName == "" {
-		log.Errorf("priority class name not set on job %s", job.JobIdStr)
+		log.Errorf("priority class name not set on job %s", job.JobId)
 		return false
 	}
 
 	if !known {
-		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobIdStr)
+		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobId)
 		return false
 	}
 
@@ -381,7 +381,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Pool:              req.Pool,
 		Nodes:             nodes,
 		LastUpdateTime:    now,
-		UnassignedJobRuns: req.UnassignedJobRunIdsStr,
+		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }
 
@@ -393,7 +393,7 @@ func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]string, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	for _, runId := range req.UnassignedJobRunIdsStr {
+	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, runId)
 	}
 	return runIds, nil
