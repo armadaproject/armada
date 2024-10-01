@@ -74,7 +74,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Resource list factory
 	// ////////////////////////////////////////////////////////////////////////
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(config.Scheduling.SupportedResourceTypes)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}

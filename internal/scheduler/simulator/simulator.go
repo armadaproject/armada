@@ -100,7 +100,7 @@ type StateTransition struct {
 func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig, enableFastForward bool, hardTerminationMinutes int, schedulerCyclePeriodSeconds int) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(schedulingConfig.SupportedResourceTypes)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(schedulingConfig.SupportedResourceTypes)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
@@ -256,6 +256,10 @@ func (s *Simulator) setupClusters() error {
 	for _, pool := range s.ClusterSpec.Pools {
 		totalResourcesForPool := schedulerobjects.ResourceList{}
 		for executorGroupIndex, executorGroup := range pool.ClusterGroups {
+			nodeFactory := internaltypes.NewNodeFactory(s.schedulingConfig.IndexedTaints,
+				s.schedulingConfig.IndexedNodeLabels,
+				s.resourceListFactory)
+
 			nodeDb, err := nodedb.NewNodeDb(
 				s.schedulingConfig.PriorityClasses,
 				s.schedulingConfig.IndexedResources,
@@ -285,8 +289,14 @@ func (s *Simulator) setupClusters() error {
 								nodeTemplate.TotalResources,
 							),
 						}
+
+						dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
+						if err != nil {
+							return err
+						}
+
 						txn := nodeDb.Txn(true)
-						if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+						if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
 							txn.Abort()
 							return err
 						}

@@ -46,8 +46,10 @@ func TestEvictOversubscribed(t *testing.T) {
 	node := testfixtures.Test32CpuNode(priorities)
 	nodeDb, err := NewNodeDb(config, stringInterner)
 	require.NoError(t, err)
+	dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+	require.NoError(t, err)
 	nodeDbTxn := nodeDb.Txn(true)
-	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
+	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, dbNode)
 	require.NoError(t, err)
 
 	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources)
@@ -1726,7 +1728,9 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			require.NoError(t, err)
 			nodeDbTxn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node)
+				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+				require.NoError(t, err)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, dbNode)
 				require.NoError(t, err)
 			}
 			nodeDbTxn.Commit()
@@ -2156,7 +2160,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+				require.NoError(b, err)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 				require.NoError(b, err)
 			}
 			txn.Commit()
@@ -2240,7 +2246,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 			txn = nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], node)
+				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+				require.NoError(b, err)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], dbNode)
 				require.NoError(b, err)
 			}
 			txn.Commit()

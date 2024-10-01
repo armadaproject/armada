@@ -637,7 +637,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
-				err = algo.populateNodeDb(nodeDb, jobs, nodes)
+				err = algo.populateNodeDb(nodeDb, testfixtures.TestNodeFactory, jobs, nodes)
 				require.NoError(b, err)
 			}
 		})
