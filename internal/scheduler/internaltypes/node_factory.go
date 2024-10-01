@@ -2,7 +2,6 @@ package internaltypes
 
 import (
 	"github.com/armadaproject/armada/internal/common/util"
-
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

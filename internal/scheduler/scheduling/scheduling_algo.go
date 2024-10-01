@@ -429,7 +429,6 @@ func (l *FairSchedulingAlgo) constructNodeDb(jobs []*jobdb.Job, nodes []*schedul
 		l.schedulingConfig.WellKnownNodeTypes,
 		l.resourceListFactory,
 	)
-
 	if err != nil {
 		return nil, err
 	}
