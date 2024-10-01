@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
@@ -11,13 +12,15 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>21</maven.compiler.source>
-    <maven.compiler.target>21</maven.compiler.target>
-    <maven.compiler.release>21</maven.compiler.release>
-    <io.grpc.version>1.68.0</io.grpc.version>
-    <com.google.protobuf.version>3.25.5</com.google.protobuf.version>
-    <kr.motd.maven.version>1.7.0</kr.motd.maven.version>
-    <javax.annotation.version>1.3.2</javax.annotation.version>
+    <maven-compiler-plugin.source>21</maven-compiler-plugin.source>
+    <maven-compiler-plugin.target>21</maven-compiler-plugin.target>
+    <maven-compiler-plugin.release>21</maven-compiler-plugin.release>
+    <io.grpc.version>1.66.0</io.grpc.version>
+    <protobuf-java.version>3.25.3</protobuf-java.version>
+    <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
+    <javax.annotation-api.version>1.3.2</javax.annotation-api.version>
+    <maven-checkstyle-plugin.version>3.5.0</maven-checkstyle-plugin.version>
+    <checkstyle.version>10.18.2</checkstyle.version>
   </properties>
 
   <build>
@@ -26,7 +29,7 @@
       <plugin>
         <groupId>kr.motd.maven</groupId>
         <artifactId>os-maven-plugin</artifactId>
-        <version>${kr.motd.maven.version}</version>
+        <version>${os-maven-plugin.version}</version>
         <executions>
           <execution>
             <goals>
@@ -38,73 +41,73 @@
 
       <!-- clone proto files from github -->
       <!-- TODO enable this and copy proto files to src/main automatically -->
-<!--      <plugin>-->
-<!--        <groupId>org.codehaus.mojo</groupId>-->
-<!--        <artifactId>exec-maven-plugin</artifactId>-->
-<!--        <version>3.0.0</version>-->
-<!--        <executions>-->
-<!--          <execution>-->
-<!--            <id>clone-armada-repo</id>-->
-<!--            <phase>generate-sources</phase>-->
-<!--            <goals>-->
-<!--              <goal>exec</goal>-->
-<!--            </goals>-->
-<!--            <configuration>-->
-<!--              <executable>git</executable>-->
-<!--              <arguments>-->
-<!--                <argument>clone</argument>-->
-<!--                <argument>https://github.com/armadaproject/armada.git</argument>-->
-<!--                <argument>${project.build.directory}/armada</argument>-->
-<!--              </arguments>-->
-<!--            </configuration>-->
-<!--          </execution>-->
-<!--          <execution>-->
-<!--            <id>clone-api-repo</id>-->
-<!--            <phase>generate-sources</phase>-->
-<!--            <goals>-->
-<!--              <goal>exec</goal>-->
-<!--            </goals>-->
-<!--            <configuration>-->
-<!--              <executable>git</executable>-->
-<!--              <arguments>-->
-<!--                <argument>clone</argument>-->
-<!--                <argument>https://github.com/kubernetes/api.git</argument>-->
-<!--                <argument>${project.build.directory}/k8s.io/api</argument>-->
-<!--              </arguments>-->
-<!--            </configuration>-->
-<!--          </execution>-->
-<!--          <execution>-->
-<!--            <id>clone-apimachinery-repo</id>-->
-<!--            <phase>generate-sources</phase>-->
-<!--            <goals>-->
-<!--              <goal>exec</goal>-->
-<!--            </goals>-->
-<!--            <configuration>-->
-<!--              <executable>git</executable>-->
-<!--              <arguments>-->
-<!--                <argument>clone</argument>-->
-<!--                <argument>https://github.com/kubernetes/apimachinery.git</argument>-->
-<!--                <argument>${project.build.directory}/k8s.io/apimachinery</argument>-->
-<!--              </arguments>-->
-<!--            </configuration>-->
-<!--          </execution>-->
-<!--          <execution>-->
-<!--            <id>clone-protobuf-repo</id>-->
-<!--            <phase>generate-sources</phase>-->
-<!--            <goals>-->
-<!--              <goal>exec</goal>-->
-<!--            </goals>-->
-<!--            <configuration>-->
-<!--              <executable>git</executable>-->
-<!--              <arguments>-->
-<!--                <argument>clone</argument>-->
-<!--                <argument>https://github.com/gogo/protobuf.git</argument>-->
-<!--                <argument>${project.build.directory}/github.com/gogo/protobuf</argument>-->
-<!--              </arguments>-->
-<!--            </configuration>-->
-<!--          </execution>-->
-<!--        </executions>-->
-<!--      </plugin>-->
+      <!--      <plugin>-->
+      <!--        <groupId>org.codehaus.mojo</groupId>-->
+      <!--        <artifactId>exec-maven-plugin</artifactId>-->
+      <!--        <version>3.0.0</version>-->
+      <!--        <executions>-->
+      <!--          <execution>-->
+      <!--            <id>clone-armada-repo</id>-->
+      <!--            <phase>generate-sources</phase>-->
+      <!--            <goals>-->
+      <!--              <goal>exec</goal>-->
+      <!--            </goals>-->
+      <!--            <configuration>-->
+      <!--              <executable>git</executable>-->
+      <!--              <arguments>-->
+      <!--                <argument>clone</argument>-->
+      <!--                <argument>https://github.com/armadaproject/armada.git</argument>-->
+      <!--                <argument>${project.build.directory}/armada</argument>-->
+      <!--              </arguments>-->
+      <!--            </configuration>-->
+      <!--          </execution>-->
+      <!--          <execution>-->
+      <!--            <id>clone-api-repo</id>-->
+      <!--            <phase>generate-sources</phase>-->
+      <!--            <goals>-->
+      <!--              <goal>exec</goal>-->
+      <!--            </goals>-->
+      <!--            <configuration>-->
+      <!--              <executable>git</executable>-->
+      <!--              <arguments>-->
+      <!--                <argument>clone</argument>-->
+      <!--                <argument>https://github.com/kubernetes/api.git</argument>-->
+      <!--                <argument>${project.build.directory}/k8s.io/api</argument>-->
+      <!--              </arguments>-->
+      <!--            </configuration>-->
+      <!--          </execution>-->
+      <!--          <execution>-->
+      <!--            <id>clone-apimachinery-repo</id>-->
+      <!--            <phase>generate-sources</phase>-->
+      <!--            <goals>-->
+      <!--              <goal>exec</goal>-->
+      <!--            </goals>-->
+      <!--            <configuration>-->
+      <!--              <executable>git</executable>-->
+      <!--              <arguments>-->
+      <!--                <argument>clone</argument>-->
+      <!--                <argument>https://github.com/kubernetes/apimachinery.git</argument>-->
+      <!--                <argument>${project.build.directory}/k8s.io/apimachinery</argument>-->
+      <!--              </arguments>-->
+      <!--            </configuration>-->
+      <!--          </execution>-->
+      <!--          <execution>-->
+      <!--            <id>clone-protobuf-repo</id>-->
+      <!--            <phase>generate-sources</phase>-->
+      <!--            <goals>-->
+      <!--              <goal>exec</goal>-->
+      <!--            </goals>-->
+      <!--            <configuration>-->
+      <!--              <executable>git</executable>-->
+      <!--              <arguments>-->
+      <!--                <argument>clone</argument>-->
+      <!--                <argument>https://github.com/gogo/protobuf.git</argument>-->
+      <!--                <argument>${project.build.directory}/github.com/gogo/protobuf</argument>-->
+      <!--              </arguments>-->
+      <!--            </configuration>-->
+      <!--          </execution>-->
+      <!--        </executions>-->
+      <!--      </plugin>-->
 
       <!-- compile java -->
       <plugin>
@@ -112,9 +115,9 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.11.0</version>
         <configuration>
-          <source>${maven.compiler.source}</source>
-          <target>${maven.compiler.target}</target>
-          <release>${maven.compiler.release}</release>
+          <source>${maven-compiler-plugin.source}</source>
+          <target>${maven-compiler-plugin.target}</target>
+          <release>${maven-compiler-plugin.release}</release>
         </configuration>
       </plugin>
 
@@ -124,15 +127,50 @@
         <artifactId>protobuf-maven-plugin</artifactId>
         <version>0.6.1</version>
         <configuration>
-          <protocArtifact>com.google.protobuf:protoc:${com.google.protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+          <protocArtifact>
+            com.google.protobuf:protoc:${protobuf-java.version}:exe:${os.detected.classifier}
+          </protocArtifact>
           <pluginId>grpc-java</pluginId>
-          <pluginArtifact>io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+          <pluginArtifact>
+            io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}
+          </pluginArtifact>
         </configuration>
         <executions>
           <execution>
             <goals>
               <goal>compile</goal>
               <goal>compile-custom</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>${maven-checkstyle-plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>${checkstyle.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>dev-support/google_checks.xml</configLocation>
+          <suppressionsLocation>dev-support/checkstyle-suppressions.xml</suppressionsLocation>
+          <consoleOutput>true</consoleOutput>
+          <failsOnError>true</failsOnError>
+          <failOnViolation>true</failOnViolation>
+          <violationSeverity>warning</violationSeverity>
+          <linkXRef>false</linkXRef>
+        </configuration>
+        <executions>
+          <execution>
+            <id>validate</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>check</goal>
             </goals>
           </execution>
         </executions>
@@ -159,7 +197,7 @@
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
-      <version>${com.google.protobuf.version}</version>
+      <version>${protobuf-java.version}</version>
     </dependency>
 
     <!-- needed for javax.annotation.Generated -->
