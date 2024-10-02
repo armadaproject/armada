@@ -499,13 +499,9 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.Id()] = i
 			}
-			legacySchedulerJobs := make([]*jobdb.Job, len(tc.Jobs))
-			for i, job := range tc.Jobs {
-				legacySchedulerJobs[i] = job
-			}
 			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(
-				context.JobSchedulingContextsFromJobs(legacySchedulerJobs),
+				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
@@ -542,7 +538,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
