@@ -112,7 +112,7 @@ func TestGetScaleFailsOnUnknown(t *testing.T) {
 }
 
 func testFactory() *ResourceListFactory {
-	factory, _ := MakeResourceListFactory(
+	factory, _ := NewResourceListFactory(
 		[]configuration.ResourceType{
 			{Name: "memory", Resolution: k8sResource.MustParse("1")},
 			{Name: "ephemeral-storage", Resolution: k8sResource.MustParse("1")},

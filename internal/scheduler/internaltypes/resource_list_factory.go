@@ -18,7 +18,7 @@ type ResourceListFactory struct {
 	types       []ResourceType
 }
 
-func MakeResourceListFactory(
+func NewResourceListFactory(
 	supportedResourceTypes []configuration.ResourceType,
 	floatingResourceTypes []configuration.FloatingResourceConfig,
 ) (*ResourceListFactory, error) {
