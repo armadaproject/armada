@@ -139,6 +139,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		inMemoryJobRepo,
 		sch.jobRepo,
 		false,
+		false,
 	)
 	if err != nil {
 		return nil, err
@@ -192,6 +193,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			// Only evicted jobs should be scheduled in this round.
 			nil,
 			true, // Since no new jobs are considered in this round, the scheduling key check brings no benefit.
+			true, // when choosing which queue to consider use the priority class of the next job
 		)
 		if err != nil {
 			return nil, err
@@ -464,7 +466,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 		)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
-	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue)
+	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue, false)
 	if err != nil {
 		return err
 	}
@@ -494,7 +496,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository, skipUnsuccessfulSchedulingKeyCheck bool) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository, skipUnsuccessfulSchedulingKeyCheck bool, considerPriorityCLassPriority bool) (*SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
@@ -516,6 +518,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		sch.nodeDb,
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
+		considerPriorityCLassPriority,
 	)
 	if err != nil {
 		return nil, err

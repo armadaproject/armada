@@ -65,13 +65,14 @@ var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	BasetimeProto       = protoutil.ToTimestamp(BaseTime)
 	TestPriorityClasses = map[string]types.PriorityClass{
-		PriorityClass0:               {Priority: 0, Preemptible: true},
-		PriorityClass1:               {Priority: 1, Preemptible: true},
-		PriorityClass2:               {Priority: 2, Preemptible: true},
-		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
-		PriorityClass3:               {Priority: 3, Preemptible: false},
-		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
-		"armada-preemptible":         {Priority: 30000, Preemptible: true},
+		PriorityClass0:                  {Priority: 0, Preemptible: true},
+		PriorityClass1:                  {Priority: 1, Preemptible: true},
+		PriorityClass2:                  {Priority: 2, Preemptible: true},
+		PriorityClass2NonPreemptible:    {Priority: 2, Preemptible: false},
+		PriorityClass3:                  {Priority: 3, Preemptible: false},
+		"armada-preemptible-away":       {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible-away-lower": {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible":            {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	TestPriorities           = []int32{0, 1, 2, 3}
