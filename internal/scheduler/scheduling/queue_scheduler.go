@@ -3,6 +3,7 @@ package scheduling
 import (
 	"container/heap"
 	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -33,6 +34,7 @@ func NewQueueScheduler(
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
 	skipUnsuccessfulSchedulingKeyCheck bool,
+	considerPriorityClassPriority bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -47,7 +49,7 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.GetMaxQueueLookBack(), true)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
 	if err != nil {
 		return nil, err
 	}
@@ -344,13 +346,17 @@ func NewCandidateGangIterator(
 	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
+	considerPriority bool,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
 		buffer:                  schedulerobjects.NewResourceListWithDefaultSize(),
-		pq:                      make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
+		pq: QueueCandidateGangIteratorPQ{
+			considerPriority: considerPriority,
+			items:            make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
+		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
@@ -371,7 +377,7 @@ func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
 // Clear removes the first item in the iterator.
 // If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
 func (it *CandidateGangIterator) Clear() error {
-	if len(it.pq) == 0 {
+	if it.pq.Len() == 0 {
 		return nil
 	}
 	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
@@ -386,12 +392,12 @@ func (it *CandidateGangIterator) Clear() error {
 	// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
 	// Hence, it's safe to drop a queue if the first job is non-evicted.
 	if it.onlyYieldEvicted {
-		for len(it.pq) > 0 && !it.pq[0].gctx.AllJobsEvicted {
+		for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
 			heap.Pop(&it.pq)
 		}
 	} else {
 		// Same check as above on a per-queue basis.
-		for len(it.pq) > 0 && it.onlyYieldEvictedByQueue[it.pq[0].gctx.Queue] && !it.pq[0].gctx.AllJobsEvicted {
+		for it.pq.Len() > 0 && it.onlyYieldEvictedByQueue[it.pq.items[0].gctx.Queue] && !it.pq.items[0].gctx.AllJobsEvicted {
 			heap.Pop(&it.pq)
 		}
 	}
@@ -399,11 +405,11 @@ func (it *CandidateGangIterator) Clear() error {
 }
 
 func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
-	if len(it.pq) == 0 {
+	if it.pq.Len() == 0 {
 		// No queued jobs left.
 		return nil, 0.0, nil
 	}
-	first := it.pq[0]
+	first := it.pq.items[0]
 	return first.gctx, first.queueCost, nil
 }
 
@@ -450,6 +456,28 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 		return err
 	}
 	item.queueCost = cost
+
+	// The PQItem needs to have a priority class priority for the whole gang.  This may not be uniform as different
+	// Gang members may have been scheduled at different priorities due to home/away preemption. We therefore take the
+	// lowest priority across the whole gang
+	item.priorityClassPriority = math.MaxInt32
+	for _, jobCtx := range gctx.JobSchedulingContexts {
+		newPriority := jobCtx.Job.PriorityClass().Priority
+		if jobCtx.PodSchedulingContext != nil { // Jobs was already scheduled in this cycle, us the priority from that
+			newPriority = jobCtx.PodSchedulingContext.ScheduledAtPriority
+		} else {
+			priority, ok := jobCtx.Job.ScheduledAtPriority() // Job was scheduled in a previous cycle
+			if !ok {
+				priority = jobCtx.Job.PriorityClass().Priority // Job has never been scheduled
+			}
+			newPriority = priority
+		}
+
+		if newPriority < item.priorityClassPriority {
+			item.priorityClassPriority = newPriority
+		}
+	}
+
 	return nil
 }
 
@@ -465,8 +493,11 @@ func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSc
 	return it.fairnessCostProvider.WeightedCostFromAllocation(it.buffer, queue.GetWeight()), nil
 }
 
-// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
-type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
+// QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
+type QueueCandidateGangIteratorPQ struct {
+	considerPriority bool
+	items            []*QueueCandidateGangIteratorItem
+}
 
 type QueueCandidateGangIteratorItem struct {
 	// Each item corresponds to a queue.
@@ -478,41 +509,49 @@ type QueueCandidateGangIteratorItem struct {
 	gctx *schedulercontext.GangSchedulingContext
 	// Cost associated with the queue if the topmost gang in the queue were to be scheduled.
 	// Used to order queues fairly.
-	queueCost float64
+	queueCost             float64
+	priorityClassPriority int32
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
 	index int
 }
 
-func (pq QueueCandidateGangIteratorPQ) Len() int { return len(pq) }
+func (pq *QueueCandidateGangIteratorPQ) Len() int { return len(pq.items) }
 
-func (pq QueueCandidateGangIteratorPQ) Less(i, j int) bool {
-	// Tie-break by queue name.
-	if pq[i].queueCost == pq[j].queueCost {
-		return pq[i].queue < pq[j].queue
+func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
+	// Consider priority class priority first
+	if pq.considerPriority && pq.items[i].priorityClassPriority != pq.items[j].priorityClassPriority {
+		return pq.items[i].priorityClassPriority > pq.items[j].priorityClassPriority
 	}
-	return pq[i].queueCost < pq[j].queueCost
+
+	// Then queue cost
+	if pq.items[i].queueCost != pq.items[j].queueCost {
+		return pq.items[i].queueCost < pq.items[j].queueCost
+	}
+
+	// Tie-break by queue name.
+	return pq.items[i].queue < pq.items[j].queue
 }
 
-func (pq QueueCandidateGangIteratorPQ) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
+func (pq *QueueCandidateGangIteratorPQ) Swap(i, j int) {
+	pq.items[i], pq.items[j] = pq.items[j], pq.items[i]
+	pq.items[i].index = i
+	pq.items[j].index = j
 }
 
 func (pq *QueueCandidateGangIteratorPQ) Push(x any) {
-	n := len(*pq)
+	n := pq.Len()
 	item := x.(*QueueCandidateGangIteratorItem)
 	item.index = n
-	*pq = append(*pq, item)
+	pq.items = append(pq.items, item)
 }
 
 func (pq *QueueCandidateGangIteratorPQ) Pop() any {
-	old := *pq
+	old := pq.items
 	n := len(old)
 	item := old[n-1]
 	old[n-1] = nil  // avoid memory leak
 	item.index = -1 // for safety
-	*pq = old[0 : n-1]
+	pq.items = old[0 : n-1]
 	return item
 }
