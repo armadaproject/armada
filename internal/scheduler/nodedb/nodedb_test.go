@@ -41,7 +41,9 @@ func TestTotalResources(t *testing.T) {
 	}
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(t, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(t, err)
 	}
 	txn.Commit()
@@ -55,7 +57,9 @@ func TestTotalResources(t *testing.T) {
 	}
 	txn = nodeDb.Txn(true)
 	for _, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(t, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(t, err)
 	}
 	txn.Commit()
@@ -281,7 +285,9 @@ func TestEviction(t *testing.T) {
 				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
 			}
 			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
+			dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+			require.NoError(t, err)
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, dbNode)
 			txn.Commit()
 			require.NoError(t, err)
 			entry, err := nodeDb.GetNode(node.Id)
@@ -568,7 +574,9 @@ func TestAwayNodeTypes(t *testing.T) {
 			Effect: v1.TaintEffectNoSchedule,
 		},
 	)
-	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
+	dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+	require.NoError(t, err)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, dbNode))
 
 	jobId := util.ULID()
 	job := testfixtures.TestJob(
@@ -640,7 +648,7 @@ func TestMakeIndexedResourceResolution(t *testing.T) {
 		},
 	}
 
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -664,7 +672,7 @@ func TestMakeIndexedResourceResolution_ErrorsOnUnsupportedResource(t *testing.T)
 		},
 	}
 
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -681,7 +689,7 @@ func TestMakeIndexedResourceResolution_ErrorsOnInvalidResolution(t *testing.T) {
 		},
 	}
 
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -726,7 +734,9 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	txn := nodeDb.Txn(true)
 	entries := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(b, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(b, err)
 		entry, err := nodeDb.GetNode(node.Id)
 		require.NoError(b, err)
@@ -764,7 +774,9 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(b, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(b, err)
 	}
 	txn.Commit()
@@ -891,7 +903,11 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	}
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		if err != nil {
+			return nil, err
+		}
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
 			return nil, err
 		}
 	}

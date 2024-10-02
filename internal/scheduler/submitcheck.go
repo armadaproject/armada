@@ -244,6 +244,10 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContex
 }
 
 func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	nodeFactory := internaltypes.NewNodeFactory(srv.schedulingConfig.IndexedTaints,
+		srv.schedulingConfig.IndexedNodeLabels,
+		srv.resourceListFactory)
+
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
 		srv.schedulingConfig.IndexedResources,
@@ -255,17 +259,24 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 	if err != nil {
 		return nil, err
 	}
+
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+		dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
+		if err != nil {
+			return nil, err
+		}
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
 			return nil, err
 		}
 	}
 	txn.Commit()
+
 	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err
 	}
+
 	return nodeDb, nil
 }

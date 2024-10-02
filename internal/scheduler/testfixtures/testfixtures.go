@@ -92,7 +92,8 @@ var (
 			Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 		},
 	}
-	jobTimestamp atomic.Int64
+	TestNodeFactory = internaltypes.NewNodeFactory(TestIndexedTaints, TestIndexedNodeLabels, TestResourceListFactory)
+	jobTimestamp    atomic.Int64
 	// SchedulingKeyGenerator to use in testing.
 	// Has to be consistent since creating one involves generating a random key.
 	// If this key isn't consistent, scheduling keys generated are not either.
@@ -1008,7 +1009,7 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 }
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes())
 	return result
 }
 
