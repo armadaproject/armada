@@ -7,6 +7,13 @@ import (
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 )
 
+type ResourceType int
+
+const (
+	Kubernetes ResourceType = iota
+	Floating                = iota
+)
+
 type ResourceList struct {
 	resources []int64              // immutable, do not change this, return a new struct instead!
 	factory   *ResourceListFactory // immutable, do not change this!

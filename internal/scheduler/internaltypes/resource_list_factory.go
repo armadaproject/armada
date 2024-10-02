@@ -15,27 +15,46 @@ type ResourceListFactory struct {
 	nameToIndex map[string]int
 	indexToName []string
 	scales      []k8sResource.Scale
+	types       []ResourceType
 }
 
-func MakeResourceListFactory(supportedResourceTypes []configuration.ResourceType) (*ResourceListFactory, error) {
+func MakeResourceListFactory(
+	supportedResourceTypes []configuration.ResourceType,
+	floatingResourceTypes []configuration.FloatingResourceConfig,
+) (*ResourceListFactory, error) {
 	if len(supportedResourceTypes) == 0 {
-		return nil, errors.New("no resource types configured")
+		return nil, errors.New("no resource types configured, please fill in the supportedResourceTypes section of the config")
 	}
-	indexToName := make([]string, len(supportedResourceTypes))
-	nameToIndex := make(map[string]int, len(supportedResourceTypes))
-	scales := make([]k8sResource.Scale, len(supportedResourceTypes))
+
+	indexToName := []string{}
+	nameToIndex := map[string]int{}
+	scales := []k8sResource.Scale{}
+	types := []ResourceType{}
+
+	add := func(i int, name string, resolution k8sResource.Quantity, t ResourceType) {
+		nameToIndex[name] = i
+		indexToName = append(indexToName, name)
+		scales = append(scales, resolutionToScale(resolution))
+		types = append(types, t)
+	}
+
 	for i, t := range supportedResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q", t.Name)
 		}
-		nameToIndex[t.Name] = i
-		indexToName[i] = t.Name
-		scales[i] = resolutionToScale(t.Resolution)
+		add(i, t.Name, t.Resolution, Kubernetes)
+	}
+	for i, t := range floatingResourceTypes {
+		if _, exists := nameToIndex[t.Name]; exists {
+			return nil, fmt.Errorf("duplicate resource type name %q (note names must be unique across supportedResourceTypes and floatingResources)", t.Name)
+		}
+		add(i, t.Name, t.Resolution, Floating)
 	}
 	return &ResourceListFactory{
 		indexToName: indexToName,
 		nameToIndex: nameToIndex,
 		scales:      scales,
+		types:       types,
 	}, nil
 }
 
