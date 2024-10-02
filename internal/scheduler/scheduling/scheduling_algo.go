@@ -275,7 +275,9 @@ func (l *FairSchedulingAlgo) getCapacityForPool(pool string, executors []*schedu
 	totalCapacity := schedulerobjects.ResourceList{}
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			totalCapacity.Add(node.TotalResources)
+			if node.Pool == pool {
+				totalCapacity.Add(node.TotalResources)
+			}
 		}
 	}
 	totalCapacity.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
