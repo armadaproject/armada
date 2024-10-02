@@ -42,23 +42,11 @@ func (nodeDb *NodeDb) AddNodeToDb(node *internaltypes.Node) {
 	nodeDb.nodeTypes[node.GetNodeTypeId()] = nodeType
 }
 
-func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, node *schedulerobjects.Node) error {
-	index := atomic.AddUint64(&nodeDb.numNodes, 1)
-
-	entry, err := internaltypes.FromSchedulerObjectsNode(node,
-		index,
-		nodeDb.indexedTaints,
-		nodeDb.indexedNodeLabels,
-		nodeDb.resourceListFactory)
-	if err != nil {
-		return err
-	}
+func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, entry *internaltypes.Node) error {
+	_ = atomic.AddUint64(&nodeDb.numNodes, 1)
 
 	nodeDb.AddNodeToDb(entry)
 
-	if err != nil {
-		return err
-	}
 	for _, job := range jobs {
 		priority, ok := job.ScheduledAtPriority()
 		if !ok {

@@ -17,7 +17,7 @@ type ResourceListFactory struct {
 	scales      []k8sResource.Scale
 }
 
-func MakeResourceListFactory(supportedResourceTypes []configuration.ResourceType) (*ResourceListFactory, error) {
+func NewResourceListFactory(supportedResourceTypes []configuration.ResourceType) (*ResourceListFactory, error) {
 	if len(supportedResourceTypes) == 0 {
 		return nil, errors.New("no resource types configured")
 	}
