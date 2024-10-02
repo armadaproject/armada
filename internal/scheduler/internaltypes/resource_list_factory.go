@@ -26,8 +26,8 @@ func NewResourceListFactory(
 		return nil, errors.New("no resource types configured, please fill in the supportedResourceTypes section of the config")
 	}
 
-	indexToName := []string{}
 	nameToIndex := map[string]int{}
+	indexToName := []string{}
 	scales := []k8sResource.Scale{}
 	types := []ResourceType{}
 
@@ -38,17 +38,20 @@ func NewResourceListFactory(
 		types = append(types, t)
 	}
 
-	for i, t := range supportedResourceTypes {
+	i := 0
+	for _, t := range supportedResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q", t.Name)
 		}
 		add(i, t.Name, t.Resolution, Kubernetes)
+		i++
 	}
-	for i, t := range floatingResourceTypes {
+	for _, t := range floatingResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q (note names must be unique across supportedResourceTypes and floatingResources)", t.Name)
 		}
 		add(i, t.Name, t.Resolution, Floating)
+		i++
 	}
 	return &ResourceListFactory{
 		indexToName: indexToName,

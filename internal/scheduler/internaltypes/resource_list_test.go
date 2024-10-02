@@ -69,10 +69,12 @@ func TestGetResources(t *testing.T) {
 	a := testResourceList(factory, "1", "1Gi")
 
 	expected := []Resource{
-		{Name: "memory", Value: 1024 * 1024 * 1024, Scale: k8sResource.Scale(0)},
-		{Name: "ephemeral-storage", Value: 0, Scale: k8sResource.Scale(0)},
-		{Name: "cpu", Value: 1000, Scale: k8sResource.Milli},
-		{Name: "nvidia.com/gpu", Value: 0, Scale: k8sResource.Milli},
+		{Name: "memory", Value: 1024 * 1024 * 1024, Scale: k8sResource.Scale(0), Type: Kubernetes},
+		{Name: "ephemeral-storage", Value: 0, Scale: k8sResource.Scale(0), Type: Kubernetes},
+		{Name: "cpu", Value: 1000, Scale: k8sResource.Milli, Type: Kubernetes},
+		{Name: "nvidia.com/gpu", Value: 0, Scale: k8sResource.Milli, Type: Kubernetes},
+		{Name: "external-storage-connections", Value: 0, Scale: 0, Type: Floating},
+		{Name: "external-storage-bytes", Value: 0, Scale: 0, Type: Floating},
 	}
 	assert.Equal(t, expected, a.GetResources())
 }
@@ -86,10 +88,12 @@ func TestToMap(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")
 	expected := map[string]k8sResource.Quantity{
-		"memory":            *k8sResource.NewScaledQuantity(1024*1024*1024, k8sResource.Scale(0)),
-		"ephemeral-storage": *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0)),
-		"cpu":               *k8sResource.NewScaledQuantity(1000, k8sResource.Milli),
-		"nvidia.com/gpu":    *k8sResource.NewScaledQuantity(0, k8sResource.Milli),
+		"memory":                       *k8sResource.NewScaledQuantity(1024*1024*1024, k8sResource.Scale(0)),
+		"ephemeral-storage":            *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0)),
+		"cpu":                          *k8sResource.NewScaledQuantity(1000, k8sResource.Milli),
+		"nvidia.com/gpu":               *k8sResource.NewScaledQuantity(0, k8sResource.Milli),
+		"external-storage-connections": *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0)),
+		"external-storage-bytes":       *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0)),
 	}
 	assert.Equal(t, expected, a.ToMap())
 }
@@ -182,6 +186,31 @@ func TestExceedsAvailable_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, k8sResource.Quantity{}, requiredReturned)
 }
 
+func TestOfType(t *testing.T) {
+	factory := testFactory()
+
+	rl := factory.FromJobResourceListIgnoreUnknown(map[string]k8sResource.Quantity{
+		"cpu":                          k8sResource.MustParse("2"),
+		"external-storage-connections": k8sResource.MustParse("100"),
+	})
+
+	assert.Equal(t,
+		factory.FromJobResourceListIgnoreUnknown(map[string]k8sResource.Quantity{
+			"cpu": k8sResource.MustParse("2"),
+		}),
+		rl.OfType(Kubernetes))
+
+	assert.Equal(t,
+		factory.FromJobResourceListIgnoreUnknown(map[string]k8sResource.Quantity{
+			"external-storage-connections": k8sResource.MustParse("100"),
+		}),
+		rl.OfType(Floating))
+}
+
+func TestOfType_HandlesEmptyCorrectly(t *testing.T) {
+	assert.Equal(t, ResourceList{}, ResourceList{}.OfType(Kubernetes))
+	assert.Equal(t, ResourceList{}, ResourceList{}.OfType(Floating))
+}
 func TestAdd(t *testing.T) {
 	factory := testFactory()
 

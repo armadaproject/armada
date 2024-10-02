@@ -11,10 +11,13 @@ import (
 )
 
 func TestNode(t *testing.T) {
-	resourceListFactory, err := NewResourceListFactory([]schedulerconfiguration.ResourceType{
-		{Name: "memory", Resolution: resource.MustParse("1")},
-		{Name: "cpu", Resolution: resource.MustParse("1m")},
-	})
+	resourceListFactory, err := NewResourceListFactory(
+		[]schedulerconfiguration.ResourceType{
+			{Name: "memory", Resolution: resource.MustParse("1")},
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+		},
+		[]schedulerconfiguration.FloatingResourceConfig{},
+	)
 	assert.Nil(t, err)
 
 	const id = "id"

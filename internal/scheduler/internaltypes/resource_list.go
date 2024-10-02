@@ -23,6 +23,7 @@ type Resource struct {
 	Name  string
 	Value int64
 	Scale k8sResource.Scale
+	Type  ResourceType
 }
 
 func (rl ResourceList) Equal(other ResourceList) bool {
@@ -31,6 +32,9 @@ func (rl ResourceList) Equal(other ResourceList) bool {
 	}
 	if rl.IsEmpty() || other.IsEmpty() {
 		return false
+	}
+	if rl.factory != other.factory {
+		panic("mismatched ResourceListFactory")
 	}
 	return slices.Equal(rl.resources, other.resources)
 }
@@ -82,6 +86,7 @@ func (rl ResourceList) GetResources() []Resource {
 			Name:  rl.factory.indexToName[i],
 			Value: q,
 			Scale: rl.factory.scales[i],
+			Type:  rl.factory.types[i],
 		}
 	}
 	return result
@@ -163,6 +168,19 @@ func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sReso
 		}
 	}
 	return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false
+}
+
+func (rl ResourceList) OfType(t ResourceType) ResourceList {
+	if rl.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		if rl.factory.types[i] == t {
+			result[i] = r
+		}
+	}
+	return ResourceList{factory: rl.factory, resources: result}
 }
 
 func (rl ResourceList) Add(other ResourceList) ResourceList {
