@@ -12,7 +12,7 @@ type FairShareNodeAssigner struct {
 	evictedJobs []*model.EvictedJob
 }
 
-func (a *FairShareNodeAssigner) AssignNode(jctx *context.JobSchedulingContext) (*internaltypes.Node, error) {
+func (a *FairShareNodeAssigner) AssignNode(gang *context.GangSchedulingContext) (model.AssigmentResult, error) {
 	type consideredNode struct {
 		node              *internaltypes.Node
 		availableResource internaltypes.ResourceList
@@ -43,7 +43,7 @@ func (a *FairShareNodeAssigner) AssignNode(jctx *context.JobSchedulingContext) (
 		dynamicRequirementsMet, _ := nodedb.DynamicJobRequirementsMet(node.availableResource, jctx)
 		staticRequirementsMet, _, err := nodedb.StaticJobRequirementsMet(node.node, jctx)
 		if err != nil {
-			return nil, err
+			return model.AssigmentResult{}, err
 		}
 
 		// If the job now fits, preempt all the evicted jobs on that node
@@ -51,8 +51,12 @@ func (a *FairShareNodeAssigner) AssignNode(jctx *context.JobSchedulingContext) (
 			for _, preemptedJob := range node.evictedJobs {
 				node.node = a.preepmtJob(preemptedJob, node.node)
 			}
+			return model.AssigmentResult{
+				Scheduled: true,
+				NodeId:    node.node.GetId(),
+			}, nil
 		}
 	}
 
-	return nil
+	return model.AssigmentResult{}, nil
 }

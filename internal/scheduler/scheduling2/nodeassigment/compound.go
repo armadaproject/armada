@@ -1,7 +1,6 @@
 package nodeassigment
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling2/model"
 )
@@ -10,12 +9,12 @@ type CompoundNodeAssigner struct {
 	assigners []model.NodeAssigner
 }
 
-func (a *CompoundNodeAssigner) AssignNode(jctx *context.JobSchedulingContext) (*internaltypes.Node, error) {
+func (a *CompoundNodeAssigner) AssignNode(gctx *context.GangSchedulingContext) (model.AssigmentResult, error) {
 	for _, na := range a.assigners {
-		node, err := na.AssignNode(jctx)
-		if node != nil || err != nil {
-			return node, nil
+		result, err := na.AssignNode(gctx)
+		if err != nil || result.Scheduled {
+			return result, err
 		}
 	}
-	return nil, nil
+	return model.AssigmentResult{}, nil
 }

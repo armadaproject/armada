@@ -16,7 +16,7 @@ type NodeIterator interface {
 }
 
 type NodeAssigner interface {
-	AssignNode(job *context.JobSchedulingContext) (*internaltypes.Node, error)
+	AssignNode(gang *context.GangSchedulingContext) (AssigmentResult, error)
 }
 
 type NodeDb interface {
@@ -40,4 +40,17 @@ type EvictedJob struct {
 	NodeId        string
 	PriorityClass string
 	Resources     internaltypes.ResourceList
+}
+
+type AssigmentResult struct {
+	Scheduled     bool
+	NodeId        string
+	PreemptedJobs []string
+}
+
+type JobQueue interface {
+	Next() *context.GangSchedulingContext
+	UpdateQueueCost()
+	SetOnlyYieldEvictected()
+	SetOnlyYieldEvictedForQueue(string)
 }
