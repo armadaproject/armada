@@ -466,11 +466,10 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 		if jobCtx.PodSchedulingContext != nil { // Jobs was already scheduled in this cycle, us the priority from that
 			newPriority = jobCtx.PodSchedulingContext.ScheduledAtPriority
 		} else {
-			priority, ok := jobCtx.Job.ScheduledAtPriority() // Job was scheduled in a previous cycle
-			if !ok {
-				priority = jobCtx.Job.PriorityClass().Priority // Job has never been scheduled
+			priority, ok := jobCtx.Job.ScheduledAtPriority()
+			if ok { // Job was scheduled in a previous cycle
+				newPriority = priority
 			}
-			newPriority = priority
 		}
 
 		if newPriority < item.priorityClassPriority {
