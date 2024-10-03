@@ -29,12 +29,13 @@ namespace ArmadaProject.Io.Client.Test
 
                 //watch events
                 var eventClient = new ApiEvent.EventClient(channel);
-                var watchRequest = new WatchRequest
+                var watchRequest = new JobSetRequest
                 {
                     Queue = queue,
-                    JobSetId = jobSetId
+                    Id = jobSetId,
+                    Watch = true,
                 };
-                var watchResponse = eventClient.Watch(watchRequest);
+                var watchResponse = eventClient.GetJobSetEvents(watchRequest);
                 var submittedEventReceived = false;
                 using (var cts = new CancellationTokenSource())
                 {
