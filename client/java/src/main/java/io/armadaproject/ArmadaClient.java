@@ -1,10 +1,9 @@
 package io.armadaproject;
 
 import api.Health.HealthCheckResponse;
-import api.QueueServiceGrpc;
 import api.SubmitGrpc;
-import api.SubmitOuterClass.Queue;
-import api.SubmitOuterClass.QueueGetRequest;
+import api.SubmitOuterClass.JobSubmitRequest;
+import api.SubmitOuterClass.JobSubmitResponse;
 import com.google.protobuf.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -24,27 +23,14 @@ public class ArmadaClient {
     LOG.info("checking connection to armada server...");
     SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
     HealthCheckResponse healthCheckResponse = submitBlockingStub.health(Empty.getDefaultInstance());
-    LOG.info("connection to armada server is " + healthCheckResponse.getStatus());
+    LOG.info("connection to armada server: " + healthCheckResponse.getStatus());
   }
 
-  public void createQueue(String queueName) {
-    QueueServiceGrpc.QueueServiceBlockingStub queueServiceBlockingStub =
-        QueueServiceGrpc.newBlockingStub(channel);
-    queueServiceBlockingStub.createQueue(Queue.newBuilder()
-        .setPriorityFactor(1.00d)
-        .setName(queueName).build());
-    LOG.info("queue created");
-  }
-
-  public Queue getQueue(String queueName) {
-    QueueServiceGrpc.QueueServiceBlockingStub queueServiceBlockingStub =
-        QueueServiceGrpc.newBlockingStub(channel);
-    return queueServiceBlockingStub.getQueue(
-        QueueGetRequest.newBuilder().setName(queueName).build());
-  }
-
-  public void submitJob(String queueName) {
+  public JobSubmitResponse submitJob(JobSubmitRequest jobSubmitRequest) {
     SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
+    JobSubmitResponse jobSubmitResponse = submitBlockingStub.submitJobs(jobSubmitRequest);
+    LOG.info("job submitted! response: \n" + jobSubmitResponse);
+    return jobSubmitResponse;
   }
 
 }
