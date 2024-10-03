@@ -11,7 +11,7 @@ import (
 )
 
 func TestNode(t *testing.T) {
-	resourceListFactory, err := MakeResourceListFactory([]schedulerconfiguration.ResourceType{
+	resourceListFactory, err := NewResourceListFactory([]schedulerconfiguration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
 	})

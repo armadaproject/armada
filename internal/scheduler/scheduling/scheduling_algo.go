@@ -275,7 +275,9 @@ func (l *FairSchedulingAlgo) getCapacityForPool(pool string, executors []*schedu
 	totalCapacity := schedulerobjects.ResourceList{}
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			totalCapacity.Add(node.TotalResources)
+			if node.Pool == pool {
+				totalCapacity.Add(node.TotalResources)
+			}
 		}
 	}
 	totalCapacity.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
@@ -415,6 +417,12 @@ func calculateJobSchedulingInfo(ctx *armadacontext.Context, executors []*schedul
 }
 
 func (l *FairSchedulingAlgo) constructNodeDb(jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	nodeFactory := internaltypes.NewNodeFactory(
+		l.schedulingConfig.IndexedTaints,
+		l.schedulingConfig.IndexedNodeLabels,
+		l.resourceListFactory,
+	)
+
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -426,7 +434,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(jobs []*jobdb.Job, nodes []*schedul
 	if err != nil {
 		return nil, err
 	}
-	if err := l.populateNodeDb(nodeDb, jobs, nodes); err != nil {
+	if err := l.populateNodeDb(nodeDb, nodeFactory, jobs, nodes); err != nil {
 		return nil, err
 	}
 
@@ -542,7 +550,7 @@ func (l *FairSchedulingAlgo) schedulePool(
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
-func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) error {
+func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, nodeFactory *internaltypes.NodeFactory, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	nodesById := armadaslices.GroupByFuncUnique(
@@ -566,7 +574,12 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, jobs []*jobdb
 	}
 
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], node); err != nil {
+		dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
+		if err != nil {
+			return err
+		}
+
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], dbNode); err != nil {
 			return err
 		}
 	}
