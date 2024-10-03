@@ -74,7 +74,10 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Resource list factory
 	// ////////////////////////////////////////////////////////////////////////
-	resourceListFactory, err := internaltypes.NewResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(
+		config.Scheduling.SupportedResourceTypes,
+		config.Scheduling.ExperimentalFloatingResources,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
@@ -249,7 +252,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
-		floatingResourceTypes,
 	)
 
 	schedulerMetrics, err := metrics.New(

@@ -110,7 +110,7 @@ func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources m
 		if ok {
 			result[index] = QuantityToInt64RoundUp(v, factory.scales[index])
 		} else {
-			return ResourceList{}, fmt.Errorf("resource type %q is not supported (if you want to use it add to scheduling.supportedResourceTypes in the armada scheduler config)", string(k))
+			return ResourceList{}, fmt.Errorf("resource type %q is not supported (add to supportedResourceTypes or floatingResources in the scheduler config if you want to use it)", string(k))
 		}
 	}
 	return ResourceList{resources: result, factory: factory}, nil

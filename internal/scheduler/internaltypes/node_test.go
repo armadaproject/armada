@@ -16,7 +16,7 @@ func TestNode(t *testing.T) {
 			{Name: "memory", Resolution: resource.MustParse("1")},
 			{Name: "cpu", Resolution: resource.MustParse("1m")},
 		},
-		[]schedulerconfiguration.FloatingResourceConfig{},
+		nil,
 	)
 	assert.Nil(t, err)
 

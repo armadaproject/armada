@@ -6,32 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-func TestHasFloatingResources(t *testing.T) {
-	sut := makeSut(t)
-	assert.False(t, sut.HasFloatingResources(map[string]resource.Quantity{}))
-	assert.False(t, sut.HasFloatingResources(map[string]resource.Quantity{"some-other-resource": resource.MustParse("10")}))
-	assert.False(t, sut.HasFloatingResources(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("0")}))
-	assert.True(t, sut.HasFloatingResources(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("10")}))
-	assert.True(t, sut.HasFloatingResources(map[string]resource.Quantity{"some-other-resource": resource.MustParse("10"), "floating-resource-1": resource.MustParse("10")}))
-}
-
 func TestAllPools(t *testing.T) {
 	sut := makeSut(t)
 	assert.Equal(t, []string{"cpu", "gpu"}, sut.AllPools())
-}
-
-func TestRemoveFloatingResources(t *testing.T) {
-	sut := makeSut(t)
-	input := map[string]resource.Quantity{"floating-resource-1": resource.MustParse("200"), "some-other-resource": resource.MustParse("300")}
-	inputBefore := maps.DeepCopy(input)
-	result := sut.RemoveFloatingResources(input)
-	assert.Equal(t, map[string]resource.Quantity{"some-other-resource": resource.MustParse("300")}, result)
-	assert.Equal(t, inputBefore, input)
 }
 
 func TestGetTotalAvailableForPool(t *testing.T) {

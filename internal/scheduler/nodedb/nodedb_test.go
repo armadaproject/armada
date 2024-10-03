@@ -126,7 +126,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
-	request := job.EfficientResourceRequirements()
+	request := job.KubernetesResourceRequirements()
 	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(job.ResourceRequirements().Requests))
 	assert.Nil(t, err)
 
@@ -467,7 +467,7 @@ func TestScheduleIndividually(t *testing.T) {
 				node, err := nodeDb.GetNode(nodeId)
 				require.NoError(t, err)
 				require.NotNil(t, node)
-				expected := job.EfficientResourceRequirements()
+				expected := job.KubernetesResourceRequirements()
 				actual, ok := node.AllocatedByJobId[job.Id()]
 				require.True(t, ok)
 				assert.True(t, actual.Equal(expected))
@@ -648,7 +648,7 @@ func TestMakeIndexedResourceResolution(t *testing.T) {
 		},
 	}
 
-	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -672,7 +672,7 @@ func TestMakeIndexedResourceResolution_ErrorsOnUnsupportedResource(t *testing.T)
 		},
 	}
 
-	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -689,7 +689,7 @@ func TestMakeIndexedResourceResolution_ErrorsOnInvalidResolution(t *testing.T) {
 		},
 	}
 
-	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
