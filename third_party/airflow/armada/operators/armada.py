@@ -38,6 +38,7 @@ from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.typings import JobState
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
+import tenacity
 
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
@@ -159,14 +160,16 @@ acknowledged by Armada.
         # So all jobs in the dag will be in the same jobset.
         self.job_set_id = f"{self.job_set_prefix}{context['run_id']}"
 
-        self._annotate_job_request(context, self.job_request)
-
         if self.dry_run:
             self.log.info(
                 f"Running in dry_run mode. job_set_id: {self.job_set_id} \n"
                 f"{self.job_request}"
             )
             return
+
+        if self.deferrable:
+            # We push channel args via xcom - so we do it once per execution.
+            context["ti"].xcom_push(key="channel_args", value=self.channel_args)
 
         # Submit job or reattach to previously submitted job.
         # Always do this synchronously.
@@ -183,6 +186,11 @@ acknowledged by Armada.
     def pod_manager(self) -> KubernetesPodLogManager:
         return KubernetesPodLogManager(token_retriever=self.k8s_token_retriever)
 
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=15),
+        retry=tenacity.retry_if_not_exception_type(jinja2.TemplateSyntaxError),
+        reraise=True,
+    )
     @log_exceptions
     def render_template_fields(
         self,
@@ -198,16 +206,26 @@ acknowledged by Armada.
         :param context: Airflow Context dict wi1th values to apply on content
         :param jinja_env: jinja’s environment to use for rendering.
         """
-        if callable(self.job_request):
-            if not jinja_env:
-                jinja_env = self.get_template_env()
-            self.job_request = self.job_request(context, jinja_env)
-
-        self.job_request = MessageToDict(
-            self.job_request, preserving_proto_field_name=True
-        )
-        super().render_template_fields(context, jinja_env)
-        self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
+ 
+        task_instance = context["ti"]
+        xcom_job_request = task_instance.xcom_pull(key="job_request")
+        if xcom_job_request:
+            self.job_request = ParseDict(xcom_job_request, JobSubmitRequestItem())
+        else:
+            self.log.info("Rendering job_request")
+            if callable(self.job_request):
+                if not jinja_env:
+                    jinja_env = self.get_template_env()
+                self.job_request = self.job_request(context, jinja_env)
+            
+            self.job_request = MessageToDict(
+                self.job_request, preserving_proto_field_name=True
+            )
+            super().render_template_fields(context, jinja_env)
+            task_instance.xcom_push(key="job_request", value=self.job_request)
+            self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
+        
+        self._annotate_job_request(context, self.job_request)
 
     def on_kill(self) -> None:
         if self.job_context is not None:
@@ -236,9 +254,7 @@ acknowledged by Armada.
             self.defer(
                 timeout=self.execution_timeout,
                 trigger=ArmadaPollJobTrigger(
-                    DateTime.utcnow() + datetime.timedelta(seconds=self.poll_interval),
-                    self.job_context,
-                    self.channel_args,
+                    DateTime.utcnow() + datetime.timedelta(seconds=self.poll_interval)
                 ),
                 method_name="_trigger_reentry",
             )
@@ -248,7 +264,9 @@ acknowledged by Armada.
     def _trigger_reentry(
         self, context: Context, event: Tuple[str, Dict[str, Any]]
     ) -> None:
-        self.job_context = deserialize(event)
+        self.job_context = self.hook.context_from_xcom(context["ti"], False)
+        if not self.job_context:
+            self.job_context = deserialize(event)
         self._poll_for_termination()
 
     def _reattach_or_submit_job(
@@ -259,36 +277,24 @@ acknowledged by Armada.
     ) -> RunningJobContext:
         # Try to re-initialize job_context from xcom if it exist.
         ti = context["ti"]
-        existing_run = ti.xcom_pull(
-            dag_id=ti.dag_id, task_ids=ti.task_id, key=f"{ti.try_number}"
-        )
-        if existing_run is not None:
-            self.log.info(
-                "Attached to existing Armada job "
-                f"with job-id {existing_run['armada_job_id']}."
-                f" {self._trigger_tracking_message(existing_run['armada_job_id'])}"
-            )
-            return RunningJobContext(
-                armada_queue=existing_run["armada_queue"],
-                job_id=existing_run["armada_job_id"],
-                job_set_id=existing_run["armada_job_set_id"],
-                submit_time=DateTime.utcnow(),
-            )
+        ctx = self.hook.context_from_xcom(ti, re_attach=True)
+
+        if ctx:
+            if ctx.state not in {JobState.FAILED, JobState.PREEMPTED}:
+                self.log.info(
+                   "Attached to existing Armada job "
+                    f"with job-id {ctx.job_id}."
+                    f" {self._trigger_tracking_message(ctx.job_id)}"
+                )
+                return ctx
 
         # We haven't got a running job, submit a new one and persist state to xcom.
         ctx = self.hook.submit_job(self.armada_queue, job_set_id, job_request)
         tracking_msg = self._trigger_tracking_message(ctx.job_id)
         self.log.info(f"Submitted job to Armada with job-id {ctx.job_id}. {tracking_msg}")
 
-        ti.xcom_push(
-            key=f"{ti.try_number}",
-            value={
-                "armada_queue": ctx.armada_queue,
-                "armada_job_id": ctx.job_id,
-                "armada_job_set_id": ctx.job_set_id,
-                "armada_lookout_url": self.lookout_url(ctx.job_id),
-            },
-        )
+        self.hook.context_to_xcom(ti, ctx, self.lookout_url(ctx.job_id))
+        
         return ctx
 
     def _poll_for_termination(self) -> None:
@@ -345,6 +351,7 @@ acknowledged by Armada.
                     self.job_context = dataclasses.replace(
                         self.job_context, last_log_time=last_log_time
                     )
+                    self.hook.context_to_xcom(self.job_context)
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
 
