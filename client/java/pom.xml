@@ -23,6 +23,9 @@
     <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
     <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
     <annotation-api.version>6.0.53</annotation-api.version>
+    <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+    <org.junit.jupiter.version>5.11.1</org.junit.jupiter.version>
+    <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
   </properties>
 
   <build>
@@ -41,75 +44,98 @@
         </executions>
       </plugin>
 
-      <!-- clone proto files from github -->
-      <!-- TODO enable this and copy proto files to src/main automatically -->
-      <!--      <plugin>-->
-      <!--        <groupId>org.codehaus.mojo</groupId>-->
-      <!--        <artifactId>exec-maven-plugin</artifactId>-->
-      <!--        <version>3.0.0</version>-->
-      <!--        <executions>-->
-      <!--          <execution>-->
-      <!--            <id>clone-armada-repo</id>-->
-      <!--            <phase>generate-sources</phase>-->
-      <!--            <goals>-->
-      <!--              <goal>exec</goal>-->
-      <!--            </goals>-->
-      <!--            <configuration>-->
-      <!--              <executable>git</executable>-->
-      <!--              <arguments>-->
-      <!--                <argument>clone</argument>-->
-      <!--                <argument>https://github.com/armadaproject/armada.git</argument>-->
-      <!--                <argument>${project.build.directory}/armada</argument>-->
-      <!--              </arguments>-->
-      <!--            </configuration>-->
-      <!--          </execution>-->
-      <!--          <execution>-->
-      <!--            <id>clone-api-repo</id>-->
-      <!--            <phase>generate-sources</phase>-->
-      <!--            <goals>-->
-      <!--              <goal>exec</goal>-->
-      <!--            </goals>-->
-      <!--            <configuration>-->
-      <!--              <executable>git</executable>-->
-      <!--              <arguments>-->
-      <!--                <argument>clone</argument>-->
-      <!--                <argument>https://github.com/kubernetes/api.git</argument>-->
-      <!--                <argument>${project.build.directory}/k8s.io/api</argument>-->
-      <!--              </arguments>-->
-      <!--            </configuration>-->
-      <!--          </execution>-->
-      <!--          <execution>-->
-      <!--            <id>clone-apimachinery-repo</id>-->
-      <!--            <phase>generate-sources</phase>-->
-      <!--            <goals>-->
-      <!--              <goal>exec</goal>-->
-      <!--            </goals>-->
-      <!--            <configuration>-->
-      <!--              <executable>git</executable>-->
-      <!--              <arguments>-->
-      <!--                <argument>clone</argument>-->
-      <!--                <argument>https://github.com/kubernetes/apimachinery.git</argument>-->
-      <!--                <argument>${project.build.directory}/k8s.io/apimachinery</argument>-->
-      <!--              </arguments>-->
-      <!--            </configuration>-->
-      <!--          </execution>-->
-      <!--          <execution>-->
-      <!--            <id>clone-protobuf-repo</id>-->
-      <!--            <phase>generate-sources</phase>-->
-      <!--            <goals>-->
-      <!--              <goal>exec</goal>-->
-      <!--            </goals>-->
-      <!--            <configuration>-->
-      <!--              <executable>git</executable>-->
-      <!--              <arguments>-->
-      <!--                <argument>clone</argument>-->
-      <!--                <argument>https://github.com/gogo/protobuf.git</argument>-->
-      <!--                <argument>${project.build.directory}/github.com/gogo/protobuf</argument>-->
-      <!--              </arguments>-->
-      <!--            </configuration>-->
-      <!--          </execution>-->
-      <!--        </executions>-->
-      <!--      </plugin>-->
+      <!-- get proto files -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>${exec-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>clone-armada-repo</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>git</executable>
+              <arguments>
+                <argument>clone</argument>
+                <argument>https://github.com/armadaproject/armada.git</argument>
+                <argument>${project.build.directory}/armada</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>clone-api-repo</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>git</executable>
+              <arguments>
+                <argument>clone</argument>
+                <argument>https://github.com/kubernetes/api.git</argument>
+                <argument>${project.build.directory}/k8s.io/api</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>clone-apimachinery-repo</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>git</executable>
+              <arguments>
+                <argument>clone</argument>
+                <argument>https://github.com/kubernetes/apimachinery.git</argument>
+                <argument>${project.build.directory}/k8s.io/apimachinery</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- copy proto files -->
+      <plugin>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>${maven-resources-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>copy-protos</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.basedir}/src/main/proto</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.build.directory}/armada</directory>
+                  <includes>
+                    <include>pkg/api/*.proto</include>
+                    <include>pkg/api/binoculars/*.proto</include>
+                  </includes>
+                </resource>
+                <resource>
+                  <directory>${project.build.directory}</directory>
+                  <includes>
+                    <include>k8s.io/api/core/v1/generated.proto</include>
+                    <include>k8s.io/api/networking/v1/generated.proto</include>
+                    <include>k8s.io/apimachinery/pkg/api/resource/generated.proto</include>
+                    <include>k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto</include>
+                    <include>k8s.io/apimachinery/pkg/runtime/generated.proto</include>
+                    <include>k8s.io/apimachinery/pkg/runtime/schema/generated.proto</include>
+                    <include>k8s.io/apimachinery/pkg/util/intstr/generated.proto</include>
+                  </includes>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
 
       <!-- compile java -->
       <plugin>
@@ -210,6 +236,20 @@
       <version>${annotation-api.version}</version>
       <scope>provided</scope>
     </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${org.junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${org.junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
 
 </project>

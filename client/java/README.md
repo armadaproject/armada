@@ -6,3 +6,6 @@
 
 # troubleshooting
 - generated sources not recognized by intellij ide > help > edit custom properties > idea.max.intellisense.filesize=20000
+
+# todo
+- write tests
