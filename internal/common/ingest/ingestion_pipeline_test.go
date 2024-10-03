@@ -38,8 +38,8 @@ var succeeded = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunIdStr: runId,
-					JobIdStr: jobId,
+					RunId: runId,
+					JobId: jobId,
 				},
 			},
 		},
@@ -55,8 +55,8 @@ var pendingAndRunning = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
-					RunIdStr:   runId,
-					JobIdStr:   jobId,
+					RunId:      runId,
+					JobId:      jobId,
 					ExecutorId: "k8sId1",
 				},
 			},
@@ -65,8 +65,8 @@ var pendingAndRunning = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunIdStr: runId,
-					JobIdStr: jobId,
+					RunId: runId,
+					JobId: jobId,
 				},
 			},
 		},
@@ -82,8 +82,8 @@ var failed = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunIdStr: runId,
-					JobIdStr: jobId,
+					RunId: runId,
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -97,7 +97,7 @@ var failed = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobIdStr: jobId,
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -369,8 +369,8 @@ func generateEventSequence(numberOfEvents int) *armadaevents.EventSequence {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunIdStr: runId,
-					JobIdStr: jobId,
+					RunId: runId,
+					JobId: jobId,
 				},
 			},
 		})

@@ -241,11 +241,11 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 		return nil, err
 	}
 
-	jobId := job.Job.JobIdStr
+	jobId := job.Job.JobId
 	if jobId == "" {
 		return nil, fmt.Errorf("job is invalid, jobId is empty")
 	}
-	runId := job.JobRunIdStr
+	runId := job.JobRunId
 	if runId == "" {
 		return nil, fmt.Errorf("job %s is invalid, runId is empty", jobId)
 	}
@@ -267,7 +267,7 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobIdStr + "-" + strconv.Itoa(0),
+			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

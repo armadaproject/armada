@@ -115,11 +115,11 @@ func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		LeasedRuns: []*executorapi.JobRunLease{
 			{
-				JobRunIdStr: uuid.NewString(),
-				Queue:       "queue",
-				Jobset:      "job-set",
+				JobRunId: uuid.NewString(),
+				Queue:    "queue",
+				Jobset:   "job-set",
 				Job: &armadaevents.SubmitJob{
-					JobIdStr: jobId,
+					JobId: jobId,
 					ObjectMeta: &armadaevents.ObjectMeta{
 						Labels:      map[string]string{},
 						Annotations: map[string]string{},
@@ -202,11 +202,11 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 		LeasedRuns: []*executorapi.JobRunLease{
 			// Valid job id info, but invalid submit job (no pod spec)
 			{
-				JobRunIdStr: uuid.NewString(),
-				Queue:       "queue",
-				Jobset:      "job-set",
+				JobRunId: uuid.NewString(),
+				Queue:    "queue",
+				Jobset:   "job-set",
 				Job: &armadaevents.SubmitJob{
-					JobIdStr: jobId,
+					JobId: jobId,
 				},
 			},
 		},
@@ -220,7 +220,7 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.NotNil(t, failedEvent.JobRunErrors.Errors[0].GetPodError())
-	assert.Equal(t, failedEvent.JobRunErrors.JobIdStr, jobId)
+	assert.Equal(t, failedEvent.JobRunErrors.JobId, jobId)
 
 	allJobRuns := stateStore.GetAll()
 	assert.Len(t, allJobRuns, 1)
@@ -234,7 +234,7 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 		LeasedRuns: []*executorapi.JobRunLease{
 			// Invalid Id info
 			{
-				JobRunIdStr: "",
+				JobRunId: "",
 			},
 		},
 	}

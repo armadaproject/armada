@@ -116,11 +116,11 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		})
 
 		jobResponses = append(jobResponses, &api.JobSubmitResponseItem{
-			JobId: submitMsg.JobIdStr,
+			JobId: submitMsg.JobId,
 		})
 
 		if jobRequest.ClientId != "" {
-			idMappings[jobRequest.ClientId] = submitMsg.JobIdStr
+			idMappings[jobRequest.ClientId] = submitMsg.JobId
 		}
 	}
 
@@ -239,7 +239,7 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobIdStr: jobId,
+					JobId: jobId,
 				},
 			},
 		})
@@ -292,7 +292,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobIdStr: jobId,
+					JobId:    jobId,
 					Priority: priority,
 				},
 			},
@@ -385,8 +385,8 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobIdStr: jobId,
-					Reason:   truncatedReason,
+					JobId:  jobId,
+					Reason: truncatedReason,
 				},
 			},
 		})

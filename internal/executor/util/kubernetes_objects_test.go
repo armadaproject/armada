@@ -485,17 +485,17 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	jobId := util.NewULID()
 
 	validJobLease := &executorapi.JobRunLease{
-		JobRunIdStr: runId,
-		Queue:       "queue",
-		Jobset:      "job-set",
-		User:        "user",
+		JobRunId: runId,
+		Queue:    "queue",
+		Jobset:   "job-set",
+		User:     "user",
 		Job: &armadaevents.SubmitJob{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Labels:      map[string]string{},
 				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
 				Namespace:   "test-namespace",
 			},
-			JobIdStr: jobId,
+			JobId: jobId,
 			MainObject: &armadaevents.KubernetesMainObject{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
@@ -541,13 +541,13 @@ func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
 
 	// Invalid run id
 	lease = createBasicJobRunLease()
-	lease.JobRunIdStr = ""
+	lease.JobRunId = ""
 	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
 	assert.Error(t, err)
 
 	// Invalid job id
 	lease = createBasicJobRunLease()
-	lease.Job.JobIdStr = ""
+	lease.Job.JobId = ""
 	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
 	assert.Error(t, err)
 
@@ -560,17 +560,17 @@ func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
 
 func createBasicJobRunLease() *executorapi.JobRunLease {
 	return &executorapi.JobRunLease{
-		JobRunIdStr: uuid.NewString(),
-		Queue:       "queue",
-		Jobset:      "job-set",
-		User:        "user",
+		JobRunId: uuid.NewString(),
+		Queue:    "queue",
+		Jobset:   "job-set",
+		User:     "user",
 		Job: &armadaevents.SubmitJob{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Labels:      map[string]string{},
 				Annotations: map[string]string{},
 				Namespace:   "test-namespace",
 			},
-			JobIdStr: util.NewULID(),
+			JobId: util.NewULID(),
 			MainObject: &armadaevents.KubernetesMainObject{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{

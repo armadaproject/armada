@@ -1,12 +1,10 @@
 import dataclasses
-import json
-import threading
 from functools import cached_property
-from typing import Dict, Optional
+from typing import Optional
 
 import grpc
+from airflow.models import TaskInstance
 from airflow.exceptions import AirflowException
-from airflow.serialization.serde import serialize
 from airflow.utils.log.logging_mixin import LoggingMixin
 from armada.model import GrpcChannelArgs
 from armada_client.armada.job_pb2 import JobRunDetails
@@ -14,47 +12,10 @@ from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 from armada_client.typings import JobState
 from pendulum import DateTime
+import tenacity
 
+from .utils import log_exceptions
 from .model import RunningJobContext
-
-
-class ArmadaClientFactory:
-    CLIENTS_LOCK = threading.Lock()
-    CLIENTS: Dict[str, ArmadaClient] = {}
-
-    @staticmethod
-    def client_for(args: GrpcChannelArgs) -> ArmadaClient:
-        """
-        Armada clients, maintain GRPC connection to Armada API.
-        We cache them per channel args config in class level cache.
-
-        Access to this method can be from multiple-threads.
-        """
-        channel_args_key = json.dumps(serialize(args))
-        with ArmadaClientFactory.CLIENTS_LOCK:
-            if channel_args_key not in ArmadaClientFactory.CLIENTS:
-                ArmadaClientFactory.CLIENTS[channel_args_key] = ArmadaClient(
-                    channel=ArmadaClientFactory._create_channel(args)
-                )
-            return ArmadaClientFactory.CLIENTS[channel_args_key]
-
-    @staticmethod
-    def _create_channel(args: GrpcChannelArgs) -> grpc.Channel:
-        if args.auth is None:
-            return grpc.insecure_channel(
-                target=args.target, options=args.options, compression=args.compression
-            )
-
-        return grpc.secure_channel(
-            target=args.target,
-            options=args.options,
-            compression=args.compression,
-            credentials=grpc.composite_channel_credentials(
-                grpc.ssl_channel_credentials(),
-                grpc.metadata_call_credentials(args.auth),
-            ),
-        )
-
 
 class ArmadaHook(LoggingMixin):
     def __init__(self, args: GrpcChannelArgs):
@@ -62,8 +23,28 @@ class ArmadaHook(LoggingMixin):
 
     @cached_property
     def client(self):
-        return ArmadaClientFactory.client_for(self.args)
+        return ArmadaClient(channel=self._create_channel())
 
+    def _create_channel(self) -> grpc.Channel:
+        if self.args.auth is None:
+            return grpc.insecure_channel(
+                target=self.args.target, options=self.args.options, compression=self.args.compression
+            )
+
+        return grpc.secure_channel(
+            target=self.args.target,
+            options=self.args.options,
+            compression=self.args.compression,
+            credentials=grpc.composite_channel_credentials(
+                grpc.ssl_channel_credentials(),
+                grpc.metadata_call_credentials(self.args.auth),
+            ),
+        )
+
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=15),
+        reraise=True,
+    )
     def cancel_job(self, job_context: RunningJobContext) -> RunningJobContext:
         try:
             result = self.client.cancel_jobs(
@@ -80,6 +61,10 @@ class ArmadaHook(LoggingMixin):
         finally:
             return dataclasses.replace(job_context, job_state=JobState.CANCELLED.name)
 
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=15),
+        reraise=True,
+    )
     def submit_job(
         self, queue: str, job_set_id: str, job_request: JobSubmitRequestItem
     ) -> RunningJobContext:
@@ -100,12 +85,16 @@ class ArmadaHook(LoggingMixin):
 
         return RunningJobContext(queue, job.job_id, job_set_id, DateTime.utcnow())
 
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=15),
+        reraise=True,
+    )
     def refresh_context(
         self, job_context: RunningJobContext, tracking_url: str
     ) -> RunningJobContext:
         response = self.client.get_job_status([job_context.job_id])
         state = JobState(response.job_states[job_context.job_id])
-        if state != job_context.state:
+        if state != job_context.state and tracking_url:
             self.log.info(
                 f"job {job_context.job_id} is in state: {state.name}. "
                 f"{tracking_url}"
@@ -119,6 +108,39 @@ class ArmadaHook(LoggingMixin):
                 if run_details:
                     cluster = run_details.cluster
         return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
+    
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=15),
+        reraise=True,
+    )
+    @log_exceptions
+    def context_from_xcom(self, ti: TaskInstance, re_attach: bool) -> RunningJobContext:
+        result = ti.xcom_pull(key="job_context")
+        if result:
+            return self.refresh_context(RunningJobContext(
+                armada_queue=result["armada_queue"],
+                job_id=result["armada_job_id"],
+                job_set_id=result["armada_job_set_id"],
+                submit_time=DateTime.utcnow() if re_attach else result.get("armada_job_submit_time", DateTime.utcnow()),
+                last_log_time=None if re_attach else result.get("armada_job_last_log_time", None)
+            ), None)
+
+        return None
+
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=15),
+        reraise=True,
+    )
+    def context_to_xcom(self, ti: TaskInstance, ctx: RunningJobContext, lookout_url: str):
+        ti.xcom_push(key="job_context", value={
+                "armada_queue": ctx.armada_queue,
+                "armada_job_id": ctx.job_id,
+                "armada_job_set_id": ctx.job_set_id,
+                "armada_job_submit_time": ctx.submit_time,
+                "armada_job_last_log_time": ctx.last_log_time,
+                "armada_lookout_url": lookout_url,
+        })
+
 
     def _get_latest_job_run_details(self, job_id) -> Optional[JobRunDetails]:
         job_details = self.client.get_job_details([job_id]).job_details[job_id]

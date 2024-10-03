@@ -54,12 +54,12 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		return nil, err
 	}
 	leaseRequest := &executorapi.LeaseRequest{
-		ExecutorId:             requester.clusterIdentity.GetClusterId(),
-		Pool:                   requester.clusterIdentity.GetClusterPool(),
-		Resources:              request.AvailableResource.ToProtoMap(),
-		Nodes:                  request.Nodes,
-		UnassignedJobRunIdsStr: request.UnassignedJobRunIds,
-		MaxJobsToLease:         request.MaxJobsToLease,
+		ExecutorId:          requester.clusterIdentity.GetClusterId(),
+		Pool:                requester.clusterIdentity.GetClusterPool(),
+		Resources:           request.AvailableResource.ToProtoMap(),
+		Nodes:               request.Nodes,
+		UnassignedJobRunIds: request.UnassignedJobRunIds,
+		MaxJobsToLease:      request.MaxJobsToLease,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)
@@ -79,9 +79,9 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		case *executorapi.LeaseStreamMessage_Lease:
 			leaseRuns = append(leaseRuns, typed.Lease)
 		case *executorapi.LeaseStreamMessage_PreemptRuns:
-			runIdsToPreempt = append(runIdsToPreempt, typed.PreemptRuns.JobRunIdsToPreemptStr...)
+			runIdsToPreempt = append(runIdsToPreempt, typed.PreemptRuns.JobRunIdsToPreempt...)
 		case *executorapi.LeaseStreamMessage_CancelRuns:
-			runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancelStr...)
+			runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
 		case *executorapi.LeaseStreamMessage_End:
 			shouldEndStream = true
 		default:

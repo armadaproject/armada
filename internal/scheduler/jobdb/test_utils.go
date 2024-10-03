@@ -11,7 +11,7 @@ import (
 var TestResourceListFactory = MakeTestResourceListFactory()
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes())
 	return result
 }
 

@@ -65,13 +65,14 @@ var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	BasetimeProto       = protoutil.ToTimestamp(BaseTime)
 	TestPriorityClasses = map[string]types.PriorityClass{
-		PriorityClass0:               {Priority: 0, Preemptible: true},
-		PriorityClass1:               {Priority: 1, Preemptible: true},
-		PriorityClass2:               {Priority: 2, Preemptible: true},
-		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
-		PriorityClass3:               {Priority: 3, Preemptible: false},
-		"armada-preemptible-away":    {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
-		"armada-preemptible":         {Priority: 30000, Preemptible: true},
+		PriorityClass0:                  {Priority: 0, Preemptible: true},
+		PriorityClass1:                  {Priority: 1, Preemptible: true},
+		PriorityClass2:                  {Priority: 2, Preemptible: true},
+		PriorityClass2NonPreemptible:    {Priority: 2, Preemptible: false},
+		PriorityClass3:                  {Priority: 3, Preemptible: false},
+		"armada-preemptible-away":       {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible-away-lower": {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}}},
+		"armada-preemptible":            {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	TestPriorities           = []int32{0, 1, 2, 3}
@@ -92,7 +93,8 @@ var (
 			Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 		},
 	}
-	jobTimestamp atomic.Int64
+	TestNodeFactory = internaltypes.NewNodeFactory(TestIndexedTaints, TestIndexedNodeLabels, TestResourceListFactory)
+	jobTimestamp    atomic.Int64
 	// SchedulingKeyGenerator to use in testing.
 	// Has to be consistent since creating one involves generating a random key.
 	// If this key isn't consistent, scheduling keys generated are not either.
@@ -898,7 +900,7 @@ func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 
 func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
-		JobIdStr: util.NewULID(),
+		JobId: util.NewULID(),
 		MainObject: &armadaevents.KubernetesMainObject{
 			ObjectMeta: &armadaevents.ObjectMeta{},
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
@@ -1008,7 +1010,7 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 }
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes())
 	return result
 }
 
