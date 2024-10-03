@@ -211,6 +211,7 @@ func TestOfType_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, ResourceList{}, ResourceList{}.OfType(Kubernetes))
 	assert.Equal(t, ResourceList{}, ResourceList{}.OfType(Floating))
 }
+
 func TestAdd(t *testing.T) {
 	factory := testFactory()
 
