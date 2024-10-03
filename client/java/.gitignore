@@ -37,3 +37,5 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+src/main/proto
