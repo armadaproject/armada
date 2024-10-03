@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import math
-import threading
 from http.client import HTTPResponse
-from typing import Dict, List, Optional, Tuple, cast
+from typing import List, Optional, Tuple, cast
 
 import pendulum
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -11,14 +10,12 @@ from armada.auth import TokenRetriever
 from kubernetes import client, config
 from pendulum import DateTime
 from pendulum.parsing.exceptions import ParserError
+import tenacity
 from urllib3.exceptions import HTTPError
 
 
 class KubernetesPodLogManager(LoggingMixin):
     """Monitor logs of Kubernetes pods asynchronously."""
-
-    CLIENTS_LOCK = threading.Lock()
-    CLIENTS: Dict[str, client.CoreV1Api] = {}
 
     def __init__(
         self,
@@ -32,29 +29,25 @@ class KubernetesPodLogManager(LoggingMixin):
         self._token_retriever = token_retriever
 
     def _k8s_client(self, k8s_context) -> client.CoreV1Api:
-        """
-        K8S Clients are expensive to initialize (especially loading configuration).
-        We cache them per context in class level cache.
-
-        Access to this method can be from multiple-threads.
-        """
-        if k8s_context not in KubernetesPodLogManager.CLIENTS:
-            with KubernetesPodLogManager.CLIENTS_LOCK:
-                configuration = client.Configuration()
-                config.load_kube_config(
-                    client_configuration=configuration, context=k8s_context
-                )
-                k8s_client = client.CoreV1Api(
-                    api_client=client.ApiClient(configuration=configuration)
-                )
-                KubernetesPodLogManager.CLIENTS[k8s_context] = k8s_client
-        return KubernetesPodLogManager.CLIENTS[k8s_context]
-
-    def _with_bearer_auth(self, client):
-        client.api_client.configuration.api_key["authorization"] = (
+        configuration = client.Configuration()
+        config.load_kube_config(
+            client_configuration=configuration, context=k8s_context
+        )
+        k8s_client = client.CoreV1Api(
+            api_client=client.ApiClient(configuration=configuration)
+        )
+        k8s_client.api_client.configuration.api_key["authorization"] = (
             f"Bearer {self._token_retriever.get_token()}"
         )
 
+        return k8s_client
+
+
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(max=15),
+        retry=tenacity.retry_if_exception_type(HTTPError),
+        reraise=True,
+    )
     def fetch_container_logs(
         self,
         *,
@@ -68,7 +61,6 @@ class KubernetesPodLogManager(LoggingMixin):
         Fetches container logs, do not follow container logs.
         """
         client = self._k8s_client(k8s_context)
-        self._with_bearer_auth(client)
         since_seconds = (
             math.ceil((pendulum.now() - since_time).total_seconds())
             if since_time
