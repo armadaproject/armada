@@ -1009,7 +1009,7 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 }
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes(), nil)
+	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes(), TestFloatingResourceConfig)
 	return result
 }
 

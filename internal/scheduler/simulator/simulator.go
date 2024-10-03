@@ -107,10 +107,6 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	if err != nil {
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources)
-	if err != nil {
-		return nil, err
-	}
 
 	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
 	workloadSpec = proto.Clone(workloadSpec).(*WorkloadSpec)

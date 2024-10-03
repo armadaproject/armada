@@ -31,27 +31,24 @@ func NewResourceListFactory(
 	scales := []k8sResource.Scale{}
 	types := []ResourceType{}
 
-	add := func(i int, name string, resolution k8sResource.Quantity, t ResourceType) {
-		nameToIndex[name] = i
+	add := func(name string, resolution k8sResource.Quantity, t ResourceType) {
+		nameToIndex[name] = len(nameToIndex)
 		indexToName = append(indexToName, name)
 		scales = append(scales, resolutionToScale(resolution))
 		types = append(types, t)
 	}
 
-	i := 0
 	for _, t := range supportedResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q", t.Name)
 		}
-		add(i, t.Name, t.Resolution, Kubernetes)
-		i++
+		add(t.Name, t.Resolution, Kubernetes)
 	}
 	for _, t := range floatingResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q (note names must be unique across supportedResourceTypes and floatingResources)", t.Name)
 		}
-		add(i, t.Name, t.Resolution, Floating)
-		i++
+		add(t.Name, t.Resolution, Floating)
 	}
 	return &ResourceListFactory{
 		indexToName: indexToName,
