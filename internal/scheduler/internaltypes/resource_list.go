@@ -10,8 +10,11 @@ import (
 type ResourceType int
 
 const (
+	// A normal k8s resource, such as "memory" or "nvidia.com/gpu"
 	Kubernetes ResourceType = iota
-	Floating                = iota
+	// A floating resource that is not tied to a Kubernetes cluster or node,
+	// e.g. "external-storage-connections".
+	Floating = iota
 )
 
 type ResourceList struct {

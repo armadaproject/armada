@@ -46,7 +46,7 @@ func NewResourceListFactory(
 	}
 	for _, t := range floatingResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
-			return nil, fmt.Errorf("duplicate resource type name %q (note names must be unique across supportedResourceTypes and floatingResources)", t.Name)
+			return nil, fmt.Errorf("duplicate resource type name %q (note names must be unique across supported resource types and floating resources)", t.Name)
 		}
 		add(t.Name, t.Resolution, Floating)
 	}
@@ -107,7 +107,7 @@ func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources m
 		if ok {
 			result[index] = QuantityToInt64RoundUp(v, factory.scales[index])
 		} else {
-			return ResourceList{}, fmt.Errorf("resource type %q is not supported (add to supportedResourceTypes or floatingResources in the scheduler config if you want to use it)", string(k))
+			return ResourceList{}, fmt.Errorf("resource type %q is not supported (if you want to use it, add to supported resource types or floating resources in the scheduler config)", string(k))
 		}
 	}
 	return ResourceList{resources: result, factory: factory}, nil
