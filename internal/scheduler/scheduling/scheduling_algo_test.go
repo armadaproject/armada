@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -628,6 +629,12 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				require.NoError(b, err)
 				b.StartTimer()
 
+				nodeFactory := internaltypes.NewNodeFactory(
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+					testfixtures.TestResourceListFactory,
+				)
+
 				nodeDb, err := nodedb.NewNodeDb(
 					schedulingConfig.PriorityClasses,
 					schedulingConfig.IndexedResources,
@@ -637,7 +644,14 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
-				err = algo.populateNodeDb(nodeDb, testfixtures.TestNodeFactory, jobs, nodes)
+				dbNodes := []*internaltypes.Node{}
+				for _, node := range nodes {
+					dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
+					require.NoError(b, err)
+					dbNodes = append(dbNodes, dbNode)
+				}
+
+				err = algo.populateNodeDb(nodeDb, jobs, dbNodes)
 				require.NoError(b, err)
 			}
 		})
