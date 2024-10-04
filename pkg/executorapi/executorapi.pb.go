@@ -46,8 +46,6 @@ type NodeInfo struct {
 	// Resources available for allocation is given by the difference between this and allocated_resources.
 	TotalResources map[string]*resource.Quantity `protobuf:"bytes,6,rep,name=total_resources,json=totalResources,proto3" json:"totalResources,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// All run ids of jobs on the node, mapped to their current state
-	// this should be of type armadaevents.uuid, but this creates a circular loop
-	// once the old scheduler has gone, we can correct this
 	RunIdsByState map[string]api.JobState `protobuf:"bytes,8,rep,name=run_ids_by_state,json=runIdsByState,proto3" json:"runIdsByState,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3,enum=api.JobState"`
 	// The amount of resource allocated to non-armada pods by priority
 	NonArmadaAllocatedResources map[int32]*ComputeResource `protobuf:"bytes,9,rep,name=non_armada_allocated_resources,json=nonArmadaAllocatedResources,proto3" json:"nonArmadaAllocatedResources,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
