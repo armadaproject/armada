@@ -66,23 +66,6 @@ enum JobRunState {
     FAILED = 4;
 }
 
-// Captures the resource usage of a particular queue in a given cluster.
-message QueueClusterResourceUsage {
-    google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    string queue = 2;
-    string executorId = 3;
-    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false, deprecated = true];
-    map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
-}
-
-// A collection of QueueClusterResourceUsage
-// This is only needed to brige the gap between the redis based scheduler and the new scheduler.
-message ClusterResourceUsageReport {
-    string pool = 1;
-    google.protobuf.Timestamp created = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    map<string, QueueClusterResourceUsage> resourcesByQueue = 3;
-}
-
 message ResourceList {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
 }
@@ -128,12 +111,4 @@ message PodRequirements {
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
-}
-
-// Used to store details about pulsar scheduler jobs in Redis
-// Can be removed once we deprecate the legacy scheduler
-message PulsarSchedulerJobDetails  {
-    string JobId = 1;
-    string Queue = 2;
-    string JobSet = 3;
 }
