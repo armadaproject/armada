@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
 from typing import Any, AsyncIterator, ClassVar, Dict
 
 from airflow.serialization.serde import deserialize, serialize
@@ -20,7 +19,7 @@ class ArmadaPollJobTrigger(BaseTrigger):
     @log_exceptions
     def __init__(
         self,
-        moment: timedelta,
+        moment: DateTime,
         context: RunningJobContext | tuple[str, Dict[str, Any]] | None = None,
         channel_args: GrpcChannelArgs | tuple[str, Dict[str, Any]] | None = None,
     ) -> None:
@@ -29,12 +28,13 @@ class ArmadaPollJobTrigger(BaseTrigger):
         self.moment = moment
 
         # TODO: Clean up once migration to using xcom is completed
+        self.legacy_mode = False
         if type(context) is RunningJobContext:
             self.context = context
+            self.legacy_mode = True
         elif context:
             self.context = deserialize(context)
-        else:
-            self.context = None
+            self.legacy_mode = True
 
         # TODO: Clean up once migration to using xcom is completed
         if type(channel_args) is GrpcChannelArgs:
@@ -46,11 +46,18 @@ class ArmadaPollJobTrigger(BaseTrigger):
 
     @log_exceptions
     def serialize(self) -> tuple[str, dict[str, Any]]:
+        if self.legacy_mode:
+            return (
+                "armada.triggers.ArmadaPollJobTrigger",
+                {
+                    "moment": self.moment,
+                    "context": serialize(self.context),
+                    "channel_args": serialize(self.channel_args),
+                },
+            )
         return (
             "armada.triggers.ArmadaPollJobTrigger",
-            {
-                "moment": self.moment
-            },
+            {"moment": self.moment},
         )
 
     def should_cancel_job(self) -> bool:
@@ -58,15 +65,12 @@ class ArmadaPollJobTrigger(BaseTrigger):
         We only want to cancel jobs when task is being marked Failed/Succeeded.
         """
         # Database query is needed to get the latest state of the task instance.
-        # task_instance = self.get_task_instance()  # type: ignore[call-arg]
         return self.task_instance.current_state() != TaskInstanceState.DEFERRED
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, ArmadaPollJobTrigger):
             return False
-        return (
-            self.moment == value.moment
-        )
+        return self.moment == value.moment
 
     @property
     def hook(self) -> ArmadaHook:
@@ -80,14 +84,12 @@ class ArmadaPollJobTrigger(BaseTrigger):
         try:
             while self.moment > DateTime.utcnow():
                 await asyncio.sleep(1)
-            # TODO: Clean up once migration to using xcom is completed
-            if self.context:
+            if self.legacy_mode:
                 yield TriggerEvent(serialize(self.context))
             else:
-                yield TriggerEvent(None)
+                yield TriggerEvent({"moment": self.moment.isoformat()})
         except asyncio.CancelledError:
             if self.should_cancel_job():
-                # TODO: Clean up once migration to using xcom is completed
-                ctx = self.hook.context_from_xcom(self.task_instance, re_attach=False) if not self.context else self.context
+                ctx = self.hook.context_from_xcom(self.task_instance, re_attach=False)
                 self.hook.cancel_job(ctx)
             raise
