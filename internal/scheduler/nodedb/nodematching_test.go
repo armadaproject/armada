@@ -386,8 +386,8 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				tc.priority,
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
-					PodRequirements:      tc.req,
-					ResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.req.ResourceRequirements.Requests).Resources),
+					PodRequirements:                tc.req,
+					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.req.ResourceRequirements.Requests).Resources),
 				},
 			)
 			assert.NoError(t, err)
@@ -537,8 +537,8 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			// TODO(albin): Define a jctx in the test case instead.
 			matches, reason := NodeTypeJobRequirementsMet(nodeType,
 				&schedulercontext.JobSchedulingContext{
-					PodRequirements:      tc.Req,
-					ResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.Req.ResourceRequirements.Requests).Resources),
+					PodRequirements:                tc.Req,
+					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.Req.ResourceRequirements.Requests).Resources),
 				},
 			)
 			if tc.ExpectSuccess {

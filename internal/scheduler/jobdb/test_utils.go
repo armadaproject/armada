@@ -8,14 +8,17 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-var TestResourceListFactory = MakeTestResourceListFactory()
+var testResourceListFactory = makeTestResourceListFactory()
 
-func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes())
+func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	result, _ := internaltypes.NewResourceListFactory(
+		getTestSupportedResourceTypes(),
+		nil,
+	)
 	return result
 }
 
-func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
+func getTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 	return []schedulerconfiguration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},

@@ -27,7 +27,7 @@ func TestInMemoryJobRepository(t *testing.T) {
 	}
 	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
-		jctxs[i] = &schedulercontext.JobSchedulingContext{Job: job, ResourceRequirements: job.EfficientResourceRequirements()}
+		jctxs[i] = &schedulercontext.JobSchedulingContext{Job: job, KubernetesResourceRequirements: job.KubernetesResourceRequirements()}
 	}
 	repo := NewInMemoryJobRepository()
 	repo.EnqueueMany(jctxs)

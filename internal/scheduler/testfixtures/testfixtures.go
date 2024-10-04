@@ -123,7 +123,6 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		resourceListFactory,
-		TestFloatingResources,
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
@@ -1010,7 +1009,7 @@ func (p *MockPassiveClock) Since(time.Time) time.Duration {
 }
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes())
+	result, _ := internaltypes.NewResourceListFactory(GetTestSupportedResourceTypes(), TestFloatingResourceConfig)
 	return result
 }
 

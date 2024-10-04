@@ -597,7 +597,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 ) (*internaltypes.Node, error) {
 	indexResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	for i, t := range nodeDb.indexedResources {
-		indexResourceRequests[i] = jctx.ResourceRequirements.GetByNameZeroIfMissing(t)
+		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetByNameZeroIfMissing(t)
 	}
 	indexName, ok := nodeDb.indexNameByPriority[priority]
 	if !ok {
@@ -721,7 +721,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		}
 
 		// Evict job, update available resource
-		node.availableResource = node.availableResource.Add(evictedJctx.ResourceRequirements)
+		node.availableResource = node.availableResource.Add(evictedJctx.KubernetesResourceRequirements)
 		node.evictedJobs = append(node.evictedJobs, evictedJobSchedulingContext)
 
 		dynamicRequirementsMet, _ := DynamicJobRequirementsMet(node.availableResource, jctx)
@@ -780,7 +780,7 @@ func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job *jobdb.Job, pr
 // bindJobToNodeInPlace is like bindJobToNode, but doesn't make a copy of node.
 func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.Job, priority int32) error {
 	jobId := job.Id()
-	requests := job.EfficientResourceRequirements()
+	requests := job.KubernetesResourceRequirements()
 
 	_, isEvicted := node.EvictedJobRunIds[jobId]
 	delete(node.EvictedJobRunIds, jobId)
@@ -867,7 +867,7 @@ func (nodeDb *NodeDb) evictJobFromNodeInPlace(job *jobdb.Job, node *internaltype
 	if !ok {
 		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
-	jobRequests := job.EfficientResourceRequirements()
+	jobRequests := job.KubernetesResourceRequirements()
 	markAllocatable(allocatableByPriority, priority, jobRequests)
 	markAllocated(allocatableByPriority, internaltypes.EvictedPriority, jobRequests)
 
@@ -913,7 +913,7 @@ func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
 func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltypes.Node) error {
 	jobId := job.Id()
-	requests := job.EfficientResourceRequirements()
+	requests := job.KubernetesResourceRequirements()
 
 	_, isEvicted := node.EvictedJobRunIds[jobId]
 	delete(node.EvictedJobRunIds, jobId)

@@ -609,7 +609,7 @@ func (er *EvictorResult) SummaryString() string {
 		queue := jctx.Job.Queue()
 		stats := statsPerQueue[queue]
 		stats.evictedJobCount++
-		stats.evictedResources = stats.evictedResources.Add(jctx.Job.EfficientResourceRequirements())
+		stats.evictedResources = stats.evictedResources.Add(jctx.Job.KubernetesResourceRequirements())
 		statsPerQueue[queue] = stats
 	}
 	return fmt.Sprintf("%v", armadamaps.MapValues(statsPerQueue, func(s queueStats) string {

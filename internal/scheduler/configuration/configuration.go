@@ -78,8 +78,10 @@ type LeaderConfig struct {
 }
 
 type FloatingResourceConfig struct {
-	// Resource name, e.g. "s3-connections"
+	// Resource name, e.g. "storage-connections"
 	Name string
+	// Resolution with which Armada tracks this resource; larger values indicate lower resolution.
+	Resolution resource.Quantity
 	// Per-pool config.
 	Pools []FloatingResourcePoolConfig
 }

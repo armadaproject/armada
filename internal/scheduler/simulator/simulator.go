@@ -100,13 +100,12 @@ type StateTransition struct {
 func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig, enableFastForward bool, hardTerminationMinutes int, schedulerCyclePeriodSeconds int) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
-	resourceListFactory, err := internaltypes.NewResourceListFactory(schedulingConfig.SupportedResourceTypes)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(
+		schedulingConfig.SupportedResourceTypes,
+		schedulingConfig.ExperimentalFloatingResources,
+	)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
-	}
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources)
-	if err != nil {
-		return nil, err
 	}
 
 	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
@@ -124,7 +123,6 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		schedulingConfig.DefaultPriorityClassName,
 		stringinterner.New(1024),
 		resourceListFactory,
-		floatingResourceTypes,
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {

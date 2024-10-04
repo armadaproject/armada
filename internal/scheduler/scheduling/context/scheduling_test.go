@@ -270,11 +270,11 @@ func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) [
 func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
 	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
 	return &JobSchedulingContext{
-		JobId:                job.Id(),
-		Job:                  job,
-		PodRequirements:      job.PodRequirements(),
-		ResourceRequirements: job.EfficientResourceRequirements(),
-		GangInfo:             EmptyGangInfo(job),
+		JobId:                          job.Id(),
+		Job:                            job,
+		PodRequirements:                job.PodRequirements(),
+		KubernetesResourceRequirements: job.KubernetesResourceRequirements(),
+		GangInfo:                       EmptyGangInfo(job),
 	}
 }
 
