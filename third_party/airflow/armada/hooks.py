@@ -45,6 +45,7 @@ class ArmadaHook(LoggingMixin):
         wait=tenacity.wait_random_exponential(max=15),
         reraise=True,
     )
+    @log_exceptions
     def cancel_job(self, job_context: RunningJobContext) -> RunningJobContext:
         try:
             result = self.client.cancel_jobs(
@@ -65,6 +66,7 @@ class ArmadaHook(LoggingMixin):
         wait=tenacity.wait_random_exponential(max=15),
         reraise=True,
     )
+    @log_exceptions
     def submit_job(
         self, queue: str, job_set_id: str, job_request: JobSubmitRequestItem
     ) -> RunningJobContext:
@@ -89,6 +91,7 @@ class ArmadaHook(LoggingMixin):
         wait=tenacity.wait_random_exponential(max=15),
         reraise=True,
     )
+    @log_exceptions
     def refresh_context(
         self, job_context: RunningJobContext, tracking_url: str
     ) -> RunningJobContext:
@@ -131,7 +134,8 @@ class ArmadaHook(LoggingMixin):
         wait=tenacity.wait_random_exponential(max=15),
         reraise=True,
     )
-    def context_to_xcom(self, ti: TaskInstance, ctx: RunningJobContext, lookout_url: str):
+    @log_exceptions
+    def context_to_xcom(self, ti: TaskInstance, ctx: RunningJobContext, lookout_url: str = None):
         ti.xcom_push(key="job_context", value={
                 "armada_queue": ctx.armada_queue,
                 "armada_job_id": ctx.job_id,

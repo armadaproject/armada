@@ -169,14 +169,14 @@ acknowledged by Armada.
 
         if self.deferrable:
             # We push channel args via xcom - so we do it once per execution.
-            context["ti"].xcom_push(key="channel_args", value=self.channel_args)
+            self._xcom_push(context, key="channel_args", value=self.channel_args)
 
         # Submit job or reattach to previously submitted job.
         # Always do this synchronously.
         self.job_context = self._reattach_or_submit_job(
             context, self.job_set_id, self.job_request
         )
-        self._poll_for_termination()
+        self._poll_for_termination(context)
 
     @property
     def hook(self) -> ArmadaHook:
@@ -207,8 +207,7 @@ acknowledged by Armada.
         :param jinja_env: jinja’s environment to use for rendering.
         """
  
-        task_instance = context["ti"]
-        xcom_job_request = task_instance.xcom_pull(key="job_request")
+        xcom_job_request = self._xcom_pull(context, key="job_request")
         if xcom_job_request:
             self.job_request = ParseDict(xcom_job_request, JobSubmitRequestItem())
         else:
@@ -222,7 +221,7 @@ acknowledged by Armada.
                 self.job_request, preserving_proto_field_name=True
             )
             super().render_template_fields(context, jinja_env)
-            task_instance.xcom_push(key="job_request", value=self.job_request)
+            self._xcom_push(context, key="job_request", value=self.job_request)
             self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
         
         self._annotate_job_request(context, self.job_request)
@@ -267,7 +266,7 @@ acknowledged by Armada.
         self.job_context = self.hook.context_from_xcom(context["ti"], False)
         if not self.job_context:
             self.job_context = deserialize(event)
-        self._poll_for_termination()
+        self._poll_for_termination(context)
 
     def _reattach_or_submit_job(
         self,
@@ -297,9 +296,9 @@ acknowledged by Armada.
         
         return ctx
 
-    def _poll_for_termination(self) -> None:
+    def _poll_for_termination(self, context) -> None:
         while self.job_context.state.is_active():
-            self._check_job_status_and_fetch_logs()
+            self._check_job_status_and_fetch_logs(context)
             if self.job_context.state.is_active():
                 self._yield()
 
@@ -325,7 +324,7 @@ acknowledged by Armada.
         return False
 
     @log_exceptions
-    def _check_job_status_and_fetch_logs(self) -> None:
+    def _check_job_status_and_fetch_logs(self, context) -> None:
         self.job_context = self.hook.refresh_context(
             self.job_context, self._trigger_tracking_message(self.job_context.job_id)
         )
@@ -351,9 +350,27 @@ acknowledged by Armada.
                     self.job_context = dataclasses.replace(
                         self.job_context, last_log_time=last_log_time
                     )
-                    self.hook.context_to_xcom(self.job_context)
+                    self.hook.context_to_xcom(context["ti"], self.job_context, self.lookout_url(self.job_context.job_id))
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
+
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=2),
+        reraise=True,
+    )
+    @log_exceptions
+    def _xcom_pull(self, context, key: str) -> Any:
+        task_instance = context["ti"]
+        return task_instance.xcom_pull(key=key)
+
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=2),
+        reraise=True,
+    )
+    @log_exceptions
+    def _xcom_push(self, context, key: str, value: Any):
+        task_instance = context["ti"]
+        task_instance.xcom_push(key=key, value=value)
 
     @staticmethod
     def _annotate_job_request(context, request: JobSubmitRequestItem):
