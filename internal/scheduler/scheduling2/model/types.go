@@ -1,10 +1,10 @@
 package model
 
 import (
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	v1 "k8s.io/api/core/v1"
 )
 
 type JobIterator interface {
@@ -20,11 +20,18 @@ type NodeAssigner interface {
 }
 
 type NodeDb interface {
+	Txn() NodeDbTransaction
+}
+
+type NodeDbTransaction interface {
 	// GetNodeById Returns the node with the supplied id or nil if the node doesn't exist
 	GetNodeById(id string) *internaltypes.Node
 
-	// UpsertNode updates the node in the NodeDb. If the node doesn't exist, it will be created
-	UpsertNode(node *internaltypes.Node)
+	// AssignJobToNode assigns a job to a node a given priority
+	AssignJobToNode(job *jobdb.Job, nodeId string, priority int32)
+
+	// UnassignJobFromNode removes a job from a node
+	UnassignJobFromNode(job *jobdb.Job, nodeId string, priority int32)
 
 	// GetNodes returns an iterator over all node matching the given predicates
 	GetNodes(
@@ -33,6 +40,10 @@ type NodeDb interface {
 		tolerations []v1.Toleration,
 		nodeSelector map[string]string,
 		affinity *v1.Affinity) NodeIterator
+
+	Commit()
+
+	RollBack()
 }
 
 type EvictedJob struct {
@@ -43,9 +54,9 @@ type EvictedJob struct {
 }
 
 type AssigmentResult struct {
-	Scheduled     bool
-	NodeId        string
-	PreemptedJobs []string
+	Scheduled bool
+	NodeId    string
+	Priority  int32
 }
 
 type JobQueue interface {
