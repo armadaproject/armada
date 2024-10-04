@@ -104,7 +104,6 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
 			return !util.IsManagedPod(pod)
 		})
-		allocatedByPriority := allocatedByPriorityAndResourceTypeFromPods(runningNodePods)
 		allocatedByPriorityNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
 		allocatedByPriorityNonArmada.MaxAggregatedByResource(
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
@@ -117,10 +116,6 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			resourceUsageByQueue[queueName] = executorapi.ComputeResourceFromProtoResources(resourceUsage)
 		}
 
-		nodeAllocatedResources := make(map[int32]*executorapi.ComputeResource)
-		for p, rl := range allocatedByPriority {
-			nodeAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
-		}
 		nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
 		for p, rl := range allocatedByPriorityNonArmada {
 			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
@@ -134,7 +129,6 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			AllocatableResources:        allocatable.ToProtoMap(),
 			AvailableResources:          available.ToProtoMap(),
 			TotalResources:              allocatable.ToProtoMap(),
-			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
 			Unschedulable:               !isSchedulable,
