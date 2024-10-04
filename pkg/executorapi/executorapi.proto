@@ -24,8 +24,6 @@ message NodeInfo {
   // Resources available for allocation is given by the difference between this and allocated_resources.
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_resources = 6;
   // All run ids of jobs on the node, mapped to their current state
-  // this should be of type armadaevents.uuid, but this creates a circular loop
-  // once the old scheduler has gone, we can correct this
   map<string, api.JobState>  run_ids_by_state = 8;
   // The amount of resource allocated to non-armada pods by priority
   map<int32, ComputeResource> non_armada_allocated_resources = 9;
