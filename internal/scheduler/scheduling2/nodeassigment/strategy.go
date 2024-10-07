@@ -7,12 +7,19 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling2/model"
 )
 
-type FairShareNodeAssigner struct {
-	nodeDb      model.NodeDb
-	evictedJobs []*model.EvictedJob
+type nodeStrategy func(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, eligableEvictions []*model.EvictedJob) (model.AssigmentResult, error)
+
+func assignWithoutPreemption(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, _ []*model.EvictedJob) (model.AssigmentResult, error) {
+	return assignAtPriority(jctx, txn, -1)
 }
 
-func (a *FairShareNodeAssigner) AssignNode(gang *context.GangSchedulingContext) (model.AssigmentResult, error) {
+func assignWithUrgencyPreemption(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, _ []*model.EvictedJob) (model.AssigmentResult, error) {
+	return assignAtPriority(jctx, txn, jctx.Job.PriorityClass().Priority)
+}
+
+func assignWithFairSharePreemption(
+	jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, eligibleEvictions []*model.EvictedJob) (model.AssigmentResult, error) {
+
 	type consideredNode struct {
 		node              *internaltypes.Node
 		availableResource internaltypes.ResourceList
@@ -21,12 +28,12 @@ func (a *FairShareNodeAssigner) AssignNode(gang *context.GangSchedulingContext) 
 
 	nodesById := make(map[string]*consideredNode)
 
-	for _, evictedJob := range a.evictedJobs {
+	for _, evictedJob := range eligibleEvictions {
 
 		// Resolve the node for the evicted job
 		node, ok := nodesById[evictedJob.NodeId]
 		if !ok {
-			dbNode := a.nodeDb.GetNodeById(evictedJob.NodeId)
+			dbNode := txn.GetNodeById(evictedJob.NodeId)
 			node = &consideredNode{
 				node:              dbNode,
 				availableResource: internaltypes.ResourceList{},
@@ -49,7 +56,7 @@ func (a *FairShareNodeAssigner) AssignNode(gang *context.GangSchedulingContext) 
 		// If the job now fits, preempt all the evicted jobs on that node
 		if dynamicRequirementsMet && staticRequirementsMet {
 			for _, preemptedJob := range node.evictedJobs {
-				node.node = a.preepmtJob(preemptedJob, node.node)
+				node.node = txn.UnassignJobFromNode(preemptedJob.JobId, node.node.GetId())
 			}
 			return model.AssigmentResult{
 				Scheduled: true,
@@ -58,5 +65,24 @@ func (a *FairShareNodeAssigner) AssignNode(gang *context.GangSchedulingContext) 
 		}
 	}
 
+	return model.AssigmentResult{}, nil
+}
+
+func assignAtPriority(
+	jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, priority int32) (model.AssigmentResult, error) {
+	node := txn.GetNode(
+		priority,
+		jctx.Job.EfficientResourceRequirements(),
+		jctx.Job.Tolerations(),
+		jctx.Job.NodeSelector(),
+		jctx.Job.Affinity())
+
+	if node != "" {
+		return model.AssigmentResult{
+			Scheduled: true,
+			Priority:  jctx.Job.PriorityClass().Priority,
+			NodeId:    node,
+		}, nil
+	}
 	return model.AssigmentResult{}, nil
 }
