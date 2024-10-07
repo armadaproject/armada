@@ -35,7 +35,7 @@ func (s *PreemptingScheduler) Schedule(schedCtx *context.SchedulingContext, queu
 	evictedJobs = oversubscribedEvictor.Evict(nil)
 	evictedJobQueue := jobqueue.NewEvictedJobQueue(queue, evictedJobs)
 
-	err = s.queueScheduler.Schedule(schedCtx, queue, evictedJobs)
+	err = s.queueScheduler.Schedule(schedCtx, evictedJobQueue, evictedJobs)
 	if err != nil {
 		return err
 	}
