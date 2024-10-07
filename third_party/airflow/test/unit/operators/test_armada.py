@@ -230,7 +230,7 @@ def test_publishes_xcom_state(context):
     op = operator(JobSubmitRequestItem())
     op.execute(context)
 
-    op.hook.context_to_xcom.assert_called_once()
+    assert op.hook.context_to_xcom.call_count == 2
 
 
 def test_reattaches_to_running_job(context):

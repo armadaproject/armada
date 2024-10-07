@@ -42,7 +42,8 @@ class ArmadaHook(LoggingMixin):
         )
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=15),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     @log_exceptions
@@ -63,7 +64,8 @@ class ArmadaHook(LoggingMixin):
             return dataclasses.replace(job_context, job_state=JobState.CANCELLED.name)
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=15),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     @log_exceptions
@@ -88,7 +90,8 @@ class ArmadaHook(LoggingMixin):
         return RunningJobContext(queue, job.job_id, job_set_id, DateTime.utcnow())
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=15),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     @log_exceptions
@@ -112,26 +115,24 @@ class ArmadaHook(LoggingMixin):
                     cluster = run_details.cluster
         return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
     
-    @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=15),
-        reraise=True,
-    )
     @log_exceptions
     def context_from_xcom(self, ti: TaskInstance, re_attach: bool) -> RunningJobContext:
         result = ti.xcom_pull(key="job_context")
         if result:
-            return self.refresh_context(RunningJobContext(
+            return RunningJobContext(
                 armada_queue=result["armada_queue"],
                 job_id=result["armada_job_id"],
                 job_set_id=result["armada_job_set_id"],
+                job_state=result.get("armada_job_state", "UNKNOWN"),
                 submit_time=DateTime.utcnow() if re_attach else result.get("armada_job_submit_time", DateTime.utcnow()),
                 last_log_time=None if re_attach else result.get("armada_job_last_log_time", None)
-            ), None)
+            )
 
         return None
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=15),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     @log_exceptions
@@ -141,6 +142,7 @@ class ArmadaHook(LoggingMixin):
                 "armada_job_id": ctx.job_id,
                 "armada_job_set_id": ctx.job_set_id,
                 "armada_job_submit_time": ctx.submit_time,
+                "armada_job_state": ctx.job_state,
                 "armada_job_last_log_time": ctx.last_log_time,
                 "armada_lookout_url": lookout_url,
         })

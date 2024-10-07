@@ -187,7 +187,8 @@ acknowledged by Armada.
         return KubernetesPodLogManager(token_retriever=self.k8s_token_retriever)
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=15),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         retry=tenacity.retry_if_not_exception_type(jinja2.TemplateSyntaxError),
         reraise=True,
     )
@@ -350,12 +351,14 @@ acknowledged by Armada.
                     self.job_context = dataclasses.replace(
                         self.job_context, last_log_time=last_log_time
                     )
-                    self.hook.context_to_xcom(context["ti"], self.job_context, self.lookout_url(self.job_context.job_id))
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
+        
+        self.hook.context_to_xcom(context["ti"], self.job_context, self.lookout_url(self.job_context.job_id))
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=2),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     @log_exceptions
@@ -364,7 +367,8 @@ acknowledged by Armada.
         return task_instance.xcom_pull(key=key)
 
     @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=2),
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     @log_exceptions
