@@ -58,7 +58,7 @@ type SchedulingContext struct {
 	// Used to efficiently generate scheduling keys.
 	SchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
-	// Used to immediately reject new jobs with identical reqirements.
+	// Used to immediately reject new jobs with identical requirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys map[schedulerobjects.SchedulingKey]*JobSchedulingContext
 }

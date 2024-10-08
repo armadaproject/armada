@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// A QueueScheduler can schedule all the jobs in a given jobQueue.
 type QueueScheduler struct {
 	constraints  schedulerconstraints.SchedulingConstraints
 	nodeAssigner model.NodeAssigner
@@ -19,6 +20,8 @@ func NewQueueScheduler(constraints schedulerconstraints.SchedulingConstraints, n
 	}
 }
 
+// Schedule will attempt to schedule all jobs in the given jobQueue. It may choose to evict any jobs in the
+// provided evictedJobs map in order to achieve this.
 func (s *QueueScheduler) Schedule(schedCtx *context.SchedulingContext, jobQueue model.JobQueue, evictedJobs map[string]*context.JobSchedulingContext) error {
 
 	for gctx := jobQueue.Next(); gctx != nil; gctx = jobQueue.Next() {
@@ -30,6 +33,7 @@ func (s *QueueScheduler) Schedule(schedCtx *context.SchedulingContext, jobQueue 
 		}
 
 		// Verify that this job doesn't break any constraints
+		// TODO: we need to confirm whether the constraint check is fatal for the queue
 		ok, _, err = s.constraints.CheckConstraints(schedCtx, gctx)
 		if err != nil {
 			return err
@@ -39,6 +43,8 @@ func (s *QueueScheduler) Schedule(schedCtx *context.SchedulingContext, jobQueue 
 		}
 
 		// Try and assign node
+		// TODO:  maps.Values(evictedJobs) is likely to be inefficient here. Ideally we would use a data structure such
+		// as a LinkedHashMap
 		result, err := s.nodeAssigner.AssignNodesForGang(gctx, maps.Values(evictedJobs))
 		if err != nil {
 			return err
@@ -46,11 +52,11 @@ func (s *QueueScheduler) Schedule(schedCtx *context.SchedulingContext, jobQueue 
 
 		// If we scheduled a job then update the accounting
 		if result.Scheduled {
-			jobQueue.UpdateQueueCost()
+			jobQueue.UpdateQueueCost(gctx.Queue, gctx.TotalResourceRequests)
 			schedCtx.NumScheduledGangs++
 			for _, jobCtx := range gctx.JobSchedulingContexts {
 				schedCtx.NumScheduledJobs++
-				delete(evictedJobs, jobCtx.JobId)
+				delete(evictedJobs, jobCtx.JobId) // once we've scheduled a job it can no longer be preempted
 			}
 		}
 	}

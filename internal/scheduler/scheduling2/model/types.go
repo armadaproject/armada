@@ -16,15 +16,11 @@ type NodeIterator interface {
 }
 
 type NodeAssigner interface {
-	AssignNodesForGang(gang *context.GangSchedulingContext, evictedJobs []*context.JobSchedulingContext) (AssigmentResult, error)
+	AssignNodesForGang(gang *context.GangSchedulingContext, evictedJobs []*context.JobSchedulingContext) (GangAssignmentResult, error)
 }
 
 type NodeDb interface {
 	Txn() NodeDbTransaction
-}
-
-type Evictor interface {
-	Evict() []*jobdb.Job
 }
 
 type NodeDbTransaction interface {
@@ -45,16 +41,21 @@ type NodeDbTransaction interface {
 		nodeSelector map[string]string,
 		affinity *v1.Affinity) string
 
+	GetAllNodes() NodeIterator
+
 	Commit()
 
 	RollBack()
 }
 
 type EvictedJob struct {
-	JobId         string
-	NodeId        string
-	PriorityClass string
-	Resources     internaltypes.ResourceList
+	NodeId string
+	Job    *jobdb.Job
+}
+
+type GangAssignmentResult struct {
+	Scheduled            bool
+	JobAssignmentResults []AssigmentResult
 }
 
 type AssigmentResult struct {
@@ -65,7 +66,7 @@ type AssigmentResult struct {
 
 type JobQueue interface {
 	Next() *context.GangSchedulingContext
-	UpdateQueueCost()
+	UpdateQueueCost(queue string, costDelta internaltypes.ResourceList)
 	SetOnlyYieldEvicted()
 	SetOnlyYieldEvictedForQueue(string)
 }

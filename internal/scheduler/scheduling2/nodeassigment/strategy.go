@@ -43,7 +43,7 @@ func assignWithFairSharePreemption(
 		}
 
 		// Remove the evicted job from the node
-		node.availableResource = node.availableResource.Add(evictedJob.Resources)
+		node.availableResource = node.availableResource.Add(evictedJob.Job.EfficientResourceRequirements())
 		node.evictedJobs = append(node.evictedJobs, evictedJob)
 
 		// See if the new job now fits
@@ -56,7 +56,7 @@ func assignWithFairSharePreemption(
 		// If the job now fits, preempt all the evicted jobs on that node
 		if dynamicRequirementsMet && staticRequirementsMet {
 			for _, preemptedJob := range node.evictedJobs {
-				node.node = txn.UnassignJobFromNode(preemptedJob.JobId, node.node.GetId())
+				txn.UnassignJobFromNode(preemptedJob.Job, node.node.GetId())
 			}
 			return model.AssigmentResult{
 				Scheduled: true,
