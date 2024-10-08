@@ -62,6 +62,15 @@ type JobSchedulingContext struct {
 	AssignedNodeId string
 }
 
+func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
+	// Away jobs will only even be evicted in this round - and by definition have a run
+	// Therefore any job without a run we can assume is a home job
+	if jctx.Job.LatestRun() == nil {
+		return true
+	}
+	return jctx.Job.LatestRun().Pool() == currentPool
+}
+
 func (jctx *JobSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)

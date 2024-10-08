@@ -99,6 +99,9 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.jobRepo,
 			sch.nodeDb,
 			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
+				if job.LatestRun().Pool() != sch.schedulingContext.Pool {
+					return false
+				}
 				priorityClass := job.PriorityClass()
 				if !priorityClass.Preemptible {
 					return false
@@ -235,7 +238,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
-		return &EvictorResult{}, NewInMemoryJobRepository(), nil
+		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.Pool), nil
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -268,7 +271,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	sch.setEvictedGangCardinality(result)
 	evictedJctxs := maps.Values(result.EvictedJctxsByJobId)
 	for _, jctx := range evictedJctxs {
-		if _, err := sch.schedulingContext.EvictJob(jctx.Job); err != nil {
+		if _, err := sch.schedulingContext.EvictJob(jctx); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -279,7 +282,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.evictionAssertions(result); err != nil {
 		return nil, nil, err
 	}
-	inMemoryJobRepo := NewInMemoryJobRepository()
+	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.Pool)
 	inMemoryJobRepo.EnqueueMany(evictedJctxs)
 	txn.Commit()
 
@@ -466,7 +469,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 		)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
-	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue, false)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false)
 	if err != nil {
 		return err
 	}
@@ -503,7 +506,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo)
+			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo)
 			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
 		}
 	}

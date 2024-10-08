@@ -25,6 +25,8 @@ type PodSchedulingContext struct {
 	NumNodes int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
+	// If this pod was scheduled as an away job
+	ScheduledAway bool
 }
 
 func (pctx *PodSchedulingContext) IsSuccessful() bool {

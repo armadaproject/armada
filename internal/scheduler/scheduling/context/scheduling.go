@@ -14,7 +14,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
@@ -278,9 +277,13 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) (bool, error) {
-	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.Queue()]
+	queue := jctx.Job.Queue()
+	if !jctx.IsHomeJob(sctx.Pool) {
+		queue = CalculateAwayQueueName(jctx.Job.Queue())
+	}
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
 	if !ok {
-		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.Queue())
+		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
 	}
 	evictedInThisRound, err := qctx.addJobSchedulingContext(jctx)
 	if err != nil {
@@ -301,10 +304,10 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	return evictedInThisRound, nil
 }
 
-func (sctx *SchedulingContext) EvictGang(jobs []*jobdb.Job) (bool, error) {
+func (sctx *SchedulingContext) EvictGang(gctx *GangSchedulingContext) (bool, error) {
 	allJobsScheduledInThisRound := true
-	for _, job := range jobs {
-		scheduledInThisRound, err := sctx.EvictJob(job)
+	for _, jctx := range gctx.JobSchedulingContexts {
+		scheduledInThisRound, err := sctx.EvictJob(jctx)
 		if err != nil {
 			return false, err
 		}
@@ -316,23 +319,28 @@ func (sctx *SchedulingContext) EvictGang(jobs []*jobdb.Job) (bool, error) {
 	return allJobsScheduledInThisRound, nil
 }
 
-func (sctx *SchedulingContext) EvictJob(job *jobdb.Job) (bool, error) {
-	qctx, ok := sctx.QueueSchedulingContexts[job.Queue()]
-	if !ok {
-		return false, errors.Errorf("failed evicting job %s from scheduling context: no context for queue %s", job.Id(), job.Queue())
+func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error) {
+	queue := jctx.Job.Queue()
+	if !jctx.IsHomeJob(sctx.Pool) {
+		queue = CalculateAwayQueueName(jctx.Job.Queue())
 	}
-	scheduledInThisRound, err := qctx.evictJob(job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound, err := qctx.evictJob(jctx.Job)
 	if err != nil {
 		return false, err
 	}
-	rl := job.ResourceRequirements().Requests
+	rl := jctx.Job.ResourceRequirements().Requests
 	if scheduledInThisRound {
 		sctx.ScheduledResources.SubV1ResourceList(rl)
-		sctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.PriorityClassName(), rl)
+		sctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), rl)
 		sctx.NumScheduledJobs--
 	} else {
 		sctx.EvictedResources.AddV1ResourceList(rl)
-		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.PriorityClassName(), rl)
+		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), rl)
 		sctx.NumEvictedJobs++
 	}
 	sctx.Allocated.SubV1ResourceList(rl)

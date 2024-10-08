@@ -1607,12 +1607,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					},
 				}
 				config.DefaultPriorityClassName = "armada-preemptible"
-				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
-					{
-						Name:   "gpu",
-						Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
-					},
-				}
 				return config
 			}(),
 			Nodes: func() []*schedulerobjects.Node {
@@ -1740,12 +1734,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					},
 				}
 				config.DefaultPriorityClassName = "armada-preemptible"
-				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
-					{
-						Name:   "gpu",
-						Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
-					},
-				}
 				return config
 			}(),
 			Nodes: func() []*schedulerobjects.Node {
@@ -2016,7 +2004,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 				sctx := context.NewSchedulingContext(
-					"pool",
+					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
 					tc.TotalResources,
@@ -2373,7 +2361,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			)
 			require.NoError(b, err)
 			sctx := context.NewSchedulingContext(
-				"pool",
+				testfixtures.TestPool,
 				fairnessCostProvider,
 				limiter,
 				nodeDb.TotalResources(),
@@ -2384,7 +2372,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					schedulerobjects.NewResourceList(0), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalResources(), tc.SchedulingConfig, nil)
+			constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, nodeDb.TotalResources(), tc.SchedulingConfig, nil)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,

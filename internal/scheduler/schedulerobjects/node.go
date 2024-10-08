@@ -2,6 +2,7 @@ package schedulerobjects
 
 import (
 	"fmt"
+	"math"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -24,9 +25,9 @@ func (node *Node) DeepCopy() *Node {
 		AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
-		StateByJobRunId:             maps.Clone(node.StateByJobRunId),
-		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
-		Unschedulable:               node.Unschedulable,
+		StateByJobRunId:        maps.Clone(node.StateByJobRunId),
+		UnallocatableResources: armadamaps.DeepCopy(node.UnallocatableResources),
+		Unschedulable:          node.Unschedulable,
 	}
 }
 
@@ -39,8 +40,20 @@ func (node *Node) CompactString() string {
 
 func (node *Node) AvailableArmadaResource() ResourceList {
 	tr := node.TotalResources.DeepCopy()
-	for _, rl := range node.NonArmadaAllocatedResources {
+	for _, rl := range node.UnallocatableResources {
 		tr.Sub(rl)
 	}
 	return tr
+}
+
+func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) {
+	currentAllocatable := node.UnallocatableResources[math.MaxInt32]
+	(&currentAllocatable).Add(unallocatable)
+	node.UnallocatableResources[math.MaxInt32] = currentAllocatable
+
+	for priority, allocatable := range node.AllocatableByPriorityAndResource {
+		allocatable.Sub(unallocatable)
+		allocatable.LimitToZero()
+		node.AllocatableByPriorityAndResource[priority] = allocatable
+	}
 }

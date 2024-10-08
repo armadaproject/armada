@@ -510,7 +510,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil)
 
-			nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
+			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
 			if err != nil {
 				return err
 			}
@@ -518,7 +518,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			sch := scheduling.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
-				nloatingResourceTypes,
+				floatingResourceTypes,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
 				txn,
 				nodeDb,
@@ -582,7 +582,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 					if !ok {
 						return errors.Errorf("job %s not mapped to a priority", job.Id())
 					}
-					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
+					scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
 				}
 			}
 			if err := txn.Upsert(preemptedJobs); err != nil {
@@ -695,6 +695,10 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 	if err != nil {
 		return nil, false, err
 	}
+	poolNames := make([]string, 0, len(s.ClusterSpec.Pools))
+	for _, pool := range s.ClusterSpec.Pools {
+		poolNames = append(poolNames, pool.Name)
+	}
 	job, err := s.jobDb.NewJob(
 		e.JobId,
 		eventSequence.JobSetName,
@@ -708,7 +712,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		false,
 		s.logicalJobCreatedTimestamp.Add(1),
 		false,
-		[]string{},
+		poolNames,
 	)
 	if err != nil {
 		return nil, false, err
@@ -746,7 +750,7 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 		},
 	)
 
-	updatedJob := job.WithUpdatedRun(job.LatestRun().WithRunning(true))
+	updatedJob := job.WithUpdatedRun(job.LatestRun().WithRunning(true).WithPool(e.Pool))
 	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
 		return nil, false, err
 	}

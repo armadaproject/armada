@@ -49,7 +49,7 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.GetMaxQueueLookBack(), true)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
 	if err != nil {
 		return nil, err
 	}
@@ -328,6 +328,7 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // Specifically, it yields the next gang in the queue with smallest fraction of its fair share,
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
+	pool                 string
 	queueRepository      fairness.QueueRepository
 	fairnessCostProvider fairness.FairnessCostProvider
 	// If true, this iterator only yields gangs where all jobs are evicted.
@@ -343,12 +344,14 @@ type CandidateGangIterator struct {
 }
 
 func NewCandidateGangIterator(
+	pool string,
 	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 	considerPriority bool,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
+		pool:                    pool,
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
@@ -447,9 +450,6 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 	if gctx == nil {
 		return nil
 	}
-	if gctx.Queue != item.queue {
-		return errors.Errorf("mismatched queue %s and %s for gctx", gctx.Queue, item.queue)
-	}
 	item.gctx = gctx
 	cost, err := it.queueCostWithGctx(gctx)
 	if err != nil {
@@ -482,9 +482,13 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 
 // queueCostWithGctx returns the cost associated with a queue if gctx were to be scheduled.
 func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSchedulingContext) (float64, error) {
-	queue, ok := it.queueRepository.GetQueue(gctx.Queue)
+	gangQueue := gctx.Queue
+	if len(gctx.JobSchedulingContexts) > 0 && !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool) {
+		gangQueue = schedulercontext.CalculateAwayQueueName(gctx.Queue)
+	}
+	queue, ok := it.queueRepository.GetQueue(gangQueue)
 	if !ok {
-		return 0, errors.Errorf("unknown queue %s", gctx.Queue)
+		return 0, errors.Errorf("unknown queue %s", gangQueue)
 	}
 	it.buffer.Zero()
 	it.buffer.Add(queue.GetAllocation())

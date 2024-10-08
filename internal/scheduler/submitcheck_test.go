@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
@@ -26,6 +27,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	// expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
 	smallJob1 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
+	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
+	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	largeJob1 := testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
@@ -36,16 +39,22 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	largeGangJob := testfixtures.
 		WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 4))
 
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	schedulingConfig.Pools = []configuration.PoolConfig{
+		{Name: "cpu"},
+		{Name: "cpu2"},
+		{Name: "gpu"},
+		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+	}
+
 	tests := map[string]struct {
 		executorTimout time.Duration
-		config         configuration.SchedulingConfig
 		executors      []*schedulerobjects.Executor
 		jobs           []*jobdb.Job
 		expectedResult map[string]schedulingResult
 	}{
 		"One job schedulable": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
@@ -54,7 +63,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"One job schedulable, multiple executors": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu")),
 				Executor(SmallNode("cpu")),
@@ -66,16 +74,39 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"One job schedulable, multiple executors but only fits on one": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu")), Executor()},
 			jobs:           []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
+		"One job schedulable, home jobs not assigned to away pools": {
+			executorTimout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(GpuNode("gpu")),
+			},
+			jobs: []*jobdb.Job{smallGpuJob},
+			expectedResult: map[string]schedulingResult{
+				// The job can theoretically schedule:
+				// - On the "gpu" pool as a home job
+				// - On the "cpu-away" pool, which has "gpu" as an away pool
+				// Jobs shouldn't get assigned to pools with away pools they are already home jobs on
+				smallGpuJob.Id(): {isSchedulable: true, pools: []string{"gpu"}},
+			},
+		},
+		"One job schedulable, away pools": {
+			executorTimout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(SmallNode("cpu")),
+				Executor(GpuNode("gpu")),
+			},
+			jobs: []*jobdb.Job{smallAwayJob},
+			expectedResult: map[string]schedulingResult{
+				smallAwayJob.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu-away"}},
+			},
+		},
 		"One job schedulable, multiple pools": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu")),
 				Executor(SmallNode("cpu2")),
@@ -87,7 +118,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"One job schedulable, one executor, multiple pools": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu"), SmallNode("cpu2")),
 			},
@@ -98,7 +128,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"Two jobs schedules": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           []*jobdb.Job{smallJob1, smallJob2},
 			expectedResult: map[string]schedulingResult{
@@ -108,7 +137,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"One job schedulable, one not due to resources": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           []*jobdb.Job{smallJob1, largeJob1},
 			expectedResult: map[string]schedulingResult{
@@ -118,7 +146,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"No jobs schedulable due to resources": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           []*jobdb.Job{largeJob1},
 			expectedResult: map[string]schedulingResult{
@@ -127,7 +154,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"No jobs schedulable due to selector": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           []*jobdb.Job{testfixtures.WithNodeSelectorJob(map[string]string{"foo": "bar"}, smallJob1)},
 			expectedResult: map[string]schedulingResult{
@@ -136,7 +162,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"Gang Schedules - one cluster one node": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           smallGangJob,
 			expectedResult: map[string]schedulingResult{
@@ -146,7 +171,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"Gang Schedules - one cluster multiple node": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu"))},
 			jobs:           largeGangJob,
 			expectedResult: map[string]schedulingResult{
@@ -158,7 +182,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"Individual jobs fit but gang doesn't": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           largeGangJob,
 			expectedResult: map[string]schedulingResult{
@@ -170,7 +193,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"Individual jobs fit but gang doesn't on mixed pool cluster": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu2"))},
 			jobs:           largeGangJob,
 			expectedResult: map[string]schedulingResult{
@@ -182,7 +204,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		},
 		"One job fits, one gang doesn't, out of order": {
 			executorTimout: defaultTimeout,
-			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs:           []*jobdb.Job{largeGangJob[0], smallJob1, largeGangJob[1], largeGangJob[2], largeGangJob[3]},
 			expectedResult: map[string]schedulingResult{
@@ -203,7 +224,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			fakeClock := clock.NewFakeClock(baseTime)
-			submitCheck := NewSubmitChecker(tc.config, mockExecutorRepo, testfixtures.TestResourceListFactory)
+			submitCheck := NewSubmitChecker(schedulingConfig, mockExecutorRepo, testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
 			results, err := submitCheck.Check(ctx, tc.jobs)
@@ -229,6 +250,25 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 		Pool:  "cpu",
 		Nodes: nodes,
 	}
+}
+
+func GpuNode(pool string) *schedulerobjects.Node {
+	node := testfixtures.TestNode(
+		testfixtures.TestPriorities,
+		map[string]resource.Quantity{
+			"cpu":            resource.MustParse("30"),
+			"memory":         resource.MustParse("512Gi"),
+			"nvidia.com/gpu": resource.MustParse("8"),
+		})
+	node.Taints = []v1.Taint{
+		{
+			Key:    "gpu",
+			Value:  "true",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+	}
+	node.Pool = pool
+	return node
 }
 
 func SmallNode(pool string) *schedulerobjects.Node {

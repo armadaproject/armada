@@ -231,10 +231,9 @@ type SchedulingConfig struct {
 	MaxUnacknowledgedJobsPerExecutor uint
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first
-	PoolSchedulePriority map[string]int
 	// Default priority for pools that are not in the above list
 	DefaultPoolSchedulePriority int
+	Pools                       []PoolConfig
 }
 
 const (
@@ -267,4 +266,9 @@ type WellKnownNodeType struct {
 	// Taints is the set of taints that characterizes this node type; a node is
 	// part of this node type if and only if it has all of these taints.
 	Taints []v1.Taint
+}
+
+type PoolConfig struct {
+	Name      string `validate:"required"`
+	AwayPools []string
 }

@@ -29,6 +29,7 @@ type schedulingResult struct {
 }
 
 type executor struct {
+	id     string
 	nodeDb *nodedb.NodeDb
 }
 
@@ -106,6 +107,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 
 			if err == nil {
 				executorsByPoolAndId[pool][ex.Id] = &executor{
+					id:     ex.Id,
 					nodeDb: nodeDb,
 				}
 			} else {
@@ -187,18 +189,30 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedul
 func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
 	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
-	for pool, executors := range state.executorsByPoolAndId {
-		// If we already know we can schedule on this pool then we are good
-		if sucessfulPools[pool] {
+
+poolStart:
+	for _, pool := range srv.schedulingConfig.Pools {
+		if sucessfulPools[pool.Name] {
 			continue
 		}
 
-		for id, ex := range executors {
+		for _, awayPool := range pool.AwayPools {
+			if sucessfulPools[awayPool] {
+				continue poolStart
+			}
+		}
+
+		executors := maps.Values(state.executorsByPoolAndId[pool.Name])
+		for _, awayPool := range pool.AwayPools {
+			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool])...)
+		}
+
+		for _, ex := range executors {
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
 
-			sb.WriteString(id)
+			sb.WriteString(ex.id)
 			if err != nil {
 				sb.WriteString(err.Error())
 				sb.WriteString("\n")
@@ -206,7 +220,9 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContex
 			}
 
 			if ok {
-				sucessfulPools[pool] = true
+				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
+					sucessfulPools[pool.Name] = true
+				}
 				continue
 			}
 
