@@ -1,8 +1,9 @@
-package io.armadaproject;
+package io.armadaproject.examples;
 
 import api.SubmitOuterClass.JobSubmitRequest;
 import api.SubmitOuterClass.JobSubmitRequestItem;
 import api.SubmitOuterClass.JobSubmitResponse;
+import io.armadaproject.ArmadaClient;
 import java.util.List;
 import java.util.logging.Logger;
 import k8s.io.api.core.v1.Generated.Container;
