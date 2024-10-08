@@ -44,8 +44,9 @@ class KubernetesPodLogManager(LoggingMixin):
 
 
     @tenacity.retry(
-        wait=tenacity.wait_exponential(max=15),
+        wait=tenacity.wait_exponential(max=3),
         retry=tenacity.retry_if_exception_type(HTTPError),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     def fetch_container_logs(
