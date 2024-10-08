@@ -1,6 +1,7 @@
-package io.armadaproject;
+package io.armadaproject.examples;
 
 import api.Health.HealthCheckResponse.ServingStatus;
+import io.armadaproject.ArmadaClient;
 
 public class CheckConnectionExample {
 
