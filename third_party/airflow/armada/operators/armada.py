@@ -116,14 +116,20 @@ acknowledged by Armada.
         ),
         job_set_prefix: Optional[str] = "",
         lookout_url_template: Optional[str] = None,
-        poll_interval: int = 30,
+        poll_interval: int = conf.getint(
+            "armada_operator", "default_poll_interval_s", fallback=30
+        ),
         container_logs: Optional[str] = None,
         k8s_token_retriever: Optional[TokenRetriever] = None,
         deferrable: bool = conf.getboolean(
             "operators", "default_deferrable", fallback=True
         ),
-        job_acknowledgement_timeout: int = 5 * 60,
-        dry_run: bool = False,
+        job_acknowledgement_timeout: int = conf.getint(
+            "armada_operator", "default_job_acknowledgement_timeout_s", fallback=5 * 60
+        ),
+        dry_run: bool = conf.getboolean(
+            "armada_operator", "default_dry_run", fallback=False
+        ),
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -156,6 +162,14 @@ acknowledged by Armada.
         :param context: The execution context provided by Airflow.
         :type context: Context
         """
+        
+        self.log.info(
+            "ArmadaOperator("
+              f"deferrable: {self.deferrable}, "
+              f"dry_run: {self.dry_run}, "
+              f"poll_interval: {self.poll_interval}s, "
+              f"job_acknowledgement_timeout: {self.job_acknowledgement_timeout}s)")
+
         # We take the job_set_id from Airflow's run_id.
         # So all jobs in the dag will be in the same jobset.
         self.job_set_id = f"{self.job_set_prefix}{context['run_id']}"
@@ -176,6 +190,7 @@ acknowledged by Armada.
         self.job_context = self._reattach_or_submit_job(
             context, self.job_set_id, self.job_request
         )
+
         self._poll_for_termination(context)
 
     @property
@@ -226,6 +241,13 @@ acknowledged by Armada.
             self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
         
         self._annotate_job_request(context, self.job_request)
+
+        # We want to disable log-fetching if container name is incorrect
+        if self.container_logs and self.job_request.pod_spec:
+            containers = {c.name for c in self.job_request.pod_spec.containers}
+            if self.container_logs not in containers:
+                self.log.error(f"unable to fetch logs as {self.container_logs} is not a valid container in job_request. Available containers: {containers}")
+                self.container_logs = None
 
     def on_kill(self) -> None:
         if self.job_context is not None:
