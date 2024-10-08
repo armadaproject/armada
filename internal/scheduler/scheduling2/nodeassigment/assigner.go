@@ -27,27 +27,28 @@ func (a *NodeAssigner) AssignNodesForGang(gang *context.GangSchedulingContext, e
 
 	assignmentResults := make([]model.AssigmentResult, len(gang.JobSchedulingContexts))
 	for i, jctx := range gang.JobSchedulingContexts {
+
 		// Try scheduling job on home nodes
 		result, err := a.tryAssignToHomeNodes(jctx, txn, evictedJobs)
 		if err != nil {
 			return model.GangAssignmentResult{}, err
 		}
-		if result.Scheduled {
-			txn.AssignJobToNode(jctx.Job, result.NodeId, result.Priority)
-			assignmentResults[i] = result
-		} else {
-			result, err := a.tryAssignToAwayNodesNodes(jctx, txn, evictedJobs)
+
+		// If home scheduling failed, try away nodes
+		if !result.Scheduled {
+			result, err = a.tryAssignToAwayNodesNodes(jctx, txn, evictedJobs)
 			if err != nil {
 				return model.GangAssignmentResult{}, err
 			}
-			if result.Scheduled {
-				txn.AssignJobToNode(jctx.Job, result.NodeId, result.Priority)
-				assignmentResults[i] = result
-			} else {
+			if !result.Scheduled {
 				return model.GangAssignmentResult{}, nil
 			}
 		}
+
+		txn.AssignJobToNode(jctx.Job, result.NodeId, result.Priority)
+		assignmentResults[i] = result
 	}
+
 	txn.Commit()
 	return model.GangAssignmentResult{Scheduled: true, JobAssignmentResults: assignmentResults}, nil
 }
