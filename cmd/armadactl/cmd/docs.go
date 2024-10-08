@@ -4,6 +4,11 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"os"
+	"os/exec"
+	"runtime"
+
+	"golang.org/x/term"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
@@ -43,10 +48,45 @@ func docsCmd() *cobra.Command {
 				return fmt.Errorf("could not render content from documentation file: %s", err)
 			}
 
-			fmt.Println(out)
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				if err = openTextViewer(out); err != nil {
+					return fmt.Errorf("could open documentation in text viewer: %s", err)
+				}
+			} else {
+				fmt.Printf("%s\n", out)
+			}
+
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func openTextViewer(text string) error {
+	var pagerCmd *exec.Cmd
+
+	tmpFile, err := os.CreateTemp("", "armadactl-docs-*.md")
+	if err != nil {
+		return fmt.Errorf("could not create temp file for text viewer: %s", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write([]byte(text)); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("could not write temp file for text viewer: %s", err)
+	}
+	tmpFile.Close()
+
+	if runtime.GOOS == "windows" {
+		pagerCmd = exec.Command("more", tmpFile.Name())
+	} else {
+		pagerCmd = exec.Command("less", "-R", tmpFile.Name()) // -R allows ANSI color codes
+	}
+
+	pagerCmd.Stdin = os.Stdin
+	pagerCmd.Stdout = os.Stdout
+	pagerCmd.Stderr = os.Stderr
+
+	return pagerCmd.Run()
 }

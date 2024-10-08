@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -29,6 +30,7 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 			}
 			queueName = strings.TrimSpace(queueName)
 			if queueName != "" {
+				fmt.Print("This flag is deprecated and will be removed in a future release. Please use `queue-report` instead.\n")
 				return a.GetSchedulingReportForQueue(queueName, int32(verbosity))
 			}
 
@@ -38,6 +40,7 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 			}
 			jobId = strings.TrimSpace(jobId)
 			if jobId != "" {
+				fmt.Print("This flag is deprecated and will be removed in a future release. Please use `job-report` instead.\n")
 				return a.GetSchedulingReportForJob(jobId, int32(verbosity))
 			}
 
@@ -56,10 +59,9 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 
 func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "queue-report <queue-name>",
-		Short:        "Get queue scheduler reports",
-		Args:         cobra.ExactArgs(1),
-		SilenceUsage: true,
+		Use:   "queue-report <queue-name>",
+		Short: "Get queue scheduler reports",
+		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -83,10 +85,9 @@ func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 
 func getJobSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "job-report <job-id>",
-		Short:        "Get job scheduler reports",
-		Args:         cobra.ExactArgs(1),
-		SilenceUsage: true,
+		Use:   "job-report <job-id>",
+		Short: "Get job scheduler reports",
+		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
