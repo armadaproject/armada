@@ -10,13 +10,12 @@ import k8s.io.api.core.v1.Generated.PodSpec;
 import k8s.io.api.core.v1.Generated.ResourceRequirements;
 import k8s.io.apimachinery.pkg.api.resource.Generated.Quantity;
 
-public class Example {
+public class SubmitExample {
 
-  private static final Logger LOG = Logger.getLogger(Example.class.getName());
+  private static final Logger LOG = Logger.getLogger(SubmitExample.class.getName());
 
   public static void main(String[] args) {
     ArmadaClient armadaClient = new ArmadaClient("localhost", 30002);
-    armadaClient.checkHealth();
 
     String queueName = "example";
 

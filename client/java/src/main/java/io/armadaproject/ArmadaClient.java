@@ -1,12 +1,19 @@
 package io.armadaproject;
 
+import api.EventGrpc;
+import api.EventOuterClass.EventStreamMessage;
+import api.EventOuterClass.JobSetRequest;
 import api.Health.HealthCheckResponse;
+import api.Health.HealthCheckResponse.ServingStatus;
 import api.SubmitGrpc;
+import api.SubmitOuterClass.CancellationResult;
+import api.SubmitOuterClass.JobCancelRequest;
 import api.SubmitOuterClass.JobSubmitRequest;
 import api.SubmitOuterClass.JobSubmitResponse;
 import com.google.protobuf.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import java.util.Iterator;
 import java.util.logging.Logger;
 
 public class ArmadaClient {
@@ -19,11 +26,13 @@ public class ArmadaClient {
     channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
   }
 
-  public void checkHealth() {
+  public ServingStatus checkHealth() {
     LOG.info("checking connection to armada server...");
     SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
     HealthCheckResponse healthCheckResponse = submitBlockingStub.health(Empty.getDefaultInstance());
-    LOG.info("connection to armada server: " + healthCheckResponse.getStatus());
+    ServingStatus status = healthCheckResponse.getStatus();
+    LOG.info("connection to armada server: " + status);
+    return status;
   }
 
   public JobSubmitResponse submitJob(JobSubmitRequest jobSubmitRequest) {
@@ -31,6 +40,18 @@ public class ArmadaClient {
     JobSubmitResponse jobSubmitResponse = submitBlockingStub.submitJobs(jobSubmitRequest);
     LOG.info("job submitted! response: \n" + jobSubmitResponse);
     return jobSubmitResponse;
+  }
+
+  public CancellationResult cancelJob(JobCancelRequest jobCancelRequest) {
+    SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
+    CancellationResult cancellationResult = submitBlockingStub.cancelJobs(jobCancelRequest);
+    LOG.info("job cancelled! response: \n" + cancellationResult);
+    return cancellationResult;
+  }
+
+  public Iterator<EventStreamMessage> getEvents(JobSetRequest jobSetRequest) {
+    EventGrpc.EventBlockingStub eventBlockingStub = EventGrpc.newBlockingStub(channel);
+    return eventBlockingStub.getJobSetEvents(jobSetRequest);
   }
 
 }
