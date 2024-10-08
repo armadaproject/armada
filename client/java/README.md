@@ -1,7 +1,7 @@
 # armada java grpc client
 
 # requirements
-- java 21
+- java 11 (required by Jenkins K8s plugin)
 - maven 3.9.9
 
 # troubleshooting
