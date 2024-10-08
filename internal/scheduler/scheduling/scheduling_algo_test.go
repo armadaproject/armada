@@ -25,6 +25,15 @@ import (
 )
 
 func TestSchedule(t *testing.T) {
+	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
+	multiPoolSchedulingConfig.Pools = []configuration.PoolConfig{
+		{Name: testfixtures.TestPool},
+		{Name: testfixtures.TestPool2},
+		{
+			Name:      testfixtures.AwayPool,
+			AwayPools: []string{testfixtures.TestPool2},
+		},
+	}
 	type scheduledJobs struct {
 		jobs         []*jobdb.Job
 		acknowledged bool
@@ -61,14 +70,36 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 4},
 		},
-		"scheduling - mixed pool clusters": {
+		"scheduling - home away": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.MakeTestExecutorWithNodes("executor-1",
+					testfixtures.WithLargeNodeTaint(testfixtures.TestNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
+			expectedScheduledIndices: []int{0, 1},
+			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 2},
+		},
+		"scheduling - cross pool - home away": {
+			schedulingConfig: multiPoolSchedulingConfig,
+			executors: []*schedulerobjects.Executor{
+				testfixtures.MakeTestExecutorWithNodes("executor-1",
+					testfixtures.WithLargeNodeTaint(testfixtures.TestNodeWithPool(testfixtures.TestPool2))),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool, testfixtures.AwayPool}),
+			expectedScheduledIndices: []int{0, 1},
+			expectedScheduledByPool:  map[string]int{testfixtures.AwayPool: 2},
+		},
+		"scheduling - mixed pool clusters": {
+			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
 			executors: []*schedulerobjects.Executor{
 				testfixtures.MakeTestExecutor("executor-1", "pool-1", "pool-2"),
 				testfixtures.MakeTestExecutor("executor-2", "pool-1"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
-			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10), []string{"pool-1", "pool-2"}),
 			expectedScheduledIndices: []int{0, 1, 2, 3, 4, 5},
 			expectedScheduledByPool:  map[string]int{"pool-1": 4, "pool-2": 2},
 		},
@@ -311,13 +342,13 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledIndices: []int{0, 1},
 		},
 		"gang scheduling successful - mixed pool clusters": {
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
 			executors: []*schedulerobjects.Executor{
 				testfixtures.MakeTestExecutor("executor1", "pool-1", "pool-2"),
 				testfixtures.MakeTestExecutor("executor2", "pool-1"),
 			},
 			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
-			queuedJobs:               testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.PoolNameLabel),
+			queuedJobs:               testfixtures.WithPools(testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.PoolNameLabel), []string{"pool-1"}),
 			expectedScheduledIndices: []int{0, 1, 2},
 			expectedScheduledByPool:  map[string]int{"pool-1": 3},
 		},
@@ -331,10 +362,10 @@ func TestSchedule(t *testing.T) {
 			queuedJobs: testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel),
 		},
 		"not scheduling a gang that does not fit on any pool": {
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
 			executors:        []*schedulerobjects.Executor{testfixtures.MakeTestExecutor("executor1", "pool-1", "pool-2")},
 			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
-			queuedJobs:       testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel),
+			queuedJobs:       testfixtures.WithPools(testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel), []string{"pool-1", "pool-2"}),
 		},
 		"urgency-based gang preemption": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -637,51 +668,9 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
-				err = algo.populateNodeDb(nodeDb, testfixtures.TestNodeFactory, jobs, nodes)
+				err = algo.populateNodeDb(nodeDb, testfixtures.TestNodeFactory, jobs, []*jobdb.Job{}, nodes)
 				require.NoError(b, err)
 			}
-		})
-	}
-}
-
-func TestSortExecutorGroups(t *testing.T) {
-	tests := map[string]struct {
-		groups          []string
-		groupToPriority map[string]int
-		defaultPriority int
-		expected        []string
-	}{
-		"All groups have defined priority": {
-			groups:          []string{"pool1", "pool2", "pool3"},
-			groupToPriority: map[string]int{"pool1": 3, "pool2": 1, "pool3": 2},
-			expected:        []string{"pool1", "pool3", "pool2"},
-		},
-		"Use default Priority": {
-			groups:          []string{"pool1", "pool2", "pool3"},
-			groupToPriority: map[string]int{"pool1": 3, "pool2": 1},
-			defaultPriority: 2,
-			expected:        []string{"pool1", "pool3", "pool2"},
-		},
-		"Tie break on alphabetical": {
-			groups:          []string{"pool1", "pool2", "pool3"},
-			groupToPriority: map[string]int{"pool1": 2, "pool2": 2, "pool3": 3},
-			defaultPriority: 2,
-			expected:        []string{"pool3", "pool1", "pool2"},
-		},
-		"Empty priority yields alphabetical": {
-			groups:   []string{"pool2", "pool3", "pool1"},
-			expected: []string{"pool1", "pool2", "pool3"},
-		},
-		"Empty input": {
-			groups:   []string{},
-			expected: []string{},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			sortGroups(tc.groups, tc.groupToPriority, tc.defaultPriority)
-			assert.Equal(t, tc.expected, tc.groups)
 		})
 	}
 }

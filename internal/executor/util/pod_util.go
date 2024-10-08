@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 var managedPodSelector labels.Selector
@@ -107,6 +108,10 @@ func ExtractJobId(pod *v1.Pod) string {
 
 func ExtractQueue(pod *v1.Pod) string {
 	return pod.Labels[domain.Queue]
+}
+
+func ExtractPool(pod *v1.Pod) string {
+	return pod.Annotations[configuration.PoolAnnotation]
 }
 
 func ExtractJobSet(pod *v1.Pod) string {

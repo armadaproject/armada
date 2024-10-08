@@ -177,93 +177,6 @@ func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
 	assert.Equal(t, len(result), 0)
 }
 
-func TestGetAllocationByQueueAndPriority_HasAnEntryPerQueue(t *testing.T) {
-	var priority int32
-	podResource := makeResourceList(2, 50)
-	queue1Pod1 := makePodWithResource("queue1", podResource, &priority)
-	queue1Pod2 := makePodWithResource("queue1", podResource, &priority)
-	queue2Pod1 := makePodWithResource("queue2", podResource, &priority)
-
-	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2, &queue2Pod1}
-
-	result := GetAllocationByQueueAndPriority(pods)
-	assert.Equal(t, len(result), 2)
-	assert.True(t, hasKey(result, "queue1"))
-	assert.True(t, hasKey(result, "queue2"))
-}
-
-func TestGetAllocationByQueueAndPriority_SkipsPodsWithoutQueue(t *testing.T) {
-	var priority int32
-	podResource := makeResourceList(2, 50)
-	pod := makePodWithResource("", podResource, &priority)
-	pod.Labels = make(map[string]string)
-
-	result := GetAllocationByQueueAndPriority([]*v1.Pod{&pod})
-	assert.NotNil(t, result)
-	assert.Equal(t, len(result), 0)
-}
-
-func TestGetAllocationByQueueAndPriority_AggregatesPodResourcesInAQueue(t *testing.T) {
-	var priority int32 = 10
-	podResource := makeResourceList(2, 50)
-	queue1Pod1 := makePodWithResource("queue1", podResource, &priority)
-	queue1Pod2 := makePodWithResource("queue1", podResource, &priority)
-
-	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
-
-	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
-		"queue1": {
-			priority: armadaresource.FromResourceList(expectedResource),
-		},
-	}
-
-	result := GetAllocationByQueueAndPriority(pods)
-	assert.Equal(t, result, expectedResult)
-}
-
-func TestGetAllocationByQueueAndPriority_AggregatesResources(t *testing.T) {
-	var priority1 int32 = 1
-	var priority2 int32 = 2
-	podResource := makeResourceList(2, 50)
-
-	queue1Pod1 := makePodWithResource("queue1", podResource, &priority1)
-	queue1Pod2 := makePodWithResource("queue1", podResource, &priority1)
-	queue1Pod3 := makePodWithResource("queue1", podResource, &priority2)
-	queue1Pod4 := makePodWithResource("queue1", podResource, &priority2)
-
-	queue2Pod1 := makePodWithResource("queue2", podResource, &priority1)
-	queue2Pod2 := makePodWithResource("queue2", podResource, &priority1)
-	queue2Pod3 := makePodWithResource("queue2", podResource, &priority2)
-	queue2Pod4 := makePodWithResource("queue2", podResource, &priority2)
-
-	pods := []*v1.Pod{
-		&queue1Pod1,
-		&queue1Pod2,
-		&queue1Pod3,
-		&queue1Pod4,
-		&queue2Pod1,
-		&queue2Pod2,
-		&queue2Pod3,
-		&queue2Pod4,
-	}
-
-	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
-		"queue1": {
-			priority1: armadaresource.FromResourceList(expectedResource),
-			priority2: armadaresource.FromResourceList(expectedResource),
-		},
-		"queue2": {
-			priority1: armadaresource.FromResourceList(expectedResource),
-			priority2: armadaresource.FromResourceList(expectedResource),
-		},
-	}
-
-	result := GetAllocationByQueueAndPriority(pods)
-	assert.Equal(t, result, expectedResult)
-}
-
 func TestGetRunIdsByNode(t *testing.T) {
 	utilisationService := &ClusterUtilisationService{
 		nodeIdLabel: nodeIdLabel,
@@ -352,15 +265,6 @@ func createPodOnNode(jobId string, runId string, phase v1.PodPhase, nodeName str
 		pod.Spec.NodeSelector = map[string]string{nodeIdLabel: nodeIdSelector}
 	}
 	return pod
-}
-
-func TestGetAllocationByQueueAndPriority_HandlesEmptyList(t *testing.T) {
-	var pods []*v1.Pod
-
-	result := GetAllocationByQueueAndPriority(pods)
-
-	assert.NotNil(t, result)
-	assert.Equal(t, len(result), 0)
 }
 
 func TestGetAllocatedResourceByNodeName(t *testing.T) {

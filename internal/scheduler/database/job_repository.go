@@ -25,6 +25,7 @@ type hasSerial interface {
 type JobRunLease struct {
 	RunID                  string
 	Queue                  string
+	Pool                   string
 	JobSet                 string
 	UserID                 string
 	Node                   string
@@ -249,7 +250,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
+				SELECT jr.run_id, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -270,7 +271,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
 			if err != nil {
 				return errors.WithStack(err)
 			}

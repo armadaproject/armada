@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func TestIsInTerminalState_ShouldReturnTrueWhenPodInSucceededPhase(t *testing.T) {
@@ -367,6 +368,14 @@ func TestExtractQueue(t *testing.T) {
 
 	assert.Equal(t, ExtractQueue(podWithQueue), "queue-1")
 	assert.Equal(t, ExtractQueue(podWithoutQueue), "")
+}
+
+func TestExtractPool(t *testing.T) {
+	podWithPool := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{configuration.PoolAnnotation: "pool-1"}}}
+	podWithoutPool := &v1.Pod{}
+
+	assert.Equal(t, ExtractPool(podWithPool), "pool-1")
+	assert.Equal(t, ExtractPool(podWithoutPool), "")
 }
 
 func TestExtractJobSet(t *testing.T) {

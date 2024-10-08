@@ -745,6 +745,62 @@ func TestResourceListIsStrictlyNonNegative(t *testing.T) {
 	}
 }
 
+func TestResourceListLimitToZero(t *testing.T) {
+	tests := map[string]struct {
+		input    ResourceList
+		expected ResourceList
+	}{
+		"empty": {
+			input:    ResourceList{},
+			expected: ResourceList{},
+		},
+		"empty maps": {
+			input: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			expected: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+		},
+		"non-negative values": {
+			input: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("5"),
+					"bar": resource.MustParse("0"),
+				},
+			},
+			expected: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("5"),
+					"bar": resource.MustParse("0"),
+				},
+			},
+		},
+		"negative values": {
+			input: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("-1"),
+					"bar": resource.MustParse("0"),
+					"baz": resource.MustParse("1"),
+				},
+			},
+			expected: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0"),
+					"bar": resource.MustParse("0"),
+					"baz": resource.MustParse("1"),
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.input.LimitToZero()
+			assert.True(t, tc.expected.Equal(tc.input))
+		})
+	}
+}
+
 func TestResourceListZero(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]resource.Quantity{

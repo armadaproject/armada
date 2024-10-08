@@ -37,14 +37,18 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, ResourceListFromProtoResources(rl.Resources))
 	}
-	nonArmadaAllocatedResources := make(map[int32]schedulerobjects.ResourceList)
+	unallocatableResources := make(map[int32]schedulerobjects.ResourceList)
 	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
-		nonArmadaAllocatedResources[p] = ResourceListFromProtoResources(rl.Resources)
+		unallocatableResources[p] = ResourceListFromProtoResources(rl.Resources)
 	}
-	resourceUsageByQueue := make(map[string]*schedulerobjects.ResourceList)
-	for queueName, resourceUsage := range nodeInfo.ResourceUsageByQueue {
+	resourceUsageByQueueAndPool := make([]*schedulerobjects.PoolQueueResource, len(nodeInfo.ResourceUsageByQueueAndPool))
+	for i, resourceUsage := range nodeInfo.ResourceUsageByQueueAndPool {
 		rl := ResourceListFromProtoResources(resourceUsage.Resources)
-		resourceUsageByQueue[queueName] = &rl
+		resourceUsageByQueueAndPool[i] = &schedulerobjects.PoolQueueResource{
+			Pool:      resourceUsage.Pool,
+			Queue:     resourceUsage.Queue,
+			Resources: &rl,
+		}
 	}
 
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
@@ -66,10 +70,10 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   ResourceListFromProtoResources(nodeInfo.TotalResources),
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
-		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
+		UnallocatableResources:           unallocatableResources,
 		StateByJobRunId:                  jobRunsByState,
 		Unschedulable:                    nodeInfo.Unschedulable,
-		ResourceUsageByQueue:             resourceUsageByQueue,
+		ResourceUsageByQueueAndPool:      resourceUsageByQueueAndPool,
 		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
 }

@@ -12,7 +12,7 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 // Used by the scheduler when allocating jobs to executors.
 message NodeInfo {
-  reserved 7;
+  reserved 7, 11;
   string name = 1;
   repeated k8s.io.api.core.v1.Taint taints = 2;
   map<string,string> labels = 3;
@@ -29,17 +29,22 @@ message NodeInfo {
   map<int32, ComputeResource> non_armada_allocated_resources = 9;
   bool unschedulable = 10;
   // This should only be used for metrics
-  // An aggregated real usage of jobs by queue
-  map<string, ComputeResource> resource_usage_by_queue = 11;
-  // This should only be used for metrics
   // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
   string node_type = 12;
   // The pool that this node belongs to, this is used for scheduling purposes
   string pool = 13;
+  // Replaces resource_usage_by_queue
+  repeated PoolQueueResource resource_usage_by_queue_and_pool = 14;
 }
 
 message ComputeResource {
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1;
+}
+
+message PoolQueueResource {
+  string pool = 1;
+  string queue = 2;
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3;
 }
 
 message EventList {
