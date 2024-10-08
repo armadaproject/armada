@@ -1,7 +1,8 @@
-package io.armadaproject;
+package io.armadaproject.examples;
 
 import api.SubmitOuterClass.CancellationResult;
 import api.SubmitOuterClass.JobCancelRequest;
+import io.armadaproject.ArmadaClient;
 import java.util.logging.Logger;
 
 public class CancelExample {

@@ -1,6 +1,7 @@
-package io.armadaproject;
+package io.armadaproject.examples;
 
 import api.EventOuterClass.JobSetRequest;
+import io.armadaproject.ArmadaClient;
 import java.util.logging.Logger;
 
 public class EventExample {
