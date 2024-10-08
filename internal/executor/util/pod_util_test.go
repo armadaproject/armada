@@ -371,7 +371,7 @@ func TestExtractQueue(t *testing.T) {
 }
 
 func TestExtractPool(t *testing.T) {
-	podWithPool := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{configuration.PoolAnnotation: "pool-1"}}}
+	podWithPool := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{configuration.PoolAnnotation: "pool-1"}}}
 	podWithoutPool := &v1.Pod{}
 
 	assert.Equal(t, ExtractPool(podWithPool), "pool-1")
