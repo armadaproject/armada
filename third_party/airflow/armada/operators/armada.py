@@ -226,6 +226,8 @@ acknowledged by Armada.
 
         xcom_job_request = xcom_pull_for_ti(context["ti"], key="job_request")
         if xcom_job_request:
+            self.job_request = xcom_job_request
+            super().render_template_fields(context, jinja_env)
             self.job_request = ParseDict(xcom_job_request, JobSubmitRequestItem())
         else:
             self.log.info("Rendering job_request")
