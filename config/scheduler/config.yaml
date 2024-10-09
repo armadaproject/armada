@@ -61,7 +61,7 @@ grpc:
 # You may want to configure indexedNodeLabels and indexedTaints to speed up scheduling.
 scheduling:
   pools:
-    name: default
+    - name: default
   supportedResourceTypes:
     - name: memory
       resolution: "1"
