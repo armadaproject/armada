@@ -17,6 +17,7 @@ import tenacity
 from .utils import log_exceptions
 from .model import RunningJobContext
 
+
 class ArmadaHook(LoggingMixin):
     def __init__(self, args: GrpcChannelArgs):
         self.args = args
@@ -28,7 +29,9 @@ class ArmadaHook(LoggingMixin):
     def _create_channel(self) -> grpc.Channel:
         if self.args.auth is None:
             return grpc.insecure_channel(
-                target=self.args.target, options=self.args.options, compression=self.args.compression
+                target=self.args.target,
+                options=self.args.options,
+                compression=self.args.compression,
             )
 
         return grpc.secure_channel(
@@ -114,7 +117,7 @@ class ArmadaHook(LoggingMixin):
                 if run_details:
                     cluster = run_details.cluster
         return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
-    
+
     @log_exceptions
     def context_from_xcom(self, ti: TaskInstance, re_attach: bool) -> RunningJobContext:
         result = ti.xcom_pull(key="job_context")
@@ -124,8 +127,14 @@ class ArmadaHook(LoggingMixin):
                 job_id=result["armada_job_id"],
                 job_set_id=result["armada_job_set_id"],
                 job_state=result.get("armada_job_state", "UNKNOWN"),
-                submit_time=DateTime.utcnow() if re_attach else result.get("armada_job_submit_time", DateTime.utcnow()),
-                last_log_time=None if re_attach else result.get("armada_job_last_log_time", None)
+                submit_time=(
+                    DateTime.utcnow()
+                    if re_attach
+                    else result.get("armada_job_submit_time", DateTime.utcnow())
+                ),
+                last_log_time=(
+                    None if re_attach else result.get("armada_job_last_log_time", None)
+                ),
             )
 
         return None
@@ -136,8 +145,12 @@ class ArmadaHook(LoggingMixin):
         reraise=True,
     )
     @log_exceptions
-    def context_to_xcom(self, ti: TaskInstance, ctx: RunningJobContext, lookout_url: str = None):
-        ti.xcom_push(key="job_context", value={
+    def context_to_xcom(
+        self, ti: TaskInstance, ctx: RunningJobContext, lookout_url: str = None
+    ):
+        ti.xcom_push(
+            key="job_context",
+            value={
                 "armada_queue": ctx.armada_queue,
                 "armada_job_id": ctx.job_id,
                 "armada_job_set_id": ctx.job_set_id,
@@ -145,8 +158,8 @@ class ArmadaHook(LoggingMixin):
                 "armada_job_state": ctx.job_state,
                 "armada_job_last_log_time": ctx.last_log_time,
                 "armada_lookout_url": lookout_url,
-        })
-
+            },
+        )
 
     def _get_latest_job_run_details(self, job_id) -> Optional[JobRunDetails]:
         job_details = self.client.get_job_details([job_id]).job_details[job_id]
