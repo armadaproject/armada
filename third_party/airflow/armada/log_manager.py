@@ -30,9 +30,7 @@ class KubernetesPodLogManager(LoggingMixin):
 
     def _k8s_client(self, k8s_context) -> client.CoreV1Api:
         configuration = client.Configuration()
-        config.load_kube_config(
-            client_configuration=configuration, context=k8s_context
-        )
+        config.load_kube_config(client_configuration=configuration, context=k8s_context)
         k8s_client = client.CoreV1Api(
             api_client=client.ApiClient(configuration=configuration)
         )
@@ -41,7 +39,6 @@ class KubernetesPodLogManager(LoggingMixin):
         )
 
         return k8s_client
-
 
     @tenacity.retry(
         wait=tenacity.wait_exponential(max=3),
