@@ -12,7 +12,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven-compiler-plugin.release>11</maven-compiler-plugin.release>
+    <maven-compiler-plugin.release>21</maven-compiler-plugin.release>
     <io.grpc.version>1.67.1</io.grpc.version>
     <protobuf-java.version>3.25.3</protobuf-java.version>
     <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
