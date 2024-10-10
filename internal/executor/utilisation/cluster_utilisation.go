@@ -113,6 +113,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		for p, rl := range allocatedByPriorityNonArmada {
 			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
 		}
+		nodePool := cls.nodeInfoService.GetPool(node)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:   node.Name,
 			Labels: cls.filterTrackedLabels(node.Labels),
@@ -126,8 +127,8 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
 			Unschedulable:               !isSchedulable,
 			NodeType:                    cls.nodeInfoService.GetType(node),
-			Pool:                        cls.nodeInfoService.GetPool(node),
-			ResourceUsageByQueueAndPool: cls.getPoolQueueResources(runningNodePodsArmada),
+			Pool:                        nodePool,
+			ResourceUsageByQueueAndPool: cls.getPoolQueueResources(runningNodePodsArmada, nodePool),
 		})
 	}
 
@@ -335,8 +336,8 @@ func getAllPodsRequiringResourceOnNodes(allPods []*v1.Pod, nodes []*v1.Node) []*
 	return podsUsingResourceOnProcessingNodes
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getPoolQueueResources(pods []*v1.Pod) []*executorapi.PoolQueueResource {
-	usageByQueueAndPool := clusterUtilisationService.getPodUtilisationByQueueAndPool(pods)
+func (clusterUtilisationService *ClusterUtilisationService) getPoolQueueResources(pods []*v1.Pod, defaultPool string) []*executorapi.PoolQueueResource {
+	usageByQueueAndPool := clusterUtilisationService.getPodUtilisationByQueueAndPool(pods, defaultPool)
 	poolQueueResources := []*executorapi.PoolQueueResource{}
 	for queue, usageByPool := range usageByQueueAndPool {
 		for pool, usage := range usageByPool {
@@ -351,7 +352,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getPoolQueueResource
 	return poolQueueResources
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQueueAndPool(pods []*v1.Pod) map[string]map[string]armadaresource.ComputeResources {
+func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQueueAndPool(pods []*v1.Pod, defaultPool string) map[string]map[string]armadaresource.ComputeResources {
 	podsByQueue := util.GroupByQueue(pods)
 	result := make(map[string]map[string]armadaresource.ComputeResources, len(podsByQueue))
 
@@ -360,14 +361,13 @@ func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQ
 		if podUsage.IsEmpty() {
 			continue
 		}
-
 		queue := util.ExtractQueue(pod)
 		if queue == "" {
 			log.Warnf("Cannot compute pod utilisation for pod (%s/%s) as queue not set", pod.Namespace, pod.Name)
 		}
 		pool := util.ExtractPool(pod)
 		if pool == "" {
-			log.Warnf("Cannot compute pod utilisation for pod (%s/%s) as pool not set", pod.Namespace, pod.Name)
+			pool = defaultPool
 		}
 
 		if _, ok := result[queue]; !ok {
