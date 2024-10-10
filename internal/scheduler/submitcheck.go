@@ -186,15 +186,12 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedul
 // TODO: there are a number of things this won't catch:
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
-func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
 	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
 
 poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
-
-		// copy the gctx here, as we are going to mutate it
-		gctx = copyGangContext(gctx)
 
 		if sucessfulPools[pool.Name] {
 			continue
@@ -212,6 +209,10 @@ poolStart:
 		}
 
 		for _, ex := range executors {
+
+			// copy the gctx here, as we are going to mutate it
+			gctx := copyGangContext(originalGangCtx)
+
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
