@@ -21,7 +21,7 @@ func NewNodeAssigner(nodeDb model.NodeDb) *NodeAssigner {
 	}
 }
 
-func (a *NodeAssigner) AssignNodesForGang(gang *context.GangSchedulingContext, evictedJobs []*context.JobSchedulingContext) (model.GangAssignmentResult, error) {
+func (a *NodeAssigner) AssignNodesForGang(gang *context.GangSchedulingContext, evictedJobs []*model.EvictedJob) (model.GangAssignmentResult, error) {
 	txn := a.nodeDb.Txn()
 	defer txn.RollBack()
 
@@ -53,15 +53,15 @@ func (a *NodeAssigner) AssignNodesForGang(gang *context.GangSchedulingContext, e
 	return model.GangAssignmentResult{Scheduled: true, JobAssignmentResults: assignmentResults}, nil
 }
 
-func (a *NodeAssigner) tryAssignToHomeNodes(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, evictedJobs []*context.JobSchedulingContext) (model.AssigmentResult, error) {
+func (a *NodeAssigner) tryAssignToHomeNodes(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, evictedJobs []*model.EvictedJob) (model.AssigmentResult, error) {
 	return a.assignNodeForJob(jctx, txn, evictedJobs)
 }
 
-func (a *NodeAssigner) tryAssignToAwayNodesNodes(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, evictedJobs []*context.JobSchedulingContext) (model.AssigmentResult, error) {
+func (a *NodeAssigner) tryAssignToAwayNodesNodes(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, evictedJobs []*model.EvictedJob) (model.AssigmentResult, error) {
 	return model.AssigmentResult{}, nil
 }
 
-func (a *NodeAssigner) assignNodeForJob(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, evictedJobs []*context.JobSchedulingContext) (model.AssigmentResult, error) {
+func (a *NodeAssigner) assignNodeForJob(jctx *context.JobSchedulingContext, txn model.NodeDbTransaction, evictedJobs []*model.EvictedJob) (model.AssigmentResult, error) {
 	for _, strategy := range a.strategies {
 		result, err := strategy(jctx, txn, evictedJobs)
 		if err != nil {

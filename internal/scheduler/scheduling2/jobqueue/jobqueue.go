@@ -1,28 +1,38 @@
 package jobqueue
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling2/model"
+	"fmt"
+	"github.com/emirpasic/gods/trees/binaryheap"
 )
 
-type EvictedJobQueue struct{}
-
-func NewEvictedJobQueue(queuedJobs model.JobQueue, evictedJobs map[string]*context.JobSchedulingContext) *EvictedJobQueue {
-	return &EvictedJobQueue{}
+type queue struct {
+	name string
+	cost float64
 }
 
-func (jq *EvictedJobQueue) Next() *context.GangSchedulingContext {
-	return nil
+type JobQueue struct {
+	pq           *binaryheap.Heap
+	activeQueues map[string]bool
 }
 
-func (jq *EvictedJobQueue) UpdateQueueCost() {
-
+func (jq *JobQueue) pop() *queue {
+	if jq.pq.Empty() {
+		return nil
+	}
+	value, _ := jq.pq.Pop()
+	q := value.(*queue)
+	delete(jq.activeQueues, q.name)
+	return q
 }
 
-func (jq *EvictedJobQueue) SetOnlyYieldEvicted() {
-
+func (jq *JobQueue) push(q *queue) {
+	if jq.activeQueues[q.name] {
+		panic(fmt.Sprintf("Duplicate queue %s added to priority queue", q.name))
+	}
+	jq.activeQueues[q.name] = true
+	jq.pq.Push(q)
 }
 
-func (jq *EvictedJobQueue) SetOnlyYieldEvictedForQueue(string) {
+func (jq *JobQueue) remove() {
 
 }
