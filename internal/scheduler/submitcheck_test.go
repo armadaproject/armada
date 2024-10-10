@@ -105,6 +105,18 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallAwayJob.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu-away"}},
 			},
 		},
+		"One job schedulable, away pools, multiple executors": {
+			executorTimout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(SmallNode("cpu")),
+				Executor(GpuNode("gpu")),
+				Executor(GpuNode("gpu")),
+			},
+			jobs: []*jobdb.Job{smallAwayJob},
+			expectedResult: map[string]schedulingResult{
+				smallAwayJob.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu-away"}},
+			},
+		},
 		"One job schedulable, multiple pools": {
 			executorTimout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
