@@ -192,6 +192,10 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContex
 
 poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
+
+		// copy the gctx here, as we are going to mutate it
+		gctx = copyGangContext(gctx)
+
 		if sucessfulPools[pool.Name] {
 			continue
 		}
@@ -295,4 +299,12 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 	}
 
 	return nodeDb, nil
+}
+
+func copyGangContext(gctx *context.GangSchedulingContext) *context.GangSchedulingContext {
+	jctxs := make([]*context.JobSchedulingContext, len(gctx.JobSchedulingContexts))
+	for i, jctx := range gctx.JobSchedulingContexts {
+		jctxs[i] = context.JobSchedulingContextFromJob(jctx.Job)
+	}
+	return context.NewGangSchedulingContext(jctxs)
 }
