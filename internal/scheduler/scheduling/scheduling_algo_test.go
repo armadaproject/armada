@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -659,6 +661,12 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				require.NoError(b, err)
 				b.StartTimer()
 
+				nodeFactory := internaltypes.NewNodeFactory(
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+					testfixtures.TestResourceListFactory,
+				)
+
 				nodeDb, err := nodedb.NewNodeDb(
 					schedulingConfig.PriorityClasses,
 					schedulingConfig.IndexedResources,
@@ -668,9 +676,54 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)
-				err = algo.populateNodeDb(nodeDb, testfixtures.TestNodeFactory, jobs, []*jobdb.Job{}, nodes)
+
+				dbNodes := []*internaltypes.Node{}
+				for _, node := range nodes {
+					dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
+					require.NoError(b, err)
+					dbNodes = append(dbNodes, dbNode)
+				}
+
+				err = algo.populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})
 	}
+}
+
+func TestMarkResourceUnallocatable(t *testing.T) {
+	input := map[int32]internaltypes.ResourceList{
+		100:  makeResourceList("cpu", "500"),
+		1000: makeResourceList("cpu", "900"),
+	}
+
+	expected := map[int32]internaltypes.ResourceList{
+		100:  makeResourceList("cpu", "400"),
+		1000: makeResourceList("cpu", "800"),
+	}
+
+	markResourceUnallocatable(input, makeResourceList("cpu", "100"))
+	assert.Equal(t, expected, input)
+}
+
+func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
+	input := map[int32]internaltypes.ResourceList{
+		100:  makeResourceList("cpu", "500"),
+		1000: makeResourceList("cpu", "900"),
+	}
+
+	expected := map[int32]internaltypes.ResourceList{
+		100:  makeResourceList("cpu", "0"),
+		1000: makeResourceList("cpu", "300"),
+	}
+
+	markResourceUnallocatable(input, makeResourceList("cpu", "600"))
+	assert.Equal(t, expected, input)
+}
+
+func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
+	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]k8sResource.Quantity{
+		resourceName: k8sResource.MustParse(value),
+	},
+	)
 }

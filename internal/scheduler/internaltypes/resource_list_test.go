@@ -116,6 +116,16 @@ func TestAllZero_HandlesEmptyCorrectly(t *testing.T) {
 	assert.True(t, empty.AllZero())
 }
 
+func TestFloorAtZero(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, testResourceList(factory, "0", "1Ki"), testResourceList(factory, "-1", "1Ki").FloorAtZero())
+}
+
+func TestFloorAtZero_HandlesEmptyCorrectly(t *testing.T) {
+	assert.Equal(t, ResourceList{}, ResourceList{}.FloorAtZero())
+}
+
 func TestHasNegativeValues(t *testing.T) {
 	factory := testFactory()
 	assert.False(t, testResourceList(factory, "0", "0").HasNegativeValues())

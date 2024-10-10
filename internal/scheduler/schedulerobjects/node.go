@@ -2,7 +2,6 @@ package schedulerobjects
 
 import (
 	"fmt"
-	"math"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -44,16 +43,4 @@ func (node *Node) AvailableArmadaResource() ResourceList {
 		tr.Sub(rl)
 	}
 	return tr
-}
-
-func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) {
-	currentAllocatable := node.UnallocatableResources[math.MaxInt32]
-	(&currentAllocatable).Add(unallocatable)
-	node.UnallocatableResources[math.MaxInt32] = currentAllocatable
-
-	for priority, allocatable := range node.AllocatableByPriorityAndResource {
-		allocatable.Sub(unallocatable)
-		allocatable.LimitToZero()
-		node.AllocatableByPriorityAndResource[priority] = allocatable
-	}
 }

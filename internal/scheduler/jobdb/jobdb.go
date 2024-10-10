@@ -149,6 +149,8 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
+	rr := jobDb.getResourceRequirements(schedulingInfo)
+
 	job := &Job{
 		jobDb:                          jobDb,
 		id:                             jobId,
@@ -160,7 +162,8 @@ func (jobDb *JobDb) NewJob(
 		requestedPriority:              priority,
 		submittedTime:                  created,
 		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(schedulingInfo),
-		kubernetesResourceRequirements: jobDb.getKubernetesResourceRequirements(schedulingInfo),
+		allResourceRequirements:        rr,
+		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
 		priorityClass:                  priorityClass,
 		cancelRequested:                cancelRequested,
 		cancelByJobSetRequested:        cancelByJobSetRequested,
@@ -172,10 +175,6 @@ func (jobDb *JobDb) NewJob(
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
 	return job, nil
-}
-
-func (jobDb *JobDb) getKubernetesResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
-	return jobDb.getResourceRequirements(schedulingInfo).OfType(internaltypes.Kubernetes)
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
