@@ -24,6 +24,7 @@ import time
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jinja2
+import tenacity
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
@@ -38,12 +39,11 @@ from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.typings import JobState
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
-import tenacity
 
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
 from ..triggers import ArmadaPollJobTrigger
-from ..utils import log_exceptions
+from ..utils import log_exceptions, xcom_pull_for_ti
 
 
 class LookoutLink(BaseOperatorLink):
@@ -162,13 +162,14 @@ acknowledged by Armada.
         :param context: The execution context provided by Airflow.
         :type context: Context
         """
-        
+
         self.log.info(
             "ArmadaOperator("
-              f"deferrable: {self.deferrable}, "
-              f"dry_run: {self.dry_run}, "
-              f"poll_interval: {self.poll_interval}s, "
-              f"job_acknowledgement_timeout: {self.job_acknowledgement_timeout}s)")
+            f"deferrable: {self.deferrable}, "
+            f"dry_run: {self.dry_run}, "
+            f"poll_interval: {self.poll_interval}s, "
+            f"job_acknowledgement_timeout: {self.job_acknowledgement_timeout}s)"
+        )
 
         # We take the job_set_id from Airflow's run_id.
         # So all jobs in the dag will be in the same jobset.
@@ -222,8 +223,8 @@ acknowledged by Armada.
         :param context: Airflow Context dict wi1th values to apply on content
         :param jinja_env: jinja’s environment to use for rendering.
         """
- 
-        xcom_job_request = self._xcom_pull(context, key="job_request")
+
+        xcom_job_request = xcom_pull_for_ti(context["ti"], key="job_request")
         if xcom_job_request:
             self.job_request = ParseDict(xcom_job_request, JobSubmitRequestItem())
         else:
@@ -232,21 +233,24 @@ acknowledged by Armada.
                 if not jinja_env:
                     jinja_env = self.get_template_env()
                 self.job_request = self.job_request(context, jinja_env)
-            
+
             self.job_request = MessageToDict(
                 self.job_request, preserving_proto_field_name=True
             )
             super().render_template_fields(context, jinja_env)
             self._xcom_push(context, key="job_request", value=self.job_request)
             self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
-        
+
         self._annotate_job_request(context, self.job_request)
 
         # We want to disable log-fetching if container name is incorrect
         if self.container_logs and self.job_request.pod_spec:
             containers = {c.name for c in self.job_request.pod_spec.containers}
             if self.container_logs not in containers:
-                self.log.error(f"unable to fetch logs as {self.container_logs} is not a valid container in job_request. Available containers: {containers}")
+                self.log.error(
+                    f"unable to fetch logs as {self.container_logs} is not present "
+                    f"in job_request. Available containers: {containers}"
+                )
                 self.container_logs = None
 
     def on_kill(self) -> None:
@@ -304,7 +308,7 @@ acknowledged by Armada.
         if ctx:
             if ctx.state not in {JobState.FAILED, JobState.PREEMPTED}:
                 self.log.info(
-                   "Attached to existing Armada job "
+                    "Attached to existing Armada job "
                     f"with job-id {ctx.job_id}."
                     f" {self._trigger_tracking_message(ctx.job_id)}"
                 )
@@ -313,10 +317,12 @@ acknowledged by Armada.
         # We haven't got a running job, submit a new one and persist state to xcom.
         ctx = self.hook.submit_job(self.armada_queue, job_set_id, job_request)
         tracking_msg = self._trigger_tracking_message(ctx.job_id)
-        self.log.info(f"Submitted job to Armada with job-id {ctx.job_id}. {tracking_msg}")
+        self.log.info(
+            f"Submitted job to Armada with job-id {ctx.job_id}. {tracking_msg}"
+        )
 
         self.hook.context_to_xcom(ti, ctx, self.lookout_url(ctx.job_id))
-        
+
         return ctx
 
     def _poll_for_termination(self, context) -> None:
@@ -375,18 +381,10 @@ acknowledged by Armada.
                     )
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
-        
-        self.hook.context_to_xcom(context["ti"], self.job_context, self.lookout_url(self.job_context.job_id))
 
-    @tenacity.retry(
-        wait=tenacity.wait_random_exponential(max=3),
-        stop=tenacity.stop_after_attempt(5),
-        reraise=True,
-    )
-    @log_exceptions
-    def _xcom_pull(self, context, key: str) -> Any:
-        task_instance = context["ti"]
-        return task_instance.xcom_pull(key=key)
+        self.hook.context_to_xcom(
+            context["ti"], self.job_context, self.lookout_url(self.job_context.job_id)
+        )
 
     @tenacity.retry(
         wait=tenacity.wait_random_exponential(max=3),
@@ -406,9 +404,13 @@ acknowledged by Armada.
             annotation_key_prefix = "armadaproject.io/"
 
         task_id = context["ti"].task_id
+        map_index = context["ti"].map_index
         run_id = context["run_id"]
         dag_id = context["dag"].dag_id
 
         request.annotations[annotation_key_prefix + "taskId"] = task_id
         request.annotations[annotation_key_prefix + "taskRunId"] = run_id
         request.annotations[annotation_key_prefix + "dagId"] = dag_id
+        request.annotations[annotation_key_prefix + "externalJobUri"] = (
+            f"airflow://{dag_id}/{task_id}/{run_id}/{map_index}"
+        )
