@@ -226,7 +226,8 @@ acknowledged by Armada.
 
         xcom_job_request = xcom_pull_for_ti(context["ti"], key="job_request")
         if xcom_job_request:
-            self.job_request = ParseDict(xcom_job_request, JobSubmitRequestItem())
+            self.job_request = xcom_job_request
+            super().render_template_fields(context, jinja_env)
         else:
             self.log.info("Rendering job_request")
             if callable(self.job_request):
@@ -234,13 +235,14 @@ acknowledged by Armada.
                     jinja_env = self.get_template_env()
                 self.job_request = self.job_request(context, jinja_env)
 
-            self.job_request = MessageToDict(
-                self.job_request, preserving_proto_field_name=True
-            )
+            if type(self.job_request) is JobSubmitRequestItem:
+                self.job_request = MessageToDict(
+                    self.job_request, preserving_proto_field_name=True
+                )
             super().render_template_fields(context, jinja_env)
             self._xcom_push(context, key="job_request", value=self.job_request)
-            self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
 
+        self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
         self._annotate_job_request(context, self.job_request)
 
         # We want to disable log-fetching if container name is incorrect
@@ -290,7 +292,7 @@ acknowledged by Armada.
     def _trigger_reentry(
         self, context: Context, event: Tuple[str, Dict[str, Any]]
     ) -> None:
-        self.job_context = self.hook.context_from_xcom(context["ti"], False)
+        self.job_context = self.hook.context_from_xcom(context["ti"])
         if not self.job_context:
             self.job_context = deserialize(event)
         self._poll_for_termination(context)
@@ -301,18 +303,14 @@ acknowledged by Armada.
         job_set_id: str,
         job_request: JobSubmitRequestItem,
     ) -> RunningJobContext:
-        # Try to re-initialize job_context from xcom if it exist.
-        ti = context["ti"]
-        ctx = self.hook.context_from_xcom(ti, re_attach=True)
-
+        ctx = self._try_reattach_to_running_job(context)
         if ctx:
-            if ctx.state not in {JobState.FAILED, JobState.PREEMPTED}:
-                self.log.info(
-                    "Attached to existing Armada job "
-                    f"with job-id {ctx.job_id}."
-                    f" {self._trigger_tracking_message(ctx.job_id)}"
-                )
-                return ctx
+            self.log.info(
+                "Attached to existing Armada job "
+                f"with job-id {ctx.job_id}."
+                f" {self._trigger_tracking_message(ctx.job_id)}"
+            )
+            return ctx
 
         # We haven't got a running job, submit a new one and persist state to xcom.
         ctx = self.hook.submit_job(self.armada_queue, job_set_id, job_request)
@@ -321,9 +319,22 @@ acknowledged by Armada.
             f"Submitted job to Armada with job-id {ctx.job_id}. {tracking_msg}"
         )
 
-        self.hook.context_to_xcom(ti, ctx, self.lookout_url(ctx.job_id))
+        self.hook.context_to_xcom(context["ti"], ctx, self.lookout_url(ctx.job_id))
 
         return ctx
+
+    def _try_reattach_to_running_job(
+        self, context: Context
+    ) -> Optional[RunningJobContext]:
+        # TODO: We should support re-attaching to currently running jobs.
+        # This is subject to re-attach policy / discovering jobs we already submitted.
+        # Issue - xcom state gets cleared before re-entry.
+        # ctx = self.hook.context_from_xcom(ti, re_attach=True)
+
+        # if ctx:
+        #     if ctx.state not in {JobState.FAILED, JobState.PREEMPTED}:
+
+        return None
 
     def _poll_for_termination(self, context) -> None:
         while self.job_context.state.is_active():
@@ -396,15 +407,21 @@ acknowledged by Armada.
         task_instance = context["ti"]
         task_instance.xcom_push(key=key, value=value)
 
-    @staticmethod
-    def _annotate_job_request(context, request: JobSubmitRequestItem):
+    def _external_job_uri(self, context: Context) -> str:
+        task_id = context["ti"].task_id
+        map_index = context["ti"].map_index
+        run_id = context["run_id"]
+        dag_id = context["dag"].dag_id
+
+        return f"airflow://{dag_id}/{task_id}/{run_id}/{map_index}"
+
+    def _annotate_job_request(self, context, request: JobSubmitRequestItem):
         if "ANNOTATION_KEY_PREFIX" in os.environ:
             annotation_key_prefix = f'{os.environ.get("ANNOTATION_KEY_PREFIX")}'
         else:
             annotation_key_prefix = "armadaproject.io/"
 
         task_id = context["ti"].task_id
-        map_index = context["ti"].map_index
         run_id = context["run_id"]
         dag_id = context["dag"].dag_id
 
@@ -412,5 +429,5 @@ acknowledged by Armada.
         request.annotations[annotation_key_prefix + "taskRunId"] = run_id
         request.annotations[annotation_key_prefix + "dagId"] = dag_id
         request.annotations[annotation_key_prefix + "externalJobUri"] = (
-            f"airflow://{dag_id}/{task_id}/{run_id}/{map_index}"
+            self._external_job_uri(context)
         )
