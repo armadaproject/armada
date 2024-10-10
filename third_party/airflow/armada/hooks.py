@@ -119,7 +119,7 @@ class ArmadaHook(LoggingMixin):
         return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
 
     @log_exceptions
-    def context_from_xcom(self, ti: TaskInstance, re_attach: bool) -> RunningJobContext:
+    def context_from_xcom(self, ti: TaskInstance) -> RunningJobContext:
         result = xcom_pull_for_ti(ti, key="job_context")
         if result:
             return RunningJobContext(
@@ -127,14 +127,8 @@ class ArmadaHook(LoggingMixin):
                 job_id=result["armada_job_id"],
                 job_set_id=result["armada_job_set_id"],
                 job_state=result.get("armada_job_state", "UNKNOWN"),
-                submit_time=(
-                    DateTime.utcnow()
-                    if re_attach
-                    else result.get("armada_job_submit_time", DateTime.utcnow())
-                ),
-                last_log_time=(
-                    None if re_attach else result.get("armada_job_last_log_time", None)
-                ),
+                submit_time=(result.get("armada_job_submit_time", DateTime.utcnow())),
+                last_log_time=result.get("armada_job_last_log_time", None),
             )
 
         return None
