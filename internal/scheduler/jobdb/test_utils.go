@@ -13,7 +13,7 @@ var testResourceListFactory = makeTestResourceListFactory()
 func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
 	result, _ := internaltypes.NewResourceListFactory(
 		getTestSupportedResourceTypes(),
-		nil,
+		getTestFloatingResourceTypes(),
 	)
 	return result
 }
@@ -24,6 +24,12 @@ func getTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 		{Name: "foo", Resolution: resource.MustParse("1m")},
+	}
+}
+
+func getTestFloatingResourceTypes() []schedulerconfiguration.FloatingResourceConfig {
+	return []schedulerconfiguration.FloatingResourceConfig{
+		{Name: "storage-connections", Resolution: resource.MustParse("1")},
 	}
 }
 
