@@ -1995,11 +1995,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
 				if tc.TotalResources.Resources == nil {
-					tc.TotalResources = nodeDb.TotalResources()
+					tc.TotalResources = nodeDb.TotalKubernetesResources()
 				}
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-					nodeDb.TotalResources(),
+					nodeDb.TotalKubernetesResources(),
 					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
@@ -2356,7 +2356,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				nodeDb.TotalResources(),
+				nodeDb.TotalKubernetesResources(),
 				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
@@ -2364,7 +2364,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestPool,
 				fairnessCostProvider,
 				limiter,
-				nodeDb.TotalResources(),
+				nodeDb.TotalKubernetesResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
@@ -2372,7 +2372,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					schedulerobjects.NewResourceList(0), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, nodeDb.TotalResources(), tc.SchedulingConfig, nil)
+			constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, nodeDb.TotalKubernetesResources(), tc.SchedulingConfig, nil)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
@@ -2426,7 +2426,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					"pool",
 					fairnessCostProvider,
 					limiter,
-					nodeDb.TotalResources(),
+					nodeDb.TotalKubernetesResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor

@@ -32,7 +32,7 @@ func TestTotalResources(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-	assert.True(t, expected.Equal(nodeDb.TotalResources()))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 
 	// Upserting nodes for the first time should increase the resource count.
 	nodes := testfixtures.N32CpuNodes(2, testfixtures.TestPriorities)
@@ -48,7 +48,7 @@ func TestTotalResources(t *testing.T) {
 	}
 	txn.Commit()
 
-	assert.True(t, expected.Equal(nodeDb.TotalResources()))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 
 	// Upserting new nodes should increase the resource count.
 	nodes = testfixtures.N8GpuNodes(3, testfixtures.TestPriorities)
@@ -64,7 +64,7 @@ func TestTotalResources(t *testing.T) {
 	}
 	txn.Commit()
 
-	assert.True(t, expected.Equal(nodeDb.TotalResources()))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 }
 
 func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {

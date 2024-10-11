@@ -605,7 +605,7 @@ func TestGangScheduler(t *testing.T) {
 			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
-				tc.TotalResources = nodeDb.TotalResources()
+				tc.TotalResources = nodeDb.TotalKubernetesResources()
 			}
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {

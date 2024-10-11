@@ -23,6 +23,17 @@ func TestGetTotalAvailableForPool(t *testing.T) {
 	assert.Equal(t, map[string]resource.Quantity{"floating-resource-1": zero, "floating-resource-2": zero}, sut.GetTotalAvailableForPool("some-other-pool").Resources)
 }
 
+func TestAddTotalAvailableForPool(t *testing.T) {
+	sut := makeSut(t)
+	zero := resource.Quantity{}
+	ten := *resource.NewQuantity(10, resource.DecimalSI)
+	kubernetesResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": ten}}
+	assert.Equal(t, map[string]resource.Quantity{"cpu": ten, "floating-resource-1": resource.MustParse("200"), "floating-resource-2": resource.MustParse("300")}, sut.AddTotalAvailableForPool("cpu", kubernetesResources).Resources)
+	assert.Equal(t, map[string]resource.Quantity{"cpu": ten, "floating-resource-1": resource.MustParse("100"), "floating-resource-2": zero}, sut.AddTotalAvailableForPool("gpu", kubernetesResources).Resources)
+	assert.Equal(t, map[string]resource.Quantity{"cpu": ten, "floating-resource-1": zero, "floating-resource-2": zero}, sut.AddTotalAvailableForPool("some-other-pool", kubernetesResources).Resources)
+	assert.Equal(t, map[string]resource.Quantity{"cpu": ten}, kubernetesResources.Resources) // check hasn't mutated arg
+}
+
 func TestWithinLimits_WhenWithinLimits_ReturnsTrue(t *testing.T) {
 	sut := makeSut(t)
 	withinLimits, errorMessage := sut.WithinLimits("cpu",
