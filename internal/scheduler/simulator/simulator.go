@@ -90,6 +90,8 @@ type Simulator struct {
 	hardTerminationMinutes int
 	// Determines how often we trigger schedule events
 	schedulerCyclePeriodSeconds int
+	// Floating resource info
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 type StateTransition struct {
@@ -106,6 +108,11 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
+	}
+
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources)
+	if err != nil {
+		return nil, err
 	}
 
 	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
@@ -152,6 +159,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		enableFastForward:           enableFastForward,
 		hardTerminationMinutes:      hardTerminationMinutes,
 		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
+		floatingResourceTypes:       floatingResourceTypes,
 	}
 	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
@@ -304,8 +312,9 @@ func (s *Simulator) setupClusters() error {
 				}
 			}
 			s.nodeDbByPoolAndExecutorGroup[pool.Name] = append(s.nodeDbByPoolAndExecutorGroup[pool.Name], nodeDb)
-			totalResourcesForPool.Add(nodeDb.TotalResources())
+			totalResourcesForPool.Add(nodeDb.TotalKubernetesResources())
 		}
+		totalResourcesForPool = s.floatingResourceTypes.AddTotalAvailableForPool(pool.Name, totalResourcesForPool)
 		s.totalResourcesByPool[pool.Name] = totalResourcesForPool
 	}
 	return nil
@@ -510,15 +519,10 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, s.schedulingConfig, nil)
 
-			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
-			if err != nil {
-				return err
-			}
-
 			sch := scheduling.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
-				floatingResourceTypes,
+				s.floatingResourceTypes,
 				s.schedulingConfig.ProtectedFractionOfFairShare,
 				txn,
 				nodeDb,

@@ -305,7 +305,7 @@ func (nodeDb *NodeDb) NumNodes() int {
 	return int(nodeDb.numNodes)
 }
 
-func (nodeDb *NodeDb) TotalResources() schedulerobjects.ResourceList {
+func (nodeDb *NodeDb) TotalKubernetesResources() schedulerobjects.ResourceList {
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
 	return schedulerobjects.ResourceList{Resources: nodeDb.totalResources.ToMap()}

@@ -86,6 +86,12 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) sche
 	return pool.totalResources.DeepCopy()
 }
 
+func (frt *FloatingResourceTypes) AddTotalAvailableForPool(poolName string, kubernetesResources schedulerobjects.ResourceList) schedulerobjects.ResourceList {
+	floatingResources := frt.GetTotalAvailableForPool(poolName) // Note GetTotalAvailableForPool returns a deep copy
+	floatingResources.Add(kubernetesResources)
+	return floatingResources
+}
+
 func (frt *FloatingResourceTypes) SummaryString() string {
 	if len(frt.zeroFloatingResources.Resources) == 0 {
 		return "none"
