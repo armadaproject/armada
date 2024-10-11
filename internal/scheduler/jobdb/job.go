@@ -50,6 +50,8 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	// All resource requirements, including floating resources, for this job
+	allResourceRequirements internaltypes.ResourceList
 	// Kubernetes (i.e. non-floating) resource requirements of this job
 	kubernetesResourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
@@ -508,6 +510,11 @@ func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
+// All resource requirements, including floating resources, for this job
+func (job *Job) AllResourceRequirements() internaltypes.ResourceList {
+	return job.allResourceRequirements
+}
+
 // Kubernetes (i.e. non-floating) resource requirements of this job
 func (job *Job) KubernetesResourceRequirements() internaltypes.ResourceList {
 	return job.kubernetesResourceRequirements
@@ -779,7 +786,7 @@ func (job *Job) Validated() bool {
 
 // Does this job request any floating resources?
 func (job *Job) RequestsFloatingResources() bool {
-	return !job.jobDb.getResourceRequirements(job.jobSchedulingInfo).OfType(internaltypes.Floating).AllZero()
+	return !job.AllResourceRequirements().OfType(internaltypes.Floating).AllZero()
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
@@ -790,7 +797,9 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
-	j.kubernetesResourceRequirements = job.jobDb.getKubernetesResourceRequirements(jobSchedulingInfo)
+
+	j.allResourceRequirements = j.jobDb.getResourceRequirements(jobSchedulingInfo)
+	j.kubernetesResourceRequirements = j.allResourceRequirements.OfType(internaltypes.Kubernetes)
 
 	return j, nil
 }

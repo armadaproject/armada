@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"golang.org/x/exp/maps"
@@ -343,15 +344,22 @@ func WithNodeAffinityJobs(nodeSelectorTerms []v1.NodeSelectorTerm, jobs []*jobdb
 }
 
 func WithRequestsJobs(rl schedulerobjects.ResourceList, jobs []*jobdb.Job) []*jobdb.Job {
-	for _, job := range jobs {
-		for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
+	newJobs := make([]*jobdb.Job, len(jobs))
+	for i, job := range jobs {
+		newSchedInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+		for _, newReq := range newSchedInfo.GetObjectRequirements() {
 			maps.Copy(
-				req.GetPodRequirements().ResourceRequirements.Requests,
+				newReq.GetPodRequirements().ResourceRequirements.Requests,
 				schedulerobjects.V1ResourceListFromResourceList(rl),
 			)
 		}
+		newJob, err := job.WithJobSchedulingInfo(newSchedInfo)
+		if err != nil {
+			panic(err)
+		}
+		newJobs[i] = newJob
 	}
-	return jobs
+	return newJobs
 }
 
 func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
