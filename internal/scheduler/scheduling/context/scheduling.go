@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
@@ -319,11 +320,16 @@ func (sctx *SchedulingContext) EvictGang(gctx *GangSchedulingContext) (bool, err
 	return allJobsScheduledInThisRound, nil
 }
 
+// QueueContextExists returns true if we know about the queue associated with the job. An example of when this can
+// return false is when a job is running on a node
+func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
+	queue := sctx.resolveQueueName(job)
+	_, ok := sctx.QueueSchedulingContexts[queue]
+	return ok
+}
+
 func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error) {
-	queue := jctx.Job.Queue()
-	if !jctx.IsHomeJob(sctx.Pool) {
-		queue = CalculateAwayQueueName(jctx.Job.Queue())
-	}
+	queue := sctx.resolveQueueName(jctx.Job)
 	qctx, ok := sctx.QueueSchedulingContexts[queue]
 	if !ok {
 		return false, errors.Errorf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
@@ -390,4 +396,12 @@ func (sctx *SchedulingContext) FairnessError() float64 {
 		}
 	}
 	return fairnessError
+}
+
+func (sctx *SchedulingContext) resolveQueueName(job *jobdb.Job) string {
+	queue := job.Queue()
+	if !IsHomeJob(job, sctx.Pool) {
+		queue = CalculateAwayQueueName(job.Queue())
+	}
+	return queue
 }

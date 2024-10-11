@@ -31,6 +31,14 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+type testQueueContextChecker struct {
+	jobIds map[string]bool
+}
+
+func (t testQueueContextChecker) QueueContextExists(job *jobdb.Job) bool {
+	return t.jobIds[job.Id()]
+}
+
 func TestEvictOversubscribed(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 
@@ -58,6 +66,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	require.NoError(t, err)
 
 	evictor := NewOversubscribedEvictor(
+		testQueueContextChecker{},
 		jobDbTxn,
 		nodeDb)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
@@ -95,12 +104,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		Rounds []SchedulingRound
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorByQueue map[string]float64
-		// Initial resource usage for all queues. This value is used across all rounds,
-		// i.e., we don't update it based on preempted/scheduled jobs.
-		InitialAllocationByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string]
-		// Total resources across all clusters.
-		// If empty, it is computed as the total resources across the provided nodes.
-		TotalResources schedulerobjects.ResourceList
+		// Map of nodeId to jobs running on those nodes
+		InitialRunningJobs map[int][]*jobdb.Job
 	}{
 		"balancing three queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -234,6 +239,26 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 				"C": 1,
 				"D": 100,
+			},
+		},
+		"don't prempt jobs where we don't know the queue": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 23),
+					},
+				},
+			},
+			InitialRunningJobs: map[int][]*jobdb.Job{
+				0: testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 8),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
 			},
 		},
 		"avoid preemption when not improving fairness": {
@@ -1879,10 +1904,22 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
 			jobDbTxn := jobDb.WriteTxn()
 
+			// Add all the initial jobs, creating runs for them
+			for nodeIdx, jobs := range tc.InitialRunningJobs {
+				node := tc.Nodes[nodeIdx]
+				for _, job := range jobs {
+					err := jobDbTxn.Upsert([]*jobdb.Job{
+						job.WithQueued(false).
+							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority),
+					})
+					require.NoError(t, err)
+				}
+			}
+
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
-			allocatedByQueueAndPriorityClass := armadamaps.DeepCopy(tc.InitialAllocationByQueueAndPriorityClass)
+			allocatedByQueueAndPriorityClass := make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
 			nodeIdByJobId := make(map[string]string)
 			var jobIdsByGangId map[string]map[string]bool
 			var gangIdByJobId map[string]string
@@ -1994,9 +2031,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
-				if tc.TotalResources.Resources == nil {
-					tc.TotalResources = nodeDb.TotalKubernetesResources()
-				}
+				totalResources := nodeDb.TotalKubernetesResources()
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 					nodeDb.TotalKubernetesResources(),
@@ -2007,7 +2042,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
-					tc.TotalResources,
+					totalResources,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
 
@@ -2023,7 +2058,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
+				constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, nil)
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,

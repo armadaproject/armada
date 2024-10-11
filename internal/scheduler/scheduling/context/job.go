@@ -63,12 +63,7 @@ type JobSchedulingContext struct {
 }
 
 func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
-	// Away jobs  can never have been scheduled in this round
-	// and therefore must have an active run
-	if jctx.Job.Queued() || jctx.Job.LatestRun() == nil {
-		return true
-	}
-	return jctx.Job.LatestRun().Pool() == currentPool
+	return IsHomeJob(jctx.Job, currentPool)
 }
 
 func (jctx *JobSchedulingContext) String() string {

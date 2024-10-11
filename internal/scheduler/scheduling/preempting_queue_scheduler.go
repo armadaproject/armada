@@ -102,6 +102,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				if job.LatestRun().Pool() != sch.schedulingContext.Pool {
 					return false
 				}
+				if !sch.schedulingContext.QueueContextExists(job) {
+					ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
+					return false
+				}
 				priorityClass := job.PriorityClass()
 				if !priorityClass.Preemptible {
 					return false
@@ -162,6 +166,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	evictorResult, inMemoryJobRepo, err = sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict oversubscribed"),
 		NewOversubscribedEvictor(
+			sch.schedulingContext,
 			sch.jobRepo,
 			sch.nodeDb,
 		),
@@ -660,9 +665,14 @@ func NewFilteredEvictor(
 	}
 }
 
+type queueChecker interface {
+	QueueContextExists(job *jobdb.Job) bool
+}
+
 // NewOversubscribedEvictor returns a new evictor that
 // for each node evicts all preemptible jobs of a priority class for which at least one job could not be scheduled
 func NewOversubscribedEvictor(
+	queueChecker queueChecker,
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 ) *Evictor {
@@ -687,6 +697,10 @@ func NewOversubscribedEvictor(
 			return len(overSubscribedPriorities) > 0
 		},
 		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) bool {
+			if !queueChecker.QueueContextExists(job) {
+				ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
+				return false
+			}
 			priorityClass := job.PriorityClass()
 			if !priorityClass.Preemptible {
 				return false
