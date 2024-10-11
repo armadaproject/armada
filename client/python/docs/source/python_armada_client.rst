@@ -21,3 +21,10 @@ armada\_client.permissions module
 
 .. automodule:: armada_client.permissions
    :members:
+
+
+armada\_client.log_client module
+---------------------------------------
+
+.. automodule:: armada_client.log_client
+   :members:
