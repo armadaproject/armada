@@ -51,7 +51,7 @@ func docsCmd() *cobra.Command {
 			if term.IsTerminal(int(os.Stdout.Fd())) && runtime.GOOS != "windows" {
 				if err = openTextViewer(out); err != nil {
 					fmt.Printf("%s\n", out)
-					return fmt.Errorf("could not open documentation in text viewer: %s", err)
+					fmt.Printf("\nCould not open documentation in text viewer: %s", err)
 				}
 			} else {
 				fmt.Printf("%s\n", out)
