@@ -31,6 +31,14 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+type testQueueContextChecker struct {
+	jobIds map[string]bool
+}
+
+func (t testQueueContextChecker) QueueContextExists(job *jobdb.Job) bool {
+	return t.jobIds[job.Id()]
+}
+
 func TestEvictOversubscribed(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 
@@ -58,6 +66,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	require.NoError(t, err)
 
 	evictor := NewOversubscribedEvictor(
+		testQueueContextChecker{},
 		jobDbTxn,
 		nodeDb)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
