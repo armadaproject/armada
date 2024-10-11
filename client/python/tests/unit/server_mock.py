@@ -1,13 +1,15 @@
 from google.protobuf import empty_pb2
 
 from armada_client.armada import (
-    submit_pb2_grpc,
-    submit_pb2,
+    binoculars_pb2,
+    binoculars_pb2_grpc,
     event_pb2,
     event_pb2_grpc,
     health_pb2,
     job_pb2_grpc,
     job_pb2,
+    submit_pb2,
+    submit_pb2_grpc,
 )
 from armada_client.armada.job_pb2 import JobRunState
 from armada_client.armada.submit_pb2 import JobState
@@ -149,3 +151,17 @@ class QueryAPIService(job_pb2_grpc.JobsServicer):
                 for run in request.run_ids
             }
         )
+
+
+class BinocularsService(binoculars_pb2_grpc.BinocularsServicer):
+    def Logs(self, request, context):
+        return binoculars_pb2.LogResponse(
+            log=[
+                binoculars_pb2.LogLine(timestamp="now", line="some log contents!"),
+                binoculars_pb2.LogLine(timestamp="now", line="some more log contents!"),
+                binoculars_pb2.LogLine(timestamp="now", line="even more log contents!"),
+            ],
+        )
+
+    def Cordon(self, request, context):
+        return empty_pb2.Empty()

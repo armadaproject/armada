@@ -289,12 +289,11 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner := NewPoolAssigner(executorRepository)
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,
 		executorRepository,
-		poolAssigner,
+		config.Scheduling.Pools,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
 	)

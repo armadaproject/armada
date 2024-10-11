@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"golang.org/x/exp/maps"
@@ -27,24 +28,28 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
-	TestJobset                   = "testJobset"
-	TestQueue                    = "testQueue"
-	TestQueue1                   = "testQueue1"
-	TestQueue2                   = "testQueue2"
-	TestPool                     = "testPool"
-	TestHostnameLabel            = "kubernetes.io/hostname"
-	ClusterNameLabel             = "cluster"
-	PoolNameLabel                = "pool"
-	NodeTypeLabel                = "nodetype"
-	PriorityClass0               = "priority-0"
-	PriorityClass1               = "priority-1"
-	PriorityClass2               = "priority-2"
-	PriorityClass2NonPreemptible = "priority-2-non-preemptible"
-	PriorityClass3               = "priority-3"
+	TestJobset                               = "testJobset"
+	TestQueue                                = "testQueue"
+	TestQueue1                               = "testQueue1"
+	TestQueue2                               = "testQueue2"
+	TestPool                                 = "testPool"
+	TestPool2                                = "testPool2"
+	AwayPool                                 = "awayPool"
+	TestHostnameLabel                        = "kubernetes.io/hostname"
+	ClusterNameLabel                         = "cluster"
+	PoolNameLabel                            = "pool"
+	NodeTypeLabel                            = "nodetype"
+	PriorityClass0                           = "priority-0"
+	PriorityClass1                           = "priority-1"
+	PriorityClass2                           = "priority-2"
+	PriorityClass2NonPreemptible             = "priority-2-non-preemptible"
+	PriorityClass3                           = "priority-3"
+	PriorityClass4PreemptibleAway            = "armada-preemptible-away"
+	PriorityClass5PreemptibleAwayLowPriority = "armada-preemptible-away-lower"
+	PriorityClass6Preemptible                = "armada-preemptible"
 )
 
 var (
@@ -65,14 +70,14 @@ var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	BasetimeProto       = protoutil.ToTimestamp(BaseTime)
 	TestPriorityClasses = map[string]types.PriorityClass{
-		PriorityClass0:                  {Priority: 0, Preemptible: true},
-		PriorityClass1:                  {Priority: 1, Preemptible: true},
-		PriorityClass2:                  {Priority: 2, Preemptible: true},
-		PriorityClass2NonPreemptible:    {Priority: 2, Preemptible: false},
-		PriorityClass3:                  {Priority: 3, Preemptible: false},
-		"armada-preemptible-away":       {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}}},
-		"armada-preemptible-away-lower": {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}}},
-		"armada-preemptible":            {Priority: 30000, Preemptible: true},
+		PriorityClass0:                           {Priority: 0, Preemptible: true},
+		PriorityClass1:                           {Priority: 1, Preemptible: true},
+		PriorityClass2:                           {Priority: 2, Preemptible: true},
+		PriorityClass2NonPreemptible:             {Priority: 2, Preemptible: false},
+		PriorityClass3:                           {Priority: 3, Preemptible: false},
+		PriorityClass4PreemptibleAway:            {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}, {Priority: 29000, WellKnownNodeTypeName: "large"}}},
+		PriorityClass5PreemptibleAwayLowPriority: {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}, {Priority: 28000, WellKnownNodeTypeName: "large"}}},
+		PriorityClass6Preemptible:                {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	TestPriorities           = []int32{0, 1, 2, 3}
@@ -91,6 +96,10 @@ var (
 		{
 			Name:   "gpu",
 			Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+		},
+		{
+			Name:   "large",
+			Taints: []v1.Taint{{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 		},
 	}
 	TestNodeFactory = internaltypes.NewNodeFactory(TestIndexedTaints, TestIndexedNodeLabels, TestResourceListFactory)
@@ -181,6 +190,10 @@ func Repeat[T any](v T, n int) []T {
 }
 
 func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
+	return TestSchedulingConfigWithPools([]schedulerconfiguration.PoolConfig{{Name: TestPool}})
+}
+
+func TestSchedulingConfigWithPools(pools []schedulerconfiguration.PoolConfig) schedulerconfiguration.SchedulingConfig {
 	return schedulerconfiguration.SchedulingConfig{
 		PriorityClasses:                             maps.Clone(TestPriorityClasses),
 		DefaultPriorityClassName:                    TestDefaultPriorityClass,
@@ -196,6 +209,7 @@ func TestSchedulingConfig() schedulerconfiguration.SchedulingConfig {
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
 		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
+		Pools:                                       pools,
 	}
 }
 
@@ -291,18 +305,6 @@ func WithLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) [
 	return nodes
 }
 
-func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
-	for _, req := range reqs {
-		req.NodeSelector = maps.Clone(selector)
-	}
-	return reqs
-}
-
-func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
-	req.NodeSelector = maps.Clone(selector)
-	return req
-}
-
 func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
 	for i, job := range jobs {
 		jobs[i] = job.WithPriority(priority)
@@ -341,35 +343,23 @@ func WithNodeAffinityJobs(nodeSelectorTerms []v1.NodeSelectorTerm, jobs []*jobdb
 	return jobs
 }
 
-func WithGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
-	gangId := uuid.NewString()
-	gangCardinality := fmt.Sprintf("%d", len(reqs))
-	return WithAnnotationsPodReqs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
-		reqs,
-	)
-}
-
-func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
-	for _, req := range reqs {
-		if req.Annotations == nil {
-			req.Annotations = make(map[string]string)
-		}
-		maps.Copy(req.Annotations, annotations)
-	}
-	return reqs
-}
-
 func WithRequestsJobs(rl schedulerobjects.ResourceList, jobs []*jobdb.Job) []*jobdb.Job {
-	for _, job := range jobs {
-		for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
+	newJobs := make([]*jobdb.Job, len(jobs))
+	for i, job := range jobs {
+		newSchedInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+		for _, newReq := range newSchedInfo.GetObjectRequirements() {
 			maps.Copy(
-				req.GetPodRequirements().ResourceRequirements.Requests,
+				newReq.GetPodRequirements().ResourceRequirements.Requests,
 				schedulerobjects.V1ResourceListFromResourceList(rl),
 			)
 		}
+		newJob, err := job.WithJobSchedulingInfo(newSchedInfo)
+		if err != nil {
+			panic(err)
+		}
+		newJobs[i] = newJob
 	}
-	return jobs
+	return newJobs
 }
 
 func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
@@ -396,6 +386,14 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
 		jobs,
 	)
+}
+
+func WithPools(jobs []*jobdb.Job, pools []string) []*jobdb.Job {
+	result := make([]*jobdb.Job, 0, len(jobs))
+	for _, job := range jobs {
+		result = append(result, job.WithPools(pools))
+	}
+	return result
 }
 
 func WithNodeUniformityGangAnnotationsJobs(jobs []*jobdb.Job, nodeUniformityLabel string) []*jobdb.Job {
@@ -494,7 +492,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		false,
 		created,
 		false,
-		[]string{},
+		[]string{TestPool},
 	)
 	return job
 }
@@ -528,30 +526,6 @@ func N1CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRe
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test1Cpu4GiPodReqs(queue, util.ULID(), priority)
-	}
-	return rv
-}
-
-func N16CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = Test16Cpu128GiPodReqs(queue, util.ULID(), priority)
-	}
-	return rv
-}
-
-func N32CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = Test32Cpu256GiPodReqs(queue, util.ULID(), priority)
-	}
-	return rv
-}
-
-func N1GpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = Test1GpuPodReqs(queue, util.ULID(), priority)
 	}
 	return rv
 }
@@ -807,6 +781,32 @@ func WithLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobj
 	return executor
 }
 
+func TestNodeWithPool(pool string) *schedulerobjects.Node {
+	node := Test32CpuNode(TestPriorities)
+	node.Pool = pool
+	node.Labels[PoolNameLabel] = pool
+	return node
+}
+
+func WithLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
+	node.Taints = append(node.Taints, v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
+	return node
+}
+
+func MakeTestExecutorWithNodes(executorId string, nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
+	for _, node := range nodes {
+		node.Name = fmt.Sprintf("%s-node", executorId)
+		node.Executor = executorId
+	}
+
+	return &schedulerobjects.Executor{
+		Id:             executorId,
+		Pool:           TestPool,
+		Nodes:          nodes,
+		LastUpdateTime: BaseTime,
+	}
+}
+
 func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
 	node.Name = fmt.Sprintf("%s-node", executorId)
@@ -886,7 +886,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		BaseTime.UnixNano(),
 		false,
-		[]string{},
+		[]string{TestPool},
 	)
 	return job
 }
@@ -894,74 +894,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 	return TestQueuedJobDbJob().
 		WithQueued(false).
-		WithUpdatedRun(jobdb.MinimalRun(uuid.NewString(), startTime))
-}
-
-func Test1CoreSubmitMsg() *armadaevents.SubmitJob {
-	return &armadaevents.SubmitJob{
-		JobId: util.NewULID(),
-		MainObject: &armadaevents.KubernetesMainObject{
-			ObjectMeta: &armadaevents.ObjectMeta{},
-			Object: &armadaevents.KubernetesMainObject_PodSpec{
-				PodSpec: &armadaevents.PodSpecWithAvoidList{
-					PodSpec: &v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Resources: v1.ResourceRequirements{
-									Limits: map[v1.ResourceName]resource.Quantity{
-										"cpu": resource.MustParse("1"),
-									},
-									Requests: map[v1.ResourceName]resource.Quantity{
-										"cpu": resource.MustParse("1"),
-									},
-								},
-							},
-						},
-						PriorityClassName: TestDefaultPriorityClass,
-					},
-				},
-			},
-		},
-	}
-}
-
-func Test100CoreSubmitMsg() *armadaevents.SubmitJob {
-	job := Test1CoreSubmitMsg()
-	hundredCores := map[v1.ResourceName]resource.Quantity{
-		"cpu": resource.MustParse("100"),
-	}
-	job.MainObject.GetPodSpec().PodSpec.Containers[0].Resources.Limits = hundredCores
-	job.MainObject.GetPodSpec().PodSpec.Containers[0].Resources.Requests = hundredCores
-	return job
-}
-
-func Test1CoreSubmitMsgWithNodeSelector(selector map[string]string) *armadaevents.SubmitJob {
-	job := Test1CoreSubmitMsg()
-	job.MainObject.GetPodSpec().PodSpec.NodeSelector = selector
-	return job
-}
-
-func TestNSubmitMsgGang(n int) []*armadaevents.SubmitJob {
-	gangId := uuid.NewString()
-	gang := make([]*armadaevents.SubmitJob, n)
-	for i := 0; i < n; i++ {
-		job := Test1CoreSubmitMsg()
-		job.MainObject.ObjectMeta.Annotations = map[string]string{
-			configuration.GangIdAnnotation:          gangId,
-			configuration.GangCardinalityAnnotation: fmt.Sprintf("%d", n),
-		}
-		gang[i] = job
-	}
-	return gang
-}
-
-func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
-	return &schedulerobjects.Executor{
-		Id:             uuid.NewString(),
-		Pool:           "cpu",
-		LastUpdateTime: lastUpdateTime,
-		Nodes:          TestCluster(),
-	}
+		WithUpdatedRun(jobdb.MinimalRun(uuid.NewString(), startTime).WithPool(TestPool))
 }
 
 type MockIDProvider struct {

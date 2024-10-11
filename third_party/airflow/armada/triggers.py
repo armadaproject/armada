@@ -90,6 +90,6 @@ class ArmadaPollJobTrigger(BaseTrigger):
                 yield TriggerEvent({"moment": self.moment.isoformat()})
         except asyncio.CancelledError:
             if self.should_cancel_job():
-                ctx = self.hook.context_from_xcom(self.task_instance, re_attach=False)
+                ctx = self.hook.context_from_xcom(self.task_instance)
                 self.hook.cancel_job(ctx)
             raise

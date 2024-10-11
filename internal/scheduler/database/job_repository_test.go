@@ -391,24 +391,28 @@ func TestFetchJobRunLeases(t *testing.T) {
 			JobID:    dbJobs[0].JobID,
 			JobSet:   "test-jobset",
 			Executor: executorName,
+			Pool:     "test-pool",
 		},
 		{
 			RunID:    uuid.NewString(),
 			JobID:    dbJobs[1].JobID,
 			JobSet:   "test-jobset",
 			Executor: executorName,
+			Pool:     "test-pool-away",
 		},
 		{
 			RunID:    uuid.NewString(),
 			JobID:    dbJobs[2].JobID,
 			JobSet:   "test-jobset",
 			Executor: executorName,
+			Pool:     "test-pool",
 		},
 		{
 			RunID:    uuid.NewString(),
 			JobID:    dbJobs[2].JobID,
 			JobSet:   "test-jobset",
 			Executor: executorName,
+			Pool:     "test-pool",
 			PodRequirementsOverlay: protoutil.MustMarshall(
 				&schedulerobjects.PodRequirements{
 					Tolerations: []v1.Toleration{
@@ -426,6 +430,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 			JobID:    dbJobs[0].JobID,
 			JobSet:   "test-jobset",
 			Executor: executorName,
+			Pool:     "test-pool",
 			Failed:   true, // should be ignored as terminal
 		},
 		{
@@ -433,6 +438,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 			JobID:     dbJobs[0].JobID,
 			JobSet:    "test-jobset",
 			Executor:  executorName,
+			Pool:      "test-pool",
 			Cancelled: true, // should be ignored as terminal
 		},
 		{
@@ -440,6 +446,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 			JobID:     dbJobs[3].JobID,
 			JobSet:    "test-jobset",
 			Executor:  executorName,
+			Pool:      "test-pool",
 			Succeeded: true, // should be ignored as terminal
 		},
 	}
@@ -448,6 +455,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 		expectedLeases[i] = &JobRunLease{
 			RunID:                  dbRuns[i].RunID,
 			Queue:                  dbJobs[i].Queue,
+			Pool:                   dbRuns[i].Pool,
 			JobSet:                 dbJobs[i].JobSet,
 			UserID:                 dbJobs[i].UserID,
 			Groups:                 dbJobs[i].Groups,

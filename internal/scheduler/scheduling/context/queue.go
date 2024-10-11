@@ -46,6 +46,9 @@ type QueueSchedulingContext struct {
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+	// Total away resources assigned to the queue across all clusters by priority class.
+	// Includes away jobs scheduled during this invocation of the scheduler.
+	AwayAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 	// Resources evicted from this queue during this scheduling cycle.

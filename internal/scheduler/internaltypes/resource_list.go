@@ -120,6 +120,19 @@ func (rl ResourceList) AllZero() bool {
 	return true
 }
 
+func (rl ResourceList) FloorAtZero() ResourceList {
+	if rl.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		if r > 0 {
+			result[i] = r
+		}
+	}
+	return ResourceList{factory: rl.factory, resources: result}
+}
+
 func (rl ResourceList) HasNegativeValues() bool {
 	if rl.IsEmpty() {
 		return false

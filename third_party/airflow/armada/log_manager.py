@@ -5,12 +5,12 @@ from http.client import HTTPResponse
 from typing import List, Optional, Tuple, cast
 
 import pendulum
+import tenacity
 from airflow.utils.log.logging_mixin import LoggingMixin
 from armada.auth import TokenRetriever
 from kubernetes import client, config
 from pendulum import DateTime
 from pendulum.parsing.exceptions import ParserError
-import tenacity
 from urllib3.exceptions import HTTPError
 
 
@@ -30,9 +30,7 @@ class KubernetesPodLogManager(LoggingMixin):
 
     def _k8s_client(self, k8s_context) -> client.CoreV1Api:
         configuration = client.Configuration()
-        config.load_kube_config(
-            client_configuration=configuration, context=k8s_context
-        )
+        config.load_kube_config(client_configuration=configuration, context=k8s_context)
         k8s_client = client.CoreV1Api(
             api_client=client.ApiClient(configuration=configuration)
         )
@@ -41,7 +39,6 @@ class KubernetesPodLogManager(LoggingMixin):
         )
 
         return k8s_client
-
 
     @tenacity.retry(
         wait=tenacity.wait_exponential(max=3),

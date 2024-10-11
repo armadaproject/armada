@@ -499,7 +499,7 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.Id()] = i
 			}
-			jobRepo := NewInMemoryJobRepository()
+			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool)
 			jobRepo.EnqueueMany(
 				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)

@@ -43,7 +43,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	_, err = sctx.AddGangSchedulingContext(gctx)
 	require.NoError(t, err)
 	for _, jctx := range jctxs {
-		_, err := sctx.EvictJob(jctx.Job)
+		_, err := sctx.EvictJob(jctx)
 		require.NoError(t, err)
 	}
 
