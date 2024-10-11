@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"golang.org/x/term"
 
@@ -47,7 +48,7 @@ func docsCmd() *cobra.Command {
 				return fmt.Errorf("could not render content from documentation file: %s", err)
 			}
 
-			if term.IsTerminal(int(os.Stdout.Fd())) {
+			if term.IsTerminal(int(os.Stdout.Fd())) && runtime.GOOS != "windows" {
 				if err = openTextViewer(out); err != nil {
 					return fmt.Errorf("could not open documentation in text viewer: %s", err)
 				}
