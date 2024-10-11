@@ -50,7 +50,7 @@ func docsCmd() *cobra.Command {
 
 			if term.IsTerminal(int(os.Stdout.Fd())) {
 				if err = openTextViewer(out); err != nil {
-					return fmt.Errorf("could open documentation in text viewer: %s", err)
+					return fmt.Errorf("could not open documentation in text viewer: %s", err)
 				}
 			} else {
 				fmt.Printf("%s\n", out)
@@ -78,11 +78,7 @@ func openTextViewer(text string) error {
 	}
 	tmpFile.Close()
 
-	if runtime.GOOS == "windows" {
-		pagerCmd = exec.Command("more", tmpFile.Name())
-	} else {
-		pagerCmd = exec.Command("less", "-R", tmpFile.Name()) // -R allows ANSI color codes
-	}
+	pagerCmd = exec.Command("less", "-R", tmpFile.Name()) // -R allows ANSI color codes
 
 	pagerCmd.Stdin = os.Stdin
 	pagerCmd.Stdout = os.Stdout
