@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"runtime"
 
 	"golang.org/x/term"
 
