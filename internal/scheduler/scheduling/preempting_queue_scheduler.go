@@ -102,7 +102,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				if job.LatestRun().Pool() != sch.schedulingContext.Pool {
 					return false
 				}
-				if sch.schedulingContext.QueueContextExists(job) {
+				if !sch.schedulingContext.QueueContextExists(job) {
 					ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
 					return false
 				}
@@ -697,7 +697,7 @@ func NewOversubscribedEvictor(
 			return len(overSubscribedPriorities) > 0
 		},
 		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) bool {
-			if queueChecker.QueueContextExists(job) {
+			if !queueChecker.QueueContextExists(job) {
 				ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
 				return false
 			}
