@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"fmt"
 	"math"
-	"reflect"
 	"time"
 
 	"github.com/pkg/errors"
@@ -47,7 +46,7 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, true)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(it)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
 	if err != nil {
@@ -216,7 +215,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 // Each gang is yielded once its final member is received from the underlying iterator.
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
-	schedulingContext  *schedulercontext.SchedulingContext
+	//schedulingContext  *schedulercontext.SchedulingContext
 	queuedJobsIterator JobContextIterator
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
@@ -225,12 +224,10 @@ type QueuedGangIterator struct {
 	next                       *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(it JobContextIterator) *QueuedGangIterator {
 	return &QueuedGangIterator{
-		schedulingContext:          sctx,
-		queuedJobsIterator:         it,
-		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
-		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
+		queuedJobsIterator: it,
+		jctxsByGangId:      make(map[string][]*schedulercontext.JobSchedulingContext),
 	}
 }
 
@@ -262,26 +259,10 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		jctx, err := it.queuedJobsIterator.Next()
 		if err != nil {
 			return nil, err
-		} else if jctx == nil || reflect.ValueOf(jctx).IsNil() {
+		} else if jctx == nil {
 			return nil, nil
 		}
 
-		// Skip this job if it's known to be unschedulable.
-		if it.skipKnownUnschedulableJobs && len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
-			schedulingKey, ok := jctx.SchedulingKey()
-			if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
-				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
-					// Since jctx would fail to schedule for the same reason as unsuccessfulJctx,
-					// set the unschedulable reason and pctx equal to that of unsuccessfulJctx.
-					jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
-					jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
-					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
-						return nil, err
-					}
-					continue
-				}
-			}
-		}
 		if gangId := jctx.GangInfo.Id; gangId != "" {
 			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)

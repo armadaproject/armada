@@ -111,23 +111,25 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobContextIterat
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 type QueuedJobsIterator struct {
-	jobIter     jobdb.JobIterator
-	pool        string
-	maxLookback uint
-	jobsSeen    uint
-	ctx         *armadacontext.Context
+	jobIter           jobdb.JobIterator
+	pool              string
+	maxLookback       uint
+	jobsSeen          uint
+	schedulingContext *schedulercontext.SchedulingContext
+	ctx               *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, maxLookback uint, repo JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, maxLookback uint, schedulingContext *schedulercontext.SchedulingContext, repo JobRepository) *QueuedJobsIterator {
 	if maxLookback == 0 {
 		maxLookback = math.MaxUint
 	}
 	return &QueuedJobsIterator{
-		jobIter:     repo.QueuedJobs(queue),
-		pool:        pool,
-		maxLookback: maxLookback,
-		jobsSeen:    0,
-		ctx:         ctx,
+		jobIter:           repo.QueuedJobs(queue),
+		pool:              pool,
+		maxLookback:       maxLookback,
+		jobsSeen:          0,
+		schedulingContext: schedulingContext,
+		ctx:               ctx,
 	}
 }
 
@@ -137,16 +139,40 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		case <-it.ctx.Done():
 			return nil, it.ctx.Err()
 		default:
+			// If we're beyond the max lookback then return done
 			if it.jobsSeen >= it.maxLookback {
 				return nil, nil
 			}
+
+			// If there are no more jobs then return done
 			job, _ := it.jobIter.Next()
 			if job == nil {
 				return nil, nil
 			}
-			if slices.Contains(job.Pools(), it.pool) {
-				it.jobsSeen++
-				return schedulercontext.JobSchedulingContextFromJob(job), nil
+
+			// If the job isn't for this pool then skip it
+			if !slices.Contains(job.Pools(), it.pool) {
+				continue
+			}
+
+			jctx := schedulercontext.JobSchedulingContextFromJob(job)
+			schedulingKey := job.SchedulingKey()
+			it.jobsSeen++
+
+			// If the job  is known to be unscheduable then it can be skipped
+			unsuccessfulJctx, jobUnschedulable := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]
+
+			if jobUnschedulable {
+				// Since jctx would fail to schedule for the same reason as unsuccessfulJctx,
+				// set the unschedulable reason and pctx equal to that of unsuccessfulJctx.
+				jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
+				jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
+				_, err := it.schedulingContext.AddJobSchedulingContext(jctx)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return jctx, nil
 			}
 		}
 	}
