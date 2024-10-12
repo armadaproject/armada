@@ -215,13 +215,11 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 // Each gang is yielded once its final member is received from the underlying iterator.
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
-	//schedulingContext  *schedulercontext.SchedulingContext
+	// schedulingContext  *schedulercontext.SchedulingContext
 	queuedJobsIterator JobContextIterator
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
-	// If true, do not yield jobs known to be unschedulable.
-	skipKnownUnschedulableJobs bool
-	next                       *schedulercontext.GangSchedulingContext
+	next          *schedulercontext.GangSchedulingContext
 }
 
 func NewQueuedGangIterator(it JobContextIterator) *QueuedGangIterator {
