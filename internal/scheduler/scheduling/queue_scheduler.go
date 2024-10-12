@@ -35,6 +35,7 @@ func NewQueueScheduler(
 	jobIteratorByQueue map[string]JobContextIterator,
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityClassPriority bool,
+	includeNextJobInCost bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -49,7 +50,7 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.GetMaxQueueLookBack(), true)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, includeNextJobInCost)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +341,8 @@ type CandidateGangIterator struct {
 	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
-	pq QueueCandidateGangIteratorPQ
+	pq             QueueCandidateGangIteratorPQ
+	includeNextJob bool
 }
 
 func NewCandidateGangIterator(
@@ -349,6 +351,7 @@ func NewCandidateGangIterator(
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 	considerPriority bool,
+	includeNextJob bool,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
 		pool:                    pool,
@@ -356,6 +359,7 @@ func NewCandidateGangIterator(
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
 		buffer:                  schedulerobjects.NewResourceListWithDefaultSize(),
+		includeNextJob:          includeNextJob,
 		pq: QueueCandidateGangIteratorPQ{
 			considerPriority: considerPriority,
 			items:            make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
@@ -492,7 +496,9 @@ func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSc
 	}
 	it.buffer.Zero()
 	it.buffer.Add(queue.GetAllocation())
-	it.buffer.Add(gctx.TotalResourceRequests)
+	if it.includeNextJob {
+		it.buffer.Add(gctx.TotalResourceRequests)
+	}
 	return it.fairnessCostProvider.WeightedCostFromAllocation(it.buffer, queue.GetWeight()), nil
 }
 

@@ -31,6 +31,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+const includeNextJobInQueueCost = false
+
 type testQueueContextChecker struct {
 	jobIds map[string]bool
 }
@@ -1446,8 +1448,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 9),
-						"B": testfixtures.IntRange(0, 21),
+						"A": testfixtures.IntRange(0, 10),
+						"B": testfixtures.IntRange(0, 19),
 					},
 				},
 				{}, // Empty round to make sure nothing changes.
@@ -2070,6 +2072,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
+					includeNextJobInQueueCost,
 				)
 
 				result, err := sch.Schedule(ctx)
@@ -2418,6 +2421,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 				nil,
+				includeNextJobInQueueCost,
 			)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
@@ -2479,6 +2483,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 					nil,
+					includeNextJobInQueueCost,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)

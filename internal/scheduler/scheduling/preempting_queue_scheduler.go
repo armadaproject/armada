@@ -40,7 +40,8 @@ type PreemptingQueueScheduler struct {
 	// Maps gang ids to the ids of jobs in that gang.
 	jobIdsByGangId map[string]map[string]bool
 	// Maps job ids of gang jobs to the id of that gang.
-	gangIdByJobId map[string]string
+	gangIdByJobId             map[string]string
+	includeNextJobInQueueCost bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -53,6 +54,7 @@ func NewPreemptingQueueScheduler(
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
+	includeNextJobInQueueCost bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
@@ -77,6 +79,7 @@ func NewPreemptingQueueScheduler(
 		nodeIdByJobId:                maps.Clone(initialNodeIdByJobId),
 		jobIdsByGangId:               initialJobIdsByGangId,
 		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
+		includeNextJobInQueueCost:    includeNextJobInQueueCost,
 	}
 }
 
@@ -294,7 +297,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.nodeDb.Reset(); err != nil {
 		return nil, nil, err
 	}
-	if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
+	if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo, sch.includeNextJobInQueueCost); err != nil {
 		return nil, nil, err
 	}
 	return result, inMemoryJobRepo, nil
@@ -463,7 +466,7 @@ func (q MinimalQueue) GetWeight() float64 {
 
 // addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
 // Needed to enable the nodeDb accounting for these when preempting.
-func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository, considerJobInQueueCost bool) error {
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(
@@ -474,7 +477,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 		)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
-	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false, considerJobInQueueCost)
 	if err != nil {
 		return err
 	}
@@ -504,7 +507,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository, skipUnsuccessfulSchedulingKeyCheck bool, considerPriorityCLassPriority bool) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository, skipUnsuccessfulSchedulingKeyCheck, considerPriorityCLassPriority bool) (*SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
@@ -527,6 +530,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
 		considerPriorityCLassPriority,
+		sch.includeNextJobInQueueCost,
 	)
 	if err != nil {
 		return nil, err

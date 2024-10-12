@@ -537,6 +537,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
+		true,
 	)
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
