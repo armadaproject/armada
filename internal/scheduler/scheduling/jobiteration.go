@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"math"
 	"sync"
 
 	"golang.org/x/exp/slices"
@@ -118,6 +119,9 @@ type QueuedJobsIterator struct {
 }
 
 func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, maxLookback uint, repo JobRepository) *QueuedJobsIterator {
+	if maxLookback == 0 {
+		maxLookback = math.MaxUint
+	}
 	return &QueuedJobsIterator{
 		jobIter:     repo.QueuedJobs(queue),
 		pool:        pool,
@@ -133,7 +137,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		case <-it.ctx.Done():
 			return nil, it.ctx.Err()
 		default:
-			if it.jobsSeen > it.maxLookback {
+			if it.jobsSeen >= it.maxLookback {
 				return nil, nil
 			}
 			job, _ := it.jobIter.Next()
