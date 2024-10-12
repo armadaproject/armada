@@ -83,16 +83,6 @@ func (jctx *JobSchedulingContext) String() string {
 	return sb.String()
 }
 
-// SchedulingKey returns the scheduling key of the embedded job.
-// If the jctx contains additional node selectors or tolerations,
-// the key is invalid and the second return value is false.
-func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKey, bool) {
-	if len(jctx.AdditionalNodeSelectors) != 0 || len(jctx.AdditionalTolerations) != 0 {
-		return schedulerobjects.EmptySchedulingKey, false
-	}
-	return jctx.Job.SchedulingKey(), true
-}
-
 func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }

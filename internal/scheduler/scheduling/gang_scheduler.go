@@ -10,7 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
@@ -21,8 +20,6 @@ type GangScheduler struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	schedulingContext     *context.SchedulingContext
 	nodeDb                *nodedb.NodeDb
-	// If true, the unsuccessfulSchedulingKeys check is omitted.
-	skipUnsuccessfulSchedulingKeyCheck bool
 }
 
 func NewGangScheduler(
@@ -78,18 +75,15 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *context.Gan
 
 	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
 
-	// Register globally unfeasible scheduling keys.
-	//
-	// Only record unfeasible scheduling keys for single-job gangs.
-	// Since a gang may be unschedulable even if all its members are individually schedulable.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 && globallyUnschedulable {
+	// Register globally unfeasible scheduling keys.  This allows us to discard subsequent jobs with the same
+	// key as we know they cannot be scheduled. We only do this for:
+	// * Queued jobs, as evicted jobs no longer have a valid scheduling key
+	// * Single jobs as we have no concept of the scheduling key for a gang
+	if globallyUnschedulable && gctx.Cardinality() == 1 {
 		jctx := gctx.JobSchedulingContexts[0]
-		schedulingKey, ok := jctx.SchedulingKey()
-		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
-			if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
-				// Keep the first jctx for each unfeasible schedulingKey.
-				sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
-			}
+		if !jctx.IsEvicted {
+			// Keep the first jctx for each unfeasible schedulingKey.
+			sch.schedulingContext.UnfeasibleSchedulingKeys[jctx.Job.SchedulingKey()] = jctx
 		}
 	}
 
