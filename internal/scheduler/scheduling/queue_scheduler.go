@@ -47,7 +47,7 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.GetMaxQueueLookBack(), true)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, true)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
 	if err != nil {
@@ -220,20 +220,15 @@ type QueuedGangIterator struct {
 	queuedJobsIterator JobContextIterator
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
-	// Maximum number of jobs to look at before giving up.
-	maxLookback uint
 	// If true, do not yield jobs known to be unschedulable.
 	skipKnownUnschedulableJobs bool
-	// Number of jobs we have seen so far.
-	jobsSeen uint
-	next     *schedulercontext.GangSchedulingContext
+	next                       *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		schedulingContext:          sctx,
 		queuedJobsIterator:         it,
-		maxLookback:                maxLookback,
 		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
 		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
 	}
@@ -256,9 +251,6 @@ func (it *QueuedGangIterator) Clear() error {
 }
 
 func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
-	if it.hitLookbackLimit() {
-		return nil, nil
-	}
 	if it.next != nil {
 		return it.next, nil
 	}
@@ -271,14 +263,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		if err != nil {
 			return nil, err
 		} else if jctx == nil || reflect.ValueOf(jctx).IsNil() {
-			return nil, nil
-		}
-
-		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
-		if !jctx.IsEvicted {
-			it.jobsSeen++
-		}
-		if it.hitLookbackLimit() {
 			return nil, nil
 		}
 
@@ -315,13 +299,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			return it.next, nil
 		}
 	}
-}
-
-func (it *QueuedGangIterator) hitLookbackLimit() bool {
-	if it.maxLookback == 0 {
-		return false
-	}
-	return it.jobsSeen > it.maxLookback
 }
 
 // CandidateGangIterator determines which gang to try scheduling next across queues.
