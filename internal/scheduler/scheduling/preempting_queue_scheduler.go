@@ -513,16 +513,12 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		}
 	}
 
-	// Reset the scheduling keys cache after evicting jobs.
-	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
-
 	sched, err := NewQueueScheduler(
 		sch.schedulingContext,
 		sch.constraints,
 		sch.floatingResourceTypes,
 		sch.nodeDb,
 		jobIteratorByQueue,
-		skipUnsuccessfulSchedulingKeyCheck,
 		considerPriorityCLassPriority,
 	)
 	if err != nil {

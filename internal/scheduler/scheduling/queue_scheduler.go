@@ -32,7 +32,6 @@ func NewQueueScheduler(
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
-	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityClassPriority bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
@@ -40,7 +39,7 @@ func NewQueueScheduler(
 			return nil, errors.Errorf("no scheduling context for queue %s", queue)
 		}
 	}
-	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, skipUnsuccessfulSchedulingKeyCheck)
+	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
 	if err != nil {
 		return nil, err
 	}

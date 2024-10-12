@@ -30,14 +30,12 @@ func NewGangScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
-	skipUnsuccessfulSchedulingKeyCheck bool,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:                        constraints,
-		floatingResourceTypes:              floatingResourceTypes,
-		schedulingContext:                  sctx,
-		nodeDb:                             nodeDb,
-		skipUnsuccessfulSchedulingKeyCheck: skipUnsuccessfulSchedulingKeyCheck,
+		constraints:           constraints,
+		floatingResourceTypes: floatingResourceTypes,
+		schedulingContext:     sctx,
+		nodeDb:                nodeDb,
 	}, nil
 }
 
