@@ -48,9 +48,15 @@ func docsCmd() *cobra.Command {
 				return fmt.Errorf("could not render content from documentation file: %s", err)
 			}
 
-			if term.IsTerminal(int(os.Stdout.Fd())) {
+			printStdout, err := cmd.Flags().GetBool("to-stdout")
+			if err != nil {
+				return fmt.Errorf("could not retrieve to-stdout flag value: %s", err)
+			}
+
+			if term.IsTerminal(int(os.Stdout.Fd())) && runtime.GOOS != "windows" && !printStdout {
 				if err = openTextViewer(out); err != nil {
-					return fmt.Errorf("could open documentation in text viewer: %s", err)
+					fmt.Printf("%s\n", out)
+					_, _ = fmt.Fprintf(os.Stderr, "could not open documentation in text viewer: %s", err)
 				}
 			} else {
 				fmt.Printf("%s\n", out)
@@ -59,6 +65,8 @@ func docsCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolP("to-stdout", "p", false, "Prints docs to stdout rather than opening in a text viewer.")
 
 	return cmd
 }
@@ -78,11 +86,7 @@ func openTextViewer(text string) error {
 	}
 	tmpFile.Close()
 
-	if runtime.GOOS == "windows" {
-		pagerCmd = exec.Command("more", tmpFile.Name())
-	} else {
-		pagerCmd = exec.Command("less", "-R", tmpFile.Name()) // -R allows ANSI color codes
-	}
+	pagerCmd = exec.Command("less", "-R", tmpFile.Name()) // -R allows ANSI color codes
 
 	pagerCmd.Stdin = os.Stdin
 	pagerCmd.Stdout = os.Stdout
