@@ -1,8 +1,11 @@
 package sink
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"os"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
 )
@@ -54,6 +57,9 @@ func (j *FairShareWriter) Update(result *scheduling.SchedulerResult) error {
 	return nil
 }
 
-func (j *FairShareWriter) Close() {
-	j.writer.WriteStop()
+func (j *FairShareWriter) Close(ctx *armadacontext.Context) {
+	err := j.writer.WriteStop()
+	if err != nil {
+		ctx.Warnf("Could not clearnly close fair share parquet file: %s", err)
+	}
 }

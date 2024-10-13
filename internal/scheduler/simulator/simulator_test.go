@@ -1,24 +1,22 @@
 package simulator
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/caarlos0/log"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

@@ -3,8 +3,6 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
-	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -34,6 +32,8 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -104,7 +104,8 @@ func NewSimulator(
 	enableFastForward bool,
 	hardTerminationMinutes int,
 	schedulerCyclePeriodSeconds int,
-	sink sink.Sink) (*Simulator, error) {
+	sink sink.Sink,
+) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
 	resourceListFactory, err := internaltypes.NewResourceListFactory(

@@ -106,12 +106,13 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	ctx := armadacontext.Background()
 	outputSink, err := sink.NewParquetSink(outputDirPath)
 	if err != nil {
 		return err
 	}
+	defer outputSink.Close(ctx)
 
-	ctx := armadacontext.Background()
 	ctx.Info("Armada simulator")
 	ctx.Infof("ClusterSpec: %v", clusterSpec.Name)
 	ctx.Infof("WorkloadSpecs: %v", workloadSpec.Name)

@@ -3,6 +3,8 @@ package sink
 import (
 	"os"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
 	v1 "k8s.io/api/core/v1"
 
@@ -60,8 +62,11 @@ func (j *JobWriter) Update(st *model.StateTransition) error {
 	return nil
 }
 
-func (j *JobWriter) Close() {
-	j.writer.WriteStop()
+func (j *JobWriter) Close(ctx *armadacontext.Context) {
+	err := j.writer.WriteStop()
+	if err != nil {
+		ctx.Warnf("Could not clearnly close fair share parquet file: %s", err)
+	}
 }
 
 func (j *JobWriter) createJobRunRow(st *model.StateTransition) ([]*JobRunRow, error) {
