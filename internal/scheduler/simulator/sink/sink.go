@@ -6,8 +6,8 @@ import (
 )
 
 type Sink struct {
-	jobWriter   *JobWriter
-	StatsWriter *StatsWriter
+	jobWriter       *JobWriter
+	fairShareWriter *FairShareWriter
 }
 
 func NewSink(outputDir string) (*Sink, error) {
@@ -15,22 +15,35 @@ func NewSink(outputDir string) (*Sink, error) {
 	if err != nil {
 		return nil, err
 	}
-	statsWriter, err := NewStatsWriter(outputDir)
+	fairShareWriter, err := NewFairShareWriter(outputDir)
 	if err != nil {
 		return nil, err
 	}
 	return &Sink{
-		jobWriter:   jobWriter,
-		StatsWriter: statsWriter,
+		jobWriter:       jobWriter,
+		fairShareWriter: fairShareWriter,
 	}, nil
 }
 
-func (s *Sink) OnNewStateTransitions(transitions []*simulator.StateTransition) {
+func (s *Sink) OnNewStateTransitions(transitions []*simulator.StateTransition) error {
 	for _, t := range transitions {
-		s.jobWriter.Update(t)
+		err := s.jobWriter.Update(t)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (s *Sink) OnCycleEnd(result schedulerresult.SchedulerResult) {
+func (s *Sink) OnCycleEnd(result schedulerresult.SchedulerResult) error {
+	err := s.fairShareWriter.Update(result)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
+func (s *Sink) close() {
+	s.fairShareWriter.Close()
+	s.jobWriter.Close()
 }

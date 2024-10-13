@@ -10,7 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -110,30 +109,6 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	ctx.Infof("WorkloadSpecs: %v", workloadSpec.Name)
 	ctx.Infof("SchedulingConfig: %v", configFile)
 
-	var fileWriter *simulator.Writer
-	eventsOutputFile, err := os.Create(eventsOutputFilePath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err = eventsOutputFile.Close(); err != nil {
-			ctx.Errorf("failed to close eventsOutputFile: %s", err)
-			return
-		}
-	}()
-
-	var statsWriter *simulator.StatsWriter
-	cycleStatsOutputFile, err := os.Create(cycleStatsOutputFilePath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err = cycleStatsOutputFile.Close(); err != nil {
-			ctx.Errorf("failed to close cycleStatsOutputFile: %s", err)
-			return
-		}
-	}()
-
 	s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig, enableFastForward, hardTerminationMinutes, schedulerCyclePeriodSeconds)
 	if err != nil {
 		return err
@@ -143,20 +118,6 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		s.SuppressSchedulerLogs = true
 	} else {
 		ctx.Info("Showing scheduler logs")
-	}
-	if eventsOutputFilePath != "" {
-		fw, err := simulator.NewWriter(eventsOutputFile, s.StateTransitions())
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		fileWriter = fw
-	}
-	if cycleStatsOutputFilePath != "" {
-		sw, err := simulator.NewStatsWriter(cycleStatsOutputFile, s.CycleMetrics())
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		statsWriter = sw
 	}
 
 	f, err := os.Create("profile")
@@ -172,16 +133,6 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	g, ctx := armadacontext.ErrGroup(ctx)
 	g.Go(func() error {
 		return s.Run(ctx)
-	})
-
-	// Run eventsOutputFile writer
-	g.Go(func() error {
-		return fileWriter.Run(ctx)
-	})
-
-	// Run stats writer
-	g.Go(func() error {
-		return statsWriter.Run(ctx)
 	})
 
 	// Wait for simulations to complete.
