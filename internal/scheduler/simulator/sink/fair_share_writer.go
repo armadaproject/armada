@@ -2,6 +2,9 @@ package sink
 
 import (
 	"os"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	parquetWriter "github.com/xitongsys/parquet-go/writer"
 )
 
 type FairShareRow struct {
