@@ -1,13 +1,13 @@
 package sink
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 )
 
 type Sink interface {
 	OnNewStateTransitions(transitions []*model.StateTransition) error
-	OnCycleEnd(result *schedulerresult.SchedulerResult) error
+	OnCycleEnd(result *scheduling.SchedulerResult) error
 	Close()
 }
 
@@ -41,7 +41,7 @@ func (s *ParquetSink) OnNewStateTransitions(transitions []*model.StateTransition
 	return nil
 }
 
-func (s *ParquetSink) OnCycleEnd(result *schedulerresult.SchedulerResult) error {
+func (s *ParquetSink) OnCycleEnd(result *scheduling.SchedulerResult) error {
 	err := s.fairShareWriter.Update(result)
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func (s NullSink) OnNewStateTransitions(_ []*model.StateTransition) error {
 	return nil
 }
 
-func (s NullSink) OnCycleEnd(_ *schedulerresult.SchedulerResult) error {
+func (s NullSink) OnCycleEnd(_ *scheduling.SchedulerResult) error {
 	return nil
 }
 
