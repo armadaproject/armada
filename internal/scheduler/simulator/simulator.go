@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -26,15 +25,15 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -529,17 +528,12 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				return err
 			}
 		}
-		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil, map[string]bool{})
+		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
 
-		nloatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(s.schedulingConfig.ExperimentalFloatingResources)
-		if err != nil {
-			return err
-		}
-
-		sch := scheduler.NewPreemptingQueueScheduler(
+		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,
-			s.floatingResourceTypes,,
+			s.floatingResourceTypes,
 			s.schedulingConfig.ProtectedFractionOfFairShare,
 			txn,
 			nodeDb,
@@ -568,7 +562,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 		// Update jobDb to reflect the decisions by the scheduler.
 		// Sort jobs to ensure deterministic event ordering.
-		preemptedJobs := schedulerresult.PreemptedJobsFromSchedulerResult(result)
+		preemptedJobs := scheduling.PreemptedJobsFromSchedulerResult(result)
 		scheduledJobs := slices.Clone(result.ScheduledJobs)
 		lessJob := func(a, b *jobdb.Job) int {
 			if a.Queue() < b.Queue() {
@@ -716,9 +710,9 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 	if err != nil {
 		return nil, false, err
 	}
-	poolNames := make([]string, 0, len(s.ClusterSpec.Pools))
-	for _, pool := range s.ClusterSpec.Pools {
-		poolNames = append(poolNames, pool.Name)
+	poolNames := make([]string, 0, len(s.ClusterSpec.Clusters))
+	for _, cluster := range s.ClusterSpec.Clusters {
+		poolNames = append(poolNames, cluster.Pool)
 	}
 	job, err := s.jobDb.NewJob(
 		e.JobId,

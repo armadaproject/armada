@@ -1,9 +1,9 @@
 package sink
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"os"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
 )
 
@@ -34,7 +34,7 @@ func NewFairShareWriter(path string) (*FairShareWriter, error) {
 	}, nil
 }
 
-func (j *FairShareWriter) Update(result *schedulerresult.SchedulerResult) error {
+func (j *FairShareWriter) Update(result *scheduling.SchedulerResult) error {
 	for _, sctx := range result.SchedulingContexts {
 		for _, qctx := range sctx.QueueSchedulingContexts {
 			row := FairShareRow{
