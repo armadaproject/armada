@@ -18,12 +18,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func NewTestJobDb() *JobDb {
-	emptyFloatingResourceTypes, _ := floatingresources.NewFloatingResourceTypes(nil)
 	return NewJobDb(
 		map[string]types.PriorityClass{
 			"foo": {},
@@ -31,8 +29,7 @@ func NewTestJobDb() *JobDb {
 		},
 		"foo",
 		stringinterner.New(1024),
-		TestResourceListFactory,
-		emptyFloatingResourceTypes,
+		testResourceListFactory,
 	)
 }
 

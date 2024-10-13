@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -14,11 +12,12 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -33,7 +32,7 @@ func TestTotalResources(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-	assert.True(t, expected.Equal(nodeDb.TotalResources()))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 
 	// Upserting nodes for the first time should increase the resource count.
 	nodes := testfixtures.N32CpuNodes(2, testfixtures.TestPriorities)
@@ -42,12 +41,14 @@ func TestTotalResources(t *testing.T) {
 	}
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(t, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(t, err)
 	}
 	txn.Commit()
 
-	assert.True(t, expected.Equal(nodeDb.TotalResources()))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 
 	// Upserting new nodes should increase the resource count.
 	nodes = testfixtures.N8GpuNodes(3, testfixtures.TestPriorities)
@@ -56,12 +57,14 @@ func TestTotalResources(t *testing.T) {
 	}
 	txn = nodeDb.Txn(true)
 	for _, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(t, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(t, err)
 	}
 	txn.Commit()
 
-	assert.True(t, expected.Equal(nodeDb.TotalResources()))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 }
 
 func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
@@ -71,7 +74,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
+	jctxs := context.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		jctx.SetAssignedNodeId(nodeId)
@@ -96,7 +99,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)
-	jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
+	jctxs := context.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
 		jctx.SetAssignedNodeId("non-existent node")
@@ -123,7 +126,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
-	request := job.EfficientResourceRequirements()
+	request := job.KubernetesResourceRequirements()
 	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(job.ResourceRequirements().Requests))
 	assert.Nil(t, err)
 
@@ -282,7 +285,9 @@ func TestEviction(t *testing.T) {
 				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
 			}
 			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
+			dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+			require.NoError(t, err)
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, dbNode)
 			txn.Commit()
 			require.NoError(t, err)
 			entry, err := nodeDb.GetNode(node.Id)
@@ -433,11 +438,11 @@ func TestScheduleIndividually(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 
-			jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.Jobs)
+			jctxs := context.JobSchedulingContextsFromJobs(tc.Jobs)
 
 			for i, jctx := range jctxs {
 				nodeDbTxn := nodeDb.Txn(true)
-				gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+				gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
 
@@ -462,7 +467,7 @@ func TestScheduleIndividually(t *testing.T) {
 				node, err := nodeDb.GetNode(nodeId)
 				require.NoError(t, err)
 				require.NotNil(t, node)
-				expected := job.EfficientResourceRequirements()
+				expected := job.KubernetesResourceRequirements()
 				actual, ok := node.AllocatedByJobId[job.Id()]
 				require.True(t, ok)
 				assert.True(t, actual.Equal(expected))
@@ -523,8 +528,8 @@ func TestScheduleMany(t *testing.T) {
 			require.NoError(t, err)
 			for i, jobs := range tc.Jobs {
 				nodeDbTxn := nodeDb.Txn(true)
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
-				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+				jctxs := context.JobSchedulingContextsFromJobs(jobs)
+				gctx := context.NewGangSchedulingContext(jctxs)
 				ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 				require.NoError(t, err)
 				require.Equal(t, tc.ExpectSuccess[i], ok)
@@ -569,7 +574,9 @@ func TestAwayNodeTypes(t *testing.T) {
 			Effect: v1.TaintEffectNoSchedule,
 		},
 	)
-	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
+	dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+	require.NoError(t, err)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, dbNode))
 
 	jobId := util.ULID()
 	job := testfixtures.TestJob(
@@ -578,9 +585,9 @@ func TestAwayNodeTypes(t *testing.T) {
 		"armada-preemptible-away",
 		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
 	)
-	jctx := schedulercontext.JobSchedulingContextFromJob(job)
+	jctx := context.JobSchedulingContextFromJob(job)
 	require.Empty(t, jctx.AdditionalTolerations)
-	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 
 	ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
 	require.NoError(t, err)
@@ -641,7 +648,7 @@ func TestMakeIndexedResourceResolution(t *testing.T) {
 		},
 	}
 
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -665,7 +672,7 @@ func TestMakeIndexedResourceResolution_ErrorsOnUnsupportedResource(t *testing.T)
 		},
 	}
 
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -682,7 +689,7 @@ func TestMakeIndexedResourceResolution_ErrorsOnInvalidResolution(t *testing.T) {
 		},
 	}
 
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(supportedResources)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(supportedResources, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, resourceListFactory)
 
@@ -727,7 +734,9 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	txn := nodeDb.Txn(true)
 	entries := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(b, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(b, err)
 		entry, err := nodeDb.GetNode(node.Id)
 		require.NoError(b, err)
@@ -765,15 +774,17 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		require.NoError(b, err)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 		require.NoError(b, err)
 	}
 	txn.Commit()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		jctxs := schedulercontext.JobSchedulingContextsFromJobs(jobs)
-		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+		jctxs := context.JobSchedulingContextsFromJobs(jobs)
+		gctx := context.NewGangSchedulingContext(jctxs)
 		txn := nodeDb.Txn(true)
 		_, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
 		txn.Abort()
@@ -892,7 +903,11 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	}
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+		if err != nil {
+			return nil, err
+		}
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
 			return nil, err
 		}
 	}

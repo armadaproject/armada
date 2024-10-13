@@ -7,7 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 type CtxPoolPair[T any] struct {
@@ -16,18 +16,18 @@ type CtxPoolPair[T any] struct {
 }
 
 type SchedulingContextRepository struct {
-	mostRecentByPool atomic.Pointer[map[string]*schedulercontext.SchedulingContext]
+	mostRecentByPool atomic.Pointer[map[string]*context.SchedulingContext]
 	mu               sync.Mutex
 }
 
 func NewSchedulingContextRepository() *SchedulingContextRepository {
-	mostRecentByExecutor := make(map[string]*schedulercontext.SchedulingContext)
+	mostRecentByExecutor := make(map[string]*context.SchedulingContext)
 	rv := &SchedulingContextRepository{}
 	rv.mostRecentByPool.Store(&mostRecentByExecutor)
 	return rv
 }
 
-func (r *SchedulingContextRepository) StoreSchedulingContext(sctx *schedulercontext.SchedulingContext) {
+func (r *SchedulingContextRepository) StoreSchedulingContext(sctx *context.SchedulingContext) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	byPool := r.mostRecentByPool.Load()
@@ -36,11 +36,11 @@ func (r *SchedulingContextRepository) StoreSchedulingContext(sctx *schedulercont
 	r.mostRecentByPool.Store(&byPoolCopy)
 }
 
-func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []CtxPoolPair[*schedulercontext.QueueSchedulingContext] {
+func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []CtxPoolPair[*context.QueueSchedulingContext] {
 	contextsByPool := *(r.mostRecentByPool.Load())
-	ctxs := make([]CtxPoolPair[*schedulercontext.QueueSchedulingContext], 0, len(contextsByPool))
+	ctxs := make([]CtxPoolPair[*context.QueueSchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
-		ctx := CtxPoolPair[*schedulercontext.QueueSchedulingContext]{pool: pool}
+		ctx := CtxPoolPair[*context.QueueSchedulingContext]{pool: pool}
 		schedulingCtx, ok := contextsByPool[pool].QueueSchedulingContexts[queue]
 		if ok {
 			ctx.schedulingCtx = schedulingCtx
@@ -50,11 +50,11 @@ func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []Ctx
 	return ctxs
 }
 
-func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPoolPair[*schedulercontext.JobSchedulingContext] {
+func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPoolPair[*context.JobSchedulingContext] {
 	contextsByPool := *(r.mostRecentByPool.Load())
-	ctxs := make([]CtxPoolPair[*schedulercontext.JobSchedulingContext], 0, len(contextsByPool))
+	ctxs := make([]CtxPoolPair[*context.JobSchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
-		ctx := CtxPoolPair[*schedulercontext.JobSchedulingContext]{
+		ctx := CtxPoolPair[*context.JobSchedulingContext]{
 			pool:          pool,
 			schedulingCtx: getSchedulingReportForJob(contextsByPool[pool], jobId),
 		}
@@ -63,11 +63,11 @@ func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPo
 	return ctxs
 }
 
-func (r *SchedulingContextRepository) RoundSchedulingContext() []CtxPoolPair[*schedulercontext.SchedulingContext] {
+func (r *SchedulingContextRepository) RoundSchedulingContext() []CtxPoolPair[*context.SchedulingContext] {
 	contextsByPool := *(r.mostRecentByPool.Load())
-	ctxs := make([]CtxPoolPair[*schedulercontext.SchedulingContext], 0, len(contextsByPool))
+	ctxs := make([]CtxPoolPair[*context.SchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
-		ctx := CtxPoolPair[*schedulercontext.SchedulingContext]{
+		ctx := CtxPoolPair[*context.SchedulingContext]{
 			pool:          pool,
 			schedulingCtx: contextsByPool[pool],
 		}
@@ -76,7 +76,7 @@ func (r *SchedulingContextRepository) RoundSchedulingContext() []CtxPoolPair[*sc
 	return ctxs
 }
 
-func getSchedulingReportForJob(sctx *schedulercontext.SchedulingContext, jobId string) *schedulercontext.JobSchedulingContext {
+func getSchedulingReportForJob(sctx *context.SchedulingContext, jobId string) *context.JobSchedulingContext {
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
 			if jctx.JobId == jobId {
@@ -92,7 +92,7 @@ func getSchedulingReportForJob(sctx *schedulercontext.SchedulingContext, jobId s
 	return nil
 }
 
-func sortedKeys(s map[string]*schedulercontext.SchedulingContext) []string {
+func sortedKeys(s map[string]*context.SchedulingContext) []string {
 	keys := maps.Keys(s)
 	slices.Sort(keys)
 	return keys

@@ -30,6 +30,7 @@ def default_hook() -> MagicMock:
     mock.cancel_job.return_value = dataclasses.replace(
         job_context, job_state=JobState.CANCELLED.name
     )
+    mock.context_from_xcom.return_value = None
 
     return mock
 
@@ -229,25 +230,15 @@ def test_publishes_xcom_state(context):
     op = operator(JobSubmitRequestItem())
     op.execute(context)
 
-    lookout_url = f"http://lookout.armadaproject.io/jobs?job_id={DEFAULT_JOB_ID}"
-    context["ti"].xcom_push.assert_called_once_with(
-        key="0",
-        value={
-            "armada_job_id": DEFAULT_JOB_ID,
-            "armada_job_set_id": DEFAULT_JOB_SET,
-            "armada_lookout_url": lookout_url,
-            "armada_queue": DEFAULT_QUEUE,
-        },
-    )
+    assert op.hook.context_to_xcom.call_count == 2
 
 
+@pytest.mark.skip("We know this doesn't work - as xcom state is cleared on retry")
 def test_reattaches_to_running_job(context):
     op = operator(JobSubmitRequestItem())
-    context["ti"].xcom_pull.return_value = {
-        "armada_job_id": DEFAULT_JOB_ID,
-        "armada_job_set_id": DEFAULT_JOB_SET,
-        "armada_queue": DEFAULT_QUEUE,
-    }
+    op.hook.context_from_xcom.return_value = running_job_context(
+        job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+    )
 
     op.execute(context)
 

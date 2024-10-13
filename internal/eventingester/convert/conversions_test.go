@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	jobset      = "testJobset"
-	queue       = "testQueue"
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+	jobset = "testJobset"
+	queue  = "testQueue"
+	JobId  = "01f3j0g1md4qx7z5qb148qnh4r"
+	RunId  = "123e4567-e89b-12d3-a456-426614174000"
 )
 
 var (
@@ -34,8 +34,8 @@ var jobRunSucceeded = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunIdStr: runIdString,
-			JobIdStr: jobIdString,
+			RunId: RunId,
+			JobId: JobId,
 		},
 	},
 }
@@ -45,7 +45,7 @@ var cancelled = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobIdStr: jobIdString,
+			JobId: JobId,
 		},
 	},
 }
@@ -90,8 +90,8 @@ func TestCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJob{
 			CancelJob: &armadaevents.CancelJob{
-				JobIdStr: jobIdString,
-				Reason:   "some reason 1",
+				JobId:  JobId,
+				Reason: "some reason 1",
 			},
 		},
 	}, &armadaevents.EventSequence_Event{
@@ -105,8 +105,8 @@ func TestCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobIdStr: jobIdString,
-				Reason:   "some reason 3",
+				JobId:  JobId,
+				Reason: "some reason 3",
 			},
 		},
 	})
@@ -121,7 +121,7 @@ func TestCancelled(t *testing.T) {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobIdStr: jobIdString,
+					JobId: JobId,
 				},
 			},
 		},
@@ -135,7 +135,7 @@ func TestCancelled(t *testing.T) {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobIdStr: jobIdString,
+					JobId: JobId,
 				},
 			},
 		},

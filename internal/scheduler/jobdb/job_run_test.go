@@ -2,13 +2,14 @@ package jobdb
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -30,16 +31,20 @@ var (
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	SchedulingKeyGenerator   = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	testClock                = clock.NewFakeClock(time.Now())
 	jobDb                    = NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
-		MakeTestResourceListFactory(),
-		makeTestEmptyFloatingResources(),
+		makeTestResourceListFactory(),
 	)
 	scheduledAtPriority = int32(5)
 )
+
+func init() {
+	jobDb.clock = testClock
+}
 
 var baseJobRun = jobDb.CreateRun(
 	uuid.New().String(),
@@ -172,9 +177,4 @@ func TestDeepCopy(t *testing.T) {
 	run.nodeId = "new nodeId"
 	run.executor = "new executor"
 	assert.Equal(t, expected, actual)
-}
-
-func makeTestEmptyFloatingResources() *floatingresources.FloatingResourceTypes {
-	result, _ := floatingresources.NewFloatingResourceTypes(nil)
-	return result
 }

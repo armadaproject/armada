@@ -15,10 +15,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
-	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+type JobIterator interface {
+	Next() (*Job, bool)
+	Done() bool
+}
 
 var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 
@@ -44,8 +48,6 @@ type JobDb struct {
 	uuidProvider IDProvider
 	// Used to make efficient ResourceList types.
 	resourceListFactory *internaltypes.ResourceListFactory
-	// Info about floating resources
-	floatingResourceTypes *floatingresources.FloatingResourceTypes
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -64,7 +66,6 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
-	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
@@ -72,7 +73,6 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 		schedulerobjects.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
-		floatingResourceTypes,
 	)
 }
 
@@ -82,7 +82,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 	skg *schedulerobjects.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
-	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
@@ -102,7 +101,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 		clock:                  clock.RealClock{},
 		uuidProvider:           RealUUIDProvider{},
 		resourceListFactory:    resourceListFactory,
-		floatingResourceTypes:  floatingResourceTypes,
 	}
 }
 
@@ -151,25 +149,28 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
+	rr := jobDb.getResourceRequirements(schedulingInfo)
+
 	job := &Job{
-		jobDb:                   jobDb,
-		id:                      jobId,
-		queue:                   jobDb.stringInterner.Intern(queue),
-		jobSet:                  jobDb.stringInterner.Intern(jobSet),
-		priority:                priority,
-		queued:                  queued,
-		queuedVersion:           queuedVersion,
-		requestedPriority:       priority,
-		submittedTime:           created,
-		jobSchedulingInfo:       jobDb.internJobSchedulingInfoStrings(schedulingInfo),
-		resourceRequirements:    jobDb.getResourceRequirements(schedulingInfo),
-		priorityClass:           priorityClass,
-		cancelRequested:         cancelRequested,
-		cancelByJobSetRequested: cancelByJobSetRequested,
-		cancelled:               cancelled,
-		validated:               validated,
-		runsById:                map[string]*JobRun{},
-		pools:                   pools,
+		jobDb:                          jobDb,
+		id:                             jobId,
+		queue:                          jobDb.stringInterner.Intern(queue),
+		jobSet:                         jobDb.stringInterner.Intern(jobSet),
+		priority:                       priority,
+		queued:                         queued,
+		queuedVersion:                  queuedVersion,
+		requestedPriority:              priority,
+		submittedTime:                  created,
+		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(schedulingInfo),
+		allResourceRequirements:        rr,
+		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
+		priorityClass:                  priorityClass,
+		cancelRequested:                cancelRequested,
+		cancelByJobSetRequested:        cancelByJobSetRequested,
+		cancelled:                      cancelled,
+		validated:                      validated,
+		runsById:                       map[string]*JobRun{},
+		pools:                          pools,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
@@ -496,7 +497,7 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 }
 
 // QueuedJobs returns true if the queue has any jobs in the running state or false otherwise
-func (txn *Txn) QueuedJobs(queue string) *immutable.SortedSetIterator[*Job] {
+func (txn *Txn) QueuedJobs(queue string) JobIterator {
 	jobQueue, ok := txn.jobsByQueue[queue]
 	if ok {
 		return jobQueue.Iterator()

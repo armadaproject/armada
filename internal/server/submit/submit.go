@@ -38,7 +38,7 @@ type Server struct {
 	authorizer       auth.ActionAuthorizer
 	// Below are used only for testing
 	clock       clock.Clock
-	idGenerator func() *armadaevents.Uuid
+	idGenerator func() string
 }
 
 func NewServer(
@@ -57,9 +57,7 @@ func NewServer(
 		deduplicator:     deduplicator,
 		authorizer:       authorizer,
 		clock:            clock.RealClock{},
-		idGenerator: func() *armadaevents.Uuid {
-			return armadaevents.MustProtoUuidFromUlidString(util.NewULID())
-		},
+		idGenerator:      util.NewULID,
 	}
 }
 
@@ -118,11 +116,11 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		})
 
 		jobResponses = append(jobResponses, &api.JobSubmitResponseItem{
-			JobId: armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId),
+			JobId: submitMsg.JobId,
 		})
 
 		if jobRequest.ClientId != "" {
-			idMappings[jobRequest.ClientId] = armadaevents.MustUlidStringFromProtoUuid(submitMsg.JobId)
+			idMappings[jobRequest.ClientId] = submitMsg.JobId
 		}
 	}
 
@@ -236,18 +234,12 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 		Events:     []*armadaevents.EventSequence_Event{},
 	}
 	eventTime := protoutil.ToTimestamp(clock.Now().UTC())
-	for _, jobIdStr := range jobIds {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
-		if err != nil {
-			log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
-			return nil, fmt.Errorf("could not convert job id to uuid: %s", jobIdStr)
-		}
+	for _, jobId := range jobIds {
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId:    jobId,
-					JobIdStr: armadaevents.MustUlidStringFromProtoUuid(jobId),
+					JobId: jobId,
 				},
 			},
 		})
@@ -295,25 +287,18 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 	}
 
 	// Otherwise, only the specified jobs should be re-prioritised.
-	for i, jobIdString := range req.JobIds {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdString)
-		if err != nil {
-			results[jobIdString] = err.Error()
-			continue
-		}
-
+	for i, jobId := range req.JobIds {
 		sequence.Events[i] = &armadaevents.EventSequence_Event{
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
 					JobId:    jobId,
-					JobIdStr: jobIdString,
 					Priority: priority,
 				},
 			},
 		}
 
-		results[jobIdString] = "" // empty string indicates no error
+		results[jobId] = "" // empty string indicates no error
 	}
 
 	err = s.publisher.PublishMessages(ctx, sequence)
@@ -394,20 +379,14 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 	var validIds []string
 	truncatedReason := util.Truncate(reason, 512)
 	eventTime := protoutil.ToTimestamp(clock.Now().UTC())
-	for _, jobIdStr := range jobIds {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
-		if err != nil {
-			log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
-			continue
-		}
-		validIds = append(validIds, jobIdStr)
+	for _, jobId := range jobIds {
+		validIds = append(validIds, jobId)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId:    jobId,
-					JobIdStr: jobIdStr,
-					Reason:   truncatedReason,
+					JobId:  jobId,
+					Reason: truncatedReason,
 				},
 			},
 		})

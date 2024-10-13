@@ -3,6 +3,8 @@ package scheduleringester
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -130,7 +132,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 }
 
 func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, submitTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
-	jobId := job.JobIdStr
+	jobId := job.JobId
 
 	// Store the job submit message so that it can be sent to an executor.
 	submitJobBytes, err := proto.Marshal(job)
@@ -175,7 +177,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 }
 
 func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, eventTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
-	runId := jobRunLeased.RunIdStr
+	runId := jobRunLeased.RunId
 	var scheduledAtPriority *int32
 	if jobRunLeased.HasScheduledAtPriority {
 		scheduledAtPriority = &jobRunLeased.ScheduledAtPriority
@@ -189,7 +191,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 			Queue: meta.queue,
 			DbRun: &schedulerdb.Run{
 				RunID:                  runId,
-				JobID:                  jobRunLeased.JobIdStr,
+				JobID:                  jobRunLeased.JobId,
 				Created:                eventTime.UnixNano(),
 				JobSet:                 meta.jobset,
 				Queue:                  meta.queue,
@@ -201,7 +203,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				PodRequirementsOverlay: PodRequirementsOverlay,
 			},
 		}},
-		UpdateJobQueuedState{jobRunLeased.JobIdStr: &JobQueuedStateUpdate{
+		UpdateJobQueuedState{jobRunLeased.JobId: &JobQueuedStateUpdate{
 			Queued:             false,
 			QueuedStateVersion: jobRunLeased.UpdateSequenceNumber,
 		}},
@@ -214,11 +216,11 @@ func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRe
 		return nil, errors.WithStack(err)
 	}
 	return []DbOperation{
-		UpdateJobQueuedState{jobRequeued.JobIdStr: &JobQueuedStateUpdate{
+		UpdateJobQueuedState{jobRequeued.JobId: &JobQueuedStateUpdate{
 			Queued:             true,
 			QueuedStateVersion: jobRequeued.UpdateSequenceNumber,
 		}},
-		UpdateJobSchedulingInfo{jobRequeued.JobIdStr: &JobSchedulingInfoUpdate{
+		UpdateJobSchedulingInfo{jobRequeued.JobId: &JobSchedulingInfoUpdate{
 			JobSchedulingInfo:        schedulingInfoBytes,
 			JobSchedulingInfoVersion: int32(jobRequeued.SchedulingInfo.Version),
 		}},
@@ -226,28 +228,28 @@ func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRe
 }
 
 func (c *InstructionConverter) handleJobRunRunning(jobRunRunning *armadaevents.JobRunRunning, runningTime time.Time) ([]DbOperation, error) {
-	runId := jobRunRunning.RunIdStr
+	runId := jobRunRunning.RunId
 	return []DbOperation{MarkRunsRunning{runId: runningTime}}, nil
 }
 
 func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaevents.JobRunSucceeded, successTime time.Time) ([]DbOperation, error) {
-	runId := jobRunSucceeded.RunIdStr
+	runId := jobRunSucceeded.RunId
 	return []DbOperation{MarkRunsSucceeded{runId: successTime}}, nil
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(jobRunPreempted *armadaevents.JobRunPreempted, preemptedTime time.Time) ([]DbOperation, error) {
-	runId := jobRunPreempted.PreemptedRunIdStr
+	runId := jobRunPreempted.PreemptedRunId
 	return []DbOperation{MarkRunsPreempted{runId: preemptedTime}}, nil
 }
 
 func (c *InstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents.JobRunAssigned, assignedTime time.Time) ([]DbOperation, error) {
-	runId := jobRunAssigned.RunIdStr
+	runId := jobRunAssigned.RunId
 	return []DbOperation{MarkRunsPending{runId: assignedTime}}, nil
 }
 
 func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors, failureTime time.Time) ([]DbOperation, error) {
-	runId := jobRunErrors.RunIdStr
-	jobId := jobRunErrors.JobIdStr
+	runId := jobRunErrors.RunId
+	jobId := jobRunErrors.JobId
 	insertJobRunErrors := make(InsertJobRunErrors)
 	markRunsFailed := make(MarkRunsFailed)
 	for _, runError := range jobRunErrors.GetErrors() {
@@ -279,7 +281,7 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 
 func (c *InstructionConverter) handleJobSucceeded(jobSucceeded *armadaevents.JobSucceeded) ([]DbOperation, error) {
 	return []DbOperation{MarkJobsSucceeded{
-		jobSucceeded.JobIdStr: true,
+		jobSucceeded.JobId: true,
 	}}, nil
 }
 
@@ -288,7 +290,7 @@ func (c *InstructionConverter) handleJobErrors(jobErrors *armadaevents.JobErrors
 		// For terminal errors, we also need to mark the job as failed.
 		if jobError.GetTerminal() {
 			markJobsFailed := make(MarkJobsFailed)
-			markJobsFailed[jobErrors.JobIdStr] = true
+			markJobsFailed[jobErrors.JobId] = true
 			return []DbOperation{markJobsFailed}, nil
 		}
 	}
@@ -300,7 +302,7 @@ func (c *InstructionConverter) handleJobPreemptionRequested(preemptionRequested 
 		JobSetKey{
 			queue:  meta.queue,
 			jobSet: meta.jobset,
-		}: []string{preemptionRequested.JobIdStr},
+		}: []string{preemptionRequested.JobId},
 	}}, nil
 }
 
@@ -313,7 +315,7 @@ func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaeven
 			},
 			Priority: int64(reprioritiseJob.Priority),
 		},
-		jobIds: []string{reprioritiseJob.JobIdStr},
+		jobIds: []string{reprioritiseJob.JobId},
 	}}, nil
 }
 
@@ -328,7 +330,7 @@ func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob
 		JobSetKey{
 			queue:  meta.queue,
 			jobSet: meta.jobset,
-		}: []string{cancelJob.JobIdStr},
+		}: []string{cancelJob.JobId},
 	}}, nil
 }
 
@@ -349,7 +351,7 @@ func (c *InstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.Can
 
 func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.CancelledJob, cancelTime time.Time) ([]DbOperation, error) {
 	return []DbOperation{MarkJobsCancelled{
-		cancelledJob.JobIdStr: cancelTime,
+		cancelledJob.JobId: cancelTime,
 	}}, nil
 }
 
@@ -357,7 +359,7 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 	return []DbOperation{&InsertPartitionMarker{
 		markers: []*schedulerdb.Marker{
 			{
-				GroupID:     armadaevents.UuidFromProtoUuid(pm.GroupId),
+				GroupID:     uuid.MustParse(pm.GroupId),
 				PartitionID: int32(pm.Partition),
 				Created:     created,
 			},
@@ -367,7 +369,7 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 
 func (c *InstructionConverter) handleJobValidated(checked *armadaevents.JobValidated) ([]DbOperation, error) {
 	return []DbOperation{
-		MarkJobsValidated{checked.JobIdStr: checked.Pools},
+		MarkJobsValidated{checked.JobId: checked.Pools},
 	}, nil
 }
 

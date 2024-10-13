@@ -22,11 +22,13 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/internal/server/configuration"
 	mocks2 "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
@@ -63,10 +65,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					runId1: api.JobState_RUNNING,
 					runId2: api.JobState_RUNNING,
 				},
-				NodeType: "node-type-1",
+				NodeType:                    "node-type-1",
+				ResourceUsageByQueueAndPool: []*executorapi.PoolQueueResource{},
 			},
 		},
-		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.MustProtoUuidFromUuidString(runId3)},
+		UnassignedJobRunIds: []string{runId3},
 		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
@@ -79,7 +82,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Executor:                    "test-executor",
 				TotalResources:              schedulerobjects.NewResourceList(0),
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
-				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
+				UnallocatableResources:      map[int32]schedulerobjects.ResourceList{},
+				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 					1000: {
 						Resources: nil,
@@ -88,9 +92,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen:             testClock.Now().UTC(),
-				ResourceUsageByQueue: map[string]*schedulerobjects.ResourceList{},
-				ReportingNodeType:    "node-type-1",
+				LastSeen:          testClock.Now().UTC(),
+				ReportingNodeType: "node-type-1",
 			},
 		},
 		LastUpdateTime:    testClock.Now().UTC(),
@@ -100,7 +103,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	submit, compressedSubmit := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
 		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
@@ -109,6 +113,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	defaultLease := &database.JobRunLease{
 		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
+		Pool:          "test-pool",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
 		Node:          "node-id",
@@ -118,13 +123,15 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t,
 		&armadaevents.ObjectMeta{
-			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
 		},
 		nil,
 	)
 	leaseWithoutNode := &database.JobRunLease{
 		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
+		Pool:          "test-pool",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
 		Groups:        compressedGroups,
@@ -134,8 +141,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	preemptibleSubmit, preemptibleCompressedSubmit := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Labels: map[string]string{armadaJobPreemptibleLabel: "true"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "true"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
 		},
+
 		&v1.PodSpec{
 			PriorityClassName: armadaPreemptiblePriorityClassName,
 			NodeSelector:      map[string]string{nodeIdName: "node-id"},
@@ -144,6 +153,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	preemptibleLease := &database.JobRunLease{
 		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
+		Pool:          "test-pool",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
 		Node:          "node-id",
@@ -161,6 +171,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	leaseWithOverlay := &database.JobRunLease{
 		RunID:  uuid.NewString(),
 		Queue:  "test-queue",
+		Pool:   "test-pool",
 		JobSet: "test-jobset",
 		UserID: "test-user",
 		Node:   "node-id",
@@ -171,14 +182,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		PodRequirementsOverlay: protoutil.MustMarshall(
 			&schedulerobjects.PodRequirements{
 				Tolerations: tolerations,
-				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+				Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			},
 		),
 	}
 	submitWithOverlay, _ := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
 		},
 		&v1.PodSpec{
@@ -203,18 +214,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_CancelRuns{CancelRuns: &executorapi.CancelRuns{
-						JobRunIdsToCancel: []*armadaevents.Uuid{armadaevents.MustProtoUuidFromUuidString(runId2)},
+						JobRunIdsToCancel: []string{runId2},
 					}},
 				},
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId:    armadaevents.MustProtoUuidFromUuidString(defaultLease.RunID),
-						JobRunIdStr: defaultLease.RunID,
-						Queue:       defaultLease.Queue,
-						Jobset:      defaultLease.JobSet,
-						User:        defaultLease.UserID,
-						Groups:      groups,
-						Job:         submit,
+						JobRunId: defaultLease.RunID,
+						Queue:    defaultLease.Queue,
+						Jobset:   defaultLease.JobSet,
+						User:     defaultLease.UserID,
+						Groups:   groups,
+						Job:      submit,
 					}},
 				},
 				{
@@ -229,13 +239,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId:    armadaevents.MustProtoUuidFromUuidString(leaseWithoutNode.RunID),
-						JobRunIdStr: leaseWithoutNode.RunID,
-						Queue:       leaseWithoutNode.Queue,
-						Jobset:      leaseWithoutNode.JobSet,
-						User:        leaseWithoutNode.UserID,
-						Groups:      groups,
-						Job:         submitWithoutNodeSelector,
+						JobRunId: leaseWithoutNode.RunID,
+						Queue:    leaseWithoutNode.Queue,
+						Jobset:   leaseWithoutNode.JobSet,
+						User:     leaseWithoutNode.UserID,
+						Groups:   groups,
+						Job:      submitWithoutNodeSelector,
 					}},
 				},
 				{
@@ -250,13 +259,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId:    armadaevents.MustProtoUuidFromUuidString(leaseWithOverlay.RunID),
-						JobRunIdStr: leaseWithOverlay.RunID,
-						Queue:       leaseWithOverlay.Queue,
-						Jobset:      leaseWithOverlay.JobSet,
-						User:        leaseWithOverlay.UserID,
-						Groups:      groups,
-						Job:         submitWithOverlay,
+						JobRunId: leaseWithOverlay.RunID,
+						Queue:    leaseWithOverlay.Queue,
+						Jobset:   leaseWithOverlay.JobSet,
+						User:     leaseWithOverlay.UserID,
+						Groups:   groups,
+						Job:      submitWithOverlay,
 					}},
 				},
 				{
@@ -271,13 +279,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId:    armadaevents.MustProtoUuidFromUuidString(preemptibleLease.RunID),
-						JobRunIdStr: preemptibleLease.RunID,
-						Queue:       preemptibleLease.Queue,
-						Jobset:      preemptibleLease.JobSet,
-						User:        preemptibleLease.UserID,
-						Groups:      groups,
-						Job:         preemptibleSubmit,
+						JobRunId: preemptibleLease.RunID,
+						Queue:    preemptibleLease.Queue,
+						Jobset:   preemptibleLease.JobSet,
+						User:     preemptibleLease.UserID,
+						Groups:   groups,
+						Job:      preemptibleSubmit,
 					}},
 				},
 				{
@@ -359,7 +366,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 				NodeType:      "node-type-1",
 			},
 		},
-		UnassignedJobRunIds: []*armadaevents.Uuid{},
+		UnassignedJobRunIds: []string{},
 		MaxJobsToLease:      uint32(100),
 	}
 
@@ -584,7 +591,7 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 
 func submitMsg(t *testing.T, objectMeta *armadaevents.ObjectMeta, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
 	submitMsg := &armadaevents.SubmitJob{
-		JobId:      armadaevents.ProtoUuidFromUuid(uuid.New()),
+		JobId:      util.NewULID(),
 		ObjectMeta: objectMeta,
 		MainObject: &armadaevents.KubernetesMainObject{
 			Object: &armadaevents.KubernetesMainObject_PodSpec{

@@ -32,6 +32,17 @@ type Job struct {
 	Annotations               []byte           `db:"annotations"`
 }
 
+type JobDeduplication struct {
+	DeduplicationID string           `db:"deduplication_id"`
+	JobID           string           `db:"job_id"`
+	Inserted        pgtype.Timestamp `db:"inserted"`
+}
+
+type JobError struct {
+	JobID string `db:"job_id"`
+	Error []byte `db:"error"`
+}
+
 type JobRun struct {
 	RunID       string           `db:"run_id"`
 	JobID       string           `db:"job_id"`
@@ -44,12 +55,15 @@ type JobRun struct {
 	Error       []byte           `db:"error"`
 	ExitCode    *int32           `db:"exit_code"`
 	Leased      pgtype.Timestamp `db:"leased"`
+	Debug       []byte           `db:"debug"`
 }
 
-type UserAnnotationLookup struct {
-	JobID  string `db:"job_id"`
-	Key    string `db:"key"`
-	Value  string `db:"value"`
-	Queue  string `db:"queue"`
-	Jobset string `db:"jobset"`
+type JobSpec struct {
+	JobID   string `db:"job_id"`
+	JobSpec []byte `db:"job_spec"`
+}
+
+type Queue struct {
+	Name       string `db:"name"`
+	Definition []byte `db:"definition"`
 }

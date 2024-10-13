@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/common/util"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -479,12 +481,8 @@ func TestCreateService_Headless(t *testing.T) {
 }
 
 func TestCreatePodFromExecutorApiJob(t *testing.T) {
-	runId := armadaevents.ProtoUuidFromUuid(uuid.New())
-	runIdStr, err := armadaevents.UuidStringFromProtoUuid(runId)
-	assert.NoError(t, err)
-	jobId := armadaevents.ProtoUuidFromUuid(uuid.New())
-	jobIdStr, err := armadaevents.UlidStringFromProtoUuid(jobId)
-	assert.NoError(t, err)
+	runId := uuid.NewString()
+	jobId := util.NewULID()
 
 	validJobLease := &executorapi.JobRunLease{
 		JobRunId: runId,
@@ -510,11 +508,11 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 
 	expectedPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("armada-%s-0", jobIdStr),
+			Name:      fmt.Sprintf("armada-%s-0", jobId),
 			Namespace: "test-namespace",
 			Labels: map[string]string{
-				domain.JobId:     jobIdStr,
-				domain.JobRunId:  runIdStr,
+				domain.JobId:     jobId,
+				domain.JobRunId:  runId,
 				domain.Queue:     "queue",
 				domain.PodNumber: "0",
 				domain.PodCount:  "1",
@@ -543,13 +541,13 @@ func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
 
 	// Invalid run id
 	lease = createBasicJobRunLease()
-	lease.JobRunId = nil
+	lease.JobRunId = ""
 	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
 	assert.Error(t, err)
 
 	// Invalid job id
 	lease = createBasicJobRunLease()
-	lease.Job.JobId = nil
+	lease.Job.JobId = ""
 	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
 	assert.Error(t, err)
 
@@ -562,7 +560,7 @@ func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
 
 func createBasicJobRunLease() *executorapi.JobRunLease {
 	return &executorapi.JobRunLease{
-		JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+		JobRunId: uuid.NewString(),
 		Queue:    "queue",
 		Jobset:   "job-set",
 		User:     "user",
@@ -572,7 +570,7 @@ func createBasicJobRunLease() *executorapi.JobRunLease {
 				Annotations: map[string]string{},
 				Namespace:   "test-namespace",
 			},
-			JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+			JobId: util.NewULID(),
 			MainObject: &armadaevents.KubernetesMainObject{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{

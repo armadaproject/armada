@@ -139,7 +139,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	}
 
 	return &api.Job{
-		Id:       e.JobIdStr,
+		Id:       e.JobId,
 		ClientId: e.DeduplicationId,
 		Queue:    queueName,
 		JobSetId: jobSetName,

@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -69,55 +71,6 @@ func TestNodesIterator(t *testing.T) {
 			assert.Equal(t, expected, actual)
 		})
 	}
-}
-
-func TestNodePairIterator(t *testing.T) {
-	nodes := testfixtures.TestCluster()
-	for i, nodeId := range []string{"A", "B", "C"} {
-		nodes[i].Id = nodeId
-	}
-	nodeDb, err := newNodeDbWithNodes(nodes)
-	require.NoError(t, err)
-	entries := make([]*internaltypes.Node, len(nodes))
-	for i, node := range nodes {
-		entry, err := nodeDb.GetNode(node.Id)
-		require.NoError(t, err)
-		entries[i] = entry
-	}
-
-	txn := nodeDb.Txn(true)
-	require.NoError(t, txn.Delete("nodes", entries[2]))
-	txn.Commit()
-	txnA := nodeDb.Txn(false)
-
-	txn = nodeDb.Txn(true)
-	require.NoError(t, txn.Delete("nodes", entries[0]))
-	require.NoError(t, txn.Insert("nodes", entries[2]))
-	txn.Commit()
-	txnB := nodeDb.Txn(false)
-
-	it, err := NewNodePairIterator(txnA, txnB)
-	require.NoError(t, err)
-
-	actual := make([]*NodePairIteratorItem, 0)
-	for item := it.NextItem(); item != nil; item = it.NextItem() {
-		actual = append(actual, item)
-	}
-	expected := []*NodePairIteratorItem{
-		{
-			NodeA: entries[0],
-			NodeB: nil,
-		},
-		{
-			NodeA: entries[1],
-			NodeB: entries[1],
-		},
-		{
-			NodeA: nil,
-			NodeB: entries[2],
-		},
-	}
-	assert.Equal(t, expected, actual)
 }
 
 func TestNodeTypeIterator(t *testing.T) {
@@ -433,8 +386,15 @@ func TestNodeTypeIterator(t *testing.T) {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
 
-				entry, err := nodeDb.create(node)
+				entry, err := internaltypes.FromSchedulerObjectsNode(node,
+					uint64(i),
+					nodeDb.indexedTaints,
+					nodeDb.indexedNodeLabels,
+					nodeDb.resourceListFactory)
+
 				require.NoError(t, err)
+
+				nodeDb.AddNodeToDb(entry)
 
 				entries[i] = entry
 			}
@@ -837,8 +797,15 @@ func TestNodeTypesIterator(t *testing.T) {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
 
-				entry, err := nodeDb.create(node)
+				entry, err := internaltypes.FromSchedulerObjectsNode(node,
+					uint64(i),
+					nodeDb.indexedTaints,
+					nodeDb.indexedNodeLabels,
+					nodeDb.resourceListFactory)
+
 				require.NoError(t, err)
+
+				nodeDb.AddNodeToDb(entry)
 
 				entries[i] = entry
 			}
@@ -960,8 +927,8 @@ func labelsToNodeTypeId(labels map[string]string) uint64 {
 	nodeType := internaltypes.NewNodeType(
 		[]v1.Taint{},
 		labels,
-		mapFromSlice(testfixtures.TestIndexedTaints),
-		mapFromSlice(testfixtures.TestIndexedNodeLabels),
+		util.StringListToSet(testfixtures.TestIndexedTaints),
+		util.StringListToSet(testfixtures.TestIndexedNodeLabels),
 	)
 	return nodeType.GetId()
 }

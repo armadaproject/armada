@@ -14,12 +14,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 type schedulingResult struct {
@@ -29,6 +29,7 @@ type schedulingResult struct {
 }
 
 type executor struct {
+	id     string
 	nodeDb *nodedb.NodeDb
 }
 
@@ -106,6 +107,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 
 			if err == nil {
 				executorsByPoolAndId[pool][ex.Id] = &executor{
+					id:     ex.Id,
 					nodeDb: nodeDb,
 				}
 			} else {
@@ -129,7 +131,7 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 		return nil, fmt.Errorf("executor state not loaded")
 	}
 
-	jobContexts := schedulercontext.JobSchedulingContextsFromJobs(jobs)
+	jobContexts := context.JobSchedulingContextsFromJobs(jobs)
 	results := make(map[string]schedulingResult, len(jobs))
 
 	// First, check if all jobs can be scheduled individually.
@@ -140,14 +142,14 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	// Then, check if all gangs can be scheduled.
 	for gangId, jctxs := range armadaslices.GroupByFunc(
 		jobContexts,
-		func(jctx *schedulercontext.JobSchedulingContext) string {
+		func(jctx *context.JobSchedulingContext) string {
 			return jctx.GangInfo.Id
 		},
 	) {
 		if gangId == "" {
 			continue
 		}
-		gctx := schedulercontext.NewGangSchedulingContext(jctxs)
+		gctx := context.NewGangSchedulingContext(jctxs)
 		if result := srv.getSchedulingResult(gctx, state); !result.isSchedulable {
 			for _, jctx := range gctx.JobSchedulingContexts {
 				results[jctx.JobId] = result
@@ -158,7 +160,7 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	return results, nil
 }
 
-func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedulingContext, state *schedulerState) schedulingResult {
 	schedulingKey := jctx.Job.SchedulingKey()
 
 	if obj, ok := state.jobSchedulingResultsCache.Get(schedulingKey); ok {
@@ -167,12 +169,12 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 
 	gangInfo := jctx.GangInfo
 	// Mark this job context as "not in a gang" for the individual scheduling check.
-	jctx.GangInfo = schedulercontext.EmptyGangInfo(jctx.Job)
+	jctx.GangInfo = context.EmptyGangInfo(jctx.Job)
 	defer func() {
 		jctx.GangInfo = gangInfo
 	}()
 
-	gctx := schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
+	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 	result := srv.getSchedulingResult(gctx, state)
 
 	state.jobSchedulingResultsCache.Add(schedulingKey, result)
@@ -184,21 +186,38 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 // TODO: there are a number of things this won't catch:
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
-func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
 	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
-	for pool, executors := range state.executorsByPoolAndId {
-		// If we already know we can schedule on this pool then we are good
-		if sucessfulPools[pool] {
+
+poolStart:
+	for _, pool := range srv.schedulingConfig.Pools {
+
+		if sucessfulPools[pool.Name] {
 			continue
 		}
 
-		for id, ex := range executors {
+		for _, awayPool := range pool.AwayPools {
+			if sucessfulPools[awayPool] {
+				continue poolStart
+			}
+		}
+
+		executors := maps.Values(state.executorsByPoolAndId[pool.Name])
+		for _, awayPool := range pool.AwayPools {
+			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool])...)
+		}
+
+		for _, ex := range executors {
+
+			// copy the gctx here, as we are going to mutate it
+			gctx := copyGangContext(originalGangCtx)
+
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
 
-			sb.WriteString(id)
+			sb.WriteString(ex.id)
 			if err != nil {
 				sb.WriteString(err.Error())
 				sb.WriteString("\n")
@@ -206,7 +225,9 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 			}
 
 			if ok {
-				sucessfulPools[pool] = true
+				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
+					sucessfulPools[pool.Name] = true
+				}
 				continue
 			}
 
@@ -244,6 +265,10 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *schedulercontext.GangSchedul
 }
 
 func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	nodeFactory := internaltypes.NewNodeFactory(srv.schedulingConfig.IndexedTaints,
+		srv.schedulingConfig.IndexedNodeLabels,
+		srv.resourceListFactory)
+
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
 		srv.schedulingConfig.IndexedResources,
@@ -255,17 +280,32 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 	if err != nil {
 		return nil, err
 	}
+
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+		dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
+		if err != nil {
+			return nil, err
+		}
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
 			return nil, err
 		}
 	}
 	txn.Commit()
+
 	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err
 	}
+
 	return nodeDb, nil
+}
+
+func copyGangContext(gctx *context.GangSchedulingContext) *context.GangSchedulingContext {
+	jctxs := make([]*context.JobSchedulingContext, len(gctx.JobSchedulingContexts))
+	for i, jctx := range gctx.JobSchedulingContexts {
+		jctxs[i] = context.JobSchedulingContextFromJob(jctx.Job)
+	}
+	return context.NewGangSchedulingContext(jctxs)
 }

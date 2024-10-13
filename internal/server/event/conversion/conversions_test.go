@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	v11 "k8s.io/api/networking/v1"
@@ -17,16 +16,8 @@ import (
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
-)
-
-var (
-	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	baseTimeProto = protoutil.ToTimestamp(baseTime)
-)
-
-const (
+	jobId      = "01f3j0g1md4qx7z5qb148qnh4r"
+	runId      = "123e4567-e89b-12d3-a456-426614174000"
 	jobSetName = "testJobset"
 	executorId = "testCluster"
 	nodeName   = "testNode"
@@ -38,13 +29,18 @@ const (
 	podNumber  = 6
 )
 
+var (
+	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto = protoutil.ToTimestamp(baseTime)
+)
+
 func TestConvertSubmitted(t *testing.T) {
 	// Submit
 	submit := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobIdStr: jobIdString,
+				JobId:    jobId,
 				Priority: priority,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Namespace: namespace,
@@ -71,12 +67,12 @@ func TestConvertSubmitted(t *testing.T) {
 		{
 			Events: &api.EventMessage_Submitted{
 				Submitted: &api.JobSubmittedEvent{
-					JobId:    jobIdString,
+					JobId:    jobId,
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
 					Job: &api.Job{
-						Id:         jobIdString,
+						Id:         jobId,
 						JobSetId:   jobSetName,
 						Queue:      queue,
 						Namespace:  namespace,
@@ -102,7 +98,7 @@ func TestConvertSubmitted(t *testing.T) {
 		},
 		{
 			Events: &api.EventMessage_Queued{Queued: &api.JobQueuedEvent{
-				JobId:    jobIdString,
+				JobId:    jobId,
 				JobSetId: jobSetName,
 				Queue:    queue,
 				Created:  protoutil.ToTimestamp(baseTime),
@@ -119,7 +115,7 @@ func TestConvertCancel(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJob{
 			CancelJob: &armadaevents.CancelJob{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 			},
 		},
 	}
@@ -128,7 +124,7 @@ func TestConvertCancel(t *testing.T) {
 		{
 			Events: &api.EventMessage_Cancelling{
 				Cancelling: &api.JobCancellingEvent{
-					JobId:     jobIdString,
+					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -148,7 +144,7 @@ func TestConvertCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 			},
 		},
 	}
@@ -157,7 +153,7 @@ func TestConvertCancelled(t *testing.T) {
 		{
 			Events: &api.EventMessage_Cancelled{
 				Cancelled: &api.JobCancelledEvent{
-					JobId:     jobIdString,
+					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -177,7 +173,7 @@ func TestConvertReprioritising(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 			ReprioritiseJob: &armadaevents.ReprioritiseJob{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 			},
 		},
 	}
@@ -186,7 +182,7 @@ func TestConvertReprioritising(t *testing.T) {
 		{
 			Events: &api.EventMessage_Reprioritizing{
 				Reprioritizing: &api.JobReprioritizingEvent{
-					JobId:     jobIdString,
+					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -206,7 +202,7 @@ func TestConvertReprioritised(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 			},
 		},
 	}
@@ -215,7 +211,7 @@ func TestConvertReprioritised(t *testing.T) {
 		{
 			Events: &api.EventMessage_Reprioritized{
 				Reprioritized: &api.JobReprioritizedEvent{
-					JobId:     jobIdString,
+					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -235,7 +231,7 @@ func TestConvertLeased(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
-				JobIdStr:   jobIdString,
+				JobId:      jobId,
 				ExecutorId: executorId,
 				PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 					Tolerations: []v1.Toleration{
@@ -254,7 +250,7 @@ func TestConvertLeased(t *testing.T) {
 		{
 			Events: &api.EventMessage_Leased{
 				Leased: &api.JobLeasedEvent{
-					JobId:     jobIdString,
+					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -274,8 +270,8 @@ func TestConvertLeaseExpired(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: jobIdString,
-				RunIdStr: runIdString,
+				JobId: jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -292,7 +288,7 @@ func TestConvertLeaseExpired(t *testing.T) {
 		{
 			Events: &api.EventMessage_LeaseExpired{
 				LeaseExpired: &api.JobLeaseExpiredEvent{
-					JobId:    jobIdString,
+					JobId:    jobId,
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
@@ -311,8 +307,8 @@ func TestConvertPodUnschedulable(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: jobIdString,
-				RunIdStr: runIdString,
+				JobId: jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: false,
@@ -322,7 +318,7 @@ func TestConvertPodUnschedulable(t *testing.T) {
 									ExecutorId:   executorId,
 									Namespace:    namespace,
 									Name:         podName,
-									KubernetesId: runIdString,
+									KubernetesId: runId,
 								},
 								Message:   "couldn't schedule pod",
 								NodeName:  nodeName,
@@ -339,11 +335,11 @@ func TestConvertPodUnschedulable(t *testing.T) {
 		{
 			Events: &api.EventMessage_UnableToSchedule{
 				UnableToSchedule: &api.JobUnableToScheduleEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					ClusterId:    executorId,
 					PodNamespace: namespace,
 					PodName:      podName,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					Reason:       "couldn't schedule pod",
 					NodeName:     nodeName,
 					PodNumber:    podNumber,
@@ -365,8 +361,8 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: jobIdString,
-				RunIdStr: runIdString,
+				JobId: jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -376,7 +372,7 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 									ExecutorId:   executorId,
 									Namespace:    namespace,
 									Name:         podName,
-									KubernetesId: runIdString,
+									KubernetesId: runId,
 								},
 								Message:      "couldn't schedule pod",
 								PodNumber:    podNumber,
@@ -393,9 +389,9 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 		{
 			Events: &api.EventMessage_LeaseReturned{
 				LeaseReturned: &api.JobLeaseReturnedEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					ClusterId:    executorId,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					Reason:       "couldn't schedule pod",
 					PodNumber:    podNumber,
 					JobSetId:     jobSetName,
@@ -417,7 +413,7 @@ func TestConvertJobError(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -427,7 +423,7 @@ func TestConvertJobError(t *testing.T) {
 									ExecutorId:   executorId,
 									Namespace:    namespace,
 									Name:         podName,
-									KubernetesId: runIdString,
+									KubernetesId: runId,
 								},
 								Message:          "The pod was terminated",
 								NodeName:         nodeName,
@@ -456,7 +452,7 @@ func TestConvertJobError(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -475,12 +471,12 @@ func TestConvertJobError(t *testing.T) {
 		{
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					ClusterId:    executorId,
 					PodNamespace: namespace,
 					PodName:      podName,
 					NodeName:     nodeName,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					Reason:       "The pod was terminated",
 					PodNumber:    podNumber,
 					JobSetId:     jobSetName,
@@ -502,7 +498,7 @@ func TestConvertJobError(t *testing.T) {
 		{
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
-					JobId:    jobIdString,
+					JobId:    jobId,
 					Reason:   "Max runs",
 					JobSetId: jobSetName,
 					Queue:    queue,
@@ -523,14 +519,14 @@ func TestConvertJobSucceeded(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
 							ExecutorId:   executorId,
 							Namespace:    namespace,
 							Name:         podName,
-							KubernetesId: runIdString,
+							KubernetesId: runId,
 						},
 						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
 							PodInfo: &armadaevents.PodInfo{
@@ -548,12 +544,12 @@ func TestConvertJobSucceeded(t *testing.T) {
 		{
 			Events: &api.EventMessage_Succeeded{
 				Succeeded: &api.JobSucceededEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					NodeName:     nodeName,
 					PodNumber:    podNumber,
 					PodName:      podName,
@@ -573,15 +569,15 @@ func TestConvertJobRunning(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{
-				RunIdStr: runIdString,
-				JobIdStr: jobIdString,
+				RunId: runId,
+				JobId: jobId,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
 							ExecutorId:   executorId,
 							Namespace:    namespace,
 							Name:         podName,
-							KubernetesId: runIdString,
+							KubernetesId: runId,
 						},
 						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
 							PodInfo: &armadaevents.PodInfo{
@@ -599,12 +595,12 @@ func TestConvertJobRunning(t *testing.T) {
 		{
 			Events: &api.EventMessage_Running{
 				Running: &api.JobRunningEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					NodeName:     nodeName,
 					PodNumber:    podNumber,
 					PodName:      podName,
@@ -624,8 +620,8 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobIdStr: jobIdString,
-				RunIdStr: runIdString,
+				JobId: jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -649,7 +645,7 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 		{
 			Events: &api.EventMessage_LeaseExpired{
 				LeaseExpired: &api.JobLeaseExpiredEvent{
-					JobId:    jobIdString,
+					JobId:    jobId,
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
@@ -668,15 +664,15 @@ func TestConvertJobAssigned(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 			JobRunAssigned: &armadaevents.JobRunAssigned{
-				RunIdStr: runIdString,
-				JobIdStr: jobIdString,
+				RunId: runId,
+				JobId: jobId,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
 							ExecutorId:   executorId,
 							Namespace:    namespace,
 							Name:         podName,
-							KubernetesId: runIdString,
+							KubernetesId: runId,
 						},
 						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
 							PodInfo: &armadaevents.PodInfo{
@@ -694,12 +690,12 @@ func TestConvertJobAssigned(t *testing.T) {
 		{
 			Events: &api.EventMessage_Pending{
 				Pending: &api.JobPendingEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					PodNumber:    podNumber,
 					PodName:      podName,
 					PodNamespace: namespace,
@@ -718,14 +714,14 @@ func TestConvertResourceUtilisation(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
 			ResourceUtilisation: &armadaevents.ResourceUtilisation{
-				RunIdStr: runIdString,
-				JobIdStr: jobIdString,
+				RunId: runId,
+				JobId: jobId,
 				ResourceInfo: &armadaevents.KubernetesResourceInfo{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						ExecutorId:   executorId,
 						Namespace:    namespace,
 						Name:         podName,
-						KubernetesId: runIdString,
+						KubernetesId: runId,
 					},
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
 						PodInfo: &armadaevents.PodInfo{
@@ -750,12 +746,12 @@ func TestConvertResourceUtilisation(t *testing.T) {
 		{
 			Events: &api.EventMessage_Utilisation{
 				Utilisation: &api.JobUtilisationEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					MaxResourcesForPeriod: map[string]*resource.Quantity{
 						"cpu": resourcePointer("2.0"),
 						"mem": resourcePointer("100Gi"),
@@ -783,13 +779,13 @@ func TestConvertIngressInfo(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
-				RunIdStr: runIdString,
-				JobIdStr: jobIdString,
+				RunId: runId,
+				JobId: jobId,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					ExecutorId:   executorId,
 					Namespace:    namespace,
 					Name:         podName,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 				},
 				IngressAddresses: map[int32]string{
 					1: "http://som-ingress:80",
@@ -806,12 +802,12 @@ func TestConvertIngressInfo(t *testing.T) {
 		{
 			Events: &api.EventMessage_IngressInfo{
 				IngressInfo: &api.JobIngressInfoEvent{
-					JobId:        jobIdString,
+					JobId:        jobId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
 					ClusterId:    executorId,
-					KubernetesId: runIdString,
+					KubernetesId: runId,
 					NodeName:     nodeName,
 					PodNumber:    podNumber,
 					PodName:      podName,
@@ -834,7 +830,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 			JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-				JobIdStr: jobIdString,
+				JobId: jobId,
 			},
 		},
 	}
@@ -843,7 +839,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 		{
 			Events: &api.EventMessage_Preempting{
 				Preempting: &api.JobPreemptingEvent{
-					JobId:     jobIdString,
+					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -863,8 +859,8 @@ func TestConvertJobRunPreempted(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobIdStr: jobIdString,
-				PreemptedRunIdStr: runIdString,
+				PreemptedJobId: jobId,
+				PreemptedRunId: runId,
 			},
 		},
 	}
@@ -873,11 +869,11 @@ func TestConvertJobRunPreempted(t *testing.T) {
 		{
 			Events: &api.EventMessage_Preempted{
 				Preempted: &api.JobPreemptedEvent{
-					JobId:    jobIdString,
+					JobId:    jobId,
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
-					RunId:    runIdString,
+					RunId:    runId,
 				},
 			},
 		},
@@ -887,26 +883,6 @@ func TestConvertJobRunPreempted(t *testing.T) {
 	apiEvents, err := FromEventSequence(toEventSeq(preempted))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
-
-	// PreemptiveJobId is nil
-	preemptiveJobIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
-	preemptiveJobIdNil.GetJobRunPreempted().PreemptiveJobId = nil
-
-	expectedPreemptiveJobIdNil := proto.Clone(expected[0]).(*api.EventMessage)
-	expectedPreemptiveJobIdNil.GetPreempted().PreemptiveJobId = ""
-	apiEvents, err = FromEventSequence(toEventSeq(preemptiveJobIdNil))
-	assert.NoError(t, err)
-	assert.Equal(t, []*api.EventMessage{expectedPreemptiveJobIdNil}, apiEvents)
-
-	// PreemptiveRunId is nil
-	preemptiveRunIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
-	preemptiveRunIdNil.GetJobRunPreempted().PreemptiveRunId = nil
-
-	expectedPreemptiveRunIdNil := proto.Clone(expected[0]).(*api.EventMessage)
-	expectedPreemptiveRunIdNil.GetPreempted().PreemptiveRunId = ""
-	apiEvents, err = FromEventSequence(toEventSeq(preemptiveRunIdNil))
-	assert.NoError(t, err)
-	assert.Equal(t, []*api.EventMessage{expectedPreemptiveRunIdNil}, apiEvents)
 }
 
 func toEventSeq(event ...*armadaevents.EventSequence_Event) *armadaevents.EventSequence {
