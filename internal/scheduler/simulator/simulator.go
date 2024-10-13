@@ -3,6 +3,8 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -70,10 +72,7 @@ type Simulator struct {
 	eventLog EventLog
 	// Simulated events are emitted on these event channels.
 	// Create a channel by calling s.StateTransitions() before running the simulator.
-	stateTransitionChannels []chan StateTransition
-	// Cycle Metrics are emitted on these channels.
-	// Create a channel by calling s.CycleMetrics() before running the simulator.
-	cycleMetricsChannels []chan CycleStats
+	stateTransitionChannels []chan model.StateTransition
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
@@ -93,14 +92,18 @@ type Simulator struct {
 	hardTerminationMinutes int
 	// Determines how often we trigger schedule events
 	schedulerCyclePeriodSeconds int
+	// Used to exhaust events
+	sink sink.Sink
 }
 
-type StateTransition struct {
-	Jobs          []*jobdb.Job
-	EventSequence *armadaevents.EventSequence
-}
-
-func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig, enableFastForward bool, hardTerminationMinutes int, schedulerCyclePeriodSeconds int) (*Simulator, error) {
+func NewSimulator(
+	clusterSpec *ClusterSpec,
+	workloadSpec *WorkloadSpec,
+	schedulingConfig configuration.SchedulingConfig,
+	enableFastForward bool,
+	hardTerminationMinutes int,
+	schedulerCyclePeriodSeconds int,
+	sink sink.Sink) (*Simulator, error) {
 	// TODO: Move clone to caller?
 	// Copy specs to avoid concurrent mutation.
 	resourceListFactory, err := internaltypes.MakeResourceListFactory(schedulingConfig.SupportedResourceTypes)
@@ -157,6 +160,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		hardTerminationMinutes:      hardTerminationMinutes,
 		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
 		time:                        time.Unix(0, 0).UTC(),
+		sink:                        sink,
 	}
 	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
@@ -184,15 +188,12 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 		for _, c := range s.stateTransitionChannels {
 			close(c)
 		}
-		for _, c := range s.cycleMetricsChannels {
-			close(c)
-		}
-		ctx.Infof("Finished in %s", time.Since(startTime))
 	}()
 	// Bootstrap the simulator by pushing an event that triggers a scheduler run.
 	s.pushScheduleEvent(s.time)
 
 	simTerminationTime := s.time.Add(time.Minute * time.Duration(s.hardTerminationMinutes))
+	ctx.Infof("Will stop simulating at %s", simTerminationTime)
 	lastLogTime := s.time
 	// Then run the scheduler until all jobs have completed.
 	for s.eventLog.Len() > 0 {
@@ -214,22 +215,15 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 			return nil
 		}
 	}
+	ctx.Infof("Finished in %s", time.Since(startTime))
 	return nil
 }
 
 // StateTransitions returns a channel on which all simulated events are sent.
 // This function must be called before *Simulator.Run.
-func (s *Simulator) StateTransitions() <-chan StateTransition {
-	c := make(chan StateTransition, 128)
+func (s *Simulator) StateTransitions() <-chan model.StateTransition {
+	c := make(chan model.StateTransition, 128)
 	s.stateTransitionChannels = append(s.stateTransitionChannels, c)
-	return c
-}
-
-// CycleMetrics returns a channel on which end of cycle metrics are sent
-// This function must be called before *Simulator.Run.
-func (s *Simulator) CycleMetrics() <-chan CycleStats {
-	c := make(chan CycleStats, 1024)
-	s.cycleMetricsChannels = append(s.cycleMetricsChannels, c)
 	return c
 }
 
@@ -548,27 +542,11 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 		}
 		result, err := sch.Schedule(schedulerCtx)
-		for _, c := range result.SchedulingContexts {
-			for _, qCtx := range c.QueueSchedulingContexts {
-				for pc, rl := range qCtx.AllocatedByPriorityClass {
-					cpu := rl.Resources["cpu"]
-					memory := rl.Resources["memory"]
-					gpu := rl.Resources["nvidia.com/gpu"]
-					stats := CycleStats{
-						Time:          s.time.Unix(),
-						Queue:         qCtx.Queue,
-						Pool:          c.Pool,
-						PriorityClass: pc,
-						Cpu:           (&cpu).AsApproximateFloat64(),
-						Memory:        (&memory).AsApproximateFloat64(),
-						Gpu:           (&gpu).AsApproximateFloat64(),
-					}
-					for _, channel := range s.cycleMetricsChannels {
-						channel <- stats
-					}
-				}
-			}
+		if err != nil {
+			return err
 		}
+
+		err = s.sink.OnCycleEnd(result)
 		if err != nil {
 			return err
 		}
@@ -703,11 +681,14 @@ func (s *Simulator) handleEventSequence(_ *armadacontext.Context, es *armadaeven
 	txn.Commit()
 	es.Events = eventsToPublish
 	if len(es.Events) > 0 {
-		stateTransition := StateTransition{
+		stateTransition := model.StateTransition{
 			Jobs:          jobs,
 			EventSequence: es,
 		}
-
+		err := s.sink.OnNewStateTransitions([]*model.StateTransition{&stateTransition})
+		if err != nil {
+			return err
+		}
 		for _, c := range s.stateTransitionChannels {
 			c <- stateTransition
 		}

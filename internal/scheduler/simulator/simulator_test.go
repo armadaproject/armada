@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"math/rand"
 	"testing"
 	"time"
@@ -426,7 +427,7 @@ func TestSimulator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig, enableFastForward, int((tc.simulatedTimeLimit + time.Hour).Minutes()), schedulerCyclePeriodSeconds)
+			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig, enableFastForward, int((tc.simulatedTimeLimit + time.Hour).Minutes()), schedulerCyclePeriodSeconds, sink.NullSink{})
 			require.NoError(t, err)
 			start := s.time
 			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)

@@ -7,7 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/scheduler/simulator"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -46,7 +46,7 @@ func NewJobWriter(path string) (*JobWriter, error) {
 	}, nil
 }
 
-func (j *JobWriter) Update(st *simulator.StateTransition) error {
+func (j *JobWriter) Update(st *model.StateTransition) error {
 	jobRunRows, err := j.createJobRunRow(st)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (j *JobWriter) Close() {
 	j.writer.WriteStop()
 }
 
-func (j *JobWriter) createJobRunRow(st *simulator.StateTransition) ([]*JobRunRow, error) {
+func (j *JobWriter) createJobRunRow(st *model.StateTransition) ([]*JobRunRow, error) {
 	rows := make([]*JobRunRow, 0, len(st.EventSequence.Events))
 	events := st.EventSequence
 	jobsList := st.Jobs

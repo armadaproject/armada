@@ -2,15 +2,21 @@ package sink
 
 import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerresult"
-	"github.com/armadaproject/armada/internal/scheduler/simulator"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 )
 
-type Sink struct {
+type Sink interface {
+	OnNewStateTransitions(transitions []*model.StateTransition) error
+	OnCycleEnd(result *schedulerresult.SchedulerResult) error
+	Close()
+}
+
+type ParquetSink struct {
 	jobWriter       *JobWriter
 	fairShareWriter *FairShareWriter
 }
 
-func NewSink(outputDir string) (*Sink, error) {
+func NewParquetSink(outputDir string) (*ParquetSink, error) {
 	jobWriter, err := NewJobWriter(outputDir)
 	if err != nil {
 		return nil, err
@@ -19,13 +25,13 @@ func NewSink(outputDir string) (*Sink, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sink{
+	return &ParquetSink{
 		jobWriter:       jobWriter,
 		fairShareWriter: fairShareWriter,
 	}, nil
 }
 
-func (s *Sink) OnNewStateTransitions(transitions []*simulator.StateTransition) error {
+func (s *ParquetSink) OnNewStateTransitions(transitions []*model.StateTransition) error {
 	for _, t := range transitions {
 		err := s.jobWriter.Update(t)
 		if err != nil {
@@ -35,7 +41,7 @@ func (s *Sink) OnNewStateTransitions(transitions []*simulator.StateTransition) e
 	return nil
 }
 
-func (s *Sink) OnCycleEnd(result schedulerresult.SchedulerResult) error {
+func (s *ParquetSink) OnCycleEnd(result *schedulerresult.SchedulerResult) error {
 	err := s.fairShareWriter.Update(result)
 	if err != nil {
 		return err
@@ -43,7 +49,19 @@ func (s *Sink) OnCycleEnd(result schedulerresult.SchedulerResult) error {
 	return nil
 }
 
-func (s *Sink) close() {
+func (s *ParquetSink) Close() {
 	s.fairShareWriter.Close()
 	s.jobWriter.Close()
 }
+
+type NullSink struct{}
+
+func (s NullSink) OnNewStateTransitions(_ []*model.StateTransition) error {
+	return nil
+}
+
+func (s NullSink) OnCycleEnd(_ *schedulerresult.SchedulerResult) error {
+	return nil
+}
+
+func (s NullSink) Close() {}

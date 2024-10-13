@@ -7,11 +7,14 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 func RootCmd() *cobra.Command {
@@ -103,13 +106,20 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	outputSink, err := sink.NewParquetSink(outputDirPath)
+	if err != nil {
+		return err
+	}
+
 	ctx := armadacontext.Background()
 	ctx.Info("Armada simulator")
 	ctx.Infof("ClusterSpec: %v", clusterSpec.Name)
 	ctx.Infof("WorkloadSpecs: %v", workloadSpec.Name)
 	ctx.Infof("SchedulingConfig: %v", configFile)
+	ctx.Infof("OutputDir: %v", outputDirPath)
 
-	s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig, enableFastForward, hardTerminationMinutes, schedulerCyclePeriodSeconds)
+	s, err := simulator.NewSimulator(
+		clusterSpec, workloadSpec, schedulingConfig, enableFastForward, hardTerminationMinutes, schedulerCyclePeriodSeconds, outputSink)
 	if err != nil {
 		return err
 	}
