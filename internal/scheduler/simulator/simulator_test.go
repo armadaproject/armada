@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caarlos0/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -114,6 +113,40 @@ func TestSimulator(t *testing.T) {
 				armadaslices.Repeat(10, JobRunLeased(1, "A", "foo"), JobSucceeded(1, "A", "foo")),
 			),
 			simulatedTimeLimit: 20 * time.Minute,
+		},
+		"Multiple Clusters": {
+			clusterSpec: &ClusterSpec{
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "ClusterA",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+					{
+						Name:          "ClusterB",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+				},
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					WithJobTemplatesQueue(
+						&Queue{Name: "A", Weight: 1},
+						JobTemplate32Cpu(2, "foo", testfixtures.TestDefaultPriorityClass),
+					),
+				},
+			},
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			expectedEventSequences: []*armadaevents.EventSequence{
+				SubmitJob(2, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 		"JobTemplate dependencies": {
 			clusterSpec: &ClusterSpec{
@@ -295,14 +328,14 @@ func TestSimulator(t *testing.T) {
 					}
 					return []*Cluster{
 						{
-							Name:          "TestCluster",
-							Pool:          "TestPool",
-							NodeTemplates: []*NodeTemplate{NodeTemplateGpu(2)},
-						},
-						{
 							Name:          "WhaleCluster",
 							Pool:          "TestPool",
 							NodeTemplates: []*NodeTemplate{whaleNodeTemplate},
+						},
+						{
+							Name:          "TestCluster",
+							Pool:          "TestPool",
+							NodeTemplates: []*NodeTemplate{NodeTemplateGpu(2)},
 						},
 					}
 				}(),
@@ -315,7 +348,7 @@ func TestSimulator(t *testing.T) {
 						JobTemplates: []*JobTemplate{
 							{
 								Id:                "queue-0-template-0",
-								Number:            1,
+								Number:            2,
 								JobSet:            "job-set-0",
 								PriorityClassName: "armada-preemptible",
 								Requirements: schedulerobjects.PodRequirements{
@@ -330,27 +363,8 @@ func TestSimulator(t *testing.T) {
 										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 									},
 								},
+								EarliestSubmitTime:  1 * time.Minute,
 								RuntimeDistribution: ShiftedExponential{Minimum: 5 * time.Minute},
-							},
-							{
-								Id:                "queue-0-template-1",
-								Number:            4,
-								JobSet:            "job-set-0",
-								PriorityClassName: "armada-preemptible",
-								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
-										Requests: v1.ResourceList{
-											"cpu":            resource.MustParse("128"),
-											"memory":         resource.MustParse("4096Gi"),
-											"nvidia.com/gpu": resource.MustParse("8"),
-										},
-									},
-									Tolerations: []v1.Toleration{
-										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
-									},
-								},
-								Dependencies:        []string{"queue-0-template-0"},
-								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
 							},
 						},
 					},
@@ -359,6 +373,7 @@ func TestSimulator(t *testing.T) {
 						Weight: 1,
 						JobTemplates: []*JobTemplate{
 							{
+								Id:                "queue-1-template-0",
 								Number:            32,
 								JobSet:            "job-set-1",
 								PriorityClassName: "armada-preemptible-away",
@@ -401,24 +416,26 @@ func TestSimulator(t *testing.T) {
 				return config
 			}(),
 			expectedEventSequences: armadaslices.Concatenate(
-				armadaslices.Repeat(1, SubmitJob(1, "queue-0", "job-set-0")),
+				// Submit 32 1-gpu jobs to fill up all nodes.  16 Jobs will be scheduled away
 				armadaslices.Repeat(1, SubmitJob(32, "queue-1", "job-set-1")),
-				armadaslices.Repeat(1, JobRunLeased(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(24, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(1, JobSucceeded(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(1, SubmitJob(4, "queue-0", "job-set-0")),
-				armadaslices.Repeat(8, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(24, JobRunPreempted(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(3, JobRunLeased(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(24, SubmitJob(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(8, JobSucceeded(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(8, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(3, JobSucceeded(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(1, JobRunLeased(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(32, JobRunLeased(1, "queue-1", "job-set-1")),
+
+				// Submit 2 whole node-whale jobs
+				armadaslices.Repeat(1, SubmitJob(2, "queue-0", "job-set-0")),
+
+				// 16 Jobs should be preempted to make way and 2 of the whale jobs should start run
+				armadaslices.Repeat(16, JobRunPreempted(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(2, JobRunLeased(1, "queue-0", "job-set-0")),
+
+				// The 16 preempted jobs should be resubmitted
+				armadaslices.Repeat(16, SubmitJob(1, "queue-1", "job-set-1")),
+
+				// The 2 whale jobs finish, which means that 16 more 1-gpu jbs can be scheduled
+				armadaslices.Repeat(2, JobSucceeded(1, "queue-0", "job-set-0")),
 				armadaslices.Repeat(16, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(8, JobSucceeded(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(1, JobSucceeded(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(16, JobSucceeded(1, "queue-1", "job-set-1")),
+
+				// finally all the 1-gpu jobs finish
+				armadaslices.Repeat(32, JobSucceeded(1, "queue-1", "job-set-1")),
 			),
 			simulatedTimeLimit: 24 * time.Hour,
 		},
@@ -452,14 +469,6 @@ func TestSimulator(t *testing.T) {
 			})
 			err = g.Wait()
 			require.NoError(t, err)
-
-			for _, es := range actualEventSequences {
-				for _, e := range es.Events {
-					if e.GetJobRunLeased() != nil {
-						log.Infof("leased job from queue %s to node %s", es.Queue, e.GetJobRunLeased().NodeId)
-					}
-				}
-			}
 			if tc.expectedEventSequences != nil {
 				require.Equal(
 					t,

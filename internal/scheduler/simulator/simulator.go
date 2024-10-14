@@ -272,6 +272,10 @@ func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
 }
 
 func (s *Simulator) setupClusters() error {
+	nodeFactory := internaltypes.NewNodeFactory(s.schedulingConfig.IndexedTaints,
+		s.schedulingConfig.IndexedNodeLabels,
+		s.resourceListFactory)
+
 	for _, cluster := range s.ClusterSpec.Clusters {
 		nodeDb, ok := s.nodeDbByPool[cluster.Pool]
 		if !ok {
@@ -294,10 +298,6 @@ func (s *Simulator) setupClusters() error {
 		if !ok {
 			totalResourcesForPool = schedulerobjects.ResourceList{}
 		}
-
-		nodeFactory := internaltypes.NewNodeFactory(s.schedulingConfig.IndexedTaints,
-			s.schedulingConfig.IndexedNodeLabels,
-			s.resourceListFactory)
 
 		for nodeTemplateIndex, nodeTemplate := range cluster.NodeTemplates {
 			for i := 0; i < int(nodeTemplate.Number); i++ {
@@ -326,6 +326,7 @@ func (s *Simulator) setupClusters() error {
 					return err
 				}
 				txn.Commit()
+				println(fmt.Sprintf("created node %s", nodeId))
 				s.poolByNodeId[nodeId] = cluster.Pool
 			}
 		}
@@ -530,7 +531,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 		}
 		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
-
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,
