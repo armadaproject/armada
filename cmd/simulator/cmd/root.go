@@ -31,6 +31,7 @@ func RootCmd() *cobra.Command {
 	cmd.Flags().Bool("enableFastForward", false, "Skips schedule events when we're in a steady state")
 	cmd.Flags().Int("hardTerminationMinutes", -1, "Limit the time simulated.  -1 for no limit.")
 	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
+	cmd.Flags().Bool("profile", false, "If true then the simulator will be profiled and a profiling file written to the output directory")
 	return cmd
 }
 
@@ -70,6 +71,10 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	schedulerCyclePeriodSeconds, err := cmd.Flags().GetInt("schedulerCyclePeriodSeconds")
+	if err != nil {
+		return err
+	}
+	shouldProfile, err := cmd.Flags().GetBool("profile")
 	if err != nil {
 		return err
 	}
@@ -129,21 +134,25 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if shouldProfile {
+		profilingFile := outputDirPath + "/profile"
+		log.Infof("Will write profiling information to %s", profilingFile)
+		f, err := os.Create(profilingFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	if !showSchedulerLogs {
 		s.SuppressSchedulerLogs = true
 	} else {
 		ctx.Info("Showing scheduler logs")
 	}
-
-	f, err := os.Create("profile")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = pprof.StartCPUProfile(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer pprof.StopCPUProfile()
 
 	g, ctx := armadacontext.ErrGroup(ctx)
 	g.Go(func() error {
