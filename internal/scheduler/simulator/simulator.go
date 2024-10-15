@@ -202,7 +202,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 		simTerminationTime := s.time.Add(time.Minute * time.Duration(s.hardTerminationMinutes))
 		ctx.Infof("Will stop simulating at %s", simTerminationTime)
 	} else {
-		ctx.Infof("No termination time set, will run until all workloads have comopleted")
+		ctx.Infof("No termination time set, will run until all workloads have completed")
 	}
 
 	lastLogTime := s.time
@@ -226,7 +226,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 			return nil
 		}
 	}
-	ctx.Infof("Finished in %s", time.Since(startTime))
+	ctx.Infof("All workloads complete at %s. Simulation took %s", s.time, time.Since(startTime))
 	return nil
 }
 
