@@ -64,46 +64,6 @@ func SchedulingConfigFromFilePath(filePath string) (configuration.SchedulingConf
 	return config, nil
 }
 
-func ClusterSpecsFromPattern(pattern string) ([]*ClusterSpec, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return ClusterSpecsFromFilePaths(filePaths)
-}
-
-func WorkloadsFromPattern(pattern string) ([]*WorkloadSpec, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return WorkloadSpecsFromFilePaths(filePaths)
-}
-
-func ClusterSpecsFromFilePaths(filePaths []string) ([]*ClusterSpec, error) {
-	rv := make([]*ClusterSpec, len(filePaths))
-	for i, filePath := range filePaths {
-		clusterSpec, err := ClusterSpecFromFilePath(filePath)
-		if err != nil {
-			return nil, err
-		}
-		rv[i] = clusterSpec
-	}
-	return rv, nil
-}
-
-func WorkloadSpecsFromFilePaths(filePaths []string) ([]*WorkloadSpec, error) {
-	rv := make([]*WorkloadSpec, len(filePaths))
-	for i, filePath := range filePaths {
-		workloadSpec, err := WorkloadSpecFromFilePath(filePath)
-		if err != nil {
-			return nil, err
-		}
-		rv[i] = workloadSpec
-	}
-	return rv, nil
-}
-
 func ClusterSpecFromFilePath(filePath string) (*ClusterSpec, error) {
 	rv := &ClusterSpec{}
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
@@ -123,7 +83,6 @@ func ClusterSpecFromFilePath(filePath string) (*ClusterSpec, error) {
 		fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 		rv.Name = fileName
 	}
-	initialiseClusterSpec(rv)
 
 	return rv, nil
 }
@@ -150,19 +109,6 @@ func WorkloadSpecFromFilePath(filePath string) (*WorkloadSpec, error) {
 
 	initialiseWorkloadSpec(rv)
 	return rv, nil
-}
-
-func initialiseClusterSpec(clusterSpec *ClusterSpec) {
-	// Assign names to executors with none specified.
-	for _, pool := range clusterSpec.Pools {
-		for i, executorGroup := range pool.ClusterGroups {
-			for j, executor := range executorGroup.Clusters {
-				if executor.Name == "" {
-					executor.Name = fmt.Sprintf("%s-%d-%d", pool.Name, i, j)
-				}
-			}
-		}
-	}
 }
 
 func initialiseWorkloadSpec(workloadSpec *WorkloadSpec) {

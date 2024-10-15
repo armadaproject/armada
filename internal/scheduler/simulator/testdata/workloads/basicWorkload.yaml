@@ -13,4 +13,4 @@ queues:
               cpu: 1
               memory: 10Gi
         runtimeDistribution:
-          minimum: "1m"
+          minimum: "5m"
