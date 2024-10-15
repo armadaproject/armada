@@ -3,11 +3,10 @@ package sink
 import (
 	"os"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"

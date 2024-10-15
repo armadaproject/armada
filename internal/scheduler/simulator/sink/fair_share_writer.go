@@ -3,11 +3,10 @@ package sink
 import (
 	"os"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-
-	"github.com/armadaproject/armada/internal/scheduler/scheduling"
-
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
 
 type FairShareRow struct {
