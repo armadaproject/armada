@@ -1,12 +1,11 @@
 name: "1 cluster with 2 32-core nodes"
-pools:
-  - name: "CPU"
-    clusterGroups:
-      - clusters:
-          - name: "cpu-01"
-            nodeTemplates:
-              - number: 2
-                totalResources:
-                  resources:
-                    cpu: "32"
-                    memory: "1024Gi"
+clusters:
+  - name: "cpu-01"
+    pool: "default"
+    nodeTemplates:
+      - number: 2
+        totalResources:
+          resources:
+            cpu: "32"
+            memory: "1024Gi"
+

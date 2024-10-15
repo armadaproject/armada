@@ -35,7 +35,7 @@ type JobRunRow struct {
 }
 
 func NewJobWriter(path string) (*JobWriter, error) {
-	fileWriter, err := os.Create(path)
+	fileWriter, err := os.Create(path + "/jobs.parquet")
 	if err != nil {
 		return nil, err
 	}

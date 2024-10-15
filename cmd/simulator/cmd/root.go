@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"runtime/pprof"
 	"time"
@@ -23,14 +22,14 @@ func RootCmd() *cobra.Command {
 		Short: "Simulate running jobs on Armada.",
 		RunE:  runSimulations,
 	}
-	cmd.Flags().String("cluster", "", "Path specifying cluster configurations to simulate.")
-	cmd.Flags().String("workload", "", "Path specifying workloads to simulate.")
+	cmd.Flags().String("clusters", "", "Path specifying cluster configurations to simulate.")
+	cmd.Flags().String("workloads", "", "Path specifying workloads to simulate.")
 	cmd.Flags().String("config", "", "Path to scheduler configurations to simulate. Uses a default config if not provided.")
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
 	cmd.Flags().String("outputDir", "", "Path to directory where output files will be written.  Defaults to timestamped directory.")
 	cmd.Flags().Bool("overwriteOutputDir", false, "Overwrite output director if it already exists.  If false then an error will be thrown if the directory already exists")
 	cmd.Flags().Bool("enableFastForward", false, "Skips schedule events when we're in a steady state")
-	cmd.Flags().Int("hardTerminationMinutes", math.MaxInt, "Limit the time simulated")
+	cmd.Flags().Int("hardTerminationMinutes", -1, "Limit the time simulated.  -1 for no limit.")
 	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
 	return cmd
 }
@@ -86,6 +85,11 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		}
 	} else if pathExists(outputDirPath) {
 		return fmt.Errorf("output directory %s already exists and overwriteOutputDir not set", outputDirPath)
+	}
+
+	err = os.MkdirAll(outputDirPath, 0777)
+	if err != nil {
+		return err
 	}
 
 	// Load test specs. and config.

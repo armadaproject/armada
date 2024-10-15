@@ -24,7 +24,7 @@ type FairShareWriter struct {
 }
 
 func NewFairShareWriter(path string) (*FairShareWriter, error) {
-	fileWriter, err := os.Create(path)
+	fileWriter, err := os.Create(path + "/fair_share.parquet")
 	if err != nil {
 		return nil, err
 	}

@@ -106,8 +106,7 @@ func NewSimulator(
 	schedulerCyclePeriodSeconds int,
 	sink sink.Sink,
 ) (*Simulator, error) {
-	// TODO: Move clone to caller?
-	// Copy specs to avoid concurrent mutation.
+
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		schedulingConfig.SupportedResourceTypes,
 		schedulingConfig.ExperimentalFloatingResources,
@@ -198,8 +197,14 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 	// Bootstrap the simulator by pushing an event that triggers a scheduler run.
 	s.pushScheduleEvent(s.time)
 
-	simTerminationTime := s.time.Add(time.Minute * time.Duration(s.hardTerminationMinutes))
-	ctx.Infof("Will stop simulating at %s", simTerminationTime)
+	simTerminationTime := s.time.Add(100 * 365 * 24 * time.Hour)
+	if s.hardTerminationMinutes > 0 {
+		simTerminationTime := s.time.Add(time.Minute * time.Duration(s.hardTerminationMinutes))
+		ctx.Infof("Will stop simulating at %s", simTerminationTime)
+	} else {
+		ctx.Infof("No termination time set, will run until all workloads have comopleted")
+	}
+
 	lastLogTime := s.time
 	// Then run the scheduler until all jobs have completed.
 	for s.eventLog.Len() > 0 {
@@ -326,7 +331,6 @@ func (s *Simulator) setupClusters() error {
 					return err
 				}
 				txn.Commit()
-				println(fmt.Sprintf("created node %s", nodeId))
 				s.poolByNodeId[nodeId] = cluster.Pool
 			}
 		}
