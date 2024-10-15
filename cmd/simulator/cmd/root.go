@@ -87,7 +87,7 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("output directory %s already exists and overwriteOutputDir not set", outputDirPath)
 	}
 
-	err = os.MkdirAll(outputDirPath, 0777)
+	err = os.MkdirAll(outputDirPath, 0o777)
 	if err != nil {
 		return err
 	}

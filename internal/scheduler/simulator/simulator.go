@@ -106,7 +106,6 @@ func NewSimulator(
 	schedulerCyclePeriodSeconds int,
 	sink sink.Sink,
 ) (*Simulator, error) {
-
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		schedulingConfig.SupportedResourceTypes,
 		schedulingConfig.ExperimentalFloatingResources,
