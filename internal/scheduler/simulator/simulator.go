@@ -636,6 +636,12 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				event.Created = protoutil.ToTimestamp(t)
 			}
 		}
+
+		// If nothing changed, we're in steady state and can safely skip scheduling until something external has changed.
+		// Do this only if a non-zero amount of time has passed.
+		if !s.time.Equal(time.Time{}) && len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 {
+			s.shouldSchedule = false
+		}
 	}
 	txn.Commit()
 

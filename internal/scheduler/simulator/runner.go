@@ -5,49 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 )
-
-func SchedulingConfigsByFilePathFromPattern(pattern string) (map[string]configuration.SchedulingConfig, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	filePathConfigMap := make(map[string]configuration.SchedulingConfig)
-	for _, path := range filePaths {
-		config, err := SchedulingConfigsFromFilePaths(filePaths)
-		if err != nil {
-			return nil, err
-		}
-		filePathConfigMap[path] = config[0]
-	}
-	return filePathConfigMap, nil
-}
-
-func SchedulingConfigsFromPattern(pattern string) ([]configuration.SchedulingConfig, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return SchedulingConfigsFromFilePaths(filePaths)
-}
-
-func SchedulingConfigsFromFilePaths(filePaths []string) ([]configuration.SchedulingConfig, error) {
-	rv := make([]configuration.SchedulingConfig, len(filePaths))
-	for i, filePath := range filePaths {
-		config, err := SchedulingConfigFromFilePath(filePath)
-		if err != nil {
-			return nil, err
-		}
-		rv[i] = config
-	}
-	return rv, nil
-}
 
 func SchedulingConfigFromFilePath(filePath string) (configuration.SchedulingConfig, error) {
 	config := configuration.SchedulingConfig{}
