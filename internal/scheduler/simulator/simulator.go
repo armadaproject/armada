@@ -3,11 +3,11 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
+	"math"
 	"math/rand"
 	"sync/atomic"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -37,6 +37,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
+
+var epochStart = time.Unix(0, 0).UTC()
 
 // Simulator captures the parameters and state of the Armada simulator.
 type Simulator struct {
@@ -72,10 +74,9 @@ type Simulator struct {
 	// Simulated events are emitted on these event channels.
 	// Create a channel by calling s.StateTransitions() before running the simulator.
 	stateTransitionChannels []chan model.StateTransition
-	// Global job scheduling rate-limiter.
+	// Global job scheduling rate-limiter. Note that this will always be set to unlimited as we do not yet support
+	// effective rate limiting based on simulated time.
 	limiter *rate.Limiter
-	// Per-queue job scheduling rate-limiters.
-	limiterByQueue map[string]*rate.Limiter
 	// Used to generate random numbers from a chosen seed.
 	rand *rand.Rand
 	// Used to ensure each job is given a unique time stamp.
@@ -119,8 +120,6 @@ func NewSimulator(
 		return nil, err
 	}
 
-	clusterSpec = proto.Clone(clusterSpec).(*ClusterSpec)
-	workloadSpec = proto.Clone(workloadSpec).(*WorkloadSpec)
 	initialiseWorkloadSpec(workloadSpec)
 	if err := validateClusterSpec(clusterSpec); err != nil {
 		return nil, err
@@ -152,22 +151,17 @@ func NewSimulator(
 		allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]),
 		demandByQueue:                            make(map[string]schedulerobjects.ResourceList),
 		totalResourcesByPool:                     make(map[string]schedulerobjects.ResourceList),
-		limiter: rate.NewLimiter(
-			rate.Limit(schedulingConfig.MaximumSchedulingRate),
-			schedulingConfig.MaximumSchedulingBurst,
-		),
-		limiterByQueue:              make(map[string]*rate.Limiter),
-		rand:                        rand.New(rand.NewSource(randomSeed)),
-		resourceListFactory:         resourceListFactory,
-		enableFastForward:           enableFastForward,
-		hardTerminationMinutes:      hardTerminationMinutes,
-		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
-		floatingResourceTypes:       floatingResourceTypes,
-		time:                        time.Unix(0, 0).UTC(),
-		sink:                        sink,
+		limiter:                                  rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
+		rand:                                     rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory:                      resourceListFactory,
+		enableFastForward:                        enableFastForward,
+		hardTerminationMinutes:                   hardTerminationMinutes,
+		schedulerCyclePeriodSeconds:              schedulerCyclePeriodSeconds,
+		floatingResourceTypes:                    floatingResourceTypes,
+		time:                                     epochStart,
+		sink:                                     sink,
 	}
 	jobDb.SetClock(s)
-	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
 	if err := s.setupClusters(); err != nil {
 		return nil, err
 	}
@@ -204,7 +198,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 		ctx.Infof("No termination time set, will run until all workloads have completed")
 	}
 
-	lastLogTime := s.time
+	lastLogTime := time.Now()
 	// Then run the scheduler until all jobs have completed.
 	for s.eventLog.Len() > 0 {
 		select {
@@ -216,7 +210,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 				return err
 			}
 		}
-		if s.time.Unix()-lastLogTime.Unix() >= 60 {
+		if time.Now().Unix()-lastLogTime.Unix() >= 15 {
 			ctx.Infof("Simulator time %s", s.time)
 			lastLogTime = s.time
 		}
@@ -512,22 +506,13 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 				continue
 			}
-			limiter, ok := s.limiterByQueue[queue.Name]
-			if !ok {
-				limiter = rate.NewLimiter(
-					rate.Limit(s.schedulingConfig.MaximumPerQueueSchedulingRate),
-					s.schedulingConfig.MaximumPerQueueSchedulingBurst,
-				)
-				limiter.SetBurstAt(s.time, s.schedulingConfig.MaximumPerQueueSchedulingBurst)
-				s.limiterByQueue[queue.Name] = limiter
-			}
 			err := sctx.AddQueueSchedulingContext(
 				queue.Name,
 				queue.Weight,
 				s.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
 				demand,
 				demand,
-				limiter,
+				s.limiter,
 			)
 			if err != nil {
 				return err
@@ -630,16 +615,15 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		}
 
 		// Update event timestamps to be consistent with simulated time.
-		t := s.time
 		for _, eventSequence := range eventSequences {
 			for _, event := range eventSequence.Events {
-				event.Created = protoutil.ToTimestamp(t)
+				event.Created = protoutil.ToTimestamp(s.time)
 			}
 		}
 
 		// If nothing changed, we're in steady state and can safely skip scheduling until something external has changed.
 		// Do this only if a non-zero amount of time has passed.
-		if !s.time.Equal(time.Time{}) && len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 {
+		if !s.time.Equal(epochStart) && len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 {
 			s.shouldSchedule = false
 		}
 	}
