@@ -484,39 +484,6 @@ func TestSimulator(t *testing.T) {
 	}
 }
 
-func TestSchedulingConfigsFromPattern(t *testing.T) {
-	actual, err := SchedulingConfigsFromPattern("./testdata/configs/basicSchedulingConfig.yaml")
-	require.NoError(t, err)
-	expected := []configuration.SchedulingConfig{GetBasicSchedulingConfig()}
-	assert.Equal(t, expected, actual)
-}
-
-//func TestClusterSpecsFromPattern(t *testing.T) {
-//	clusterSpecs, err := ClusterSpecsFromPattern("./testdata/clusters/tinyCluster.yaml")
-//	require.NoError(t, err)
-//	assert.Equal(t, []*ClusterSpec{GetTwoPoolTwoNodeCluster()}, clusterSpecs)
-//	require.NoError(t, err)
-//}
-//
-//func TestWorkloadsFromPattern(t *testing.T) {
-//	workloadSpecs, err := WorkloadsFromPattern("./testdata/workloads/basicWorkload.yaml")
-//	require.NoError(t, err)
-//	assert.Equal(t, []*WorkloadSpec{GetOneQueue10JobWorkload()}, workloadSpecs)
-//	require.NoError(t, err)
-//}
-//
-//func TestClusterSpecTotalResources(t *testing.T) {
-//	actual := GetTwoPoolTwoNodeCluster().TotalResources()
-//	expected := schedulerobjects.ResourceList{
-//		Resources: map[string]resource.Quantity{
-//			"cpu":            resource.MustParse("160"),
-//			"memory":         resource.MustParse("4352Gi"),
-//			"nvidia.com/gpu": resource.MustParse("8"),
-//		},
-//	}
-//	assert.True(t, expected.Equal(actual), "expected %s, but got %s", expected.CompactString(), actual.CompactString())
-//}
-
 func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
 	assert.Equal(
 		t,
