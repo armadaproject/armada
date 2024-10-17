@@ -396,6 +396,7 @@ func TestGetJobErrors(t *testing.T) {
 				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
 				require.NoError(t, err)
 				err = dbcommon.UpsertWithTransaction(ctx, db, "job_error", testJobErrors)
+				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobErrors(ctx, tc.request)
 				require.NoError(t, err)
