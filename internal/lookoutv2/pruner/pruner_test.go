@@ -110,6 +110,11 @@ func TestPruneDb(t *testing.T) {
 					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
 					state: lookout.JobPreempted,
 				},
+				{
+					jobId: sampleJobIds[4],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobRejected,
+				},
 			},
 			jobIdsLeft: []string{},
 		},
@@ -145,6 +150,7 @@ func TestPruneDb(t *testing.T) {
 
 				queriedJobIdsPerTable := []map[string]bool{
 					selectStringSet(t, db, "SELECT job_id FROM job"),
+					selectStringSet(t, db, "SELECT job_id FROM job_spec"),
 					selectStringSet(t, db, "SELECT DISTINCT job_id FROM job_run"),
 				}
 				for _, queriedJobs := range queriedJobIdsPerTable {
@@ -194,6 +200,9 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 		simulator.
 			Preempted(job.ts).
 			Build()
+	case lookout.JobRejected:
+		simulator.
+			Rejected("invalid", job.ts)
 	case lookout.JobRunning:
 		simulator.
 			Build()

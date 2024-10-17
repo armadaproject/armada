@@ -3,6 +3,9 @@ package jobdb
 import (
 	"testing"
 
+	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +19,12 @@ var jobSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		{
 			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 				PodRequirements: &schedulerobjects.PodRequirements{
+					ResourceRequirements: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							"cpu":                 k8sResource.MustParse("1"),
+							"storage-connections": k8sResource.MustParse("1"),
+						},
+					},
 					Annotations: map[string]string{
 						"foo": "bar",
 					},
@@ -42,7 +51,7 @@ var baseJob, _ = jobDb.NewJob(
 )
 
 var baseRun = &JobRun{
-	id:        uuid.New(),
+	id:        uuid.New().String(),
 	created:   3,
 	executor:  "test-executor",
 	running:   true,
@@ -134,18 +143,20 @@ func TestJob_TestWithNewRun(t *testing.T) {
 	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", scheduledAtPriority)
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
+	created := jobDb.clock.Now()
 	assert.NotNil(t, run)
 	assert.Equal(
 		t,
 		&JobRun{
 			id:                  run.id,
 			jobId:               "test-job",
-			created:             run.created,
+			created:             created.UnixNano(),
 			executor:            "test-executor",
 			nodeId:              "test-nodeId",
 			nodeName:            "nodeId",
 			pool:                "pool",
 			scheduledAtPriority: &scheduledAtPriority,
+			leaseTime:           &created,
 		},
 		run,
 	)
@@ -161,7 +172,7 @@ func TestJob_TestWithUpdatedRun_NewRun(t *testing.T) {
 
 func TestJob_TestWithUpdatedRun_UpdateRun(t *testing.T) {
 	run := &JobRun{
-		id:        uuid.New(),
+		id:        uuid.New().String(),
 		created:   3,
 		executor:  "test-executor",
 		running:   true,
@@ -179,7 +190,7 @@ func TestJob_TestWithUpdatedRun_UpdateRun(t *testing.T) {
 
 func TestJob_TestWithUpdatedRun_AdditionalRun(t *testing.T) {
 	additionalRun := &JobRun{
-		id:       uuid.New(),
+		id:       uuid.New().String(),
 		created:  baseRun.created + 1,
 		executor: "test-executor",
 		running:  true,
@@ -192,7 +203,7 @@ func TestJob_TestWithUpdatedRun_AdditionalRun(t *testing.T) {
 
 func TestJob_TestWithUpdatedRun_AdditionalEarlierRun(t *testing.T) {
 	additionalRun := &JobRun{
-		id:       uuid.New(),
+		id:       uuid.New().String(),
 		created:  baseRun.created - 1,
 		executor: "test-executor",
 		running:  true,
@@ -206,7 +217,7 @@ func TestJob_TestWithUpdatedRun_AdditionalEarlierRun(t *testing.T) {
 func TestJob_TestNumReturned(t *testing.T) {
 	returnedRun := func() *JobRun {
 		return &JobRun{
-			id:       uuid.New(),
+			id:       uuid.New().String(),
 			created:  baseRun.created,
 			returned: true,
 		}
@@ -214,7 +225,7 @@ func TestJob_TestNumReturned(t *testing.T) {
 
 	nonReturnedRun := func() *JobRun {
 		return &JobRun{
-			id:       uuid.New(),
+			id:       uuid.New().String(),
 			created:  baseRun.created,
 			returned: false,
 		}
@@ -238,7 +249,7 @@ func TestJob_TestNumReturned(t *testing.T) {
 func TestJob_TestNumAttempts(t *testing.T) {
 	attemptedRun := func() *JobRun {
 		return &JobRun{
-			id:           uuid.New(),
+			id:           uuid.New().String(),
 			created:      baseRun.created,
 			returned:     true,
 			runAttempted: true,
@@ -247,7 +258,7 @@ func TestJob_TestNumAttempts(t *testing.T) {
 
 	nonAttemptedRun := func() *JobRun {
 		return &JobRun{
-			id:           uuid.New(),
+			id:           uuid.New().String(),
 			created:      baseRun.created,
 			returned:     true,
 			runAttempted: false,
@@ -273,7 +284,7 @@ func TestJob_TestRunsById(t *testing.T) {
 	runs := make([]*JobRun, 10)
 	job := baseJob
 	for i := 0; i < len(runs); i++ {
-		runs[i] = &JobRun{id: uuid.New()}
+		runs[i] = &JobRun{id: uuid.New().String()}
 		job = job.WithUpdatedRun(runs[i])
 	}
 	for i := 0; i < len(runs); i++ {
@@ -337,6 +348,12 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{
+						ResourceRequirements: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":                 k8sResource.MustParse("2"),
+								"storage-connections": k8sResource.MustParse("2"),
+							},
+						},
 						Annotations: map[string]string{
 							"fish": "chips",
 						},
@@ -348,6 +365,37 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	newJob := JobWithJobSchedulingInfo(baseJob, newSchedInfo)
 	assert.Equal(t, jobSchedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
+
+	assert.Equal(t, int64(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, int64(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+
+	assert.Equal(t, int64(2000), newJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(2), newJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, int64(2000), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(0), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+}
+
+func TestRequestsFloatingResources(t *testing.T) {
+	noFloatingResourcesJob := JobWithJobSchedulingInfo(baseJob, &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						ResourceRequirements: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":                 k8sResource.MustParse("1"),
+								"storage-connections": k8sResource.MustParse("0"),
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	assert.True(t, baseJob.RequestsFloatingResources())
+	assert.False(t, noFloatingResourcesJob.RequestsFloatingResources())
 }
 
 func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
@@ -393,4 +441,14 @@ func TestJob_TestResolvedPools(t *testing.T) {
 
 	// Job with an active run
 	assert.Equal(t, []string{"testPool2"}, jobWithJobRunPool.ResolvedPools())
+}
+
+func TestJob_TestAllResourceRequirements(t *testing.T) {
+	assert.Equal(t, int64(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+}
+
+func TestJob_TestKubernetesResourceRequirements(t *testing.T) {
+	assert.Equal(t, int64(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 }

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -51,8 +50,10 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
-	// Resource requirements of this job stored in efficient form.
-	resourceRequirements internaltypes.ResourceList
+	// All resource requirements, including floating resources, for this job
+	allResourceRequirements internaltypes.ResourceList
+	// Kubernetes (i.e. non-floating) resource requirements of this job
+	kubernetesResourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
@@ -66,7 +67,7 @@ type Job struct {
 	// True if the scheduler has marked the job as succeeded
 	succeeded bool
 	// Job Runs by run id
-	runsById map[uuid.UUID]*JobRun
+	runsById map[string]*JobRun
 	// The currently active run. The run with the latest timestamp is the active run.
 	activeRun *JobRun
 	// The timestamp of the currently active run.
@@ -501,7 +502,7 @@ func (job *Job) Tolerations() []v1.Toleration {
 }
 
 // ResourceRequirements returns the resource requirements of the Job
-// EfficientResourceRequirements below is preferred
+// KubernetesResourceRequirements below is preferred
 func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
@@ -509,9 +510,14 @@ func (job *Job) ResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
-// EfficientResourceRequirements gets resource requirements as an efficient internaltypes.ResourceList
-func (job *Job) EfficientResourceRequirements() internaltypes.ResourceList {
-	return job.resourceRequirements
+// All resource requirements, including floating resources, for this job
+func (job *Job) AllResourceRequirements() internaltypes.ResourceList {
+	return job.allResourceRequirements
+}
+
+// Kubernetes (i.e. non-floating) resource requirements of this job
+func (job *Job) KubernetesResourceRequirements() internaltypes.ResourceList {
+	return job.kubernetesResourceRequirements
 }
 
 // PodRequirements returns the pod requirements of the Job
@@ -645,17 +651,17 @@ func (job *Job) ValidateResourceRequests() error {
 		return nil
 	}
 
-	resourcesExclFloating := job.jobDb.floatingResourceTypes.RemoveFloatingResources(adapters.K8sResourceListToMap(req))
-	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(resourcesExclFloating)
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(req))
 	return err
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
+	now := job.jobDb.clock.Now()
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
 		job.Id(),
-		job.jobDb.clock.Now().UnixNano(),
+		now.UnixNano(),
 		executor,
 		nodeId,
 		nodeName,
@@ -669,7 +675,7 @@ func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtP
 		false,
 		false,
 		false,
-		nil,
+		&now,
 		nil,
 		nil,
 		nil,
@@ -690,7 +696,7 @@ func (job *Job) WithUpdatedRun(run *JobRun) *Job {
 		j.runsById = maps.Clone(j.runsById)
 		j.runsById[run.id] = run
 	} else {
-		j.runsById = map[uuid.UUID]*JobRun{run.id: run}
+		j.runsById = map[string]*JobRun{run.id: run}
 	}
 	return j
 }
@@ -741,7 +747,7 @@ func (job *Job) ResolvedPools() []string {
 }
 
 // RunById returns the Run corresponding to the provided run id or nil if no such Run exists.
-func (job *Job) RunById(id uuid.UUID) *JobRun {
+func (job *Job) RunById(id string) *JobRun {
 	return job.runsById[id]
 }
 
@@ -780,7 +786,7 @@ func (job *Job) Validated() bool {
 
 // Does this job request any floating resources?
 func (job *Job) RequestsFloatingResources() bool {
-	return job.jobDb.floatingResourceTypes.HasFloatingResources(safeGetRequirements(job.jobSchedulingInfo))
+	return !job.AllResourceRequirements().OfType(internaltypes.Floating).AllZero()
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
@@ -791,7 +797,9 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
-	j.resourceRequirements = job.jobDb.getResourceRequirements(jobSchedulingInfo)
+
+	j.allResourceRequirements = j.jobDb.getResourceRequirements(jobSchedulingInfo)
+	j.kubernetesResourceRequirements = j.allResourceRequirements.OfType(internaltypes.Kubernetes)
 
 	return j, nil
 }

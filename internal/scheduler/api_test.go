@@ -9,20 +9,28 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/internal/server/configuration"
+	mocks2 "github.com/armadaproject/armada/internal/server/mocks"
+	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -43,9 +51,9 @@ var priorityClasses = map[string]types.PriorityClass{
 func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	const maxJobsPerCall = uint(100)
 	testClock := clock.NewFakeClock(time.Now())
-	runId1 := uuid.New()
-	runId2 := uuid.New()
-	runId3 := uuid.New()
+	runId1 := uuid.NewString()
+	runId2 := uuid.NewString()
+	runId3 := uuid.NewString()
 	groups, compressedGroups := groups(t)
 	defaultRequest := &executorapi.LeaseRequest{
 		ExecutorId: "test-executor",
@@ -54,13 +62,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			{
 				Name: "test-node",
 				RunIdsByState: map[string]api.JobState{
-					runId1.String(): api.JobState_RUNNING,
-					runId2.String(): api.JobState_RUNNING,
+					runId1: api.JobState_RUNNING,
+					runId2: api.JobState_RUNNING,
 				},
-				NodeType: "node-type-1",
+				NodeType:                    "node-type-1",
+				ResourceUsageByQueueAndPool: []*executorapi.PoolQueueResource{},
 			},
 		},
-		UnassignedJobRunIds: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId3)},
+		UnassignedJobRunIds: []string{runId3},
 		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
@@ -72,8 +81,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Name:                        "test-node",
 				Executor:                    "test-executor",
 				TotalResources:              schedulerobjects.NewResourceList(0),
-				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
-				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
+				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
+				UnallocatableResources:      map[int32]schedulerobjects.ResourceList{},
+				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 					1000: {
 						Resources: nil,
@@ -82,27 +92,28 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen:             testClock.Now().UTC(),
-				ResourceUsageByQueue: map[string]*schedulerobjects.ResourceList{},
-				ReportingNodeType:    "node-type-1",
+				LastSeen:          testClock.Now().UTC(),
+				ReportingNodeType: "node-type-1",
 			},
 		},
 		LastUpdateTime:    testClock.Now().UTC(),
-		UnassignedJobRuns: []string{runId3.String()},
+		UnassignedJobRuns: []string{runId3},
 	}
 
 	submit, compressedSubmit := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
 		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
 		},
 	)
 	defaultLease := &database.JobRunLease{
-		RunID:         uuid.New(),
+		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
+		Pool:          "test-pool",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
 		Node:          "node-id",
@@ -112,13 +123,15 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t,
 		&armadaevents.ObjectMeta{
-			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
 		},
 		nil,
 	)
 	leaseWithoutNode := &database.JobRunLease{
-		RunID:         uuid.New(),
+		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
+		Pool:          "test-pool",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
 		Groups:        compressedGroups,
@@ -128,16 +141,19 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	preemptibleSubmit, preemptibleCompressedSubmit := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Labels: map[string]string{armadaJobPreemptibleLabel: "true"},
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "true"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
 		},
+
 		&v1.PodSpec{
 			PriorityClassName: armadaPreemptiblePriorityClassName,
 			NodeSelector:      map[string]string{nodeIdName: "node-id"},
 		},
 	)
 	preemptibleLease := &database.JobRunLease{
-		RunID:         uuid.New(),
+		RunID:         uuid.NewString(),
 		Queue:         "test-queue",
+		Pool:          "test-pool",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
 		Node:          "node-id",
@@ -153,8 +169,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 	}
 	leaseWithOverlay := &database.JobRunLease{
-		RunID:  uuid.New(),
+		RunID:  uuid.NewString(),
 		Queue:  "test-queue",
+		Pool:   "test-pool",
 		JobSet: "test-jobset",
 		UserID: "test-user",
 		Node:   "node-id",
@@ -165,14 +182,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		PodRequirementsOverlay: protoutil.MustMarshall(
 			&schedulerobjects.PodRequirements{
 				Tolerations: tolerations,
-				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+				Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			},
 		),
 	}
 	submitWithOverlay, _ := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
 		},
 		&v1.PodSpec{
@@ -184,25 +201,25 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
-		runsToCancel     []uuid.UUID
+		runsToCancel     []string
 		leases           []*database.JobRunLease
 		expectedExecutor *schedulerobjects.Executor
 		expectedMsgs     []*executorapi.LeaseStreamMessage
 	}{
 		"lease and cancel": {
 			request:          defaultRequest,
-			runsToCancel:     []uuid.UUID{runId2},
+			runsToCancel:     []string{runId2},
 			leases:           []*database.JobRunLease{defaultLease},
 			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_CancelRuns{CancelRuns: &executorapi.CancelRuns{
-						JobRunIdsToCancel: []*armadaevents.Uuid{armadaevents.ProtoUuidFromUuid(runId2)},
+						JobRunIdsToCancel: []string{runId2},
 					}},
 				},
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(defaultLease.RunID),
+						JobRunId: defaultLease.RunID,
 						Queue:    defaultLease.Queue,
 						Jobset:   defaultLease.JobSet,
 						User:     defaultLease.UserID,
@@ -222,7 +239,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithoutNode.RunID),
+						JobRunId: leaseWithoutNode.RunID,
 						Queue:    leaseWithoutNode.Queue,
 						Jobset:   leaseWithoutNode.JobSet,
 						User:     leaseWithoutNode.UserID,
@@ -242,7 +259,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithOverlay.RunID),
+						JobRunId: leaseWithOverlay.RunID,
 						Queue:    leaseWithOverlay.Queue,
 						Jobset:   leaseWithOverlay.JobSet,
 						User:     leaseWithOverlay.UserID,
@@ -262,7 +279,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
-						JobRunId: armadaevents.ProtoUuidFromUuid(preemptibleLease.RunID),
+						JobRunId: preemptibleLease.RunID,
 						Queue:    preemptibleLease.Queue,
 						Jobset:   preemptibleLease.JobSet,
 						User:     preemptibleLease.UserID,
@@ -293,6 +310,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
@@ -304,8 +322,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher[uuid.UUID]{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
+			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
+			mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
 
 			// capture all sent messages
 			var capturedEvents []*executorapi.LeaseStreamMessage
@@ -323,6 +342,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				mockAuthorizer,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -333,6 +353,64 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
+	request := &executorapi.LeaseRequest{
+		ExecutorId: "test-executor",
+		Pool:       "test-pool",
+		Nodes: []*executorapi.NodeInfo{
+			{
+				Name:          "test-node",
+				RunIdsByState: map[string]api.JobState{},
+				NodeType:      "node-type-1",
+			},
+		},
+		UnassignedJobRunIds: []string{},
+		MaxJobsToLease:      uint32(100),
+	}
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+
+	// set up mocks
+	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
+	mockStream.EXPECT().Recv().Return(request, nil).Times(1)
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(&armadaerrors.ErrUnauthorized{Message: "authorised"}).Times(1)
+	// capture all sent messages
+	var capturedEvents []*executorapi.LeaseStreamMessage
+	mockStream.EXPECT().Send(gomock.Any()).
+		Do(func(msg *executorapi.LeaseStreamMessage) {
+			capturedEvents = append(capturedEvents, msg)
+		}).AnyTimes()
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+
+	require.NoError(t, err)
+
+	err = server.LeaseJobRuns(mockStream)
+	assert.Error(t, err)
+	assert.Empty(t, capturedEvents)
+
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
 }
 
 func TestAddNodeSelector(t *testing.T) {
@@ -426,6 +504,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 			mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -438,6 +517,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 					}
 					return nil
 				}).AnyTimes()
+			mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
 
 			server, err := NewExecutorApi(
 				mockPulsarPublisher,
@@ -448,6 +528,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				mockAuthorizer,
 			)
 
 			require.NoError(t, err)
@@ -461,9 +542,56 @@ func TestExecutorApi_Publish(t *testing.T) {
 	}
 }
 
+func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+
+	sequences := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			JobSetName: "jobset1",
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{
+						JobRunErrors: &armadaevents.JobRunErrors{},
+					},
+				},
+			},
+		},
+	}
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(&armadaerrors.ErrUnauthorized{Message: "authorised"}).Times(1)
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+
+	require.NoError(t, err)
+
+	empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: sequences})
+	assert.Error(t, err)
+	assert.Nil(t, empty)
+
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
+}
+
 func submitMsg(t *testing.T, objectMeta *armadaevents.ObjectMeta, podSpec *v1.PodSpec) (*armadaevents.SubmitJob, []byte) {
 	submitMsg := &armadaevents.SubmitJob{
-		JobId:      armadaevents.ProtoUuidFromUuid(uuid.New()),
+		JobId:      util.NewULID(),
 		ObjectMeta: objectMeta,
 		MainObject: &armadaevents.KubernetesMainObject{
 			Object: &armadaevents.KubernetesMainObject_PodSpec{

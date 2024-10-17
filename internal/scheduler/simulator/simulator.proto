@@ -7,11 +7,19 @@ import "k8s.io/api/core/v1/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
+
+
 message ClusterSpec {
     string name = 1;
-    repeated Pool pools = 2;
+    repeated Cluster clusters = 2;
     ShiftedExponential workflow_manager_delay_distribution = 3 [(gogoproto.nullable) = false];
     ShiftedExponential pending_delay_distribution = 4 [(gogoproto.nullable) = false];
+}
+
+message Cluster {
+  string name = 1;
+  string pool = 3;
+  repeated NodeTemplate node_templates = 2;
 }
 
 message WorkloadSpec {
@@ -20,20 +28,6 @@ message WorkloadSpec {
     // If not provided, or explicitly set to 0, the current time is used.
     int64 random_seed = 2;
     repeated Queue queues = 3;
-}
-
-message Pool {
-    string name = 1;
-    repeated ClusterGroup cluster_groups = 2;
-}
-
-message ClusterGroup {
-    repeated Cluster clusters = 1;
-}
-
-message Cluster {
-    string name = 1;
-    repeated NodeTemplate node_templates = 2;
 }
 
 message NodeTemplate {
@@ -72,7 +66,7 @@ message JobTemplate {
     // Earliest time job can be submitted from when all its dependencies have completed.
     // This option is meant to model thinking or processing time, where some fixed amount of time
     // needs to be spent between dependencies completing and the next batch of jobs being ready to submit.
-    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];    
+    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
     // Job runtimes are assumed to follow a shifted exponential distribution
     // i.e., to be a fixed constant (runtime_minimum) plus a random amount of time
     // drawn from an exponential distribution with known mean (runtime_tail_mean).

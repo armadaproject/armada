@@ -24,9 +24,9 @@ func (node *Node) DeepCopy() *Node {
 		AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
-		StateByJobRunId:             maps.Clone(node.StateByJobRunId),
-		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
-		Unschedulable:               node.Unschedulable,
+		StateByJobRunId:        maps.Clone(node.StateByJobRunId),
+		UnallocatableResources: armadamaps.DeepCopy(node.UnallocatableResources),
+		Unschedulable:          node.Unschedulable,
 	}
 }
 
@@ -39,7 +39,7 @@ func (node *Node) CompactString() string {
 
 func (node *Node) AvailableArmadaResource() ResourceList {
 	tr := node.TotalResources.DeepCopy()
-	for _, rl := range node.NonArmadaAllocatedResources {
+	for _, rl := range node.UnallocatableResources {
 		tr.Sub(rl)
 	}
 	return tr

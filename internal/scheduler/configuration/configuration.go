@@ -1,14 +1,13 @@
 package configuration
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -28,14 +27,11 @@ type Configuration struct {
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
-	Pulsar configuration.PulsarConfig
+	Pulsar commonconfig.PulsarConfig
 	// Configuration controlling leader election
 	Leader LeaderConfig
 	// Configuration controlling metrics
-	Metrics LegacyMetricsConfig
-	// Configuration for new scheduler metrics.
-	// Due to replace metrics configured via the above entry.
-	SchedulerMetrics MetricsConfig
+	Metrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling SchedulingConfig
 	Auth       authconfig.AuthConfig
@@ -59,36 +55,6 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
-	// If true then submit checks will be skipped
-	DisableSubmitCheck bool
-}
-
-func (c Configuration) Validate() error {
-	validate := validator.New()
-	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
-	return validate.Struct(c)
-}
-
-type MetricsConfig struct {
-	// If true, disable metric collection and publishing.
-	Disabled bool
-	// Regexes used for job error categorisation.
-	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
-	// If no regex matches, the subCategory label is the empty string.
-	TrackedErrorRegexes []string
-	// Metrics are exported for these resources.
-	TrackedResourceNames []v1.ResourceName
-	// Optionally rename resources in exported metrics.
-	// E.g., if ResourceRenaming["nvidia.com/gpu"] = "gpu", then metrics for resource "nvidia.com/gpu" use resource name "gpu" instead.
-	// This can be used to avoid illegal Prometheus metric names (e.g., for "nvidia.com/gpu" as "/" is not allowed).
-	// Allowed characters in resource names are [a-zA-Z_:][a-zA-Z0-9_:]*
-	// It can also be used to track multiple resources within the same metric, e.g., "nvidia.com/gpu" and "amd.com/gpu".
-	ResourceRenaming map[v1.ResourceName]string
-	// The first matching regex of each error message is cached in an LRU cache.
-	// This setting controls the cache size.
-	MatchedRegexIndexByErrorMessageCacheSize uint64
-	// Reset metrics this often. Resetting periodically ensures inactive time series are garbage-collected.
-	ResetInterval time.Duration
 }
 
 type LeaderConfig struct {
@@ -112,8 +78,10 @@ type LeaderConfig struct {
 }
 
 type FloatingResourceConfig struct {
-	// Resource name, e.g. "s3-connections"
+	// Resource name, e.g. "storage-connections"
 	Name string
+	// Resolution with which Armada tracks this resource; larger values indicate lower resolution.
+	Resolution resource.Quantity
 	// Per-pool config.
 	Pools []FloatingResourcePoolConfig
 }
@@ -128,16 +96,16 @@ type HttpConfig struct {
 	Port int `validate:"required"`
 }
 
-// TODO: ALl this needs to be unified with MetricsConfig
-type LegacyMetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
-	Metrics         SchedulerMetricsConfig
-}
-
-type SchedulerMetricsConfig struct {
-	ScheduleCycleTimeHistogramSettings  HistogramConfig
-	ReconcileCycleTimeHistogramSettings HistogramConfig
+type MetricsConfig struct {
+	Port                         uint16
+	RefreshInterval              time.Duration
+	JobStateMetricsResetInterval time.Duration
+	// Regexes used for job error categorisation.
+	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
+	// If no regex matches, the subCategory label is the empty string.
+	TrackedErrorRegexes []string
+	// Metrics are exported for these resources.
+	TrackedResourceNames []v1.ResourceName
 }
 
 type HistogramConfig struct {
@@ -261,14 +229,11 @@ type SchedulingConfig struct {
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
 	// the scheduler is excluded from consideration by the scheduler.
 	MaxUnacknowledgedJobsPerExecutor uint
-	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
-	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
-	// Defines the order in which pools will be scheduled. Higher priority pools will be scheduled first
-	PoolSchedulePriority map[string]int
 	// Default priority for pools that are not in the above list
 	DefaultPoolSchedulePriority int
+	Pools                       []PoolConfig
 }
 
 const (
@@ -276,33 +241,6 @@ const (
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
 )
-
-func SchedulingConfigValidation(sl validator.StructLevel) {
-	c := sl.Current().Interface().(SchedulingConfig)
-
-	wellKnownNodeTypes := make(map[string]bool)
-	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
-		if wellKnownNodeTypes[wellKnownNodeType.Name] {
-			fieldName := fmt.Sprintf("WellKnownNodeTypes[%d].Name", i)
-			sl.ReportError(wellKnownNodeType.Name, fieldName, "", DuplicateWellKnownNodeTypeErrorMessage, "")
-		}
-		wellKnownNodeTypes[wellKnownNodeType.Name] = true
-	}
-
-	for priorityClassName, priorityClass := range c.PriorityClasses {
-		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
-			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
-			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
-		}
-
-		for i, awayNodeType := range priorityClass.AwayNodeTypes {
-			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
-				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
-				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
-			}
-		}
-	}
-}
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
 type ResourceType struct {
@@ -328,4 +266,9 @@ type WellKnownNodeType struct {
 	// Taints is the set of taints that characterizes this node type; a node is
 	// part of this node type if and only if it has all of these taints.
 	Taints []v1.Taint
+}
+
+type PoolConfig struct {
+	Name      string `validate:"required"`
+	AwayPools []string
 }

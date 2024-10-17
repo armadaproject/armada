@@ -52,7 +52,18 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 
 	start := time.Now()
 	// Jobs need to be ingested first as other updates may reference these
-	l.CreateJobs(ctx, instructions.JobsToCreate)
+	wgJobIngestion := sync.WaitGroup{}
+	wgJobIngestion.Add(2)
+	go func() {
+		defer wgJobIngestion.Done()
+		l.CreateJobs(ctx, instructions.JobsToCreate)
+	}()
+	go func() {
+		defer wgJobIngestion.Done()
+		l.CreateJobSpecs(ctx, instructions.JobsToCreate)
+	}()
+
+	wgJobIngestion.Wait()
 
 	// Now we can job updates, annotations and new job runs
 	wg := sync.WaitGroup{}
@@ -96,6 +107,22 @@ func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model
 	l.metrics.RecordAvRowChangeTimeByOperation("job", commonmetrics.DBOperationInsert, len(instructions), taken)
 	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationInsert, len(instructions))
 	log.Infof("Inserted %d jobs in %s", len(instructions), taken)
+}
+
+func (l *LookoutDb) CreateJobSpecs(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) {
+	if len(instructions) == 0 {
+		return
+	}
+	start := time.Now()
+	err := l.CreateJobSpecsBatch(ctx, instructions)
+	if err != nil {
+		log.WithError(err).Warn("Creating job specs via batch failed, will attempt to insert serially (this might be slow).")
+		l.CreateJobSpecsScalar(ctx, instructions)
+	}
+	taken := time.Since(start)
+	l.metrics.RecordAvRowChangeTimeByOperation("job_spec", commonmetrics.DBOperationInsert, len(instructions), taken)
+	l.metrics.RecordRowsChange("job_spec", commonmetrics.DBOperationInsert, len(instructions))
+	log.Infof("Inserted %d job specs in %s", len(instructions), taken)
 }
 
 func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
@@ -185,9 +212,9 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					state                        smallint,
 					last_transition_time         timestamp,
 					last_transition_time_seconds bigint,
-					job_spec                     bytea,
 					priority_class               varchar(63),
-					annotations                  jsonb
+					annotations                  jsonb,
+				    external_job_uri			 varchar(1024) NULL
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -213,9 +240,9 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"state",
 					"last_transition_time",
 					"last_transition_time_seconds",
-					"job_spec",
 					"priority_class",
 					"annotations",
+					"external_job_uri",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -233,9 +260,9 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].State,
 						instructions[i].LastTransitionTime,
 						instructions[i].LastTransitionTimeSeconds,
-						instructions[i].JobProto,
 						instructions[i].PriorityClass,
 						instructions[i].Annotations,
+						instructions[i].ExternalJobUri,
 					}, nil
 				}),
 			)
@@ -261,9 +288,9 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						state,
 						last_transition_time,
 						last_transition_time_seconds,
-						job_spec,
 						priority_class,
-						annotations
+						annotations,
+					    external_job_uri
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
@@ -294,9 +321,9 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			state,
 			last_transition_time,
 			last_transition_time_seconds,
-			job_spec,
 			priority_class,
-			annotations
+			annotations,
+            external_job_uri
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT DO NOTHING`
@@ -317,9 +344,9 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.State,
 				i.LastTransitionTime,
 				i.LastTransitionTimeSeconds,
-				i.JobProto,
 				i.PriorityClass,
 				i.Annotations,
+				i.ExternalJobUri,
 			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
@@ -442,6 +469,83 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job %s failed", i.JobId)
+		}
+	}
+}
+
+func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
+	return l.withDatabaseRetryInsert(func() error {
+		tmpTable := "job_spec_create_tmp"
+
+		createTmp := func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, fmt.Sprintf(`
+				CREATE TEMPORARY TABLE %s (
+					job_id varchar(32),
+					job_spec bytea
+				) ON COMMIT DROP;`, tmpTable))
+			if err != nil {
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
+			}
+			return err
+		}
+
+		insertTmp := func(tx pgx.Tx) error {
+			_, err := tx.CopyFrom(ctx,
+				pgx.Identifier{tmpTable},
+				[]string{
+					"job_id",
+					"job_spec",
+				},
+				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
+					return []interface{}{
+						instructions[i].JobId,
+						instructions[i].JobProto,
+					}, nil
+				}),
+			)
+			return err
+		}
+
+		copyToDest := func(tx pgx.Tx) error {
+			_, err := tx.Exec(
+				ctx,
+				fmt.Sprintf(`
+					INSERT INTO job_spec (
+						job_id,
+						job_spec
+					) SELECT * from %s
+					ON CONFLICT DO NOTHING`, tmpTable),
+			)
+			if err != nil {
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
+			}
+			return err
+		}
+
+		return batchInsert(ctx, l.db, createTmp, insertTmp, copyToDest)
+	})
+}
+
+func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) {
+	sqlStatement := `INSERT INTO job_spec (
+			job_id,
+			job_spec
+		)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`
+	for _, i := range instructions {
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.JobId,
+				i.JobProto,
+			)
+			if err != nil {
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
+			}
+			return err
+		})
+		if err != nil {
+			log.WithError(err).Warnf("Create job spec for job %s, jobset %s failed", i.JobId, i.JobSet)
 		}
 	}
 }

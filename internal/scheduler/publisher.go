@@ -88,7 +88,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	for i := 0; i < p.numPartitions; i++ {
 		pm := &armadaevents.PartitionMarker{
-			GroupId:   armadaevents.ProtoUuidFromUuid(groupId),
+			GroupId:   groupId.String(),
 			Partition: uint32(i),
 		}
 		es := &armadaevents.EventSequence{

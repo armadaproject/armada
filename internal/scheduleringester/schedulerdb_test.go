@@ -24,11 +24,11 @@ import (
 func TestWriteOps(t *testing.T) {
 	jobIds := make([]string, 10)
 	for i := range jobIds {
-		jobIds[i] = util.ULID().String()
+		jobIds[i] = util.NewULID()
 	}
-	runIds := make([]uuid.UUID, 10)
+	runIds := make([]string, 10)
 	for i := range runIds {
-		runIds[i] = uuid.New()
+		runIds[i] = uuid.NewString()
 	}
 	scheduledAtPriorities := []int32{5, 10}
 	tests := map[string]struct {
@@ -792,7 +792,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 
 func TestStore(t *testing.T) {
 	jobId := util.ULID().String()
-	runId := uuid.New()
+	runId := uuid.NewString()
 	ops := []DbOperation{
 		InsertJobs{
 			jobId: &schedulerdb.Job{
@@ -820,7 +820,7 @@ func TestStore(t *testing.T) {
 
 		runIds, err := q.SelectAllRunIds(ctx)
 		require.NoError(t, err)
-		require.Equal(t, []uuid.UUID{runId}, runIds)
+		require.Equal(t, []string{runId}, runIds)
 
 		return nil
 	})

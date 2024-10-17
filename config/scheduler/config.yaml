@@ -6,31 +6,15 @@ databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 queueRefreshPeriod: 10s
-disableSubmitCheck: false
 metrics:
   port: 9000
+  jobStateMetricsResetInterval: 12h
   refreshInterval: 30s
-  metrics:
-    scheduleCycleTimeHistogramSettings:
-      start: 10.0
-      factor: 1.1
-      count: 110
-    reconcileCycleTimeHistogramSettings:
-      start: 10.0
-      factor: 1.1
-      count: 110
-schedulerMetrics:
   trackedResourceNames:
     - "cpu"
     - "memory"
     - "ephemeral-storage"
     - "nvidia.com/gpu"
-  resourceRenaming:
-    nvidia.com/gpu: "gpu"
-    amd.com/gpu: "gpu"
-    ephemeral-storage: "ephemeralStorage"
-  matchedRegexIndexByErrorMessageCacheSize: 100
-  resetInterval: "1h"
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -76,6 +60,8 @@ grpc:
     enabled: false
 # You may want to configure indexedNodeLabels and indexedTaints to speed up scheduling.
 scheduling:
+  pools:
+    - name: default
   supportedResourceTypes:
     - name: memory
       resolution: "1"
@@ -127,6 +113,5 @@ scheduling:
       resolution: "1Gi"
   executorTimeout: "10m"
   maxUnacknowledgedJobsPerExecutor: 2500
-  alwaysAttemptScheduling: false
   executorUpdateFrequency: "60s"
 

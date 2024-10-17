@@ -15,7 +15,7 @@
     <kind value="FILE" />
     <package value="github.com/armadaproject/armada" />
     <directory value="$PROJECT_DIR$" />
-    <filePath value="$PROJECT_DIR$/cmd/armada/main.go" />
+    <filePath value="$PROJECT_DIR$/cmd/server/main.go" />
     <method v="2" />
   </configuration>
 </component>

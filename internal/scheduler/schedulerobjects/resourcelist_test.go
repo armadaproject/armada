@@ -1,6 +1,7 @@
 package schedulerobjects
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -744,6 +745,62 @@ func TestResourceListIsStrictlyNonNegative(t *testing.T) {
 	}
 }
 
+func TestResourceListLimitToZero(t *testing.T) {
+	tests := map[string]struct {
+		input    ResourceList
+		expected ResourceList
+	}{
+		"empty": {
+			input:    ResourceList{},
+			expected: ResourceList{},
+		},
+		"empty maps": {
+			input: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			expected: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+		},
+		"non-negative values": {
+			input: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("5"),
+					"bar": resource.MustParse("0"),
+				},
+			},
+			expected: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("5"),
+					"bar": resource.MustParse("0"),
+				},
+			},
+		},
+		"negative values": {
+			input: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("-1"),
+					"bar": resource.MustParse("0"),
+					"baz": resource.MustParse("1"),
+				},
+			},
+			expected: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0"),
+					"bar": resource.MustParse("0"),
+					"baz": resource.MustParse("1"),
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.input.LimitToZero()
+			assert.True(t, tc.expected.Equal(tc.input))
+		})
+	}
+}
+
 func TestResourceListZero(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]resource.Quantity{
@@ -794,6 +851,87 @@ func TestV1ResourceListConversion(t *testing.T) {
 
 	v1rlCopy := V1ResourceListFromResourceList(rl)
 	assert.True(t, maps.Equal(v1rlCopy, v1rl))
+}
+
+func TestResourceListAsWeightedMillis(t *testing.T) {
+	tests := map[string]struct {
+		rl       ResourceList
+		weights  map[string]float64
+		expected int64
+	}{
+		"default": {
+			rl: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("2"),
+					"bar": resource.MustParse("10Gi"),
+					"baz": resource.MustParse("1"),
+				},
+			},
+			weights: map[string]float64{
+				"foo": 1,
+				"bar": 0.1,
+				"baz": 10,
+			},
+			expected: (1 * 2 * 1000) + (1 * 1000 * 1024 * 1024 * 1024) + (10 * 1 * 1000),
+		},
+		"zeroes": {
+			rl: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0"),
+					"bar": resource.MustParse("1"),
+					"baz": resource.MustParse("2"),
+				},
+			},
+			weights: map[string]float64{
+				"foo": 1,
+				"bar": 0,
+			},
+			expected: 0,
+		},
+		"1Pi": {
+			rl: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1Pi"),
+				},
+			},
+			weights: map[string]float64{
+				"foo": 1,
+			},
+			expected: int64(math.Pow(1024, 5)) * 1000,
+		},
+		"rounding": {
+			rl: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			weights: map[string]float64{
+				"foo": 0.3006,
+			},
+			expected: 301,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.rl.AsWeightedMillis(tc.weights))
+		})
+	}
+}
+
+func BenchmarkResourceListAsWeightedMillis(b *testing.B) {
+	rl := NewResourceList(3)
+	rl.Set("cpu", resource.MustParse("2"))
+	rl.Set("memory", resource.MustParse("10Gi"))
+	rl.Set("nvidia.com/gpu", resource.MustParse("1"))
+	weights := map[string]float64{
+		"cpu":            1,
+		"memory":         0.1,
+		"nvidia.com/gpu": 10,
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		rl.AsWeightedMillis(weights)
+	}
 }
 
 func BenchmarkResourceListZeroAdd(b *testing.B) {

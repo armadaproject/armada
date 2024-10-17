@@ -7,7 +7,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -70,12 +69,10 @@ func TestEventServer_ForceNew(t *testing.T) {
 				Name:           "test-queue",
 				PriorityFactor: 1,
 			}
-			jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
-			runIdString := "123e4567-e89b-12d3-a456-426614174000"
+			jobId := "01f3j0g1md4qx7z5qb148qnh4r"
+			runId := "123e4567-e89b-12d3-a456-426614174000"
 			baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 			baseTimeProto := protoutil.ToTimestamp(baseTime)
-			jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
-			runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 			err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 			require.NoError(t, err)
@@ -86,8 +83,8 @@ func TestEventServer_ForceNew(t *testing.T) {
 				Created: baseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 					JobRunAssigned: &armadaevents.JobRunAssigned{
-						RunId: runIdProto,
-						JobId: jobIdProto,
+						RunId: runId,
+						JobId: jobId,
 					},
 				},
 			}
@@ -103,7 +100,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
 			expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
-				JobId:    jobIdString,
+				JobId:    jobId,
 				JobSetId: jobSetId,
 				Queue:    q.Name,
 				Created:  protoutil.ToTimestamp(baseTime),
@@ -214,19 +211,17 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
-				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
-				runIdString := "123e4567-e89b-12d3-a456-426614174000"
+				jobId := "01f3j0g1md4qx7z5qb148qnh4r"
+				runId := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 				baseTimeProto := protoutil.ToTimestamp(baseTime)
-				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
-				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 				assigned := &armadaevents.EventSequence_Event{
 					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
-							RunId: runIdProto,
-							JobId: jobIdProto,
+							RunId: runId,
+							JobId: jobId,
 						},
 					},
 				}
@@ -259,19 +254,16 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
-				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
-				runIdString := "123e4567-e89b-12d3-a456-426614174000"
+				jobId := "01f3j0g1md4qx7z5qb148qnh4r"
+				runId := "123e4567-e89b-12d3-a456-426614174000"
 				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 				baseTimeProto := protoutil.ToTimestamp(baseTime)
-				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
-				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-
 				assigned := &armadaevents.EventSequence_Event{
 					Created: baseTimeProto,
 					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 						JobRunAssigned: &armadaevents.JobRunAssigned{
-							RunId: runIdProto,
-							JobId: jobIdProto,
+							RunId: runId,
+							JobId: jobId,
 						},
 					},
 				}

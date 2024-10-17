@@ -5,8 +5,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type EventIngesterConfiguration struct {
@@ -15,7 +15,7 @@ type EventIngesterConfiguration struct {
 	// Metrics configuration
 	MetricsPort uint16
 	// General Pulsar configuration
-	Pulsar configuration.PulsarConfig
+	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name
 	SubscriptionName string
 	// Size in bytes above which event message will be compressed when inserting in the database

@@ -19,13 +19,13 @@ env:
   # To use a builder other than "default", set this variable.
   # Necessary for, e.g., GitHub actions cache integration.
   - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.21{{ end }}
+  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.23{{ end }}
 
 builds:
   - env: [CGO_ENABLED=0]
     id: server
     binary: server
-    main: ./cmd/armada/main.go
+    main: ./cmd/server/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -186,7 +186,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.base.name=alpine:3.20.2
+      - --label=org.opencontainers.image.base.name=alpine:3.20.3
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
     ids:
@@ -197,13 +197,13 @@ dockers:
       - scheduler
       - scheduleringester
     extra_files:
-      - config/armada/config.yaml
+      - config/server/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
       - config/scheduler/config.yaml
       - config/scheduleringester/config.yaml
-    dockerfile: ./build_goreleaser/bundles/armada/Dockerfile
+    dockerfile: ./build/bundles/armada/Dockerfile
 
   - id: lookout-bundle
     use: buildx
@@ -222,7 +222,7 @@ dockers:
       - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
-    dockerfile: ./build_goreleaser/bundles/lookout/Dockerfile
+    dockerfile: ./build/bundles/lookout/Dockerfile
 
   - id: full-bundle
     use: buildx
@@ -244,7 +244,7 @@ dockers:
       - lookoutingesterv2
       - fakeexecutor
     extra_files:
-      - config/armada/config.yaml
+      - config/server/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
@@ -255,7 +255,7 @@ dockers:
       - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
-    dockerfile: ./build_goreleaser/bundles/full/Dockerfile
+    dockerfile: ./build/bundles/full/Dockerfile
 
   - id: server
     use: buildx
@@ -268,8 +268,8 @@ dockers:
     ids:
       - server
     extra_files:
-      - config/armada/config.yaml
-    dockerfile: ./build_goreleaser/server/Dockerfile
+      - config/server/config.yaml
+    dockerfile: ./build/server/Dockerfile
 
   - id: executor
     use: buildx
@@ -283,7 +283,7 @@ dockers:
       - executor
     extra_files:
       - config/executor/config.yaml
-    dockerfile: ./build_goreleaser/executor/Dockerfile
+    dockerfile: ./build/executor/Dockerfile
 
   - id: fakeexecutor
     use: buildx
@@ -297,7 +297,7 @@ dockers:
       - fakeexecutor
     extra_files:
       - config/executor/config.yaml
-    dockerfile: ./build_goreleaser/fakeexecutor/Dockerfile
+    dockerfile: ./build/fakeexecutor/Dockerfile
 
   - id: armadaloadtester
     use: buildx
@@ -309,7 +309,7 @@ dockers:
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - armadaloadtester
-    dockerfile: ./build_goreleaser/loadtester/Dockerfile
+    dockerfile: ./build/loadtester/Dockerfile
 
   - id: testsuite
     use: buildx
@@ -321,7 +321,7 @@ dockers:
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - testsuite
-    dockerfile: ./build_goreleaser/testsuite/Dockerfile
+    dockerfile: ./build/testsuite/Dockerfile
 
   - id: lookoutingesterv2
     use: buildx
@@ -335,7 +335,7 @@ dockers:
       - lookoutingesterv2
     extra_files:
       - config/lookoutingesterv2/config.yaml
-    dockerfile: ./build_goreleaser/lookoutingesterv2/Dockerfile
+    dockerfile: ./build/lookoutingesterv2/Dockerfile
 
   - id: lookoutv2
     use: buildx
@@ -354,7 +354,7 @@ dockers:
       - pkg/api/binoculars/api.swagger.json
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
-    dockerfile: ./build_goreleaser/lookoutv2/Dockerfile
+    dockerfile: ./build/lookoutv2/Dockerfile
 
   - id: eventingester
     use: buildx
@@ -368,7 +368,7 @@ dockers:
       - eventingester
     extra_files:
       - config/eventingester/config.yaml
-    dockerfile: ./build_goreleaser/eventingester/Dockerfile
+    dockerfile: ./build/eventingester/Dockerfile
 
   - id: scheduler
     use: buildx
@@ -382,7 +382,7 @@ dockers:
       - scheduler
     extra_files:
       - config/scheduler/config.yaml
-    dockerfile: ./build_goreleaser/scheduler/Dockerfile
+    dockerfile: ./build/scheduler/Dockerfile
 
   - id: scheduleringester
     use: buildx
@@ -396,7 +396,7 @@ dockers:
       - scheduleringester
     extra_files:
       - config/scheduleringester/config.yaml
-    dockerfile: ./build_goreleaser/scheduleringester/Dockerfile
+    dockerfile: ./build/scheduleringester/Dockerfile
 
   - id: binoculars
     use: buildx
@@ -410,7 +410,7 @@ dockers:
       - binoculars
     extra_files:
       - config/binoculars/config.yaml
-    dockerfile: ./build_goreleaser/binoculars/Dockerfile
+    dockerfile: ./build/binoculars/Dockerfile
 
   - id: armadactl
     use: buildx
@@ -422,7 +422,7 @@ dockers:
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - armadactl
-    dockerfile: ./build_goreleaser/armadactl/Dockerfile
+    dockerfile: ./build/armadactl/Dockerfile
 
 changelog:
   use:

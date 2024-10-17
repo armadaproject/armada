@@ -41,9 +41,9 @@ type Job struct {
 }
 
 type JobRunError struct {
-	RunID uuid.UUID `db:"run_id"`
-	JobID string    `db:"job_id"`
-	Error []byte    `db:"error"`
+	RunID string `db:"run_id"`
+	JobID string `db:"job_id"`
+	Error []byte `db:"error"`
 }
 
 type Marker struct {
@@ -52,13 +52,8 @@ type Marker struct {
 	Created     time.Time `db:"created"`
 }
 
-type Queue struct {
-	Name   string  `db:"name"`
-	Weight float64 `db:"weight"`
-}
-
 type Run struct {
-	RunID                  uuid.UUID  `db:"run_id"`
+	RunID                  string     `db:"run_id"`
 	JobID                  string     `db:"job_id"`
 	Created                int64      `db:"created"`
 	JobSet                 string     `db:"job_set"`

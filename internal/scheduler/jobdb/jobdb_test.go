@@ -18,12 +18,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func NewTestJobDb() *JobDb {
-	emptyFloatingResourceTypes, _ := floatingresources.NewFloatingResourceTypes(nil)
 	return NewJobDb(
 		map[string]types.PriorityClass{
 			"foo": {},
@@ -31,8 +29,7 @@ func NewTestJobDb() *JobDb {
 		},
 		"foo",
 		stringinterner.New(1024),
-		TestResourceListFactory,
-		emptyFloatingResourceTypes,
+		testResourceListFactory,
 	)
 }
 
@@ -108,7 +105,7 @@ func TestJobDb_TestGetByRunId(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, job1, txn.GetByRunId(job1.LatestRun().id))
 	assert.Equal(t, job2, txn.GetByRunId(job2.LatestRun().id))
-	assert.Nil(t, txn.GetByRunId(uuid.New()))
+	assert.Nil(t, txn.GetByRunId(uuid.NewString()))
 
 	err = txn.BatchDelete([]string{job1.Id()})
 	require.NoError(t, err)
@@ -1267,7 +1264,7 @@ func newJob() *Job {
 		priority:          0,
 		submittedTime:     0,
 		queued:            false,
-		runsById:          map[uuid.UUID]*JobRun{},
+		runsById:          map[string]*JobRun{},
 		jobSchedulingInfo: jobSchedulingInfo,
 	}
 }

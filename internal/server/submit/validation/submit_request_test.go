@@ -525,6 +525,64 @@ func TestValidateNamespace(t *testing.T) {
 	}
 }
 
+func TestValidateHasJobSetId(t *testing.T) {
+	tests := map[string]struct {
+		req           *api.JobSubmitRequest
+		expectSuccess bool
+	}{
+		"no job set id": {
+			req:           &api.JobSubmitRequest{},
+			expectSuccess: false,
+		},
+		"has any job set id": {
+			req: &api.JobSubmitRequest{
+				JobSetId: "job_set_id",
+			},
+			expectSuccess: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateHasJobSetId(tc.req, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateJobSetIdLength(t *testing.T) {
+	tests := map[string]struct {
+		req           *api.JobSubmitRequest
+		expectSuccess bool
+	}{
+		"job set id of 1023 chars valid": {
+			req: &api.JobSubmitRequest{
+				JobSetId: strings.Repeat("a", 1023),
+			},
+			expectSuccess: true,
+		},
+		"job set id of 1024 chars invalid": {
+			req: &api.JobSubmitRequest{
+				JobSetId: strings.Repeat("a", 1024),
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateJobSetIdLength(tc.req, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidatePodSpecSize(t *testing.T) {
 	defaultPodSpec := &v1.PodSpec{
 		Volumes: []v1.Volume{

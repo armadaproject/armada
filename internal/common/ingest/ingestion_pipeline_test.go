@@ -6,27 +6,24 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
-	jobIdString   = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString   = "123e4567-e89b-12d3-a456-426614174000"
+	jobId         = "01f3j0g1md4qx7z5qb148qnh4r"
+	runId         = "123e4567-e89b-12d3-a456-426614174000"
 	batchSize     = 3
 	batchDuration = 5 * time.Second
 )
 
 var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	baseTimeProto = protoutil.ToTimestamp(baseTime)
 	testMetrics   = metrics.NewMetrics("test")
@@ -41,8 +38,8 @@ var succeeded = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: runIdProto,
-					JobId: jobIdProto,
+					RunId: runId,
+					JobId: jobId,
 				},
 			},
 		},
@@ -58,8 +55,8 @@ var pendingAndRunning = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
-					RunId:      runIdProto,
-					JobId:      jobIdProto,
+					RunId:      runId,
+					JobId:      jobId,
 					ExecutorId: "k8sId1",
 				},
 			},
@@ -68,8 +65,8 @@ var pendingAndRunning = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId: runIdProto,
-					JobId: jobIdProto,
+					RunId: runId,
+					JobId: jobId,
 				},
 			},
 		},
@@ -85,8 +82,8 @@ var failed = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: runIdProto,
-					JobId: jobIdProto,
+					RunId: runId,
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -100,7 +97,7 @@ var failed = &armadaevents.EventSequence{
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobId: jobIdProto,
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -346,7 +343,7 @@ func TestRun_LimitsProcessingBatchSize(t *testing.T) {
 
 func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages] {
 	return &IngestionPipeline[*simpleMessages]{
-		pulsarConfig: configuration.PulsarConfig{
+		pulsarConfig: commonconfig.PulsarConfig{
 			BackoffTime: time.Second,
 		},
 		pulsarSubscriptionName: "subscription",
@@ -372,8 +369,8 @@ func generateEventSequence(numberOfEvents int) *armadaevents.EventSequence {
 			Created: baseTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: runIdProto,
-					JobId: jobIdProto,
+					RunId: runId,
+					JobId: jobId,
 				},
 			},
 		})

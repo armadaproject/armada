@@ -71,24 +71,17 @@ func UnmarshalEventSequence(ctx *armadacontext.Context, payload []byte) (*armada
 func ShortSequenceString(sequence *armadaevents.EventSequence) string {
 	s := ""
 	for _, event := range sequence.Events {
-		jobId, _ := armadaevents.JobIdFromEvent(event)
-		jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobId)
+		jobId, err := armadaevents.JobIdFromEvent(event)
 		if err != nil {
-			jobIdString = ""
+			jobId = ""
 		}
-		s += fmt.Sprintf("[%T (job %s)] ", event.Event, jobIdString)
+		s += fmt.Sprintf("[%T (job %s)] ", event.Event, jobId)
 	}
 	return s
 }
 
 // ApiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
-	if err != nil {
-		err = errors.WithStack(err)
-		return nil, err
-	}
-
 	if e == nil || e.MainObject == nil || e.MainObject.Object == nil {
 		return nil, errors.Errorf("SubmitJob or one of its member pointers is nil")
 	}
@@ -146,7 +139,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	}
 
 	return &api.Job{
-		Id:       jobId,
+		Id:       e.JobId,
 		ClientId: e.DeduplicationId,
 		Queue:    queueName,
 		JobSetId: jobSetName,

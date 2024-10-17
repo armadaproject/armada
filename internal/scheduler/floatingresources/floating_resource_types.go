@@ -72,25 +72,6 @@ func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated schedu
 	return true, ""
 }
 
-func (frt *FloatingResourceTypes) RemoveFloatingResources(allResources map[string]resource.Quantity) map[string]resource.Quantity {
-	result := make(map[string]resource.Quantity)
-	for k, v := range allResources {
-		if !frt.isFloatingResource(k) {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-func (frt *FloatingResourceTypes) HasFloatingResources(resources map[string]resource.Quantity) bool {
-	for resourceName, quantity := range resources {
-		if frt.isFloatingResource(resourceName) && quantity.Cmp(resource.Quantity{}) == 1 {
-			return true
-		}
-	}
-	return false
-}
-
 func (frt *FloatingResourceTypes) AllPools() []string {
 	result := maps.Keys(frt.pools)
 	slices.Sort(result)
@@ -103,6 +84,12 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) sche
 		return frt.zeroFloatingResources.DeepCopy()
 	}
 	return pool.totalResources.DeepCopy()
+}
+
+func (frt *FloatingResourceTypes) AddTotalAvailableForPool(poolName string, kubernetesResources schedulerobjects.ResourceList) schedulerobjects.ResourceList {
+	floatingResources := frt.GetTotalAvailableForPool(poolName) // Note GetTotalAvailableForPool returns a deep copy
+	floatingResources.Add(kubernetesResources)
+	return floatingResources
 }
 
 func (frt *FloatingResourceTypes) SummaryString() string {

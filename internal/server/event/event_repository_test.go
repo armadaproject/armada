@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
@@ -18,28 +17,20 @@ import (
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
-)
-
-var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	baseTimeProto = protoutil.ToTimestamp(baseTime)
-)
-
-const (
+	jobId      = "01f3j0g1md4qx7z5qb148qnh4r"
+	runId      = "123e4567-e89b-12d3-a456-426614174000"
 	jobSetName = "testJobset"
 	testQueue  = "test-queue"
 	executorId = "testCluster"
 	nodeName   = "testNode"
 	podName    = "test-pod"
+	namespace  = "test-ns"
+	podNumber  = 6
 )
 
-const (
-	namespace = "test-ns"
-	podNumber = 6
+var (
+	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimeProto = protoutil.ToTimestamp(baseTime)
 )
 
 // Assigned
@@ -47,12 +38,12 @@ var assigned = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunId: runId,
+			JobId: jobId,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					ObjectMeta: &armadaevents.ObjectMeta{
-						KubernetesId: runIdString,
+						KubernetesId: runId,
 						Name:         podName,
 						Namespace:    namespace,
 						ExecutorId:   executorId,
@@ -73,8 +64,8 @@ var running = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunId: runId,
+			JobId: jobId,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -93,8 +84,8 @@ var runSucceeded = &armadaevents.EventSequence_Event{
 	Created: baseTimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunId: runIdProto,
-			JobId: jobIdProto,
+			RunId: runId,
+			JobId: jobId,
 			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 				{
 					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -112,12 +103,12 @@ var runSucceeded = &armadaevents.EventSequence_Event{
 var expectedPending = api.EventMessage{
 	Events: &api.EventMessage_Pending{
 		Pending: &api.JobPendingEvent{
-			JobId:        jobIdString,
+			JobId:        jobId,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
 			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
-			KubernetesId: runIdString,
+			KubernetesId: runId,
 			PodNumber:    podNumber,
 			PodName:      podName,
 			PodNamespace: namespace,
@@ -128,12 +119,12 @@ var expectedPending = api.EventMessage{
 var expectedRunning = api.EventMessage{
 	Events: &api.EventMessage_Running{
 		Running: &api.JobRunningEvent{
-			JobId:        jobIdString,
+			JobId:        jobId,
 			JobSetId:     jobSetName,
 			Queue:        testQueue,
 			Created:      protoutil.ToTimestamp(baseTime),
 			ClusterId:    executorId,
-			KubernetesId: runIdString,
+			KubernetesId: runId,
 			NodeName:     nodeName,
 			PodNumber:    podNumber,
 			PodName:      podName,

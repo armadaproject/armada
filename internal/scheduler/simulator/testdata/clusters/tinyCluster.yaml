@@ -1,23 +1,19 @@
 name: "Tiny Cluster"
-pools:
-  - name: "pool1"
-    clusterGroups:
-      - clusters:
-          - name: "pool1-0-0"
-            nodeTemplates:
-              - number: 1
-                totalResources:
-                  resources:
-                    cpu: "32"
-                    memory: "256Gi"
-  - name: "pool2"
-    clusterGroups:
-      - clusters:
-          - name: "pool2-0-0"
-            nodeTemplates:
-              - number: 1
-                totalResources:
-                  resources:
-                    cpu: "128"
-                    memory: "4096Gi"
-                    nvidia.com/gpu: "8"
+clusters:
+  - name: "pool1-0-0"
+    pool: "cpu"
+    nodeTemplates:
+      - number: 1
+        totalResources:
+          resources:
+            cpu: "32"
+            memory: "1024Gi"
+  - name: "pool2-0-0"
+    pool: "gpu"
+    nodeTemplates:
+      - number: 1
+        totalResources:
+          resources:
+            cpu: "128"
+            memory: "4096Gi"
+            nvidia.com/gpu: "8"

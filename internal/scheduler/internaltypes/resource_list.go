@@ -7,6 +7,16 @@ import (
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 )
 
+type ResourceType int
+
+const (
+	// A normal k8s resource, such as "memory" or "nvidia.com/gpu"
+	Kubernetes ResourceType = iota
+	// A floating resource that is not tied to a Kubernetes cluster or node,
+	// e.g. "external-storage-connections".
+	Floating = iota
+)
+
 type ResourceList struct {
 	resources []int64              // immutable, do not change this, return a new struct instead!
 	factory   *ResourceListFactory // immutable, do not change this!
@@ -16,6 +26,7 @@ type Resource struct {
 	Name  string
 	Value int64
 	Scale k8sResource.Scale
+	Type  ResourceType
 }
 
 func (rl ResourceList) Equal(other ResourceList) bool {
@@ -24,6 +35,9 @@ func (rl ResourceList) Equal(other ResourceList) bool {
 	}
 	if rl.IsEmpty() || other.IsEmpty() {
 		return false
+	}
+	if rl.factory != other.factory {
+		panic("mismatched ResourceListFactory")
 	}
 	return slices.Equal(rl.resources, other.resources)
 }
@@ -75,7 +89,21 @@ func (rl ResourceList) GetResources() []Resource {
 			Name:  rl.factory.indexToName[i],
 			Value: q,
 			Scale: rl.factory.scales[i],
+			Type:  rl.factory.types[i],
 		}
+	}
+	return result
+}
+
+func (rl ResourceList) ToMap() map[string]k8sResource.Quantity {
+	if rl.IsEmpty() {
+		return map[string]k8sResource.Quantity{}
+	}
+
+	result := map[string]k8sResource.Quantity{}
+	for i, q := range rl.resources {
+		quantity := k8sResource.NewScaledQuantity(q, rl.factory.scales[i])
+		result[rl.factory.indexToName[i]] = *quantity
 	}
 	return result
 }
@@ -90,6 +118,19 @@ func (rl ResourceList) AllZero() bool {
 		}
 	}
 	return true
+}
+
+func (rl ResourceList) FloorAtZero() ResourceList {
+	if rl.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		if r > 0 {
+			result[i] = r
+		}
+	}
+	return ResourceList{factory: rl.factory, resources: result}
 }
 
 func (rl ResourceList) HasNegativeValues() bool {
@@ -143,6 +184,19 @@ func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sReso
 		}
 	}
 	return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false
+}
+
+func (rl ResourceList) OfType(t ResourceType) ResourceList {
+	if rl.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		if rl.factory.types[i] == t {
+			result[i] = r
+		}
+	}
+	return ResourceList{factory: rl.factory, resources: result}
 }
 
 func (rl ResourceList) Add(other ResourceList) ResourceList {

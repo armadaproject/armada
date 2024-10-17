@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -122,7 +121,7 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 
 type (
 	InsertJobs                     map[string]*schedulerdb.Job
-	InsertRuns                     map[uuid.UUID]*JobRunDetails
+	InsertRuns                     map[string]*JobRunDetails
 	UpdateJobSetPriorities         map[JobSetKey]int64
 	MarkJobSetsCancelRequested     map[JobSetKey]*JobSetCancelAction
 	MarkJobsCancelRequested        map[JobSetKey][]string
@@ -131,13 +130,13 @@ type (
 	MarkJobsFailed                 map[string]bool
 	UpdateJobSchedulingInfo        map[string]*JobSchedulingInfoUpdate
 	UpdateJobQueuedState           map[string]*JobQueuedStateUpdate
-	MarkRunsSucceeded              map[uuid.UUID]time.Time
-	MarkRunsFailed                 map[uuid.UUID]*JobRunFailed
+	MarkRunsSucceeded              map[string]time.Time
+	MarkRunsFailed                 map[string]*JobRunFailed
 	MarkRunsForJobPreemptRequested map[JobSetKey][]string
-	MarkRunsRunning                map[uuid.UUID]time.Time
-	MarkRunsPending                map[uuid.UUID]time.Time
-	MarkRunsPreempted              map[uuid.UUID]time.Time
-	InsertJobRunErrors             map[uuid.UUID]*schedulerdb.JobRunError
+	MarkRunsRunning                map[string]time.Time
+	MarkRunsPending                map[string]time.Time
+	MarkRunsPreempted              map[string]time.Time
+	InsertJobRunErrors             map[string]*schedulerdb.JobRunError
 	UpdateJobPriorities            struct {
 		key    JobReprioritiseKey
 		jobIds []string
@@ -472,7 +471,7 @@ func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 
 // definesRun returns true if b is an InsertRuns operation
 // that inserts at least one run with id equal to any of the keys of a.
-func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
+func definesRun[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
 			if _, ok := a[run.DbRun.RunID]; ok {

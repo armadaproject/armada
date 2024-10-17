@@ -3,25 +3,28 @@ package scheduler
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/slices"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -47,6 +50,7 @@ type ExecutorApi struct {
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
+	authorizer                auth.ActionAuthorizer
 }
 
 func NewExecutorApi(publisher pulsarutils.Publisher,
@@ -57,6 +61,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
+	authorizer auth.ActionAuthorizer,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
@@ -71,6 +76,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher,
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
 		clock:                     clock.RealClock{},
+		authorizer:                authorizer,
 	}, nil
 }
 
@@ -86,6 +92,10 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	}
 
 	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
+	err = srv.authorize(ctx)
+	if err != nil {
+		return err
+	}
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
@@ -114,9 +124,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancel: slices.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
-						return armadaevents.ProtoUuidFromUuid(x)
-					}),
+					JobRunIdsToCancel: runsToCancel,
 				},
 			},
 		}); err != nil {
@@ -133,6 +141,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		}
 
 		srv.addNodeIdSelector(submitMsg, lease.Node)
+		addAnnotations(submitMsg, map[string]string{configuration.PoolAnnotation: lease.Pool})
 
 		if len(lease.PodRequirementsOverlay) > 0 {
 			PodRequirementsOverlay := schedulerobjects.PodRequirements{}
@@ -163,7 +172,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
-					JobRunId: armadaevents.ProtoUuidFromUuid(lease.RunID),
+					JobRunId: lease.RunID,
 					Queue:    lease.Queue,
 					Jobset:   lease.JobSet,
 					User:     lease.UserID,
@@ -253,12 +262,12 @@ func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
 
 	priority, known := srv.priorityClasses[priorityClassName]
 	if priorityClassName == "" {
-		log.Errorf("priority class name not set on pod %s", job.JobId.String())
+		log.Errorf("priority class name not set on job %s", job.JobId)
 		return false
 	}
 
 	if !known {
-		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobId.String())
+		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobId)
 		return false
 	}
 
@@ -335,8 +344,25 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := srv.publisher.PublishMessages(ctx, list.GetEvents()...)
+	err := srv.authorize(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = srv.publisher.PublishMessages(ctx, list.GetEvents()...)
 	return &types.Empty{}, err
+}
+
+func (srv *ExecutorApi) authorize(ctx *armadacontext.Context) error {
+	err := srv.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return status.Errorf(codes.PermissionDenied, err.Error())
+	} else if err != nil {
+		return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	return nil
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
@@ -353,30 +379,24 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		}
 	}
 	return &schedulerobjects.Executor{
-		Id:             req.ExecutorId,
-		Pool:           req.Pool,
-		Nodes:          nodes,
-		LastUpdateTime: now,
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(jobId *armadaevents.Uuid) string {
-			return strings.ToLower(armadaevents.UuidFromProtoUuid(jobId).String())
-		}),
+		Id:                req.ExecutorId,
+		Pool:              req.Pool,
+		Nodes:             nodes,
+		LastUpdateTime:    now,
+		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }
 
 // runIdsFromLeaseRequest returns the ids of all runs in a lease request, including any not yet assigned to a node.
-func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
-	runIds := make([]uuid.UUID, 0, 256)
+func runIdsFromLeaseRequest(req *executorapi.LeaseRequest) ([]string, error) {
+	runIds := make([]string, 0, 256)
 	for _, node := range req.Nodes {
-		for runIdStr := range node.RunIdsByState {
-			if runId, err := uuid.Parse(runIdStr); err != nil {
-				return nil, errors.WithStack(err)
-			} else {
-				runIds = append(runIds, runId)
-			}
+		for runId := range node.RunIdsByState {
+			runIds = append(runIds, runId)
 		}
 	}
 	for _, runId := range req.UnassignedJobRunIds {
-		runIds = append(runIds, armadaevents.UuidFromProtoUuid(runId))
+		runIds = append(runIds, runId)
 	}
 	return runIds, nil
 }

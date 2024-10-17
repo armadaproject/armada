@@ -217,6 +217,16 @@ func (a *ResourceList) Sub(b ResourceList) {
 	}
 }
 
+func (a *ResourceList) LimitToZero() {
+	a.initialise()
+	for t, qb := range a.Resources {
+		if qb.Sign() < 0 {
+			qb.Set(0)
+			a.Resources[t] = qb
+		}
+	}
+}
+
 func (rl *ResourceList) SubQuantity(resourceType string, quantity resource.Quantity) {
 	rl.initialise()
 	q := rl.Resources[resourceType]

@@ -6,7 +6,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
-func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
+func JobIdFromEvent(event *EventSequence_Event) (string, error) {
 	switch e := event.Event.(type) {
 	case *EventSequence_Event_SubmitJob:
 		return e.SubmitJob.JobId, nil
@@ -48,9 +48,6 @@ func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
 			Value:   e,
 			Message: "event doesn't contain a jobId",
 		})
-		return &Uuid{
-			High64: 0,
-			Low64:  0,
-		}, err
+		return "", err
 	}
 }

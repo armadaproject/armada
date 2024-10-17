@@ -15,6 +15,7 @@ const (
 	// FailFastAnnotation, if set to true, ensures Armada does not re-schedule jobs that fail to start.
 	// Instead, the job the pod is part of fails immediately.
 	FailFastAnnotation = "armadaproject.io/failFast"
+	PoolAnnotation     = "armadaproject.io/pool"
 )
 
 var schedulingAnnotations = map[string]bool{

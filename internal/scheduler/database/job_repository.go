@@ -23,8 +23,9 @@ type hasSerial interface {
 }
 
 type JobRunLease struct {
-	RunID                  uuid.UUID
+	RunID                  string
 	Queue                  string
+	Pool                   string
 	JobSet                 string
 	UserID                 string
 	Node                   string
@@ -41,7 +42,7 @@ type JobRepository interface {
 
 	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids. The returned map is
 	// keyed by job run id. Any dbRuns which don't have errors wil be absent from the map.
-	FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
+	FetchJobRunErrors(ctx *armadacontext.Context, runIds []string) (map[string]*armadaevents.Error, error)
 
 	// CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding
 	// to the provided groupId.  This is used by the scheduler to determine if the database represents the state of
@@ -50,11 +51,11 @@ type JobRepository interface {
 
 	// FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
 	// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
-	FindInactiveRuns(ctx *armadacontext.Context, runIds []uuid.UUID) ([]uuid.UUID, error)
+	FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error)
 
 	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 	// in excludedRunIds will be excluded
-	FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error)
+	FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []string) ([]*JobRunLease, error)
 }
 
 // PostgresJobRepository is an implementation of JobRepository that stores its state in postgres
@@ -74,14 +75,14 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, runIds []string) (map[string]*armadaevents.Error, error) {
 	if len(runIds) == 0 {
-		return map[uuid.UUID]*armadaevents.Error{}, nil
+		return map[string]*armadaevents.Error{}, nil
 	}
 
 	chunks := armadaslices.PartitionToMaxLen(runIds, int(r.batchSize))
 
-	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
+	errorsByRunId := make(map[string]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
 
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
@@ -106,7 +107,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 			}
 			defer rows.Close()
 			for rows.Next() {
-				var runId uuid.UUID
+				var runId string
 				var errorBytes []byte
 				err := rows.Scan(&runId, &errorBytes)
 				if err != nil {
@@ -192,8 +193,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 
 // FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
 // Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
-func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
-	var inactiveRuns []uuid.UUID
+func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error) {
+	var inactiveRuns []string
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
@@ -219,7 +220,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 		}
 		defer rows.Close()
 		for rows.Next() {
-			runId := uuid.UUID{}
+			runId := ""
 			err = rows.Scan(&runId)
 			if err != nil {
 				return errors.WithStack(err)
@@ -233,7 +234,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 
 // FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 // in excludedRunIds will be excluded
-func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
+func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []string) ([]*JobRunLease, error) {
 	if maxResults == 0 {
 		return []*JobRunLease{}, nil
 	}
@@ -249,7 +250,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
+				SELECT jr.run_id, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -270,7 +271,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -312,10 +313,10 @@ func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T
 }
 
 // Insert all run ids into a tmp table.  The name of the table is returned
-func insertRunIdsToTmpTable(ctx *armadacontext.Context, tx pgx.Tx, runIds []uuid.UUID) (string, error) {
+func insertRunIdsToTmpTable(ctx *armadacontext.Context, tx pgx.Tx, runIds []string) (string, error) {
 	tmpTable := database.UniqueTableName("job_runs")
 
-	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s (run_id  uuid) ON COMMIT DROP", tmpTable))
+	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s (run_id text) ON COMMIT DROP", tmpTable))
 	if err != nil {
 		return "", errors.WithStack(err)
 	}

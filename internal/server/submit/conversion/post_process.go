@@ -176,8 +176,6 @@ func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig)
 			labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
 		}
 	}
-
-	jobId := armadaevents.MustUlidStringFromProtoUuid(msg.JobId)
-	template(msg.GetObjectMeta().GetAnnotations(), jobId)
-	template(msg.GetObjectMeta().GetLabels(), jobId)
+	template(msg.GetObjectMeta().GetAnnotations(), msg.JobId)
+	template(msg.GetObjectMeta().GetLabels(), msg.JobId)
 }

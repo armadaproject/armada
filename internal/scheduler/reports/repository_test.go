@@ -5,37 +5,37 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
-var jobContextA = &schedulercontext.JobSchedulingContext{
+var jobContextA = &context.JobSchedulingContext{
 	JobId: "testJob1",
 }
 
-var jobContextB = &schedulercontext.JobSchedulingContext{
+var jobContextB = &context.JobSchedulingContext{
 	JobId: "testJob2",
 }
 
-var testContextA = &schedulercontext.SchedulingContext{
+var testContextA = &context.SchedulingContext{
 	Pool: "poolA",
-	QueueSchedulingContexts: map[string]*schedulercontext.QueueSchedulingContext{
+	QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 		"queueA": {
-			SuccessfulJobSchedulingContexts: map[string]*schedulercontext.JobSchedulingContext{
+			SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 				"testJob1": jobContextA,
 			},
-			UnsuccessfulJobSchedulingContexts: map[string]*schedulercontext.JobSchedulingContext{
+			UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 				"testJob2": jobContextA,
 			},
 		},
 	},
 }
 
-var testContextB = &schedulercontext.SchedulingContext{
+var testContextB = &context.SchedulingContext{
 	Pool: "poolB",
-	QueueSchedulingContexts: map[string]*schedulercontext.QueueSchedulingContext{
+	QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 		"queueA": {
-			SuccessfulJobSchedulingContexts: map[string]*schedulercontext.JobSchedulingContext{},
-			UnsuccessfulJobSchedulingContexts: map[string]*schedulercontext.JobSchedulingContext{
+			SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{},
+			UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 				"testJob1": jobContextA,
 				"testJob2": jobContextB,
 			},
@@ -45,19 +45,19 @@ var testContextB = &schedulercontext.SchedulingContext{
 
 func TestJobSchedulingContext(t *testing.T) {
 	tests := map[string]struct {
-		inputContexts    []*schedulercontext.SchedulingContext
+		inputContexts    []*context.SchedulingContext
 		jobId            string
-		expectedContexts []CtxPoolPair[*schedulercontext.JobSchedulingContext]
+		expectedContexts []CtxPoolPair[*context.JobSchedulingContext]
 	}{
 		"No contexts": {
-			inputContexts:    []*schedulercontext.SchedulingContext{},
+			inputContexts:    []*context.SchedulingContext{},
 			jobId:            "testJob1",
-			expectedContexts: []CtxPoolPair[*schedulercontext.JobSchedulingContext]{},
+			expectedContexts: []CtxPoolPair[*context.JobSchedulingContext]{},
 		},
 		"Job present in all pools": {
-			inputContexts: []*schedulercontext.SchedulingContext{testContextA, testContextB},
+			inputContexts: []*context.SchedulingContext{testContextA, testContextB},
 			jobId:         "testJob1",
-			expectedContexts: []CtxPoolPair[*schedulercontext.JobSchedulingContext]{
+			expectedContexts: []CtxPoolPair[*context.JobSchedulingContext]{
 				{
 					pool:          "poolA",
 					schedulingCtx: jobContextA,
@@ -69,9 +69,9 @@ func TestJobSchedulingContext(t *testing.T) {
 			},
 		},
 		"Job present in one pool": {
-			inputContexts: []*schedulercontext.SchedulingContext{testContextA, testContextB},
+			inputContexts: []*context.SchedulingContext{testContextA, testContextB},
 			jobId:         "testJob2",
-			expectedContexts: []CtxPoolPair[*schedulercontext.JobSchedulingContext]{
+			expectedContexts: []CtxPoolPair[*context.JobSchedulingContext]{
 				{
 					pool: "poolA",
 				},
@@ -82,9 +82,9 @@ func TestJobSchedulingContext(t *testing.T) {
 			},
 		},
 		"Job missing": {
-			inputContexts: []*schedulercontext.SchedulingContext{testContextA, testContextB},
+			inputContexts: []*context.SchedulingContext{testContextA, testContextB},
 			jobId:         "testJob3",
-			expectedContexts: []CtxPoolPair[*schedulercontext.JobSchedulingContext]{
+			expectedContexts: []CtxPoolPair[*context.JobSchedulingContext]{
 				{
 					pool: "poolA",
 				},
@@ -107,19 +107,19 @@ func TestJobSchedulingContext(t *testing.T) {
 
 func TestQueueSchedulingContext(t *testing.T) {
 	tests := map[string]struct {
-		inputContexts    []*schedulercontext.SchedulingContext
+		inputContexts    []*context.SchedulingContext
 		queueId          string
-		expectedContexts []CtxPoolPair[*schedulercontext.QueueSchedulingContext]
+		expectedContexts []CtxPoolPair[*context.QueueSchedulingContext]
 	}{
 		"No contexts": {
-			inputContexts:    []*schedulercontext.SchedulingContext{},
+			inputContexts:    []*context.SchedulingContext{},
 			queueId:          "testJob1",
-			expectedContexts: []CtxPoolPair[*schedulercontext.QueueSchedulingContext]{},
+			expectedContexts: []CtxPoolPair[*context.QueueSchedulingContext]{},
 		},
 		"Queue present in all pools": {
-			inputContexts: []*schedulercontext.SchedulingContext{testContextA, testContextB},
+			inputContexts: []*context.SchedulingContext{testContextA, testContextB},
 			queueId:       "queueA",
-			expectedContexts: []CtxPoolPair[*schedulercontext.QueueSchedulingContext]{
+			expectedContexts: []CtxPoolPair[*context.QueueSchedulingContext]{
 				{
 					pool:          "poolA",
 					schedulingCtx: testContextA.QueueSchedulingContexts["queueA"],
@@ -131,9 +131,9 @@ func TestQueueSchedulingContext(t *testing.T) {
 			},
 		},
 		"Queue missing": {
-			inputContexts: []*schedulercontext.SchedulingContext{testContextA, testContextB},
+			inputContexts: []*context.SchedulingContext{testContextA, testContextB},
 			queueId:       "queueC",
-			expectedContexts: []CtxPoolPair[*schedulercontext.QueueSchedulingContext]{
+			expectedContexts: []CtxPoolPair[*context.QueueSchedulingContext]{
 				{
 					pool: "poolA",
 				},
@@ -156,16 +156,16 @@ func TestQueueSchedulingContext(t *testing.T) {
 
 func TestRoundSchedulingContext(t *testing.T) {
 	tests := map[string]struct {
-		inputContexts    []*schedulercontext.SchedulingContext
-		expectedContexts []CtxPoolPair[*schedulercontext.SchedulingContext]
+		inputContexts    []*context.SchedulingContext
+		expectedContexts []CtxPoolPair[*context.SchedulingContext]
 	}{
 		"No contexts": {
-			inputContexts:    []*schedulercontext.SchedulingContext{},
-			expectedContexts: []CtxPoolPair[*schedulercontext.SchedulingContext]{},
+			inputContexts:    []*context.SchedulingContext{},
+			expectedContexts: []CtxPoolPair[*context.SchedulingContext]{},
 		},
 		"Contexts": {
-			inputContexts: []*schedulercontext.SchedulingContext{testContextA, testContextB},
-			expectedContexts: []CtxPoolPair[*schedulercontext.SchedulingContext]{
+			inputContexts: []*context.SchedulingContext{testContextA, testContextB},
+			expectedContexts: []CtxPoolPair[*context.SchedulingContext]{
 				{
 					pool:          "poolA",
 					schedulingCtx: testContextA,

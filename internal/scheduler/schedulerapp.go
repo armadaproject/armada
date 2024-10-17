@@ -42,6 +42,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -73,7 +74,10 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Resource list factory
 	// ////////////////////////////////////////////////////////////////////////
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(
+		config.Scheduling.SupportedResourceTypes,
+		config.Scheduling.ExperimentalFloatingResources,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
@@ -176,6 +180,15 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
+
+	authorizer := auth.NewAuthorizer(
+		auth.NewPrincipalPermissionChecker(
+			config.Auth.PermissionGroupMapping,
+			config.Auth.PermissionScopeMapping,
+			config.Auth.PermissionClaimMapping,
+		),
+	)
+
 	executorServer, err := NewExecutorApi(
 		apiPublisher,
 		jobRepository,
@@ -185,6 +198,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
+		authorizer,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
@@ -211,24 +225,17 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
 
-	var submitChecker SubmitScheduleChecker
-	if !config.DisableSubmitCheck {
-		submitCheckerImpl := NewSubmitChecker(
-			config.Scheduling,
-			executorRepository,
-			resourceListFactory,
-		)
-		services = append(services, func() error {
-			return submitCheckerImpl.Run(ctx)
-		})
-		submitChecker = submitCheckerImpl
-	} else {
-		ctx.Infof("DisableSubmitCheckis true, will use a dummy submit check")
-		submitChecker = &DummySubmitChecker{}
-	}
+	submitChecker := NewSubmitChecker(
+		config.Scheduling,
+		executorRepository,
+		resourceListFactory,
+	)
+	services = append(services, func() error {
+		return submitChecker.Run(ctx)
+	})
 
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
-	schedulingAlgo, err := NewFairSchedulingAlgo(
+	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
 		executorRepository,
@@ -245,13 +252,10 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
-		floatingResourceTypes,
 	)
-	schedulingRoundMetrics := NewSchedulerMetrics(config.Metrics.Metrics)
-	if err := prometheus.Register(schedulingRoundMetrics); err != nil {
-		return errors.WithStack(err)
-	}
-	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
+
+	schedulerMetrics, err := metrics.New(
+		config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames, config.Metrics.JobStateMetricsResetInterval)
 	if err != nil {
 		return err
 	}
@@ -272,7 +276,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.NodeIdLabel,
-		schedulingRoundMetrics,
 		schedulerMetrics,
 	)
 	if err != nil {
@@ -286,12 +289,11 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner := NewPoolAssigner(executorRepository)
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,
 		executorRepository,
-		poolAssigner,
+		config.Scheduling.Pools,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
 	)
@@ -340,7 +342,7 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 
 func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
-	if err == rest.ErrNotInCluster {
+	if errors.Is(err, rest.ErrNotInCluster) {
 		ctx.Info("Running with default client configuration")
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}

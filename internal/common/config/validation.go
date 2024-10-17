@@ -1,25 +1,30 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
-	log "github.com/sirupsen/logrus"
 )
 
-func LogValidationErrors(err error) {
-	if err != nil {
-		for _, err := range err.(validator.ValidationErrors) {
-			fieldName := stripPrefix(err.Namespace())
-			tag := err.Tag()
-			switch tag {
-			case "required":
-				log.Errorf("ConfigError: Field %s is required but was not found", fieldName)
-			default:
-				log.Errorf("ConfigError: Field %s has invalid value %s: %s", fieldName, err.Value(), tag)
-			}
+type Config interface {
+	Validate() error
+}
+
+func FormatValidationErrors(err error) error {
+	var validationErrors error
+	for _, err := range err.(validator.ValidationErrors) {
+		fieldName := stripPrefix(err.Namespace())
+		tag := err.Tag()
+		switch tag {
+		case "required":
+			validationErrors = errors.Join(validationErrors, fmt.Errorf("ConfigError: Field %s is required but was not found", fieldName))
+		default:
+			validationErrors = errors.Join(validationErrors, fmt.Errorf("ConfigError: Field %s has invalid value %s: %s", fieldName, err.Value(), tag))
 		}
 	}
+	return validationErrors
 }
 
 func stripPrefix(s string) string {

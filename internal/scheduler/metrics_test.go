@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -35,7 +36,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	// Run that has been returned
 	runStartTime := testfixtures.BaseTime.Add(-time.Duration(400) * time.Second).UnixNano()
 	runTerminatedTime := testfixtures.BaseTime.Add(-time.Duration(200) * time.Second)
-	run := jobdb.MinimalRun(uuid.New(), runStartTime)
+	run := jobdb.MinimalRun(uuid.New().String(), runStartTime)
 	run = run.WithFailed(true)
 	run = run.WithReturned(true)
 	run = run.WithTerminatedTime(&runTerminatedTime)
@@ -47,16 +48,13 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	queue.Labels = map[string]string{"foo": "bar"}
 
 	tests := map[string]struct {
-		initialJobs  []*jobdb.Job
-		defaultPool  string
-		poolMappings map[string][]string
-		queues       []*api.Queue
-		expected     []prometheus.Metric
+		initialJobs []*jobdb.Job
+		queues      []*api.Queue
+		expected    []prometheus.Metric
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
 			queues:      []*api.Queue{queue},
-			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
@@ -85,7 +83,6 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			// The queue duration stats should count from the time the last run finished instead of job creation time
 			initialJobs: []*jobdb.Job{jobWithTerminatedRun},
 			queues:      []*api.Queue{queue},
-			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
@@ -110,7 +107,6 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		"running metrics": {
 			initialJobs: runningJobs,
 			queues:      []*api.Queue{queue},
-			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(0.0, testfixtures.TestQueue),
@@ -145,7 +141,6 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).Times(1)
-			poolAssigner := &MockPoolAssigner{tc.defaultPool, tc.poolMappings}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
@@ -154,7 +149,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				jobDb,
 				queueCache,
 				executorRepository,
-				poolAssigner,
+				testfixtures.TestSchedulingConfig().Pools,
 				2*time.Second,
 				testfixtures.TestEmptyFloatingResources,
 			)
@@ -190,14 +185,21 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 	job1 := testfixtures.TestRunningJobDbJob(0)
 	job2 := testfixtures.TestRunningJobDbJob(0)
 	nodeWithJobs := createNode("type-1")
-	nodeWithJobs.StateByJobRunId[job1.LatestRun().Id().String()] = schedulerobjects.JobRunState_PENDING
-	nodeWithJobs.StateByJobRunId[job2.LatestRun().Id().String()] = schedulerobjects.JobRunState_RUNNING
-	nodeWithJobs.ResourceUsageByQueue[testfixtures.TestQueue] = &schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("1Gi"),
+	nodeWithJobs.StateByJobRunId[job1.LatestRun().Id()] = schedulerobjects.JobRunState_PENDING
+	nodeWithJobs.StateByJobRunId[job2.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
+	nodeWithJobs.ResourceUsageByQueueAndPool = []*schedulerobjects.PoolQueueResource{
+		{
+			Pool:  testfixtures.TestPool,
+			Queue: testfixtures.TestQueue,
+			Resources: &schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("1Gi"),
+				},
+			},
 		},
 	}
+
 	executorWithJobs := createExecutor("cluster-1", nodeWithJobs)
 
 	tests := map[string]struct {
@@ -306,7 +308,6 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 			queueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
-			poolAssigner := &MockPoolAssigner{testfixtures.TestPool, map[string][]string{}}
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(tc.executors, nil)
@@ -319,9 +320,106 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				jobDb,
 				queueCache,
 				executorRepository,
-				poolAssigner,
+				testfixtures.TestSchedulingConfig().Pools,
 				2*time.Second,
 				tc.floatingResourceTypes,
+			)
+			collector.clock = testClock
+			err = collector.refresh(ctx)
+			require.NoError(t, err)
+			metricChan := make(chan prometheus.Metric, 1000) // large buffer so we don't block
+			collector.Collect(metricChan)
+			close(metricChan)
+			actual := make([]prometheus.Metric, 0)
+			for m := range metricChan {
+				println(m.Desc().String())
+				actual = append(actual, m)
+			}
+			require.NoError(t, err)
+			require.Equal(t, len(tc.expected), len(actual))
+			for i := 0; i < len(tc.expected); i++ {
+				a1 := actual[i]
+				// As resources are a map, the ordering isn't deterministic, so we have to use compare
+				// Alternatively if we can work out how to sort prometheus.Metric we could do that instead
+				assert.Contains(t, tc.expected, a1)
+			}
+		})
+	}
+}
+
+func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing.T) {
+	node := createNode("type-1")
+	job := testfixtures.TestRunningJobDbJob(0)
+	node.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
+
+	tests := map[string]struct {
+		poolConfig  []configuration.PoolConfig
+		runningJobs []*jobdb.Job
+		nodes       []*schedulerobjects.Node
+		expected    []prometheus.Metric
+	}{
+		"No away pools": {
+			poolConfig: []configuration.PoolConfig{
+				{Name: testfixtures.TestPool},
+			},
+			runningJobs: []*jobdb.Job{job},
+			nodes:       []*schedulerobjects.Node{node},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+			},
+		},
+		"Away pools": {
+			poolConfig: []configuration.PoolConfig{
+				{
+					Name: testfixtures.TestPool,
+				},
+				{
+					Name:      testfixtures.TestPool2,
+					AwayPools: []string{testfixtures.TestPool},
+				},
+			},
+			runningJobs: []*jobdb.Job{job},
+			nodes:       []*schedulerobjects.Node{node},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1"),
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			testClock := clock.NewFakeClock(testfixtures.BaseTime)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			// set up job db with initial jobs
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+			txn := jobDb.WriteTxn()
+			err := txn.Upsert(tc.runningJobs)
+			require.NoError(t, err)
+			txn.Commit()
+
+			queueCache := schedulermocks.NewMockQueueCache(ctrl)
+			queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
+
+			executors := []*schedulerobjects.Executor{
+				createExecutor("cluster-1", tc.nodes...),
+			}
+
+			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			executorRepository.EXPECT().GetExecutors(ctx).Return(executors, nil)
+
+			collector := NewMetricsCollector(
+				jobDb,
+				queueCache,
+				executorRepository,
+				tc.poolConfig,
+				2*time.Second,
+				testfixtures.TestEmptyFloatingResources,
 			)
 			collector.clock = testClock
 			err = collector.refresh(ctx)
@@ -334,12 +432,10 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				actual = append(actual, m)
 			}
 			require.NoError(t, err)
-			require.Equal(t, len(actual), len(tc.expected))
 			for i := 0; i < len(tc.expected); i++ {
-				a1 := actual[i]
 				// As resources are a map, the ordering isn't deterministic, so we have to use compare
 				// Alternatively if we can work out how to sort prometheus.Metric we could do that instead
-				assert.Contains(t, tc.expected, a1)
+				assert.Contains(t, actual, tc.expected[i])
 			}
 		})
 	}
@@ -357,23 +453,6 @@ func createNode(nodeType string) *schedulerobjects.Node {
 	node := testfixtures.Test32CpuNode([]int32{})
 	node.ReportingNodeType = nodeType
 	node.StateByJobRunId = map[string]schedulerobjects.JobRunState{}
-	node.ResourceUsageByQueue = map[string]*schedulerobjects.ResourceList{}
+	node.ResourceUsageByQueueAndPool = []*schedulerobjects.PoolQueueResource{}
 	return node
-}
-
-type MockPoolAssigner struct {
-	defaultPool string
-	poolsById   map[string][]string
-}
-
-func (m MockPoolAssigner) Refresh(_ *armadacontext.Context) error {
-	return nil
-}
-
-func (m MockPoolAssigner) AssignPools(j *jobdb.Job) ([]string, error) {
-	pools, ok := m.poolsById[j.Id()]
-	if !ok {
-		return []string{m.defaultPool}, nil
-	}
-	return pools, nil
 }

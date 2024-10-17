@@ -7,9 +7,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -386,8 +386,8 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				tc.priority,
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
-					PodRequirements:      tc.req,
-					ResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.req.ResourceRequirements.Requests).Resources),
+					PodRequirements:                tc.req,
+					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.req.ResourceRequirements.Requests).Resources),
 				},
 			)
 			assert.NoError(t, err)
@@ -406,8 +406,8 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 	tests := map[string]struct {
 		Taints        []v1.Taint
 		Labels        map[string]string
-		IndexedTaints map[string]interface{}
-		IndexedLabels map[string]interface{}
+		IndexedTaints map[string]bool
+		IndexedLabels map[string]bool
 		Req           *schedulerobjects.PodRequirements
 		ExpectSuccess bool
 	}{
@@ -446,14 +446,14 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"untolerated non-indexed taint": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        nil,
-			IndexedTaints: make(map[string]interface{}),
+			IndexedTaints: make(map[string]bool),
 			Req:           &schedulerobjects.PodRequirements{},
 			ExpectSuccess: true,
 		},
 		"matched node selector": {
 			Taints:        nil,
 			Labels:        map[string]string{"bar": "bar"},
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -462,7 +462,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"unset indexed label": {
 			Taints:        nil,
 			Labels:        nil,
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
@@ -472,7 +472,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"different label value": {
 			Taints:        nil,
 			Labels:        map[string]string{"bar": "baz"},
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -489,7 +489,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"tolerated taints and matched node selector": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        map[string]string{"bar": "bar"},
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
@@ -499,7 +499,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"untolerated taints and matched node selector": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        map[string]string{"bar": "bar"},
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -508,7 +508,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"tolerated taints and different label value": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        map[string]string{"bar": "baz"},
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
@@ -518,7 +518,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"tolerated taints and missing label": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        nil,
-			IndexedLabels: map[string]interface{}{"bar": ""},
+			IndexedLabels: map[string]bool{"bar": true},
 			Req: &schedulerobjects.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
@@ -537,8 +537,8 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			// TODO(albin): Define a jctx in the test case instead.
 			matches, reason := NodeTypeJobRequirementsMet(nodeType,
 				&schedulercontext.JobSchedulingContext{
-					PodRequirements:      tc.Req,
-					ResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.Req.ResourceRequirements.Requests).Resources),
+					PodRequirements:                tc.Req,
+					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.Req.ResourceRequirements.Requests).Resources),
 				},
 			)
 			if tc.ExpectSuccess {
@@ -650,7 +650,11 @@ func TestResourceRequirementsMet(t *testing.T) {
 func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		"id",
-		1,
+		internaltypes.NewNodeType(taints,
+			labels,
+			map[string]bool{},
+			map[string]bool{},
+		),
 		1,
 		"executor",
 		"name",
@@ -669,7 +673,11 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 func makeTestNodeResources(t *testing.T, allocatableByPriority map[int32]internaltypes.ResourceList, totalResources internaltypes.ResourceList) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		"id",
-		1,
+		internaltypes.NewNodeType([]v1.Taint{},
+			map[string]string{},
+			map[string]bool{},
+			map[string]bool{},
+		),
 		1,
 		"executor",
 		"name",
