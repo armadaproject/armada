@@ -1,29 +1,23 @@
-package scheduler
+package scheduling
 
 import (
 	"fmt"
+	"strings"
 
-	"golang.org/x/exp/maps"
-
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
-
-func PopulatePreemptionDescriptions(preemptedJobs []*schedulercontext.JobSchedulingContext, scheduledJobs []*schedulercontext.JobSchedulingContext) {
-	jobsScheduledWithUrgencyBasedPreemptionByNode := map[string][]*schedulercontext.JobSchedulingContext{}
+func PopulatePreemptionDescriptions(preemptedJobs []*context.JobSchedulingContext, scheduledJobs []*context.JobSchedulingContext) {
+	jobsScheduledWithUrgencyBasedPreemptionByNode := map[string][]*context.JobSchedulingContext{}
 	for _, schedJob := range scheduledJobs {
-		if schedJob.PodSchedulingContext.SchedulingMethod != schedulercontext.ScheduledWithUrgencyBasedPreemption {
+		if schedJob.PodSchedulingContext.SchedulingMethod != context.ScheduledWithUrgencyBasedPreemption {
 			continue
 		}
 
 		nodeId := schedJob.PodSchedulingContext.NodeId
 		if _, ok := jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId]; !ok {
-			jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId] = []*schedulercontext.JobSchedulingContext{}
+			jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId] = []*context.JobSchedulingContext{}
 		}
 		jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId] = append(jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId], schedJob)
 	}
@@ -36,7 +30,7 @@ func PopulatePreemptionDescriptions(preemptedJobs []*schedulercontext.JobSchedul
 			} else if len(potentialPreemptingJobs) == 1 {
 				job.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using urgency preemption - preempting job %s", potentialPreemptingJobs[0].JobId)
 			} else {
-				jobIds := armadaslices.Map(potentialPreemptingJobs, func(job *schedulercontext.JobSchedulingContext) string {
+				jobIds := armadaslices.Map(potentialPreemptingJobs, func(job *context.JobSchedulingContext) string {
 					return job.JobId
 				})
 				job.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using urgency preemption - preemption caused by one of the following jobs %s", strings.Join(jobIds, ","))
