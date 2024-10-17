@@ -77,6 +77,7 @@ type JobRow struct {
 	LatestRunId               *string
 	CancelReason              *string
 	Annotations               map[string]string
+	ExternalJobUri            string
 }
 
 type JobSpecRow struct {
@@ -156,6 +157,7 @@ var expectedJobAfterSubmit = JobRow{
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
 	Annotations:               annotations,
+	ExternalJobUri:            "external-job-uri",
 }
 
 var expectedJobAfterUpdate = JobRow{
@@ -176,6 +178,7 @@ var expectedJobAfterUpdate = JobRow{
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
 	Annotations:               annotations,
+	ExternalJobUri:            "external-job-uri",
 }
 
 var expectedJobRun = JobRunRow{
@@ -927,6 +930,7 @@ func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {
 		JobProto:                  []byte(jobProto),
 		PriorityClass:             pointer.String(priorityClass),
 		Annotations:               annotations,
+		ExternalJobUri:            "external-job-uri",
 	}
 }
 
@@ -964,7 +968,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 			priority_class,
 			latest_run_id,
 			cancel_reason,
-			annotations
+			annotations,
+			external_job_uri
 		FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
@@ -988,6 +993,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.LatestRunId,
 		&job.CancelReason,
 		&job.Annotations,
+		&job.ExternalJobUri,
 	)
 	assert.Nil(t, err)
 	return job

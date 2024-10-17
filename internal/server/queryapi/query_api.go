@@ -138,6 +138,31 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 	}, err
 }
 
+func (q *QueryApi) GetJobErrors(ctx context.Context, req *api.JobErrorsRequest) (*api.JobErrorsResponse, error) {
+	if len(req.JobIds) > q.maxQueryItems {
+		return nil, fmt.Errorf("request contained more than %d JobIds", q.maxQueryItems)
+	}
+
+	queries := database.New(q.db)
+	queryResult, err := queries.GetJobErrorsByJobIds(ctx, req.JobIds)
+	if err != nil {
+		return nil, err
+	}
+
+	decompressor := q.decompressorFactory()
+	errorsById := make(map[string]string, len(queryResult))
+	for _, row := range queryResult {
+		decompressed, err := decompressor.Decompress(row.Error)
+		if err != nil {
+			return nil, err
+		}
+		errorsById[row.JobID] = string(decompressed)
+	}
+	return &api.JobErrorsResponse{
+		JobErrors: errorsById,
+	}, nil
+}
+
 func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsRequest) (*api.JobRunDetailsResponse, error) {
 	if len(req.RunIds) > q.maxQueryItems {
 		return nil, fmt.Errorf("request contained more than %d RunIds", q.maxQueryItems)
@@ -176,11 +201,7 @@ func (q *QueryApi) GetJobStatus(ctx context.Context, req *api.JobStatusRequest) 
 	for _, jobId := range req.JobIds {
 		dbStatus, ok := dbStatusById[jobId]
 		if ok {
-			apiStatus, ok := JobStateMap[dbStatus]
-			if !ok {
-				apiStatus = api.JobState_UNKNOWN // We know about this job but we can't map its state
-			}
-			apiStatusById[jobId] = apiStatus
+			apiStatusById[jobId] = parseDbJobStateToApi(dbStatus)
 		} else {
 			apiStatusById[jobId] = api.JobState_UNKNOWN // We don't know about this job
 		}
@@ -189,6 +210,39 @@ func (q *QueryApi) GetJobStatus(ctx context.Context, req *api.JobStatusRequest) 
 	return &api.JobStatusResponse{
 		JobStates: apiStatusById,
 	}, nil
+}
+
+func (q *QueryApi) GetJobStatusUsingExternalJobUri(ctx context.Context, req *api.JobStatusUsingExternalJobUriRequest) (*api.JobStatusResponse, error) {
+	if req.ExternalJobUri == "" {
+		return nil, fmt.Errorf("request must contain external job uri")
+	}
+
+	queries := database.New(q.db)
+	queryResult, err := queries.GetJobStatesUsingExternalSystemUri(ctx, database.GetJobStatesUsingExternalSystemUriParams{
+		Queue:          req.Queue,
+		Jobset:         req.Jobset,
+		ExternalJobUri: req.ExternalJobUri,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	apiStatusById := make(map[string]api.JobState, len(queryResult))
+	for _, dbRow := range queryResult {
+		apiStatusById[dbRow.JobID] = parseDbJobStateToApi(dbRow.State)
+	}
+
+	return &api.JobStatusResponse{
+		JobStates: apiStatusById,
+	}, nil
+}
+
+func parseDbJobStateToApi(dbStatus int16) api.JobState {
+	apiStatus, ok := JobStateMap[dbStatus]
+	if !ok {
+		apiStatus = api.JobState_UNKNOWN // We know about this job but we can't map its state
+	}
+	return apiStatus
 }
 
 func parseJobDetails(row database.JobRun) *api.JobRunDetails {
