@@ -13,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 // Standard Set of events for common tests
@@ -22,6 +23,8 @@ const (
 	PartitionMarkerGroupId     = "223e4567-e89b-12d3-a456-426614174000"
 	JobsetName                 = "testJobset"
 	ExecutorId                 = "testCluster"
+	ExecutorId2                = "testCluster2"
+	ExecutorId3                = "testCluster3"
 	NodeName                   = "testNode"
 	Pool                       = "Pool"
 	PodName                    = "test-pod"
@@ -37,6 +40,8 @@ const (
 	LeaseReturnedMsg           = "lease returned error message"
 	UnschedulableMsg           = "test pod is unschedulable"
 	PartitionMarkerPartitionId = 456
+
+	ExecutorCordonReason = "bad executor"
 )
 
 var (
@@ -479,6 +484,34 @@ var JobSucceeded = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobSucceeded{
 		JobSucceeded: &armadaevents.JobSucceeded{
 			JobId: JobId,
+		},
+	},
+}
+
+var UpsertExecutorSettingsCordon = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_ExecutorSettingsUpsert{
+		ExecutorSettingsUpsert: &controlplaneevents.ExecutorSettingsUpsert{
+			Name:         ExecutorId,
+			Cordoned:     true,
+			CordonReason: ExecutorCordonReason,
+		},
+	},
+}
+
+var UpsertExecutorSettingsUncordon = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_ExecutorSettingsUpsert{
+		ExecutorSettingsUpsert: &controlplaneevents.ExecutorSettingsUpsert{
+			Name:         ExecutorId,
+			Cordoned:     false,
+			CordonReason: "",
+		},
+	},
+}
+
+var DeleteExecutorSettings = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_ExecutorSettingsDelete{
+		ExecutorSettingsDelete: &controlplaneevents.ExecutorSettingsDelete{
+			Name: ExecutorId,
 		},
 	},
 }

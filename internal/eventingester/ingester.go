@@ -13,11 +13,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/convert"
 	"github.com/armadaproject/armada/internal/eventingester/metrics"
+	"github.com/armadaproject/armada/internal/eventingester/model"
 	"github.com/armadaproject/armada/internal/eventingester/store"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
@@ -59,12 +62,17 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 	converter := convert.NewEventConverter(compressor, uint(config.MaxOutputMessageSizeBytes), metrics)
 
-	ingester := ingest.NewIngestionPipeline(
+	ingester := ingest.NewIngestionPipeline[*model.BatchUpdate, *armadaevents.EventSequence](
 		config.Pulsar,
+		config.Pulsar.JobsetEventsTopic,
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,
 		pulsar.Failover,
+		jobsetevents.EventCounter,
+		jobsetevents.MessageUnmarshaller,
+		jobsetevents.BatchMerger,
+		jobsetevents.BatchMetricPublisher,
 		converter,
 		eventDb,
 		config.MetricsPort,

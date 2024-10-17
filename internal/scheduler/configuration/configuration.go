@@ -234,6 +234,8 @@ type SchedulingConfig struct {
 	// Default priority for pools that are not in the above list
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
+	// TODO: Remove this feature gate
+	EnableExecutorCordoning bool
 }
 
 const (

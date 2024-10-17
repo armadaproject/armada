@@ -22,15 +22,20 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	controlplaneeventspulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/event"
+	"github.com/armadaproject/armada/internal/server/executor"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
@@ -121,24 +126,48 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return err
 	}
 	defer pulsarClient.Close()
-
-	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
-		Name:             fmt.Sprintf("armada-server-%s", serverId),
-		CompressionType:  config.Pulsar.CompressionType,
-		CompressionLevel: config.Pulsar.CompressionLevel,
-		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
+	preProcessor := jobsetevents.NewPreProcessor(config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize)
+	jobSetEventsPublisher, err := pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
+		pulsarClient,
+		pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-server-%s", serverId),
+			CompressionType:  config.Pulsar.CompressionType,
+			CompressionLevel: config.Pulsar.CompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		},
+		preProcessor,
+		jobsetevents.RetrieveKey,
+		config.Pulsar.SendTimeout,
+	)
 	if err != nil {
-		return errors.Wrapf(err, "error creating pulsar producer")
+		return errors.Wrapf(err, "error creating pulsar producer for jobset events")
 	}
-	defer publisher.Close()
+	defer jobSetEventsPublisher.Close()
+
+	controlPlaneEventsPublisher, err := pulsarutils.NewPulsarPublisher[*controlplaneevents.Event](
+		pulsarClient,
+		pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-server-%s", serverId),
+			CompressionType:  config.Pulsar.CompressionType,
+			CompressionLevel: config.Pulsar.CompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.ControlPlaneEventsTopic,
+		},
+		controlplaneeventspulsarutils.PreProcess[*controlplaneevents.Event],
+		controlplaneeventspulsarutils.RetrieveKey[*controlplaneevents.Event],
+		config.Pulsar.SendTimeout,
+	)
+	if err != nil {
+		return errors.Wrapf(err, "error creating pulsar producer for control plane events")
+	}
+	defer controlPlaneEventsPublisher.Close()
 
 	queueServer := queue.NewServer(queueRepository, authorizer)
 
 	submitServer := submit.NewServer(
 		queueServer,
-		publisher,
+		jobSetEventsPublisher,
 		queueCache,
 		config.Submission,
 		submit.NewDeduplicator(dbPool),
@@ -157,9 +186,12 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		queueCache,
 	)
 
+	executorServer := executor.New(controlPlaneEventsPublisher, authorizer)
+
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
+	api.RegisterExecutorServer(grpcServer, executorServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 	grpc_prometheus.Register(grpcServer)

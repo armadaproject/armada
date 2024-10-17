@@ -17,9 +17,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
+
+const testQueueName = "test"
 
 func TestWriteOps(t *testing.T) {
 	jobIds := make([]string, 10)
@@ -334,6 +337,71 @@ func TestWriteOps(t *testing.T) {
 				},
 			},
 		}},
+		"Upsert Single Executor Setting": {Ops: []DbOperation{
+			UpsertExecutorSettings{
+				"executor-1": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-1",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+			},
+		}},
+		"Upsert Multiple Executor Settings": {Ops: []DbOperation{
+			UpsertExecutorSettings{
+				"executor-1": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-1",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+				"executor-2": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-2",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+				"executor-3": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-3",
+					Cordoned:     false,
+					CordonReason: "",
+				},
+			},
+		}},
+		"Delete Single Executor Setting": {Ops: []DbOperation{
+			DeleteExecutorSettings{
+				"executor-1": &ExecutorSettingsDelete{
+					ExecutorID: "executor-1",
+				},
+			},
+		}},
+		"Delete Multiple Executor Settings": {Ops: []DbOperation{
+			UpsertExecutorSettings{
+				"executor-1": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-1",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+				"executor-2": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-2",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+				"executor-3": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-3",
+					Cordoned:     false,
+					CordonReason: "",
+				},
+			},
+			DeleteExecutorSettings{
+				"executor-1": &ExecutorSettingsDelete{
+					ExecutorID: "executor-1",
+				},
+				"executor-2": &ExecutorSettingsDelete{
+					ExecutorID: "executor-2",
+				},
+				"executor-3": &ExecutorSettingsDelete{
+					ExecutorID: "executor-3",
+				},
+			},
+		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -349,6 +417,88 @@ func TestWriteOps(t *testing.T) {
 				return nil
 			})
 			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestScoping(t *testing.T) {
+	jobIds := make([]string, 10)
+	for i := range jobIds {
+		jobIds[i] = util.NewULID()
+	}
+	executorIds := []string{testfixtures.ExecutorId, testfixtures.ExecutorId2, testfixtures.ExecutorId3}
+	tests := map[string]struct {
+		Ops   []DbOperation
+		Scope int
+		Error bool
+	}{
+		"Single DbOp jobSet scope": {
+			Ops: []DbOperation{
+				InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+			},
+			Scope: JobSetEventsLockKey,
+			Error: false,
+		},
+		"Multiple DbOp jobSet scope": {
+			Ops: []DbOperation{
+				InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                          // 1
+				MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 2
+				InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                                          // 3
+				MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set2"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 3
+				InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                                          // 3
+			},
+			Scope: JobSetEventsLockKey,
+			Error: false,
+		},
+		"Single dBop no scope required": {
+			Ops: []DbOperation{
+				UpsertExecutorSettings{executorIds[0]: &ExecutorSettingsUpsert{
+					ExecutorID:   testfixtures.ExecutorId,
+					Cordoned:     true,
+					CordonReason: testfixtures.ExecutorCordonReason,
+				}},
+			},
+			Scope: InvalidLockKey,
+			Error: true,
+		},
+		"Multiple dBop no scope required": {
+			Ops: []DbOperation{
+				UpsertExecutorSettings{executorIds[0]: &ExecutorSettingsUpsert{
+					ExecutorID:   testfixtures.ExecutorId,
+					Cordoned:     true,
+					CordonReason: testfixtures.ExecutorCordonReason,
+				}},
+				DeleteExecutorSettings{executorIds[0]: &ExecutorSettingsDelete{
+					ExecutorID: testfixtures.ExecutorId,
+				}},
+			},
+			Scope: InvalidLockKey,
+			Error: true,
+		},
+		// We shouldn't see this in practice
+		"Mixed events dBop no scope required": {
+			Ops: []DbOperation{
+				UpsertExecutorSettings{executorIds[0]: &ExecutorSettingsUpsert{
+					ExecutorID:   testfixtures.ExecutorId,
+					Cordoned:     true,
+					CordonReason: testfixtures.ExecutorCordonReason,
+				}},
+				DeleteExecutorSettings{executorIds[0]: &ExecutorSettingsDelete{
+					ExecutorID: testfixtures.ExecutorId,
+				}},
+				InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+			},
+			Scope: JobSetEventsLockKey,
+			Error: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			actualScope, actualErr := getLockKey(tc.Ops)
+
+			assert.Equal(t, tc.Scope, actualScope)
+			assert.Equal(t, tc.Error, actualErr != nil)
 		})
 	}
 }
@@ -784,6 +934,35 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, len(expected), numChanged)
+	case UpsertExecutorSettings:
+		allSettings, err := queries.SelectAllExecutorSettings(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		filtered := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSettings) bool {
+			_, ok := expected[e.ExecutorId]
+			return ok
+		})
+
+		actual := UpsertExecutorSettings{}
+		for _, a := range filtered {
+			actual[a.ExecutorId] = &ExecutorSettingsUpsert{
+				ExecutorID:   a.ExecutorId,
+				Cordoned:     a.Cordoned,
+				CordonReason: a.CordonReason,
+			}
+		}
+		assert.Equal(t, expected, actual)
+	case DeleteExecutorSettings:
+		allSettings, err := queries.SelectAllExecutorSettings(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		filtered := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSettings) bool {
+			_, ok := expected[e.ExecutorId]
+			return ok
+		})
+		assert.Equal(t, 0, len(filtered))
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

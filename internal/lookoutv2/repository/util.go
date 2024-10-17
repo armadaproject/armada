@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -13,12 +14,10 @@ import (
 	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
 
-	"github.com/gogo/protobuf/types"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -616,9 +615,9 @@ func (js *JobSimulator) Build() *JobSimulator {
 		UserId:     js.owner,
 		Events:     js.events,
 	}
-	eventSequenceWithIds := &ingest.EventSequencesWithIds{
-		EventSequences: []*armadaevents.EventSequence{eventSequence},
-		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+	eventSequenceWithIds := &utils.EventsWithIds[*armadaevents.EventSequence]{
+		Events:     []*armadaevents.EventSequence{eventSequence},
+		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 	instructionSet := js.converter.Convert(armadacontext.TODO(), eventSequenceWithIds)
 	err := js.store.Store(armadacontext.TODO(), instructionSet)
