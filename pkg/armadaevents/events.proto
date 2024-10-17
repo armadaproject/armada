@@ -510,6 +510,7 @@ message MaxRunsExceeded {
 }
 
 message JobRunPreemptedError{
+  string reason = 1;
 }
 
 message GangJobUnschedulable{
@@ -525,7 +526,7 @@ message JobRunPreempted{
     reserved 1 to 4;
     string preempted_job_id = 5;
     string preempted_run_id = 6;
-    string cause = 7;
+    string reason = 7;
 }
 
 // Message used internally by Armada to see if messages can be propagated through a pulsar partition

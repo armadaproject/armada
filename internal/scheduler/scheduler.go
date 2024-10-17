@@ -481,13 +481,13 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      jctx.Job.Queue(),
 			JobSetName: jctx.Job.Jobset(),
-			Events:     createEventsForPreemptedJob(jctx.JobId(), armadaevents.ProtoUuidFromUuid(run.Id()), jctx.PreemptionDescription, time),
+			Events:     createEventsForPreemptedJob(jctx.JobId, run.Id(), jctx.PreemptionDescription, time),
 		})
 	}
 	return eventSequences, nil
 }
 
-func createEventsForPreemptedJob(jobId string, runId string, cause string, time time.Time) []*armadaevents.EventSequence_Event {
+func createEventsForPreemptedJob(jobId string, runId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
 	return []*armadaevents.EventSequence_Event{
 		{
 			Created: protoutil.ToTimestamp(time),
@@ -495,7 +495,7 @@ func createEventsForPreemptedJob(jobId string, runId string, cause string, time 
 				JobRunPreempted: &armadaevents.JobRunPreempted{
 					PreemptedRunId: runId,
 					PreemptedJobId: jobId,
-					Cause:             cause,
+					Reason:         reason,
 				},
 			},
 		},
@@ -509,7 +509,9 @@ func createEventsForPreemptedJob(jobId string, runId string, cause string, time 
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_JobRunPreemptedError{
-								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
+									Reason: reason,
+								},
 							},
 						},
 					},
@@ -525,7 +527,9 @@ func createEventsForPreemptedJob(jobId string, runId string, cause string, time 
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_JobRunPreemptedError{
-								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
+									Reason: reason,
+								},
 							},
 						},
 					},

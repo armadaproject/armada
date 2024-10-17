@@ -1312,6 +1312,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },
