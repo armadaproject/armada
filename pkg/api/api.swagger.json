@@ -1312,12 +1312,18 @@
         },
         "queue": {
           "type": "string"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },
     "apiJobPreemptedEvent": {
       "type": "object",
       "properties": {
+        "cause": {
+          "type": "string"
+        },
         "clusterId": {
           "type": "string"
         },
