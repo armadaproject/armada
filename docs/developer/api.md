@@ -66,7 +66,7 @@ For Kerberos authentication API accepts the same authorization metadata for gRPC
 Armada will determine which actions you are able to perform based on your user's permissions.
 These are defined as global or on a per queue basis.
 
-Below is the list of global Armada permissions (defined [here](https://github.com/armadaproject/armada/blob/master/internal/armada/permissions/permissions.go)):
+Below is the list of global Armada permissions (defined [here](https://github.com/armadaproject/armada/blob/master/internal/server/permissions/permissions.go)):
 * `submit_any_jobs`
 * `create_queue`
 * `delete_queue`
