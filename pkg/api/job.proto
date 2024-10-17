@@ -65,8 +65,22 @@ message JobRunDetailsRequest {
   repeated string run_ids = 1;
 }
 
+message JobErrorsRequest {
+  repeated string job_ids = 1;
+}
+
+message JobErrorsResponse{
+  map<string, string> job_errors = 1;
+}
+
 message JobStatusRequest{
   repeated string job_ids = 1;
+}
+
+message JobStatusUsingExternalJobUriRequest {
+  string queue = 1;
+  string jobset = 2;
+  string external_job_uri = 3;
 }
 
 message JobStatusResponse{
@@ -80,13 +94,25 @@ service Jobs {
       body: "*"
     };
   }
-  rpc GetJobDetails (JobDetailsRequest) returns (JobDetailsResponse){
+  rpc GetJobStatusUsingExternalJobUri (JobStatusUsingExternalJobUriRequest) returns (JobStatusResponse) {
+    option (google.api.http) = {
+      post: "/v1/job/statusUsingExternalJobUri"
+      body: "*"
+    };
+  }
+  rpc GetJobDetails (JobDetailsRequest) returns (JobDetailsResponse) {
     option (google.api.http) = {
       post: "/v1/job/details"
       body: "*"
     };
   }
-  rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse){
+  rpc GetJobErrors (JobErrorsRequest) returns (JobErrorsResponse) {
+    option (google.api.http) = {
+      post: "/v1/job/errors"
+      body: "*"
+    };
+  }
+  rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse) {
     option (google.api.http) = {
       post: "/v1/run/details"
       body: "*"

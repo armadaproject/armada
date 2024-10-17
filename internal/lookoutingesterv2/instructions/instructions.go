@@ -165,7 +165,9 @@ func (c *InstructionConverter) handleSubmitJob(
 		priorityClass = &truncatedPriorityClass
 	}
 
-	annotations := extractUserAnnotations(c.userAnnotationPrefix, event.GetObjectMeta().GetAnnotations())
+	annotations := event.GetObjectMeta().GetAnnotations()
+	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, annotations)
+	externalJobUri := util.Truncate(annotations["armadaproject.io/externalJobUri"], maxAnnotationValLen)
 
 	job := model.CreateJobInstruction{
 		JobId:                     event.JobId,
@@ -184,7 +186,8 @@ func (c *InstructionConverter) handleSubmitJob(
 		State:                     lookout.JobQueuedOrdinal,
 		JobProto:                  jobProto,
 		PriorityClass:             priorityClass,
-		Annotations:               annotations,
+		Annotations:               userAnnotations,
+		ExternalJobUri:            externalJobUri,
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 

@@ -184,8 +184,9 @@ func TestConvert(t *testing.T) {
 	}
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = priorityClass
 	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
-		userAnnotationPrefix + "a": "0",
-		"b":                        "1",
+		userAnnotationPrefix + "a":        "0",
+		"b":                               "1",
+		"armadaproject.io/externalJobUri": "external-job-uri",
 	}
 	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobsetName, testfixtures.BaseTime, submit.GetSubmitJob())
 	assert.NoError(t, err)
@@ -209,9 +210,11 @@ func TestConvert(t *testing.T) {
 		JobProto:                  jobProto,
 		PriorityClass:             pointer.String(priorityClass),
 		Annotations: map[string]string{
-			"a": "0",
-			"b": "1",
+			"a":                               "0",
+			"b":                               "1",
+			"armadaproject.io/externalJobUri": "external-job-uri",
 		},
+		ExternalJobUri: "external-job-uri",
 	}
 
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
@@ -481,6 +484,9 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	submit, err := testfixtures.DeepCopy(testfixtures.Submit)
 	assert.NoError(t, err)
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = longString
+	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
+		"armadaproject.io/externalJobUri": longString,
+	}
 
 	leased, err := testfixtures.DeepCopy(testfixtures.Leased)
 	assert.NoError(t, err)
@@ -519,6 +525,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.Len(t, actual.JobsToCreate[0].Owner, 512)
 	assert.Len(t, actual.JobsToCreate[0].JobSet, 1024)
 	assert.Len(t, *actual.JobsToCreate[0].PriorityClass, 63)
+	assert.Len(t, actual.JobsToCreate[0].ExternalJobUri, 1024)
 	assert.Len(t, actual.JobRunsToCreate[0].Cluster, 512)
 	assert.Len(t, *actual.JobRunsToCreate[0].Node, 512)
 	assert.Len(t, *actual.JobRunsToUpdate[1].Node, 512)

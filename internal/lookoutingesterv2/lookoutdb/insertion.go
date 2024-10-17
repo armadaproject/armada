@@ -213,7 +213,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					last_transition_time         timestamp,
 					last_transition_time_seconds bigint,
 					priority_class               varchar(63),
-					annotations                  jsonb
+					annotations                  jsonb,
+				    external_job_uri			 varchar(1024) NULL
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -241,6 +242,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"last_transition_time_seconds",
 					"priority_class",
 					"annotations",
+					"external_job_uri",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -260,6 +262,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].LastTransitionTimeSeconds,
 						instructions[i].PriorityClass,
 						instructions[i].Annotations,
+						instructions[i].ExternalJobUri,
 					}, nil
 				}),
 			)
@@ -286,7 +289,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						last_transition_time,
 						last_transition_time_seconds,
 						priority_class,
-						annotations
+						annotations,
+					    external_job_uri
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
@@ -318,9 +322,10 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			last_transition_time,
 			last_transition_time_seconds,
 			priority_class,
-			annotations
+			annotations,
+            external_job_uri
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -341,6 +346,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.LastTransitionTimeSeconds,
 				i.PriorityClass,
 				i.Annotations,
+				i.ExternalJobUri,
 			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
