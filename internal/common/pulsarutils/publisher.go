@@ -9,67 +9,63 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	psutils "github.com/armadaproject/armada/internal/common/pulsarutils/utils"
 )
 
 // Publisher is an interface to be implemented by structs that handle publishing messages to pulsar
-type Publisher interface {
-	PublishMessages(ctx *armadacontext.Context, events ...*armadaevents.EventSequence) error
+type Publisher[T utils.ArmadaEvent] interface {
+	PublishMessages(ctx *armadacontext.Context, events ...T) error
 	Close()
 }
 
 // PulsarPublisher is the default implementation of Publisher
-type PulsarPublisher struct {
+type PulsarPublisher[T utils.ArmadaEvent] struct {
 	// Used to send messages to pulsar
-	producer pulsar.Producer
-	// Maximum number of Events in each EventSequence
-	maxEventsPerMessage int
-	// Maximum size (in bytes) of produced pulsar messages.
-	// This must be below 4MB which is the pulsar message size limit
-	maxAllowedMessageSize uint
+	producer     pulsar.Producer
+	preProcessor psutils.PreProcessor[T]
+	keyRetriever psutils.KeyRetriever[T]
 	// Timeout after which async messages sends will be considered failed
 	sendTimeout time.Duration
 }
 
-func NewPulsarPublisher(
+func NewPulsarPublisher[T utils.ArmadaEvent](
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
-	maxEventsPerMessage int,
-	maxAllowedMessageSize uint,
+	preProcessor psutils.PreProcessor[T],
+	keyRetriever psutils.KeyRetriever[T],
 	sendTimeout time.Duration,
-) (*PulsarPublisher, error) {
+) (*PulsarPublisher[T], error) {
 	producer, err := pulsarClient.CreateProducer(producerOptions)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return &PulsarPublisher{
-		producer:              producer,
-		maxEventsPerMessage:   maxEventsPerMessage,
-		maxAllowedMessageSize: maxAllowedMessageSize,
-		sendTimeout:           sendTimeout,
+	return &PulsarPublisher[T]{
+		producer:     producer,
+		preProcessor: preProcessor,
+		keyRetriever: keyRetriever,
+		sendTimeout:  sendTimeout,
 	}, nil
 }
 
 // PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
 // single event sequences up to maxMessageBatchSize.
-func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events ...*armadaevents.EventSequence) error {
-	sequences := eventutil.CompactEventSequences(events)
-	sequences = eventutil.LimitSequencesEventMessageCount(sequences, p.maxEventsPerMessage)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxAllowedMessageSize, true)
+func (p *PulsarPublisher[T]) PublishMessages(ctx *armadacontext.Context, events ...T) error {
+	processed, err := p.preProcessor(events)
 	if err != nil {
 		return err
 	}
-	msgs := make([]*pulsar.ProducerMessage, len(sequences))
-	for i, sequence := range sequences {
-		bytes, err := proto.Marshal(sequence)
+	msgs := make([]*pulsar.ProducerMessage, len(processed))
+	for i, sequence := range processed {
+		// Given we know ArmadaEvents only consist of generated proto Messages, all of which implement proto.Message
+		bytes, err := proto.Marshal(any(sequence).(proto.Message))
 		if err != nil {
 			return err
 		}
 		msgs[i] = &pulsar.ProducerMessage{
 			Payload: bytes,
-			Key:     sequences[i].JobSetName,
+			Key:     p.keyRetriever(sequence),
 		}
 	}
 
@@ -99,6 +95,6 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events ...
 	return nil
 }
 
-func (p *PulsarPublisher) Close() {
+func (p *PulsarPublisher[T]) Close() {
 	p.producer.Close()
 }

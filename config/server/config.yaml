@@ -69,6 +69,7 @@ submission:
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
+  controlPlaneEventsTopic: "control-plane"
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster

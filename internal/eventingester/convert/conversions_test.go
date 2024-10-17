@@ -11,7 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -143,15 +143,15 @@ func TestCancelled(t *testing.T) {
 	assert.Equal(t, expectedEvents, es.Events)
 }
 
-func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWithIds {
+func NewMsg(event ...*armadaevents.EventSequence_Event) *utils.EventsWithIds[*armadaevents.EventSequence] {
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,
 		JobSetName: jobset,
 		Events:     event,
 	}
-	return &ingest.EventSequencesWithIds{
-		EventSequences: []*armadaevents.EventSequence{seq},
-		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(rand.Int())},
+	return &utils.EventsWithIds[*armadaevents.EventSequence]{
+		Events:     []*armadaevents.EventSequence{seq},
+		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(rand.Int())},
 	}
 }
 

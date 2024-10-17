@@ -16,6 +16,8 @@ import (
 type ExecutorRepository interface {
 	// GetExecutors returns all known executors, regardless of their last heartbeat time
 	GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error)
+	// GetExecutorSettings returns all defined executor settings
+	GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error)
 	// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
 	GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error)
 	// StoreExecutor persists the latest executor state
@@ -93,6 +95,24 @@ func (r *PostgresExecutorRepository) StoreExecutor(ctx *armadacontext.Context, e
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (r *PostgresExecutorRepository) GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error) {
+	queries := New(r.db)
+	results, err := queries.SelectAllExecutorSettings(ctx)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	executorSettings := make([]*schedulerobjects.ExecutorSettings, len(results))
+	for i, result := range results {
+		settings := &schedulerobjects.ExecutorSettings{
+			ExecutorId:   result.ExecutorId,
+			Cordoned:     result.Cordoned,
+			CordonReason: result.CordonReason,
+		}
+		executorSettings[i] = settings
+	}
+	return executorSettings, nil
 }
 
 func decompressAndMarshall(b []byte, decompressor compress.Decompressor, msg proto.Message) error {

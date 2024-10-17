@@ -80,3 +80,9 @@ type Run struct {
 	Queue                  string     `db:"queue"`
 	Pool                   string     `db:"pool"`
 }
+
+type ExecutorSettings struct {
+	ExecutorId string `db:"executor_id"`
+	Cordoned bool `db:"cordoned"`
+	CordonReason string `db:"cordon_reason"`
+}

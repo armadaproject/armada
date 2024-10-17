@@ -761,3 +761,56 @@ func (q *Queries) UpsertExecutor(ctx context.Context, arg UpsertExecutorParams) 
 	_, err := q.db.Exec(ctx, upsertExecutor, arg.ExecutorID, arg.LastRequest, arg.UpdateTime)
 	return err
 }
+
+const upsertExecutorSettings = `-- name: UpsertExecutorSettings :exec
+INSERT INTO executor_settings (executor_id, cordoned, cordon_reason)
+VALUES($1::text, $2::boolean, $3::text)
+ON CONFLICT (executor_id) DO UPDATE SET (cordoned, cordon_reason) = (excluded.cordoned, excluded.cordon_reason)`
+
+type UpsertExecutorSettingsParams struct {
+	ExecutorID  string    `db:"executor_id"`
+	Cordoned bool    `db:"cordoned"`
+	CordonReason  string `db:"cordon_reason"`
+}
+
+func (q *Queries) UpsertExecutorSettings(ctx context.Context, arg UpsertExecutorSettingsParams) error {
+	_, err := q.db.Exec(ctx, upsertExecutorSettings, arg.ExecutorID, arg.Cordoned, arg.CordonReason)
+	return err
+}
+
+const deleteExecutorSettings = `--name DeleteExecutorSettings :exec
+DELETE FROM executor_settings WHERE executor_id = $1::text
+`
+
+type DeleteExecutorSettingsParams struct {
+	ExecutorID string `db:"executor_id"`
+}
+
+func (q *Queries) DeleteExecutorSettings(ctx context.Context, arg DeleteExecutorSettingsParams) error {
+	_, err := q.db.Exec(ctx, deleteExecutorSettings, arg.ExecutorID)
+	return err
+}
+
+const selectAllExecutorSettings = `-- name: SelectAllExecutorSettings :many
+SELECT executor_id, cordoned, cordon_reason FROM executor_settings
+`
+
+func (q *Queries) SelectAllExecutorSettings(ctx context.Context) ([]ExecutorSettings, error) {
+	rows, err := q.db.Query(ctx, selectAllExecutorSettings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExecutorSettings
+	for rows.Next() {
+		var i ExecutorSettings
+		if err := rows.Scan(&i.ExecutorId, &i.Cordoned, &i.CordonReason); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

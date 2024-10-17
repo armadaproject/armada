@@ -229,6 +229,13 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	// Note that we do this after aggregating allocation across clusters for fair share.
 	healthyExecutors := l.filterStaleExecutors(ctx, executors)
 	healthyExecutors = l.filterLaggingExecutors(ctx, healthyExecutors, jobSchedulingInfo.jobsByExecutorId)
+	if l.schedulingConfig.EnableExecutorCordoning {
+		executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
+		if err != nil {
+			return nil, err
+		}
+		healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
+	}
 	nodes := []*internaltypes.Node{}
 	for _, executor := range healthyExecutors {
 		for _, node := range executor.Nodes {
@@ -629,6 +636,23 @@ func markResourceUnallocatable(allocatableByPriority map[int32]internaltypes.Res
 		newAllocatable := allocatable.Subtract(rl).FloorAtZero()
 		allocatableByPriority[pri] = newAllocatable
 	}
+}
+
+// filterCordonedExecutors returns all executors which aren't marked as cordoned from the provided executorSettings
+func (l *FairSchedulingAlgo) filterCordonedExecutors(ctx *armadacontext.Context, executors []*schedulerobjects.Executor, executorSettings []*schedulerobjects.ExecutorSettings) []*schedulerobjects.Executor {
+	settingsMap := map[string]*schedulerobjects.ExecutorSettings{}
+	for _, es := range executorSettings {
+		settingsMap[es.ExecutorId] = es
+	}
+	notCordoned := func(e *schedulerobjects.Executor) bool {
+		settings, ok := settingsMap[e.Id]
+		cordoned := ok && settings.Cordoned
+		if cordoned {
+			ctx.Infof("Ignoring executor %s as it was cordoned for reason: %s", e.Id, settings.CordonReason)
+		}
+		return !cordoned
+	}
+	return armadaslices.Filter(executors, notCordoned)
 }
 
 // filterStaleExecutors returns all executors which have sent a lease request within the duration given by l.schedulingConfig.ExecutorTimeout.

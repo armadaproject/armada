@@ -10,17 +10,24 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	controlplaneevents_ingest_utils "github.com/armadaproject/armada/internal/common/ingest/controlplaneevents"
+	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 const (
-	jobId         = "01f3j0g1md4qx7z5qb148qnh4r"
-	runId         = "123e4567-e89b-12d3-a456-426614174000"
-	batchSize     = 3
-	batchDuration = 5 * time.Second
+	jobId                   = "01f3j0g1md4qx7z5qb148qnh4r"
+	runId                   = "123e4567-e89b-12d3-a456-426614174000"
+	batchSize               = 3
+	batchDuration           = 5 * time.Second
+	jobSetEventsTopic       = "events"
+	controlPlaneEventsTopic = "control-plane"
 )
 
 var (
@@ -181,24 +188,24 @@ func (s *simpleMessages) GetMessageIDs() []pulsar.MessageID {
 	return messageIds
 }
 
-type simpleConverter struct {
+type simpleEventSequenceConverter struct {
 	t     *testing.T
-	calls []*EventSequencesWithIds
+	calls []*utils.EventsWithIds[*armadaevents.EventSequence]
 }
 
-func newSimpleConverter(t *testing.T) *simpleConverter {
-	return &simpleConverter{
+func newSimpleEventSequenceConverter(t *testing.T) *simpleEventSequenceConverter {
+	return &simpleEventSequenceConverter{
 		t:     t,
-		calls: []*EventSequencesWithIds{},
+		calls: []*utils.EventsWithIds[*armadaevents.EventSequence]{},
 	}
 }
 
-func (s *simpleConverter) Convert(_ *armadacontext.Context, msg *EventSequencesWithIds) *simpleMessages {
+func (s *simpleEventSequenceConverter) Convert(_ *armadacontext.Context, msg *utils.EventsWithIds[*armadaevents.EventSequence]) *simpleMessages {
 	s.t.Helper()
 	s.calls = append(s.calls, msg)
-	assert.Len(s.t, msg.EventSequences, len(msg.MessageIds))
+	assert.Len(s.t, msg.Events, len(msg.MessageIds))
 	var converted []*simpleMessage
-	for i, sequence := range msg.EventSequences {
+	for i, sequence := range msg.Events {
 		converted = append(converted, &simpleMessage{
 			id:   msg.MessageIds[i],
 			size: sequence.Size(),
@@ -206,6 +213,152 @@ func (s *simpleConverter) Convert(_ *armadacontext.Context, msg *EventSequencesW
 	}
 	return &simpleMessages{
 		msgs: converted,
+	}
+}
+
+type simpleControlPlaneEventConverter struct {
+	t     *testing.T
+	calls []*utils.EventsWithIds[*controlplaneevents.Event]
+}
+
+func newSimpleControlPlaneEventConverter(t *testing.T) *simpleControlPlaneEventConverter {
+	return &simpleControlPlaneEventConverter{
+		t:     t,
+		calls: []*utils.EventsWithIds[*controlplaneevents.Event]{},
+	}
+}
+
+func (s *simpleControlPlaneEventConverter) Convert(_ *armadacontext.Context, msg *utils.EventsWithIds[*controlplaneevents.Event]) *simpleMessages {
+	s.t.Helper()
+	s.calls = append(s.calls, msg)
+	assert.Len(s.t, msg.Events, len(msg.MessageIds))
+	var converted []*simpleMessage
+	for i, sequence := range msg.Events {
+		converted = append(converted, &simpleMessage{
+			id:   msg.MessageIds[i],
+			size: sequence.Size(),
+		})
+	}
+	return &simpleMessages{
+		msgs: converted,
+	}
+}
+
+func TestRun_ControlPlaneEvents_HappyPath_SingleMessage(t *testing.T) {
+	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
+	messages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, f.UpsertExecutorSettingsCordon)),
+	}
+	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
+	converter := newSimpleControlPlaneEventConverter(t)
+	sink := newSimpleSink(t)
+
+	pipeline := testControlPlaneEventsPipeline(mockConsumer, converter, sink)
+
+	start := time.Now()
+	err := pipeline.Run(ctx)
+	assert.NoError(t, err)
+	elapsed := time.Since(start)
+	assert.LessOrEqual(t, elapsed, batchDuration*2)
+
+	mockConsumer.assertDidAck(messages)
+	sink.assertDidProcess(messages)
+}
+
+func TestRun_ControlPlaneEvents_HappyPath_MultipleMessages(t *testing.T) {
+	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
+	messages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, f.UpsertExecutorSettingsCordon)),
+		pulsarutils.NewPulsarMessage(2, baseTime.Add(1*time.Second), marshal(t, f.UpsertExecutorSettingsUncordon)),
+		pulsarutils.NewPulsarMessage(3, baseTime.Add(2*time.Second), marshal(t, f.DeleteExecutorSettings)),
+	}
+	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
+	converter := newSimpleControlPlaneEventConverter(t)
+	sink := newSimpleSink(t)
+
+	pipeline := testControlPlaneEventsPipeline(mockConsumer, converter, sink)
+
+	start := time.Now()
+	err := pipeline.Run(ctx)
+	assert.NoError(t, err)
+	elapsed := time.Since(start)
+	assert.LessOrEqual(t, elapsed, batchDuration*2)
+
+	mockConsumer.assertDidAck(messages)
+	sink.assertDidProcess(messages)
+}
+
+func TestRun_ControlPlaneEvents_LimitsProcessingBatchSize(t *testing.T) {
+	tests := map[string]struct {
+		numberOfMessages                 int
+		batchSize                        int
+		expectedNumberOfBatchesProcessed int
+	}{
+		"limits number of events processed per batch": {
+			numberOfMessages:                 5,
+			batchSize:                        2,
+			expectedNumberOfBatchesProcessed: 3,
+		},
+		"limit can be exceeded by one message": {
+			numberOfMessages: 6,
+			batchSize:        5,
+			// Batches should get limited to 2 messages, each containing 4 events
+			expectedNumberOfBatchesProcessed: 2,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
+			messages := []pulsar.Message{}
+			for i := 0; i < tc.numberOfMessages; i++ {
+				messages = append(messages, pulsarutils.NewPulsarMessage(i, baseTime, marshal(t, f.UpsertExecutorSettingsCordon)))
+			}
+			mockConsumer := newMockPulsarConsumer(t, messages, cancel)
+			converter := newSimpleControlPlaneEventConverter(t)
+			sink := newSimpleSink(t)
+
+			pipeline := testControlPlaneEventsPipeline(mockConsumer, converter, sink)
+			// Should limit batches of event sequences based on batch size
+			pipeline.pulsarBatchSize = tc.batchSize
+
+			start := time.Now()
+			err := pipeline.Run(ctx)
+			assert.NoError(t, err)
+			elapsed := time.Since(start)
+			expectedMaximumDuration := time.Duration(tc.expectedNumberOfBatchesProcessed) * batchDuration
+
+			assert.LessOrEqual(t, elapsed, expectedMaximumDuration)
+			mockConsumer.assertDidAck(messages)
+			assert.Len(t, converter.calls, tc.expectedNumberOfBatchesProcessed)
+			for _, call := range converter.calls {
+				eventCount := len(call.Events)
+				// BatchSize can be exceeded by one message
+				assert.True(t, eventCount < tc.batchSize+1)
+			}
+			sink.assertDidProcess(messages)
+		})
+	}
+}
+
+func testControlPlaneEventsPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages, *controlplaneevents.Event], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages, *controlplaneevents.Event] {
+	return &IngestionPipeline[*simpleMessages, *controlplaneevents.Event]{
+		pulsarConfig: commonconfig.PulsarConfig{
+			BackoffTime: time.Second,
+		},
+		pulsarTopic:            controlPlaneEventsTopic,
+		pulsarSubscriptionName: "subscription",
+		pulsarBatchDuration:    batchDuration,
+		pulsarBatchSize:        batchSize,
+		eventCounter:           controlplaneevents_ingest_utils.EventCounter,
+		messageConverter:       controlplaneevents_ingest_utils.MessageUnmarshaller,
+		batchMerger:            controlplaneevents_ingest_utils.BatchMerger,
+		metricPublisher:        controlplaneevents_ingest_utils.BatchMetricPublisher,
+		converter:              converter,
+		sink:                   sink,
+		metricsPort:            8080,
+		metrics:                testMetrics,
+		consumer:               consumer,
 	}
 }
 
@@ -238,16 +391,16 @@ func (s *simpleSink) assertDidProcess(messages []pulsar.Message) {
 	}
 }
 
-func TestRun_HappyPath_SingleMessage(t *testing.T) {
+func TestRun_JobSetEvents_HappyPath_SingleMessage(t *testing.T) {
 	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
 	messages := []pulsar.Message{
 		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
 	}
 	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
-	converter := newSimpleConverter(t)
+	converter := newSimpleEventSequenceConverter(t)
 	sink := newSimpleSink(t)
 
-	pipeline := testPipeline(mockConsumer, converter, sink)
+	pipeline := testJobSetEventsPipeline(mockConsumer, converter, sink)
 
 	start := time.Now()
 	err := pipeline.Run(ctx)
@@ -259,7 +412,7 @@ func TestRun_HappyPath_SingleMessage(t *testing.T) {
 	sink.assertDidProcess(messages)
 }
 
-func TestRun_HappyPath_MultipleMessages(t *testing.T) {
+func TestRun_JobSetEvents_HappyPath_MultipleMessages(t *testing.T) {
 	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
 	messages := []pulsar.Message{
 		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
@@ -267,10 +420,10 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 		pulsarutils.NewPulsarMessage(3, baseTime.Add(2*time.Second), marshal(t, failed)),
 	}
 	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
-	converter := newSimpleConverter(t)
+	converter := newSimpleEventSequenceConverter(t)
 	sink := newSimpleSink(t)
 
-	pipeline := testPipeline(mockConsumer, converter, sink)
+	pipeline := testJobSetEventsPipeline(mockConsumer, converter, sink)
 
 	start := time.Now()
 	err := pipeline.Run(ctx)
@@ -282,7 +435,7 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 	sink.assertDidProcess(messages)
 }
 
-func TestRun_LimitsProcessingBatchSize(t *testing.T) {
+func TestRun_JobSetEvents_LimitsProcessingBatchSize(t *testing.T) {
 	tests := map[string]struct {
 		numberOfEventsPerMessage         int
 		numberOfMessages                 int
@@ -312,10 +465,10 @@ func TestRun_LimitsProcessingBatchSize(t *testing.T) {
 				messages = append(messages, pulsarutils.NewPulsarMessage(i, baseTime, marshal(t, generateEventSequence(tc.numberOfEventsPerMessage))))
 			}
 			mockConsumer := newMockPulsarConsumer(t, messages, cancel)
-			converter := newSimpleConverter(t)
+			converter := newSimpleEventSequenceConverter(t)
 			sink := newSimpleSink(t)
 
-			pipeline := testPipeline(mockConsumer, converter, sink)
+			pipeline := testJobSetEventsPipeline(mockConsumer, converter, sink)
 			// Should limit batches of event sequences based on batch size
 			pipeline.pulsarBatchSize = tc.batchSize
 
@@ -330,7 +483,7 @@ func TestRun_LimitsProcessingBatchSize(t *testing.T) {
 			assert.Len(t, converter.calls, tc.expectedNumberOfBatchesProcessed)
 			for _, call := range converter.calls {
 				eventCount := 0
-				for _, seq := range call.EventSequences {
+				for _, seq := range call.Events {
 					eventCount += len(seq.Events)
 				}
 				// BatchSize can be exceeded by one message, so at most the number of events in a single message
@@ -341,14 +494,19 @@ func TestRun_LimitsProcessingBatchSize(t *testing.T) {
 	}
 }
 
-func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages] {
-	return &IngestionPipeline[*simpleMessages]{
+func testJobSetEventsPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages, *armadaevents.EventSequence], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages, *armadaevents.EventSequence] {
+	return &IngestionPipeline[*simpleMessages, *armadaevents.EventSequence]{
 		pulsarConfig: commonconfig.PulsarConfig{
 			BackoffTime: time.Second,
 		},
+		pulsarTopic:            jobSetEventsTopic,
 		pulsarSubscriptionName: "subscription",
 		pulsarBatchDuration:    batchDuration,
 		pulsarBatchSize:        batchSize,
+		eventCounter:           jobsetevents.EventCounter,
+		messageConverter:       jobsetevents.MessageUnmarshaller,
+		batchMerger:            jobsetevents.BatchMerger,
+		metricPublisher:        jobsetevents.BatchMetricPublisher,
 		converter:              converter,
 		sink:                   sink,
 		metricsPort:            8080,
@@ -378,7 +536,7 @@ func generateEventSequence(numberOfEvents int) *armadaevents.EventSequence {
 	return sequence
 }
 
-func marshal(t *testing.T, es *armadaevents.EventSequence) []byte {
+func marshal(t *testing.T, es proto.Message) []byte {
 	payload, err := proto.Marshal(es)
 	assert.NoError(t, err)
 	return payload
