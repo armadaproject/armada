@@ -25,6 +25,7 @@ type CreateJobInstruction struct {
 	JobProto                  []byte
 	PriorityClass             *string
 	Annotations               map[string]string
+	ExternalJobUri            string
 }
 
 // UpdateJobInstruction is an instruction to update an existing row in the jobs table

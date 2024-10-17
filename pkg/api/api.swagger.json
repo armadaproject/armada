@@ -234,6 +234,38 @@
         }
       }
     },
+    "/v1/job/errors": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobErrors",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobErrorsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobErrorsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job/preempt": {
       "post": {
         "tags": [
@@ -309,6 +341,38 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiJobStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/statusUsingExternalJobUri": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJobStatusUsingExternalJobUri",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobStatusUsingExternalJobUriRequest"
             }
           }
         ],
@@ -1005,6 +1069,28 @@
         }
       }
     },
+    "apiJobErrorsRequest": {
+      "type": "object",
+      "properties": {
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiJobErrorsResponse": {
+      "type": "object",
+      "properties": {
+        "jobErrors": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
@@ -1581,6 +1667,20 @@
           "additionalProperties": {
             "$ref": "#/definitions/apiJobState"
           }
+        }
+      }
+    },
+    "apiJobStatusUsingExternalJobUriRequest": {
+      "type": "object",
+      "properties": {
+        "externalJobUri": {
+          "type": "string"
+        },
+        "jobset": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
         }
       }
     },

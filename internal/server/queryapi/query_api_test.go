@@ -34,15 +34,15 @@ func TestGetJobDetails(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
-	job1 := newJob("job1", lookout.JobQueuedOrdinal)
-	job2 := newJob("job2", lookout.JobRunningOrdinal)
+	job1 := newJob("job1", lookout.JobQueuedOrdinal, "")
+	job2 := newJob("job2", lookout.JobRunningOrdinal, "")
 	job2.LatestRunID = pointer.String("run1")
 
 	testJobs := []database.Job{job1, job2}
 
 	testJobRuns := []database.JobRun{
-		newJobRun("job2", "run1", lookout.JobRunRunningOrdinal, baseTime),
-		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute)),
+		newJobRun("job2", "run1", lookout.JobRunRunningOrdinal, baseTime, ""),
+		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), ""),
 	}
 
 	// setup job db
@@ -138,12 +138,12 @@ func TestGetJobRunDetails(t *testing.T) {
 	defer cancel()
 
 	testJobs := []database.Job{
-		newJob("job1", lookout.JobRunningOrdinal),
+		newJob("job1", lookout.JobRunningOrdinal, ""),
 	}
 
 	testJobRuns := []database.JobRun{
-		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime),
-		newJobRun("job1", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute)),
+		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime, ""),
+		newJobRun("job1", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), ""),
 	}
 
 	// setup job db
@@ -212,9 +212,9 @@ func TestGetJobStatus(t *testing.T) {
 	defer cancel()
 
 	testdata := []database.Job{
-		newJob("leasedJob", lookout.JobLeasedOrdinal),
-		newJob("runningJob", lookout.JobRunningOrdinal),
-		newJob("succeededJob", lookout.JobSucceededOrdinal),
+		newJob("leasedJob", lookout.JobLeasedOrdinal, ""),
+		newJob("runningJob", lookout.JobRunningOrdinal, ""),
+		newJob("succeededJob", lookout.JobSucceededOrdinal, ""),
 	}
 	// setup job db
 	tests := map[string]struct {
@@ -285,7 +285,130 @@ func TestGetJobStatus(t *testing.T) {
 	}
 }
 
-func newJob(jobId string, state int16) database.Job {
+func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+
+	testdata := []database.Job{
+		newJob("runningJob", lookout.JobRunningOrdinal, ""),
+	}
+	// setup job db
+	tests := map[string]struct {
+		externalJobUri   string
+		expectedResponse *api.JobStatusResponse
+	}{
+		"running job": {
+			externalJobUri: "external-job-uri",
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{
+					"runningJob": api.JobState_RUNNING,
+				},
+			},
+		},
+		"no jobs": {
+			externalJobUri: "external-job-uri-2",
+			expectedResponse: &api.JobStatusResponse{
+				JobStates: map[string]api.JobState{},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
+				require.NoError(t, err)
+				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
+				resp, err := queryApi.GetJobStatusUsingExternalJobUri(ctx, &api.JobStatusUsingExternalJobUriRequest{
+					Queue:          "testQueue",
+					Jobset:         "testJobset",
+					ExternalJobUri: tc.externalJobUri,
+				})
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedResponse, resp)
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestGetJobErrors(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+
+	testJobs := []database.Job{
+		newJob("job1", lookout.JobRunningOrdinal, ""),
+		newJob("job2", lookout.JobRunningOrdinal, "run2"),
+		newJob("job3", lookout.JobRunningOrdinal, ""),
+	}
+
+	testJobRuns := []database.JobRun{
+		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime, ""),
+		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), "expected-failure"),
+	}
+
+	testJobErrors := []database.JobError{
+		{
+			Error: []byte("expected-rejection"),
+			JobID: "job3",
+		},
+	}
+
+	// setup job db
+	tests := map[string]struct {
+		request          *api.JobErrorsRequest
+		expectedResponse *api.JobErrorsResponse
+	}{
+		"multiple jobs": {
+			request: &api.JobErrorsRequest{
+				JobIds: []string{"job1", "job2", "job3"},
+			},
+			expectedResponse: &api.JobErrorsResponse{
+				JobErrors: map[string]string{
+					"job1": "",
+					"job2": "expected-failure",
+					"job3": "expected-rejection",
+				},
+			},
+		},
+		"invalid jobs": {
+			request: &api.JobErrorsRequest{
+				JobIds: []string{"not a valid id"},
+			},
+			expectedResponse: &api.JobErrorsResponse{
+				JobErrors: map[string]string{},
+			},
+		},
+		"no jobs": {
+			request: &api.JobErrorsRequest{
+				JobIds: []string{},
+			},
+			expectedResponse: &api.JobErrorsResponse{
+				JobErrors: map[string]string{},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				require.NoError(t, err)
+				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				require.NoError(t, err)
+				err = dbcommon.UpsertWithTransaction(ctx, db, "job_error", testJobErrors)
+				require.NoError(t, err)
+				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
+				resp, err := queryApi.GetJobErrors(ctx, tc.request)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedResponse, resp)
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func newJob(jobId string, state int16, latestRunId string) database.Job {
 	annotations, _ := json.Marshal(map[string]string{})
 	return database.Job{
 		JobID:            jobId,
@@ -311,14 +434,20 @@ func newJob(jobId string, state int16) database.Job {
 		JobSpec:                   []byte{},
 		Duplicate:                 false,
 		PriorityClass:             nil,
-		LatestRunID:               nil,
+		LatestRunID:               pointer.String(latestRunId),
 		CancelReason:              nil,
 		Namespace:                 pointer.String("testNamespace"),
 		Annotations:               annotations,
+		ExternalJobUri:            pointer.String("external-job-uri"),
 	}
 }
 
-func newJobRun(jobId, runId string, state int16, leased time.Time) database.JobRun {
+func newJobRun(jobId, runId string, state int16, leased time.Time, error string) database.JobRun {
+	var errorBytes []byte = nil
+	if error != "" {
+		errorBytes = []byte(error)
+	}
+
 	return database.JobRun{
 		RunID:   runId,
 		JobID:   jobId,
@@ -334,7 +463,7 @@ func newJobRun(jobId, runId string, state int16, leased time.Time) database.JobR
 		},
 		Finished:    pgtype.Timestamp{},
 		JobRunState: state,
-		Error:       nil,
+		Error:       errorBytes,
 		ExitCode:    nil,
 		Leased: pgtype.Timestamp{
 			Time:  leased,
