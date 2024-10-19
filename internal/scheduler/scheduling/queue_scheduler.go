@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"fmt"
 	"math"
-	"reflect"
 	"time"
 
 	"github.com/pkg/errors"
@@ -33,7 +32,6 @@ func NewQueueScheduler(
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
-	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityClassPriority bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
@@ -41,13 +39,13 @@ func NewQueueScheduler(
 			return nil, errors.Errorf("no scheduling context for queue %s", queue)
 		}
 	}
-	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, skipUnsuccessfulSchedulingKeyCheck)
+	gangScheduler, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
 	if err != nil {
 		return nil, err
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.GetMaxQueueLookBack(), true)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(it)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
 	if err != nil {
@@ -216,26 +214,17 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 // Each gang is yielded once its final member is received from the underlying iterator.
 // Jobs without gangIdAnnotation are considered gangs of cardinality 1.
 type QueuedGangIterator struct {
-	schedulingContext  *schedulercontext.SchedulingContext
+	// schedulingContext  *schedulercontext.SchedulingContext
 	queuedJobsIterator JobContextIterator
 	// Groups jctxs by the gang they belong to.
 	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
-	// Maximum number of jobs to look at before giving up.
-	maxLookback uint
-	// If true, do not yield jobs known to be unschedulable.
-	skipKnownUnschedulableJobs bool
-	// Number of jobs we have seen so far.
-	jobsSeen uint
-	next     *schedulercontext.GangSchedulingContext
+	next          *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
+func NewQueuedGangIterator(it JobContextIterator) *QueuedGangIterator {
 	return &QueuedGangIterator{
-		schedulingContext:          sctx,
-		queuedJobsIterator:         it,
-		maxLookback:                maxLookback,
-		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
-		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
+		queuedJobsIterator: it,
+		jctxsByGangId:      make(map[string][]*schedulercontext.JobSchedulingContext),
 	}
 }
 
@@ -256,9 +245,6 @@ func (it *QueuedGangIterator) Clear() error {
 }
 
 func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
-	if it.hitLookbackLimit() {
-		return nil, nil
-	}
 	if it.next != nil {
 		return it.next, nil
 	}
@@ -270,34 +256,10 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		jctx, err := it.queuedJobsIterator.Next()
 		if err != nil {
 			return nil, err
-		} else if jctx == nil || reflect.ValueOf(jctx).IsNil() {
+		} else if jctx == nil {
 			return nil, nil
 		}
 
-		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
-		if !jctx.IsEvicted {
-			it.jobsSeen++
-		}
-		if it.hitLookbackLimit() {
-			return nil, nil
-		}
-
-		// Skip this job if it's known to be unschedulable.
-		if it.skipKnownUnschedulableJobs && len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
-			schedulingKey, ok := jctx.SchedulingKey()
-			if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
-				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
-					// Since jctx would fail to schedule for the same reason as unsuccessfulJctx,
-					// set the unschedulable reason and pctx equal to that of unsuccessfulJctx.
-					jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
-					jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
-					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
-						return nil, err
-					}
-					continue
-				}
-			}
-		}
 		if gangId := jctx.GangInfo.Id; gangId != "" {
 			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)
@@ -315,13 +277,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			return it.next, nil
 		}
 	}
-}
-
-func (it *QueuedGangIterator) hitLookbackLimit() bool {
-	if it.maxLookback == 0 {
-		return false
-	}
-	return it.jobsSeen > it.maxLookback
 }
 
 // CandidateGangIterator determines which gang to try scheduling next across queues.
