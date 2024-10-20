@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -63,7 +62,6 @@ type Sink[T HasPulsarMessageIds] interface {
 // exhausted and a Sink capable of exhausting these objects
 type IngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent] struct {
 	pulsarConfig           commonconfig.PulsarConfig
-	metricsPort            uint16
 	metrics                *commonmetrics.Metrics
 	pulsarTopic            string
 	pulsarSubscriptionName string
@@ -93,13 +91,11 @@ func NewIngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent](
 	metricPublisher BatchMetricPublisher[U],
 	converter InstructionConverter[T, U],
 	sink Sink[T],
-	metricsPort uint16,
 	metrics *commonmetrics.Metrics,
 ) *IngestionPipeline[T, U] {
 	return &IngestionPipeline[T, U]{
 		pulsarConfig:           pulsarConfig,
 		pulsarTopic:            pulsarTopic,
-		metricsPort:            metricsPort,
 		metrics:                metrics,
 		pulsarSubscriptionName: pulsarSubscriptionName,
 		pulsarBatchSize:        pulsarBatchSize,
@@ -116,9 +112,6 @@ func NewIngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent](
 
 // Run will run the ingestion pipeline until the supplied context is shut down
 func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
-	shutdownMetricServer := common.ServeMetrics(i.metricsPort)
-	defer shutdownMetricServer()
-
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -43,6 +44,10 @@ func Run(config Configuration) error {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
+	// Start metric server
+	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	defer shutdownMetricServer()
+
 	jobSetEventsIngester := ingest.NewIngestionPipeline[*DbOperationsWithMessageIds, *armadaevents.EventSequence](
 		config.Pulsar,
 		config.Pulsar.JobsetEventsTopic,
@@ -56,7 +61,6 @@ func Run(config Configuration) error {
 		jobsetevents.BatchMetricPublisher,
 		jobSetEventsConverter,
 		schedulerDb,
-		config.MetricsPort,
 		svcMetrics,
 	)
 
@@ -78,7 +82,6 @@ func Run(config Configuration) error {
 		controlplaneevents_ingest_utils.BatchMetricPublisher,
 		controlPlaneEventsConverter,
 		schedulerDb,
-		config.MetricsPort,
 		svcMetrics,
 	)
 

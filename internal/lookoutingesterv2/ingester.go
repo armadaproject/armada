@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -55,6 +56,10 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
+	// Start metric server
+	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	defer shutdownMetricServer()
+
 	converter := instructions.NewInstructionConverter(m.Metrics, config.UserAnnotationPrefix, compressor)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet, *armadaevents.EventSequence](
@@ -70,7 +75,6 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		jobsetevents.BatchMetricPublisher,
 		converter,
 		lookoutDb,
-		config.MetricsPort,
 		m.Metrics,
 	)
 
