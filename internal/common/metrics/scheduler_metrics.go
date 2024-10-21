@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"regexp"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -394,8 +396,10 @@ func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Met
 	values = append(values, queue)
 
 	for key, value := range labels {
-		metricLabels = append(metricLabels, key)
-		values = append(values, value)
+		if isValidMetricLabelName(key) {
+			metricLabels = append(metricLabels, key)
+			values = append(values, value)
+		}
 	}
 
 	queueLabelsDesc := prometheus.NewDesc(
@@ -406,4 +410,11 @@ func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Met
 	)
 
 	return prometheus.MustNewConstMetric(queueLabelsDesc, prometheus.GaugeValue, 1, values...)
+}
+
+func isValidMetricLabelName(labelName string) bool {
+	// Prometheus metric label names must match the following regex: [a-zA-Z_][a-zA-Z0-9_]*
+	// See: https://prometheus.io/docs/concepts/data_model/
+	match, _ := regexp.MatchString("^[a-zA-Z_][a-zA-Z0-9_]*$", labelName)
+	return match
 }

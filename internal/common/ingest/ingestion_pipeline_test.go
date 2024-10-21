@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -263,6 +264,7 @@ func TestRun_ControlPlaneEvents_HappyPath_SingleMessage(t *testing.T) {
 
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
+	sink.assertProcessedMessageCount(len(messages))
 }
 
 func TestRun_ControlPlaneEvents_HappyPath_MultipleMessages(t *testing.T) {
@@ -286,6 +288,7 @@ func TestRun_ControlPlaneEvents_HappyPath_MultipleMessages(t *testing.T) {
 
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
+	sink.assertProcessedMessageCount(len(messages))
 }
 
 func TestRun_ControlPlaneEvents_LimitsProcessingBatchSize(t *testing.T) {
@@ -337,6 +340,7 @@ func TestRun_ControlPlaneEvents_LimitsProcessingBatchSize(t *testing.T) {
 				assert.True(t, eventCount < tc.batchSize+1)
 			}
 			sink.assertDidProcess(messages)
+			sink.assertProcessedMessageCount(len(messages))
 		})
 	}
 }
@@ -356,7 +360,6 @@ func testControlPlaneEventsPipeline(consumer pulsar.Consumer, converter Instruct
 		metricPublisher:        controlplaneevents_ingest_utils.BatchMetricPublisher,
 		converter:              converter,
 		sink:                   sink,
-		metricsPort:            8080,
 		metrics:                testMetrics,
 		consumer:               consumer,
 	}
@@ -365,30 +368,40 @@ func testControlPlaneEventsPipeline(consumer pulsar.Consumer, converter Instruct
 type simpleSink struct {
 	simpleMessages map[pulsar.MessageID]*simpleMessage
 	t              *testing.T
+	mutex          sync.Mutex
 }
 
 func newSimpleSink(t *testing.T) *simpleSink {
 	return &simpleSink{
 		simpleMessages: make(map[pulsar.MessageID]*simpleMessage),
 		t:              t,
+		mutex:          sync.Mutex{},
 	}
 }
 
 func (s *simpleSink) Store(_ *armadacontext.Context, msg *simpleMessages) error {
 	for _, simpleMessage := range msg.msgs {
-		s.simpleMessages[simpleMessage.id] = simpleMessage
+		s.mutex.Lock()
+		if simpleMessage != nil {
+			s.simpleMessages[simpleMessage.id] = simpleMessage
+		}
+		s.mutex.Unlock()
 	}
 	return nil
 }
 
 func (s *simpleSink) assertDidProcess(messages []pulsar.Message) {
 	s.t.Helper()
-	assert.Len(s.t, s.simpleMessages, len(messages))
 	for _, msg := range messages {
 		simpleMessage, ok := s.simpleMessages[msg.ID()]
 		assert.True(s.t, ok)
 		assert.Greater(s.t, simpleMessage.size, 0)
 	}
+}
+
+func (s *simpleSink) assertProcessedMessageCount(count int) {
+	s.t.Helper()
+	assert.Len(s.t, s.simpleMessages, count)
 }
 
 func TestRun_JobSetEvents_HappyPath_SingleMessage(t *testing.T) {
@@ -410,6 +423,7 @@ func TestRun_JobSetEvents_HappyPath_SingleMessage(t *testing.T) {
 
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
+	sink.assertProcessedMessageCount(len(messages))
 }
 
 func TestRun_JobSetEvents_HappyPath_MultipleMessages(t *testing.T) {
@@ -433,6 +447,7 @@ func TestRun_JobSetEvents_HappyPath_MultipleMessages(t *testing.T) {
 
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
+	sink.assertProcessedMessageCount(len(messages))
 }
 
 func TestRun_JobSetEvents_LimitsProcessingBatchSize(t *testing.T) {
@@ -490,8 +505,65 @@ func TestRun_JobSetEvents_LimitsProcessingBatchSize(t *testing.T) {
 				assert.True(t, eventCount < tc.batchSize+tc.numberOfEventsPerMessage)
 			}
 			sink.assertDidProcess(messages)
+			sink.assertProcessedMessageCount(len(messages))
 		})
 	}
+}
+
+// This will become a more common use case - multiple ingesters ingesting into the same sink
+func TestRun_MultipleSimultaneousIngesters(t *testing.T) {
+	jsCtx, jsCancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
+	cpCtx, cpCancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
+	jobSetMessages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
+		pulsarutils.NewPulsarMessage(2, baseTime.Add(1*time.Second), marshal(t, pendingAndRunning)),
+		pulsarutils.NewPulsarMessage(3, baseTime.Add(2*time.Second), marshal(t, failed)),
+	}
+	controlPlaneMessages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(4, baseTime, marshal(t, f.UpsertExecutorSettingsCordon)),
+		pulsarutils.NewPulsarMessage(5, baseTime.Add(1*time.Second), marshal(t, f.UpsertExecutorSettingsUncordon)),
+		pulsarutils.NewPulsarMessage(6, baseTime.Add(2*time.Second), marshal(t, f.DeleteExecutorSettings)),
+	}
+	mockJobSetEventsConsumer := newMockPulsarConsumer(t, jobSetMessages, jsCancel)
+	mockControlPlaneEventsConsumer := newMockPulsarConsumer(t, controlPlaneMessages, cpCancel)
+
+	jobSetEventsConverter := newSimpleEventSequenceConverter(t)
+	controlPlaneEventsConverter := newSimpleControlPlaneEventConverter(t)
+
+	sink := newSimpleSink(t)
+
+	jobSetEventsPipeline := testJobSetEventsPipeline(mockJobSetEventsConsumer, jobSetEventsConverter, sink)
+	controlPlaneEventsPipeline := testControlPlaneEventsPipeline(mockControlPlaneEventsConsumer, controlPlaneEventsConverter, sink)
+
+	var jsErr error
+	var cpErr error
+	wg := sync.WaitGroup{}
+	start := time.Now()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		jsErr = jobSetEventsPipeline.Run(jsCtx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		cpErr = controlPlaneEventsPipeline.Run(cpCtx)
+	}()
+
+	wg.Wait()
+	elapsed := time.Since(start)
+
+	assert.NoError(t, jsErr)
+	assert.NoError(t, cpErr)
+	assert.LessOrEqual(t, elapsed, batchDuration*2)
+
+	mockJobSetEventsConsumer.assertDidAck(jobSetMessages)
+	mockControlPlaneEventsConsumer.assertDidAck(controlPlaneMessages)
+	sink.assertDidProcess(jobSetMessages)
+	sink.assertDidProcess(controlPlaneMessages)
+	sink.assertProcessedMessageCount(len(controlPlaneMessages) + len(jobSetMessages))
 }
 
 func testJobSetEventsPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages, *armadaevents.EventSequence], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages, *armadaevents.EventSequence] {
@@ -509,7 +581,6 @@ func testJobSetEventsPipeline(consumer pulsar.Consumer, converter InstructionCon
 		metricPublisher:        jobsetevents.BatchMetricPublisher,
 		converter:              converter,
 		sink:                   sink,
-		metricsPort:            8080,
 		metrics:                testMetrics,
 		consumer:               consumer,
 	}
