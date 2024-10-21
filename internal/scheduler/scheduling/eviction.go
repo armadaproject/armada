@@ -2,13 +2,15 @@ package scheduling
 
 import (
 	"fmt"
+
+	"github.com/hashicorp/go-memdb"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/hashicorp/go-memdb"
 )
 
 type Evictor struct {
