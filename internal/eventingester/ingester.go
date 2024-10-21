@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -62,6 +63,10 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 	converter := convert.NewEventConverter(compressor, uint(config.MaxOutputMessageSizeBytes), metrics)
 
+	// Start metric server
+	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	defer shutdownMetricServer()
+
 	ingester := ingest.NewIngestionPipeline[*model.BatchUpdate, *armadaevents.EventSequence](
 		config.Pulsar,
 		config.Pulsar.JobsetEventsTopic,
@@ -75,7 +80,6 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		jobsetevents.BatchMetricPublisher,
 		converter,
 		eventDb,
-		config.MetricsPort,
 		metrics,
 	)
 	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {
