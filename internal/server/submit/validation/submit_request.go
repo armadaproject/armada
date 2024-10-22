@@ -404,7 +404,7 @@ func validateTolerations(j *api.JobSubmitRequestItem, config configuration.Submi
 
 	for _, restricted := range config.RestrictedTolerationKeys {
 		if jobTolerationKeys[restricted] {
-			return fmt.Errorf("toleration %s is not uer settable", restricted)
+			return fmt.Errorf("toleration %s is not user settable", restricted)
 		}
 	}
 	return nil
