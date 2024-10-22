@@ -144,6 +144,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
+			executorRepository.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil)
 
 			collector := NewMetricsCollector(
 				jobDb,
@@ -203,10 +204,11 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 	executorWithJobs := createExecutor("cluster-1", nodeWithJobs)
 
 	tests := map[string]struct {
-		jobDbJobs             []*jobdb.Job
-		floatingResourceTypes *floatingresources.FloatingResourceTypes
-		executors             []*schedulerobjects.Executor
-		expected              []prometheus.Metric
+		jobDbJobs                []*jobdb.Job
+		floatingResourceTypes    *floatingresources.FloatingResourceTypes
+		executors                []*schedulerobjects.Executor
+		expected                 []prometheus.Metric
+		expectedExecutorSettings []*schedulerobjects.ExecutorSettings
 	}{
 		"empty cluster single node type": {
 			jobDbJobs: []*jobdb.Job{},
@@ -218,7 +220,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", ""),
 			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
 		"empty cluster multi node type": {
 			jobDbJobs: []*jobdb.Job{},
@@ -236,7 +240,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-2"),
+				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", ""),
 			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
 		"empty cluster with unschedulable node": {
 			jobDbJobs: []*jobdb.Job{},
@@ -248,7 +254,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", ""),
 			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
 		"cluster with jobs": {
 			jobDbJobs: []*jobdb.Job{job1, job2},
@@ -266,7 +274,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", ""),
 			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
 		"jobs missing from jobDb": {
 			jobDbJobs: []*jobdb.Job{},
@@ -280,7 +290,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", ""),
 			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
 		"floating resources": {
 			jobDbJobs:             []*jobdb.Job{},
@@ -289,6 +301,27 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewClusterAvailableCapacity(10, "floating", "pool", "test-floating-resource", ""),
 				commonmetrics.NewClusterTotalCapacity(10, "floating", "pool", "test-floating-resource", ""),
+			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
+		},
+		"cordoned cluster single node type": {
+			jobDbJobs: []*jobdb.Job{},
+			executors: []*schedulerobjects.Executor{executor},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterCordonedStatus(1.0, "cluster-1", "bad executor"),
+			},
+			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{
+				{
+					ExecutorId:   "cluster-1",
+					Cordoned:     true,
+					CordonReason: "bad executor",
+				},
 			},
 		},
 	}
@@ -311,6 +344,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(tc.executors, nil)
+			executorRepository.EXPECT().GetExecutorSettings(ctx).Return(tc.expectedExecutorSettings, nil)
 
 			if tc.floatingResourceTypes == nil {
 				tc.floatingResourceTypes = testfixtures.TestEmptyFloatingResources
@@ -412,6 +446,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(executors, nil)
+			executorRepository.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil)
 
 			collector := NewMetricsCollector(
 				jobDb,
