@@ -1163,6 +1163,57 @@ func TestValidateInitContainerCpu(t *testing.T) {
 	}
 }
 
+func TestValidateRestrictedTolerations(t *testing.T) {
+	tests := map[string]struct {
+		req                   *api.JobSubmitRequestItem
+		restrictedTolerations []string
+		expectSuccess         bool
+	}{
+		"no tolerations": {
+			req:           &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{}},
+			expectSuccess: true,
+		},
+		"denied toleration": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				Tolerations: []v1.Toleration{
+					{
+						Key:    "whale",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+			}},
+			restrictedTolerations: []string{"whale"},
+			expectSuccess:         false,
+		},
+		"allowed toleration": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				Tolerations: []v1.Toleration{
+					{
+						Key:    "whale",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+			}},
+			restrictedTolerations: []string{"notWhale"},
+			expectSuccess:         true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateTolerations(tc.req, configuration.SubmissionConfig{
+				RestrictedTolerationKeys: tc.restrictedTolerations,
+			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func reqFromContainer(container v1.Container) *api.JobSubmitRequestItem {
 	return reqFromContainers([]v1.Container{container})
 }
