@@ -121,4 +121,6 @@ message ExecutorSettings {
   string executorId = 1;
   bool cordoned = 2;
   string cordonReason = 3;
+  string setByUser = 4;
+  google.protobuf.Timestamp setAtTime = 5;
 }
