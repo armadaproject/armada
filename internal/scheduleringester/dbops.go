@@ -67,6 +67,8 @@ type ExecutorSettingsUpsert struct {
 	ExecutorID   string
 	Cordoned     bool
 	CordonReason string
+	SetByUser    string
+	SetAtTime    time.Time
 }
 
 type ExecutorSettingsDelete struct {

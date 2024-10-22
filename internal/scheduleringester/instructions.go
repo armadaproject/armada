@@ -406,7 +406,8 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 
 	switch ev := event.Event.(type) {
 	case *controlplaneevents.Event_ExecutorSettingsUpsert:
-		operations, err = c.handleExecutorSettingsUpsert(event.GetExecutorSettingsUpsert())
+		eventTime := protoutil.ToStdTime(event.Created)
+		operations, err = c.handleExecutorSettingsUpsert(event.GetExecutorSettingsUpsert(), eventTime)
 	case *controlplaneevents.Event_ExecutorSettingsDelete:
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
 	default:
@@ -420,13 +421,15 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 	return operations
 }
 
-func (c *ControlPlaneEventsInstructionConverter) handleExecutorSettingsUpsert(upsert *controlplaneevents.ExecutorSettingsUpsert) ([]DbOperation, error) {
+func (c *ControlPlaneEventsInstructionConverter) handleExecutorSettingsUpsert(upsert *controlplaneevents.ExecutorSettingsUpsert, setAtTime time.Time) ([]DbOperation, error) {
 	return []DbOperation{
 		UpsertExecutorSettings{
 			upsert.Name: &ExecutorSettingsUpsert{
 				ExecutorID:   upsert.Name,
 				Cordoned:     upsert.Cordoned,
 				CordonReason: upsert.CordonReason,
+				SetByUser:    upsert.SetByUser,
+				SetAtTime:    setAtTime,
 			},
 		},
 	}, nil
