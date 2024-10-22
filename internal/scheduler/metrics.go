@@ -256,8 +256,9 @@ type clusterMetricKey struct {
 }
 
 type clusterCordonedStatus struct {
-	status float64
-	reason string
+	status    float64
+	reason    string
+	setByUser string
 }
 
 func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
@@ -290,8 +291,9 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	for _, executor := range executors {
 		// We may not have executorSettings for all known executors, but we still want a cordon status metric for them.
 		cordonedStatusByCluster[executor.Id] = &clusterCordonedStatus{
-			status: 0.0,
-			reason: "",
+			status:    0.0,
+			reason:    "",
+			setByUser: "",
 		}
 		for _, node := range executor.Nodes {
 			nodePool := node.GetPool()
@@ -387,11 +389,13 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			if cordonedValue, ok := cordonedStatusByCluster[executorSetting.ExecutorId]; ok {
 				cordonedValue.status = 1.0
 				cordonedValue.reason = executorSetting.CordonReason
+				cordonedValue.setByUser = executorSetting.SetByUser
 			} else {
 				// We may have settings for executors that don't exist in the repository.
 				cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
-					status: 1.0,
-					reason: executorSetting.CordonReason,
+					status:    1.0,
+					reason:    executorSetting.CordonReason,
+					setByUser: executorSetting.SetByUser,
 				}
 			}
 		}
@@ -439,7 +443,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
 	}
 	for cluster, v := range cordonedStatusByCluster {
-		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterCordonedStatus(v.status, cluster, v.reason))
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterCordonedStatus(v.status, cluster, v.reason, v.setByUser))
 	}
 	return clusterMetrics, nil
 }
