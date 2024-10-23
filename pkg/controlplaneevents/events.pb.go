@@ -29,6 +29,8 @@ type Event struct {
 	// Types that are valid to be assigned to Event:
 	//	*Event_ExecutorSettingsUpsert
 	//	*Event_ExecutorSettingsDelete
+	//	*Event_PreemptOnExecutor
+	//	*Event_CancelOnExecutor
 	Event isEvent_Event `protobuf_oneof:"event"`
 }
 
@@ -77,9 +79,17 @@ type Event_ExecutorSettingsUpsert struct {
 type Event_ExecutorSettingsDelete struct {
 	ExecutorSettingsDelete *ExecutorSettingsDelete `protobuf:"bytes,3,opt,name=executorSettingsDelete,proto3,oneof" json:"executorSettingsDelete,omitempty"`
 }
+type Event_PreemptOnExecutor struct {
+	PreemptOnExecutor *PreemptOnExecutor `protobuf:"bytes,4,opt,name=preemptOnExecutor,proto3,oneof" json:"preemptOnExecutor,omitempty"`
+}
+type Event_CancelOnExecutor struct {
+	CancelOnExecutor *CancelOnExecutor `protobuf:"bytes,5,opt,name=cancelOnExecutor,proto3,oneof" json:"cancelOnExecutor,omitempty"`
+}
 
 func (*Event_ExecutorSettingsUpsert) isEvent_Event() {}
 func (*Event_ExecutorSettingsDelete) isEvent_Event() {}
+func (*Event_PreemptOnExecutor) isEvent_Event()      {}
+func (*Event_CancelOnExecutor) isEvent_Event()       {}
 
 func (m *Event) GetEvent() isEvent_Event {
 	if m != nil {
@@ -109,11 +119,27 @@ func (m *Event) GetExecutorSettingsDelete() *ExecutorSettingsDelete {
 	return nil
 }
 
+func (m *Event) GetPreemptOnExecutor() *PreemptOnExecutor {
+	if x, ok := m.GetEvent().(*Event_PreemptOnExecutor); ok {
+		return x.PreemptOnExecutor
+	}
+	return nil
+}
+
+func (m *Event) GetCancelOnExecutor() *CancelOnExecutor {
+	if x, ok := m.GetEvent().(*Event_CancelOnExecutor); ok {
+		return x.CancelOnExecutor
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Event) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*Event_ExecutorSettingsUpsert)(nil),
 		(*Event_ExecutorSettingsDelete)(nil),
+		(*Event_PreemptOnExecutor)(nil),
+		(*Event_CancelOnExecutor)(nil),
 	}
 }
 
@@ -229,10 +255,294 @@ func (m *ExecutorSettingsDelete) GetName() string {
 	return ""
 }
 
+type PreemptOnExecutor struct {
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// We select jobs to preempt on the executor based on the provided Select message
+	//
+	// Types that are valid to be assigned to Select:
+	//
+	//	*PreemptOnExecutor_PriorityClasses
+	//	*PreemptOnExecutor_Queues
+	Select isPreemptOnExecutor_Select `protobuf_oneof:"Select"`
+}
+
+func (m *PreemptOnExecutor) Reset()         { *m = PreemptOnExecutor{} }
+func (m *PreemptOnExecutor) String() string { return proto.CompactTextString(m) }
+func (*PreemptOnExecutor) ProtoMessage()    {}
+func (*PreemptOnExecutor) Descriptor() ([]byte, []int) {
+	return fileDescriptor_2ccee8bdbf348752, []int{3}
+}
+func (m *PreemptOnExecutor) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PreemptOnExecutor) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PreemptOnExecutor.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PreemptOnExecutor) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PreemptOnExecutor.Merge(m, src)
+}
+func (m *PreemptOnExecutor) XXX_Size() int {
+	return m.Size()
+}
+func (m *PreemptOnExecutor) XXX_DiscardUnknown() {
+	xxx_messageInfo_PreemptOnExecutor.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PreemptOnExecutor proto.InternalMessageInfo
+
+type isPreemptOnExecutor_Select interface {
+	isPreemptOnExecutor_Select()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type PreemptOnExecutor_PriorityClasses struct {
+	PriorityClasses *ByPriorityClass `protobuf:"bytes,2,opt,name=priorityClasses,proto3,oneof" json:"priorityClasses,omitempty"`
+}
+type PreemptOnExecutor_Queues struct {
+	Queues *ByPriorityQueue `protobuf:"bytes,3,opt,name=queues,proto3,oneof" json:"queues,omitempty"`
+}
+
+func (*PreemptOnExecutor_PriorityClasses) isPreemptOnExecutor_Select() {}
+func (*PreemptOnExecutor_Queues) isPreemptOnExecutor_Select()          {}
+
+func (m *PreemptOnExecutor) GetSelect() isPreemptOnExecutor_Select {
+	if m != nil {
+		return m.Select
+	}
+	return nil
+}
+
+func (m *PreemptOnExecutor) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *PreemptOnExecutor) GetPriorityClasses() *ByPriorityClass {
+	if x, ok := m.GetSelect().(*PreemptOnExecutor_PriorityClasses); ok {
+		return x.PriorityClasses
+	}
+	return nil
+}
+
+func (m *PreemptOnExecutor) GetQueues() *ByPriorityQueue {
+	if x, ok := m.GetSelect().(*PreemptOnExecutor_Queues); ok {
+		return x.Queues
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*PreemptOnExecutor) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*PreemptOnExecutor_PriorityClasses)(nil),
+		(*PreemptOnExecutor_Queues)(nil),
+	}
+}
+
+type CancelOnExecutor struct {
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// We select jobs on the executor to cancel based on the provided Select message
+	//
+	// Types that are valid to be assigned to Select:
+	//
+	//	*CancelOnExecutor_PriorityClasses
+	//	*CancelOnExecutor_Queues
+	Select isCancelOnExecutor_Select `protobuf_oneof:"Select"`
+}
+
+func (m *CancelOnExecutor) Reset()         { *m = CancelOnExecutor{} }
+func (m *CancelOnExecutor) String() string { return proto.CompactTextString(m) }
+func (*CancelOnExecutor) ProtoMessage()    {}
+func (*CancelOnExecutor) Descriptor() ([]byte, []int) {
+	return fileDescriptor_2ccee8bdbf348752, []int{4}
+}
+func (m *CancelOnExecutor) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CancelOnExecutor) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CancelOnExecutor.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CancelOnExecutor) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CancelOnExecutor.Merge(m, src)
+}
+func (m *CancelOnExecutor) XXX_Size() int {
+	return m.Size()
+}
+func (m *CancelOnExecutor) XXX_DiscardUnknown() {
+	xxx_messageInfo_CancelOnExecutor.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CancelOnExecutor proto.InternalMessageInfo
+
+type isCancelOnExecutor_Select interface {
+	isCancelOnExecutor_Select()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type CancelOnExecutor_PriorityClasses struct {
+	PriorityClasses *ByPriorityClass `protobuf:"bytes,2,opt,name=priorityClasses,proto3,oneof" json:"priorityClasses,omitempty"`
+}
+type CancelOnExecutor_Queues struct {
+	Queues *ByPriorityQueue `protobuf:"bytes,3,opt,name=queues,proto3,oneof" json:"queues,omitempty"`
+}
+
+func (*CancelOnExecutor_PriorityClasses) isCancelOnExecutor_Select() {}
+func (*CancelOnExecutor_Queues) isCancelOnExecutor_Select()          {}
+
+func (m *CancelOnExecutor) GetSelect() isCancelOnExecutor_Select {
+	if m != nil {
+		return m.Select
+	}
+	return nil
+}
+
+func (m *CancelOnExecutor) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *CancelOnExecutor) GetPriorityClasses() *ByPriorityClass {
+	if x, ok := m.GetSelect().(*CancelOnExecutor_PriorityClasses); ok {
+		return x.PriorityClasses
+	}
+	return nil
+}
+
+func (m *CancelOnExecutor) GetQueues() *ByPriorityQueue {
+	if x, ok := m.GetSelect().(*CancelOnExecutor_Queues); ok {
+		return x.Queues
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*CancelOnExecutor) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*CancelOnExecutor_PriorityClasses)(nil),
+		(*CancelOnExecutor_Queues)(nil),
+	}
+}
+
+type ByPriorityClass struct {
+	PriorityClasses []string `protobuf:"bytes,1,rep,name=priorityClasses,proto3" json:"priorityClasses,omitempty"`
+}
+
+func (m *ByPriorityClass) Reset()         { *m = ByPriorityClass{} }
+func (m *ByPriorityClass) String() string { return proto.CompactTextString(m) }
+func (*ByPriorityClass) ProtoMessage()    {}
+func (*ByPriorityClass) Descriptor() ([]byte, []int) {
+	return fileDescriptor_2ccee8bdbf348752, []int{5}
+}
+func (m *ByPriorityClass) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ByPriorityClass) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ByPriorityClass.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ByPriorityClass) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ByPriorityClass.Merge(m, src)
+}
+func (m *ByPriorityClass) XXX_Size() int {
+	return m.Size()
+}
+func (m *ByPriorityClass) XXX_DiscardUnknown() {
+	xxx_messageInfo_ByPriorityClass.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ByPriorityClass proto.InternalMessageInfo
+
+func (m *ByPriorityClass) GetPriorityClasses() []string {
+	if m != nil {
+		return m.PriorityClasses
+	}
+	return nil
+}
+
+type ByPriorityQueue struct {
+	Queues []string `protobuf:"bytes,1,rep,name=queues,proto3" json:"queues,omitempty"`
+}
+
+func (m *ByPriorityQueue) Reset()         { *m = ByPriorityQueue{} }
+func (m *ByPriorityQueue) String() string { return proto.CompactTextString(m) }
+func (*ByPriorityQueue) ProtoMessage()    {}
+func (*ByPriorityQueue) Descriptor() ([]byte, []int) {
+	return fileDescriptor_2ccee8bdbf348752, []int{6}
+}
+func (m *ByPriorityQueue) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ByPriorityQueue) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ByPriorityQueue.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ByPriorityQueue) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ByPriorityQueue.Merge(m, src)
+}
+func (m *ByPriorityQueue) XXX_Size() int {
+	return m.Size()
+}
+func (m *ByPriorityQueue) XXX_DiscardUnknown() {
+	xxx_messageInfo_ByPriorityQueue.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ByPriorityQueue proto.InternalMessageInfo
+
+func (m *ByPriorityQueue) GetQueues() []string {
+	if m != nil {
+		return m.Queues
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*Event)(nil), "controlplaneevents.Event")
 	proto.RegisterType((*ExecutorSettingsUpsert)(nil), "controlplaneevents.ExecutorSettingsUpsert")
 	proto.RegisterType((*ExecutorSettingsDelete)(nil), "controlplaneevents.ExecutorSettingsDelete")
+	proto.RegisterType((*PreemptOnExecutor)(nil), "controlplaneevents.PreemptOnExecutor")
+	proto.RegisterType((*CancelOnExecutor)(nil), "controlplaneevents.CancelOnExecutor")
+	proto.RegisterType((*ByPriorityClass)(nil), "controlplaneevents.ByPriorityClass")
+	proto.RegisterType((*ByPriorityQueue)(nil), "controlplaneevents.ByPriorityQueue")
 }
 
 func init() {
@@ -240,34 +550,46 @@ func init() {
 }
 
 var fileDescriptor_2ccee8bdbf348752 = []byte{
-	// 431 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xb1, 0x8e, 0xd3, 0x40,
-	0x10, 0x86, 0xed, 0x70, 0xc7, 0x5d, 0x16, 0x84, 0xc4, 0x22, 0x8c, 0x95, 0xc2, 0x3e, 0xe5, 0x10,
-	0x42, 0x08, 0xad, 0xa5, 0x43, 0x50, 0x22, 0x30, 0x9c, 0x04, 0xa2, 0x39, 0x05, 0xae, 0xa1, 0xdb,
-	0xd8, 0x83, 0x31, 0xd8, 0x5e, 0x6b, 0x77, 0x72, 0x22, 0xaf, 0x40, 0xc5, 0x73, 0xf0, 0x24, 0x94,
-	0x29, 0xa9, 0x2c, 0x94, 0x74, 0xe6, 0x01, 0x68, 0x51, 0x76, 0xe3, 0xc4, 0x28, 0xe6, 0x94, 0xca,
-	0xde, 0x99, 0xef, 0x9f, 0xf9, 0x67, 0xec, 0x25, 0xc7, 0xe5, 0xe7, 0x24, 0x88, 0x44, 0x81, 0x52,
-	0x64, 0x65, 0xc6, 0x0b, 0x80, 0x0b, 0x28, 0x50, 0x05, 0xe6, 0xc1, 0x4a, 0x29, 0x50, 0x50, 0xba,
-	0x0d, 0x0c, 0xfc, 0x44, 0x88, 0x24, 0x83, 0x40, 0x13, 0xe3, 0xc9, 0x87, 0x00, 0xd3, 0x1c, 0x14,
-	0xf2, 0xbc, 0x34, 0xa2, 0xe1, 0x9f, 0x1e, 0xd9, 0x3f, 0x5d, 0xb2, 0xf4, 0x0d, 0x39, 0x88, 0x24,
-	0x70, 0x84, 0xd8, 0xb5, 0x8f, 0xec, 0xfb, 0xd7, 0x4e, 0x06, 0xcc, 0x88, 0x59, 0x23, 0x66, 0xef,
-	0x1a, 0x71, 0x78, 0xbb, 0xae, 0xfc, 0x9b, 0x2b, 0xfc, 0xa1, 0xc8, 0x53, 0x84, 0xbc, 0xc4, 0xe9,
-	0xa8, 0xa9, 0x40, 0xbf, 0xda, 0xc4, 0x81, 0x2f, 0x10, 0x4d, 0x50, 0xc8, 0xb7, 0x80, 0x98, 0x16,
-	0x89, 0x3a, 0x2f, 0x15, 0x48, 0x74, 0x7b, 0xba, 0xf8, 0x03, 0xb6, 0xed, 0x96, 0x9d, 0x76, 0x2a,
-	0xc2, 0xbb, 0x75, 0xe5, 0x1f, 0x75, 0x57, 0xdb, 0xf4, 0x7e, 0x65, 0x8d, 0xfe, 0xd3, 0xb1, 0xd3,
-	0xcc, 0x4b, 0xc8, 0x00, 0xc1, 0xbd, 0xb2, 0xbb, 0x19, 0xa3, 0xe8, 0x36, 0x63, 0x72, 0x97, 0x9b,
-	0x59, 0xe9, 0x0f, 0xc8, 0xbe, 0x6e, 0x30, 0xfc, 0x6d, 0x13, 0xa7, 0x7b, 0x60, 0x7a, 0x8f, 0xec,
-	0x15, 0x3c, 0x07, 0xfd, 0x1d, 0xfa, 0x21, 0xad, 0x2b, 0xff, 0xc6, 0xf2, 0xdc, 0x5a, 0xb4, 0xce,
-	0xd3, 0x13, 0x72, 0x18, 0x09, 0x19, 0x8b, 0x02, 0x62, 0xbd, 0xd6, 0xc3, 0xd0, 0xa9, 0x2b, 0x9f,
-	0x36, 0xb1, 0x16, 0xbf, 0xe6, 0xe8, 0x53, 0x72, 0xdd, 0xbc, 0x8f, 0x80, 0x2b, 0x51, 0xe8, 0x0d,
-	0xf4, 0xc3, 0x41, 0x5d, 0xf9, 0x4e, 0x3b, 0xde, 0xd2, 0xfe, 0xc3, 0xd3, 0xc7, 0xa4, 0xaf, 0x00,
-	0xc3, 0xe9, 0xb9, 0x02, 0xe9, 0xee, 0x69, 0xf1, 0x9d, 0xba, 0xf2, 0x6f, 0xad, 0x83, 0x2d, 0xe5,
-	0x86, 0x1c, 0x3e, 0xdb, 0x1e, 0xd6, 0x2c, 0x64, 0xd7, 0x61, 0xc3, 0x8b, 0x1f, 0x73, 0xcf, 0x9e,
-	0xcd, 0x3d, 0xfb, 0xd7, 0xdc, 0xb3, 0xbf, 0x2d, 0x3c, 0x6b, 0xb6, 0xf0, 0xac, 0x9f, 0x0b, 0xcf,
-	0x7a, 0xff, 0x24, 0x49, 0xf1, 0xe3, 0x64, 0xcc, 0x22, 0x91, 0x07, 0x5c, 0xe6, 0x3c, 0xe6, 0xa5,
-	0x14, 0x9f, 0x20, 0xc2, 0xd5, 0x29, 0xe8, 0xbe, 0x3d, 0xdf, 0x7b, 0xc7, 0xcf, 0x75, 0xfe, 0xcc,
-	0xd0, 0xec, 0xb5, 0x60, 0x2f, 0x0c, 0x75, 0xb6, 0xa4, 0xf4, 0xb5, 0x50, 0xe3, 0xab, 0xfa, 0xf7,
-	0x7f, 0xf4, 0x37, 0x00, 0x00, 0xff, 0xff, 0xdc, 0xdc, 0xc1, 0xeb, 0x84, 0x03, 0x00, 0x00,
+	// 614 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x55, 0x4d, 0x6f, 0xd3, 0x3e,
+	0x18, 0x6f, 0xba, 0xd7, 0xfa, 0xff, 0x17, 0xdb, 0x0c, 0x94, 0x52, 0x44, 0x3c, 0x65, 0x03, 0x4d,
+	0x68, 0x4a, 0xa4, 0x21, 0x38, 0xf2, 0xe2, 0x31, 0x01, 0xe2, 0x40, 0xd9, 0xd8, 0x65, 0xb7, 0x2c,
+	0x7d, 0x28, 0x81, 0x24, 0x0e, 0xb6, 0x3b, 0xd1, 0x8f, 0xc0, 0x4e, 0x7c, 0x0e, 0x3e, 0x09, 0xc7,
+	0x1d, 0x39, 0x45, 0x68, 0xbd, 0x85, 0x2f, 0x81, 0x6a, 0xa7, 0x5d, 0x9a, 0x04, 0xd6, 0x3b, 0xa7,
+	0x36, 0xf6, 0xef, 0xed, 0xf1, 0xf3, 0x58, 0x46, 0x1b, 0xf1, 0xc7, 0x9e, 0xe3, 0xb1, 0x48, 0x72,
+	0x16, 0xc4, 0x81, 0x1b, 0x01, 0x9c, 0x40, 0x24, 0x85, 0xa3, 0x7f, 0xec, 0x98, 0x33, 0xc9, 0x30,
+	0x2e, 0x03, 0xda, 0xa4, 0xc7, 0x58, 0x2f, 0x00, 0x47, 0x21, 0x8e, 0xfb, 0xef, 0x1c, 0xe9, 0x87,
+	0x20, 0xa4, 0x1b, 0xc6, 0x9a, 0x64, 0x0d, 0xe7, 0xd1, 0xc2, 0xde, 0x08, 0x8b, 0x5f, 0xa1, 0x25,
+	0x8f, 0x83, 0x2b, 0xa1, 0xdb, 0x32, 0xd6, 0x8d, 0xad, 0xff, 0x76, 0xda, 0xb6, 0x26, 0xdb, 0x63,
+	0xb2, 0xfd, 0x76, 0x4c, 0xa6, 0xd7, 0xd3, 0x84, 0xac, 0x65, 0xf0, 0x6d, 0x16, 0xfa, 0x12, 0xc2,
+	0x58, 0x0e, 0xf6, 0xc7, 0x0a, 0xf8, 0xd4, 0x40, 0x4d, 0xf8, 0x0c, 0x5e, 0x5f, 0x32, 0x7e, 0x00,
+	0x52, 0xfa, 0x51, 0x4f, 0x1c, 0xc6, 0x02, 0xb8, 0x6c, 0xd5, 0x95, 0xf8, 0x3d, 0xbb, 0x9c, 0xd6,
+	0xde, 0xab, 0x64, 0xd0, 0xcd, 0x34, 0x21, 0xeb, 0xd5, 0x6a, 0x17, 0xde, 0x2f, 0x6a, 0xfb, 0x7f,
+	0x70, 0xac, 0x0c, 0xf3, 0x0c, 0x02, 0x90, 0xd0, 0x9a, 0x9b, 0x3d, 0x8c, 0x66, 0x54, 0x87, 0xd1,
+	0x7b, 0x7f, 0x0f, 0xa3, 0x31, 0xf8, 0x04, 0xad, 0xc5, 0x1c, 0x46, 0xa8, 0xd7, 0xd1, 0xd8, 0xa2,
+	0x35, 0xaf, 0x62, 0xdc, 0xa9, 0x8a, 0xd1, 0x29, 0x82, 0x29, 0x49, 0x13, 0x72, 0xab, 0xa4, 0x31,
+	0x65, 0x5e, 0xb6, 0xc0, 0x1c, 0xad, 0x7a, 0x6e, 0xe4, 0x41, 0x90, 0xb3, 0x5d, 0x50, 0xb6, 0x9b,
+	0x55, 0xb6, 0xbb, 0x05, 0x2c, 0x35, 0xd3, 0x84, 0xb4, 0x8b, 0x0a, 0x53, 0xa6, 0x25, 0x7d, 0xba,
+	0x84, 0x16, 0x94, 0x9c, 0xf5, 0xcb, 0x40, 0xcd, 0xea, 0xe6, 0xe2, 0xbb, 0x68, 0x3e, 0x72, 0x43,
+	0x50, 0x33, 0xd7, 0xa0, 0x38, 0x4d, 0xc8, 0x95, 0xd1, 0x77, 0x6e, 0xa8, 0xd4, 0x3e, 0xde, 0x41,
+	0xcb, 0x1e, 0xe3, 0x5d, 0x16, 0x41, 0x57, 0x8d, 0xd0, 0x32, 0x6d, 0xa6, 0x09, 0xc1, 0xe3, 0xb5,
+	0x1c, 0x7e, 0x82, 0xc3, 0x8f, 0xd0, 0xff, 0xfa, 0xff, 0x3e, 0xb8, 0x82, 0x45, 0xaa, 0xdb, 0x0d,
+	0xda, 0x4e, 0x13, 0xd2, 0xcc, 0xaf, 0xe7, 0xb8, 0x53, 0x78, 0xfc, 0x00, 0x35, 0x04, 0x48, 0x3a,
+	0x38, 0x14, 0xa0, 0x7b, 0xd4, 0xa0, 0x37, 0xd2, 0x84, 0x5c, 0x9d, 0x2c, 0xe6, 0x98, 0x17, 0x48,
+	0xeb, 0x49, 0xb9, 0xd8, 0xac, 0xf9, 0x33, 0x16, 0x6b, 0x9d, 0xd6, 0xd1, 0x5a, 0xa9, 0xf1, 0x33,
+	0x1f, 0x55, 0x84, 0x56, 0x62, 0xee, 0x33, 0xee, 0xcb, 0xc1, 0x6e, 0xe0, 0x0a, 0x01, 0x22, 0xbb,
+	0x74, 0x1b, 0x55, 0x9d, 0xa6, 0x83, 0x4e, 0x1e, 0x4c, 0x6f, 0xa7, 0x09, 0xb9, 0x59, 0xe0, 0x4f,
+	0xf5, 0xb9, 0x28, 0x8e, 0x0f, 0xd0, 0xe2, 0xa7, 0x3e, 0xf4, 0x41, 0x64, 0xd7, 0xe9, 0x12, 0x9b,
+	0x37, 0x23, 0x2c, 0xbd, 0x96, 0x26, 0x64, 0x55, 0xd3, 0xa6, 0xd4, 0x33, 0x29, 0xba, 0x8c, 0x16,
+	0x0f, 0x20, 0x00, 0x4f, 0x5a, 0x5f, 0xea, 0x68, 0xb5, 0x38, 0x8e, 0xff, 0xea, 0x59, 0x1c, 0xa1,
+	0x95, 0x42, 0x46, 0xfc, 0xbc, 0x5c, 0xa1, 0xb1, 0x3e, 0xb7, 0xd5, 0xb8, 0x24, 0x7c, 0x29, 0xba,
+	0xf5, 0x38, 0xaf, 0xad, 0x82, 0xe1, 0xed, 0x49, 0x35, 0x5a, 0xb2, 0x32, 0xe8, 0x24, 0xe6, 0xc9,
+	0xf7, 0x73, 0xd3, 0x38, 0x3b, 0x37, 0x8d, 0x9f, 0xe7, 0xa6, 0xf1, 0x75, 0x68, 0xd6, 0xce, 0x86,
+	0x66, 0xed, 0xc7, 0xd0, 0xac, 0x1d, 0x3d, 0xec, 0xf9, 0xf2, 0x7d, 0xff, 0xd8, 0xf6, 0x58, 0xe8,
+	0xb8, 0x3c, 0x74, 0xbb, 0x6e, 0xcc, 0xd9, 0x07, 0xf0, 0x64, 0xf6, 0xe5, 0x54, 0xbf, 0x6f, 0xdf,
+	0xea, 0x1b, 0x4f, 0xd5, 0x7e, 0x47, 0xa3, 0xed, 0x97, 0xcc, 0xde, 0xd5, 0xa8, 0xce, 0x08, 0xa5,
+	0x1e, 0x2e, 0x71, 0xbc, 0xa8, 0x1e, 0xa8, 0xfb, 0xbf, 0x03, 0x00, 0x00, 0xff, 0xff, 0x2f, 0xdf,
+	0x04, 0xa4, 0x26, 0x07, 0x00, 0x00,
 }
 
 func (m *Event) Marshal() (dAtA []byte, err error) {
@@ -356,6 +678,48 @@ func (m *Event_ExecutorSettingsDelete) MarshalToSizedBuffer(dAtA []byte) (int, e
 	}
 	return len(dAtA) - i, nil
 }
+func (m *Event_PreemptOnExecutor) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Event_PreemptOnExecutor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.PreemptOnExecutor != nil {
+		{
+			size, err := m.PreemptOnExecutor.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *Event_CancelOnExecutor) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Event_CancelOnExecutor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.CancelOnExecutor != nil {
+		{
+			size, err := m.CancelOnExecutor.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	return len(dAtA) - i, nil
+}
 func (m *ExecutorSettingsUpsert) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -440,6 +804,232 @@ func (m *ExecutorSettingsDelete) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	return len(dAtA) - i, nil
 }
 
+func (m *PreemptOnExecutor) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PreemptOnExecutor) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PreemptOnExecutor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Select != nil {
+		{
+			size := m.Select.Size()
+			i -= size
+			if _, err := m.Select.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PreemptOnExecutor_PriorityClasses) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PreemptOnExecutor_PriorityClasses) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.PriorityClasses != nil {
+		{
+			size, err := m.PriorityClasses.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PreemptOnExecutor_Queues) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PreemptOnExecutor_Queues) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Queues != nil {
+		{
+			size, err := m.Queues.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CancelOnExecutor) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CancelOnExecutor) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CancelOnExecutor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Select != nil {
+		{
+			size := m.Select.Size()
+			i -= size
+			if _, err := m.Select.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CancelOnExecutor_PriorityClasses) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CancelOnExecutor_PriorityClasses) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.PriorityClasses != nil {
+		{
+			size, err := m.PriorityClasses.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CancelOnExecutor_Queues) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CancelOnExecutor_Queues) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Queues != nil {
+		{
+			size, err := m.Queues.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *ByPriorityClass) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ByPriorityClass) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ByPriorityClass) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.PriorityClasses) > 0 {
+		for iNdEx := len(m.PriorityClasses) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.PriorityClasses[iNdEx])
+			copy(dAtA[i:], m.PriorityClasses[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.PriorityClasses[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ByPriorityQueue) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ByPriorityQueue) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ByPriorityQueue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Queues) > 0 {
+		for iNdEx := len(m.Queues) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Queues[iNdEx])
+			copy(dAtA[i:], m.Queues[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Queues[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintEvents(dAtA []byte, offset int, v uint64) int {
 	offset -= sovEvents(v)
 	base := offset
@@ -491,6 +1081,30 @@ func (m *Event_ExecutorSettingsDelete) Size() (n int) {
 	}
 	return n
 }
+func (m *Event_PreemptOnExecutor) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.PreemptOnExecutor != nil {
+		l = m.PreemptOnExecutor.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *Event_CancelOnExecutor) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.CancelOnExecutor != nil {
+		l = m.CancelOnExecutor.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
 func (m *ExecutorSettingsUpsert) Size() (n int) {
 	if m == nil {
 		return 0
@@ -524,6 +1138,116 @@ func (m *ExecutorSettingsDelete) Size() (n int) {
 	l = len(m.Name)
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+
+func (m *PreemptOnExecutor) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.Select != nil {
+		n += m.Select.Size()
+	}
+	return n
+}
+
+func (m *PreemptOnExecutor_PriorityClasses) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.PriorityClasses != nil {
+		l = m.PriorityClasses.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *PreemptOnExecutor_Queues) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Queues != nil {
+		l = m.Queues.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *CancelOnExecutor) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.Select != nil {
+		n += m.Select.Size()
+	}
+	return n
+}
+
+func (m *CancelOnExecutor_PriorityClasses) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.PriorityClasses != nil {
+		l = m.PriorityClasses.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *CancelOnExecutor_Queues) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Queues != nil {
+		l = m.Queues.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *ByPriorityClass) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.PriorityClasses) > 0 {
+		for _, s := range m.PriorityClasses {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *ByPriorityQueue) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Queues) > 0 {
+		for _, s := range m.Queues {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
 	}
 	return n
 }
@@ -668,6 +1392,76 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Event = &Event_ExecutorSettingsDelete{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PreemptOnExecutor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &PreemptOnExecutor{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &Event_PreemptOnExecutor{v}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CancelOnExecutor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &CancelOnExecutor{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &Event_CancelOnExecutor{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -916,6 +1710,474 @@ func (m *ExecutorSettingsDelete) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PreemptOnExecutor) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PreemptOnExecutor: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PreemptOnExecutor: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PriorityClasses", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ByPriorityClass{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Select = &PreemptOnExecutor_PriorityClasses{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queues", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ByPriorityQueue{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Select = &PreemptOnExecutor_Queues{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CancelOnExecutor) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CancelOnExecutor: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CancelOnExecutor: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PriorityClasses", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ByPriorityClass{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Select = &CancelOnExecutor_PriorityClasses{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queues", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ByPriorityQueue{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Select = &CancelOnExecutor_Queues{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ByPriorityClass) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ByPriorityClass: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ByPriorityClass: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PriorityClasses", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PriorityClasses = append(m.PriorityClasses, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ByPriorityQueue) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ByPriorityQueue: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ByPriorityQueue: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queues", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queues = append(m.Queues, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
