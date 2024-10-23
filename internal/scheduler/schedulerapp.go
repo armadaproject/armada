@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -44,6 +45,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -158,13 +160,20 @@ func Run(config schedulerconfig.Configuration) error {
 	// Executor Api
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
-	apiPublisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
-		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
-		CompressionType:  config.Pulsar.CompressionType,
-		CompressionLevel: config.Pulsar.CompressionLevel,
-		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
+	preProcessor := jobsetevents.NewPreProcessor(config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize)
+	apiPublisher, err := pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
+		pulsarClient,
+		pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
+			CompressionType:  config.Pulsar.CompressionType,
+			CompressionLevel: config.Pulsar.CompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		},
+		preProcessor,
+		jobsetevents.RetrieveKey,
+		config.Pulsar.SendTimeout,
+	)
 	if err != nil {
 		return errors.Wrapf(err, "error creating pulsar publisher for executor api")
 	}

@@ -9,15 +9,12 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
-	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // HasPulsarMessageIds should be implemented by structs that can store a batch of pulsar message ids
@@ -26,10 +23,22 @@ type HasPulsarMessageIds interface {
 	GetMessageIDs() []pulsar.MessageID
 }
 
-// InstructionConverter should be implemented by structs that can convert a batch of event sequences into an object
+// EventCounter determines the true count of events, as some utils.ArmadaEvent can contain nested events
+type EventCounter[T utils.ArmadaEvent] func(events *utils.EventsWithIds[T]) int
+
+// MessageUnmarshaller converts consumed pulsar messages to the intermediate type, utils.EventsWithIds.
+type MessageUnmarshaller[T utils.ArmadaEvent] func(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *utils.EventsWithIds[T]
+
+// BatchMerger merges together events within the batch, where possible
+type BatchMerger[T utils.ArmadaEvent] func(batch []*utils.EventsWithIds[T]) *utils.EventsWithIds[T]
+
+// BatchMetricPublisher logs a summary of the batching process
+type BatchMetricPublisher[T utils.ArmadaEvent] func(metrics *commonmetrics.Metrics, batch *utils.EventsWithIds[T])
+
+// InstructionConverter should be implemented by structs that can convert a batch of eventsWithIds into an object
 // suitable for passing to the sink
-type InstructionConverter[T HasPulsarMessageIds] interface {
-	Convert(ctx *armadacontext.Context, msg *EventSequencesWithIds) T
+type InstructionConverter[T HasPulsarMessageIds, U utils.ArmadaEvent] interface {
+	Convert(ctx *armadacontext.Context, msg *utils.EventsWithIds[U]) T
 }
 
 // Sink should be implemented by the struct responsible for putting the data in its final resting place, e.g. a
@@ -40,64 +49,69 @@ type Sink[T HasPulsarMessageIds] interface {
 	Store(ctx *armadacontext.Context, msg T) error
 }
 
-// EventSequencesWithIds consists of a batch of Event Sequences along with the corresponding Pulsar Message Ids
-type EventSequencesWithIds struct {
-	EventSequences []*armadaevents.EventSequence
-	MessageIds     []pulsar.MessageID
-}
-
 // IngestionPipeline is a pipeline that reads message from pulsar and inserts them into a sink. The pipeline will
 // handle the following automatically:
 //   - Receiving messages from pulsar
+//   - Unmarshalling into eventsWithIds
 //   - Combining messages into batches for efficient processing
-//   - Unmarshalling into event sequences
+//   - Publishing relevant metrics related to batch
+//   - Converting eventsWithIds to instructions
 //   - Acking processed messages
 //
-// Callers must supply two structs, an InstructionConverter for converting event sequences into something that can be
+// Callers must supply two structs, an InstructionConverter for converting eventsWithIds into something that can be
 // exhausted and a Sink capable of exhausting these objects
-type IngestionPipeline[T HasPulsarMessageIds] struct {
+type IngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent] struct {
 	pulsarConfig           commonconfig.PulsarConfig
-	metricsPort            uint16
 	metrics                *commonmetrics.Metrics
+	pulsarTopic            string
 	pulsarSubscriptionName string
 	pulsarBatchSize        int
 	pulsarBatchDuration    time.Duration
 	pulsarSubscriptionType pulsar.SubscriptionType
-	converter              InstructionConverter[T]
+	eventCounter           EventCounter[U]
+	messageConverter       MessageUnmarshaller[U]
+	batchMerger            BatchMerger[U]
+	metricPublisher        BatchMetricPublisher[U]
+	converter              InstructionConverter[T, U]
 	sink                   Sink[T]
 	consumer               pulsar.Consumer // for test purposes only
 }
 
 // NewIngestionPipeline creates an IngestionPipeline that processes all pulsar messages
-func NewIngestionPipeline[T HasPulsarMessageIds](
+func NewIngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent](
 	pulsarConfig commonconfig.PulsarConfig,
+	pulsarTopic string,
 	pulsarSubscriptionName string,
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,
 	pulsarSubscriptionType pulsar.SubscriptionType,
-	converter InstructionConverter[T],
+	eventCounter EventCounter[U],
+	messageConverter MessageUnmarshaller[U],
+	batchMerger BatchMerger[U],
+	metricPublisher BatchMetricPublisher[U],
+	converter InstructionConverter[T, U],
 	sink Sink[T],
-	metricsPort uint16,
 	metrics *commonmetrics.Metrics,
-) *IngestionPipeline[T] {
-	return &IngestionPipeline[T]{
+) *IngestionPipeline[T, U] {
+	return &IngestionPipeline[T, U]{
 		pulsarConfig:           pulsarConfig,
-		metricsPort:            metricsPort,
+		pulsarTopic:            pulsarTopic,
 		metrics:                metrics,
 		pulsarSubscriptionName: pulsarSubscriptionName,
 		pulsarBatchSize:        pulsarBatchSize,
 		pulsarBatchDuration:    pulsarBatchDuration,
 		pulsarSubscriptionType: pulsarSubscriptionType,
+		eventCounter:           eventCounter,
+		messageConverter:       messageConverter,
+		batchMerger:            batchMerger,
+		metricPublisher:        metricPublisher,
 		converter:              converter,
 		sink:                   sink,
 	}
 }
 
 // Run will run the ingestion pipeline until the supplied context is shut down
-func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
-	shutdownMetricServer := common.ServeMetrics(i.metricsPort)
-	defer shutdownMetricServer()
-
+func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -132,57 +146,58 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 			case <-ticker.C:
 				timeSinceLastReceived := time.Now().Sub(lastReceivedTime)
 				if timeSinceLastReceived > timeout {
-					log.Infof("Last pulsar message received %s ago", timeSinceLastReceived)
+					log.Infof("%s - Last pulsar message received %s ago", i.pulsarTopic, timeSinceLastReceived)
 				}
 			}
 		}
 		close(pulsarMessages)
 	}()
 
-	// Convert to event sequences
-	eventSequences := make(chan *EventSequencesWithIds)
+	// Convert to eventsWithIds
+	events := make(chan *utils.EventsWithIds[U])
 	go func() {
 		for msg := range pulsarMessages {
-			converted := unmarshalEventSequences(msg, i.metrics)
-			eventSequences <- converted
+			converted := i.messageConverter(msg, i.metrics)
+			events <- converted
 		}
-		close(eventSequences)
+		close(events)
 	}()
 
 	// Batch up messages
-	batchedEventSequences := make(chan *EventSequencesWithIds)
-	eventCounterFunc := func(seq *EventSequencesWithIds) int {
-		totalEvents := 0
-		for _, seq := range seq.EventSequences {
-			totalEvents += len(seq.Events)
-		}
-		return totalEvents
-	}
-	eventPublisherFunc := func(b []*EventSequencesWithIds) { batchedEventSequences <- combineEventSequences(b) }
-	batcher := NewBatcher[*EventSequencesWithIds](eventSequences, i.pulsarBatchSize, i.pulsarBatchDuration, eventCounterFunc, eventPublisherFunc)
+	batchedEvents := make(chan []*utils.EventsWithIds[U])
+	batcher := NewBatcher[*utils.EventsWithIds[U]](events, i.pulsarBatchSize, i.pulsarBatchDuration, i.eventCounter, batchedEvents)
 	go func() {
 		batcher.Run(ctx)
-		close(batchedEventSequences)
+		close(batchedEvents)
+	}()
+
+	// Merge intermediate event batches
+	mergedEventBatches := make(chan *utils.EventsWithIds[U])
+	go func() {
+		for batch := range batchedEvents {
+			mergedEventBatches <- i.batchMerger(batch)
+		}
+		close(mergedEventBatches)
 	}()
 
 	// Log summary of batch
-	preprocessedBatchEventSequences := make(chan *EventSequencesWithIds)
+	preprocessedEventBatches := make(chan *utils.EventsWithIds[U])
 	go func() {
-		for msg := range batchedEventSequences {
-			i.recordSummaryOfEventSequences(msg)
-			preprocessedBatchEventSequences <- msg
+		for batch := range mergedEventBatches {
+			i.metricPublisher(i.metrics, batch)
+			preprocessedEventBatches <- batch
 		}
-		close(preprocessedBatchEventSequences)
+		close(preprocessedEventBatches)
 	}()
 
 	// Convert to instructions
 	instructions := make(chan T)
 	go func() {
-		for msg := range preprocessedBatchEventSequences {
+		for batch := range preprocessedEventBatches {
 			start := time.Now()
-			converted := i.converter.Convert(ctx, msg)
+			converted := i.converter.Convert(ctx, batch)
 			taken := time.Now().Sub(start)
-			log.Infof("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
+			log.Infof("%s - Processed %d pulsar messages in %dms", i.pulsarTopic, len(batch.MessageIds), taken.Milliseconds())
 			instructions <- converted
 		}
 		close(instructions)
@@ -197,9 +212,9 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 			err := i.sink.Store(ctx, msg)
 			taken := time.Now().Sub(start)
 			if err != nil {
-				log.WithError(err).Warn("Error inserting messages")
+				log.WithError(err).Warnf("%s - Error inserting messages", i.pulsarTopic)
 			} else {
-				log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), taken.Milliseconds())
+				log.Infof("%s - Inserted %d pulsar messages in %dms", i.pulsarTopic, len(msg.GetMessageIDs()), taken.Milliseconds())
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
 				// This occurs when we're shutting down- it's a signal to stop processing immediately
@@ -210,7 +225,7 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 						armadacontext.Background(),
 						func() error { return i.consumer.AckID(msgId) },
 						func(err error) {
-							log.WithError(err).Warnf("Pulsar ack failed; backing off for %s", i.pulsarConfig.BackoffTime)
+							log.WithError(err).Warnf("%s - Pulsar ack failed; backing off for %s", i.pulsarTopic, i.pulsarConfig.BackoffTime)
 							time.Sleep(i.pulsarConfig.BackoffTime)
 						},
 					)
@@ -221,14 +236,14 @@ func (i *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 		wg.Done()
 	}()
 
-	log.Info("Ingestion pipeline set up. Running until shutdown event received")
+	log.Infof("%s - Ingestion pipeline set up. Running until shutdown event received", i.pulsarTopic)
 	// wait for a shutdown event
 	wg.Wait()
-	log.Info("Shutdown event received - closing")
+	log.Infof("%s - Shutdown event received - closing", i.pulsarTopic)
 	return nil
 }
 
-func (i *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
+func (i *IngestionPipeline[T, U]) subscribe() (pulsar.Consumer, func(), error) {
 	// Subscribe to Pulsar and receive messages
 	pulsarClient, err := pulsarutils.NewPulsarClient(&i.pulsarConfig)
 	if err != nil {
@@ -236,7 +251,7 @@ func (i *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
 	}
 
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:                       i.pulsarConfig.JobsetEventsTopic,
+		Topic:                       i.pulsarTopic,
 		SubscriptionName:            i.pulsarSubscriptionName,
 		Type:                        i.pulsarSubscriptionType,
 		ReceiverQueueSize:           i.pulsarConfig.ReceiverQueueSize,
@@ -250,62 +265,4 @@ func (i *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
 		consumer.Close()
 		pulsarClient.Close()
 	}, nil
-}
-
-func unmarshalEventSequences(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
-	sequences := make([]*armadaevents.EventSequence, 0, 1)
-	messageIds := make([]pulsar.MessageID, 0, 1)
-
-	// Record the messageId- we need to record all message Ids, even if the event they contain is invalid
-	// As they must be acked at the end
-	messageIds = append(messageIds, msg.ID())
-
-	// Try and unmarshall the proto
-	es, err := eventutil.UnmarshalEventSequence(armadacontext.Background(), msg.Payload())
-	if err != nil {
-		metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
-		log.WithError(err).Warnf("Could not unmarshal proto for msg %s", msg.ID())
-	} else {
-		// Fill in time if it is not set
-		// TODO - once created is set everywhere we can remove this
-		for _, event := range es.Events {
-			if event.GetCreated() == nil {
-				event.Created = protoutil.ToTimestamp(msg.PublishTime())
-			}
-		}
-		sequences = append(sequences, es)
-	}
-	return &EventSequencesWithIds{
-		EventSequences: sequences, MessageIds: messageIds,
-	}
-}
-
-func combineEventSequences(sequences []*EventSequencesWithIds) *EventSequencesWithIds {
-	combinedSequences := make([]*armadaevents.EventSequence, 0)
-	messageIds := []pulsar.MessageID{}
-	for _, seq := range sequences {
-		combinedSequences = append(combinedSequences, seq.EventSequences...)
-		messageIds = append(messageIds, seq.MessageIds...)
-	}
-	return &EventSequencesWithIds{
-		EventSequences: combinedSequences, MessageIds: messageIds,
-	}
-}
-
-func (i *IngestionPipeline[T]) recordSummaryOfEventSequences(sequence *EventSequencesWithIds) {
-	numberOfEvents := 0
-	countOfEventsByType := map[string]int{}
-	for _, eventSequence := range sequence.EventSequences {
-		numberOfEvents += len(eventSequence.Events)
-		for _, e := range eventSequence.Events {
-			typeString := e.GetEventName()
-			countOfEventsByType[typeString] = countOfEventsByType[typeString] + 1
-
-			// Record the event sequence as processed here.  This is technically not true as we haven't finished
-			// processing yet but it saves us having to pass all these details down the pipeline and as the
-			// pipeline is single threaded, the error here should be inconsequential.
-			i.metrics.RecordEventSequenceProcessed(eventSequence.Queue, typeString)
-		}
-	}
-	log.Infof("Batch being processed contains %d event messages and %d events of type %v", len(sequence.MessageIds), numberOfEvents, countOfEventsByType)
 }

@@ -1,0 +1,26 @@
+syntax = 'proto3';
+package controlplaneevents;
+option go_package = "github.com/armadaproject/armada/pkg/controlplaneevents";
+option csharp_namespace = "ArmadaProject.Io.ControlPlaneEvents";
+
+import "google/protobuf/timestamp.proto";
+
+
+message Event {
+  google.protobuf.Timestamp created = 1;
+  oneof event {
+    ExecutorSettingsUpsert executorSettingsUpsert = 2;
+    ExecutorSettingsDelete executorSettingsDelete = 3;
+  }
+}
+
+message ExecutorSettingsUpsert {
+  string name = 1;
+  bool cordoned = 2;
+  string cordonReason = 3;
+  string setByUser = 4;
+}
+
+message ExecutorSettingsDelete {
+  string name = 1;
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	"github.com/armadaproject/armada/internal/eventingester/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -21,7 +22,7 @@ type EventConverter struct {
 	metrics             *metrics.Metrics
 }
 
-func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate] {
+func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate, *armadaevents.EventSequence] {
 	return &EventConverter{
 		Compressor:          compressor,
 		MaxMessageBatchSize: maxMessageBatchSize,
@@ -29,13 +30,13 @@ func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint,
 	}
 }
 
-func (ec *EventConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
+func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *utils.EventsWithIds[*armadaevents.EventSequence]) *model.BatchUpdate {
 	// Remove all groups as they are potentially quite large
-	for _, es := range sequencesWithIds.EventSequences {
+	for _, es := range eventsWithIds.Events {
 		es.Groups = nil
 	}
 
-	sequences := eventutil.CompactEventSequences(sequencesWithIds.EventSequences)
+	sequences := eventutil.CompactEventSequences(eventsWithIds.Events)
 	sequences, err := eventutil.LimitSequencesByteSize(sequences, ec.MaxMessageBatchSize, false)
 	if err != nil {
 		// This should never happen. We pass strict=false to theabove sequence
@@ -73,7 +74,7 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *
 	}
 
 	return &model.BatchUpdate{
-		MessageIds: sequencesWithIds.MessageIds,
+		MessageIds: eventsWithIds.MessageIds,
 		Events:     events,
 	}
 }

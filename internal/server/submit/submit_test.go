@@ -13,7 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
+	commonMocks "github.com/armadaproject/armada/internal/common/mocks/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"

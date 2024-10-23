@@ -118,10 +118,6 @@ type FakePermissionChecker struct {
 	ReturnValue bool
 }
 
-func (c FakePermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string) {
-	return c.ReturnValue, []string{}
-}
-
 func (c FakePermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	return c.ReturnValue
 }

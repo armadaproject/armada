@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"regexp"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -166,6 +168,13 @@ var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
 	[]string{"cluster", "pool", "resourceType", "nodeType"},
+	nil,
+)
+
+var ClusterCordonedStatusDesc = prometheus.NewDesc(
+	MetricPrefix+"cluster_cordoned_status",
+	"Cluster cordoned status",
+	[]string{"cluster", "reason", "setByUser"},
 	nil,
 )
 
@@ -373,6 +382,10 @@ func NewClusterTotalCapacity(value float64, cluster string, pool string, resourc
 	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
 
+func NewClusterCordonedStatus(value float64, cluster string, reason string, setByUser string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterCordonedStatusDesc, prometheus.GaugeValue, value, cluster, reason, setByUser)
+}
+
 func NewQueueAllocated(value float64, queue string, cluster string, pool string, priorityClass string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueueAllocatedDesc, prometheus.GaugeValue, value, cluster, pool, priorityClass, queue, queue, resource, nodeType)
 }
@@ -394,8 +407,10 @@ func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Met
 	values = append(values, queue)
 
 	for key, value := range labels {
-		metricLabels = append(metricLabels, key)
-		values = append(values, value)
+		if isValidMetricLabelName(key) {
+			metricLabels = append(metricLabels, key)
+			values = append(values, value)
+		}
 	}
 
 	queueLabelsDesc := prometheus.NewDesc(
@@ -406,4 +421,11 @@ func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Met
 	)
 
 	return prometheus.MustNewConstMetric(queueLabelsDesc, prometheus.GaugeValue, 1, values...)
+}
+
+func isValidMetricLabelName(labelName string) bool {
+	// Prometheus metric label names must match the following regex: [a-zA-Z_][a-zA-Z0-9_]*
+	// See: https://prometheus.io/docs/concepts/data_model/
+	match, _ := regexp.MatchString("^[a-zA-Z_][a-zA-Z0-9_]*$", labelName)
+	return match
 }

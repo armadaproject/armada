@@ -31,7 +31,7 @@ import (
 // to Pulsar based on those calls.
 type Server struct {
 	queueService     api.QueueServiceServer
-	publisher        pulsarutils.Publisher
+	publisher        pulsarutils.Publisher[*armadaevents.EventSequence]
 	queueCache       armadaqueue.ReadOnlyQueueRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
@@ -43,7 +43,7 @@ type Server struct {
 
 func NewServer(
 	queueService api.QueueServiceServer,
-	publisher pulsarutils.Publisher,
+	publisher pulsarutils.Publisher[*armadaevents.EventSequence],
 	queueCache armadaqueue.ReadOnlyQueueRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,

@@ -17,6 +17,11 @@ import (
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
+const (
+	InvalidLockKey      = -1
+	JobSetEventsLockKey = 8741339439634283896
+)
+
 // SchedulerDb writes DbOperations into postgres.
 type SchedulerDb struct {
 	// Connection to the postgres database.
@@ -55,9 +60,11 @@ func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperatio
 		}, func(tx pgx.Tx) error {
 			lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
-			// The lock is released automatically on transaction rollback/commit.
-			if err := s.acquireLock(lockCtx, tx); err != nil {
-				return err
+			if scope, err := getLockKey(instructions.Ops); err == nil {
+				// The lock is released automatically on transaction rollback/commit.
+				if err := s.acquireLock(lockCtx, tx, scope); err != nil {
+					return err
+				}
 			}
 			for _, dbOp := range instructions.Ops {
 				if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
@@ -79,9 +86,8 @@ func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperatio
 // rows with sequence numbers smaller than those already written.
 //
 // The scheduler relies on these sequence numbers to only fetch new or updated rows in each update cycle.
-func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx) error {
-	const lockId = 8741339439634283896
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId); err != nil {
+func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx, scope int) error {
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", scope); err != nil {
 		return errors.Wrapf(err, "could not obtain lock")
 	}
 	return nil
@@ -348,10 +354,46 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	case UpsertExecutorSettings:
+		for _, settingsUpsert := range o {
+			err := queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
+				ExecutorID:   settingsUpsert.ExecutorID,
+				Cordoned:     settingsUpsert.Cordoned,
+				CordonReason: settingsUpsert.CordonReason,
+				SetByUser:    settingsUpsert.SetByUser,
+				SetAtTime:    settingsUpsert.SetAtTime,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error upserting executor settings for %s", settingsUpsert.ExecutorID)
+			}
+		}
+		return nil
+	case DeleteExecutorSettings:
+		for _, settingsUpsert := range o {
+			err := queries.DeleteExecutorSettings(ctx, schedulerdb.DeleteExecutorSettingsParams{
+				ExecutorID: settingsUpsert.ExecutorID,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error deleting executor settings for %s", settingsUpsert.ExecutorID)
+			}
+		}
+		return nil
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+// getLockKey is a local method to determine a lock key for the provided set of operations. An error will be returned
+// if the operations don't have an associated lock key. Currently, only jobSet events require locking as they rely
+// on row sequence numbers being monotonically increasing.
+func getLockKey(operations []DbOperation) (int, error) {
+	for _, op := range operations {
+		if op.GetOperation() == JobSetOperation {
+			return JobSetEventsLockKey, nil
+		}
+	}
+	return InvalidLockKey, errors.Errorf("provided operations do not require locking")
 }
 
 func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {

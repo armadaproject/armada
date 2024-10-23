@@ -13,8 +13,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
@@ -58,12 +58,12 @@ func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, co
 	}
 }
 
-func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequences *utils.EventsWithIds[*armadaevents.EventSequence]) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
-		MessageIds: sequencesWithIds.MessageIds,
+		MessageIds: sequences.MessageIds,
 	}
 
-	for _, es := range sequencesWithIds.EventSequences {
+	for _, es := range sequences.Events {
 		c.convertSequence(ctx, es, updateInstructions)
 	}
 	return updateInstructions

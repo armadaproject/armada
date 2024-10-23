@@ -116,3 +116,11 @@ message PodRequirements {
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
 }
+
+message ExecutorSettings {
+  string executorId = 1;
+  bool cordoned = 2;
+  string cordonReason = 3;
+  string setByUser = 4;
+  google.protobuf.Timestamp setAtTime = 5;
+}

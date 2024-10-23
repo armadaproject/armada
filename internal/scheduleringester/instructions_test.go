@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 var (
@@ -26,7 +27,7 @@ var (
 	m            = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
 )
 
-func TestConvertSequence(t *testing.T) {
+func TestConvertEventSequence(t *testing.T) {
 	tests := map[string]struct {
 		events   []*armadaevents.EventSequence_Event
 		expected []DbOperation
@@ -230,9 +231,53 @@ func TestConvertSequence(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := InstructionConverter{m, compressor}
+			converter := JobSetEventsInstructionConverter{m, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.dbOperationsFromEventSequence(es)
+			assertOperationsEqual(t, tc.expected, results)
+		})
+	}
+}
+
+func TestConvertControlPlaneEvent(t *testing.T) {
+	tests := map[string]struct {
+		event    *controlplaneevents.Event
+		expected []DbOperation
+	}{
+		"upsert cordon executor event": {
+			event: f.UpsertExecutorSettingsCordon,
+			expected: []DbOperation{UpsertExecutorSettings{
+				f.ExecutorId: &ExecutorSettingsUpsert{
+					ExecutorID:   f.ExecutorId,
+					Cordoned:     true,
+					CordonReason: f.ExecutorCordonReason,
+				},
+			}},
+		},
+		"upsert uncordon executor event": {
+			event: f.UpsertExecutorSettingsUncordon,
+			expected: []DbOperation{UpsertExecutorSettings{
+				f.ExecutorId: &ExecutorSettingsUpsert{
+					ExecutorID:   f.ExecutorId,
+					Cordoned:     false,
+					CordonReason: "",
+				},
+			}},
+		},
+		"delete executor settings": {
+			event: f.DeleteExecutorSettings,
+			expected: []DbOperation{DeleteExecutorSettings{
+				f.ExecutorId: &ExecutorSettingsDelete{
+					ExecutorID: f.ExecutorId,
+				},
+			}},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			converter := ControlPlaneEventsInstructionConverter{m}
+			results := converter.dbOperationFromControlPlaneEvent(tc.event)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}

@@ -18,7 +18,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -1315,6 +1315,10 @@ func (t testExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*sch
 	panic("not implemented")
 }
 
+func (t testExecutorRepository) GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error) {
+	panic("not implemented")
+}
+
 func (t testExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
@@ -2080,7 +2084,7 @@ func TestCycleConsistency(t *testing.T) {
 				func() *jobdb.Job {
 					job := jobDbJobFromDbJob(resourceListFactory, queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, testPool, 2).WithFailed(true)
 					// TODO(albin): RunAttempted is implicitly set to true for failed runs with error other than PodLeaseReturned.
-					//              See func (c *InstructionConverter) handleJobRunErrors.
+					//              See func (c *JobSetEventsInstructionConverter) handleJobRunErrors.
 					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true))
 				}(),
 			},
@@ -2275,7 +2279,7 @@ func TestCycleConsistency(t *testing.T) {
 				queueByJobId[jobUpdate.JobID] = jobUpdate.Queue
 				jobSetByJobId[jobUpdate.JobID] = jobUpdate.JobSet
 			}
-			instructionConverter, err := scheduleringester.NewInstructionConverter(nil)
+			instructionConverter, err := scheduleringester.NewJobSetEventsInstructionConverter(nil)
 			require.NoError(t, err)
 
 			// Helper function for creating new schedulers for use in tests.
@@ -2387,10 +2391,11 @@ func TestCycleConsistency(t *testing.T) {
 			// persist persists to the schedulerDb any published eventSequences.
 			persist := func(s *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
 				publisher := s.publisher.(*testPublisher)
-				eventSequences := publisher.ReadAll()
-				dbOpsWithMessageIds := instructionConverter.Convert(ctx, &ingest.EventSequencesWithIds{
-					EventSequences: eventSequences,
-				})
+				events := publisher.ReadAll()
+				sequences := &utils.EventsWithIds[*armadaevents.EventSequence]{
+					Events: events,
+				}
+				dbOpsWithMessageIds := instructionConverter.Convert(ctx, sequences)
 
 				// Mark scheduling decisions as persisted.
 				// If not persisted, the same jobs are scheduled again on subsequent calls to schedule.
@@ -2398,11 +2403,11 @@ func TestCycleConsistency(t *testing.T) {
 
 				// Logging
 				numEvents := 0
-				for _, eventSequence := range eventSequences {
+				for _, eventSequence := range sequences.Events {
 					numEvents += len(eventSequence.Events)
 				}
-				t.Logf("persist scheduler %p; %d eventSequences, %d eventSequences, %d ops", s, len(eventSequences), numEvents, len(dbOpsWithMessageIds.Ops))
-				for _, eventSequence := range eventSequences {
+				t.Logf("persist scheduler %p; %d eventSequences, %d eventSequences, %d ops", s, len(sequences.Events), numEvents, len(dbOpsWithMessageIds.Ops))
+				for _, eventSequence := range sequences.Events {
 					for _, event := range eventSequence.Events {
 						t.Logf("\tevent %s, %s, %T", eventSequence.Queue, eventSequence.JobSetName, event.Event)
 					}
@@ -2643,7 +2648,7 @@ func TestCycleConsistency(t *testing.T) {
 
 func dbOpsFromDbObjects(
 	ctx *armadacontext.Context,
-	instructionConverter *scheduleringester.InstructionConverter,
+	instructionConverter *scheduleringester.JobSetEventsInstructionConverter,
 	queueByJobId map[string]string,
 	jobSetByJobId map[string]string,
 	jobUpdates []*database.Job,
@@ -2697,8 +2702,8 @@ func dbOpsFromDbObjects(
 	}
 	insertJobRunErrorsDbOps := instructionConverter.Convert(
 		ctx,
-		&ingest.EventSequencesWithIds{
-			EventSequences: jobRunErrorsEventSequences,
+		&utils.EventsWithIds[*armadaevents.EventSequence]{
+			Events: jobRunErrorsEventSequences,
 		},
 	)
 	for _, dbOp := range insertJobRunErrorsDbOps.Ops {

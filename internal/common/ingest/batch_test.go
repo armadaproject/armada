@@ -24,6 +24,18 @@ type resultHolder struct {
 	mutex  sync.Mutex
 }
 
+func addToResult(result *resultHolder, publishChan chan []int) {
+	for {
+		select {
+		case value, ok := <-publishChan:
+			if !ok {
+				return
+			}
+			result.add(value)
+		}
+	}
+}
+
 func newResultHolder() *resultHolder {
 	return &resultHolder{
 		result: make([][]int, 0),
@@ -47,12 +59,17 @@ func TestBatch_MaxItems(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
+	publishChan := make(chan []int)
 	result := newResultHolder()
-	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultItemCounterFunc, result.add)
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultItemCounterFunc, publishChan)
 	batcher.clock = testClock
+
+	go addToResult(result, publishChan)
 
 	go func() {
 		batcher.Run(ctx)
+		close(inputChan)
+		close(publishChan)
 	}()
 
 	// Post 6 items on the input channel without advancing the clock
@@ -72,14 +89,19 @@ func TestBatch_MaxItems_CustomItemCountFunction(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
+	publishChan := make(chan []int)
 	result := newResultHolder()
 	// This function will mean each item on the input channel will count as 2 items
 	doubleItemCounterFunc := func(i int) int { return 2 }
-	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, doubleItemCounterFunc, result.add)
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, doubleItemCounterFunc, publishChan)
 	batcher.clock = testClock
+
+	go addToResult(result, publishChan)
 
 	go func() {
 		batcher.Run(ctx)
+		close(inputChan)
+		close(publishChan)
 	}()
 
 	// Post 6 items on the input channel without advancing the clock
@@ -99,12 +121,17 @@ func TestBatch_Time(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
+	publishChan := make(chan []int)
 	result := newResultHolder()
-	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultItemCounterFunc, result.add)
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultItemCounterFunc, publishChan)
 	batcher.clock = testClock
+
+	go addToResult(result, publishChan)
 
 	go func() {
 		batcher.Run(ctx)
+		close(inputChan)
+		close(publishChan)
 	}()
 
 	inputChan <- 1
@@ -121,12 +148,17 @@ func TestBatch_Time_WithIntialQuiet(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
+	publishChan := make(chan []int)
 	result := newResultHolder()
-	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultItemCounterFunc, result.add)
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultItemCounterFunc, publishChan)
 	batcher.clock = testClock
+
+	go addToResult(result, publishChan)
 
 	go func() {
 		batcher.Run(ctx)
+		close(inputChan)
+		close(publishChan)
 	}()
 
 	// initial quiet period
