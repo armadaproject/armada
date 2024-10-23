@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduleringester"
+	serverconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -298,6 +301,8 @@ func (s *Simulator) setupClusters() error {
 		}
 
 		for nodeTemplateIndex, nodeTemplate := range cluster.NodeTemplates {
+			labels := maps.Clone(nodeTemplate.Labels)
+			labels["armadaproject.io/clusterName"] = cluster.Name
 			for i := 0; i < int(nodeTemplate.Number); i++ {
 				nodeId := fmt.Sprintf("%s-%d-%d", cluster.Name, nodeTemplateIndex, i)
 				node := &schedulerobjects.Node{
@@ -306,7 +311,7 @@ func (s *Simulator) setupClusters() error {
 					Executor:       cluster.Name,
 					Pool:           cluster.Pool,
 					Taints:         slices.Clone(nodeTemplate.Taints),
-					Labels:         maps.Clone(nodeTemplate.Labels),
+					Labels:         labels,
 					TotalResources: nodeTemplate.TotalResources.DeepCopy(),
 					AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 						types.AllowedPriorities(s.schedulingConfig.PriorityClasses),
@@ -351,17 +356,22 @@ func (s *Simulator) bootstrapWorkload() error {
 				Queue:      queue.Name,
 				JobSetName: jobTemplate.JobSet,
 			}
+			gangId := ""
+			gangCardinality := int(jobTemplate.GangCardinality)
 			for k := 0; k < int(jobTemplate.Number); k++ {
 				if len(jobTemplate.Dependencies) > 0 {
 					continue
 				}
 				jobId := util.NewULID()
+				if k%gangCardinality == 0 {
+					gangId = fmt.Sprintf("%s-0", util.NewULID())
+				}
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
 						Created: protoutil.ToTimestamp(s.time.Add(jobTemplate.EarliestSubmitTime)),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
-							SubmitJob: submitJobFromJobTemplate(jobId, jobTemplate),
+							SubmitJob: submitJobFromJobTemplate(jobId, jobTemplate, gangId),
 						},
 					},
 				)
@@ -396,13 +406,29 @@ func (s *Simulator) bootstrapWorkload() error {
 	return nil
 }
 
-func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate) *armadaevents.SubmitJob {
+func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId string) *armadaevents.SubmitJob {
+
+	annotations := jobTemplate.Requirements.Annotations
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	if jobTemplate.GangCardinality > 0 {
+		annotations[serverconfig.GangIdAnnotation] = gangId
+		annotations[serverconfig.GangCardinalityAnnotation] = strconv.Itoa(int(jobTemplate.GangCardinality))
+		if jobTemplate.GangNodeUniformityLabel != "" {
+			annotations[serverconfig.GangNodeUniformityLabelAnnotation] = jobTemplate.GangNodeUniformityLabel
+		} else {
+			annotations[serverconfig.GangNodeUniformityLabelAnnotation] = "armadaproject.io/clusterName"
+		}
+	}
+
 	return &armadaevents.SubmitJob{
 		JobId:    jobId,
 		Priority: jobTemplate.QueuePriority,
 		MainObject: &armadaevents.KubernetesMainObject{
 			ObjectMeta: &armadaevents.ObjectMeta{
-				Annotations: jobTemplate.Requirements.Annotations,
+				Annotations: annotations,
 			},
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{
@@ -821,15 +847,20 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 				Queue:      dependentJobTemplate.Queue,
 				JobSetName: dependentJobTemplate.JobSet,
 			}
+			gangId := ""
+			gangCardinality := int(dependentJobTemplate.GangCardinality)
 			for k := 0; k < int(dependentJobTemplate.Number); k++ {
 				jobId := util.NewULID()
+				if k%gangCardinality == 0 {
+					gangId = fmt.Sprintf("%s-0", util.NewULID())
+				}
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
 						// EarliestSubmitTimeFromDependencyCompletion must be positive
 						Created: protoutil.ToTimestamp(maxTime(time.Time{}.Add(dependentJobTemplate.EarliestSubmitTime), s.time.Add(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion))),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
-							SubmitJob: submitJobFromJobTemplate(jobId, dependentJobTemplate),
+							SubmitJob: submitJobFromJobTemplate(jobId, dependentJobTemplate, gangId),
 						},
 					},
 				)
@@ -883,6 +914,19 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	jobTemplate := s.jobTemplateByJobId[job.Id()]
 	retryJobId := util.NewULID()
 	resubmitTime := s.time.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.WorkflowManagerDelayDistribution))
+	gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
+	gangId := ""
+	if err != nil {
+		return nil, false, err
+	}
+	if gangInfo.Cardinality > 0 {
+		toks := strings.Split(gangInfo.Id, "-")
+		attempt, err := strconv.Atoi(toks[1])
+		if err != nil {
+			return nil, false, err
+		}
+		gangId = fmt.Sprintf("%s-%d", gangInfo.Id, attempt+1)
+	}
 	s.pushEventSequence(
 		&armadaevents.EventSequence{
 			Queue:      job.Queue(),
@@ -891,7 +935,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 				{
 					Created: protoutil.ToTimestamp(resubmitTime),
 					Event: &armadaevents.EventSequence_Event_SubmitJob{
-						SubmitJob: submitJobFromJobTemplate(retryJobId, jobTemplate),
+						SubmitJob: submitJobFromJobTemplate(retryJobId, jobTemplate, gangId),
 					},
 				},
 			},
