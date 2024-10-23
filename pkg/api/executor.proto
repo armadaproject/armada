@@ -54,7 +54,7 @@ message ExecutorPreemptRequest {
 
 message ExecutorCancelRequest {
   string name = 1;
-  // We select jobs on the executor to cancel based on the provided Select message
+  // We select jobs to cancel on the executor based on the provided Select message
   oneof Select {
     ByPriorityClass priorityClasses = 2;
     ByPriorityQueue queues = 3;
