@@ -159,8 +159,14 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 				},
 			},
 		},
-		RuntimeDistribution: ShiftedExponential{Minimum: time.Minute},
+		RuntimeDistribution: ShiftedExponential{Minimum: 1 * time.Minute},
 	}
+}
+
+func GangJobTemplate32Cpu(numJobs int64, gangCardinality uint32, jobSet, priorityClassName string) *JobTemplate {
+	jobTemplate := JobTemplate32Cpu(numJobs, jobSet, priorityClassName)
+	jobTemplate.GangCardinality = gangCardinality
+	return jobTemplate
 }
 
 func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
