@@ -551,8 +551,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 		// Update jobDb to reflect the decisions by the scheduler.
 		// Sort jobs to ensure deterministic event ordering.
-		preemptedJobs := scheduling.PreemptedJobsFromSchedulerResult(result)
+		preemptedJobs := slices.Clone(result.PreemptedJobs)
 		scheduledJobs := slices.Clone(result.ScheduledJobs)
+
 		lessJob := func(a, b *jobdb.Job) int {
 			if a.Queue() < b.Queue() {
 				return -1
@@ -566,17 +567,20 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			return 0
 		}
-		slices.SortFunc(preemptedJobs, lessJob)
+		slices.SortFunc(preemptedJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
+			return lessJob(a.Job, b.Job)
+		})
 		slices.SortFunc(scheduledJobs, func(a, b *schedulercontext.JobSchedulingContext) int {
 			return lessJob(a.Job, b.Job)
 		})
-		for i, job := range preemptedJobs {
+		for i, jctx := range preemptedJobs {
+			job := jctx.Job
 			if run := job.LatestRun(); run != nil {
 				job = job.WithUpdatedRun(run.WithFailed(true))
 			} else {
 				return errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
 			}
-			preemptedJobs[i] = job.WithQueued(false).WithFailed(true)
+			preemptedJobs[i].Job = job.WithQueued(false).WithFailed(true)
 		}
 		for i, jctx := range scheduledJobs {
 			job := jctx.Job
@@ -594,7 +598,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
 			}
 		}
-		if err := txn.Upsert(preemptedJobs); err != nil {
+		if err := txn.Upsert(armadaslices.Map(preemptedJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
 			return err
 		}
 		if err := txn.Upsert(armadaslices.Map(scheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
@@ -605,7 +609,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		s.allocationByPoolAndQueueAndPriorityClass[pool] = sctx.AllocatedByQueueAndPriority()
 
 		// Generate eventSequences.
-		eventSequences, err = scheduler.AppendEventSequencesFromPreemptedJobs(eventSequences, preemptedJobs, s.time)
+		eventSequences, err = scheduler.AppendEventSequencesFromPreemptedJobs(eventSequences, result.PreemptedJobs, s.time)
 		if err != nil {
 			return err
 		}
