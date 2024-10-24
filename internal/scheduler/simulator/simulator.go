@@ -426,7 +426,6 @@ func (s *Simulator) bootstrapWorkload() error {
 }
 
 func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId string) *armadaevents.SubmitJob {
-
 	annotations := jobTemplate.Requirements.Annotations
 	if annotations == nil {
 		annotations = map[string]string{}
@@ -769,6 +768,9 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		false,
 		poolNames,
 	)
+	if err != nil {
+		return nil, false, err
+	}
 	s.addJobToDemand(job)
 	gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
