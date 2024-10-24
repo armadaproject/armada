@@ -550,6 +550,7 @@ message JobRunPreemptionRequested {
 message JobPreemptionRequested {
     reserved 1;
     string job_id = 2;
+    string reason = 3;
 }
 
 // Indicates that the scheduler is happy with the job

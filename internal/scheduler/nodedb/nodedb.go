@@ -341,6 +341,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSche
 		// order to find the best fit for this gang); clear out any remnants of
 		// previous attempts.
 		jctx.UnschedulableReason = ""
+		jctx.PreemptingJobId = ""
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 		if err != nil {

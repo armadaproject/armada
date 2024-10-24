@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/armadaproject/armada/internal/armadactl"
@@ -12,6 +14,7 @@ func preemptCmd() *cobra.Command {
 		Short: "Preempt jobs in armada.",
 		Args:  cobra.ExactArgs(0),
 	}
+	cmd.Flags().String("reason", "", "Reason for preemption")
 	cmd.AddCommand(preemptJobCmd())
 	return cmd
 }
@@ -30,8 +33,13 @@ func preemptJobCmd() *cobra.Command {
 			queue := args[0]
 			jobSetId := args[1]
 			jobId := args[2]
-			return a.Preempt(queue, jobSetId, jobId)
+			reason, err := cmd.Flags().GetString("reason")
+			if err != nil {
+				return fmt.Errorf("error reading reason: %s", err)
+			}
+			return a.Preempt(queue, jobSetId, jobId, reason)
 		},
 	}
+	cmd.Flags().String("reason", "", "Reason for preemption")
 	return cmd
 }

@@ -1332,9 +1332,6 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobPreemptedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"cause\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
 		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1357,6 +1354,9 @@ func SwaggerJsonTemplate() string {
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -1376,6 +1376,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"requestor\": {\n" +

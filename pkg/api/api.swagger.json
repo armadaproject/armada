@@ -1321,9 +1321,6 @@
     "apiJobPreemptedEvent": {
       "type": "object",
       "properties": {
-        "cause": {
-          "type": "string"
-        },
         "clusterId": {
           "type": "string"
         },
@@ -1346,6 +1343,9 @@
         "queue": {
           "type": "string"
         },
+        "reason": {
+          "type": "string"
+        },
         "runId": {
           "type": "string"
         }
@@ -1365,6 +1365,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "requestor": {

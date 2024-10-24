@@ -11,7 +11,7 @@ import (
 )
 
 // Preempt a job.
-func (a *App) Preempt(queue string, jobSetId string, jobId string) (outerErr error) {
+func (a *App) Preempt(queue string, jobSetId string, jobId string, reason string) (outerErr error) {
 	apiConnectionDetails := a.Params.ApiConnectionDetails
 
 	fmt.Fprintf(a.Out, "Requesting preemption of job matching queue: %s, job set: %s, and job Id: %s\n", queue, jobSetId, jobId)
@@ -23,6 +23,7 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string) (outerErr err
 			JobIds:   []string{jobId},
 			JobSetId: jobSetId,
 			Queue:    queue,
+			Reason:   reason,
 		})
 		if err != nil {
 			return errors.Wrapf(err, "error preempting job matching queue: %s, job set: %s, and job id: %s", queue, jobSetId, jobId)
