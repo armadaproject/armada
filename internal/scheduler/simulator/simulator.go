@@ -284,7 +284,14 @@ func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
 	if !slices.Equal(jobTemplateIds, armadaslices.Unique(jobTemplateIds)) {
 		return errors.Errorf("duplicate job template ids: %v", jobTemplateIds)
 	}
-
+	for _, queue := range workloadSpec.Queues {
+		for _, template := range queue.JobTemplates {
+			// Confirm that we can create an exact number of gang jobs
+			if template.GangCardinality != 0 && int(template.Number)%int(template.GangCardinality) != 0 {
+				return errors.Errorf("template.Number [%d] is not exactly divisible by template.GangCardinality [%d]", template.Number, template.GangCardinality)
+			}
+		}
+	}
 	return nil
 }
 
