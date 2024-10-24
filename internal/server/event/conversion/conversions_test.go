@@ -830,7 +830,8 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 			JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-				JobId: jobId,
+				JobId:  jobId,
+				Reason: "preemption requested",
 			},
 		},
 	}
@@ -844,6 +845,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
 					Requestor: userId,
+					Reason:    "preemption requested",
 				},
 			},
 		},
@@ -861,6 +863,7 @@ func TestConvertJobRunPreempted(t *testing.T) {
 			JobRunPreempted: &armadaevents.JobRunPreempted{
 				PreemptedJobId: jobId,
 				PreemptedRunId: runId,
+				Reason:         "Preempted reason",
 			},
 		},
 	}
@@ -874,6 +877,7 @@ func TestConvertJobRunPreempted(t *testing.T) {
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
 					RunId:    runId,
+					Reason:   "Preempted reason",
 				},
 			},
 		},

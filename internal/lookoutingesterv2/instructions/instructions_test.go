@@ -160,7 +160,7 @@ var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-	Error:       []byte("preempted"),
+	Error:       []byte(testfixtures.PreemptionReason),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{

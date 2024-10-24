@@ -1312,6 +1312,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },
@@ -1340,6 +1343,9 @@
         "queue": {
           "type": "string"
         },
+        "reason": {
+          "type": "string"
+        },
         "runId": {
           "type": "string"
         }
@@ -1359,6 +1365,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "requestor": {

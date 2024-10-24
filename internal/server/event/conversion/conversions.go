@@ -119,6 +119,7 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
+					Reason:    e.Reason,
 				},
 			},
 		},
@@ -317,7 +318,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
-						Reason:   "preempted",
+						Reason:   reason.JobRunPreemptedError.Reason,
 					},
 				},
 			}
@@ -444,6 +445,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
 		RunId:    e.PreemptedRunId,
+		Reason:   e.Reason,
 	}
 
 	return []*api.EventMessage{

@@ -39,6 +39,7 @@ const (
 	DebugMsg                   = "sample debug message"
 	LeaseReturnedMsg           = "lease returned error message"
 	UnschedulableMsg           = "test pod is unschedulable"
+	PreemptionReason           = "job preempted"
 	PartitionMarkerPartitionId = 456
 
 	ExecutorCordonReason = "bad executor"
@@ -367,6 +368,7 @@ var JobRunPreempted = &armadaevents.EventSequence_Event{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
 			PreemptedJobId: JobId,
 			PreemptedRunId: RunId,
+			Reason:         PreemptionReason,
 		},
 	},
 }
