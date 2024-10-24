@@ -289,8 +289,17 @@ func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
 }
 
 func (s *Simulator) setupClusters() error {
+
+	indexedNodeLabels := s.schedulingConfig.IndexedNodeLabels
+	if indexedNodeLabels == nil {
+		indexedNodeLabels = []string{}
+	}
+	if !slices.Contains(indexedNodeLabels, "armadaproject.io/clusterName") {
+		indexedNodeLabels = append(indexedNodeLabels, "armadaproject.io/clusterName")
+	}
+
 	nodeFactory := internaltypes.NewNodeFactory(s.schedulingConfig.IndexedTaints,
-		s.schedulingConfig.IndexedNodeLabels,
+		indexedNodeLabels,
 		s.resourceListFactory)
 
 	for _, cluster := range s.ClusterSpec.Clusters {
@@ -300,7 +309,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.PriorityClasses,
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
-				s.schedulingConfig.IndexedNodeLabels,
+				indexedNodeLabels,
 				s.schedulingConfig.WellKnownNodeTypes,
 				s.resourceListFactory,
 			)

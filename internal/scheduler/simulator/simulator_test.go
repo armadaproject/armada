@@ -439,6 +439,41 @@ func TestSimulator(t *testing.T) {
 			),
 			simulatedTimeLimit: 24 * time.Hour,
 		},
+		"Gang Job": {
+			clusterSpec: &ClusterSpec{
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "Cluster1",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(8)},
+					},
+					{
+						// This cluster should be too small to run gangs
+						Name:          "Cluster2",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+				},
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					WithJobTemplatesQueue(
+						&Queue{Name: "A", Weight: 1},
+						GangJobTemplate32Cpu(16, 8, "foo", testfixtures.TestDefaultPriorityClass),
+					),
+				},
+			},
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			expectedEventSequences: armadaslices.Concatenate(
+				armadaslices.Repeat(1, SubmitJob(16, "A", "foo")),
+				armadaslices.Repeat(8, JobRunLeased(1, "A", "foo")),
+				armadaslices.Repeat(8, JobSucceeded(1, "A", "foo")),
+				armadaslices.Repeat(8, JobRunLeased(1, "A", "foo")),
+				armadaslices.Repeat(8, JobSucceeded(1, "A", "foo")),
+			),
+			simulatedTimeLimit: 5 * time.Minute,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
