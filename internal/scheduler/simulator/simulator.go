@@ -55,6 +55,12 @@ type accounting struct {
 	demandByQueue map[string]schedulerobjects.ResourceList
 	// Total resources across all executorGroups for each pool.
 	totalResourcesByPool map[string]schedulerobjects.ResourceList
+	// Mapping of job Id -> nodeId.  Needed by preemptingqueuescheduler for gang preemption.
+	nodeIdByJobId map[string]string
+	// Mapping of gangId -> jobsINGang.  Needed by preemptingqueuescheduler for gang preemption.
+	jobIdsByGangId map[string]map[string]bool
+	// Mapping of jobId -> gangId.  Needed by preemptingqueuescheduler for gang preemption.
+	gangIdByJobId map[string]string
 }
 
 // Simulator captures the parameters and state of the Armada simulator.
@@ -169,6 +175,9 @@ func NewSimulator(
 			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]),
 			demandByQueue:                            make(map[string]schedulerobjects.ResourceList),
 			totalResourcesByPool:                     make(map[string]schedulerobjects.ResourceList),
+			nodeIdByJobId:                            make(map[string]string),
+			jobIdsByGangId:                           make(map[string]map[string]bool),
+			gangIdByJobId:                            make(map[string]string),
 		},
 	}
 	jobDb.SetClock(s)
@@ -562,10 +571,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			s.schedulingConfig.ProtectedFractionOfFairShare,
 			txn,
 			nodeDb,
-			// TODO: Necessary to support partial eviction.
-			nil,
-			nil,
-			nil,
+			maps.Clone(s.accounting.nodeIdByJobId),
+			maps.Clone(s.accounting.jobIdsByGangId),
+			maps.Clone(s.accounting.gangIdByJobId),
 		)
 
 		schedulerCtx := ctx
@@ -607,6 +615,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			return lessJob(a.Job, b.Job)
 		})
 		for i, job := range preemptedJobs {
+			delete(s.accounting.nodeIdByJobId, job.Id())
 			if run := job.LatestRun(); run != nil {
 				job = job.WithUpdatedRun(run.WithFailed(true))
 			} else {
@@ -623,6 +632,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if node, err := nodeDb.GetNode(nodeId); err != nil {
 				return err
 			} else {
+				s.accounting.nodeIdByJobId[job.Id()] = nodeId
 				priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
 				if !ok {
 					return errors.Errorf("job %s not mapped to a priority", job.Id())
@@ -760,8 +770,18 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		poolNames,
 	)
 	s.addJobToDemand(job)
+	gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
 		return nil, false, err
+	}
+	if gangInfo.Cardinality > 1 {
+		gangIds := s.accounting.jobIdsByGangId[gangInfo.Id]
+		if gangIds == nil {
+			gangIds = make(map[string]bool, gangInfo.Cardinality)
+			s.accounting.jobIdsByGangId[gangInfo.Id] = gangIds
+		}
+		gangIds[job.Id()] = true
+		s.accounting.gangIdByJobId[job.Id()] = gangInfo.Id
 	}
 	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 		return nil, false, err
@@ -821,6 +841,20 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	if job == nil || job.InTerminalState() {
 		// Job already terminated; nothing more to do.
 		return nil, false, nil
+	}
+
+	delete(s.accounting.nodeIdByJobId, job.Id())
+	delete(s.accounting.gangIdByJobId, job.Id())
+	gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
+	if err != nil {
+		return nil, false, err
+	}
+	if gangInfo.Cardinality > 1 {
+		gangIds := s.accounting.jobIdsByGangId[gangInfo.Id]
+		if gangIds != nil {
+			delete(s.accounting.jobIdsByGangId[gangInfo.Id], jobId)
+		}
+		s.accounting.gangIdByJobId[job.Id()] = gangInfo.Id
 	}
 	if err := txn.BatchDelete([]string{jobId}); err != nil {
 		return nil, false, err
@@ -925,10 +959,10 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	retryJobId := util.NewULID()
 	resubmitTime := s.time.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.WorkflowManagerDelayDistribution))
 	gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
-	gangId := ""
 	if err != nil {
 		return nil, false, err
 	}
+	gangId := ""
 	if gangInfo.Cardinality > 1 {
 		toks := strings.Split(gangInfo.Id, "-")
 		attempt, err := strconv.Atoi(toks[1])
