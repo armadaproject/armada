@@ -255,12 +255,23 @@ type clusterMetricKey struct {
 	nodeType string
 }
 
+type clusterCordonedStatus struct {
+	status    float64
+	reason    string
+	setByUser string
+}
+
 func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
 	executors, err := c.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
 	}
+	executorSettings, err := c.executorRepository.GetExecutorSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
 
+	cordonedStatusByCluster := map[string]*clusterCordonedStatus{}
 	phaseCountByQueue := map[queuePhaseMetricKey]int{}
 	allocatedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
 	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
@@ -278,6 +289,12 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
+		// We may not have executorSettings for all known executors, but we still want a cordon status metric for them.
+		cordonedStatusByCluster[executor.Id] = &clusterCordonedStatus{
+			status:    0.0,
+			reason:    "",
+			setByUser: "",
+		}
 		for _, node := range executor.Nodes {
 			nodePool := node.GetPool()
 			awayPools := poolToAwayPools[nodePool]
@@ -367,6 +384,23 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		}
 	}
 
+	for _, executorSetting := range executorSettings {
+		if executorSetting.Cordoned {
+			if cordonedValue, ok := cordonedStatusByCluster[executorSetting.ExecutorId]; ok {
+				cordonedValue.status = 1.0
+				cordonedValue.reason = executorSetting.CordonReason
+				cordonedValue.setByUser = executorSetting.SetByUser
+			} else {
+				// We may have settings for executors that don't exist in the repository.
+				cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
+					status:    1.0,
+					reason:    executorSetting.CordonReason,
+					setByUser: executorSetting.SetByUser,
+				}
+			}
+		}
+	}
+
 	for _, pool := range c.floatingResourceTypes.AllPools() {
 		totalFloatingResources := c.floatingResourceTypes.GetTotalAvailableForPool(pool)
 		clusterKey := clusterMetricKey{
@@ -407,6 +441,9 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, v := range totalNodeCountByCluster {
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
+	}
+	for cluster, v := range cordonedStatusByCluster {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterCordonedStatus(v.status, cluster, v.reason, v.setByUser))
 	}
 	return clusterMetrics, nil
 }

@@ -66,22 +66,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	nodeIdByJobId := make(map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sch.schedulingContext.Pool)
 
-	type queueStats struct {
-		gangsConsidered                  int
-		jobsConsidered                   int
-		gangsScheduled                   int
-		firstGangConsideredSampleJobId   string
-		firstGangConsideredResult        string
-		firstGangConsideredQueuePosition int
-		lastGangScheduledSampleJobId     string
-		lastGangScheduledQueuePosition   int
-		lastGangScheduledQueueCost       float64
-		lastGangScheduledResources       schedulerobjects.ResourceList
-		lastGangScheduledQueueResources  schedulerobjects.ResourceList
-		time                             time.Duration
-	}
-
-	statsPerQueue := map[string]queueStats{}
+	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
@@ -134,37 +119,37 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		duration := time.Now().Sub(start)
 		stats := statsPerQueue[gctx.Queue]
 
-		stats.gangsConsidered++
-		stats.jobsConsidered += gctx.Cardinality()
+		stats.GangsConsidered++
+		stats.JobsConsidered += gctx.Cardinality()
 		if scheduledOk {
-			stats.gangsScheduled++
+			stats.GangsScheduled++
 		}
 
-		if stats.firstGangConsideredSampleJobId == "" {
-			stats.firstGangConsideredSampleJobId = gctx.JobIds()[0]
-			stats.firstGangConsideredQueuePosition = loopNumber
+		if stats.FirstGangConsideredSampleJobId == "" {
+			stats.FirstGangConsideredSampleJobId = gctx.JobIds()[0]
+			stats.FirstGangConsideredQueuePosition = loopNumber
 			if scheduledOk {
-				stats.firstGangConsideredResult = "scheduled"
+				stats.FirstGangConsideredResult = "scheduled"
 			} else {
-				stats.firstGangConsideredResult = unschedulableReason
+				stats.FirstGangConsideredResult = unschedulableReason
 			}
 		}
 
 		if scheduledOk {
-			stats.lastGangScheduledSampleJobId = gctx.JobIds()[0]
-			stats.lastGangScheduledQueueCost = queueCostInclGang
-			stats.lastGangScheduledQueuePosition = loopNumber
+			stats.LastGangScheduledSampleJobId = gctx.JobIds()[0]
+			stats.LastGangScheduledQueueCost = queueCostInclGang
+			stats.LastGangScheduledQueuePosition = loopNumber
 			queue, queueOK := sch.candidateGangIterator.queueRepository.GetQueue(gctx.Queue)
 			if queueOK {
-				stats.lastGangScheduledResources = gctx.TotalResourceRequests.DeepCopy()
-				stats.lastGangScheduledQueueResources = queue.GetAllocation().DeepCopy()
+				stats.LastGangScheduledResources = gctx.TotalResourceRequests.DeepCopy()
+				stats.LastGangScheduledQueueResources = queue.GetAllocation().DeepCopy()
 			} else {
-				stats.lastGangScheduledResources = schedulerobjects.NewResourceListWithDefaultSize()
-				stats.lastGangScheduledQueueResources = schedulerobjects.NewResourceListWithDefaultSize()
+				stats.LastGangScheduledResources = schedulerobjects.NewResourceListWithDefaultSize()
+				stats.LastGangScheduledQueueResources = schedulerobjects.NewResourceListWithDefaultSize()
 			}
 		}
 
-		stats.time += duration
+		stats.Time += duration
 		statsPerQueue[gctx.Queue] = stats
 		if duration.Seconds() > 1 {
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
@@ -179,23 +164,23 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		loopNumber++
 	}
 
-	ctx.Infof("Finished %d loops through candidate gangs for pool %s: details %v", loopNumber, sch.schedulingContext.Pool, armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
+	ctx.Infof("Finished %d loops through candidate gangs for pool %s: details %v", loopNumber, sch.schedulingContext.Pool, armadamaps.MapValues(statsPerQueue, func(s QueueStats) string {
 		return fmt.Sprintf("{gangsConsidered=%d, jobsConsidered=%d, gangsScheduled=%d, "+
 			"firstGangConsideredSampleJobId=%s, firstGangConsideredResult=%s, firstGangConsideredQueuePosition=%d, "+
 			"lastGangScheduledSampleJobId=%s, lastGangScheduledQueuePosition=%d, lastGangScheduledQueueCost=%f,"+
 			"lastGangScheduledResources=%s, lastGangScheduledQueueResources=%s, time=%fs}",
-			s.gangsConsidered,
-			s.jobsConsidered,
-			s.gangsScheduled,
-			s.firstGangConsideredSampleJobId,
-			s.firstGangConsideredResult,
-			s.firstGangConsideredQueuePosition,
-			s.lastGangScheduledSampleJobId,
-			s.lastGangScheduledQueuePosition,
-			s.lastGangScheduledQueueCost,
-			s.lastGangScheduledResources.CompactString(),
-			s.lastGangScheduledQueueResources.CompactString(),
-			s.time.Seconds())
+			s.GangsConsidered,
+			s.JobsConsidered,
+			s.GangsScheduled,
+			s.FirstGangConsideredSampleJobId,
+			s.FirstGangConsideredResult,
+			s.FirstGangConsideredQueuePosition,
+			s.LastGangScheduledSampleJobId,
+			s.LastGangScheduledQueuePosition,
+			s.LastGangScheduledQueueCost,
+			s.LastGangScheduledResources.CompactString(),
+			s.LastGangScheduledQueueResources.CompactString(),
+			s.Time.Seconds())
 	}))
 
 	if sch.schedulingContext.TerminationReason == "" {
@@ -204,11 +189,20 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	if len(scheduledJobs) != len(nodeIdByJobId) {
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
+
+	schedulingStats := PerPoolSchedulingStats{
+		StatsPerQueue: statsPerQueue,
+		LoopNumber:    loopNumber,
+	}
+
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
+			sch.schedulingContext.Pool: schedulingStats,
+		},
 	}, nil
 }
 

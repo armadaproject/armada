@@ -22,44 +22,18 @@ const (
 	unimportantGroup = "unimportantGroup"
 	creatorScope     = "creatorScope"
 	executorClaim    = "executorClaim"
-	thingOwningGroup = "thingOwningGroup"
 )
 
 var ctx = context.Background()
 
 var (
-	checker                     *PrincipalPermissionChecker
-	admin                       Principal
-	submitter                   Principal
-	otherUser                   Principal
-	userWithCreatorScope        Principal
-	userWithExecutorClaim       Principal
-	thingOwnerDirect            Principal
-	thingOwnerDirectAndViaGroup Principal
-	thingNonOwner               Principal
-	thingOwnerViaGroup          Principal
+	checker               *PrincipalPermissionChecker
+	admin                 Principal
+	submitter             Principal
+	otherUser             Principal
+	userWithCreatorScope  Principal
+	userWithExecutorClaim Principal
 )
-
-type OwnedThing struct {
-	UserOwners  []string
-	GroupOwners []string
-}
-
-func (ot *OwnedThing) GetUserOwners() []string {
-	if ot != nil {
-		return ot.UserOwners
-	}
-	return nil
-}
-
-func (ot *OwnedThing) GetGroupOwners() []string {
-	if ot != nil {
-		return ot.GroupOwners
-	}
-	return nil
-}
-
-var ownedThing Owned
 
 func init() {
 	checker = NewPrincipalPermissionChecker(
@@ -73,15 +47,6 @@ func init() {
 	otherUser = NewStaticPrincipal("otherUser", "test", []string{unimportantGroup})
 	userWithCreatorScope = NewStaticPrincipalWithScopesAndClaims("creatorScopeUser", "test", []string{unimportantGroup}, []string{creatorScope}, []string{})
 	userWithExecutorClaim = NewStaticPrincipalWithScopesAndClaims("executorClaimUser", "test", []string{unimportantGroup}, []string{}, []string{executorClaim})
-
-	thingOwnerDirect = NewStaticPrincipal("thingOwnerDirect", "test", []string{})
-	thingOwnerDirectAndViaGroup = NewStaticPrincipal("thingOwnerDirectAndViaGroup", "test", []string{thingOwningGroup})
-	thingOwnerViaGroup = NewStaticPrincipal("thingOwnerViaGroup", "test", []string{thingOwningGroup})
-	thingNonOwner = NewStaticPrincipal("thingNonOwner", "test", []string{unimportantGroup})
-	ownedThing = &OwnedThing{
-		[]string{thingOwnerDirect.GetName(), thingOwnerDirectAndViaGroup.GetName()},
-		[]string{thingOwningGroup},
-	}
 }
 
 func TestPrincipalPermissionChecker_EveryoneCanDoEveryoneThings(t *testing.T) {
@@ -120,32 +85,4 @@ func TestPrincipalPermissionChecker_UsersWithoutClaimsCant(t *testing.T) {
 	for _, u := range []Principal{admin, submitter, otherUser, userWithCreatorScope} {
 		assert.False(t, checker.UserHasPermission(WithPrincipal(ctx, u), executeJobsPermission))
 	}
-}
-
-func TestUserOwns_confirmsOwnershipOfGrouplessOwner(t *testing.T) {
-	is_owner, groups_granting_ownership := checker.UserOwns(WithPrincipal(ctx, thingOwnerDirect), ownedThing)
-	assert.True(t, is_owner)
-	assert.Empty(t, groups_granting_ownership)
-}
-
-func TestUserOwns_confirmsOwnershipOfDirectOwnerInOwningGroup(t *testing.T) {
-	is_owner, groups_granting_ownership := checker.UserOwns(WithPrincipal(ctx, thingOwnerDirectAndViaGroup), ownedThing)
-	assert.True(t, is_owner)
-	// A comment above the implementation at the time I wrote this test says
-	// these groups should NOT return groups through which the user owns the
-	// the resource if the user is also a direct owner. If this changes, the
-	// assertion below will need to be rewritten.
-	assert.Empty(t, groups_granting_ownership)
-}
-
-func TestUserOwns_confirmsOwnershipOfThingOwnerViaGroup(t *testing.T) {
-	is_owner, groups_granting_ownership := checker.UserOwns(WithPrincipal(ctx, thingOwnerViaGroup), ownedThing)
-	assert.True(t, is_owner)
-	assert.EqualValues(t, groups_granting_ownership, []string{thingOwningGroup})
-}
-
-func TestUserOwns_refutesOwnershipOfThingNonOwner(t *testing.T) {
-	is_owner, groups_granting_ownership := checker.UserOwns(WithPrincipal(ctx, thingNonOwner), ownedThing)
-	assert.False(t, is_owner)
-	assert.Empty(t, groups_granting_ownership)
 }

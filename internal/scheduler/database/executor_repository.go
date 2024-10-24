@@ -9,6 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -109,6 +110,8 @@ func (r *PostgresExecutorRepository) GetExecutorSettings(ctx *armadacontext.Cont
 			ExecutorId:   result.ExecutorId,
 			Cordoned:     result.Cordoned,
 			CordonReason: result.CordonReason,
+			SetByUser:    result.SetByUser,
+			SetAtTime:    protoutil.ToTimestamp(result.SetAtTime),
 		}
 		executorSettings[i] = settings
 	}

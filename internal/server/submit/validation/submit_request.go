@@ -36,6 +36,7 @@ var (
 		validateIngresses,
 		validatePorts,
 		validateClientId,
+		validateTolerations,
 	}
 )
 
@@ -380,6 +381,30 @@ func validateInitContainerCpu(j *api.JobSubmitRequestItem, config configuration.
 		}
 		if !limitCpu.IsZero() && limitCpu.MilliValue()%1000 == 0 {
 			return fmt.Errorf(errMsg, container.Name, limitCpu)
+		}
+	}
+	return nil
+}
+
+func validateTolerations(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
+	spec := j.GetMainPodSpec()
+
+	if spec == nil {
+		return nil
+	}
+
+	if len(spec.Tolerations) == 0 || len(config.RestrictedTolerationKeys) == 0 {
+		return nil
+	}
+
+	jobTolerationKeys := map[string]bool{}
+	for _, s := range spec.Tolerations {
+		jobTolerationKeys[s.Key] = true
+	}
+
+	for _, restricted := range config.RestrictedTolerationKeys {
+		if jobTolerationKeys[restricted] {
+			return fmt.Errorf("toleration %s is not user settable", restricted)
 		}
 	}
 	return nil

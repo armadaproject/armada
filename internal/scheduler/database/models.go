@@ -85,4 +85,6 @@ type ExecutorSettings struct {
 	ExecutorId string `db:"executor_id"`
 	Cordoned bool `db:"cordoned"`
 	CordonReason string `db:"cordon_reason"`
+	SetByUser string `db:"set_by_user"`
+	SetAtTime time.Time `db:"set_at_time"`
 }

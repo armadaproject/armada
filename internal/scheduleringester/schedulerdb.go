@@ -360,6 +360,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				ExecutorID:   settingsUpsert.ExecutorID,
 				Cordoned:     settingsUpsert.Cordoned,
 				CordonReason: settingsUpsert.CordonReason,
+				SetByUser:    settingsUpsert.SetByUser,
+				SetAtTime:    settingsUpsert.SetAtTime,
 			})
 			if err != nil {
 				return errors.Wrapf(err, "error upserting executor settings for %s", settingsUpsert.ExecutorID)
