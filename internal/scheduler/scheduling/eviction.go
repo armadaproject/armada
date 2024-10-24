@@ -33,21 +33,29 @@ type queueChecker interface {
 	QueueContextExists(job *jobdb.Job) bool
 }
 
-func (er *EvictorResult) SummaryString() string {
-	type queueStats struct {
-		evictedJobCount  int
-		evictedResources internaltypes.ResourceList
-	}
-	statsPerQueue := map[string]queueStats{}
+type EvictorPerQueueStats struct {
+	EvictedJobCount  int
+	EvictedResources internaltypes.ResourceList
+}
+
+func (er *EvictorResult) GetStatsPerQueue() map[string]EvictorPerQueueStats {
+	statsPerQueue := map[string]EvictorPerQueueStats{}
 	for _, jctx := range er.EvictedJctxsByJobId {
 		queue := jctx.Job.Queue()
 		stats := statsPerQueue[queue]
-		stats.evictedJobCount++
-		stats.evictedResources = stats.evictedResources.Add(jctx.Job.KubernetesResourceRequirements())
+		stats.EvictedJobCount++
+		stats.EvictedResources = stats.EvictedResources.Add(jctx.Job.KubernetesResourceRequirements())
 		statsPerQueue[queue] = stats
 	}
-	return fmt.Sprintf("%v", armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
-		return fmt.Sprintf("{evictedJobCount=%d, evictedResources={%s}}", s.evictedJobCount, s.evictedResources.String())
+
+	return statsPerQueue
+}
+
+func (er *EvictorResult) SummaryString() string {
+	statsPerQueue := er.GetStatsPerQueue()
+
+	return fmt.Sprintf("%v", armadamaps.MapValues(statsPerQueue, func(s EvictorPerQueueStats) string {
+		return fmt.Sprintf("{evictedJobCount=%d, evictedResources={%s}}", s.EvictedJobCount, s.EvictedResources.String())
 	}))
 }
 
