@@ -5,8 +5,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func TestPopulatePreemptionDescriptions_UnknownCause(t *testing.T) {
@@ -17,13 +22,40 @@ func TestPopulatePreemptionDescriptions_UnknownCause(t *testing.T) {
 		{
 			JobId:          "job-1",
 			AssignedNodeId: "node-1",
+			Job:            makeJob(t, "job-1", false),
 		},
 	}
 	expectedPreemptedJobContexts := []*context.JobSchedulingContext{
 		{
 			JobId:                 "job-1",
 			AssignedNodeId:        "node-1",
+			Job:                   makeJob(t, "job-1", false),
 			PreemptionDescription: unknownPreemptionCause,
+		},
+	}
+
+	PopulatePreemptionDescriptions(preemptedJobContexts, scheduledJobContexts)
+	assert.Equal(t, expectedScheduleJobContexts, scheduledJobContexts)
+	assert.Equal(t, expectedPreemptedJobContexts, preemptedJobContexts)
+}
+
+func TestPopulatePreemptionDescriptions_UnknownGangCause(t *testing.T) {
+	scheduledJobContexts := []*context.JobSchedulingContext{}
+	expectedScheduleJobContexts := []*context.JobSchedulingContext{}
+
+	preemptedJobContexts := []*context.JobSchedulingContext{
+		{
+			JobId:          "job-1",
+			AssignedNodeId: "node-1",
+			Job:            makeJob(t, "job-1", true),
+		},
+	}
+	expectedPreemptedJobContexts := []*context.JobSchedulingContext{
+		{
+			JobId:                 "job-1",
+			AssignedNodeId:        "node-1",
+			Job:                   makeJob(t, "job-1", true),
+			PreemptionDescription: unknownGangPreemptionCause,
 		},
 	}
 
@@ -123,4 +155,26 @@ func makeJobSchedulingContext(jobId string, nodeId string, schedulingMethod cont
 		},
 		JobId: jobId,
 	}
+}
+
+func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
+	annotations := map[string]string{}
+	if isGang {
+		annotations[configuration.GangIdAnnotation] = "gang"
+	}
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: annotations,
+					},
+				},
+			},
+		},
+	}
+
+	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{})
+	require.NoError(t, err)
+	return job
 }
