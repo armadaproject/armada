@@ -43,6 +43,20 @@ import (
 
 var epochStart = time.Unix(0, 0).UTC()
 
+type accounting struct {
+	// Map from node id to the pool to which the node belongs.
+	poolByNodeId map[string]string
+	// Separate nodeDb per pool
+	nodeDbByPool map[string]*nodedb.NodeDb
+	// Allocation by pool for each queue and priority class.
+	// Stored across invocations of the scheduler.
+	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
+	// Demand for each queue
+	demandByQueue map[string]schedulerobjects.ResourceList
+	// Total resources across all executorGroups for each pool.
+	totalResourcesByPool map[string]schedulerobjects.ResourceList
+}
+
 // Simulator captures the parameters and state of the Armada simulator.
 type Simulator struct {
 	ClusterSpec      *ClusterSpec
@@ -55,18 +69,7 @@ type Simulator struct {
 	// Map from job template id to jobTemplate for templates for which all jobs have not yet succeeded.
 	activeJobTemplatesById map[string]*JobTemplate
 	// The JobDb stores all jobs that have yet to terminate.
-	jobDb *jobdb.JobDb
-	// Map from node id to the pool to which the node belongs.
-	poolByNodeId map[string]string
-	// Separate nodeDb per pool
-	nodeDbByPool map[string]*nodedb.NodeDb
-	// Allocation by pool for each queue and priority class.
-	// Stored across invocations of the scheduler.
-	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
-	demandByQueue                            map[string]schedulerobjects.ResourceList
-	// Total resources across all executorGroups for each pool.
-	totalResourcesByPool map[string]schedulerobjects.ResourceList
-	// Indicates whether a job has been submitted or terminated since the last scheduling round.
+	jobDb          *jobdb.JobDb
 	shouldSchedule bool
 	// Current simulated time.
 	time time.Time
@@ -99,6 +102,8 @@ type Simulator struct {
 	sink sink.Sink
 	// Floating resource info
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	// Keeps track of what's allocated where
+	accounting accounting
 }
 
 func NewSimulator(
@@ -142,27 +147,29 @@ func NewSimulator(
 		randomSeed = time.Now().Unix()
 	}
 	s := &Simulator{
-		ClusterSpec:                              clusterSpec,
-		WorkloadSpec:                             workloadSpec,
-		schedulingConfig:                         schedulingConfig,
-		jobTemplateByJobId:                       make(map[string]*JobTemplate),
-		jobTemplatesByDependencyIds:              make(map[string]map[string]*JobTemplate),
-		activeJobTemplatesById:                   make(map[string]*JobTemplate),
-		jobDb:                                    jobDb,
-		nodeDbByPool:                             make(map[string]*nodedb.NodeDb),
-		poolByNodeId:                             make(map[string]string),
-		allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]),
-		demandByQueue:                            make(map[string]schedulerobjects.ResourceList),
-		totalResourcesByPool:                     make(map[string]schedulerobjects.ResourceList),
-		limiter:                                  rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
-		rand:                                     rand.New(rand.NewSource(randomSeed)),
-		resourceListFactory:                      resourceListFactory,
-		enableFastForward:                        enableFastForward,
-		hardTerminationMinutes:                   hardTerminationMinutes,
-		schedulerCyclePeriodSeconds:              schedulerCyclePeriodSeconds,
-		floatingResourceTypes:                    floatingResourceTypes,
-		time:                                     epochStart,
-		sink:                                     sink,
+		ClusterSpec:                 clusterSpec,
+		WorkloadSpec:                workloadSpec,
+		schedulingConfig:            schedulingConfig,
+		jobTemplateByJobId:          make(map[string]*JobTemplate),
+		jobTemplatesByDependencyIds: make(map[string]map[string]*JobTemplate),
+		activeJobTemplatesById:      make(map[string]*JobTemplate),
+		jobDb:                       jobDb,
+		limiter:                     rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
+		rand:                        rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory:         resourceListFactory,
+		enableFastForward:           enableFastForward,
+		hardTerminationMinutes:      hardTerminationMinutes,
+		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
+		floatingResourceTypes:       floatingResourceTypes,
+		time:                        epochStart,
+		sink:                        sink,
+		accounting: accounting{
+			nodeDbByPool:                             make(map[string]*nodedb.NodeDb),
+			poolByNodeId:                             make(map[string]string),
+			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]),
+			demandByQueue:                            make(map[string]schedulerobjects.ResourceList),
+			totalResourcesByPool:                     make(map[string]schedulerobjects.ResourceList),
+		},
 	}
 	jobDb.SetClock(s)
 	if err := s.setupClusters(); err != nil {
@@ -278,7 +285,7 @@ func (s *Simulator) setupClusters() error {
 		s.resourceListFactory)
 
 	for _, cluster := range s.ClusterSpec.Clusters {
-		nodeDb, ok := s.nodeDbByPool[cluster.Pool]
+		nodeDb, ok := s.accounting.nodeDbByPool[cluster.Pool]
 		if !ok {
 			newNodeDb, err := nodedb.NewNodeDb(
 				s.schedulingConfig.PriorityClasses,
@@ -292,16 +299,19 @@ func (s *Simulator) setupClusters() error {
 				return err
 			}
 			nodeDb = newNodeDb
-			s.nodeDbByPool[cluster.Pool] = nodeDb
+			s.accounting.nodeDbByPool[cluster.Pool] = nodeDb
 		}
 
-		totalResourcesForPool, ok := s.totalResourcesByPool[cluster.Pool]
+		totalResourcesForPool, ok := s.accounting.totalResourcesByPool[cluster.Pool]
 		if !ok {
 			totalResourcesForPool = schedulerobjects.ResourceList{}
 		}
 
 		for nodeTemplateIndex, nodeTemplate := range cluster.NodeTemplates {
-			labels := maps.Clone(nodeTemplate.Labels)
+			labels := map[string]string{}
+			if nodeTemplate.Labels != nil {
+				labels = maps.Clone(nodeTemplate.Labels)
+			}
 			labels["armadaproject.io/clusterName"] = cluster.Name
 			for i := 0; i < int(nodeTemplate.Number); i++ {
 				nodeId := fmt.Sprintf("%s-%d-%d", cluster.Name, nodeTemplateIndex, i)
@@ -329,11 +339,11 @@ func (s *Simulator) setupClusters() error {
 					return err
 				}
 				txn.Commit()
-				s.poolByNodeId[nodeId] = cluster.Pool
+				s.accounting.poolByNodeId[nodeId] = cluster.Pool
 			}
 		}
 		totalResourcesForPool.Add(nodeDb.TotalKubernetesResources())
-		s.totalResourcesByPool[cluster.Pool] = totalResourcesForPool
+		s.accounting.totalResourcesByPool[cluster.Pool] = totalResourcesForPool
 	}
 	return nil
 }
@@ -363,7 +373,7 @@ func (s *Simulator) bootstrapWorkload() error {
 					continue
 				}
 				jobId := util.NewULID()
-				if k%gangCardinality == 0 {
+				if gangCardinality != 0 && k%gangCardinality == 0 {
 					gangId = fmt.Sprintf("%s-0", util.NewULID())
 				}
 				eventSequence.Events = append(
@@ -506,11 +516,11 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 	var eventSequences []*armadaevents.EventSequence
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
-	for pool, nodeDb := range s.nodeDbByPool {
+	for pool, nodeDb := range s.accounting.nodeDbByPool {
 		if err := nodeDb.Reset(); err != nil {
 			return err
 		}
-		totalResources := s.totalResourcesByPool[pool]
+		totalResources := s.accounting.totalResourcesByPool[pool]
 		fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 			totalResources,
 			s.schedulingConfig,
@@ -527,7 +537,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 		sctx.Started = s.time
 		for _, queue := range s.WorkloadSpec.Queues {
-			demand, hasDemand := s.demandByQueue[queue.Name]
+			demand, hasDemand := s.accounting.demandByQueue[queue.Name]
 			if !hasDemand {
 				// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 				continue
@@ -535,7 +545,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			err := sctx.AddQueueSchedulingContext(
 				queue.Name,
 				queue.Weight,
-				s.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
+				s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
 				demand,
 				demand,
 				s.limiter,
@@ -628,7 +638,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		}
 
 		// Update allocation.
-		s.allocationByPoolAndQueueAndPriorityClass[pool] = sctx.AllocatedByQueueAndPriority()
+		s.accounting.allocationByPoolAndQueueAndPriorityClass[pool] = sctx.AllocatedByQueueAndPriority()
 
 		// Generate eventSequences.
 		eventSequences, err = scheduler.AppendEventSequencesFromPreemptedJobs(eventSequences, preemptedJobs, s.time)
@@ -818,8 +828,8 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 
 	// Subtract the allocation of this job from the queue allocation.
 	run := job.LatestRun()
-	pool := s.poolByNodeId[run.NodeId()]
-	s.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()].SubV1ResourceList(
+	pool := s.accounting.poolByNodeId[run.NodeId()]
+	s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()].SubV1ResourceList(
 		job.PriorityClassName(),
 		job.ResourceRequirements().Requests,
 	)
@@ -851,7 +861,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 			gangCardinality := int(dependentJobTemplate.GangCardinality)
 			for k := 0; k < int(dependentJobTemplate.Number); k++ {
 				jobId := util.NewULID()
-				if k%gangCardinality == 0 {
+				if gangCardinality != 0 && k%gangCardinality == 0 {
 					gangId = fmt.Sprintf("%s-0", util.NewULID())
 				}
 				eventSequence.Events = append(
@@ -889,7 +899,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 	if run.NodeId() == "" {
 		return errors.Errorf("empty nodeId for run %s of job %s", run.Id(), job.Id())
 	}
-	nodeDb := s.nodeDbByPool[run.Pool()]
+	nodeDb := s.accounting.nodeDbByPool[run.Pool()]
 	node, err := nodeDb.GetNode(run.NodeId())
 	if err != nil {
 		return err
@@ -919,7 +929,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	if err != nil {
 		return nil, false, err
 	}
-	if gangInfo.Cardinality > 0 {
+	if gangInfo.Cardinality > 1 {
 		toks := strings.Split(gangInfo.Id, "-")
 		attempt, err := strconv.Atoi(toks[1])
 		if err != nil {
@@ -957,16 +967,16 @@ func maxTime(a, b time.Time) time.Time {
 }
 
 func (s *Simulator) addJobToDemand(job *jobdb.Job) {
-	r, ok := s.demandByQueue[job.Queue()]
+	r, ok := s.accounting.demandByQueue[job.Queue()]
 	if !ok {
 		r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
-		s.demandByQueue[job.Queue()] = r
+		s.accounting.demandByQueue[job.Queue()] = r
 	}
 	r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 }
 
 func (s *Simulator) removeJobFromDemand(job *jobdb.Job) {
-	r, ok := s.demandByQueue[job.Queue()]
+	r, ok := s.accounting.demandByQueue[job.Queue()]
 	if ok {
 		r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 	}
