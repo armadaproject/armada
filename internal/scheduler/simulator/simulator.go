@@ -289,7 +289,6 @@ func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
 }
 
 func (s *Simulator) setupClusters() error {
-
 	indexedNodeLabels := s.schedulingConfig.IndexedNodeLabels
 	if indexedNodeLabels == nil {
 		indexedNodeLabels = []string{}
