@@ -159,7 +159,7 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 				},
 			},
 		},
-		RuntimeDistribution: ShiftedExponential{Minimum: time.Minute},
+		RuntimeDistribution: ShiftedExponential{Minimum: 1 * time.Minute},
 	}
 }
 
