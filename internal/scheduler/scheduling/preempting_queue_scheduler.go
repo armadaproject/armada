@@ -161,7 +161,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 	// Evict jobs on oversubscribed nodes.
 	ctx.WithField("stage", "scheduling-algo").Info("Evicting jobs from oversubscribed nodes")
-	evictorResult, inMemoryJobRepo, err = sch.evict(
+	reevictResult, inMemoryJobRepo, err := sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict oversubscribed"),
 		NewOversubscribedEvictor(
 			sch.schedulingContext,
@@ -176,24 +176,24 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
 		scheduledJobsById,
 		func(jobId string) bool {
-			_, ok := evictorResult.EvictedJctxsByJobId[jobId]
+			_, ok := reevictResult.EvictedJctxsByJobId[jobId]
 			return ok
 		},
 	)
-	for jobId, jctx := range evictorResult.EvictedJctxsByJobId {
+	for jobId, jctx := range reevictResult.EvictedJctxsByJobId {
 		if _, ok := scheduledJobsById[jobId]; ok {
 			delete(scheduledJobsById, jobId)
 		} else {
 			preemptedJobsById[jobId] = jctx
 		}
 	}
-	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
+	maps.Copy(sch.nodeIdByJobId, reevictResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
 	// Only necessary if a non-zero number of jobs were evicted.
-	if len(evictorResult.EvictedJctxsByJobId) > 0 {
+	if len(reevictResult.EvictedJctxsByJobId) > 0 {
 		ctx.WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
-		schedulerResult, err = sch.schedule(
+		rescheduleSchedulerResult, rescheduleErr := sch.schedule(
 			armadacontext.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
 			// Only evicted jobs should be scheduled in this round.
@@ -201,11 +201,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			true, // Since no new jobs are considered in this round, the scheduling key check brings no benefit.
 			true, // when choosing which queue to consider use the priority class of the next job
 		)
-		if err != nil {
-			return nil, err
+		if rescheduleErr != nil {
+			return nil, rescheduleErr
 		}
 		ctx.WithField("stage", "scheduling-algo").Info("Finished second scheduling pass")
-		for _, jctx := range schedulerResult.ScheduledJobs {
+		for _, jctx := range rescheduleSchedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
 				delete(preemptedJobsById, jctx.JobId)
 			} else {
@@ -213,7 +213,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			}
 			delete(scheduledAndEvictedJobsById, jctx.JobId)
 		}
-		maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
+		maps.Copy(sch.nodeIdByJobId, rescheduleSchedulerResult.NodeIdByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
@@ -231,11 +231,20 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
 
+	schedulingStats := PerPoolSchedulingStats{
+		StatsPerQueue: schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].StatsPerQueue,
+		LoopNumber:    schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
+		EvictorResult: evictorResult,
+	}
+
 	return &SchedulerResult{
 		PreemptedJobs:      preemptedJobs,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      sch.nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
+			sch.schedulingContext.Pool: schedulingStats,
+		},
 	}, nil
 }
 
