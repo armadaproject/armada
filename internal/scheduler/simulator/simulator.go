@@ -41,6 +41,8 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+const clusterLabel = "armadaproject.io/clusterName"
+
 var epochStart = time.Unix(0, 0).UTC()
 
 type accounting struct {
@@ -300,8 +302,8 @@ func (s *Simulator) setupClusters() error {
 	if indexedNodeLabels == nil {
 		indexedNodeLabels = []string{}
 	}
-	if !slices.Contains(indexedNodeLabels, "armadaproject.io/clusterName") {
-		indexedNodeLabels = append(indexedNodeLabels, "armadaproject.io/clusterName")
+	if !slices.Contains(indexedNodeLabels, clusterLabel) {
+		indexedNodeLabels = append(indexedNodeLabels, clusterLabel)
 	}
 
 	nodeFactory := internaltypes.NewNodeFactory(s.schedulingConfig.IndexedTaints,
@@ -336,7 +338,7 @@ func (s *Simulator) setupClusters() error {
 			if nodeTemplate.Labels != nil {
 				labels = maps.Clone(nodeTemplate.Labels)
 			}
-			labels["armadaproject.io/clusterName"] = cluster.Name
+			labels[clusterLabel] = cluster.Name
 			for i := 0; i < int(nodeTemplate.Number); i++ {
 				nodeId := fmt.Sprintf("%s-%d-%d", cluster.Name, nodeTemplateIndex, i)
 				node := &schedulerobjects.Node{
