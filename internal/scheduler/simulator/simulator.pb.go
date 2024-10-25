@@ -382,7 +382,7 @@ type JobTemplate struct {
 	RuntimeDistribution ShiftedExponential `protobuf:"bytes,12,opt,name=runtime_distribution,json=runtimeDistribution,proto3" json:"runtimeDistribution"`
 	// If set, jobs will be assigned to gangs with the given size. In this case `number` must be exactly divisible by the gang size
 	GangCardinality uint32 `protobuf:"varint,13,opt,name=gang_cardinality,json=gangCardinality,proto3" json:"gangCardinality,omitempty"`
-	// Node Uniformity label when scheduling gangs.  Only applies if gang_cardinality is non-zero.  If unset it defaults to clustername
+	// Node Uniformity label when scheduling gangs.  Only applies if gang_cardinality is non-zero.  If unset it defaults to armadaproject.io/clusterName
 	GangNodeUniformityLabel string `protobuf:"bytes,14,opt,name=gang_node_uniformity_label,json=gangNodeUniformityLabel,proto3" json:"gangNodeUniformityLabel,omitempty"`
 }
 
