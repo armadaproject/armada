@@ -759,14 +759,13 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				return nil, errors.WithStack(err)
 			}
 
-			priority, ok := nodeDb.GetScheduledAtPriority(job.JobSchedulingContext.JobId)
+			priority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
 			if !ok {
-				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
+				priority = evictedJctx.Job.PriorityClass().Priority
 			}
 			if priority > maxPriority {
 				maxPriority = priority
 			}
-			job.JobSchedulingContext.PreemptingJobId = jctx.JobId
 		}
 
 		selectedNode = nodeCopy
