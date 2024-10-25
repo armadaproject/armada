@@ -53,6 +53,8 @@ func (s *Server) UpsertExecutorSettings(grpcCtx context.Context, req *api.Execut
 		return nil, fmt.Errorf("cordon reason must be specified if cordoning")
 	}
 
+	requestingPrincipal := auth.GetPrincipal(ctx)
+
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_ExecutorSettingsUpsert{
@@ -60,6 +62,7 @@ func (s *Server) UpsertExecutorSettings(grpcCtx context.Context, req *api.Execut
 				Name:         req.Name,
 				Cordoned:     req.Cordoned,
 				CordonReason: req.CordonReason,
+				SetByUser:    requestingPrincipal.GetName(),
 			},
 		},
 	}

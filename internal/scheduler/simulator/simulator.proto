@@ -75,6 +75,10 @@ message JobTemplate {
     // see https://bora.uib.no/bora-xmlui/bitstream/handle/11250/3014726/drthesis_2022_severinson.pdf?sequence=2
     // for a discussion on the topic.
     ShiftedExponential runtime_distribution = 12 [(gogoproto.nullable) = false];
+    // If set, jobs will be assigned to gangs with the given size. In this case `number` must be exactly divisible by the gang size
+    uint32 gang_cardinality = 13;
+    // Node Uniformity label when scheduling gangs.  Only applies if gang_cardinality is non-zero.  If unset it defaults to armadaproject.io/clusterName
+    string gang_node_uniformity_label = 14;
 }
 
 message ShiftedExponential {

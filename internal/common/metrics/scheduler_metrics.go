@@ -171,6 +171,13 @@ var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	nil,
 )
 
+var ClusterCordonedStatusDesc = prometheus.NewDesc(
+	MetricPrefix+"cluster_cordoned_status",
+	"Cluster cordoned status",
+	[]string{"cluster", "reason", "setByUser"},
+	nil,
+)
+
 var QueuePriorityDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_priority",
 	"Queue priority factor",
@@ -373,6 +380,10 @@ func NewClusterAvailableCapacity(value float64, cluster string, pool string, res
 
 func NewClusterTotalCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
+}
+
+func NewClusterCordonedStatus(value float64, cluster string, reason string, setByUser string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterCordonedStatusDesc, prometheus.GaugeValue, value, cluster, reason, setByUser)
 }
 
 func NewQueueAllocated(value float64, queue string, cluster string, pool string, priorityClass string, resource string, nodeType string) prometheus.Metric {
