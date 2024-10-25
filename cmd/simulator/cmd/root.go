@@ -84,7 +84,7 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	}
 
 	if pathExists(outputDirPath) && overwriteDirIfExists {
-		err := os.Remove(outputDirPath)
+		err := os.RemoveAll(outputDirPath)
 		if err != nil {
 			return err
 		}

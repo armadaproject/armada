@@ -210,7 +210,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 				return err
 			}
 		}
-		if time.Now().Unix()-lastLogTime.Unix() >= 15 {
+		if time.Now().Unix()-lastLogTime.Unix() >= 5 {
 			ctx.Infof("Simulator time %s", s.time)
 			lastLogTime = s.time
 		}
@@ -518,6 +518,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				return err
 			}
 		}
+		sctx.UpdateFairShares()
 		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
@@ -544,7 +545,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			return err
 		}
 
-		err = s.sink.OnCycleEnd(result)
+		err = s.sink.OnCycleEnd(s.time, result)
 		if err != nil {
 			return err
 		}
