@@ -1045,12 +1045,16 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 		initialJobRuns          []database.Run // jobs runs in the jobdb at the start of the cycle
 		expectedInitialJobs     []*jobdb.Job
 		expectedInitialJobDbIds []string
+		expectedJobsSerial      int64
+		expectedRunsSerial      int64
 	}{
 		"no initial jobs": {
 			initialJobs:             []database.Job{},
 			initialJobRuns:          []database.Run{},
 			expectedInitialJobs:     []*jobdb.Job{},
 			expectedInitialJobDbIds: []string{},
+			expectedJobsSerial:      -1,
+			expectedRunsSerial:      -1,
 		},
 		"initial jobs are present": {
 			initialJobs: []database.Job{
@@ -1079,6 +1083,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						scheduledAtPriority := int32(5)
 						return &scheduledAtPriority
 					}(),
+					Serial: 1,
 				},
 			},
 			expectedInitialJobs: []*jobdb.Job{
@@ -1110,6 +1115,8 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 					)).WithQueued(false).WithQueuedVersion(1),
 			},
 			expectedInitialJobDbIds: []string{queuedJob.Id()},
+			expectedJobsSerial:      1,
+			expectedRunsSerial:      1,
 		},
 	}
 	for name, tc := range tests {
@@ -1162,6 +1169,9 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				_, ok := expectedIds[job.Id()]
 				assert.True(t, ok)
 			}
+
+			require.Equal(t, tc.expectedJobsSerial, sched.jobsSerial)
+			require.Equal(t, tc.expectedRunsSerial, sched.runsSerial)
 		})
 	}
 }
