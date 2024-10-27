@@ -80,8 +80,8 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 }
 
 func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error) {
-	var updatedJobs []Job = nil
-	var initialRuns []Run = nil
+	var updatedJobs []Job
+	var initialRuns []Run
 
 	start := time.Now()
 	defer func() {
@@ -104,6 +104,10 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 		initialJobRows, err := fetch(0, r.batchSize, func(from int64) ([]SelectInitialJobsRow, error) {
 			return queries.SelectInitialJobs(ctx, SelectInitialJobsParams{Serial: from, Limit: r.batchSize})
 		})
+		if err != nil {
+			return err
+		}
+
 		updatedJobs = make([]Job, len(initialJobRows))
 		updatedJobIds := make([]string, len(initialJobRows))
 		for i, row := range initialJobRows {
@@ -127,10 +131,6 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
 			}
-		}
-
-		if err != nil {
-			return err
 		}
 
 		// Fetch dbRuns
@@ -366,8 +366,8 @@ func (r *PostgresJobRepository) CountReceivedPartitions(ctx *armadacontext.Conte
 }
 
 func (r *PostgresJobRepository) FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error) {
-	var jobSerial int64 = 0
-	var jobRunSerial int64 = 0
+	var jobSerial int64
+	var jobRunSerial int64
 
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,

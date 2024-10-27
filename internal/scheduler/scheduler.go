@@ -393,8 +393,13 @@ func (s *Scheduler) syncInitialState(ctx *armadacontext.Context) ([]*jobdb.Job, 
 
 	txn.Commit()
 
-	s.jobsSerial = latestJobSerial
-	s.runsSerial = latestJobRunSerial
+	if len(initialJobs) > 0 {
+		s.jobsSerial = latestJobSerial
+	}
+
+	if len(initialRuns) > 0 {
+		s.runsSerial = latestJobRunSerial
+	}
 
 	return jobDbJobs, jsts, nil
 }
