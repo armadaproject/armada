@@ -398,6 +398,73 @@ func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForEx
 	return items, nil
 }
 
+const selectInitialJobs = `-- name: SelectInitialJobs :many
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, serial FROM jobs WHERE serial > $1 AND cancelled = 'false' AND succeeded = 'false' and failed = 'false' ORDER BY serial LIMIT $2
+`
+
+type SelectInitialJobsParams struct {
+	Serial int64 `db:"serial"`
+	Limit  int32 `db:"limit"`
+}
+
+type SelectInitialJobsRow struct {
+	JobID                   string   `db:"job_id"`
+	JobSet                  string   `db:"job_set"`
+	Queue                   string   `db:"queue"`
+	Priority                int64    `db:"priority"`
+	Submitted               int64    `db:"submitted"`
+	Queued                  bool     `db:"queued"`
+	QueuedVersion           int32    `db:"queued_version"`
+	Validated               bool     `db:"validated"`
+	CancelRequested         bool     `db:"cancel_requested"`
+	CancelByJobsetRequested bool     `db:"cancel_by_jobset_requested"`
+	Cancelled               bool     `db:"cancelled"`
+	Succeeded               bool     `db:"succeeded"`
+	Failed                  bool     `db:"failed"`
+	SchedulingInfo          []byte   `db:"scheduling_info"`
+	SchedulingInfoVersion   int32    `db:"scheduling_info_version"`
+	Pools                   []string `db:"pools"`
+	Serial                  int64    `db:"serial"`
+}
+
+func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsParams) ([]SelectInitialJobsRow, error) {
+	rows, err := q.db.Query(ctx, selectInitialJobs, arg.Serial, arg.Limit)
+	if err != nil {
+			return nil, err
+		}
+	defer rows.Close()
+	var items []SelectInitialJobsRow
+	for rows.Next() {
+			var i SelectInitialJobsRow
+			if err := rows.Scan(
+					&i.JobID,
+					&i.JobSet,
+					&i.Queue,
+					&i.Priority,
+					&i.Submitted,
+					&i.Queued,
+					&i.QueuedVersion,
+					&i.Validated,
+					&i.CancelRequested,
+					&i.CancelByJobsetRequested,
+					&i.Cancelled,
+					&i.Succeeded,
+					&i.Failed,
+					&i.SchedulingInfo,
+					&i.SchedulingInfoVersion,
+					&i.Pools,
+					&i.Serial,
+				); err != nil {
+					return nil, err
+				}
+			items = append(items, i)
+		}
+	if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	return items, nil
+}
+
 const selectNewJobs = `-- name: SelectNewJobs :many
 SELECT job_id, job_set, queue, user_id, submitted, groups, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, submit_message, scheduling_info, scheduling_info_version, serial, last_modified, validated, pools FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
@@ -446,6 +513,63 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	return items, nil
+}
+
+const selectInitialRuns = `-- name: SelectInitialRuns :many
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool FROM runs WHERE serial > $1 AND job_id = ANY($3::text[]) ORDER BY serial LIMIT $2
+`
+
+type SelectInitialRunsParams struct {
+	Serial int64    `db:"serial"`
+	Limit  int32    `db:"limit"`
+	JobIds []string `db:"job_ids"`
+}
+
+func (q *Queries) SelectInitialRuns(ctx context.Context, arg SelectInitialRunsParams) ([]Run, error) {
+	rows, err := q.db.Query(ctx, selectInitialRuns, arg.Serial, arg.Limit, arg.JobIds)
+	if err != nil {
+			return nil, err
+		}
+	defer rows.Close()
+	var items []Run
+	for rows.Next() {
+			var i Run
+			if err := rows.Scan(
+					&i.RunID,
+					&i.JobID,
+					&i.Created,
+					&i.JobSet,
+					&i.Executor,
+					&i.Node,
+					&i.Cancelled,
+					&i.Running,
+					&i.Succeeded,
+					&i.Failed,
+					&i.Returned,
+					&i.RunAttempted,
+					&i.Serial,
+					&i.LastModified,
+					&i.LeasedTimestamp,
+					&i.PendingTimestamp,
+					&i.RunningTimestamp,
+					&i.TerminatedTimestamp,
+					&i.ScheduledAtPriority,
+					&i.Preempted,
+					&i.Pending,
+					&i.PreemptedTimestamp,
+					&i.PodRequirementsOverlay,
+					&i.PreemptRequested,
+					&i.Queue,
+					&i.Pool,
+				); err != nil {
+					return nil, err
+				}
+			items = append(items, i)
+		}
+	if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	return items, nil
 }
 
@@ -815,4 +939,26 @@ func (q *Queries) SelectAllExecutorSettings(ctx context.Context) ([]ExecutorSett
 		return nil, err
 	}
 	return items, nil
+}
+
+const selectLatestJobSerial = `-- name: SelectLatestJobSerial :one
+SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1
+`
+
+func (q *Queries) SelectLatestJobSerial(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, selectLatestJobSerial)
+	var serial int64
+	err := row.Scan(&serial)
+	return serial, err
+}
+
+const selectLatestJobRunSerial = `-- name: SelectLatestJobRunSerial :one
+SELECT serial FROM runs ORDER BY serial DESC LIMIT 1
+`
+
+func (q *Queries) SelectLatestJobRunSerial(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, selectLatestJobRunSerial)
+	var serial int64
+	err := row.Scan(&serial)
+	return serial, err
 }

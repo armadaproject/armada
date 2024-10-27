@@ -4,6 +4,9 @@ SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 -- name: SelectAllJobIds :many
 SELECT job_id FROM jobs;
 
+-- name: SelectInitialJobs :many
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, serial FROM jobs WHERE serial > $1 AND cancelled = 'false' AND succeeded = 'false' and failed = 'false' ORDER BY serial LIMIT $2;
+
 -- name: SelectUpdatedJobs :many
 SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
@@ -27,6 +30,9 @@ UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: UpdateJobPriorityById :exec
 UPDATE jobs SET priority = $1 WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]);
+
+-- name: SelectInitialRuns :many
+SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial LIMIT $2;
 
 -- name: SelectNewRuns :many
 SELECT * FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2;
@@ -112,4 +118,10 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2;
 
 -- name: SetTerminatedTime :exec
 UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2;
+
+-- name: SelectLatestJobSerial :one
+SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
+
+-- name: SelectLatestJobRunSerial :one
+SELECT serial FROM runs ORDER BY serial DESC LIMIT 1;
 

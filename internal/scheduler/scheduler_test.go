@@ -1268,6 +1268,8 @@ func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (
 
 // Test implementations of the interfaces needed by the Scheduler
 type testJobRepository struct {
+	initialJobs           []database.Job
+	initialRuns           []database.Run
 	updatedJobs           []database.Job
 	updatedRuns           []database.Run
 	errors                map[string]*armadaevents.Error
@@ -1304,6 +1306,28 @@ func (t *testJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, 
 		return 0, errors.New("error counting received partitions")
 	}
 	return t.numReceivedPartitions, nil
+}
+
+func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, error) {
+	if t.shouldError {
+		return nil, nil, errors.New("error fetching job updates")
+	}
+	return t.updatedJobs, t.updatedRuns, nil
+}
+
+func (t *testJobRepository) FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error) {
+	var jobSerial int64 = -1
+	var jobRunSerial int64 = -1
+
+	if len(t.initialJobs) > 0 {
+		jobSerial = t.initialJobs[len(t.initialJobs)-1].Serial
+	}
+
+	if len(t.initialRuns) > 0 {
+		jobRunSerial = t.initialRuns[len(t.initialRuns)-1].Serial
+	}
+
+	return jobSerial, jobRunSerial, nil
 }
 
 type testExecutorRepository struct {

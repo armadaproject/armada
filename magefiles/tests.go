@@ -52,12 +52,20 @@ func Tests() error {
 		return err
 	}
 
-	err = dockerRun("run", "-d", "--name=redis", docker_Net, "-p=6379:6379", "redis:6.2.6")
+	if len(docker_Net) > 0 {
+		err = dockerRun("run", "-d", "--name=redis", docker_Net, "-p=6379:6379", "redis:6.2.6")
+	} else {
+		err = dockerRun("run", "-d", "--name=redis", "-p=6379:6379", "redis:6.2.6")
+	}
 	if err != nil {
 		return err
 	}
 
-	err = dockerRun("run", "-d", "--name=postgres", docker_Net, "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
+	if len(docker_Net) > 0 {
+		err = dockerRun("run", "-d", "--name=postgres", docker_Net, "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
+	} else {
+		err = dockerRun("run", "-d", "--name=postgres", "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
+	}
 	if err != nil {
 		return err
 	}

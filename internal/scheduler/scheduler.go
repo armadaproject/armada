@@ -356,6 +356,49 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	return overallSchedulerResult, nil
 }
 
+// syncInitialState updates jobs in jobDb to match state in postgres and returns all in-progress jobs.
+func (s *Scheduler) syncInitialState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
+	txn := s.jobDb.WriteTxn()
+	defer txn.Abort()
+
+	// Load initial jobs and jobs runs from the jobRepo.
+	updatedJobs, updatedRuns, err := s.jobRepository.FetchInitialJobs(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Reconcile any differences between the updated jobs and runs.
+	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Upsert updated jobs (including associated runs).
+	jobDbJobs := make([]*jobdb.Job, 0, len(jsts))
+	for _, jst := range jsts {
+		if jst.Job != nil {
+			// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
+			// These nil job must be sorted out.
+			jobDbJobs = append(jobDbJobs, jst.Job)
+		}
+	}
+	if err := txn.Upsert(jobDbJobs); err != nil {
+		return nil, nil, err
+	}
+
+	latestJobSerial, latestJobRunSerial, err := s.jobRepository.FetchLatestSerials(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	txn.Commit()
+
+	s.jobsSerial = latestJobSerial
+	s.runsSerial = latestJobRunSerial
+
+	return jobDbJobs, jsts, nil
+}
+
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
 func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
 	txn := s.jobDb.WriteTxn()
@@ -966,7 +1009,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, err := s.syncState(ctx); err != nil {
+			if _, _, err := s.syncInitialState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {

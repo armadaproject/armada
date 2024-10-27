@@ -36,6 +36,13 @@ type JobRunLease struct {
 
 // JobRepository is an interface to be implemented by structs which provide job and run information
 type JobRepository interface {
+
+	// FetchInitialJobs returns all non-terminal jobs and their associated job runs.
+	FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error)
+
+	// FetchLatestSerials returns the latest job and job runs serials in the DB for use during initialization.
+	FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error)
+
 	// FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
 	// These updates are guaranteed to be consistent with each other
 	FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
@@ -71,6 +78,71 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 		db:        db,
 		batchSize: batchSize,
 	}
+}
+
+func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error) {
+	var updatedJobs []Job = nil
+	var initialRuns []Run = nil
+
+	start := time.Now()
+	defer func() {
+		ctx.Infof(
+			"received %d initial jobs and %d initial job runs from postgres in %s",
+			len(updatedJobs), len(initialRuns), time.Since(start),
+		)
+	}()
+
+	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
+		IsoLevel:       pgx.RepeatableRead,
+		AccessMode:     pgx.ReadOnly,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		var err error
+		queries := New(tx)
+
+		// Fetch jobs
+		initialJobRows, err := fetch(0, r.batchSize, func(from int64) ([]SelectInitialJobsRow, error) {
+			return queries.SelectInitialJobs(ctx, SelectInitialJobsParams{Serial: from, Limit: r.batchSize})
+		})
+		updatedJobs = make([]Job, len(initialJobRows))
+		updatedJobIds := make([]string, len(initialJobRows))
+		for i, row := range initialJobRows {
+			updatedJobIds[i] = row.JobID
+			updatedJobs[i] = Job{
+				JobID:                   row.JobID,
+				JobSet:                  row.JobSet,
+				Queue:                   row.Queue,
+				Priority:                row.Priority,
+				Submitted:               row.Submitted,
+				Validated:               row.Validated,
+				Queued:                  row.Queued,
+				QueuedVersion:           row.QueuedVersion,
+				CancelRequested:         row.CancelRequested,
+				Cancelled:               row.Cancelled,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Succeeded:               row.Succeeded,
+				Failed:                  row.Failed,
+				SchedulingInfo:          row.SchedulingInfo,
+				SchedulingInfoVersion:   row.SchedulingInfoVersion,
+				Serial:                  row.Serial,
+				Pools:                   row.Pools,
+			}
+		}
+
+		if err != nil {
+			return err
+		}
+
+		// Fetch dbRuns
+		initialRuns, err = fetch(0, r.batchSize, func(from int64) ([]Run, error) {
+			return queries.SelectInitialRuns(ctx, SelectInitialRunsParams{Serial: from, Limit: r.batchSize, JobIds: updatedJobIds})
+		})
+
+		return err
+	})
+
+	return updatedJobs, initialRuns, err
 }
 
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
@@ -292,6 +364,33 @@ func (r *PostgresJobRepository) CountReceivedPartitions(ctx *armadacontext.Conte
 		return 0, err
 	}
 	return uint32(count), nil
+}
+
+func (r *PostgresJobRepository) FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error) {
+	var jobSerial int64 = 0
+	var jobRunSerial int64 = 0
+
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
+		IsoLevel:       pgx.RepeatableRead,
+		AccessMode:     pgx.ReadOnly,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		var err error
+		queries := New(tx)
+
+		jobSerial, err = queries.SelectLatestJobSerial(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		jobRunSerial, err = queries.SelectLatestJobRunSerial(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+
+		return nil
+	})
+
+	return jobSerial, jobRunSerial, err
 }
 
 // fetch gets all rows from the database with a serial greater than from.
