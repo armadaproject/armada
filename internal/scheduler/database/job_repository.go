@@ -36,7 +36,6 @@ type JobRunLease struct {
 
 // JobRepository is an interface to be implemented by structs which provide job and run information
 type JobRepository interface {
-
 	// FetchInitialJobs returns all non-terminal jobs and their associated job runs.
 	FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error)
 
