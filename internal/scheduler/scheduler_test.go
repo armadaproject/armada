@@ -1039,6 +1039,133 @@ func TestRun(t *testing.T) {
 	cancel()
 }
 
+func TestScheduler_TestSyncInitialState(t *testing.T) {
+	tests := map[string]struct {
+		initialJobs             []database.Job /// jobs in the jobdb at the start of the cycle
+		initialJobRuns          []database.Run // jobs runs in the jobdb at the start of the cycle
+		expectedInitialJobs     []*jobdb.Job
+		expectedInitialJobDbIds []string
+	}{
+		"no initial jobs": {
+			initialJobs:             []database.Job{},
+			initialJobRuns:          []database.Run{},
+			expectedInitialJobs:     []*jobdb.Job{},
+			expectedInitialJobDbIds: []string{},
+		},
+		"initial jobs are present": {
+			initialJobs: []database.Job{
+				{
+					JobID:          queuedJob.Id(),
+					JobSet:         queuedJob.Jobset(),
+					Queue:          queuedJob.Queue(),
+					Queued:         false,
+					QueuedVersion:  1,
+					Priority:       int64(queuedJob.Priority()),
+					SchedulingInfo: schedulingInfoBytes,
+					Serial:         1,
+					Validated:      true,
+					Submitted:      1,
+				},
+			},
+			initialJobRuns: []database.Run{
+				{
+					RunID:    leasedJob.LatestRun().Id(),
+					JobID:    queuedJob.Id(),
+					JobSet:   queuedJob.Jobset(),
+					Executor: "test-executor",
+					Node:     "test-node",
+					Created:  123,
+					ScheduledAtPriority: func() *int32 {
+						scheduledAtPriority := int32(5)
+						return &scheduledAtPriority
+					}(),
+				},
+			},
+			expectedInitialJobs: []*jobdb.Job{
+				queuedJob.WithUpdatedRun(
+					testfixtures.JobDb.CreateRun(
+						leasedJob.LatestRun().Id(),
+						queuedJob.Id(),
+						123,
+						"test-executor",
+						"test-executor-test-node",
+						"test-node",
+						"pool",
+						pointer.Int32(5),
+						false,
+						false,
+						false,
+						false,
+						false,
+						false,
+						false,
+						false,
+						nil,
+						nil,
+						nil,
+						nil,
+						nil,
+						false,
+						false,
+					)).WithQueued(false).WithQueuedVersion(1),
+			},
+			expectedInitialJobDbIds: []string{queuedJob.Id()},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			// Test objects
+			jobRepo := &testJobRepository{
+				initialJobs: tc.initialJobs,
+				initialRuns: tc.initialJobRuns,
+			}
+			schedulingAlgo := &testSchedulingAlgo{}
+			publisher := &testPublisher{}
+			clusterRepo := &testExecutorRepository{}
+			leaderController := leader.NewStandaloneLeaderController()
+			sched, err := NewScheduler(
+				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+				jobRepo,
+				clusterRepo,
+				schedulingAlgo,
+				leaderController,
+				publisher,
+				nil,
+				1*time.Second,
+				5*time.Second,
+				1*time.Hour,
+				maxNumberOfAttempts,
+				nodeIdLabel,
+				schedulerMetrics,
+			)
+			require.NoError(t, err)
+			sched.EnableAssertions()
+
+			// The SchedulingKeyGenerator embedded in the jobDb has some randomness,
+			// which must be consistent within tests.
+			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+
+			initialJobs, _, err := sched.syncInitialState(ctx)
+			require.NoError(t, err)
+
+			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
+			actualJobDb := testfixtures.NewJobDbWithJobs(initialJobs)
+			assert.NoError(t, expectedJobDb.ReadTxn().AssertEqual(actualJobDb.ReadTxn()))
+			allDbJobs := sched.jobDb.ReadTxn().GetAll()
+
+			expectedIds := stringSet(tc.expectedInitialJobDbIds)
+			require.Equal(t, len(tc.expectedInitialJobDbIds), len(allDbJobs))
+			for _, job := range allDbJobs {
+				_, ok := expectedIds[job.Id()]
+				assert.True(t, ok)
+			}
+		})
+	}
+}
+
 func TestScheduler_TestSyncState(t *testing.T) {
 	tests := map[string]struct {
 		initialJobs         []*jobdb.Job   // jobs in the jobdb at the start of the cycle
@@ -1312,7 +1439,7 @@ func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]data
 	if t.shouldError {
 		return nil, nil, errors.New("error fetching job updates")
 	}
-	return t.updatedJobs, t.updatedRuns, nil
+	return t.initialJobs, t.initialRuns, nil
 }
 
 func (t *testJobRepository) FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error) {

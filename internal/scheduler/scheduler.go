@@ -362,13 +362,13 @@ func (s *Scheduler) syncInitialState(ctx *armadacontext.Context) ([]*jobdb.Job, 
 	defer txn.Abort()
 
 	// Load initial jobs and jobs runs from the jobRepo.
-	updatedJobs, updatedRuns, err := s.jobRepository.FetchInitialJobs(ctx)
+	initialJobs, initialRuns, err := s.jobRepository.FetchInitialJobs(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Reconcile any differences between the updated jobs and runs.
-	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
+	jsts, err := s.jobDb.ReconcileDifferences(txn, initialJobs, initialRuns)
 	if err != nil {
 		return nil, nil, err
 	}
