@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"math"
 	"sync"
 
 	"golang.org/x/exp/slices"
@@ -110,16 +111,23 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobContextIterat
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 type QueuedJobsIterator struct {
-	jobIter jobdb.JobIterator
-	pool    string
-	ctx     *armadacontext.Context
+	jobIter     jobdb.JobIterator
+	pool        string
+	maxLookback uint
+	jobsSeen    uint
+	ctx         *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, maxLookback uint, repo JobRepository) *QueuedJobsIterator {
+	if maxLookback == 0 {
+		maxLookback = math.MaxUint
+	}
 	return &QueuedJobsIterator{
-		jobIter: repo.QueuedJobs(queue),
-		pool:    pool,
-		ctx:     ctx,
+		jobIter:     repo.QueuedJobs(queue),
+		pool:        pool,
+		maxLookback: maxLookback,
+		jobsSeen:    0,
+		ctx:         ctx,
 	}
 }
 
@@ -129,11 +137,15 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		case <-it.ctx.Done():
 			return nil, it.ctx.Err()
 		default:
+			if it.jobsSeen >= it.maxLookback {
+				return nil, nil
+			}
 			job, _ := it.jobIter.Next()
 			if job == nil {
 				return nil, nil
 			}
 			if slices.Contains(job.Pools(), it.pool) {
+				it.jobsSeen++
 				return schedulercontext.JobSchedulingContextFromJob(job), nil
 			}
 		}
