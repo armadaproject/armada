@@ -93,6 +93,8 @@ type SubmissionConfig struct {
 	MaxOversubscriptionByResourceRequest map[string]float64
 	// Enforce that an init containers requestion non-integer cpu. This is due to https://github.com/kubernetes/kubernetes/issues/112228
 	AssertInitContainersRequestFractionalCpu bool
+	// Controls whether we add the gang id annotation as a label.
+	AddGangIdLabel bool
 }
 
 // TODO: we can probably just typedef this to map[string]string
