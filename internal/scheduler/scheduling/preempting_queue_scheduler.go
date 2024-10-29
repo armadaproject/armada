@@ -474,10 +474,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(
-			sctx,
 			inMemoryJobRepo.GetJobIterator(qctx.Queue),
-			0,
-			false,
 		)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
@@ -518,13 +515,10 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo)
+			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, sch.constraints.GetMaxQueueLookBack(), sch.schedulingContext, jobRepo)
 			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
 		}
 	}
-
-	// Reset the scheduling keys cache after evicting jobs.
-	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
 
 	sched, err := NewQueueScheduler(
 		sch.schedulingContext,
@@ -532,7 +526,6 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		sch.floatingResourceTypes,
 		sch.nodeDb,
 		jobIteratorByQueue,
-		skipUnsuccessfulSchedulingKeyCheck,
 		considerPriorityCLassPriority,
 	)
 	if err != nil {

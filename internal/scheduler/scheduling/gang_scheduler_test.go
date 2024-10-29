@@ -576,10 +576,7 @@ func TestGangScheduler(t *testing.T) {
 				jctxs := context.JobSchedulingContextsFromJobs(gang)
 				require.Equal(t, 1, len(jctxs), fmt.Sprintf("gangs with cardinality greater than 1 don't have a single scheduling key: %v", gang))
 				jctx := jctxs[0]
-				key, _ := jctx.SchedulingKey()
-				require.NotEqual(t, key, schedulerobjects.EmptySchedulingKey, "expected unfeasible scheduling key cannot be the empty key")
-
-				expectedUnfeasibleJobSchedulingKeys = append(expectedUnfeasibleJobSchedulingKeys, key)
+				expectedUnfeasibleJobSchedulingKeys = append(expectedUnfeasibleJobSchedulingKeys, jctx.Job.SchedulingKey())
 			}
 
 			nodesById := make(map[string]*schedulerobjects.Node, len(tc.Nodes))
@@ -645,7 +642,7 @@ func TestGangScheduler(t *testing.T) {
 			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
 			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
 			require.NoError(t, err)
-			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)
+			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb)
 			require.NoError(t, err)
 
 			var actualScheduledIndices []int
