@@ -97,7 +97,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId: make(map[string]string),
+		NodeIdByJobId:          make(map[string]string),
+		PerPoolSchedulingStats: make(map[string]PerPoolSchedulingStats),
 	}
 
 	// Exit immediately if scheduling is disabled.
@@ -162,6 +163,10 @@ func (l *FairSchedulingAlgo) Schedule(
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
 		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
+
+		for p, s := range schedulerResult.PerPoolSchedulingStats {
+			overallSchedulerResult.PerPoolSchedulingStats[p] = s
+		}
 	}
 	return overallSchedulerResult, nil
 }
