@@ -1155,7 +1155,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, err := sched.syncInitialState(ctx)
+			initialJobs, _, err := sched.syncState(ctx, true)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
@@ -1369,7 +1369,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, err := sched.syncState(ctx)
+			updatedJobs, _, err := sched.syncState(ctx, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
@@ -1450,21 +1450,6 @@ func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]data
 		return nil, nil, errors.New("error fetching job updates")
 	}
 	return t.initialJobs, t.initialRuns, nil
-}
-
-func (t *testJobRepository) FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error) {
-	var jobSerial int64 = -1
-	var jobRunSerial int64 = -1
-
-	if len(t.initialJobs) > 0 {
-		jobSerial = t.initialJobs[len(t.initialJobs)-1].Serial
-	}
-
-	if len(t.initialRuns) > 0 {
-		jobRunSerial = t.initialRuns[len(t.initialRuns)-1].Serial
-	}
-
-	return jobSerial, jobRunSerial, nil
 }
 
 type testExecutorRepository struct {

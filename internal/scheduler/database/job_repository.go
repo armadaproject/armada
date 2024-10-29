@@ -39,9 +39,6 @@ type JobRepository interface {
 	// FetchInitialJobs returns all non-terminal jobs and their associated job runs.
 	FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error)
 
-	// FetchLatestSerials returns the latest job and job runs serials in the DB for use during initialization.
-	FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error)
-
 	// FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
 	// These updates are guaranteed to be consistent with each other
 	FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
@@ -363,33 +360,6 @@ func (r *PostgresJobRepository) CountReceivedPartitions(ctx *armadacontext.Conte
 		return 0, err
 	}
 	return uint32(count), nil
-}
-
-func (r *PostgresJobRepository) FetchLatestSerials(ctx *armadacontext.Context) (int64, int64, error) {
-	var jobSerial int64
-	var jobRunSerial int64
-
-	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
-		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadOnly,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		var err error
-		queries := New(tx)
-
-		jobSerial, err = queries.SelectLatestJobSerial(ctx)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		jobRunSerial, err = queries.SelectLatestJobRunSerial(ctx)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-
-		return nil
-	})
-
-	return jobSerial, jobRunSerial, err
 }
 
 // fetch gets all rows from the database with a serial greater than from.

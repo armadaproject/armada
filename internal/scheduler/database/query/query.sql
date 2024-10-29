@@ -119,9 +119,3 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2;
 -- name: SetTerminatedTime :exec
 UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2;
 
--- name: SelectLatestJobSerial :one
-SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
-
--- name: SelectLatestJobRunSerial :one
-SELECT serial FROM runs ORDER BY serial DESC LIMIT 1;
-

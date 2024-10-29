@@ -719,66 +719,6 @@ func TestFetchJobRunLeases(t *testing.T) {
 	}
 }
 
-func TestFetchLatestSerials(t *testing.T) {
-	dbJobs, _ := createTestJobs(10)
-	dbRuns, _ := createTestRuns(10)
-
-	tests := map[string]struct {
-		dbJobs             []Job
-		dbRuns             []Run
-		latestJobSerial    int64
-		latestJobRunSerial int64
-	}{
-		"all jobs": {
-			dbJobs:          dbJobs,
-			latestJobSerial: 10,
-		},
-		"some jobs": {
-			dbJobs:          dbJobs[:5],
-			latestJobSerial: 5,
-		},
-		"all runs": {
-			dbRuns:             dbRuns,
-			latestJobRunSerial: 10,
-		},
-		"some runs": {
-			dbRuns:             dbRuns[:5],
-			latestJobRunSerial: 5,
-		},
-		"both jobs and runs": {
-			dbJobs:             dbJobs,
-			dbRuns:             dbRuns,
-			latestJobSerial:    10,
-			latestJobRunSerial: 10,
-		},
-		"empty db": {},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			err := withJobRepository(func(repo *PostgresJobRepository) error {
-				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-
-				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
-				require.NoError(t, err)
-				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
-				require.NoError(t, err)
-
-				// Fetch updates
-				jobSerial, jobRunSerial, err := repo.FetchLatestSerials(ctx)
-				require.NoError(t, err)
-
-				// Assert results
-				assert.Equal(t, tc.latestJobSerial, jobSerial)
-				assert.Equal(t, tc.latestJobRunSerial, jobRunSerial)
-				cancel()
-				return nil
-			})
-			require.NoError(t, err)
-		})
-	}
-}
-
 func createTestRuns(numRuns int) ([]Run, []Run) {
 	dbRuns := make([]Run, numRuns)
 	expectedRuns := make([]Run, numRuns)
