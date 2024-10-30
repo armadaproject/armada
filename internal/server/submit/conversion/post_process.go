@@ -23,6 +23,7 @@ var (
 	msgLevelProcessors = []msgProcessor{
 		templateMeta,
 		defaultGangNodeUniformityLabel,
+		addGangIdLabel,
 	}
 	podLevelProcessors = []podProcessor{
 		defaultActiveDeadlineSeconds,
@@ -163,6 +164,24 @@ func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configur
 		if _, ok := annotations[configuration.GangNodeUniformityLabelAnnotation]; !ok {
 			annotations[configuration.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
 		}
+	}
+}
+
+// Add a gangId label if the gangId annotation is set.  We do this because labels are much faster to search on than
+// annotations and a gang may want to hit the kubeapi to find its other gang members.
+func addGangIdLabel(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
+	if !config.AddGangIdLabel {
+		return
+	}
+
+	gangId := msg.GetObjectMeta().GetAnnotations()[configuration.GangIdAnnotation]
+	if gangId != "" {
+		labels := msg.GetObjectMeta().GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[configuration.GangIdAnnotation] = gangId
+		msg.GetObjectMeta().Labels = labels
 	}
 }
 

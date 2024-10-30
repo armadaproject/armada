@@ -584,6 +584,56 @@ func TestDefaultTerminationGracePeriod(t *testing.T) {
 	}
 }
 
+func TestAddGangIdLabel(t *testing.T) {
+	tests := map[string]struct {
+		annotations    map[string]string
+		initialLabels  map[string]string
+		expectedLabels map[string]string
+		enabled        bool
+	}{
+		"Unchanged if no gang id set": {
+			annotations: map[string]string{},
+			enabled:     true,
+		},
+		"Label added if gang id set": {
+			annotations: map[string]string{
+				configuration.GangIdAnnotation: "foo",
+			},
+			expectedLabels: map[string]string{
+				configuration.GangIdAnnotation: "foo",
+			},
+			enabled: true,
+		},
+		"Doesn't modify existing labels": {
+			annotations: map[string]string{
+				configuration.GangIdAnnotation: "foo",
+			},
+			initialLabels: map[string]string{
+				"fish": "chips",
+			},
+			expectedLabels: map[string]string{
+				"fish":                         "chips",
+				configuration.GangIdAnnotation: "foo",
+			},
+			enabled: true,
+		},
+		"Unchanged if disabled": {
+			annotations: map[string]string{
+				configuration.GangIdAnnotation: "foo",
+			},
+			enabled: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			submitMsg := submitMsgFromAnnotations(tc.annotations)
+			submitMsg.ObjectMeta.Labels = tc.initialLabels
+			addGangIdLabel(submitMsg, configuration.SubmissionConfig{AddGangIdLabel: tc.enabled})
+			assert.Equal(t, tc.expectedLabels, submitMsg.ObjectMeta.Labels)
+		})
+	}
+}
+
 func submitMsgFromAnnotations(annotations map[string]string) *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
 		ObjectMeta: &armadaevents.ObjectMeta{
