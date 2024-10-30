@@ -24,6 +24,180 @@ import (
 
 const defaultBatchSize = 1
 
+func TestFetchInitialJobs(t *testing.T) {
+	leasedJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	expectedLeasedJob := Job{
+		JobID:          leasedJob.JobID,
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		Serial:         1,
+	}
+
+	leasedJobRun := Run{
+		RunID:    util.NewULID(),
+		JobID:    leasedJob.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Node:     fmt.Sprintf("test-node-%d", 0),
+		Running:  true,
+	}
+
+	expectedLeasedJobRun := Run{
+		RunID:    leasedJobRun.RunID,
+		JobID:    leasedJob.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Node:     fmt.Sprintf("test-node-%d", 0),
+		Running:  true,
+		Serial:   1,
+	}
+
+	queuedJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		Queued:         true,
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	expectedQueuedJob := Job{
+		JobID:          queuedJob.JobID,
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		Queued:         true,
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		Serial:         2,
+	}
+
+	cancelledJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		Cancelled:      true,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	cancelledJobRun := Run{
+		RunID:     util.NewULID(),
+		JobID:     cancelledJob.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Node:      fmt.Sprintf("test-node-%d", 0),
+		Cancelled: true,
+	}
+
+	failedJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		Failed:         true,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	failedJobRun := Run{
+		RunID:    util.NewULID(),
+		JobID:    failedJob.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Node:     fmt.Sprintf("test-node-%d", 0),
+		Failed:   true,
+	}
+
+	succeededJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		Queued:         false,
+		QueuedVersion:  1,
+		Succeeded:      true,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	succeededJobRun := Run{
+		RunID:     util.NewULID(),
+		JobID:     succeededJob.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Node:      fmt.Sprintf("test-node-%d", 0),
+		Succeeded: true,
+	}
+
+	tests := map[string]struct {
+		dbJobs       []Job
+		dbRuns       []Run
+		expectedJobs []Job
+		expectedRuns []Run
+	}{
+		"all jobs and runs": {
+			dbJobs:       []Job{leasedJob, queuedJob, cancelledJob, failedJob, succeededJob},
+			expectedJobs: []Job{expectedLeasedJob, expectedQueuedJob},
+			dbRuns:       []Run{leasedJobRun, cancelledJobRun, failedJobRun, succeededJobRun},
+			expectedRuns: []Run{expectedLeasedJobRun},
+		},
+		"only jobs": {
+			dbJobs:       []Job{leasedJob, queuedJob, cancelledJob, failedJob, succeededJob},
+			expectedJobs: []Job{expectedLeasedJob, expectedQueuedJob},
+			expectedRuns: []Run{},
+		},
+		"only runs": {
+			dbRuns:       []Run{leasedJobRun, cancelledJobRun, failedJobRun, succeededJobRun},
+			expectedJobs: []Job{},
+			expectedRuns: []Run{},
+		},
+		"empty db": {
+			expectedJobs: []Job{},
+			expectedRuns: []Run{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withJobRepository(func(repo *PostgresJobRepository) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+
+				// Set up db
+				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
+				require.NoError(t, err)
+				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
+				require.NoError(t, err)
+
+				// Fetch updates
+				jobs, runs, err := repo.FetchInitialJobs(ctx)
+				require.NoError(t, err)
+
+				// Runs will have LastModified filled in- we don't want to compare this
+				for i := range runs {
+					runs[i].LastModified = time.Time{}
+				}
+
+				// Assert results
+				assert.Equal(t, tc.expectedJobs, jobs)
+				assert.Equal(t, tc.expectedRuns, runs)
+				cancel()
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestFetchJobUpdates(t *testing.T) {
 	dbJobs, expectedJobs := createTestJobs(10)
 	dbRuns, expectedRuns := createTestRuns(10)
