@@ -53,6 +53,9 @@ func (b *Batcher[T]) Run(ctx *armadacontext.Context) {
 			case value, ok := <-b.input:
 				if !ok {
 					// input channel has closed
+					if totalNumberOfItems > 0 {
+						b.publish <- b.buffer
+					}
 					return
 				}
 				b.mutex.Lock()
