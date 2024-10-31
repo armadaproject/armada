@@ -40,7 +40,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	serverconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/gogo/protobuf/proto"
 )
 
 const clusterLabel = "armadaproject.io/clusterName"
