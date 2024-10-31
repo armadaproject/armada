@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -143,6 +144,7 @@ func NewSimulator(
 	if err := validateWorkloadSpec(workloadSpec); err != nil {
 		return nil, err
 	}
+	workloadSpec = expandRepeatingTemplates(workloadSpec)
 	jobDb := jobdb.NewJobDb(
 		schedulingConfig.PriorityClasses,
 		schedulingConfig.DefaultPriorityClassName,
@@ -291,6 +293,14 @@ func validateWorkloadSpec(workloadSpec *WorkloadSpec) error {
 			// Confirm that we can create an exact number of gang jobs
 			if template.GangCardinality != 0 && int(template.Number)%int(template.GangCardinality) != 0 {
 				return errors.Errorf("template.Number [%d] is not exactly divisible by template.GangCardinality [%d]", template.Number, template.GangCardinality)
+			}
+			if template.Repeat != nil {
+				if template.Repeat.Period == nil {
+					return errors.Errorf("template.Repeat.Period is unset")
+				}
+				if template.Repeat.NumTimes < 1 {
+					return errors.Errorf("template.Repeat.NumTimes must be greater than 0")
+				}
 			}
 		}
 	}
@@ -1034,4 +1044,27 @@ func (s *Simulator) removeJobFromDemand(job *jobdb.Job) {
 	if ok {
 		r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
 	}
+}
+
+func expandRepeatingTemplates(w *WorkloadSpec) *WorkloadSpec {
+	workload := proto.Clone(w).(*WorkloadSpec)
+	for _, q := range workload.GetQueues() {
+		var templates []*JobTemplate
+		for _, template := range q.GetJobTemplates() {
+			if template.Repeat != nil {
+				period := *template.Repeat.Period
+				for i := 0; i < int(template.Repeat.NumTimes); i++ {
+					t := proto.Clone(template).(*JobTemplate)
+					t.Repeat = nil
+					t.Id = fmt.Sprintf("%s-repeat-%d", t.Id, i)
+					t.EarliestSubmitTime = t.EarliestSubmitTime + time.Duration(i)*period
+					templates = append(templates, t)
+				}
+			} else {
+				templates = append(templates, template)
+			}
+		}
+		q.JobTemplates = templates
+	}
+	return workload
 }
