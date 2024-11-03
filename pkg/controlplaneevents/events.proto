@@ -29,20 +29,14 @@ message ExecutorSettingsDelete {
 
 message PreemptOnExecutor {
   string name = 1;
-  // We select jobs to preempt on the executor based on the provided Select message
-  oneof Select {
-    ByPriorityClass priorityClasses = 2;
-    ByPriorityQueue queues = 3;
-  }
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
 }
 
 message CancelOnExecutor {
   string name = 1;
-  // We select jobs on the executor to cancel based on the provided Select message
-  oneof Select {
-    ByPriorityClass priorityClasses = 2;
-    ByPriorityQueue queues = 3;
-  }
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
 }
 
 message ByPriorityClass {

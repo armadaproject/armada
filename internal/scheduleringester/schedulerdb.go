@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
@@ -15,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const (
@@ -378,10 +380,123 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 		return nil
+	case CancelExecutor:
+		for executor, cancelRequest := range o {
+			jobs, err := queries.SelectAllJobsByExecutorAndQueues(ctx, executor, cancelRequest.Queues)
+			if err != nil {
+				return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
+			}
+			inPriorityClasses := jobInPriorityClasses(cancelRequest.PriorityClasses)
+			jobsToCancel := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
+				}
+				if ok {
+					jobsToCancel = append(jobsToCancel, job)
+				}
+			}
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobsToCancel) {
+				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
+				}
+			}
+		}
+	case PreemptExecutor:
+		for executor, preemptRequest := range o {
+			jobs, err := queries.SelectAllJobsByExecutorAndQueues(ctx, executor, preemptRequest.Queues)
+			if err != nil {
+				return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
+			}
+			inPriorityClasses := jobInPriorityClasses(preemptRequest.PriorityClasses)
+			jobsToPreempt := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
+				}
+				if ok {
+					jobsToPreempt = append(jobsToPreempt, job)
+				}
+			}
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobsToPreempt) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
+				}
+			}
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+// createMarkJobCancelRequestedById returns []*schedulerdb.MarkJobsCancelRequestedByIdParams for the specified jobs such
+// that no two MarkJobsCancelRequestedByIdParams are for the same queue and jobset
+func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job) []*schedulerdb.MarkJobsCancelRequestedByIdParams {
+	result := make([]*schedulerdb.MarkJobsCancelRequestedByIdParams, 0)
+	mapping := map[string]map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
+	for _, job := range jobs {
+		if _, ok := mapping[job.Queue]; !ok {
+			mapping[job.Queue] = map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
+		}
+		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
+			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobsCancelRequestedByIdParams{
+				Queue:  job.Queue,
+				JobSet: job.JobSet,
+				JobIds: make([]string, 0),
+			}
+			result = append(result, mapping[job.Queue][job.JobSet])
+		}
+
+		mapping[job.Queue][job.JobSet].JobIds = append(mapping[job.Queue][job.JobSet].JobIds, job.JobID)
+	}
+
+	return result
+}
+
+// createMarkJobRunsPreemptRequestedByJobIdParams returns []schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams for the specified jobs such
+// that no two MarkJobRunsPreemptRequestedByJobIdParams are for the same queue and jobset
+func createMarkJobRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job) []*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams {
+	result := make([]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams, 0)
+	mapping := map[string]map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
+	for _, job := range jobs {
+		if _, ok := mapping[job.Queue]; !ok {
+			mapping[job.Queue] = map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
+		}
+		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
+			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
+				Queue:  job.Queue,
+				JobSet: job.JobSet,
+				JobIds: make([]string, 0),
+			}
+			result = append(result, mapping[job.Queue][job.JobSet])
+		}
+
+		mapping[job.Queue][job.JobSet].JobIds = append(mapping[job.Queue][job.JobSet].JobIds, job.JobID)
+	}
+
+	return result
+}
+
+func jobInPriorityClasses(priorityClasses []string) func(schedulerdb.Job) (bool, error) {
+	priorityClassMap := map[string]bool{}
+	for _, priorityClass := range priorityClasses {
+		priorityClassMap[priorityClass] = true
+	}
+	return func(job schedulerdb.Job) (bool, error) {
+		schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
+		if err := proto.Unmarshal(job.SchedulingInfo, schedulingInfo); err != nil {
+			err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", job.JobID)
+			return false, err
+		}
+
+		_, ok := priorityClassMap[schedulingInfo.PriorityClassName]
+		return ok, nil
+	}
 }
 
 // getLockKey is a local method to determine a lock key for the provided set of operations. An error will be returned

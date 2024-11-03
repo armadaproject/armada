@@ -816,3 +816,55 @@ func (q *Queries) SelectAllExecutorSettings(ctx context.Context) ([]ExecutorSett
 	}
 	return items, nil
 }
+
+const selectJobsByExecutorAndQueues = `-- name: SelectJobsByExecutorAndQueues :many
+SELECT j.*
+FROM runs jr
+         JOIN jobs j
+              ON jr.job_id = j.job_id
+WHERE jr.executor = $1
+  AND j.queue = ANY($2::text[])
+  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false
+`
+
+func (q *Queries) SelectAllJobsByExecutorAndQueues(ctx context.Context, executor string, queues []string) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectJobsByExecutorAndQueues, executor, queues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.JobID,
+			&i.JobSet,
+			&i.Queue,
+			&i.UserID,
+			&i.Submitted,
+			&i.Groups,
+			&i.Priority,
+			&i.Queued,
+			&i.QueuedVersion,
+			&i.CancelRequested,
+			&i.Cancelled,
+			&i.CancelByJobsetRequested,
+			&i.Succeeded,
+			&i.Failed,
+			&i.SubmitMessage,
+			&i.SchedulingInfo,
+			&i.SchedulingInfoVersion,
+			&i.Serial,
+			&i.LastModified,
+			&i.Validated,
+			&i.Pools,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
