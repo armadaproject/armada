@@ -52,6 +52,22 @@ func (mr *MockJobRepositoryMockRecorder) CountReceivedPartitions(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountReceivedPartitions", reflect.TypeOf((*MockJobRepository)(nil).CountReceivedPartitions), arg0, arg1)
 }
 
+// FetchInitialJobs mocks base method.
+func (m *MockJobRepository) FetchInitialJobs(arg0 *armadacontext.Context) ([]database.Job, []database.Run, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchInitialJobs", arg0)
+	ret0, _ := ret[0].([]database.Job)
+	ret1, _ := ret[1].([]database.Run)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FetchInitialJobs indicates an expected call of FetchInitialJobs.
+func (mr *MockJobRepositoryMockRecorder) FetchInitialJobs(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchInitialJobs", reflect.TypeOf((*MockJobRepository)(nil).FetchInitialJobs), arg0)
+}
+
 // FetchJobRunErrors mocks base method.
 func (m *MockJobRepository) FetchJobRunErrors(arg0 *armadacontext.Context, arg1 []string) (map[string]*armadaevents.Error, error) {
 	m.ctrl.T.Helper()

@@ -1,9 +1,36 @@
 package scheduling
 
 import (
+	"time"
+
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
+
+type QueueStats struct {
+	GangsConsidered                  int
+	JobsConsidered                   int
+	GangsScheduled                   int
+	FirstGangConsideredSampleJobId   string
+	FirstGangConsideredResult        string
+	FirstGangConsideredQueuePosition int
+	LastGangScheduledSampleJobId     string
+	LastGangScheduledQueuePosition   int
+	LastGangScheduledQueueCost       float64
+	LastGangScheduledResources       schedulerobjects.ResourceList
+	LastGangScheduledQueueResources  schedulerobjects.ResourceList
+	Time                             time.Duration
+}
+
+type PerPoolSchedulingStats struct {
+	// scheduling stats per queue
+	StatsPerQueue map[string]QueueStats
+	// number of loops executed in this cycle
+	LoopNumber int
+	// Result of any eviction in this cycle
+	EvictorResult *EvictorResult
+}
 
 // SchedulerResult is returned by Rescheduler.Schedule().
 type SchedulerResult struct {
@@ -18,6 +45,8 @@ type SchedulerResult struct {
 	// These are the corresponding scheduling contexts.
 	// TODO: This doesn't seem like the right approach.
 	SchedulingContexts []*context.SchedulingContext
+	// scheduling stats
+	PerPoolSchedulingStats map[string]PerPoolSchedulingStats
 }
 
 // PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result.
