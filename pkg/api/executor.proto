@@ -56,11 +56,3 @@ message ExecutorCancelRequest {
   repeated string queues = 2;
   repeated string priorityClasses = 3;
 }
-
-message ByPriorityClass {
-  repeated string priorityClasses = 1;
-}
-
-message ByPriorityQueue {
-  repeated string queues = 1;
-}
