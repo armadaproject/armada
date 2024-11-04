@@ -596,6 +596,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			constraints,
 			s.floatingResourceTypes,
 			s.schedulingConfig.ProtectedFractionOfFairShare,
+			s.schedulingConfig.MaxQueueLookback,
 			txn,
 			nodeDb,
 			maps.Clone(s.accounting.nodeIdByJobId),

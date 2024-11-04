@@ -92,6 +92,20 @@ func TestFromJobResourceListIgnoreUnknownDoesNotErrorIfMissing(t *testing.T) {
 	assert.Equal(t, int64(100*1024*1024), testGet(&result, "memory"))
 }
 
+func TestMakeResourceFractionList(t *testing.T) {
+	factory := testFactory()
+	result := factory.MakeResourceFractionList(map[string]float64{
+		"memory":                       0.1,
+		"nvidia.com/gpu":               0.2,
+		"external-storage-connections": 0.3,
+	}, 0.99)
+	assert.Equal(t, 0.1, testGetFraction(&result, "memory"))
+	assert.Equal(t, 0.99, testGetFraction(&result, "cpu"))
+	assert.Equal(t, 0.2, testGetFraction(&result, "nvidia.com/gpu"))
+	assert.Equal(t, 0.3, testGetFraction(&result, "external-storage-connections"))
+	assert.Equal(t, 0.99, testGetFraction(&result, "external-storage-bytes"))
+}
+
 func TestGetScale(t *testing.T) {
 	factory := testFactory()
 
@@ -129,6 +143,14 @@ func testFactory() *ResourceListFactory {
 
 func testGet(rl *ResourceList, name string) int64 {
 	val, err := rl.GetByName(name)
+	if err != nil {
+		return math.MinInt64
+	}
+	return val
+}
+
+func testGetFraction(rfl *ResourceFractionList, name string) float64 {
+	val, err := rfl.GetByName(name)
 	if err != nil {
 		return math.MinInt64
 	}
