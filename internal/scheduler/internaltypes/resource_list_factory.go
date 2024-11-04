@@ -113,6 +113,19 @@ func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources m
 	return ResourceList{resources: result, factory: factory}, nil
 }
 
+func (factory *ResourceListFactory) MakeResourceFractionList(m map[string]float64, defaultValue float64) ResourceFractionList {
+	result := make([]float64, len(factory.indexToName))
+	for index, name := range factory.indexToName {
+		val, ok := m[name]
+		if ok {
+			result[index] = val
+		} else {
+			result[index] = defaultValue
+		}
+	}
+	return ResourceFractionList{fractions: result, factory: factory}
+}
+
 func (factory *ResourceListFactory) SummaryString() string {
 	result := ""
 	for i, name := range factory.indexToName {

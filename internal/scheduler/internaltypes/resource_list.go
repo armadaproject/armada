@@ -30,14 +30,12 @@ type Resource struct {
 }
 
 func (rl ResourceList) Equal(other ResourceList) bool {
+	rl.assertSameResourceListFactory(other)
 	if rl.IsEmpty() && other.IsEmpty() {
 		return true
 	}
 	if rl.IsEmpty() || other.IsEmpty() {
 		return false
-	}
-	if rl.factory != other.factory {
-		panic("mismatched ResourceListFactory")
 	}
 	return slices.Equal(rl.resources, other.resources)
 }
@@ -159,12 +157,10 @@ func (rl ResourceList) IsEmpty() bool {
 // - if no resources in this ResourceList exceed available, the last return value is false.
 // - empty resource lists are considered equivalent to all zero.
 func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sResource.Quantity, k8sResource.Quantity, bool) {
+	rl.assertSameResourceListFactory(available)
+
 	if rl.IsEmpty() && available.IsEmpty() {
 		return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false
-	}
-
-	if available.factory != nil && rl.factory != nil && rl.factory != available.factory {
-		panic("mismatched ResourceListFactory")
 	}
 
 	var factory *ResourceListFactory
@@ -200,14 +196,12 @@ func (rl ResourceList) OfType(t ResourceType) ResourceList {
 }
 
 func (rl ResourceList) Add(other ResourceList) ResourceList {
+	rl.assertSameResourceListFactory(other)
 	if rl.IsEmpty() {
 		return other
 	}
 	if other.IsEmpty() {
 		return rl
-	}
-	if rl.factory != other.factory {
-		panic("mismatched ResourceListFactory")
 	}
 	result := make([]int64, len(rl.resources))
 	for i, r := range rl.resources {
@@ -217,18 +211,29 @@ func (rl ResourceList) Add(other ResourceList) ResourceList {
 }
 
 func (rl ResourceList) Subtract(other ResourceList) ResourceList {
+	rl.assertSameResourceListFactory(other)
 	if other.IsEmpty() {
 		return rl
 	}
 	if rl.IsEmpty() {
 		return other.Negate()
 	}
-	if rl.factory != other.factory {
-		panic("mismatched ResourceListFactory")
-	}
 	result := make([]int64, len(rl.resources))
 	for i, r := range rl.resources {
 		result[i] = r - other.resources[i]
+	}
+	return ResourceList{factory: rl.factory, resources: result}
+}
+
+func (rl ResourceList) Multiply(multipliers ResourceFractionList) ResourceList {
+	multipliers.assertSameResourceListFactory(rl)
+	if rl.IsEmpty() || multipliers.IsEmpty() {
+		return ResourceList{}
+	}
+
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		result[i] = multiplyResource(r, multipliers.fractions[i])
 	}
 	return ResourceList{factory: rl.factory, resources: result}
 }
@@ -244,6 +249,17 @@ func (rl ResourceList) Negate() ResourceList {
 	return ResourceList{factory: rl.factory, resources: result}
 }
 
+func (rl ResourceList) Scale(factor float64) ResourceList {
+	if rl.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		result[i] = multiplyResource(r, factor)
+	}
+	return ResourceList{resources: result, factory: rl.factory}
+}
+
 func (rl ResourceList) asQuantity(index int) *k8sResource.Quantity {
 	if rl.factory == nil {
 		return &k8sResource.Quantity{}
@@ -256,4 +272,14 @@ func resourcesZeroIfEmpty(resources []int64, factory *ResourceListFactory) []int
 		return make([]int64, len(factory.indexToName))
 	}
 	return resources
+}
+
+func (rl ResourceList) assertSameResourceListFactory(other ResourceList) {
+	if rl.factory != nil && other.factory != nil && rl.factory != other.factory {
+		panic("mismatched ResourceListFactory")
+	}
+}
+
+func multiplyResource(res int64, multiplier float64) int64 {
+	return int64(float64(res) * multiplier)
 }

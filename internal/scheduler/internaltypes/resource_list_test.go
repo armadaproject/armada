@@ -252,6 +252,31 @@ func TestSubtract_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, ResourceList{}, ResourceList{}.Subtract(ResourceList{}))
 }
 
+func TestMultiply(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t,
+		testResourceList(factory, "100", "150Ki"),
+		testResourceList(factory, "400", "200Ki").Multiply(
+			testResourceFractionList(factory, 0.25, 0.75)))
+	assert.Equal(t,
+		testResourceList(factory, "0", "0"),
+		testResourceList(factory, "0", "200Ki").Multiply(
+			testResourceFractionList(factory, 0.25, 0)))
+	assert.Equal(t,
+		testResourceList(factory, "-100", "150Ki"),
+		testResourceList(factory, "400", "-200Ki").Multiply(
+			testResourceFractionList(factory, -0.25, -0.75)))
+}
+
+func TestMultiply_HandlesEmptyCorrectly(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, ResourceList{}, ResourceList{}.Multiply(ResourceFractionList{}))
+	assert.Equal(t, ResourceList{}, ResourceList{}.Multiply(testResourceFractionList(factory, 1, 1)))
+	assert.Equal(t, ResourceList{}, testResourceList(factory, "1", "1Ki").Multiply(ResourceFractionList{}))
+}
+
 func TestNegate(t *testing.T) {
 	factory := testFactory()
 
@@ -263,9 +288,29 @@ func TestNegate_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, ResourceList{}, ResourceList{}.Negate())
 }
 
+func TestScale(t *testing.T) {
+	factory := testFactory()
+	assert.Equal(t, testResourceList(factory, "4", "2Ki"), testResourceList(factory, "2", "1Ki").Scale(2.0))
+	assert.Equal(t, testResourceList(factory, "2", "1Ki"), testResourceList(factory, "2", "1Ki").Scale(1.0))
+	assert.Equal(t, testResourceList(factory, "0", "0Ki"), testResourceList(factory, "2", "1Ki").Scale(0.0))
+	assert.Equal(t, testResourceList(factory, "2", "-1Ki"), testResourceList(factory, "-2", "1Ki").Scale(-1.0))
+}
+
+func TestScale_HandlesEmptyCorrectly(t *testing.T) {
+	assert.Equal(t, ResourceList{}, ResourceList{}.Scale(0.0))
+	assert.Equal(t, ResourceList{}, ResourceList{}.Scale(1.0))
+}
+
 func testResourceList(factory *ResourceListFactory, cpu string, memory string) ResourceList {
 	return factory.FromJobResourceListIgnoreUnknown(map[string]k8sResource.Quantity{
 		"cpu":    k8sResource.MustParse(cpu),
 		"memory": k8sResource.MustParse(memory),
 	})
+}
+
+func testResourceFractionList(factory *ResourceListFactory, cpu float64, memory float64) ResourceFractionList {
+	return factory.MakeResourceFractionList(map[string]float64{
+		"cpu":    cpu,
+		"memory": memory,
+	}, 1)
 }
