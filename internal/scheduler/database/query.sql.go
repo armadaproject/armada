@@ -970,7 +970,7 @@ FROM runs jr
               ON jr.job_id = j.job_id
 WHERE jr.executor = $1
   AND j.queue = ANY($2::text[])
-  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false
+  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
 `
 
 func (q *Queries) SelectAllJobsByExecutorAndQueues(ctx context.Context, executor string, queues []string) ([]Job, error) {

@@ -37,6 +37,7 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string) (outerErr err
 
 func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasses []string) error {
 	queueMsg := strings.Join(queues, ",")
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
 	// If the provided slice of queues is empty, jobs on all queues will be cancelled
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
@@ -47,7 +48,7 @@ func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasse
 		queueMsg = "all"
 	}
 
-	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClasses)
+	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
 	if err := a.Params.ExecutorAPI.PreemptOnExecutor(executor, queues, priorityClasses); err != nil {
 		return fmt.Errorf("error preempting jobs on executor %s: %s", executor, err)
 	}

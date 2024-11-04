@@ -57,6 +57,7 @@ func (a *App) CancelJobSet(queue string, jobSetId string) (outerErr error) {
 
 func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses []string) error {
 	queueMsg := strings.Join(queues, ",")
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
 	// If the provided slice of queues is empty, jobs on all queues will be cancelled
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
@@ -66,7 +67,7 @@ func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses
 		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
 		queueMsg = "all"
 	}
-	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClasses)
+	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
 	if err := a.Params.ExecutorAPI.CancelOnExecutor(executor, queues, priorityClasses); err != nil {
 		return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
 	}
