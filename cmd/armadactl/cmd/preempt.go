@@ -62,15 +62,15 @@ func preemptExecutorCmd() *cobra.Command {
 				return fmt.Errorf("error reading priority-class selection: %s", err)
 			}
 
-			matchQueues, err := cmd.Flags().GetStringSlice("queues")
+			queues, err := cmd.Flags().GetStringSlice("queues")
 			if err != nil {
 				return fmt.Errorf("error reading queue selection: %s", err)
 			}
 
-			return a.PreemptOnExecutor(onExecutor, matchQueues, priorityClasses)
+			return a.PreemptOnExecutor(onExecutor, queues, priorityClasses)
 		},
 	}
-	cmd.Flags().StringSliceP("queues", "q", []string{}, "Preempt jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be preempted.")
+	cmd.Flags().StringSliceP("queues", "q", []string{}, "Preempt jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be preempted. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.")
 	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Preempt jobs on executor matching the specified priority classes.")
 	return cmd
 }
