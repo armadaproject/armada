@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -52,4 +53,23 @@ func (a *App) CancelJobSet(queue string, jobSetId string) (outerErr error) {
 		fmt.Fprintf(a.Out, "Requested cancellation for job set %s\n", jobSetId)
 		return nil
 	})
+}
+
+func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses []string) error {
+	queueMsg := strings.Join(queues, ",")
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	// If the provided slice of queues is empty, jobs on all queues will be cancelled
+	if len(queues) == 0 {
+		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
+		if err != nil {
+			return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
+		}
+		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
+		queueMsg = "all"
+	}
+	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
+	if err := a.Params.ExecutorAPI.CancelOnExecutor(executor, queues, priorityClasses); err != nil {
+		return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
+	}
+	return nil
 }

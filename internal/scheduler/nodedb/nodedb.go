@@ -759,9 +759,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				return nil, errors.WithStack(err)
 			}
 
-			priority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
+			priority, ok := nodeDb.GetScheduledAtPriority(job.JobSchedulingContext.JobId)
 			if !ok {
-				priority = evictedJctx.Job.PriorityClass().Priority
+				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
 			}
 			if priority > maxPriority {
 				maxPriority = priority

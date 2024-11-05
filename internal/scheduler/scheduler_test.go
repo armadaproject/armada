@@ -1039,6 +1039,143 @@ func TestRun(t *testing.T) {
 	cancel()
 }
 
+func TestScheduler_TestSyncInitialState(t *testing.T) {
+	tests := map[string]struct {
+		initialJobs             []database.Job /// jobs in the jobdb at the start of the cycle
+		initialJobRuns          []database.Run // jobs runs in the jobdb at the start of the cycle
+		expectedInitialJobs     []*jobdb.Job
+		expectedInitialJobDbIds []string
+		expectedJobsSerial      int64
+		expectedRunsSerial      int64
+	}{
+		"no initial jobs": {
+			initialJobs:             []database.Job{},
+			initialJobRuns:          []database.Run{},
+			expectedInitialJobs:     []*jobdb.Job{},
+			expectedInitialJobDbIds: []string{},
+			expectedJobsSerial:      -1,
+			expectedRunsSerial:      -1,
+		},
+		"initial jobs are present": {
+			initialJobs: []database.Job{
+				{
+					JobID:          queuedJob.Id(),
+					JobSet:         queuedJob.Jobset(),
+					Queue:          queuedJob.Queue(),
+					Queued:         false,
+					QueuedVersion:  1,
+					Priority:       int64(queuedJob.Priority()),
+					SchedulingInfo: schedulingInfoBytes,
+					Serial:         1,
+					Validated:      true,
+					Submitted:      1,
+				},
+			},
+			initialJobRuns: []database.Run{
+				{
+					RunID:    leasedJob.LatestRun().Id(),
+					JobID:    queuedJob.Id(),
+					JobSet:   queuedJob.Jobset(),
+					Executor: "test-executor",
+					Node:     "test-node",
+					Created:  123,
+					ScheduledAtPriority: func() *int32 {
+						scheduledAtPriority := int32(5)
+						return &scheduledAtPriority
+					}(),
+					Serial: 1,
+				},
+			},
+			expectedInitialJobs: []*jobdb.Job{
+				queuedJob.WithUpdatedRun(
+					testfixtures.JobDb.CreateRun(
+						leasedJob.LatestRun().Id(),
+						queuedJob.Id(),
+						123,
+						"test-executor",
+						"test-executor-test-node",
+						"test-node",
+						"pool",
+						pointer.Int32(5),
+						false,
+						false,
+						false,
+						false,
+						false,
+						false,
+						false,
+						false,
+						nil,
+						nil,
+						nil,
+						nil,
+						nil,
+						false,
+						false,
+					)).WithQueued(false).WithQueuedVersion(1),
+			},
+			expectedInitialJobDbIds: []string{queuedJob.Id()},
+			expectedJobsSerial:      1,
+			expectedRunsSerial:      1,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			// Test objects
+			jobRepo := &testJobRepository{
+				initialJobs: tc.initialJobs,
+				initialRuns: tc.initialJobRuns,
+			}
+			schedulingAlgo := &testSchedulingAlgo{}
+			publisher := &testPublisher{}
+			clusterRepo := &testExecutorRepository{}
+			leaderController := leader.NewStandaloneLeaderController()
+			sched, err := NewScheduler(
+				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+				jobRepo,
+				clusterRepo,
+				schedulingAlgo,
+				leaderController,
+				publisher,
+				nil,
+				1*time.Second,
+				5*time.Second,
+				1*time.Hour,
+				maxNumberOfAttempts,
+				nodeIdLabel,
+				schedulerMetrics,
+			)
+			require.NoError(t, err)
+			sched.EnableAssertions()
+
+			// The SchedulingKeyGenerator embedded in the jobDb has some randomness,
+			// which must be consistent within tests.
+			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+
+			initialJobs, _, err := sched.syncState(ctx, true)
+			require.NoError(t, err)
+
+			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
+			actualJobDb := testfixtures.NewJobDbWithJobs(initialJobs)
+			assert.NoError(t, expectedJobDb.ReadTxn().AssertEqual(actualJobDb.ReadTxn()))
+			allDbJobs := sched.jobDb.ReadTxn().GetAll()
+
+			expectedIds := stringSet(tc.expectedInitialJobDbIds)
+			require.Equal(t, len(tc.expectedInitialJobDbIds), len(allDbJobs))
+			for _, job := range allDbJobs {
+				_, ok := expectedIds[job.Id()]
+				assert.True(t, ok)
+			}
+
+			require.Equal(t, tc.expectedJobsSerial, sched.jobsSerial)
+			require.Equal(t, tc.expectedRunsSerial, sched.runsSerial)
+		})
+	}
+}
+
 func TestScheduler_TestSyncState(t *testing.T) {
 	tests := map[string]struct {
 		initialJobs         []*jobdb.Job   // jobs in the jobdb at the start of the cycle
@@ -1232,7 +1369,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, err := sched.syncState(ctx)
+			updatedJobs, _, err := sched.syncState(ctx, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
@@ -1268,6 +1405,8 @@ func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (
 
 // Test implementations of the interfaces needed by the Scheduler
 type testJobRepository struct {
+	initialJobs           []database.Job
+	initialRuns           []database.Run
 	updatedJobs           []database.Job
 	updatedRuns           []database.Run
 	errors                map[string]*armadaevents.Error
@@ -1304,6 +1443,13 @@ func (t *testJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, 
 		return 0, errors.New("error counting received partitions")
 	}
 	return t.numReceivedPartitions, nil
+}
+
+func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, error) {
+	if t.shouldError {
+		return nil, nil, errors.New("error fetching job updates")
+	}
+	return t.initialJobs, t.initialRuns, nil
 }
 
 type testExecutorRepository struct {

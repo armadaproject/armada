@@ -518,6 +518,26 @@ var DeleteExecutorSettings = &controlplaneevents.Event{
 	},
 }
 
+var PreemptOnExecutor = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_PreemptOnExecutor{
+		PreemptOnExecutor: &controlplaneevents.PreemptOnExecutor{
+			Name:            ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
+var CancelOnExecutor = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnExecutor{
+		CancelOnExecutor: &controlplaneevents.CancelOnExecutor{
+			Name:            ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
 func JobSetCancelRequestedWithStateFilter(states ...armadaevents.JobState) *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
 		Created: testfixtures.BasetimeProto,

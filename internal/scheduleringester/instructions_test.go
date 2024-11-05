@@ -272,6 +272,26 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				},
 			}},
 		},
+		"preempt on executor": {
+			event: f.PreemptOnExecutor,
+			expected: []DbOperation{PreemptExecutor{
+				f.ExecutorId: &PreemptOnExecutor{
+					Name:            f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
+		"cancel on executor": {
+			event: f.CancelOnExecutor,
+			expected: []DbOperation{CancelExecutor{
+				f.ExecutorId: &CancelOnExecutor{
+					Name:            f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
 	}
 
 	for name, tc := range tests {

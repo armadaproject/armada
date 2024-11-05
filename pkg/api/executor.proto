@@ -19,6 +19,18 @@ service Executor {
       body: "*"
     };
   }
+  rpc PreemptOnExecutor (ExecutorPreemptRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/executor/preempt/{name}"
+      body: "*"
+    };
+  }
+  rpc CancelOnExecutor (ExecutorCancelRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/executor/cancel/{name}"
+      body: "*"
+    };
+  }
 }
 
 message ExecutorSettingsUpsertRequest {
@@ -29,4 +41,18 @@ message ExecutorSettingsUpsertRequest {
 
 message ExecutorSettingsDeleteRequest {
   string name = 1;
+}
+
+// Jobs on the specified executor matching both the provided queues and priority classes will be preempted
+message ExecutorPreemptRequest {
+  string name = 1;
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
+}
+
+// Jobs on the specified executor matching both the provided queues and priority classes will be cancelled
+message ExecutorCancelRequest {
+  string name = 1;
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
 }

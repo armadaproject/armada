@@ -230,7 +230,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
-	updatedJobs, jsts, err := s.syncState(ctx)
+	updatedJobs, jsts, err := s.syncState(ctx, false)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
@@ -357,12 +357,21 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
-	// Load new and updated jobs from the jobRepo.
-	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
+	var updatedJobs []database.Job
+	var updatedRuns []database.Run
+	var err error
+
+	if initial {
+		// Load initial jobs from the jobRepo.
+		updatedJobs, updatedRuns, err = s.jobRepository.FetchInitialJobs(ctx)
+	} else {
+		// Load new and updated jobs from the jobRepo.
+		updatedJobs, updatedRuns, err = s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -971,7 +980,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, err := s.syncState(ctx); err != nil {
+			if _, _, err := s.syncState(ctx, true); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {

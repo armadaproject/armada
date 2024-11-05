@@ -17,6 +17,11 @@ var Gotestsum string
 
 var LocalBin = filepath.Join(os.Getenv("PWD"), "/bin")
 
+var (
+	redisImage    = "redis:6.2.6"
+	postgresImage = "postgres:14.2"
+)
+
 func makeLocalBin() error {
 	if _, err := os.Stat(LocalBin); os.IsNotExist(err) {
 		err = os.MkdirAll(LocalBin, os.ModePerm)
@@ -52,12 +57,22 @@ func Tests() error {
 		return err
 	}
 
-	err = dockerRun("run", "-d", "--name=redis", docker_Net, "-p=6379:6379", "redis:6.2.6")
+	redisArgs := []string{"run", "-d", "--name=redis", "-p=6379:6379"}
+	if len(docker_Net) > 0 {
+		redisArgs = append(redisArgs, docker_Net)
+	}
+	redisArgs = append(redisArgs, redisImage)
+	err = dockerRun(redisArgs...)
 	if err != nil {
 		return err
 	}
 
-	err = dockerRun("run", "-d", "--name=postgres", docker_Net, "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
+	postgresArgs := []string{"run", "-d", "--name=postgres", "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw"}
+	if len(docker_Net) > 0 {
+		postgresArgs = append(postgresArgs, docker_Net)
+	}
+	postgresArgs = append(postgresArgs, postgresImage)
+	err = dockerRun(postgresArgs...)
 	if err != nil {
 		return err
 	}

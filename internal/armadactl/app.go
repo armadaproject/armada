@@ -59,8 +59,10 @@ type QueueAPI struct {
 }
 
 type ExecutorAPI struct {
-	Cordon   executor.CordonAPI
-	Uncordon executor.UncordonAPI
+	Cordon            executor.CordonAPI
+	Uncordon          executor.UncordonAPI
+	CancelOnExecutor  executor.CancelAPI
+	PreemptOnExecutor executor.PreemptAPI
 }
 
 // New instantiates an App with default parameters, including standard output
