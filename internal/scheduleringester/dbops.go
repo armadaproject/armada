@@ -75,6 +75,18 @@ type ExecutorSettingsDelete struct {
 	ExecutorID string
 }
 
+type PreemptOnExecutor struct {
+	Name            string
+	Queues          []string
+	PriorityClasses []string
+}
+
+type CancelOnExecutor struct {
+	Name            string
+	Queues          []string
+	PriorityClasses []string
+}
+
 // DbOperation captures a generic batch database operation.
 //
 // There are 5 types of operations:
@@ -171,6 +183,8 @@ type (
 
 	UpsertExecutorSettings map[string]*ExecutorSettingsUpsert
 	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
+	PreemptExecutor        map[string]*PreemptOnExecutor
+	CancelExecutor         map[string]*CancelOnExecutor
 )
 
 type jobSetOperation interface {
@@ -312,6 +326,14 @@ func (a UpsertExecutorSettings) Merge(_ DbOperation) bool {
 }
 
 func (a DeleteExecutorSettings) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (pe PreemptExecutor) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (ce CancelExecutor) Merge(_ DbOperation) bool {
 	return false
 }
 
@@ -467,15 +489,9 @@ func (a MarkJobsValidated) CanBeAppliedBefore(b DbOperation) bool {
 // Can be applied before another operation only if it relates to a different executor
 func (a UpsertExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
-	case UpsertExecutorSettings:
-		for k := range a {
-			if _, ok := op[k]; ok {
-				return false
-			}
-		}
-	case DeleteExecutorSettings:
-		for k := range a {
-			if _, ok := op[k]; ok {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
 				return false
 			}
 		}
@@ -486,15 +502,33 @@ func (a UpsertExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
 // Can be applied before another operation only if it relates to a different executor
 func (a DeleteExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
-	case UpsertExecutorSettings:
-		for k := range a {
-			if _, ok := op[k]; ok {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
 				return false
 			}
 		}
-	case DeleteExecutorSettings:
-		for k := range a {
-			if _, ok := op[k]; ok {
+	}
+	return true
+}
+
+func (pe PreemptExecutor) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range pe {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (ce CancelExecutor) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range ce {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
 				return false
 			}
 		}
@@ -640,4 +674,36 @@ func (a UpsertExecutorSettings) GetOperation() Operation {
 
 func (a DeleteExecutorSettings) GetOperation() Operation {
 	return ControlPlaneOperation
+}
+
+func (pe PreemptExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (ce CancelExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+type executorOperation interface {
+	affectsExecutor(string) bool
+}
+
+func (a UpsertExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (a DeleteExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (pe PreemptExecutor) affectsExecutor(executor string) bool {
+	_, ok := pe[executor]
+	return ok
+}
+
+func (ce CancelExecutor) affectsExecutor(executor string) bool {
+	_, ok := ce[executor]
+	return ok
 }

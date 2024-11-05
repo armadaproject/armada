@@ -430,38 +430,38 @@ type SelectInitialJobsRow struct {
 func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsParams) ([]SelectInitialJobsRow, error) {
 	rows, err := q.db.Query(ctx, selectInitialJobs, arg.Serial, arg.Limit)
 	if err != nil {
-			return nil, err
-		}
+		return nil, err
+	}
 	defer rows.Close()
 	var items []SelectInitialJobsRow
 	for rows.Next() {
-			var i SelectInitialJobsRow
-			if err := rows.Scan(
-					&i.JobID,
-					&i.JobSet,
-					&i.Queue,
-					&i.Priority,
-					&i.Submitted,
-					&i.Queued,
-					&i.QueuedVersion,
-					&i.Validated,
-					&i.CancelRequested,
-					&i.CancelByJobsetRequested,
-					&i.Cancelled,
-					&i.Succeeded,
-					&i.Failed,
-					&i.SchedulingInfo,
-					&i.SchedulingInfoVersion,
-					&i.Pools,
-					&i.Serial,
-				); err != nil {
-					return nil, err
-				}
-			items = append(items, i)
-		}
-	if err := rows.Err(); err != nil {
+		var i SelectInitialJobsRow
+		if err := rows.Scan(
+			&i.JobID,
+			&i.JobSet,
+			&i.Queue,
+			&i.Priority,
+			&i.Submitted,
+			&i.Queued,
+			&i.QueuedVersion,
+			&i.Validated,
+			&i.CancelRequested,
+			&i.CancelByJobsetRequested,
+			&i.Cancelled,
+			&i.Succeeded,
+			&i.Failed,
+			&i.SchedulingInfo,
+			&i.SchedulingInfoVersion,
+			&i.Pools,
+			&i.Serial,
+		); err != nil {
 			return nil, err
 		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -529,47 +529,47 @@ type SelectInitialRunsParams struct {
 func (q *Queries) SelectInitialRuns(ctx context.Context, arg SelectInitialRunsParams) ([]Run, error) {
 	rows, err := q.db.Query(ctx, selectInitialRuns, arg.Serial, arg.Limit, arg.JobIds)
 	if err != nil {
-			return nil, err
-		}
+		return nil, err
+	}
 	defer rows.Close()
 	var items []Run
 	for rows.Next() {
-			var i Run
-			if err := rows.Scan(
-					&i.RunID,
-					&i.JobID,
-					&i.Created,
-					&i.JobSet,
-					&i.Executor,
-					&i.Node,
-					&i.Cancelled,
-					&i.Running,
-					&i.Succeeded,
-					&i.Failed,
-					&i.Returned,
-					&i.RunAttempted,
-					&i.Serial,
-					&i.LastModified,
-					&i.LeasedTimestamp,
-					&i.PendingTimestamp,
-					&i.RunningTimestamp,
-					&i.TerminatedTimestamp,
-					&i.ScheduledAtPriority,
-					&i.Preempted,
-					&i.Pending,
-					&i.PreemptedTimestamp,
-					&i.PodRequirementsOverlay,
-					&i.PreemptRequested,
-					&i.Queue,
-					&i.Pool,
-				); err != nil {
-					return nil, err
-				}
-			items = append(items, i)
-		}
-	if err := rows.Err(); err != nil {
+		var i Run
+		if err := rows.Scan(
+			&i.RunID,
+			&i.JobID,
+			&i.Created,
+			&i.JobSet,
+			&i.Executor,
+			&i.Node,
+			&i.Cancelled,
+			&i.Running,
+			&i.Succeeded,
+			&i.Failed,
+			&i.Returned,
+			&i.RunAttempted,
+			&i.Serial,
+			&i.LastModified,
+			&i.LeasedTimestamp,
+			&i.PendingTimestamp,
+			&i.RunningTimestamp,
+			&i.TerminatedTimestamp,
+			&i.ScheduledAtPriority,
+			&i.Preempted,
+			&i.Pending,
+			&i.PreemptedTimestamp,
+			&i.PodRequirementsOverlay,
+			&i.PreemptRequested,
+			&i.Queue,
+			&i.Pool,
+		); err != nil {
 			return nil, err
 		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -892,11 +892,11 @@ VALUES($1::text, $2::boolean, $3::text, $4::text, $5::timestamptz)
 ON CONFLICT (executor_id) DO UPDATE SET (cordoned, cordon_reason, set_by_user, set_at_time) = (excluded.cordoned, excluded.cordon_reason, excluded.set_by_user, excluded.set_at_time)`
 
 type UpsertExecutorSettingsParams struct {
-	ExecutorID  string    `db:"executor_id"`
-	Cordoned bool    `db:"cordoned"`
-	CordonReason  string `db:"cordon_reason"`
-	SetByUser string `db:"set_by_user"`
-	SetAtTime time.Time `db:"set_at_time"`
+	ExecutorID   string    `db:"executor_id"`
+	Cordoned     bool      `db:"cordoned"`
+	CordonReason string    `db:"cordon_reason"`
+	SetByUser    string    `db:"set_by_user"`
+	SetAtTime    time.Time `db:"set_at_time"`
 }
 
 func (q *Queries) UpsertExecutorSettings(ctx context.Context, arg UpsertExecutorSettingsParams) error {
@@ -961,4 +961,56 @@ func (q *Queries) SelectLatestJobRunSerial(ctx context.Context) (int64, error) {
 	var serial int64
 	err := row.Scan(&serial)
 	return serial, err
+}
+
+const selectJobsByExecutorAndQueues = `-- name: SelectJobsByExecutorAndQueues :many
+SELECT j.*
+FROM runs jr
+         JOIN jobs j
+              ON jr.job_id = j.job_id
+WHERE jr.executor = $1
+  AND j.queue = ANY($2::text[])
+  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
+`
+
+func (q *Queries) SelectAllJobsByExecutorAndQueues(ctx context.Context, executor string, queues []string) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectJobsByExecutorAndQueues, executor, queues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.JobID,
+			&i.JobSet,
+			&i.Queue,
+			&i.UserID,
+			&i.Submitted,
+			&i.Groups,
+			&i.Priority,
+			&i.Queued,
+			&i.QueuedVersion,
+			&i.CancelRequested,
+			&i.Cancelled,
+			&i.CancelByJobsetRequested,
+			&i.Succeeded,
+			&i.Failed,
+			&i.SubmitMessage,
+			&i.SchedulingInfo,
+			&i.SchedulingInfoVersion,
+			&i.Serial,
+			&i.LastModified,
+			&i.Validated,
+			&i.Pools,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

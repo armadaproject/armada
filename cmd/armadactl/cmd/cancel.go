@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/armadaproject/armada/internal/armadactl"
@@ -16,6 +18,7 @@ func cancelCmd() *cobra.Command {
 	cmd.AddCommand(
 		cancelJobCmd(),
 		cancelJobSetCmd(),
+		cancelExecutorCmd(),
 	)
 	return cmd
 }
@@ -56,5 +59,45 @@ func cancelJobSetCmd() *cobra.Command {
 			return a.CancelJobSet(queue, jobSetId)
 		},
 	}
+	return cmd
+}
+
+func cancelExecutorCmd() *cobra.Command {
+	a := armadactl.New()
+	cmd := &cobra.Command{
+		Use:   "executor <executor>",
+		Short: "Cancels jobs on executor.",
+		Long:  `Cancels jobs on executor with provided executor name, priority classes and queues.`,
+		Args:  cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+				return fmt.Errorf("error marking priority-class flag as required: %s", err)
+			}
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			onExecutor := args[0]
+
+			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
+			if err != nil {
+				return fmt.Errorf("error reading priority-class selection: %s", err)
+			}
+
+			queues, err := cmd.Flags().GetStringSlice("queues")
+			if err != nil {
+				return fmt.Errorf("error reading queue selection: %s", err)
+			}
+
+			return a.CancelOnExecutor(onExecutor, queues, priorityClasses)
+		},
+	}
+
+	cmd.Flags().StringSliceP(
+		"queues",
+		"q",
+		[]string{},
+		"Cancel jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be cancelled. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.",
+	)
+	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Cancel jobs on executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.")
 	return cmd
 }
