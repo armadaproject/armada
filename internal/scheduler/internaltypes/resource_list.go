@@ -147,6 +147,10 @@ func (rl ResourceList) IsEmpty() bool {
 	return rl.factory == nil
 }
 
+func (rl ResourceList) Exceeds(other ResourceList) bool {
+	return other.Subtract(rl).HasNegativeValues()
+}
+
 // ExceedsAvailable
 // - if any resource in this ResourceList is greater than the equivalent resource in param available, this function returns
 //   - the name of the relevant resource
@@ -191,6 +195,21 @@ func (rl ResourceList) OfType(t ResourceType) ResourceList {
 		if rl.factory.types[i] == t {
 			result[i] = r
 		}
+	}
+	return ResourceList{factory: rl.factory, resources: result}
+}
+
+func (rl ResourceList) Min(other ResourceList) ResourceList {
+	assertSameResourceListFactory(rl.factory, other.factory)
+	if rl.IsEmpty() {
+		return other
+	}
+	if other.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		result[i] = min(r, other.resources[i])
 	}
 	return ResourceList{factory: rl.factory, resources: result}
 }

@@ -4,11 +4,10 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
 // QueueRepository is a minimal representation of a queue repository used for computing fairness.
@@ -19,16 +18,16 @@ type QueueRepository interface {
 // Queue is a minimal representation of a queue used for computing fairness.
 type Queue interface {
 	// GetAllocation returns the current allocation of the queue.
-	GetAllocation() schedulerobjects.ResourceList
+	GetAllocation() internaltypes.ResourceList
 	GetWeight() float64
 }
 
 // FairnessCostProvider captures algorithms to compute the cost of an allocation.
 type FairnessCostProvider interface {
 	UnweightedCostFromQueue(queue Queue) float64
-	UnweightedCostFromAllocation(allocation schedulerobjects.ResourceList) float64
+	UnweightedCostFromAllocation(allocation internaltypes.ResourceList) float64
 	WeightedCostFromQueue(queue Queue) float64
-	WeightedCostFromAllocation(allocation schedulerobjects.ResourceList, weight float64) float64
+	WeightedCostFromAllocation(allocation internaltypes.ResourceList, weight float64) float64
 }
 
 type resourceToConsider struct {
@@ -38,12 +37,14 @@ type resourceToConsider struct {
 
 type DominantResourceFairness struct {
 	// Total resources across all nodes.
-	totalResources schedulerobjects.ResourceList
-	// Resources considered when computing DominantResourceFairness.
-	resourcesToConsider []resourceToConsider
+	totalResources internaltypes.ResourceList
+	// Weight (defined in config) for each resource.
+	// Typically 1.0 (we care about that resource when assigning costs),
+	// or 0.0 (we don't care). However other values are possible.
+	multipliers internaltypes.ResourceFractionList
 }
 
-func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, config configuration.SchedulingConfig) (*DominantResourceFairness, error) {
+func NewDominantResourceFairness(totalResources internaltypes.ResourceList, config configuration.SchedulingConfig, rlFactory *internaltypes.ResourceListFactory) (*DominantResourceFairness, error) {
 	if len(config.DominantResourceFairnessResourcesToConsider) != 0 && len(config.ExperimentalDominantResourceFairnessResourcesToConsider) != 0 {
 		return nil, errors.New("config error - only one of DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider should be set")
 	}
@@ -53,22 +54,26 @@ func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, c
 		}
 	}
 
-	var resourcesToConsider []resourceToConsider
+	var multipliers map[string]float64
 	if len(config.DominantResourceFairnessResourcesToConsider) > 0 {
-		resourcesToConsider = slices.Map(config.DominantResourceFairnessResourcesToConsider, func(n string) resourceToConsider {
-			return resourceToConsider{Name: n, Multiplier: 1}
+		multipliers = maps.FromSlice(config.DominantResourceFairnessResourcesToConsider, func(n string) string {
+			return n
+		}, func(n string) float64 {
+			return 1.0
 		})
 	} else if len(config.ExperimentalDominantResourceFairnessResourcesToConsider) > 0 {
-		resourcesToConsider = slices.Map(config.ExperimentalDominantResourceFairnessResourcesToConsider, func(r configuration.DominantResourceFairnessResource) resourceToConsider {
-			return resourceToConsider{Name: r.Name, Multiplier: defaultMultiplier(r.Multiplier)}
+		multipliers = maps.FromSlice(config.ExperimentalDominantResourceFairnessResourcesToConsider, func(r configuration.DominantResourceFairnessResource) string {
+			return r.Name
+		}, func(r configuration.DominantResourceFairnessResource) float64 {
+			return defaultMultiplier(r.Multiplier)
 		})
 	} else {
 		return nil, errors.New("config error - DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider are both empty")
 	}
 
 	return &DominantResourceFairness{
-		totalResources:      totalResources,
-		resourcesToConsider: resourcesToConsider,
+		totalResources: totalResources,
+		multipliers:    rlFactory.MakeResourceFractionList(multipliers, 0.0),
 	}, nil
 }
 
@@ -87,23 +92,10 @@ func (f *DominantResourceFairness) UnweightedCostFromQueue(queue Queue) float64 
 	return f.UnweightedCostFromAllocation(queue.GetAllocation())
 }
 
-func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation schedulerobjects.ResourceList, weight float64) float64 {
+func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation internaltypes.ResourceList, weight float64) float64 {
 	return f.UnweightedCostFromAllocation(allocation) / weight
 }
 
-func (f *DominantResourceFairness) UnweightedCostFromAllocation(allocation schedulerobjects.ResourceList) float64 {
-	var cost float64
-	for _, t := range f.resourcesToConsider {
-		capacity := f.totalResources.Get(t.Name)
-		if capacity.Equal(resource.Quantity{}) {
-			// Ignore any resources with zero capacity.
-			continue
-		}
-		q := allocation.Get(t.Name)
-		tcost := q.AsApproximateFloat64() / capacity.AsApproximateFloat64() * t.Multiplier
-		if tcost > cost {
-			cost = tcost
-		}
-	}
-	return cost
+func (f *DominantResourceFairness) UnweightedCostFromAllocation(allocation internaltypes.ResourceList) float64 {
+	return allocation.DivideZeroOnError(f.totalResources).Multiply(f.multipliers).Max()
 }

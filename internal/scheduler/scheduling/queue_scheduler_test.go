@@ -484,7 +484,9 @@ func TestQueueScheduler(t *testing.T) {
 			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
-				tc.TotalResources = nodeDb.TotalKubernetesResources()
+				tc.TotalResources = schedulerobjects.ResourceList{
+					Resources: nodeDb.TotalKubernetesResources().ToMap(),
+				}
 			}
 
 			queueNameToQueue := map[string]*api.Queue{}

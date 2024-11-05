@@ -19,7 +19,8 @@ func TestMax(t *testing.T) {
 	factory := testFactory()
 	assert.Equal(t, 0.0, testResourceFractionList(factory, -0.1, 0.0, 0.0).Max())
 	assert.Equal(t, 0.0, testResourceFractionList(factory, 0.0, 0.0, 0.0).Max())
-	assert.Equal(t, 0.9, testResourceFractionList(factory, 0.1, 0.9, 0.7).Max())
+	assert.Equal(t, 0.9, testResourceFractionList(factory, 0.2, 0.9, 0.1).Max())
+	assert.Equal(t, 0.9, testResourceFractionList(factory, 0.9, 0.2, 0.1).Max())
 }
 
 func TestMax_HandlesEmptyCorrectly(t *testing.T) {

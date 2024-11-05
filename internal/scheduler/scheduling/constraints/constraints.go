@@ -1,17 +1,22 @@
 package constraints
 
 import (
-	"math"
-
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/api"
 )
+
+// SchedulingConstraints contains scheduling constraints, e.g. per-queue resource limits.
+type SchedulingConstraints interface {
+	CheckRoundConstraints(sctx *context.SchedulingContext) (bool, string, error)
+	CheckJobConstraints(sctx *context.SchedulingContext, gctx *context.GangSchedulingContext) (bool, string, error)
+	CapResources(queue string, resourcesByPc map[string]internaltypes.ResourceList) map[string]internaltypes.ResourceList
+}
 
 const (
 	// Indicates that the limit on resources scheduled per round has been exceeded.
@@ -23,7 +28,7 @@ const (
 	// Indicates that the scheduling rate limit has been exceeded.
 	GlobalRateLimitExceededUnschedulableReason = "global scheduling rate limit exceeded"
 	QueueRateLimitExceededUnschedulableReason  = "queue scheduling rate limit exceeded"
-	SchedulingPausedOnQueueUnschedulableReason = "scheduling paused on queue"
+	QueueCordonedUnschedulableReason           = "queue cordoned"
 
 	// Indicates that scheduling a gang would exceed the rate limit.
 	GlobalRateLimitExceededByGangUnschedulableReason = "gang would exceed global scheduling rate limit"
@@ -55,79 +60,31 @@ func IsTerminalUnschedulableReason(reason string) bool {
 // IsTerminalQueueUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs from this queue in this round.
 func IsTerminalQueueUnschedulableReason(reason string) bool {
-	return reason == QueueRateLimitExceededUnschedulableReason || reason == SchedulingPausedOnQueueUnschedulableReason
+	return reason == QueueRateLimitExceededUnschedulableReason || reason == QueueCordonedUnschedulableReason
 }
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
-type SchedulingConstraints struct {
-	// Scheduling constraints by priority class.
-	priorityClassSchedulingConstraintsByPriorityClassName map[string]priorityClassSchedulingConstraints
-	// Scheduling constraints for specific queues.
-	// If present for a particular queue, global limits (i.e., priorityClassSchedulingConstraintsByPriorityClassName)
-	// do not apply for that queue.
-	queueSchedulingConstraintsByQueueName map[string]queueSchedulingConstraints
-	// Limits total resources scheduled per invocation.
-	maximumResourcesToSchedule map[string]resource.Quantity
+type schedulingConstraints struct {
+	// Limits total resources scheduled per scheduling round.
+	maximumResourcesToSchedule internaltypes.ResourceList
+	// Queues that are cordoned (i.e. no jobs may be scheduled on them)
+	cordonedQueues map[string]bool
+	// Resource limits by queue and priority class. E.g. "Queue A is limited to 100 cpu at priority class armada-default"
+	resourceLimitsPerQueuePerPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
-// queueSchedulingConstraints contains per-queue scheduling constraints.
-type queueSchedulingConstraints struct {
-	// Scheduling constraints by priority class.
-	PriorityClassSchedulingConstraintsByPriorityClassName map[string]priorityClassSchedulingConstraints
-	// Determines whether scheduling has been paused for this queue
-	Cordoned bool
-}
-
-// priorityClassSchedulingConstraints contains scheduling constraints that apply to jobs of a specific priority class.
-type priorityClassSchedulingConstraints struct {
-	PriorityClassName string
-	// Limits total resources allocated to jobs of this priority class per queue.
-	MaximumResourcesPerQueue map[string]resource.Quantity
-}
-
-func NewSchedulingConstraints(pool string, totalResources schedulerobjects.ResourceList, config configuration.SchedulingConfig, queues []*api.Queue) SchedulingConstraints {
-	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]priorityClassSchedulingConstraints, len(config.PriorityClasses))
-	for name, priorityClass := range config.PriorityClasses {
-		maximumResourceFractionPerQueue := priorityClass.MaximumResourceFractionPerQueue
-		if m, ok := priorityClass.MaximumResourceFractionPerQueueByPool[pool]; ok {
-			// Use pool-specific config is available.
-			maximumResourceFractionPerQueue = util.MergeMaps(maximumResourceFractionPerQueue, m)
-		}
-		priorityClassSchedulingConstraintsByPriorityClassName[name] = priorityClassSchedulingConstraints{
-			PriorityClassName:        name,
-			MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFractionPerQueue),
-		}
-	}
-
-	queueSchedulingConstraintsByQueueName := make(map[string]queueSchedulingConstraints, len(queues))
-	for _, queue := range queues {
-		priorityClassSchedulingConstraintsByPriorityClassNameForQueue := make(map[string]priorityClassSchedulingConstraints, len(queue.ResourceLimitsByPriorityClassName))
-		for priorityClassName, priorityClassResourceLimits := range queue.ResourceLimitsByPriorityClassName {
-			maximumResourceFraction := priorityClassResourceLimits.MaximumResourceFraction
-			if m, ok := priorityClassResourceLimits.MaximumResourceFractionByPool[pool]; ok {
-				// Use pool-specific maximum resource fraction if available.
-				maximumResourceFraction = util.MergeMaps(maximumResourceFraction, m.MaximumResourceFraction)
-			}
-			priorityClassSchedulingConstraintsByPriorityClassNameForQueue[priorityClassName] = priorityClassSchedulingConstraints{
-				PriorityClassName:        priorityClassName,
-				MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFraction),
-			}
-		}
-		queueSchedulingConstraintsByQueueName[queue.Name] = queueSchedulingConstraints{
-			PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassNameForQueue,
-			Cordoned: queue.Cordoned,
-		}
-	}
-
-	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
-	if m, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
-		// Use pool-specific config is available.
-		maximumResourceFractionToSchedule = m
-	}
-	return SchedulingConstraints{
-		maximumResourcesToSchedule:                            absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFractionToSchedule),
-		priorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassName,
-		queueSchedulingConstraintsByQueueName:                 queueSchedulingConstraintsByQueueName,
+func NewSchedulingConstraints(
+	pool string,
+	priorityClasses map[string]types.PriorityClass,
+	totalResources internaltypes.ResourceList,
+	maximumResourceFractionToSchedule float64,
+	queues []*api.Queue,
+	cordonStatusByQueue map[string]bool,
+	rlFactory *internaltypes.ResourceListFactory) SchedulingConstraints {
+	return &schedulingConstraints{
+		cordonedQueues:                         cordonStatusByQueue,
+		maximumResourcesToSchedule:             totalResources.Scale(maximumResourceFractionToSchedule),
+		resourceLimitsPerQueuePerPriorityClass: calculatePerQueueLimits(totalResources, pool, priorityClasses, queues, rlFactory),
 	}
 }
 
@@ -139,29 +96,26 @@ func absoluteFromRelativeLimits(totalResources map[string]resource.Quantity, rel
 	return absoluteLimits
 }
 
-// ScaleQuantity scales q in-place by a factor f.
-// This functions overflows for quantities the milli value of which can't be expressed as an int64.
-// E.g., 1Pi is ok, but not 10Pi.
-func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
-	q.SetMilli(int64(math.Round(float64(q.MilliValue()) * f)))
-	return q
-}
-
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *context.SchedulingContext) (bool, string, error) {
+func (constraints *schedulingConstraints) CheckRoundConstraints(sctx *context.SchedulingContext) (bool, string, error) {
 	// maximumResourcesToSchedule check.
-	if !isStrictlyLessOrEqual(sctx.ScheduledResources.Resources, constraints.maximumResourcesToSchedule) {
+	if sctx.ScheduledResources.Exceeds(constraints.maximumResourcesToSchedule) {
 		return false, MaximumResourcesScheduledUnschedulableReason, nil
 	}
 	return true, "", nil
 }
 
-func (constraints *SchedulingConstraints) CheckConstraints(
+func (constraints *schedulingConstraints) CheckJobConstraints(
 	sctx *context.SchedulingContext,
 	gctx *context.GangSchedulingContext,
 ) (bool, string, error) {
 	qctx := sctx.QueueSchedulingContexts[gctx.Queue]
 	if qctx == nil {
 		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", gctx.Queue)
+	}
+
+	// Queue cordoned
+	if constraints.cordonedQueues[qctx.Queue] {
+		return false, QueueCordonedUnschedulableReason, nil
 	}
 
 	// Global rate limiter check.
@@ -176,9 +130,6 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 		return false, GlobalRateLimitExceededByGangUnschedulableReason, nil
 	}
 
-	if queueConstraints, ok := constraints.queueSchedulingConstraintsByQueueName[qctx.Queue]; ok && queueConstraints.Cordoned {
-		return false, SchedulingPausedOnQueueUnschedulableReason, nil
-	}
 	// Per-queue rate limiter check.
 	tokens = qctx.Limiter.TokensAt(sctx.Started)
 	if tokens <= 0 {
@@ -191,31 +142,26 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
 	}
 
-	// queueSchedulingConstraintsByQueueName / priorityClassSchedulingConstraintsByPriorityClassName checks.
-	overallResourceLimits := constraints.resolveResourceLimitsForQueueAndPriorityClass(gctx.Queue, gctx.PriorityClassName)
-	if !isStrictlyLessOrEqual(qctx.AllocatedByPriorityClass[gctx.PriorityClassName].Resources, overallResourceLimits) {
+	// Quantity scheduled by queue and priority class
+	queueLimit, haslimit := constraints.resourceLimitsPerQueuePerPriorityClass[qctx.Queue][gctx.PriorityClassName]
+	allocatedResources := qctx.AllocatedByPriorityClass[gctx.PriorityClassName]
+	if haslimit && allocatedResources.Exceeds(queueLimit) {
 		return false, UnschedulableReasonMaximumResourcesExceeded, nil
 	}
 
 	return true, "", nil
 }
 
-func (constraints *SchedulingConstraints) CapResources(queue string, resourcesByPc schedulerobjects.QuantityByTAndResourceType[string]) schedulerobjects.QuantityByTAndResourceType[string] {
-	cappedResourcesByPc := schedulerobjects.QuantityByTAndResourceType[string]{}
-	for pc, resources := range resourcesByPc {
-		overallResourceLimits := constraints.resolveResourceLimitsForQueueAndPriorityClass(queue, pc)
-		cappedResources := make(map[string]resource.Quantity, len(resources.Resources))
-		for resourceName, qty := range resources.Resources {
-			limit, ok := overallResourceLimits[resourceName]
-			if ok && qty.Cmp(limit) == 1 {
-				cappedResources[resourceName] = limit
-			} else {
-				cappedResources[resourceName] = qty
-			}
-		}
-		cappedResourcesByPc[pc] = schedulerobjects.ResourceList{Resources: cappedResources}
+func (c *schedulingConstraints) CapResources(queue string, resourcesByPc map[string]internaltypes.ResourceList) map[string]internaltypes.ResourceList {
+	perQueueLimit, ok := c.resourceLimitsPerQueuePerPriorityClass[queue]
+	if !ok {
+		return resourcesByPc
 	}
-	return cappedResourcesByPc
+	cappedResources := make(map[string]internaltypes.ResourceList, len(resourcesByPc))
+	for pc, resources := range resourcesByPc {
+		cappedResources[pc] = resources.Min(perQueueLimit[pc])
+	}
+	return cappedResources
 }
 
 func (constraints *SchedulingConstraints) resolveResourceLimitsForQueueAndPriorityClass(queue string, priorityClass string) map[string]resource.Quantity {
@@ -251,4 +197,46 @@ func isStrictlyLessOrEqual(a map[string]resource.Quantity, b map[string]resource
 		}
 	}
 	return true
+}
+
+func calculatePerQueueLimits(totalResources internaltypes.ResourceList,
+	pool string,
+	priorityClasses map[string]types.PriorityClass,
+	queues []*api.Queue,
+	rlFactory *internaltypes.ResourceListFactory,
+) map[string]map[string]internaltypes.ResourceList {
+
+	// First we work out the default limit per pool
+	defaultScalingFactorsByPc := map[string]map[string]float64{}
+	defaultResourceLimitsByPc := map[string]internaltypes.ResourceList{}
+	for pcName, pc := range priorityClasses {
+		defaultLimit := pc.MaximumResourceFractionPerQueue
+		poolLimit := pc.MaximumResourceFractionPerQueueByPool[pool]
+		defaultScalingFactors := util.MergeMaps(defaultLimit, poolLimit)
+		defaultScalingFactorsByPc[pcName] = defaultScalingFactors
+		defaultResourceLimitsByPc[pcName] = totalResources.Multiply(rlFactory.MakeResourceFractionList(defaultScalingFactors, 1.0))
+	}
+
+	limitsPerQueuePerPc := make(map[string]map[string]internaltypes.ResourceList, len(queues))
+
+	// Then we go apply any queue-level overrides
+	for _, queue := range queues {
+		// There are no queue-specific limits
+		if len(queue.ResourceLimitsByPriorityClassName) == 0 {
+			limitsPerQueuePerPc[queue.Name] = defaultResourceLimitsByPc
+		} else {
+			for pc, _ := range priorityClasses {
+				queueLimits, ok := queue.ResourceLimitsByPriorityClassName[pc]
+				if ok {
+					defaultFraction := defaultScalingFactorsByPc[pc]
+					fractionLimit := util.MergeMaps(defaultFraction, queueLimits.MaximumResourceFraction)
+					fractionLimit = util.MergeMaps(fractionLimit, queueLimits.MaximumResourceFractionByPool[pool].GetMaximumResourceFraction())
+					limitsPerQueuePerPc[queue.Name][pc] = defaultResourceLimitsByPc[pc].Multiply(rlFactory.MakeResourceFractionList(fractionLimit, 1.0))
+				} else {
+					limitsPerQueuePerPc[queue.Name][pc] = defaultResourceLimitsByPc[pc]
+				}
+			}
+		}
+	}
+	return limitsPerQueuePerPc
 }

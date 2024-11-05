@@ -11,8 +11,10 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -257,7 +259,7 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 		sctx: &context.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,
-			ScheduledResources: zeroResources.DeepCopy(),
+			ScheduledResources: internaltypes.ResourceList{},
 			Limiter:            rate.NewLimiter(1e9, 1e6),
 			QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 				"queue-1": {
@@ -265,9 +267,9 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 					Weight:    1,
 					Limiter:   rate.NewLimiter(1e9, 1e6),
 					Allocated: zeroResources.DeepCopy(),
-					AllocatedByPriorityClass: schedulerobjects.QuantityByTAndResourceType[string]{"priority-class-1": schedulerobjects.ResourceList{
-						Resources: requirements,
-					}},
+					AllocatedByPriorityClass: map[string]internaltypes.ResourceList{
+						"priority-class-1": testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(requirements),
+					},
 				},
 			},
 			Started: time.Now(),
@@ -361,15 +363,16 @@ func makeConstraintsTest(constraints SchedulingConstraints) *constraintTest {
 		sctx: &context.SchedulingContext{
 			Pool:               "pool-1",
 			WeightSum:          100,
-			ScheduledResources: makeResourceList("1", "1Gi"),
+			ScheduledResources: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(makeResourceList("1", "1Gi").Resources),
 			Limiter:            rate.NewLimiter(1e9, 1e6),
 			QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 				"queue-1": {
-					Queue:                    "queue-1",
-					Weight:                   1,
-					Limiter:                  rate.NewLimiter(1e9, 1e6),
-					Allocated:                makeResourceList("30", "1Gi"),
-					AllocatedByPriorityClass: schedulerobjects.QuantityByTAndResourceType[string]{"priority-class-1": makeResourceList("20", "1Gi")},
+					Queue:     "queue-1",
+					Weight:    1,
+					Limiter:   rate.NewLimiter(1e9, 1e6),
+					Allocated: makeResourceList("30", "1Gi"),
+					AllocatedByPriorityClass: map[string]internaltypes.ResourceList{
+						"priority-class-1": testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(makeResourceList("20", "1Gi").Resources)},
 				},
 			},
 			Started: time.Now(),

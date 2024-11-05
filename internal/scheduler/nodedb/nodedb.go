@@ -22,7 +22,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
@@ -305,10 +304,10 @@ func (nodeDb *NodeDb) NumNodes() int {
 	return int(nodeDb.numNodes)
 }
 
-func (nodeDb *NodeDb) TotalKubernetesResources() schedulerobjects.ResourceList {
+func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
-	return schedulerobjects.ResourceList{Resources: nodeDb.totalResources.ToMap()}
+	return nodeDb.totalResources
 }
 
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {

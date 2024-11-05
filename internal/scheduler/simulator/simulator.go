@@ -378,7 +378,9 @@ func (s *Simulator) setupClusters() error {
 				s.accounting.poolByNodeId[nodeId] = cluster.Pool
 			}
 		}
-		totalResourcesForPool.Add(nodeDb.TotalKubernetesResources())
+		totalResourcesForPool.Add(schedulerobjects.ResourceList{
+			Resources: nodeDb.TotalKubernetesResources().ToMap(),
+		})
 		s.accounting.totalResourcesByPool[cluster.Pool] = totalResourcesForPool
 	}
 	return nil

@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -41,7 +42,7 @@ type SchedulingContext struct {
 	// Allocated resources across all clusters in this pool
 	Allocated schedulerobjects.ResourceList
 	// Resources assigned across all queues during this scheduling cycle.
-	ScheduledResources                schedulerobjects.ResourceList
+	ScheduledResources                internaltypes.ResourceList
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 	// Resources evicted across all queues during this scheduling cycle.
 	EvictedResources                schedulerobjects.ResourceList
@@ -76,7 +77,7 @@ func NewSchedulingContext(
 		Limiter:                           limiter,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
-		ScheduledResources:                schedulerobjects.NewResourceListWithDefaultSize(),
+		ScheduledResources:                internaltypes.ResourceList{},
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
 		SchedulingKeyGenerator:            schedulerobjects.NewSchedulingKeyGenerator(),
@@ -219,7 +220,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
 	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
-	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
+	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.String())
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
 	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
@@ -296,7 +297,7 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 			sctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumEvictedJobs--
 		} else {
-			sctx.ScheduledResources.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+			sctx.ScheduledResources = sctx.ScheduledResources.Add(jctx.Job.AllResourceRequirements())
 			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
@@ -341,7 +342,7 @@ func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error
 	}
 	rl := jctx.Job.ResourceRequirements().Requests
 	if scheduledInThisRound {
-		sctx.ScheduledResources.SubV1ResourceList(rl)
+		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
 		sctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), rl)
 		sctx.NumScheduledJobs--
 	} else {
