@@ -258,23 +258,51 @@ func TestMultiply(t *testing.T) {
 	assert.Equal(t,
 		testResourceList(factory, "100", "150Ki"),
 		testResourceList(factory, "400", "200Ki").Multiply(
-			testResourceFractionList(factory, 0.25, 0.75)))
+			testResourceFractionList(factory, 0.25, 0.75, 1)))
 	assert.Equal(t,
 		testResourceList(factory, "0", "0"),
 		testResourceList(factory, "0", "200Ki").Multiply(
-			testResourceFractionList(factory, 0.25, 0)))
+			testResourceFractionList(factory, 0.25, 0, 1)))
+	assert.Equal(t,
+		testResourceList(factory, "2", "100Ki"),
+		testResourceList(factory, "2", "100Ki").Multiply(
+			testResourceFractionList(factory, 1, 1, 1)))
 	assert.Equal(t,
 		testResourceList(factory, "-100", "150Ki"),
 		testResourceList(factory, "400", "-200Ki").Multiply(
-			testResourceFractionList(factory, -0.25, -0.75)))
+			testResourceFractionList(factory, -0.25, -0.75, 1)))
 }
 
 func TestMultiply_HandlesEmptyCorrectly(t *testing.T) {
 	factory := testFactory()
 
 	assert.Equal(t, ResourceList{}, ResourceList{}.Multiply(ResourceFractionList{}))
-	assert.Equal(t, ResourceList{}, ResourceList{}.Multiply(testResourceFractionList(factory, 1, 1)))
+	assert.Equal(t, ResourceList{}, ResourceList{}.Multiply(testResourceFractionList(factory, 1, 1, 1)))
 	assert.Equal(t, ResourceList{}, testResourceList(factory, "1", "1Ki").Multiply(ResourceFractionList{}))
+}
+
+func TestDivideZeroOnError(t *testing.T) {
+	factory := testFactory()
+
+	expected := testResourceFractionList(factory, 0.5, 0.25, 0)
+	actual := testResourceList(factory, "2", "2Ki").DivideZeroOnError(testResourceList(factory, "4", "8Ki"))
+	assert.Equal(t, expected, actual)
+}
+
+func TestDDivideZeroOnError_HandlesZeroDenominatorCorrectly(t *testing.T) {
+	factory := testFactory()
+
+	expected := testResourceFractionList(factory, 2, 0, 0)
+	actual := testResourceList(factory, "2", "2Ki").DivideZeroOnError(testResourceList(factory, "1", "0Ki"))
+	assert.Equal(t, expected, actual)
+}
+
+func TestDivideZeroOnError_HandlesEmptyCorrectly(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, ResourceFractionList{}, testResourceList(factory, "1", "1Ki").DivideZeroOnError(ResourceList{}))
+	assert.Equal(t, ResourceFractionList{}, ResourceList{}.DivideZeroOnError(testResourceList(factory, "1", "1Ki")))
+	assert.Equal(t, ResourceFractionList{}, ResourceList{}.DivideZeroOnError(ResourceList{}))
 }
 
 func TestNegate(t *testing.T) {
@@ -308,9 +336,9 @@ func testResourceList(factory *ResourceListFactory, cpu string, memory string) R
 	})
 }
 
-func testResourceFractionList(factory *ResourceListFactory, cpu float64, memory float64) ResourceFractionList {
+func testResourceFractionList(factory *ResourceListFactory, cpu float64, memory float64, defaultValue float64) ResourceFractionList {
 	return factory.MakeResourceFractionList(map[string]float64{
 		"cpu":    cpu,
 		"memory": memory,
-	}, 1)
+	}, defaultValue)
 }
