@@ -128,8 +128,8 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		ctx.Infof("Scheduling on pool %s with capacity %s %s",
 			pool,
-			fsctx.nodeDb.TotalKubernetesResources().CompactString(),
-			l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name).CompactString(),
+			fsctx.nodeDb.TotalKubernetesResources().String(),
+			l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool.Name).String(),
 		)
 
 		start := time.Now()
@@ -281,7 +281,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	totalResources := nodeDb.TotalKubernetesResources()
-	totalResources = l.floatingResourceTypes.AddTotalAvailableForPool(pool.Name, totalResources)
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool.Name))
 
 	schedulingContext, err := l.constructSchedulingContext(
 		pool.Name,
@@ -463,7 +463,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(homeJobs []*jobdb.Job, awayJobs []*
 
 func (l *FairSchedulingAlgo) constructSchedulingContext(
 	pool string,
-	totalCapacity schedulerobjects.ResourceList,
+	totalCapacity internaltypes.ResourceList,
 	demandByQueue map[string]schedulerobjects.QuantityByTAndResourceType[string],
 	allocationByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string],
 	awayAllocationByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string],
@@ -536,7 +536,8 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	pool string,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
-	totalResources = l.floatingResourceTypes.AddTotalAvailableForPool(pool, totalResources)
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool))
+
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
 	scheduler := NewPreemptingQueueScheduler(

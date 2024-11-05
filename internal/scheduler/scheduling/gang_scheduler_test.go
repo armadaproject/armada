@@ -645,7 +645,7 @@ func TestGangScheduler(t *testing.T) {
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
-			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
+			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)
 			require.NoError(t, err)

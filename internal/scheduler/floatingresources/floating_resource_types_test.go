@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -23,15 +24,20 @@ func TestGetTotalAvailableForPool(t *testing.T) {
 	assert.Equal(t, map[string]resource.Quantity{"floating-resource-1": zero, "floating-resource-2": zero}, sut.GetTotalAvailableForPool("some-other-pool").Resources)
 }
 
-func TestAddTotalAvailableForPool(t *testing.T) {
+func TestGetTotalAvailableForPoolInternalTypes(t *testing.T) {
 	sut := makeSut(t)
-	zero := resource.Quantity{}
-	ten := *resource.NewQuantity(10, resource.DecimalSI)
-	kubernetesResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": ten}}
-	assert.Equal(t, map[string]resource.Quantity{"cpu": ten, "floating-resource-1": resource.MustParse("200"), "floating-resource-2": resource.MustParse("300")}, sut.AddTotalAvailableForPool("cpu", kubernetesResources).Resources)
-	assert.Equal(t, map[string]resource.Quantity{"cpu": ten, "floating-resource-1": resource.MustParse("100"), "floating-resource-2": zero}, sut.AddTotalAvailableForPool("gpu", kubernetesResources).Resources)
-	assert.Equal(t, map[string]resource.Quantity{"cpu": ten, "floating-resource-1": zero, "floating-resource-2": zero}, sut.AddTotalAvailableForPool("some-other-pool", kubernetesResources).Resources)
-	assert.Equal(t, map[string]resource.Quantity{"cpu": ten}, kubernetesResources.Resources) // check hasn't mutated arg
+
+	cpuPool := sut.GetTotalAvailableForPoolInternalTypes("cpu")
+	assert.Equal(t, int64(200000), cpuPool.GetByNameZeroIfMissing("floating-resource-1"))
+	assert.Equal(t, int64(300000), cpuPool.GetByNameZeroIfMissing("floating-resource-2"))
+
+	gpuPool := sut.GetTotalAvailableForPoolInternalTypes("gpu")
+	assert.Equal(t, int64(100000), gpuPool.GetByNameZeroIfMissing("floating-resource-1"))
+	assert.Equal(t, int64(0), gpuPool.GetByNameZeroIfMissing("floating-resource-2"))
+
+	notFound := sut.GetTotalAvailableForPoolInternalTypes("some-invalid-value")
+	assert.Equal(t, int64(0), notFound.GetByNameZeroIfMissing("floating-resource-1"))
+	assert.Equal(t, int64(0), notFound.GetByNameZeroIfMissing("floating-resource-2"))
 }
 
 func TestWithinLimits_WhenWithinLimits_ReturnsTrue(t *testing.T) {
@@ -116,7 +122,13 @@ func testConfig() []configuration.FloatingResourceConfig {
 }
 
 func makeSut(t *testing.T) *FloatingResourceTypes {
-	sut, err := NewFloatingResourceTypes(testConfig())
+	rlFactory, err := internaltypes.NewResourceListFactory([]configuration.ResourceType{
+		{Name: "cpu"},
+	}, testConfig())
+	if err != nil {
+		panic(err)
+	}
+	sut, err := NewFloatingResourceTypes(testConfig(), rlFactory)
 	assert.Nil(t, err)
 	return sut
 }

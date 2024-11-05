@@ -9,19 +9,21 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type FloatingResourceTypes struct {
 	zeroFloatingResources schedulerobjects.ResourceList
 	pools                 map[string]*floatingResourcePool
+	rlFactory             *internaltypes.ResourceListFactory
 }
 
 type floatingResourcePool struct {
 	totalResources schedulerobjects.ResourceList
 }
 
-func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig) (*FloatingResourceTypes, error) {
+func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlFactory *internaltypes.ResourceListFactory) (*FloatingResourceTypes, error) {
 	zeroFloatingResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity, len(config))}
 	for _, c := range config {
 		if _, exists := zeroFloatingResources.Resources[c.Name]; exists {
@@ -51,6 +53,7 @@ func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig) (*F
 	return &FloatingResourceTypes{
 		zeroFloatingResources: zeroFloatingResources,
 		pools:                 pools,
+		rlFactory:             rlFactory,
 	}, nil
 }
 
@@ -84,6 +87,10 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) sche
 		return frt.zeroFloatingResources.DeepCopy()
 	}
 	return pool.totalResources.DeepCopy()
+}
+
+func (frt *FloatingResourceTypes) GetTotalAvailableForPoolInternalTypes(poolName string) internaltypes.ResourceList {
+	return frt.rlFactory.FromNodeProto(frt.GetTotalAvailableForPool(poolName).Resources)
 }
 
 func (frt *FloatingResourceTypes) AddTotalAvailableForPool(poolName string, kubernetesResources schedulerobjects.ResourceList) schedulerobjects.ResourceList {
