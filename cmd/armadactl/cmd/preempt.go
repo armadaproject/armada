@@ -70,7 +70,12 @@ func preemptExecutorCmd() *cobra.Command {
 			return a.PreemptOnExecutor(onExecutor, queues, priorityClasses)
 		},
 	}
-	cmd.Flags().StringSliceP("queues", "q", []string{}, "Preempt jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be preempted. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.")
+	cmd.Flags().StringSliceP(
+		"queues",
+		"q",
+		[]string{},
+		"Preempt jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be preempted. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.",
+	)
 	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Preempt jobs on executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.")
 	return cmd
 }
