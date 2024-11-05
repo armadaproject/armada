@@ -92,7 +92,7 @@ func cancelExecutorCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringSliceP("queues", "q", []string{}, "Cancel jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be cancelled.")
+	cmd.Flags().StringSliceP("queues", "q", []string{}, "Cancel jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be cancelled. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.")
 	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Cancel jobs on executor matching the specified priority classes.")
 	return cmd
 }
