@@ -30,7 +30,7 @@ type Resource struct {
 }
 
 func (rl ResourceList) Equal(other ResourceList) bool {
-	rl.assertSameResourceListFactory(other)
+	assertSameResourceListFactory(rl.factory, other.factory)
 	if rl.IsEmpty() && other.IsEmpty() {
 		return true
 	}
@@ -157,7 +157,7 @@ func (rl ResourceList) IsEmpty() bool {
 // - if no resources in this ResourceList exceed available, the last return value is false.
 // - empty resource lists are considered equivalent to all zero.
 func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sResource.Quantity, k8sResource.Quantity, bool) {
-	rl.assertSameResourceListFactory(available)
+	assertSameResourceListFactory(rl.factory, available.factory)
 
 	if rl.IsEmpty() && available.IsEmpty() {
 		return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false
@@ -196,7 +196,7 @@ func (rl ResourceList) OfType(t ResourceType) ResourceList {
 }
 
 func (rl ResourceList) Add(other ResourceList) ResourceList {
-	rl.assertSameResourceListFactory(other)
+	assertSameResourceListFactory(rl.factory, other.factory)
 	if rl.IsEmpty() {
 		return other
 	}
@@ -211,7 +211,7 @@ func (rl ResourceList) Add(other ResourceList) ResourceList {
 }
 
 func (rl ResourceList) Subtract(other ResourceList) ResourceList {
-	rl.assertSameResourceListFactory(other)
+	assertSameResourceListFactory(rl.factory, other.factory)
 	if other.IsEmpty() {
 		return rl
 	}
@@ -226,7 +226,7 @@ func (rl ResourceList) Subtract(other ResourceList) ResourceList {
 }
 
 func (rl ResourceList) Multiply(multipliers ResourceFractionList) ResourceList {
-	multipliers.assertSameResourceListFactory(rl)
+	assertSameResourceListFactory(rl.factory, multipliers.factory)
 	if rl.IsEmpty() || multipliers.IsEmpty() {
 		return ResourceList{}
 	}
@@ -236,6 +236,23 @@ func (rl ResourceList) Multiply(multipliers ResourceFractionList) ResourceList {
 		result[i] = multiplyResource(r, multipliers.fractions[i])
 	}
 	return ResourceList{factory: rl.factory, resources: result}
+}
+
+// Divide, return 0 on attempt to divide by 0
+func (rl ResourceList) DivideZeroOnError(other ResourceList) ResourceFractionList {
+	assertSameResourceListFactory(rl.factory, other.factory)
+	if rl.IsEmpty() || other.IsEmpty() {
+		return ResourceFractionList{}
+	}
+
+	result := make([]float64, len(rl.resources))
+	for i, r := range rl.resources {
+		denom := other.resources[i]
+		if denom != 0 {
+			result[i] = float64(r) / float64(denom)
+		}
+	}
+	return ResourceFractionList{factory: rl.factory, fractions: result}
 }
 
 func (rl ResourceList) Negate() ResourceList {
@@ -274,12 +291,16 @@ func resourcesZeroIfEmpty(resources []int64, factory *ResourceListFactory) []int
 	return resources
 }
 
-func (rl ResourceList) assertSameResourceListFactory(other ResourceList) {
-	if rl.factory != nil && other.factory != nil && rl.factory != other.factory {
+func assertSameResourceListFactory(a, b *ResourceListFactory) {
+	if a != nil && b != nil && a != b {
 		panic("mismatched ResourceListFactory")
 	}
 }
 
 func multiplyResource(res int64, multiplier float64) int64 {
+	if multiplier == 1.0 {
+		// avoid rounding error in the simple case
+		return res
+	}
 	return int64(float64(res) * multiplier)
 }
