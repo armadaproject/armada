@@ -105,3 +105,69 @@ func (s *Server) DeleteExecutorSettings(grpcCtx context.Context, req *api.Execut
 
 	return &types.Empty{}, nil
 }
+
+func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPreemptRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.PreemptAnyJobs)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error preempting jobs on executor %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	if req.Name == "" {
+		return nil, fmt.Errorf("must provide non-empty executor name when determining what to preempt")
+	}
+
+	es := &controlplaneevents.Event{
+		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
+		Event: &controlplaneevents.Event_PreemptOnExecutor{
+			PreemptOnExecutor: &controlplaneevents.PreemptOnExecutor{
+				Name:            req.Name,
+				Queues:          req.Queues,
+				PriorityClasses: req.PriorityClasses,
+			},
+		},
+	}
+
+	err = s.publisher.PublishMessages(ctx, es)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
+	}
+
+	return &types.Empty{}, nil
+}
+
+func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCancelRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CancelAnyJobs)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error cancelling jobs on executor %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	if req.Name == "" {
+		return nil, fmt.Errorf("must provide non-empty executor name when determining what to cancel")
+	}
+
+	es := &controlplaneevents.Event{
+		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
+		Event: &controlplaneevents.Event_CancelOnExecutor{
+			CancelOnExecutor: &controlplaneevents.CancelOnExecutor{
+				Name:            req.Name,
+				Queues:          req.Queues,
+				PriorityClasses: req.PriorityClasses,
+			},
+		},
+	}
+
+	err = s.publisher.PublishMessages(ctx, es)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
+	}
+
+	return &types.Empty{}, nil
+}

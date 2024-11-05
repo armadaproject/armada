@@ -410,6 +410,10 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handleExecutorSettingsUpsert(event.GetExecutorSettingsUpsert(), eventTime)
 	case *controlplaneevents.Event_ExecutorSettingsDelete:
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
+	case *controlplaneevents.Event_PreemptOnExecutor:
+		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
+	case *controlplaneevents.Event_CancelOnExecutor:
+		operations, err = c.handleCancelOnExecutor(event.GetCancelOnExecutor())
 	default:
 		log.Errorf("Unknown event of type %T", ev)
 	}
@@ -440,6 +444,30 @@ func (c *ControlPlaneEventsInstructionConverter) handleExecutorSettingsDelete(de
 		DeleteExecutorSettings{
 			delete.Name: &ExecutorSettingsDelete{
 				ExecutorID: delete.Name,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt *controlplaneevents.PreemptOnExecutor) ([]DbOperation, error) {
+	return []DbOperation{
+		PreemptExecutor{
+			preempt.Name: {
+				Name:            preempt.Name,
+				Queues:          preempt.Queues,
+				PriorityClasses: preempt.PriorityClasses,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handleCancelOnExecutor(cancel *controlplaneevents.CancelOnExecutor) ([]DbOperation, error) {
+	return []DbOperation{
+		CancelExecutor{
+			cancel.Name: {
+				Name:            cancel.Name,
+				Queues:          cancel.Queues,
+				PriorityClasses: cancel.PriorityClasses,
 			},
 		},
 	}, nil

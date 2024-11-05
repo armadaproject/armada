@@ -60,8 +60,6 @@ func IsTerminalQueueUnschedulableReason(reason string) bool {
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
 type SchedulingConstraints struct {
-	// Max number of jobs to consider for a queue before giving up.
-	maxQueueLookBack uint
 	// Scheduling constraints by priority class.
 	priorityClassSchedulingConstraintsByPriorityClassName map[string]priorityClassSchedulingConstraints
 	// Scheduling constraints for specific queues.
@@ -127,8 +125,7 @@ func NewSchedulingConstraints(pool string, totalResources schedulerobjects.Resou
 		maximumResourceFractionToSchedule = m
 	}
 	return SchedulingConstraints{
-		maxQueueLookBack:           config.MaxQueueLookback,
-		maximumResourcesToSchedule: absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFractionToSchedule),
+		maximumResourcesToSchedule:                            absoluteFromRelativeLimits(totalResources.Resources, maximumResourceFractionToSchedule),
 		priorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassName,
 		queueSchedulingConstraintsByQueueName:                 queueSchedulingConstraintsByQueueName,
 	}
@@ -241,10 +238,6 @@ func (constraints *SchedulingConstraints) getPriorityClassResourceLimits(priorit
 		return priorityClassConstraint.MaximumResourcesPerQueue
 	}
 	return map[string]resource.Quantity{}
-}
-
-func (constraints *SchedulingConstraints) GetMaxQueueLookBack() uint {
-	return constraints.maxQueueLookBack
 }
 
 // isStrictlyLessOrEqual returns false if

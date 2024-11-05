@@ -12,6 +12,8 @@ import (
 )
 
 type ApplicationConfiguration struct {
+	// ClusterId is the unique identifier for the cluster that the executor is running on.
+	// It is used to identify the cluster in the scheduler.
 	ClusterId              string
 	Pool                   string
 	SubmitConcurrencyLimit int
@@ -50,18 +52,23 @@ type ClientConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	// Wether to impersonate users when creating Kubernetes objects.
+	// Whether to impersonate users when creating Kubernetes objects.
 	ImpersonateUsers bool
 	// Max number of Kubernetes API queries per second
 	// and max number of concurrent Kubernetes API queries.
-	QPS                       float32
-	Burst                     int
-	Etcd                      EtcdConfiguration
-	NodePoolLabel             string
-	NodeTypeLabel             string
-	NodeIdLabel               string
-	TrackedNodeLabels         []string
-	AvoidNodeLabelsOnRetry    []string
+	QPS           float32
+	Burst         int
+	Etcd          EtcdConfiguration
+	NodePoolLabel string
+	NodeTypeLabel string
+	NodeIdLabel   string
+	// TrackedNodeLabels is a list of node labels that the executor should index and track.
+	// As nodes can have many labels, taking all of them into consideration can be slow down scheduling.
+	// Only node labels defined in this list can be referenced in Armada job nodeSelector field.
+	TrackedNodeLabels      []string
+	AvoidNodeLabelsOnRetry []string
+	// ToleratedTaints specifies taints which are tolerated by the executor.
+	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
 	ToleratedTaints           []string
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration

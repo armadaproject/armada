@@ -79,6 +79,15 @@ message JobTemplate {
     uint32 gang_cardinality = 13;
     // Node Uniformity label when scheduling gangs.  Only applies if gang_cardinality is non-zero.  If unset it defaults to armadaproject.io/clusterName
     string gang_node_uniformity_label = 14;
+    // If set then the template will be repeated at some frequency. If null then the template will be submitted a single time.
+    RepeatDetails repeat = 15;
+}
+
+message RepeatDetails {
+  // The number of times that template should be repeated. Must be > 0
+  uint32  num_times = 1;
+  // The period between template submissions.  May not be null
+  google.protobuf.Duration period = 2 [(gogoproto.stdduration) = true];
 }
 
 message ShiftedExponential {

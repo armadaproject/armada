@@ -544,6 +544,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig.ProtectedFractionOfFairShare,
+		l.schedulingConfig.MaxQueueLookback,
 		fsctx.Txn,
 		fsctx.nodeDb,
 		fsctx.nodeIdByJobId,

@@ -29,6 +29,7 @@ type PreemptingQueueScheduler struct {
 	constraints                  schedulerconstraints.SchedulingConstraints
 	floatingResourceTypes        *floatingresources.FloatingResourceTypes
 	protectedFractionOfFairShare float64
+	maxQueueLookBack             uint
 	jobRepo                      JobRepository
 	nodeDb                       *nodedb.NodeDb
 	// Maps job ids to the id of the node the job is associated with.
@@ -46,6 +47,7 @@ func NewPreemptingQueueScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	protectedFractionOfFairShare float64,
+	maxQueueLookBack uint,
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
@@ -70,6 +72,7 @@ func NewPreemptingQueueScheduler(
 		constraints:                  constraints,
 		floatingResourceTypes:        floatingResourceTypes,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
+		maxQueueLookBack:             maxQueueLookBack,
 		jobRepo:                      jobRepo,
 		nodeDb:                       nodeDb,
 		nodeIdByJobId:                maps.Clone(initialNodeIdByJobId),
@@ -511,7 +514,13 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository, skipUnsuccessfulSchedulingKeyCheck bool, considerPriorityCLassPriority bool) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(
+	ctx *armadacontext.Context,
+	inMemoryJobRepo *InMemoryJobRepository,
+	jobRepo JobRepository,
+	skipUnsuccessfulSchedulingKeyCheck bool,
+	considerPriorityCLassPriority bool,
+) (*SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
@@ -534,6 +543,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
 		considerPriorityCLassPriority,
+		sch.maxQueueLookBack,
 	)
 	if err != nil {
 		return nil, err
