@@ -470,7 +470,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 		return nil, err
 	}
 	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, totalCapacity)
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, l.schedulingConfig, maps.Values(queues), totalCapacity, l.resourceListFactory)
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues), l.resourceListFactory)
 
 	for _, queue := range queues {
 		demand, hasDemand := demandByQueueAndPriorityClass[queue.Name]
@@ -534,7 +534,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool))
 
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, l.schedulingConfig, maps.Values(fsctx.queues), totalResources, l.resourceListFactory)
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues), l.resourceListFactory)
 
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,

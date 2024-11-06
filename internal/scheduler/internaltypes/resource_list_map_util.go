@@ -20,15 +20,6 @@ func RlMapSumValues(m map[string]ResourceList) ResourceList {
 	return result
 }
 
-func RlMapHasNegativeValues(m map[string]ResourceList) bool {
-	for _, v := range m {
-		if v.HasNegativeValues() {
-			return true
-		}
-	}
-	return false
-}
-
 func RlMapAllZero(m map[string]ResourceList) bool {
 	for _, v := range m {
 		if !v.AllZero() {
@@ -36,4 +27,12 @@ func RlMapAllZero(m map[string]ResourceList) bool {
 		}
 	}
 	return true
+}
+func RlMapHasNegativeValues(m map[string]ResourceList) bool {
+	for _, v := range m {
+		if v.HasNegativeValues() {
+			return true
+		}
+	}
+	return false
 }

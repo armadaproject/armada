@@ -200,7 +200,7 @@ func (rl ResourceList) OfType(t ResourceType) ResourceList {
 	return ResourceList{factory: rl.factory, resources: result}
 }
 
-func (rl ResourceList) Min(other ResourceList) ResourceList {
+func (rl ResourceList) Cap(other ResourceList) ResourceList {
 	assertSameResourceListFactory(rl.factory, other.factory)
 	if rl.IsEmpty() {
 		return other

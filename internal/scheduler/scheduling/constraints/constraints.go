@@ -76,9 +76,9 @@ type schedulingConstraints struct {
 
 func NewSchedulingConstraints(
 	pool string,
+	totalResources internaltypes.ResourceList,
 	config configuration.SchedulingConfig,
 	queues []*api.Queue,
-	totalResources internaltypes.ResourceList,
 	rlFactory *internaltypes.ResourceListFactory) SchedulingConstraints {
 
 	cordonedQueues := armadamaps.FromSlice(queues,
@@ -153,11 +153,11 @@ func (c *schedulingConstraints) CapResources(queue string, resourcesByPc map[str
 	if !ok {
 		return resourcesByPc
 	}
-	cappedResources := make(map[string]internaltypes.ResourceList, len(resourcesByPc))
+	cappedResourcesByPc := make(map[string]internaltypes.ResourceList, len(resourcesByPc))
 	for pc, resources := range resourcesByPc {
-		cappedResources[pc] = resources.Min(perQueueLimit[pc])
+		cappedResourcesByPc[pc] = resources.Cap(perQueueLimit[pc])
 	}
-	return cappedResources
+	return cappedResourcesByPc
 }
 
 func calculatePerRoundLimits(
@@ -184,34 +184,29 @@ func calculatePerQueueLimits(totalResources internaltypes.ResourceList,
 
 	// First we work out the default limit per pool
 	defaultScalingFactorsByPc := map[string]map[string]float64{}
-	defaultResourceLimitsByPc := map[string]internaltypes.ResourceList{}
 	for pcName, pc := range priorityClasses {
 		defaultLimit := pc.MaximumResourceFractionPerQueue
 		poolLimit := pc.MaximumResourceFractionPerQueueByPool[pool]
-		defaultScalingFactors := util.MergeMaps(defaultLimit, poolLimit)
-		defaultScalingFactorsByPc[pcName] = defaultScalingFactors
-		defaultResourceLimitsByPc[pcName] = totalResources.Multiply(rlFactory.MakeResourceFractionList(defaultScalingFactors, 1.0))
+		defaultScalingFactorsByPc[pcName] = util.MergeMaps(defaultLimit, poolLimit)
 	}
 
 	limitsPerQueuePerPc := make(map[string]map[string]internaltypes.ResourceList, len(queues))
 
 	// Then we go apply any queue-level overrides
 	for _, queue := range queues {
+		limitsPerQueuePerPc[queue.Name] = map[string]internaltypes.ResourceList{}
 		// There are no queue-specific limits
-		if len(queue.ResourceLimitsByPriorityClassName) == 0 {
-			limitsPerQueuePerPc[queue.Name] = defaultResourceLimitsByPc
-		} else {
-			for pc, _ := range priorityClasses {
-				queueLimits, ok := queue.ResourceLimitsByPriorityClassName[pc]
+		for pc, _ := range priorityClasses {
+			fractions := defaultScalingFactorsByPc[pc]
+			queueLimits, ok := queue.ResourceLimitsByPriorityClassName[pc]
+			if ok {
+				fractions = util.MergeMaps(fractions, queueLimits.MaximumResourceFraction)
+				queuePoolConfig, ok := queueLimits.MaximumResourceFractionByPool[pool]
 				if ok {
-					defaultFraction := defaultScalingFactorsByPc[pc]
-					fractionLimit := util.MergeMaps(defaultFraction, queueLimits.MaximumResourceFraction)
-					fractionLimit = util.MergeMaps(fractionLimit, queueLimits.MaximumResourceFractionByPool[pool].GetMaximumResourceFraction())
-					limitsPerQueuePerPc[queue.Name][pc] = defaultResourceLimitsByPc[pc].Multiply(rlFactory.MakeResourceFractionList(fractionLimit, 1.0))
-				} else {
-					limitsPerQueuePerPc[queue.Name][pc] = defaultResourceLimitsByPc[pc]
+					fractions = util.MergeMaps(fractions, queuePoolConfig.GetMaximumResourceFraction())
 				}
 			}
+			limitsPerQueuePerPc[queue.Name][pc] = totalResources.Multiply(rlFactory.MakeResourceFractionList(fractions, 1.0))
 		}
 	}
 	return limitsPerQueuePerPc

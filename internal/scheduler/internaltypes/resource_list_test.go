@@ -222,19 +222,19 @@ func TestOfType_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, ResourceList{}, ResourceList{}.OfType(Floating))
 }
 
-func TestMin(t *testing.T) {
+func TestCap(t *testing.T) {
 	factory := testFactory()
 
-	assert.Equal(t, testResourceList(factory, "1", "2Ki"), testResourceList(factory, "1", "2Ki").Min(testResourceList(factory, "2", "4Ki")))
-	assert.Equal(t, testResourceList(factory, "1", "1Ki"), testResourceList(factory, "1", "4Ki").Min(testResourceList(factory, "2", "1Ki")))
+	assert.Equal(t, testResourceList(factory, "1", "2Ki"), testResourceList(factory, "1", "2Ki").Cap(testResourceList(factory, "2", "4Ki")))
+	assert.Equal(t, testResourceList(factory, "1", "1Ki"), testResourceList(factory, "1", "4Ki").Cap(testResourceList(factory, "2", "1Ki")))
 }
 
-func TestMin_HandlesEmptyCorrectly(t *testing.T) {
+func TestCap_HandlesEmptyCorrectly(t *testing.T) {
 	factory := testFactory()
 
-	assert.Equal(t, testResourceList(factory, "1", "1Ki"), testResourceList(factory, "1", "1Ki").Min(ResourceList{}))
-	assert.Equal(t, testResourceList(factory, "1", "1Ki"), ResourceList{}.Min(testResourceList(factory, "1", "1Ki")))
-	assert.Equal(t, ResourceList{}, ResourceList{}.Min(ResourceList{}))
+	assert.Equal(t, testResourceList(factory, "1", "1Ki"), testResourceList(factory, "1", "1Ki").Cap(ResourceList{}))
+	assert.Equal(t, testResourceList(factory, "1", "1Ki"), ResourceList{}.Cap(testResourceList(factory, "1", "1Ki")))
+	assert.Equal(t, ResourceList{}, ResourceList{}.Cap(ResourceList{}))
 }
 
 func TestExceeds(t *testing.T) {
