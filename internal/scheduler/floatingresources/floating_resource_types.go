@@ -57,21 +57,17 @@ func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlF
 	}, nil
 }
 
-func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated schedulerobjects.ResourceList) (bool, string) {
-	pool, exists := frt.pools[poolName]
-	if !exists {
+func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
+	available := frt.GetTotalAvailableForPoolInternalTypes(poolName)
+	if available.AllZero() {
 		return false, fmt.Sprintf("floating resources not connfigured for pool %s", poolName)
 	}
-	rl := pool.totalResources.DeepCopy()
-	rl.Sub(allocated)
-	for resourceName, quantity := range rl.Resources {
-		if !frt.isFloatingResource(resourceName) {
-			continue
-		}
-		if quantity.Cmp(resource.Quantity{}) == -1 {
-			return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
-		}
+
+	resourceName, _, _, exceeds := allocated.OfType(internaltypes.Floating).ExceedsAvailable(available)
+	if exceeds {
+		return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
 	}
+
 	return true, ""
 }
 
@@ -91,12 +87,6 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) sche
 
 func (frt *FloatingResourceTypes) GetTotalAvailableForPoolInternalTypes(poolName string) internaltypes.ResourceList {
 	return frt.rlFactory.FromNodeProto(frt.GetTotalAvailableForPool(poolName).Resources)
-}
-
-func (frt *FloatingResourceTypes) AddTotalAvailableForPool(poolName string, kubernetesResources schedulerobjects.ResourceList) schedulerobjects.ResourceList {
-	floatingResources := frt.GetTotalAvailableForPool(poolName) // Note GetTotalAvailableForPool returns a deep copy
-	floatingResources.Add(kubernetesResources)
-	return floatingResources
 }
 
 func (frt *FloatingResourceTypes) SummaryString() string {

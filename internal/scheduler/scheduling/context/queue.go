@@ -33,13 +33,13 @@ type QueueSchedulingContext struct {
 	Limiter *rate.Limiter
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
-	Allocated schedulerobjects.ResourceList
+	Allocated internaltypes.ResourceList
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
-	Demand schedulerobjects.ResourceList
+	Demand internaltypes.ResourceList
 	// Capped Demand for this queue. This differs from Demand in that it takes into account any limits that we have
 	// placed on the queue
-	CappedDemand schedulerobjects.ResourceList
+	CappedDemand internaltypes.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
 	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
@@ -64,7 +64,7 @@ func (qctx *QueueSchedulingContext) String() string {
 }
 
 // GetAllocation is necessary to implement the fairness.Queue interface.
-func (qctx *QueueSchedulingContext) GetAllocation() schedulerobjects.ResourceList {
+func (qctx *QueueSchedulingContext) GetAllocation() internaltypes.ResourceList {
 	return qctx.Allocated
 }
 
@@ -87,7 +87,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", qctx.EvictedResourcesByPriorityClass.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriorityClass.String())
 	if verbosity >= 0 {
-		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.Allocated.CompactString())
+		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.Allocated.String())
 		for pc, res := range qctx.AllocatedByPriorityClass {
 			fmt.Fprintf(w, "Total allocated resources after scheduling by for priority class %s:\t%s\n", pc, res.String())
 		}
@@ -172,7 +172,7 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
 		pcName := jctx.Job.PriorityClassName()
 		qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Add(jctx.Job.AllResourceRequirements())
-		qctx.Allocated.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+		qctx.Allocated = qctx.Allocated.Add(jctx.Job.AllResourceRequirements())
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
@@ -208,7 +208,7 @@ func (qctx *QueueSchedulingContext) evictJob(job *jobdb.Job) (bool, error) {
 	}
 	pcName := job.PriorityClassName()
 	qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(job.AllResourceRequirements())
-	qctx.Allocated.SubV1ResourceList(rl)
+	qctx.Allocated = qctx.Allocated.Subtract(job.AllResourceRequirements())
 
 	return scheduledInThisRound, nil
 }

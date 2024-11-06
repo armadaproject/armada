@@ -38,9 +38,9 @@ type SchedulingContext struct {
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
 	// Total resources across all clusters in this pool available at the start of the scheduling cycle.
-	TotalResources schedulerobjects.ResourceList
+	TotalResources internaltypes.ResourceList
 	// Allocated resources across all clusters in this pool
-	Allocated schedulerobjects.ResourceList
+	Allocated internaltypes.ResourceList
 	// Resources assigned across all queues during this scheduling cycle.
 	ScheduledResources                internaltypes.ResourceList
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
@@ -68,7 +68,7 @@ func NewSchedulingContext(
 	pool string,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	limiter *rate.Limiter,
-	totalResources schedulerobjects.ResourceList,
+	totalResources internaltypes.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
 		Started:                           time.Now(),
@@ -76,7 +76,7 @@ func NewSchedulingContext(
 		FairnessCostProvider:              fairnessCostProvider,
 		Limiter:                           limiter,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
-		TotalResources:                    totalResources.DeepCopy(),
+		TotalResources:                    totalResources,
 		ScheduledResources:                internaltypes.ResourceList{},
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -92,8 +92,8 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	queue string, weight float64,
 	initialAllocatedByPriorityClass map[string]internaltypes.ResourceList,
-	demand schedulerobjects.ResourceList,
-	cappedDemand schedulerobjects.ResourceList,
+	demand internaltypes.ResourceList,
+	cappedDemand internaltypes.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -104,16 +104,16 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		})
 	}
 	if initialAllocatedByPriorityClass == nil {
-		initialAllocatedByPriorityClass = make(schedulerobjects.QuantityByTAndResourceType[string])
+		initialAllocatedByPriorityClass = map[string]internaltypes.ResourceList{}
 	} else {
-		initialAllocatedByPriorityClass = initialAllocatedByPriorityClass.DeepCopy()
+		initialAllocatedByPriorityClass = maps.Clone(initialAllocatedByPriorityClass)
 	}
-	allocated := schedulerobjects.NewResourceListWithDefaultSize()
+	allocated := internaltypes.ResourceList{}
 	for _, rl := range initialAllocatedByPriorityClass {
-		allocated.Add(rl)
+		allocated = allocated.Add(rl)
 	}
 	sctx.WeightSum += weight
-	sctx.Allocated.Add(allocated)
+	sctx.Allocated = sctx.Allocated.Add(allocated)
 
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
@@ -162,7 +162,7 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 	queueInfos := make([]*queueInfo, 0, len(sctx.QueueSchedulingContexts))
 	for queueName, qctx := range sctx.QueueSchedulingContexts {
 		cappedShare := 1.0
-		if !sctx.TotalResources.IsZero() {
+		if !sctx.TotalResources.AllZero() {
 			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
 		}
 		queueInfos = append(queueInfos, &queueInfo{
@@ -219,7 +219,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Finished:\t%s\n", sctx.Finished)
 	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
-	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
+	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.String())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.String())
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
 	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
@@ -301,7 +301,7 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
-		sctx.Allocated.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+		sctx.Allocated = sctx.Allocated.Add(jctx.Job.AllResourceRequirements())
 	}
 	return evictedInThisRound, nil
 }
@@ -350,7 +350,7 @@ func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error
 		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), rl)
 		sctx.NumEvictedJobs++
 	}
-	sctx.Allocated.SubV1ResourceList(rl)
+	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
 	return scheduledInThisRound, nil
 }
 
@@ -372,14 +372,14 @@ func (sctx *SchedulingContext) SuccessfulJobSchedulingContexts() []*JobSchedulin
 }
 
 // AllocatedByQueueAndPriority returns map from queue name and priority to resources allocated.
-func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]schedulerobjects.QuantityByTAndResourceType[string] {
+func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]map[string]internaltypes.ResourceList {
 	rv := make(
-		map[string]schedulerobjects.QuantityByTAndResourceType[string],
+		map[string]map[string]internaltypes.ResourceList,
 		len(sctx.QueueSchedulingContexts),
 	)
 	for queue, qctx := range sctx.QueueSchedulingContexts {
-		if !qctx.AllocatedByPriorityClass.IsZero() {
-			rv[queue] = qctx.AllocatedByPriorityClass.DeepCopy()
+		if !internaltypes.RlMapAllZero(qctx.AllocatedByPriorityClass) {
+			rv[queue] = maps.Clone(qctx.AllocatedByPriorityClass)
 		}
 	}
 	return rv

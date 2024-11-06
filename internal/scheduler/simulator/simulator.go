@@ -132,7 +132,7 @@ func NewSimulator(
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources, resourceListFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -592,7 +592,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 		}
 		sctx.UpdateFairShares()
-		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
+		constraints := schedulerconstraints.NewSchedulingConstraints(pool, s.schedulingConfig, nil, totalResources, s.resourceListFactory)
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,

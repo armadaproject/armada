@@ -534,7 +534,7 @@ func TestQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues)
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.SchedulingConfig, tc.Queues, tc.TotalResources)
 			jobIteratorByQueue := make(map[string]JobContextIterator)
 			for _, q := range tc.Queues {
 				it := jobRepo.GetJobIterator(q.Name)

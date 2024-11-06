@@ -14,9 +14,9 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -406,8 +406,11 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *Ev
 
 func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorResult) error {
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
-		if !qctx.AllocatedByPriorityClass.IsStrictlyNonNegative() {
-			return errors.Errorf("negative allocation for queue %s after eviction: %s", qctx.Queue, qctx.AllocatedByPriorityClass)
+		if internaltypes.RlMapHasNegativeValues(qctx.AllocatedByPriorityClass) {
+			return errors.Errorf("negative allocation for queue %s after eviction: %s",
+				qctx.Queue,
+				internaltypes.RlMapToString(qctx.AllocatedByPriorityClass),
+			)
 		}
 	}
 	evictedJobIdsByGangId := make(map[string]map[string]bool)
@@ -453,17 +456,17 @@ func (qr *MinimalQueueRepository) GetQueue(name string) (fairness.Queue, bool) {
 func NewMinimalQueueRepositoryFromSchedulingContext(sctx *schedulercontext.SchedulingContext) *MinimalQueueRepository {
 	queues := make(map[string]MinimalQueue, len(sctx.QueueSchedulingContexts))
 	for name, qctx := range sctx.QueueSchedulingContexts {
-		queues[name] = MinimalQueue{allocation: qctx.Allocated.DeepCopy(), weight: qctx.Weight}
+		queues[name] = MinimalQueue{allocation: qctx.Allocated, weight: qctx.Weight}
 	}
 	return &MinimalQueueRepository{queues: queues}
 }
 
 type MinimalQueue struct {
-	allocation schedulerobjects.ResourceList
+	allocation internaltypes.ResourceList
 	weight     float64
 }
 
-func (q MinimalQueue) GetAllocation() schedulerobjects.ResourceList {
+func (q MinimalQueue) GetAllocation() internaltypes.ResourceList {
 	return q.allocation
 }
 

@@ -2,10 +2,11 @@ package constraints
 
 import (
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/api"
@@ -75,25 +76,20 @@ type schedulingConstraints struct {
 
 func NewSchedulingConstraints(
 	pool string,
-	priorityClasses map[string]types.PriorityClass,
-	totalResources internaltypes.ResourceList,
-	maximumResourceFractionToSchedule float64,
+	config configuration.SchedulingConfig,
 	queues []*api.Queue,
-	cordonStatusByQueue map[string]bool,
+	totalResources internaltypes.ResourceList,
 	rlFactory *internaltypes.ResourceListFactory) SchedulingConstraints {
-	return &schedulingConstraints{
-		cordonedQueues:                         cordonStatusByQueue,
-		maximumResourcesToSchedule:             totalResources.Scale(maximumResourceFractionToSchedule),
-		resourceLimitsPerQueuePerPriorityClass: calculatePerQueueLimits(totalResources, pool, priorityClasses, queues, rlFactory),
-	}
-}
 
-func absoluteFromRelativeLimits(totalResources map[string]resource.Quantity, relativeLimits map[string]float64) map[string]resource.Quantity {
-	absoluteLimits := make(map[string]resource.Quantity, len(relativeLimits))
-	for t, f := range relativeLimits {
-		absoluteLimits[t] = ScaleQuantity(totalResources[t].DeepCopy(), f)
+	cordonedQueues := armadamaps.FromSlice(queues,
+		func(q *api.Queue) string { return q.Name },
+		func(q *api.Queue) bool { return q.Cordoned })
+
+	return &schedulingConstraints{
+		cordonedQueues:                         cordonedQueues,
+		maximumResourcesToSchedule:             calculatePerRoundLimits(totalResources, pool, config, rlFactory),
+		resourceLimitsPerQueuePerPriorityClass: calculatePerQueueLimits(totalResources, pool, config.PriorityClasses, queues, rlFactory),
 	}
-	return absoluteLimits
 }
 
 func (constraints *schedulingConstraints) CheckRoundConstraints(sctx *context.SchedulingContext) (bool, string, error) {
@@ -164,39 +160,19 @@ func (c *schedulingConstraints) CapResources(queue string, resourcesByPc map[str
 	return cappedResources
 }
 
-func (constraints *SchedulingConstraints) resolveResourceLimitsForQueueAndPriorityClass(queue string, priorityClass string) map[string]resource.Quantity {
-	queueAndPriorityClassResourceLimits := constraints.getQueueAndPriorityClassResourceLimits(queue, priorityClass)
-	priorityClassResourceLimits := constraints.getPriorityClassResourceLimits(priorityClass)
-	return util.MergeMaps(priorityClassResourceLimits, queueAndPriorityClassResourceLimits)
-}
-
-func (constraints *SchedulingConstraints) getQueueAndPriorityClassResourceLimits(queue string, priorityClass string) map[string]resource.Quantity {
-	if queueConstraint, ok := constraints.queueSchedulingConstraintsByQueueName[queue]; ok {
-		if priorityClassConstraint, ok := queueConstraint.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClass]; ok {
-			return priorityClassConstraint.MaximumResourcesPerQueue
-		}
+func calculatePerRoundLimits(
+	totalResources internaltypes.ResourceList,
+	pool string,
+	config configuration.SchedulingConfig,
+	rlFactory *internaltypes.ResourceListFactory,
+) internaltypes.ResourceList {
+	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
+	if m, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
+		// Use pool-specific config is available.
+		// Should do util.MergeMaps really but don't want to change existing behaviour.
+		maximumResourceFractionToSchedule = m
 	}
-	return map[string]resource.Quantity{}
-}
-
-func (constraints *SchedulingConstraints) getPriorityClassResourceLimits(priorityClass string) map[string]resource.Quantity {
-	if priorityClassConstraint, ok := constraints.priorityClassSchedulingConstraintsByPriorityClassName[priorityClass]; ok {
-		return priorityClassConstraint.MaximumResourcesPerQueue
-	}
-	return map[string]resource.Quantity{}
-}
-
-// isStrictlyLessOrEqual returns false if
-// - there is a quantity in b greater than that in a or
-// - there is a non-zero quantity in b not in a
-// and true otherwise.
-func isStrictlyLessOrEqual(a map[string]resource.Quantity, b map[string]resource.Quantity) bool {
-	for t, q := range b {
-		if q.Cmp(a[t]) == -1 {
-			return false
-		}
-	}
-	return true
+	return totalResources.Multiply(rlFactory.MakeResourceFractionList(maximumResourceFractionToSchedule, 1.0))
 }
 
 func calculatePerQueueLimits(totalResources internaltypes.ResourceList,

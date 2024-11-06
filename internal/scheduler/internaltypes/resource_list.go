@@ -148,7 +148,8 @@ func (rl ResourceList) IsEmpty() bool {
 }
 
 func (rl ResourceList) Exceeds(other ResourceList) bool {
-	return other.Subtract(rl).HasNegativeValues()
+	_, _, _, exceeds := rl.ExceedsAvailable(other)
+	return exceeds
 }
 
 // ExceedsAvailable

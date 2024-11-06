@@ -136,7 +136,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
 		// Only perform these checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
-		if ok, unschedulableReason, err = sch.constraints.CheckConstraints(sch.schedulingContext, gctx); err != nil || !ok {
+		if ok, unschedulableReason, err = sch.constraints.CheckJobConstraints(sch.schedulingContext, gctx); err != nil || !ok {
 			return
 		}
 	}
