@@ -13,6 +13,8 @@ import api.SubmitOuterClass.JobSubmitResponse;
 import com.google.protobuf.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Metadata;
+import io.grpc.stub.MetadataUtils;
 import java.util.Iterator;
 import java.util.logging.Logger;
 
@@ -21,9 +23,23 @@ public class ArmadaClient {
   private static final Logger LOG = Logger.getLogger(ArmadaClient.class.getName());
   private final ManagedChannel channel;
 
-  // TODO: add security
   public ArmadaClient(String host, int port) {
     channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
+  }
+
+  public ArmadaClient(String host, int port, String bearerToken) {
+    channel = ManagedChannelBuilder
+        .forAddress(host, port)
+        .useTransportSecurity()
+        .intercept(MetadataUtils.newAttachHeadersInterceptor(createAuthMetadata(bearerToken)))
+        .build();
+  }
+
+  private Metadata createAuthMetadata(String token) {
+    Metadata metadata = new Metadata();
+    metadata.put(Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
+        "Bearer " + token);
+    return metadata;
   }
 
   public ServingStatus checkHealth() {
