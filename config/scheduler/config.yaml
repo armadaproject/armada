@@ -1,22 +1,22 @@
-cyclePeriod: 1s
-schedulePeriod: 10s
-maxSchedulingDuration: 5s
+cyclePeriod: 5s
+schedulePeriod: 1s
+maxSchedulingDuration: 5m
 executorTimeout: 1h
 databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 queueRefreshPeriod: 10s
 metrics:
-  port: 9000
+  port: 9009
   jobStateMetricsResetInterval: 12h
-  refreshInterval: 30s
+  refreshInterval: 3s
   trackedResourceNames:
     - "cpu"
     - "memory"
     - "ephemeral-storage"
     - "nvidia.com/gpu"
 pulsar:
-  URL: "pulsar://pulsar:6650"
+  URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
   maxConnectionsPerBroker: 1
   compressionType: zlib
@@ -25,28 +25,28 @@ pulsar:
   maxAllowedMessageSize: 4194304 #4Mi
   sendTimeout: 5s
 armadaApi:
-  armadaUrl: "server:50051"
+  armadaUrl: "localhost:50051"
   forceNoTls: true
 postgres:
   connection:
-    host: postgres
+    host: localhost
     port: 5432
     user: postgres
     password: psw
-    dbname: scheduler
+    dbname: postgres
     sslmode: disable
 leader:
-  mode: standalone
+  mode: kubernetes
   leaseLockName: armada-scheduler
-  LeaseLockNamespace: "" # This must be set so viper allows env vars to overwrite it
+  LeaseLockNamespace: "default" # This must be set so viper allows env vars to overwrite it
   leaseDuration: 15s
   renewDeadline: 10s
   retryPeriod: 2s
-  podName: "" # This must be set so viper allows env vars to overwrite it
+  podName: "pod-1" # This must be set so viper allows env vars to overwrite it
   leaderConnection:
     armadaUrl: "" # <name> will get replaced with the lease owners name
 http:
-  port: 8080
+  port: 8091
 grpc:
   port: 50052
   keepaliveParams:
@@ -77,7 +77,7 @@ scheduling:
   nodeIdLabel: "kubernetes.io/hostname"
   priorityClasses:
     armada-default:
-      priority: 1000
+      priority: 2000
       preemptible: false
       maximumResourceFractionPerQueue:
         memory: 1.0
@@ -91,9 +91,9 @@ scheduling:
   maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
-  maximumSchedulingRate: 100.0
-  maximumSchedulingBurst: 1000
-  maximumPerQueueSchedulingRate: 50.0
+  maximumSchedulingRate: 500.0
+  maximumSchedulingBurst: 2500
+  maximumPerQueueSchedulingRate: 100.0
   maximumPerQueueSchedulingBurst: 1000
   maxJobSchedulingContextsPerExecutor: 10000
   maxRetries: 3
@@ -115,3 +115,16 @@ scheduling:
   maxUnacknowledgedJobsPerExecutor: 2500
   executorUpdateFrequency: "60s"
 
+
+auth:
+  basicAuth:
+    enableAuthentication: false
+  anonymousAuth: true
+  permissionGroupMapping:
+    submit_any_jobs: ["everyone"]
+    create_queue: ["everyone"]
+    delete_queue: ["everyone"]
+    cancel_any_jobs: ["everyone"]
+    reprioritize_any_jobs: ["everyone"]
+    watch_all_events: ["everyone"]
+    execute_jobs: ["everyone"]

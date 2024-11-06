@@ -1,6 +1,6 @@
-grpcPort: 50051
-httpPort: 8080
-metricsPort: 9000
+grpcPort: 50058
+httpPort: 8092
+metricsPort: 9067
 corsAllowedOrigins:
   - http://localhost:3000
   - http://localhost:8080

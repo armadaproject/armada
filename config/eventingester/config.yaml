@@ -1,14 +1,16 @@
 redis:
   addrs:
-    - redis:6379
+    - "localhost:6379"
   password: ""
   db: 1
   poolSize: 1000
 pulsar:
-  URL: pulsar://pulsar:6650
+  URL: pulsar://localhost:6650
   jobsetEventsTopic: events
   backoffTime: 1s
   receiverQueueSize: 100
+
+paralellism: 1
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
 maxOutputMessageSizeBytes: 1048576  #1MB
@@ -16,4 +18,6 @@ batchSize: 10000
 batchDuration: 100ms
 eventRetentionPolicy:
   retentionDuration: 336h
+  expiryEnabled: true
 metricsPort: 9001
+

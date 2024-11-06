@@ -1,24 +1,52 @@
 queue: test
-jobSetId: job-set-1
+jobSetId: a
 jobs:
-  - priority: 0
-    namespace: personal-anonymous
+  - priority: 1000
+    namespace: default
+#    clientId: 12345
+#    annotations:
+#      armadaproject.io/gangId: "gang6"
+#      armadaproject.io/gangCardinality: 2
+    labels:
+      test: value
     podSpec:
-      terminationGracePeriodSeconds: 0
       restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      priorityClassName: "armada-preemptible"
+#      priorityClassName: "armada-default"
+#      nodeSelector:
+#        gresearch.co.uk/fake: "true"
+#      nodeSelector:
+#        gresearch.co.uk/fake: true
       containers:
-        - name: sleep
+        - name: test
+#          volumeMounts:
+#            - name: test
+#              mountPath: /etc/not-found
           imagePullPolicy: IfNotPresent
-          image: alpine:latest
+#          image: containerstack/alpine-stress:latest
+          image: containerstack/alpine:latest
+#          image: gradle:8.7-jdk8
           command:
             - sh
-            - -c
+#          args:
+#            - -c
+#            - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 1200))s"
           args:
-            - sleep $(( (RANDOM % 30) + 30 ))
+            - -c
+#            - "err"
+            - "sleep 240"
+#            - "sleep $(( (RANDOM % 10) + 3))s"
+#            - "sleep $(( (RANDOM % 1) + 1))s && exit 1"
           resources:
             limits:
               memory: 64Mi
-              cpu: 150m
+              cpu: 2
             requests:
               memory: 64Mi
-              cpu: 150m
+              cpu: 2
+#      tolerations:
+#      - key: gresearch.co.uk/fake
+#        operator: Equal
+#        value: "true"
+#        effect: NoSchedule

@@ -182,6 +182,19 @@ func (rl ResourceList) ExceedsAvailable(available ResourceList) (string, k8sReso
 	return "", k8sResource.Quantity{}, k8sResource.Quantity{}, false
 }
 
+func (rl ResourceList) ExceedsAvailableFast(available ResourceList) bool {
+	availableResources := available.resources
+	requiredResources := rl.resources
+
+	for i, requiredQuantity := range requiredResources {
+		availableQuantity := availableResources[i]
+		if requiredQuantity > availableQuantity {
+			return true
+		}
+	}
+	return false
+}
+
 func (rl ResourceList) OfType(t ResourceType) ResourceList {
 	if rl.IsEmpty() {
 		return rl

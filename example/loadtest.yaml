@@ -1,14 +1,25 @@
 submissions:
-  - jobSetPrefix: example
-    #queue: test          # If set all jobs will be submitted under this queue
+  - jobSetPrefix: pause-test-2
+#    queue: test       # If set all jobs will be submitted under this queue
     queuePrefix: test     # If set jobs will be submitted under their own queue with this prefix
-    count: 5
+    count: 2
+#    queuePriorityFactor: 25
     jobs:
       - name: basic_job
-        count: 10
+        count: 200
+        priority: 50
+        namespace: default
         spec:
+#          nodeSelector:
+#            gresearch.co.uk/fake: "true"
+#          tolerations:
+#            - key: gresearch.co.uk/fake
+#              operator: Equal
+#              value: "true"
+#              effect: NoSchedule
           terminationGracePeriodSeconds: 0
           restartPolicy: Never
+          priorityClassName: "armada-preemptible"
           containers:
             - name: sleep
               imagePullPolicy: IfNotPresent
@@ -17,11 +28,14 @@ submissions:
                 - sh
               args:
                 - -c
-                - sleep $(( (RANDOM % 60) + 100 ))
+#                - exit -1
+                - sleep $(( (RANDOM % 30) + 30 ))
               resources:
                 limits:
-                  memory: 128Mi
-                  cpu: 100m
+                  memory: 50Mi
+                  cpu: 0.5
+                  ephemeral-storage: 50Mi
                 requests:
-                  memory: 128Mi
-                  cpu: 100m
+                  memory: 50Mi
+                  cpu: 0.5
+                  ephemeral-storage: 50Mi

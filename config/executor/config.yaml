@@ -1,4 +1,4 @@
-httpPort: 8080
+httpPort: 8095
 application:
   clusterId : "Cluster1"
   pool: "default"
@@ -6,7 +6,7 @@ application:
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
   jobLeaseRequestTimeout: "30s"
-  maxLeasedJobs: 100
+  maxLeasedJobs: 200
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
@@ -20,27 +20,49 @@ task:
   utilisationEventReportingInterval: 5m
   stateProcessorInterval: 1s
 executorApiConnection:
-  armadaUrl: "server:50052"
+  armadaUrl: "localhost:50052"
   forceNoTls: false
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
+nodes:
+  - name: worker
+    count: 1000
+    allocatable:
+      cpu: 30
+      memory: 1000Gi
+      ephemeral-storage: 1000Gi
+    labels:
+      gresearch.co.uk/fake: "true"
+    taints:
+      - key: gresearch.co.uk/fake
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
 metric:
-  port: 9001
-  exposeQueueUsageMetrics: false
+  port: 9003
+  exposeQueueUsageMetrics: true
 kubernetes:
   impersonateUsers: false
+  toleratedTaints:
+    - gresearch.co.uk/type
+    - gresearch.co.uk/fake
   trackedNodeLabels:
+    - gresearch.co.uk/type
+    - gresearch.co.uk/fake
+    - kubernetes.io/hostname
+    - kubernetes.io/os
+  avoidNodeLabelsOnRetry:
     - kubernetes.io/hostname
   QPS: 10000
   Burst: 10000
   nodeIdLabel: kubernetes.io/hostname
   nodeTypeLabel: armadaproject.io/node-type
   nodePoolLabel: armadaproject.io/pool
-  minimumPodAge: 3m
-  failedPodExpiry: 10m
+  minimumPodAge: 10m
+  failedPodExpiry: 48h
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)
   stuckTerminatingPodExpiry: 1m
-  podKillTimeout: 5m
+  podKillTimeout: 30s
   minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:
     cpu: 1
     memory: 200Mi
@@ -55,19 +77,23 @@ kubernetes:
     - "namespaces \".*\" not found"
   stateChecks:
     deadlineForSubmittedPodConsideredMissing: 15m
-    deadlineForActivePodConsideredMissing: 5m
+    deadlineForActivePodConsideredMissing: 1m
   pendingPodChecks:
     deadlineForUpdates: 5m
     deadlineForNodeAssignment: 5m
     events:
       - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning
-        gracePeriod: 90s
-        action: Fail
+        gracePeriod: 30s
+        action: Retry
       - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"  # Seen when image doesn't exist, no point in waiting around too long.
         type: Warning
-        gracePeriod: 90s
-        action: Fail
+        gracePeriod: 30s
+        action: Retry
+      - regexp: "MountVolume.SetUp failed for volume .* secret .* not found"  # Catch-all, matches all except the FailedScheduling message "0/3 nodes are available:", this can happen in normal operation.
+        type: Warning
+        gracePeriod: 10s
+        action: Retry
       - regexp: "nodes are available"  # Catch-all, matches all except the FailedScheduling message "0/3 nodes are available:", this can happen in normal operation.
         inverse: true
         type: Warning
@@ -76,15 +102,15 @@ kubernetes:
     containerStatuses:
       - state: Waiting
         reasonRegexp: "InvalidImageName"  # If image name format is invalid (for example starts https://), fail immediately.
-        gracePeriod: 0s
-        action: Fail
+        gracePeriod: 15s
+        action: Retry
       - state: Waiting
         reasonRegexp: "ImagePullBackOff"  # Can stay in this state a while for large images and overloaded registries, hence long timeout.
-        gracePeriod: 15m
+        gracePeriod: 30s
         action: Retry
       - state: Waiting
         reasonRegexp: "ErrImagePull"      # Can stay in this state a while for large images and overloaded registries, hence long timeout.
-        gracePeriod: 15m
+        gracePeriod: 30s
         action: Retry
       - state: Waiting                    # Default timeout for statuses not matched above.
         reasonRegexp: ".*"

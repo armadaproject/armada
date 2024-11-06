@@ -1,8 +1,10 @@
 apiPort: 10000
-metricsPort: 9003
+metricsPort: 9045
 corsAllowedOrigins:
   - "http://localhost:3000"
+  - "http://localhost:8080"
   - "http://localhost:8089"
+  - "http://localhost:8091"
   - "http://localhost:10000"
 tls:
   enabled: false
@@ -10,20 +12,20 @@ tls:
   keyPath: /certs/tls.key
 postgres:
   connection:
-    host: postgres
-    port: 5433
+    host: localhost
+    port: 5432
     user: postgres
     password: psw
-    dbname: lookout
+    dbname: lookouts
     sslmode: disable
 prunerConfig:
-  expireAfter: 1008h  # 42 days / 6 weeks
+  expireAfter: 5m  # 42 days / 6 weeks
   deduplicationExpireAfter: 168h # 7 days
   timeout: 1h
   batchSize: 1000
 uiConfig:
   backend: "jsonb"
-  armadaApiBaseUrl: "http://armada-server:8080"
+  armadaApiBaseUrl: "http://localhost:8081"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"
   commandSpecs:

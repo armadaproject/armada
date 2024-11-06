@@ -158,9 +158,6 @@ applicationConfig:
     toleratedTaints:
     - taintName1
     - taintName2
-    minimumJobSize:
-      memory: 0.25
-      cpu: 0.25
 ```
 **trackedNodeLabels**
 
@@ -177,19 +174,6 @@ By default tainted nodes will be ignored by armada-executor and armada will not 
 This is an opt-in for tainted nodes that you want armada to use and schedule jobs on.
 
 It will report these taints back to armada-server so it use them when schedule jobs onto clusters. (i.e only jobs which tolerate these taints will be scheduled onto these nodes)
-
-**minimumJobSize**
-
-This is the minimum size a job must satisfy before it can be leased by this cluster.
-
-This can be useful for giving different clusters different roles.
-
-For example if you had a cluster with only GPU nodes, to make sure only GPU jobs are sent to this cluster, you could set the minimumJobSize like:
-
-```yaml
-minimumJobSize:
-  nvidia.com/gpu: 1 
-```
 
 #### Metrics
 

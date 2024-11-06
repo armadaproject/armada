@@ -1,0 +1,35 @@
+	// Remove mounting events if mounting is complete - so we avoid killing a pod for a transient mount issue that is now resolved
+	if pc.isVolumeMountingComplete(pod, podEvents) {
+		podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
+			return e.Reason != EventReasonFailedMount
+		})
+	}
+
+// Will return true if volumes have been mounted
+// There is no specific status that says when this happens so we determine it via:
+// - Kubernetes will mount volumes before pulling, so if there are any pulling events it means mounting has completed
+// - Kubernetes will mount volumes before starting any container, so if any container is started it means mounting has completed
+func (pc *PodChecks) isVolumeMountingComplete(pod *v1.Pod, podEvents []*v1.Event) bool {
+	podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
+		return e.Reason == EventReasonPulling || e.Reason == EventReasonPulled
+	})
+
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+
+	anyContainerStarted := false
+	for _, container := range containerStatuses {
+		if container.State.Running != nil || container.State.Terminated != nil {
+			anyContainerStarted = true
+			break
+		}
+	}
+
+	return len(podEvents) > 0 || anyContainerStarted
+}
+
+
+const EventReasonFailedMount = "FailedMount"
+const EventReasonScheduled = "Scheduled"
+const EventReasonPulling = "Pulling"
+const EventReasonPulled = "Pulled"
