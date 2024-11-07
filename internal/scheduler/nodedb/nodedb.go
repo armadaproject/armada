@@ -212,7 +212,7 @@ func NewNodeDb(
 		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
 		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:        make(map[uint64]int),
-		totalResources:            internaltypes.ResourceList{},
+		totalResources:            resourceListFactory.MakeAllZero(),
 		db:                        db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),

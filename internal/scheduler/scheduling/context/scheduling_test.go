@@ -30,7 +30,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
 	allocatedByQueueAndPriorityClass := map[string]map[string]internaltypes.ResourceList{
 		"A": {
-			"foo": testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+			testfixtures.TestDefaultPriorityClass: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 				map[string]resource.Quantity{"cpu": resource.MustParse("1")},
 			),
 		},
@@ -45,6 +45,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	gctx := NewGangSchedulingContext(jctxs)
 	_, err = sctx.AddGangSchedulingContext(gctx)
 	require.NoError(t, err)
+
 	for _, jctx := range jctxs {
 		_, err := sctx.EvictJob(jctx)
 		require.NoError(t, err)
@@ -52,6 +53,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 
 	actual := sctx.AllocatedByQueueAndPriority()
 	assert.Equal(t, expected, actual)
+
 	_, err = sctx.AddGangSchedulingContext(gctx)
 	require.NoError(t, err)
 }
