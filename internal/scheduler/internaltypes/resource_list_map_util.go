@@ -2,6 +2,8 @@ package internaltypes
 
 import (
 	"strings"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func RlMapToString(m map[string]ResourceList) string {
@@ -28,6 +30,7 @@ func RlMapAllZero(m map[string]ResourceList) bool {
 	}
 	return true
 }
+
 func RlMapHasNegativeValues(m map[string]ResourceList) bool {
 	for _, v := range m {
 		if v.HasNegativeValues() {
@@ -35,4 +38,12 @@ func RlMapHasNegativeValues(m map[string]ResourceList) bool {
 		}
 	}
 	return false
+}
+
+func RlMapFromJobSchedulerObjects(m schedulerobjects.QuantityByTAndResourceType[string], rlFactory *ResourceListFactory) map[string]ResourceList {
+	result := map[string]ResourceList{}
+	for k, v := range m {
+		result[k] = rlFactory.FromJobResourceListIgnoreUnknown(v.Resources)
+	}
+	return result
 }

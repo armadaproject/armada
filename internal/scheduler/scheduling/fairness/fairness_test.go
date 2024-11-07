@@ -33,7 +33,6 @@ func TestNewDominantResourceFairness(t *testing.T) {
 		},
 		),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{}},
-		rlFactory,
 	)
 	require.Error(t, err)
 }
@@ -213,7 +212,7 @@ func TestDominantResourceFairness(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			totalResources := rlFactory.FromNodeProto(tc.totalResources.Resources)
 			allocation := rlFactory.FromJobResourceListIgnoreUnknown(tc.allocation.Resources)
-			f, err := NewDominantResourceFairness(totalResources, tc.config, rlFactory)
+			f, err := NewDominantResourceFairness(totalResources, tc.config)
 			require.NoError(t, err)
 			assert.Equal(
 				t,

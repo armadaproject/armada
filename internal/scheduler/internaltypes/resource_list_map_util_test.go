@@ -3,7 +3,9 @@ package internaltypes
 import (
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestRlMapSumValues(t *testing.T) {
@@ -31,6 +33,35 @@ func TestRlMapHasNegativeValues(t *testing.T) {
 	assert.False(t, RlMapHasNegativeValues(testMapOneZero(factory)))
 	assert.True(t, RlMapHasNegativeValues(testMapOneNegative(factory)))
 	assert.False(t, RlMapHasNegativeValues(testMapEmpty(factory)))
+}
+
+func TestRlMapFromJobSchedulerObjects(t *testing.T) {
+	factory := testFactory()
+
+	input := make(schedulerobjects.QuantityByTAndResourceType[string])
+	input.AddResourceList("priorityClass1",
+		schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("1Ki"),
+			},
+		},
+	)
+	input.AddResourceList("priorityClass2",
+		schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("2"),
+				"memory": resource.MustParse("2Ki"),
+			},
+		},
+	)
+
+	expected := map[string]ResourceList{
+		"priorityClass1": testResourceList(factory, "1", "1Ki"),
+		"priorityClass2": testResourceList(factory, "2", "2Ki"),
+	}
+
+	assert.Equal(t, expected, RlMapFromJobSchedulerObjects(input, factory))
 }
 
 func testMapAllPositive(factory *ResourceListFactory) map[string]ResourceList {

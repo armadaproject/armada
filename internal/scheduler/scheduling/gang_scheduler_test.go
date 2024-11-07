@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -616,8 +617,10 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 
+			totalResources := testfixtures.TestResourceListFactory.FromNodeProto(tc.TotalResources.Resources)
+
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				tc.TotalResources,
+				totalResources,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -628,15 +631,15 @@ func TestGangScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
-				tc.TotalResources,
+				totalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				err := sctx.AddQueueSchedulingContext(
 					queue,
 					priorityFactor,
 					nil,
-					schedulerobjects.NewResourceList(0),
-					schedulerobjects.NewResourceList(0),
+					internaltypes.ResourceList{},
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -644,7 +647,7 @@ func TestGangScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, nil)
 			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)

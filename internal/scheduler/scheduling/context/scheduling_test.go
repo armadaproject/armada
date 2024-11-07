@@ -6,18 +6,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestSchedulingContextAccounting(t *testing.T) {
-	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
+	totalResources :=
+		testfixtures.TestResourceListFactory.FromNodeProto(
+			map[string]resource.Quantity{"cpu": resource.MustParse("1")},
+		)
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
@@ -27,13 +28,15 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		totalResources,
 	)
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
-	allocatedByQueueAndPriorityClass := map[string]schedulerobjects.QuantityByTAndResourceType[string]{
+	allocatedByQueueAndPriorityClass := map[string]map[string]internaltypes.ResourceList{
 		"A": {
-			"foo": schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			"foo": testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+				map[string]resource.Quantity{"cpu": resource.MustParse("1")},
+			),
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], schedulerobjects.ResourceList{}, schedulerobjects.ResourceList{}, nil)
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil)
 		require.NoError(t, err)
 	}
 
@@ -48,12 +51,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	}
 
 	actual := sctx.AllocatedByQueueAndPriority()
-	queues := armadaslices.Unique(
-		armadaslices.Concatenate(maps.Keys(actual), maps.Keys(expected)),
-	)
-	for _, queue := range queues {
-		assert.True(t, expected[queue].Equal(actual[queue]))
-	}
+	assert.Equal(t, expected, actual)
 	_, err = sctx.AddGangSchedulingContext(gctx)
 	require.NoError(t, err)
 }
@@ -65,7 +63,7 @@ func TestCalculateFairShares(t *testing.T) {
 	oneHundredCpu := cpu(100)
 	oneThousandCpu := cpu(1000)
 	tests := map[string]struct {
-		availableResources         schedulerobjects.ResourceList
+		availableResources         internaltypes.ResourceList
 		queueCtxs                  map[string]*QueueSchedulingContext
 		expectedFairShares         map[string]float64
 		expectedAdjustedFairShares map[string]float64
@@ -183,7 +181,7 @@ func TestCalculateFairShares(t *testing.T) {
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, schedulerobjects.QuantityByTAndResourceType[string]{}, q.Demand, q.Demand, nil)
+					qName, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
@@ -201,7 +199,7 @@ func TestCalculateFairShares(t *testing.T) {
 
 func TestCalculateFairnessError(t *testing.T) {
 	tests := map[string]struct {
-		availableResources schedulerobjects.ResourceList
+		availableResources internaltypes.ResourceList
 		queueCtxs          map[string]*QueueSchedulingContext
 		expected           float64
 	}{
@@ -278,8 +276,8 @@ func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSched
 	}
 }
 
-func cpu(n int) schedulerobjects.ResourceList {
-	return schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
-	}
+func cpu(n int) internaltypes.ResourceList {
+	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
+	)
 }

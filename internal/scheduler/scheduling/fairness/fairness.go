@@ -101,8 +101,5 @@ func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation interna
 }
 
 func (f *DominantResourceFairness) UnweightedCostFromAllocation(allocation internaltypes.ResourceList) float64 {
-	if f.totalResources.IsEmpty() {
-		return 0
-	}
-	return allocation.DivideZeroOnError(f.totalResources).Multiply(f.multipliers).Max()
+	return max(0, allocation.DivideZeroOnError(f.totalResources).Multiply(f.multipliers).Max())
 }
