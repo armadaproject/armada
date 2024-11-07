@@ -147,6 +147,10 @@ func (rl ResourceList) IsEmpty() bool {
 	return rl.factory == nil
 }
 
+func (rl ResourceList) Factory() *ResourceListFactory {
+	return rl.factory
+}
+
 func (rl ResourceList) Exceeds(other ResourceList) bool {
 	_, _, _, exceeds := rl.ExceedsAvailable(other)
 	return exceeds
@@ -200,17 +204,17 @@ func (rl ResourceList) OfType(t ResourceType) ResourceList {
 	return ResourceList{factory: rl.factory, resources: result}
 }
 
-func (rl ResourceList) Cap(other ResourceList) ResourceList {
-	assertSameResourceListFactory(rl.factory, other.factory)
+func (rl ResourceList) Cap(cap ResourceList) ResourceList {
+	assertSameResourceListFactory(rl.factory, cap.factory)
 	if rl.IsEmpty() {
-		return other
+		return ResourceList{}
 	}
-	if other.IsEmpty() {
+	if cap.IsEmpty() {
 		return rl
 	}
 	result := make([]int64, len(rl.resources))
 	for i, r := range rl.resources {
-		result[i] = min(r, other.resources[i])
+		result[i] = min(r, cap.resources[i])
 	}
 	return ResourceList{factory: rl.factory, resources: result}
 }

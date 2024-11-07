@@ -24,7 +24,6 @@ func TestReportStateTransitions(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
-		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(t, err)
 	result := scheduling.SchedulerResult{

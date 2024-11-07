@@ -44,15 +44,15 @@ func TestConstraints(t *testing.T) {
 			NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"),
 				makeSchedulingConfig(),
 				[]*api.Queue{{Name: "queue-1"}},
-				rlFactory), rlFactory),
+			), rlFactory),
 		"empty-queue-constraints": makeConstraintsTest(
 			NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"),
 				makeSchedulingConfig(),
-				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}}, rlFactory), rlFactory),
+				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}}), rlFactory),
 		"within-constraints": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{
 			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
-		}, []*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}, rlFactory), rlFactory),
+		}, []*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}), rlFactory),
 		"exceeds-queue-priority-class-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
 				{
@@ -64,7 +64,7 @@ func TestConstraints(t *testing.T) {
 						},
 					},
 				},
-			}, rlFactory), rlFactory)
+			}), rlFactory)
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
@@ -83,7 +83,7 @@ func TestConstraints(t *testing.T) {
 						},
 					},
 				},
-			}, rlFactory), rlFactory)
+			}), rlFactory)
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
@@ -91,14 +91,14 @@ func TestConstraints(t *testing.T) {
 			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{
 				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-			}, []*api.Queue{{Name: "queue-1"}}, rlFactory), rlFactory)
+			}, []*api.Queue{{Name: "queue-1"}}), rlFactory)
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
 			return t
 		}(),
 		"priority-class-constraint-ignored-if-there-is-a-queue-constraint": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{
 			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}, rlFactory), rlFactory),
+		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}), rlFactory),
 		"one-constraint-per-level-falls-back-as-expected--within-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
 			"",
@@ -154,7 +154,7 @@ func TestCapResources(t *testing.T) {
 		expectedResources map[string]internaltypes.ResourceList
 	}{
 		"no contraints": {
-			constraints:       NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{{Name: "queue-1"}}, rlFactory),
+			constraints:       NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{{Name: "queue-1"}}),
 			queue:             "queue-1",
 			resources:         map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi")},
 			expectedResources: map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi")},
@@ -168,7 +168,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, []*api.Queue{{Name: "queue-1"}}, rlFactory),
+			}, []*api.Queue{{Name: "queue-1"}}),
 			queue:             "queue-1",
 			resources:         map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1", "1Gi")},
 			expectedResources: map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1", "1Gi")},
@@ -182,7 +182,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, []*api.Queue{{Name: "queue-1"}}, rlFactory),
+			}, []*api.Queue{{Name: "queue-1"}}),
 			queue:             "queue-1",
 			resources:         map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi")},
 			expectedResources: map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "100", "900Gi")},
@@ -205,7 +205,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, rlFactory),
+			}),
 			queue:             "queue-1",
 			resources:         map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi")},
 			expectedResources: map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "900", "900Gi")},
@@ -232,7 +232,7 @@ func TestCapResources(t *testing.T) {
 						},
 					},
 				},
-			}, rlFactory),
+			}),
 			queue: "queue-1",
 			resources: map[string]internaltypes.ResourceList{
 				"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi"),
@@ -335,7 +335,7 @@ func makeMultiLevelConstraints(rlFactory *internaltypes.ResourceListFactory) Sch
 				},
 			},
 		},
-		rlFactory)
+	)
 }
 
 func makeConstraintsTest(constraints SchedulingConstraints, rlFactory *internaltypes.ResourceListFactory) *constraintTest {

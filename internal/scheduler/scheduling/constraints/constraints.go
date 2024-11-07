@@ -78,8 +78,7 @@ func NewSchedulingConstraints(
 	pool string,
 	totalResources internaltypes.ResourceList,
 	config configuration.SchedulingConfig,
-	queues []*api.Queue,
-	rlFactory *internaltypes.ResourceListFactory) SchedulingConstraints {
+	queues []*api.Queue) SchedulingConstraints {
 
 	cordonedQueues := armadamaps.FromSlice(queues,
 		func(q *api.Queue) string { return q.Name },
@@ -87,8 +86,8 @@ func NewSchedulingConstraints(
 
 	return &schedulingConstraints{
 		cordonedQueues:                         cordonedQueues,
-		maximumResourcesToSchedule:             calculatePerRoundLimits(totalResources, pool, config, rlFactory),
-		resourceLimitsPerQueuePerPriorityClass: calculatePerQueueLimits(totalResources, pool, config.PriorityClasses, queues, rlFactory),
+		maximumResourcesToSchedule:             calculatePerRoundLimits(totalResources, pool, config),
+		resourceLimitsPerQueuePerPriorityClass: calculatePerQueueLimits(totalResources, pool, config.PriorityClasses, queues),
 	}
 }
 
@@ -164,8 +163,13 @@ func calculatePerRoundLimits(
 	totalResources internaltypes.ResourceList,
 	pool string,
 	config configuration.SchedulingConfig,
-	rlFactory *internaltypes.ResourceListFactory,
 ) internaltypes.ResourceList {
+
+	if totalResources.IsEmpty() {
+		return totalResources
+	}
+	rlFactory := totalResources.Factory()
+
 	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
 	if m, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
 		// Use pool-specific config is available.
@@ -175,39 +179,42 @@ func calculatePerRoundLimits(
 	return totalResources.Multiply(rlFactory.MakeResourceFractionList(maximumResourceFractionToSchedule, 1.0))
 }
 
-func calculatePerQueueLimits(totalResources internaltypes.ResourceList,
+func calculatePerQueueLimits(
+	totalResources internaltypes.ResourceList,
 	pool string,
 	priorityClasses map[string]types.PriorityClass,
 	queues []*api.Queue,
-	rlFactory *internaltypes.ResourceListFactory,
 ) map[string]map[string]internaltypes.ResourceList {
-
-	// First we work out the default limit per pool
-	defaultScalingFactorsByPc := map[string]map[string]float64{}
-	for pcName, pc := range priorityClasses {
-		defaultLimit := pc.MaximumResourceFractionPerQueue
-		poolLimit := pc.MaximumResourceFractionPerQueueByPool[pool]
-		defaultScalingFactorsByPc[pcName] = util.MergeMaps(defaultLimit, poolLimit)
-	}
-
 	limitsPerQueuePerPc := make(map[string]map[string]internaltypes.ResourceList, len(queues))
 
-	// Then we go apply any queue-level overrides
-	for _, queue := range queues {
-		limitsPerQueuePerPc[queue.Name] = map[string]internaltypes.ResourceList{}
-		// There are no queue-specific limits
-		for pc, _ := range priorityClasses {
-			fractions := defaultScalingFactorsByPc[pc]
-			queueLimits, ok := queue.ResourceLimitsByPriorityClassName[pc]
+	if totalResources.IsEmpty() {
+		return limitsPerQueuePerPc
+	}
+	rlFactory := totalResources.Factory()
+
+	for pcName, pc := range priorityClasses {
+		defaultFractions := util.MergeMaps(
+			pc.MaximumResourceFractionPerQueue,
+			pc.MaximumResourceFractionPerQueueByPool[pool],
+		)
+
+		for _, queue := range queues {
+			fractions := defaultFractions
+			queueConfig, ok := queue.ResourceLimitsByPriorityClassName[pcName]
 			if ok {
-				fractions = util.MergeMaps(fractions, queueLimits.MaximumResourceFraction)
-				queuePoolConfig, ok := queueLimits.MaximumResourceFractionByPool[pool]
+				fractions = util.MergeMaps(fractions, queueConfig.MaximumResourceFraction)
+				queuePoolConfig, ok := queueConfig.MaximumResourceFractionByPool[pool]
 				if ok {
 					fractions = util.MergeMaps(fractions, queuePoolConfig.GetMaximumResourceFraction())
 				}
 			}
-			limitsPerQueuePerPc[queue.Name][pc] = totalResources.Multiply(rlFactory.MakeResourceFractionList(fractions, 1.0))
+
+			if _, ok := limitsPerQueuePerPc[queue.Name]; !ok {
+				limitsPerQueuePerPc[queue.Name] = map[string]internaltypes.ResourceList{}
+			}
+			limitsPerQueuePerPc[queue.Name][pcName] = totalResources.Multiply(rlFactory.MakeResourceFractionList(fractions, 1.0))
 		}
 	}
+
 	return limitsPerQueuePerPc
 }

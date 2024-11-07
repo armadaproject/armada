@@ -182,10 +182,6 @@ type FairSchedulingAlgoContext struct {
 	Txn               *jobdb.Txn
 }
 
-func (l *FairSchedulingAlgo) NewFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, pool configuration.PoolConfig) (*FairSchedulingAlgoContext, error) {
-	return l.newFairSchedulingAlgoContext(ctx, txn, pool)
-}
-
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, pool configuration.PoolConfig) (*FairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
@@ -465,12 +461,12 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	awayAllocationByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 	queues map[string]*api.Queue,
 ) (*schedulercontext.SchedulingContext, error) {
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalCapacity, l.schedulingConfig, l.resourceListFactory)
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalCapacity, l.schedulingConfig)
 	if err != nil {
 		return nil, err
 	}
 	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, totalCapacity)
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues), l.resourceListFactory)
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
 
 	for _, queue := range queues {
 		demand, hasDemand := demandByQueueAndPriorityClass[queue.Name]
@@ -534,7 +530,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool))
 
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues), l.resourceListFactory)
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,

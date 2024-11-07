@@ -44,7 +44,11 @@ type DominantResourceFairness struct {
 	multipliers internaltypes.ResourceFractionList
 }
 
-func NewDominantResourceFairness(totalResources internaltypes.ResourceList, config configuration.SchedulingConfig, rlFactory *internaltypes.ResourceListFactory) (*DominantResourceFairness, error) {
+func NewDominantResourceFairness(totalResources internaltypes.ResourceList, config configuration.SchedulingConfig) (*DominantResourceFairness, error) {
+	if totalResources.IsEmpty() {
+		return &DominantResourceFairness{}, nil
+	}
+
 	if len(config.DominantResourceFairnessResourcesToConsider) != 0 && len(config.ExperimentalDominantResourceFairnessResourcesToConsider) != 0 {
 		return nil, errors.New("config error - only one of DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider should be set")
 	}
@@ -73,7 +77,7 @@ func NewDominantResourceFairness(totalResources internaltypes.ResourceList, conf
 
 	return &DominantResourceFairness{
 		totalResources: totalResources,
-		multipliers:    rlFactory.MakeResourceFractionList(multipliers, 0.0),
+		multipliers:    totalResources.Factory().MakeResourceFractionList(multipliers, 0.0),
 	}, nil
 }
 
@@ -97,5 +101,8 @@ func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation interna
 }
 
 func (f *DominantResourceFairness) UnweightedCostFromAllocation(allocation internaltypes.ResourceList) float64 {
+	if f.totalResources.IsEmpty() {
+		return 0
+	}
 	return allocation.DivideZeroOnError(f.totalResources).Multiply(f.multipliers).Max()
 }

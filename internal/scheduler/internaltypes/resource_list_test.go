@@ -233,7 +233,7 @@ func TestCap_HandlesEmptyCorrectly(t *testing.T) {
 	factory := testFactory()
 
 	assert.Equal(t, testResourceList(factory, "1", "1Ki"), testResourceList(factory, "1", "1Ki").Cap(ResourceList{}))
-	assert.Equal(t, testResourceList(factory, "1", "1Ki"), ResourceList{}.Cap(testResourceList(factory, "1", "1Ki")))
+	assert.Equal(t, ResourceList{}, ResourceList{}.Cap(testResourceList(factory, "1", "1Ki")))
 	assert.Equal(t, ResourceList{}, ResourceList{}.Cap(ResourceList{}))
 }
 

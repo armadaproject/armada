@@ -592,7 +592,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 		}
 		sctx.UpdateFairShares()
-		constraints := schedulerconstraints.NewSchedulingConstraints(pool, s.schedulingConfig, nil, totalResources, s.resourceListFactory)
+		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,
