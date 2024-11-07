@@ -428,6 +428,54 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				}
 			}
 		}
+	case CancelQueue:
+		for _, cancelRequest := range o {
+			jobs, err := queries.SelectAllJobsByQueueAndJobState(ctx, cancelRequest.Name, cancelRequest.JobStates)
+			if err != nil {
+				return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
+			}
+			inPriorityClasses := jobInPriorityClasses(cancelRequest.PriorityClasses)
+			jobsToCancel := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
+				}
+				if ok {
+					jobsToCancel = append(jobsToCancel, job)
+				}
+			}
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobsToCancel) {
+				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
+				}
+			}
+		}
+	case PreemptQueue:
+		for _, preemptRequest := range o {
+			jobs, err := queries.SelectAllJobsByQueueAndJobState(ctx, preemptRequest.Name, preemptRequest.JobStates)
+			if err != nil {
+				return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
+			}
+			inPriorityClasses := jobInPriorityClasses(preemptRequest.PriorityClasses)
+			jobsToPreempt := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
+				}
+				if ok {
+					jobsToPreempt = append(jobsToPreempt, job)
+				}
+			}
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobsToPreempt) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
+				}
+			}
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

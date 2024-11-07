@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 func NodeIdFromExecutorAndNodeName(executor, nodeName string) string {
@@ -208,4 +209,16 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Preempted.JobSetId
 	}
 	return ""
+}
+
+func ActiveJobStateFromApiJobState(state JobState) controlplaneevents.ActiveJobState {
+	switch state {
+	case JobState_QUEUED:
+		return controlplaneevents.ActiveJobState_QUEUED
+	case JobState_LEASED:
+		return controlplaneevents.ActiveJobState_LEASED
+	case JobState_RUNNING:
+		return controlplaneevents.ActiveJobState_RUNNING
+	}
+	return controlplaneevents.ActiveJobState_UNKNOWN
 }

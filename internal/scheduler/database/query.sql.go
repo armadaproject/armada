@@ -7,9 +7,12 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 const countGroup = `-- name: CountGroup :one
@@ -1014,3 +1017,120 @@ func (q *Queries) SelectAllJobsByExecutorAndQueues(ctx context.Context, executor
 	}
 	return items, nil
 }
+
+const selectQueuedJobsByQueue = `-- name: selectQueuedJobsByQueue :many
+SELECT j.*
+WHERE j.queue = $1
+  AND j.queued = true
+`
+
+// a job is in the Leased state if it has a run created for it, but isn't yet assigned by Kubernetes
+const selectLeasedJobsByQueue = `-- name: selectLeasedJobsByQueue :many
+SELECT j.*
+FROM runs jr
+         JOIN jobs j
+              ON jr.job_id = j.job_id
+WHERE j.queue = $1
+  AND jr.running = false
+  AND jr.pending = false
+  AND jr.succeeded = false
+  AND jr.failed = false
+  AND jr.cancelled = false
+  AND jr.preempted = false
+`
+
+const selectPendingJobsByQueue = `-- name: selectPendingJobsByQueue :many
+SELECT j.*
+FROM runs jr
+         JOIN jobs j
+              ON jr.job_id = j.job_id
+WHERE j.queue = $1
+  AND jr.running = false
+  AND jr.pending = true
+  AND jr.succeeded = false
+  AND jr.failed = false
+  AND jr.cancelled = false
+  AND jr.preempted = false
+`
+
+const selectRunningJobsByQueue = `-- name: selectRunningJobsByQueue :many
+SELECT j.*
+FROM runs jr
+         JOIN jobs j
+              ON jr.job_id = j.job_id
+WHERE j.queue = $1
+  AND jr.running = true
+  AND jr.returned = false
+  AND jr.succeeded = false
+  AND jr.failed = false
+  AND jr.cancelled = false
+  AND jr.preempted = false
+`
+
+func (q *Queries) SelectAllJobsByQueueAndJobState(ctx context.Context, queue string, jobStates []controlplaneevents.ActiveJobState) ([]Job, error) {
+	items := []Job{}
+	for _, state := range jobStates {
+		var query string
+		switch state {
+		case controlplaneevents.ActiveJobState_QUEUED:
+			query = selectQueuedJobsByQueue
+		case controlplaneevents.ActiveJobState_LEASED:
+			query = selectLeasedJobsByQueue
+		case controlplaneevents.ActiveJobState_PENDING:
+			query = selectPendingJobsByQueue
+		case controlplaneevents.ActiveJobState_RUNNING:
+			query = selectRunningJobsByQueue
+		default:
+			return nil, fmt.Errorf("unknown active job state %+v", state)
+		}
+		jobs, err := q.selectAllJobsByQuery(ctx, query, queue)
+		if err != nil {
+			return nil, fmt.Errorf("unable to select jobs by queue and job state: %s", err)
+		}
+		items = append(items, jobs...)
+	}
+	return items, nil
+}
+
+func (q *Queries) selectAllJobsByQuery(ctx context.Context, query string, args ...string) ([]Job, error) {
+	rows, err := q.db.Query(ctx, query, args)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.JobID,
+			&i.JobSet,
+			&i.Queue,
+			&i.UserID,
+			&i.Submitted,
+			&i.Groups,
+			&i.Priority,
+			&i.Queued,
+			&i.QueuedVersion,
+			&i.CancelRequested,
+			&i.Cancelled,
+			&i.CancelByJobsetRequested,
+			&i.Succeeded,
+			&i.Failed,
+			&i.SubmitMessage,
+			&i.SchedulingInfo,
+			&i.SchedulingInfoVersion,
+			&i.Serial,
+			&i.LastModified,
+			&i.Validated,
+			&i.Pools,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+

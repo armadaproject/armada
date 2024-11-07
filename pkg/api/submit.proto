@@ -281,6 +281,20 @@ message StreamingQueueMessage{
   }
 }
 
+message QueuePreemptRequest {
+  string name = 1;
+  repeated string priorityClasses = 2;
+  // In practice jobs are only preemptible from non-terminal states
+  repeated JobState jobStates = 3;
+}
+
+message QueueCancelRequest {
+  string name = 1;
+  repeated string priorityClasses = 2;
+  // In practice jobs are only cancellable from non-terminal states
+  repeated JobState jobStates = 3;
+}
+
 service QueueService {
   rpc CreateQueue (Queue) returns (google.protobuf.Empty) {}
   rpc CreateQueues (QueueList) returns (BatchQueueCreateResponse) {}
@@ -291,6 +305,8 @@ service QueueService {
   rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {}
   rpc CordonQueue (QueueCordonRequest) returns (google.protobuf.Empty) {}
   rpc UncordonQueue (QueueUncordonRequest) returns (google.protobuf.Empty) {}
+  rpc PreemptOnQueue (QueuePreemptRequest) returns (google.protobuf.Empty) {}
+  rpc CancelOnQueue (QueueCancelRequest) returns (google.protobuf.Empty) {}
 }
 
 service Submit {

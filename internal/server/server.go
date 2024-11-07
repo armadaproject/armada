@@ -163,7 +163,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer controlPlaneEventsPublisher.Close()
 
-	queueServer := queue.NewServer(queueRepository, authorizer)
+	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, authorizer)
 
 	submitServer := submit.NewServer(
 		queueServer,

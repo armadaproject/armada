@@ -7,29 +7,42 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
+var activeApiJobStates = []api.JobState{api.JobState_QUEUED, api.JobState_LEASED, api.JobState_PENDING, api.JobState_RUNNING}
+
 type Server struct {
+	publisher       pulsarutils.Publisher[*controlplaneevents.Event]
 	queueRepository QueueRepository
 	authorizer      auth.ActionAuthorizer
+	clock           clock.Clock
 }
 
 func NewServer(
+	publisher pulsarutils.Publisher[*controlplaneevents.Event],
 	queueRepository QueueRepository,
 	authorizer auth.ActionAuthorizer,
 ) *Server {
 	return &Server{
+		publisher:       publisher,
 		queueRepository: queueRepository,
 		authorizer:      authorizer,
+		clock:           clock.RealClock{},
 	}
 }
 
@@ -227,4 +240,90 @@ func (s *Server) UncordonQueue(grpcCtx context.Context, req *api.QueueUncordonRe
 	}
 
 	return &types.Empty{}, s.queueRepository.UncordonQueue(ctx, queueName)
+}
+
+func isActiveState(state api.JobState) bool {
+	return slices.Contains(activeApiJobStates, state)
+}
+
+func (s *Server) CancelOnQueue(grpcCtx context.Context, req *api.QueueCancelRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	err := s.authorizer.AuthorizeAction(ctx, permissions.CancelAnyJobs)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error cancelling jobs on queue %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	queueName := req.Name
+	if queueName == "" {
+		return nil, fmt.Errorf("cannot cancel jobs on queue with empty name")
+	}
+
+	if !armadaslices.AllFunc(req.JobStates, isActiveState) {
+		return nil, fmt.Errorf("provided job states must be non-terminal")
+	}
+
+	activeJobStates := armadaslices.Map(req.JobStates, api.ActiveJobStateFromApiJobState)
+
+	es := &controlplaneevents.Event{
+		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
+		Event: &controlplaneevents.Event_CancelOnQueue{
+			CancelOnQueue: &controlplaneevents.CancelOnQueue{
+				Name:            req.Name,
+				PriorityClasses: req.PriorityClasses,
+				JobStates:       activeJobStates,
+			},
+		},
+	}
+
+	err = s.publisher.PublishMessages(ctx, es)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
+	}
+
+	return &types.Empty{}, nil
+}
+
+func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	err := s.authorizer.AuthorizeAction(ctx, permissions.PreemptAnyJobs)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error preempting jobs on queue %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	queueName := req.Name
+	if queueName == "" {
+		return nil, fmt.Errorf("cannot preempt jobs on queue with empty name")
+	}
+
+	if !armadaslices.AllFunc(req.JobStates, isActiveState) {
+		return nil, fmt.Errorf("provided job states must be non-terminal")
+	}
+
+	activeJobStates := armadaslices.Map(req.JobStates, api.ActiveJobStateFromApiJobState)
+
+	es := &controlplaneevents.Event{
+		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
+		Event: &controlplaneevents.Event_PreemptOnQueue{
+			PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
+				Name:            req.Name,
+				PriorityClasses: req.PriorityClasses,
+				JobStates:       activeJobStates,
+			},
+		},
+	}
+
+	err = s.publisher.PublishMessages(ctx, es)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
+	}
+
+	return &types.Empty{}, nil
 }
