@@ -211,7 +211,7 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, err
 	}
 
-	sequence, err := preemptJobEventSequenceForJobIds(s.clock, req.JobIds, req.Queue, req.JobSetId, userId, groups)
+	sequence, err := preemptJobEventSequenceForJobIds(s.clock, req.JobIds, req.Queue, req.JobSetId, userId, req.Reason, groups)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 	return &types.Empty{}, nil
 }
 
-func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, error) {
+func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, jobSet, userId, reason string, groups []string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      q,
 		JobSetName: jobSet,
@@ -239,7 +239,8 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId: jobId,
+					JobId:  jobId,
+					Reason: reason,
 				},
 			},
 		})

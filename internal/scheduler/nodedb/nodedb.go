@@ -341,6 +341,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSche
 		// order to find the best fit for this gang); clear out any remnants of
 		// previous attempts.
 		jctx.UnschedulableReason = ""
+		jctx.PreemptingJobId = ""
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 		if err != nil {
@@ -420,6 +421,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true); err != nil {
 				return nil, err
 			} else {
+				jctx.PodSchedulingContext.SchedulingMethod = context.Rescheduled
 				return node, nil
 			}
 		}
@@ -440,6 +442,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		}
 		if node != nil {
 			pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
+			pctx.SchedulingMethod = context.ScheduledAsAwayJob
 			pctx.ScheduledAway = true
 			return node, nil
 		}
@@ -499,6 +502,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = context.ScheduledWithoutPreemption
 		return node, nil
 	}
 
@@ -522,6 +526,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
 		return node, nil
 	}
 
@@ -535,6 +540,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
 		return node, nil
 	}
 
@@ -760,6 +766,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			if priority > maxPriority {
 				maxPriority = priority
 			}
+			job.JobSchedulingContext.PreemptingJobId = jctx.JobId
 		}
 
 		selectedNode = nodeCopy
