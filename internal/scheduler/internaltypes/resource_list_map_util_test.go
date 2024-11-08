@@ -3,9 +3,10 @@ package internaltypes
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestRlMapSumValues(t *testing.T) {

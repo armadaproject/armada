@@ -30,11 +30,6 @@ type FairnessCostProvider interface {
 	WeightedCostFromAllocation(allocation internaltypes.ResourceList, weight float64) float64
 }
 
-type resourceToConsider struct {
-	Name       string
-	Multiplier float64
-}
-
 type DominantResourceFairness struct {
 	// Total resources across all nodes.
 	totalResources internaltypes.ResourceList

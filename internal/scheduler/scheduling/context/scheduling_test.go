@@ -15,10 +15,9 @@ import (
 )
 
 func TestSchedulingContextAccounting(t *testing.T) {
-	totalResources :=
-		testfixtures.TestResourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{"cpu": resource.MustParse("1")},
-		)
+	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{"cpu": resource.MustParse("1")},
+	)
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
