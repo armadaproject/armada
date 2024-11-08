@@ -338,10 +338,6 @@ func (s *Simulator) setupClusters() error {
 			s.accounting.nodeDbByPool[cluster.Pool] = nodeDb
 		}
 
-		if _, poolExists := s.accounting.totalResourcesByPool[cluster.Pool]; !poolExists {
-			s.accounting.totalResourcesByPool[cluster.Pool] = s.resourceListFactory.MakeAllZero()
-		}
-
 		for nodeTemplateIndex, nodeTemplate := range cluster.NodeTemplates {
 			labels := map[string]string{}
 			if nodeTemplate.Labels != nil {
@@ -377,8 +373,13 @@ func (s *Simulator) setupClusters() error {
 				s.accounting.poolByNodeId[nodeId] = cluster.Pool
 			}
 		}
-		s.accounting.totalResourcesByPool[cluster.Pool] = s.accounting.totalResourcesByPool[cluster.Pool].Add(nodeDb.TotalKubernetesResources())
+
 	}
+
+	for pool, nodeDb := range s.accounting.nodeDbByPool {
+		s.accounting.totalResourcesByPool[pool] = nodeDb.TotalKubernetesResources()
+	}
+
 	return nil
 }
 
