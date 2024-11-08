@@ -77,6 +77,19 @@ func (rl ResourceList) GetByNameZeroIfMissing(name string) int64 {
 	return rl.resources[index]
 }
 
+func (rl ResourceList) GetResourceByNameZeroIfMissing(name string) k8sResource.Quantity {
+	if rl.IsEmpty() {
+		return k8sResource.Quantity{}
+	}
+
+	index, ok := rl.factory.nameToIndex[name]
+	if !ok {
+		return k8sResource.Quantity{}
+	}
+
+	return *k8sResource.NewScaledQuantity(rl.resources[index], rl.factory.scales[index])
+}
+
 func (rl ResourceList) GetResources() []Resource {
 	if rl.IsEmpty() {
 		return []Resource{}
@@ -289,17 +302,6 @@ func (rl ResourceList) Negate() ResourceList {
 		result[i] = -r
 	}
 	return ResourceList{factory: rl.factory, resources: result}
-}
-
-func (rl ResourceList) Scale(factor float64) ResourceList {
-	if rl.IsEmpty() {
-		return rl
-	}
-	result := make([]int64, len(rl.resources))
-	for i, r := range rl.resources {
-		result[i] = multiplyResource(r, factor)
-	}
-	return ResourceList{resources: result, factory: rl.factory}
 }
 
 func (rl ResourceList) asQuantity(index int) *k8sResource.Quantity {

@@ -65,6 +65,19 @@ func TestGetByNameZeroIfMissing_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, int64(0), empty.GetByNameZeroIfMissing("missing"))
 }
 
+func TestGetResourceByNameZeroIfMissing(t *testing.T) {
+	factory := testFactory()
+	a := testResourceList(factory, "1", "1Gi")
+
+	assert.Equal(t, *k8sResource.NewScaledQuantity(1000, k8sResource.Milli), a.GetResourceByNameZeroIfMissing("cpu"))
+	assert.Equal(t, k8sResource.Quantity{}, a.GetResourceByNameZeroIfMissing("missing"))
+}
+
+func TestGetResourceByNameZeroIfMissing_HandlesEmptyCorrectly(t *testing.T) {
+	empty := ResourceList{}
+	assert.Equal(t, k8sResource.Quantity{}, empty.GetResourceByNameZeroIfMissing("missing"))
+}
+
 func TestGetResources(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")
