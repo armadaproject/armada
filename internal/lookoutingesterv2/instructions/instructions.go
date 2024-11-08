@@ -431,7 +431,7 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 		RunId:       event.PreemptedRunId,
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
-		Error:       tryCompressError(event.PreemptedJobId, "preempted", c.compressor),
+		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
