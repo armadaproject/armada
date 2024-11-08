@@ -3,8 +3,8 @@ package scheduling
 import (
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
@@ -18,8 +18,8 @@ type QueueStats struct {
 	LastGangScheduledSampleJobId     string
 	LastGangScheduledQueuePosition   int
 	LastGangScheduledQueueCost       float64
-	LastGangScheduledResources       schedulerobjects.ResourceList
-	LastGangScheduledQueueResources  schedulerobjects.ResourceList
+	LastGangScheduledResources       internaltypes.ResourceList
+	LastGangScheduledQueueResources  internaltypes.ResourceList
 	Time                             time.Duration
 }
 

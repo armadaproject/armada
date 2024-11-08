@@ -2,6 +2,7 @@ package internaltypes
 
 import (
 	"fmt"
+	"math"
 
 	"golang.org/x/exp/slices"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
@@ -76,6 +77,19 @@ func (rl ResourceList) GetByNameZeroIfMissing(name string) int64 {
 	return rl.resources[index]
 }
 
+func (rl ResourceList) GetResourceByNameZeroIfMissing(name string) k8sResource.Quantity {
+	if rl.IsEmpty() {
+		return k8sResource.Quantity{}
+	}
+
+	index, ok := rl.factory.nameToIndex[name]
+	if !ok {
+		return k8sResource.Quantity{}
+	}
+
+	return *k8sResource.NewScaledQuantity(rl.resources[index], rl.factory.scales[index])
+}
+
 func (rl ResourceList) GetResources() []Resource {
 	if rl.IsEmpty() {
 		return []Resource{}
@@ -147,6 +161,15 @@ func (rl ResourceList) IsEmpty() bool {
 	return rl.factory == nil
 }
 
+func (rl ResourceList) Factory() *ResourceListFactory {
+	return rl.factory
+}
+
+func (rl ResourceList) Exceeds(other ResourceList) bool {
+	_, _, _, exceeds := rl.ExceedsAvailable(other)
+	return exceeds
+}
+
 // ExceedsAvailable
 // - if any resource in this ResourceList is greater than the equivalent resource in param available, this function returns
 //   - the name of the relevant resource
@@ -191,6 +214,21 @@ func (rl ResourceList) OfType(t ResourceType) ResourceList {
 		if rl.factory.types[i] == t {
 			result[i] = r
 		}
+	}
+	return ResourceList{factory: rl.factory, resources: result}
+}
+
+func (rl ResourceList) Cap(cap ResourceList) ResourceList {
+	assertSameResourceListFactory(rl.factory, cap.factory)
+	if rl.IsEmpty() {
+		return ResourceList{}
+	}
+	if cap.IsEmpty() {
+		return rl
+	}
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		result[i] = min(r, cap.resources[i])
 	}
 	return ResourceList{factory: rl.factory, resources: result}
 }
@@ -266,17 +304,6 @@ func (rl ResourceList) Negate() ResourceList {
 	return ResourceList{factory: rl.factory, resources: result}
 }
 
-func (rl ResourceList) Scale(factor float64) ResourceList {
-	if rl.IsEmpty() {
-		return rl
-	}
-	result := make([]int64, len(rl.resources))
-	for i, r := range rl.resources {
-		result[i] = multiplyResource(r, factor)
-	}
-	return ResourceList{resources: result, factory: rl.factory}
-}
-
 func (rl ResourceList) asQuantity(index int) *k8sResource.Quantity {
 	if rl.factory == nil {
 		return &k8sResource.Quantity{}
@@ -299,8 +326,21 @@ func assertSameResourceListFactory(a, b *ResourceListFactory) {
 
 func multiplyResource(res int64, multiplier float64) int64 {
 	if multiplier == 1.0 {
-		// avoid rounding error in the simple case
+		// Avoid rounding error in the simple case.
 		return res
 	}
+
+	// Return max int64 if multiplier is infinity.
+	// If res is zero, we assume infinity trumps zero, and return int64 maxValue.
+	// This gives the right behavior when the result is used as a cap,
+	// as an infinity multiplier means "never apply cap".
+	if math.IsInf(multiplier, 0) {
+		if (multiplier < 0) == (res < 0) {
+			return math.MaxInt64
+		} else {
+			return math.MinInt64
+		}
+	}
+
 	return int64(float64(res) * multiplier)
 }

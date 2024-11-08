@@ -947,7 +947,7 @@ func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
 }
 
 func MakeTestFloatingResourceTypes(config []schedulerconfiguration.FloatingResourceConfig) *floatingresources.FloatingResourceTypes {
-	result, _ := floatingresources.NewFloatingResourceTypes(config)
+	result, _ := floatingresources.NewFloatingResourceTypes(config, TestResourceListFactory)
 	return result
 }
 

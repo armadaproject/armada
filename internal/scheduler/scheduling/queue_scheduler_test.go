@@ -16,6 +16,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -484,7 +485,9 @@ func TestQueueScheduler(t *testing.T) {
 			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
-				tc.TotalResources = nodeDb.TotalKubernetesResources()
+				tc.TotalResources = schedulerobjects.ResourceList{
+					Resources: nodeDb.TotalKubernetesResources().ToMap(),
+				}
 			}
 
 			queueNameToQueue := map[string]*api.Queue{}
@@ -504,8 +507,9 @@ func TestQueueScheduler(t *testing.T) {
 				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
 
+			totalResources := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(tc.TotalResources.Resources)
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				tc.TotalResources,
+				totalResources,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -516,15 +520,18 @@ func TestQueueScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
-				tc.TotalResources,
+				totalResources,
 			)
 			for _, q := range tc.Queues {
 				weight := 1.0 / float64(q.PriorityFactor)
 				err := sctx.AddQueueSchedulingContext(
 					q.Name, weight,
-					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
-					schedulerobjects.NewResourceList(0),
-					schedulerobjects.NewResourceList(0),
+					internaltypes.RlMapFromJobSchedulerObjects(
+						tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
+						testfixtures.TestResourceListFactory,
+					),
+					internaltypes.ResourceList{},
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -532,7 +539,7 @@ func TestQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues)
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, tc.Queues)
 			jobIteratorByQueue := make(map[string]JobContextIterator)
 			for _, q := range tc.Queues {
 				it := jobRepo.GetJobIterator(q.Name)

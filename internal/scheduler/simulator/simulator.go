@@ -53,11 +53,11 @@ type accounting struct {
 	nodeDbByPool map[string]*nodedb.NodeDb
 	// Allocation by pool for each queue and priority class.
 	// Stored across invocations of the scheduler.
-	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
+	allocationByPoolAndQueueAndPriorityClass map[string]map[string]map[string]internaltypes.ResourceList
 	// Demand for each queue
-	demandByQueue map[string]schedulerobjects.ResourceList
+	demandByQueue map[string]internaltypes.ResourceList
 	// Total resources across all executorGroups for each pool.
-	totalResourcesByPool map[string]schedulerobjects.ResourceList
+	totalResourcesByPool map[string]internaltypes.ResourceList
 	// Mapping of job Id -> nodeId.  Needed by preemptingqueuescheduler for gang preemption.
 	nodeIdByJobId map[string]string
 	// Mapping of gangId -> jobsINGang.  Needed by preemptingqueuescheduler for gang preemption.
@@ -132,7 +132,7 @@ func NewSimulator(
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources, resourceListFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -176,9 +176,9 @@ func NewSimulator(
 		accounting: accounting{
 			nodeDbByPool:                             make(map[string]*nodedb.NodeDb),
 			poolByNodeId:                             make(map[string]string),
-			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]),
-			demandByQueue:                            make(map[string]schedulerobjects.ResourceList),
-			totalResourcesByPool:                     make(map[string]schedulerobjects.ResourceList),
+			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]map[string]internaltypes.ResourceList),
+			demandByQueue:                            make(map[string]internaltypes.ResourceList),
+			totalResourcesByPool:                     make(map[string]internaltypes.ResourceList),
 			nodeIdByJobId:                            make(map[string]string),
 			jobIdsByGangId:                           make(map[string]map[string]bool),
 			gangIdByJobId:                            make(map[string]string),
@@ -338,11 +338,6 @@ func (s *Simulator) setupClusters() error {
 			s.accounting.nodeDbByPool[cluster.Pool] = nodeDb
 		}
 
-		totalResourcesForPool, ok := s.accounting.totalResourcesByPool[cluster.Pool]
-		if !ok {
-			totalResourcesForPool = schedulerobjects.ResourceList{}
-		}
-
 		for nodeTemplateIndex, nodeTemplate := range cluster.NodeTemplates {
 			labels := map[string]string{}
 			if nodeTemplate.Labels != nil {
@@ -378,9 +373,13 @@ func (s *Simulator) setupClusters() error {
 				s.accounting.poolByNodeId[nodeId] = cluster.Pool
 			}
 		}
-		totalResourcesForPool.Add(nodeDb.TotalKubernetesResources())
-		s.accounting.totalResourcesByPool[cluster.Pool] = totalResourcesForPool
+
 	}
+
+	for pool, nodeDb := range s.accounting.nodeDbByPool {
+		s.accounting.totalResourcesByPool[pool] = nodeDb.TotalKubernetesResources()
+	}
+
 	return nil
 }
 
@@ -898,10 +897,8 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 	// Subtract the allocation of this job from the queue allocation.
 	run := job.LatestRun()
 	pool := s.accounting.poolByNodeId[run.NodeId()]
-	s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()].SubV1ResourceList(
-		job.PriorityClassName(),
-		job.ResourceRequirements().Requests,
-	)
+	allocByPc := s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][job.Queue()]
+	allocByPc[job.PriorityClassName()] = allocByPc[job.PriorityClassName()].Subtract(job.AllResourceRequirements())
 	s.removeJobFromDemand(job)
 
 	// Unbind the job from the node on which it was scheduled.
@@ -1036,19 +1033,11 @@ func maxTime(a, b time.Time) time.Time {
 }
 
 func (s *Simulator) addJobToDemand(job *jobdb.Job) {
-	r, ok := s.accounting.demandByQueue[job.Queue()]
-	if !ok {
-		r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
-		s.accounting.demandByQueue[job.Queue()] = r
-	}
-	r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Add(job.AllResourceRequirements())
 }
 
 func (s *Simulator) removeJobFromDemand(job *jobdb.Job) {
-	r, ok := s.accounting.demandByQueue[job.Queue()]
-	if ok {
-		r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
-	}
+	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
 }
 
 func expandRepeatingTemplates(w *WorkloadSpec) *WorkloadSpec {

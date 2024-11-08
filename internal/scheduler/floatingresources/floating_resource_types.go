@@ -9,19 +9,21 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type FloatingResourceTypes struct {
 	zeroFloatingResources schedulerobjects.ResourceList
 	pools                 map[string]*floatingResourcePool
+	rlFactory             *internaltypes.ResourceListFactory
 }
 
 type floatingResourcePool struct {
 	totalResources schedulerobjects.ResourceList
 }
 
-func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig) (*FloatingResourceTypes, error) {
+func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlFactory *internaltypes.ResourceListFactory) (*FloatingResourceTypes, error) {
 	zeroFloatingResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity, len(config))}
 	for _, c := range config {
 		if _, exists := zeroFloatingResources.Resources[c.Name]; exists {
@@ -51,24 +53,21 @@ func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig) (*F
 	return &FloatingResourceTypes{
 		zeroFloatingResources: zeroFloatingResources,
 		pools:                 pools,
+		rlFactory:             rlFactory,
 	}, nil
 }
 
-func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated schedulerobjects.ResourceList) (bool, string) {
-	pool, exists := frt.pools[poolName]
-	if !exists {
+func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
+	available := frt.GetTotalAvailableForPoolInternalTypes(poolName)
+	if available.AllZero() {
 		return false, fmt.Sprintf("floating resources not connfigured for pool %s", poolName)
 	}
-	rl := pool.totalResources.DeepCopy()
-	rl.Sub(allocated)
-	for resourceName, quantity := range rl.Resources {
-		if !frt.isFloatingResource(resourceName) {
-			continue
-		}
-		if quantity.Cmp(resource.Quantity{}) == -1 {
-			return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
-		}
+
+	resourceName, _, _, exceeds := allocated.OfType(internaltypes.Floating).ExceedsAvailable(available)
+	if exceeds {
+		return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
 	}
+
 	return true, ""
 }
 
@@ -86,10 +85,8 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) sche
 	return pool.totalResources.DeepCopy()
 }
 
-func (frt *FloatingResourceTypes) AddTotalAvailableForPool(poolName string, kubernetesResources schedulerobjects.ResourceList) schedulerobjects.ResourceList {
-	floatingResources := frt.GetTotalAvailableForPool(poolName) // Note GetTotalAvailableForPool returns a deep copy
-	floatingResources.Add(kubernetesResources)
-	return floatingResources
+func (frt *FloatingResourceTypes) GetTotalAvailableForPoolInternalTypes(poolName string) internaltypes.ResourceList {
+	return frt.rlFactory.FromNodeProto(frt.GetTotalAvailableForPool(poolName).Resources)
 }
 
 func (frt *FloatingResourceTypes) SummaryString() string {
@@ -97,9 +94,4 @@ func (frt *FloatingResourceTypes) SummaryString() string {
 		return "none"
 	}
 	return strings.Join(maps.Keys(frt.zeroFloatingResources.Resources), " ")
-}
-
-func (frt *FloatingResourceTypes) isFloatingResource(resourceName string) bool {
-	_, exists := frt.zeroFloatingResources.Resources[resourceName]
-	return exists
 }

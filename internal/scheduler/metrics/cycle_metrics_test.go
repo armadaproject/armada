@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -23,7 +23,8 @@ const epsilon = 1e-6
 func TestReportStateTransitions(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
-		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
+	)
 	require.NoError(t, err)
 	result := scheduling.SchedulerResult{
 		SchedulingContexts: []*context.SchedulingContext{
@@ -171,8 +172,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	assert.NotZero(t, len(collect(m)))
 }
 
-func cpu(n int) schedulerobjects.ResourceList {
-	return schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
-	}
+func cpu(n int) internaltypes.ResourceList {
+	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
+	)
 }
