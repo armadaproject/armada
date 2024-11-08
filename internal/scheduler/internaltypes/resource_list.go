@@ -332,10 +332,12 @@ func multiplyResource(res int64, multiplier float64) int64 {
 	// If res is zero, we assume infinity trumps zero, and return int64 maxValue.
 	// This gives the right behavior when the result is used as a cap,
 	// as an infinity multiplier means "never apply cap".
-	if multiplier == math.Inf(1) {
-		return math.MaxInt64
-	} else if multiplier == math.Inf(-1) {
-		return math.MinInt64
+	if math.IsInf(multiplier, 0) {
+		if (multiplier < 0) == (res < 0) {
+			return math.MaxInt64
+		} else {
+			return math.MinInt64
+		}
 	}
 
 	return int64(float64(res) * multiplier)
