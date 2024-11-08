@@ -2,6 +2,7 @@ package internaltypes
 
 import (
 	"fmt"
+	"math"
 
 	"golang.org/x/exp/slices"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
@@ -323,8 +324,19 @@ func assertSameResourceListFactory(a, b *ResourceListFactory) {
 
 func multiplyResource(res int64, multiplier float64) int64 {
 	if multiplier == 1.0 {
-		// avoid rounding error in the simple case
+		// Avoid rounding error in the simple case.
 		return res
 	}
+
+	// Return max int64 if multiplier is infinity.
+	// If res is zero, we assume infinity trumps zero, and return int64 maxValue.
+	// This gives the right behavior when the result is used as a cap,
+	// as an infinity multiplier means "never apply cap".
+	if multiplier == math.Inf(1) {
+		return math.MaxInt64
+	} else if multiplier == math.Inf(-1) {
+		return math.MinInt64
+	}
+
 	return int64(float64(res) * multiplier)
 }

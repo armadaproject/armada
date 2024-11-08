@@ -95,8 +95,3 @@ func (frt *FloatingResourceTypes) SummaryString() string {
 	}
 	return strings.Join(maps.Keys(frt.zeroFloatingResources.Resources), " ")
 }
-
-func (frt *FloatingResourceTypes) isFloatingResource(resourceName string) bool {
-	_, exists := frt.zeroFloatingResources.Resources[resourceName]
-	return exists
-}

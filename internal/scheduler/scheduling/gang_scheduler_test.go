@@ -26,6 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestGangScheduler(t *testing.T) {
@@ -647,7 +648,15 @@ func TestGangScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, nil)
+			constraints := schedulerconstraints.NewSchedulingConstraints(
+				"pool",
+				totalResources,
+				tc.SchedulingConfig,
+				armadaslices.Map(
+					maps.Keys(priorityFactorByQueue),
+					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
+				),
+			)
 			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)

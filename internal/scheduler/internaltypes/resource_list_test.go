@@ -1,6 +1,7 @@
 package internaltypes
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -303,6 +304,22 @@ func TestMultiply(t *testing.T) {
 		testResourceList(factory, "-100", "150Ki"),
 		testResourceList(factory, "400", "-200Ki").Multiply(
 			testResourceFractionList(factory, -0.25, -0.75, 1)))
+}
+
+func TestMultiply_HandlesInfinityCorrectly(t *testing.T) {
+	factory := testFactory()
+
+	result1 := testResourceList(factory, "100", "100Ki").Multiply(testResourceFractionList(factory, 0.75, math.Inf(1), 1))
+	assert.Equal(t, int64(75000), result1.GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(math.MaxInt64), result1.GetByNameZeroIfMissing("memory"))
+
+	result2 := testResourceList(factory, "100", "0").Multiply(testResourceFractionList(factory, 0.75, math.Inf(1), 1))
+	assert.Equal(t, int64(75000), result2.GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(math.MaxInt64), result2.GetByNameZeroIfMissing("memory"))
+
+	result3 := testResourceList(factory, "100", "0").Multiply(testResourceFractionList(factory, 0.75, math.Inf(-1), 1))
+	assert.Equal(t, int64(75000), result3.GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(math.MinInt64), result3.GetByNameZeroIfMissing("memory"))
 }
 
 func TestMultiply_HandlesEmptyCorrectly(t *testing.T) {

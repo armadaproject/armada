@@ -1,6 +1,8 @@
 package constraints
 
 import (
+	"math"
+
 	"github.com/pkg/errors"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -78,8 +80,8 @@ func NewSchedulingConstraints(
 	pool string,
 	totalResources internaltypes.ResourceList,
 	config configuration.SchedulingConfig,
-	queues []*api.Queue) SchedulingConstraints {
-
+	queues []*api.Queue,
+) SchedulingConstraints {
 	cordonedQueues := armadamaps.FromSlice(queues,
 		func(q *api.Queue) string { return q.Name },
 		func(q *api.Queue) bool { return q.Cordoned })
@@ -164,7 +166,6 @@ func calculatePerRoundLimits(
 	pool string,
 	config configuration.SchedulingConfig,
 ) internaltypes.ResourceList {
-
 	if totalResources.IsEmpty() {
 		return totalResources
 	}
@@ -176,7 +177,7 @@ func calculatePerRoundLimits(
 		// Should do util.MergeMaps really but don't want to change existing behaviour.
 		maximumResourceFractionToSchedule = m
 	}
-	return totalResources.Multiply(rlFactory.MakeResourceFractionList(maximumResourceFractionToSchedule, 1.0))
+	return totalResources.Multiply(rlFactory.MakeResourceFractionList(maximumResourceFractionToSchedule, math.Inf(1)))
 }
 
 func calculatePerQueueLimits(
@@ -212,7 +213,7 @@ func calculatePerQueueLimits(
 			if _, ok := limitsPerQueuePerPc[queue.Name]; !ok {
 				limitsPerQueuePerPc[queue.Name] = map[string]internaltypes.ResourceList{}
 			}
-			limitsPerQueuePerPc[queue.Name][pcName] = totalResources.Multiply(rlFactory.MakeResourceFractionList(fractions, 1.0))
+			limitsPerQueuePerPc[queue.Name][pcName] = totalResources.Multiply(rlFactory.MakeResourceFractionList(fractions, math.Inf(1)))
 		}
 	}
 

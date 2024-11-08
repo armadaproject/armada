@@ -64,6 +64,19 @@ func TestRlMapFromJobSchedulerObjects(t *testing.T) {
 	assert.Equal(t, expected, RlMapFromJobSchedulerObjects(input, factory))
 }
 
+func TestRlMapRemoveZeros(t *testing.T) {
+	factory := testFactory()
+
+	input := map[string]ResourceList{
+		"priorityClass1": testResourceList(factory, "1", "0Ki"),
+		"priorityClass2": testResourceList(factory, "0", "0Ki"),
+	}
+	expected := map[string]ResourceList{
+		"priorityClass1": testResourceList(factory, "1", "0Ki"),
+	}
+	assert.Equal(t, expected, RlMapRemoveZeros(input))
+}
+
 func testMapAllPositive(factory *ResourceListFactory) map[string]ResourceList {
 	return map[string]ResourceList{
 		"a": testResourceList(factory, "1", "1Ki"),

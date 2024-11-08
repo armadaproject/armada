@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type testQueueContextChecker struct {
@@ -2059,7 +2060,14 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, nil)
+				constraints := schedulerconstraints.NewSchedulingConstraints(
+					"pool",
+					totalResources,
+					tc.SchedulingConfig,
+					armadaslices.Map(
+						maps.Keys(tc.PriorityFactorByQueue),
+						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
+					))
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,
@@ -2106,7 +2114,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				for queue, qctx := range sctx.QueueSchedulingContexts {
 					m := internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory)
-					assert.Equal(t, m, qctx.AllocatedByPriorityClass)
+					assert.Equal(t, internaltypes.RlMapRemoveZeros(m), internaltypes.RlMapRemoveZeros(qctx.AllocatedByPriorityClass))
 				}
 
 				// Test that jobs are mapped to nodes correctly.
@@ -2410,7 +2418,15 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, nodeDb.TotalKubernetesResources(), tc.SchedulingConfig, nil)
+			constraints := schedulerconstraints.NewSchedulingConstraints(
+				testfixtures.TestPool,
+				nodeDb.TotalKubernetesResources(),
+				tc.SchedulingConfig,
+				armadaslices.Map(
+					maps.Keys(priorityFactorByQueue),
+					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
+				),
+			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,

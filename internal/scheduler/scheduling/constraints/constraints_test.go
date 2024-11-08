@@ -28,7 +28,6 @@ type constraintTest struct {
 }
 
 func TestConstraints(t *testing.T) {
-
 	rlFactory, err := internaltypes.NewResourceListFactory([]configuration.ResourceType{
 		{Name: "cpu"},
 		{Name: "memory"},
@@ -353,7 +352,8 @@ func makeConstraintsTest(constraints SchedulingConstraints, rlFactory *internalt
 					Limiter:   rate.NewLimiter(1e9, 1e6),
 					Allocated: makeResourceList(rlFactory, "30", "1Gi"),
 					AllocatedByPriorityClass: map[string]internaltypes.ResourceList{
-						"priority-class-1": makeResourceList(rlFactory, "20", "1Gi")},
+						"priority-class-1": makeResourceList(rlFactory, "20", "1Gi"),
+					},
 				},
 			},
 			Started: time.Now(),

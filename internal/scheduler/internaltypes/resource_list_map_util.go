@@ -47,3 +47,13 @@ func RlMapFromJobSchedulerObjects(m schedulerobjects.QuantityByTAndResourceType[
 	}
 	return result
 }
+
+func RlMapRemoveZeros(m map[string]ResourceList) map[string]ResourceList {
+	result := map[string]ResourceList{}
+	for k, v := range m {
+		if !v.AllZero() {
+			result[k] = v
+		}
+	}
+	return result
+}
