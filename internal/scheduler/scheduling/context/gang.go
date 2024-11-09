@@ -3,7 +3,7 @@ package context
 import (
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
 type GangSchedulingContext struct {
@@ -11,18 +11,18 @@ type GangSchedulingContext struct {
 	Queue   string
 	GangInfo
 	JobSchedulingContexts     []*JobSchedulingContext
-	TotalResourceRequests     schedulerobjects.ResourceList
+	TotalResourceRequests     internaltypes.ResourceList
 	AllJobsEvicted            bool
 	RequestsFloatingResources bool
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
 	allJobsEvicted := true
-	totalResourceRequests := schedulerobjects.NewResourceList(4)
+	totalResourceRequests := internaltypes.ResourceList{}
 	requestsFloatingResources := false
 	for _, jctx := range jctxs {
 		allJobsEvicted = allJobsEvicted && jctx.IsEvicted
-		totalResourceRequests.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+		totalResourceRequests = totalResourceRequests.Add(jctx.Job.AllResourceRequirements())
 		if jctx.Job.RequestsFloatingResources() {
 			requestsFloatingResources = true
 		}

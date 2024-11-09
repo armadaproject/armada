@@ -22,7 +22,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
@@ -213,7 +212,7 @@ func NewNodeDb(
 		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
 		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:        make(map[uint64]int),
-		totalResources:            internaltypes.ResourceList{},
+		totalResources:            resourceListFactory.MakeAllZero(),
 		db:                        db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
@@ -305,10 +304,10 @@ func (nodeDb *NodeDb) NumNodes() int {
 	return int(nodeDb.numNodes)
 }
 
-func (nodeDb *NodeDb) TotalKubernetesResources() schedulerobjects.ResourceList {
+func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
-	return schedulerobjects.ResourceList{Resources: nodeDb.totalResources.ToMap()}
+	return nodeDb.totalResources
 }
 
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
@@ -341,6 +340,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSche
 		// order to find the best fit for this gang); clear out any remnants of
 		// previous attempts.
 		jctx.UnschedulableReason = ""
+		jctx.PreemptingJobId = ""
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 		if err != nil {
@@ -420,6 +420,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true); err != nil {
 				return nil, err
 			} else {
+				jctx.PodSchedulingContext.SchedulingMethod = context.Rescheduled
 				return node, nil
 			}
 		}
@@ -440,6 +441,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		}
 		if node != nil {
 			pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
+			pctx.SchedulingMethod = context.ScheduledAsAwayJob
 			pctx.ScheduledAway = true
 			return node, nil
 		}
@@ -499,6 +501,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = context.ScheduledWithoutPreemption
 		return node, nil
 	}
 
@@ -522,6 +525,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
 		return node, nil
 	}
 
@@ -535,6 +539,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
 	} else if node != nil {
+		pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
 		return node, nil
 	}
 
@@ -760,6 +765,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			if priority > maxPriority {
 				maxPriority = priority
 			}
+			job.JobSchedulingContext.PreemptingJobId = jctx.JobId
 		}
 
 		selectedNode = nodeCopy

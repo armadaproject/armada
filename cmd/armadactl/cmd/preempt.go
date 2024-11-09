@@ -27,10 +27,10 @@ func preemptCmd() *cobra.Command {
 func preemptJobCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{
-		Use:   "job <queue> <job-set> <job-id>",
+		Use:   "job <queue> <job-set> <job-id> <preempt-reason>",
 		Short: "Preempt an armada job.",
-		Long:  `Preempt a job by providing it's queue, jobset and jobId.`,
-		Args:  cobra.ExactArgs(3),
+		Long:  `Preempt a job by providing it's queue, jobset, jobId and a preemption reason.`,
+		Args:  cobra.ExactArgs(4),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -38,7 +38,8 @@ func preemptJobCmd() *cobra.Command {
 			queue := args[0]
 			jobSetId := args[1]
 			jobId := args[2]
-			return a.Preempt(queue, jobSetId, jobId)
+			reason := args[3]
+			return a.Preempt(queue, jobSetId, jobId, reason)
 		},
 	}
 	return cmd

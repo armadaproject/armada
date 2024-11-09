@@ -470,7 +470,7 @@ func (s *Scheduler) eventsFromSchedulerResult(result *scheduling.SchedulerResult
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, scheduling.PreemptedJobsFromSchedulerResult(result), time)
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, result.PreemptedJobs, time)
 	if err != nil {
 		return nil, err
 	}
@@ -481,22 +481,22 @@ func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Tim
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
-	for _, job := range jobs {
-		run := job.LatestRun()
+func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext, time time.Time) ([]*armadaevents.EventSequence, error) {
+	for _, jctx := range jctxs {
+		run := jctx.Job.LatestRun()
 		if run == nil {
-			return nil, errors.Errorf("attempting to generate preempted eventSequences for job %s with no associated runs", job.Id())
+			return nil, errors.Errorf("attempting to generate preempted eventSequences for job %s with no associated runs", jctx.JobId)
 		}
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
-			Queue:      job.Queue(),
-			JobSetName: job.Jobset(),
-			Events:     createEventsForPreemptedJob(job.Id(), run.Id(), time),
+			Queue:      jctx.Job.Queue(),
+			JobSetName: jctx.Job.Jobset(),
+			Events:     createEventsForPreemptedJob(jctx.JobId, run.Id(), jctx.PreemptionDescription, time),
 		})
 	}
 	return eventSequences, nil
 }
 
-func createEventsForPreemptedJob(jobId string, runId string, time time.Time) []*armadaevents.EventSequence_Event {
+func createEventsForPreemptedJob(jobId string, runId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
 	return []*armadaevents.EventSequence_Event{
 		{
 			Created: protoutil.ToTimestamp(time),
@@ -504,6 +504,7 @@ func createEventsForPreemptedJob(jobId string, runId string, time time.Time) []*
 				JobRunPreempted: &armadaevents.JobRunPreempted{
 					PreemptedRunId: runId,
 					PreemptedJobId: jobId,
+					Reason:         reason,
 				},
 			},
 		},
@@ -517,7 +518,9 @@ func createEventsForPreemptedJob(jobId string, runId string, time time.Time) []*
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_JobRunPreemptedError{
-								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
+									Reason: reason,
+								},
 							},
 						},
 					},
@@ -533,7 +536,9 @@ func createEventsForPreemptedJob(jobId string, runId string, time time.Time) []*
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_JobRunPreemptedError{
-								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
+									Reason: reason,
+								},
 							},
 						},
 					},
@@ -776,7 +781,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
-			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), s.clock.Now())...)
+			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
 		}
 	}
 

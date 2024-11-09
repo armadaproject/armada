@@ -74,14 +74,15 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 	}
 }
 
-func CreatePreemptJobSequenceEvents(jobIds []string) []*armadaevents.EventSequence_Event {
+func CreatePreemptJobSequenceEvents(jobIds []string, reason string) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
 	for i, jobId := range jobIds {
 		events[i] = &armadaevents.EventSequence_Event{
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId: jobId,
+					JobId:  jobId,
+					Reason: reason,
 				},
 			},
 		}

@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type testQueueContextChecker struct {
@@ -2048,17 +2049,25 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
+					queueDemand := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(demandByQueue[queue].Resources)
 					err := sctx.AddQueueSchedulingContext(
 						queue,
 						weight,
-						allocatedByQueueAndPriorityClass[queue],
-						demandByQueue[queue],
-						demandByQueue[queue],
+						internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory),
+						queueDemand,
+						queueDemand,
 						limiterByQueue[queue],
 					)
 					require.NoError(t, err)
 				}
-				constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, nil)
+				constraints := schedulerconstraints.NewSchedulingConstraints(
+					"pool",
+					totalResources,
+					tc.SchedulingConfig,
+					armadaslices.Map(
+						maps.Keys(tc.PriorityFactorByQueue),
+						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
+					))
 				sctx.UpdateFairShares()
 				sch := NewPreemptingQueueScheduler(
 					sctx,
@@ -2104,7 +2113,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 				}
 				for queue, qctx := range sctx.QueueSchedulingContexts {
-					assert.True(t, qctx.AllocatedByPriorityClass.Equal(allocatedByQueueAndPriorityClass[queue]))
+					m := internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory)
+					assert.Equal(t, internaltypes.RlMapRemoveZeros(m), internaltypes.RlMapRemoveZeros(qctx.AllocatedByPriorityClass))
 				}
 
 				// Test that jobs are mapped to nodes correctly.
@@ -2404,11 +2414,19 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]),
-					schedulerobjects.NewResourceList(0), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(map[string]internaltypes.ResourceList),
+					internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 				require.NoError(b, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, nodeDb.TotalKubernetesResources(), tc.SchedulingConfig, nil)
+			constraints := schedulerconstraints.NewSchedulingConstraints(
+				testfixtures.TestPool,
+				nodeDb.TotalKubernetesResources(),
+				tc.SchedulingConfig,
+				armadaslices.Map(
+					maps.Keys(priorityFactorByQueue),
+					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
+				),
+			)
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
@@ -2468,7 +2486,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
 					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue],
-						schedulerobjects.NewResourceList(0), schedulerobjects.NewResourceList(0), limiterByQueue[queue])
+						internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(

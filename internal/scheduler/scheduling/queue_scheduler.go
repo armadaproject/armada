@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
@@ -142,11 +143,11 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			stats.LastGangScheduledQueuePosition = loopNumber
 			queue, queueOK := sch.candidateGangIterator.queueRepository.GetQueue(gctx.Queue)
 			if queueOK {
-				stats.LastGangScheduledResources = gctx.TotalResourceRequests.DeepCopy()
-				stats.LastGangScheduledQueueResources = queue.GetAllocation().DeepCopy()
+				stats.LastGangScheduledResources = gctx.TotalResourceRequests
+				stats.LastGangScheduledQueueResources = queue.GetAllocation()
 			} else {
-				stats.LastGangScheduledResources = schedulerobjects.NewResourceListWithDefaultSize()
-				stats.LastGangScheduledQueueResources = schedulerobjects.NewResourceListWithDefaultSize()
+				stats.LastGangScheduledResources = internaltypes.ResourceList{}
+				stats.LastGangScheduledQueueResources = internaltypes.ResourceList{}
 			}
 		}
 
@@ -179,8 +180,8 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			s.LastGangScheduledSampleJobId,
 			s.LastGangScheduledQueuePosition,
 			s.LastGangScheduledQueueCost,
-			s.LastGangScheduledResources.CompactString(),
-			s.LastGangScheduledQueueResources.CompactString(),
+			s.LastGangScheduledResources.String(),
+			s.LastGangScheduledQueueResources.String(),
 			s.Time.Seconds())
 	}))
 
@@ -331,8 +332,6 @@ type CandidateGangIterator struct {
 	// If, e.g., onlyYieldEvictedByQueue["A"] is true,
 	// this iterator only yields gangs where all jobs are evicted for queue A.
 	onlyYieldEvictedByQueue map[string]bool
-	// Reusable buffer to avoid allocations.
-	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
 	pq QueueCandidateGangIteratorPQ
@@ -350,7 +349,6 @@ func NewCandidateGangIterator(
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
-		buffer:                  schedulerobjects.NewResourceListWithDefaultSize(),
 		pq: QueueCandidateGangIteratorPQ{
 			considerPriority: considerPriority,
 			items:            make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
@@ -485,10 +483,8 @@ func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSc
 	if !ok {
 		return 0, errors.Errorf("unknown queue %s", gangQueue)
 	}
-	it.buffer.Zero()
-	it.buffer.Add(queue.GetAllocation())
-	it.buffer.Add(gctx.TotalResourceRequests)
-	return it.fairnessCostProvider.WeightedCostFromAllocation(it.buffer, queue.GetWeight()), nil
+
+	return it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation().Add(gctx.TotalResourceRequests), queue.GetWeight()), nil
 }
 
 // QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
