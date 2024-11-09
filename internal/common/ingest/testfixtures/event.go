@@ -541,7 +541,7 @@ var CancelOnExecutor = &controlplaneevents.Event{
 var PreemptOnQueue = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_PreemptOnQueue{
 		PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
-			Name:            ExecutorId,
+			Name:            Queue,
 			PriorityClasses: []string{PriorityClassName},
 		},
 	},
