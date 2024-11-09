@@ -536,6 +536,35 @@ var CancelOnExecutor = &controlplaneevents.Event{
 	},
 }
 
+var PreemptOnQueue = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_PreemptOnQueue{
+		PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
+			Name:            ExecutorId,
+			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
+var CancelQueuedOnQueue = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnQueue{
+		CancelOnQueue: &controlplaneevents.CancelOnQueue{
+			Name:            Queue,
+			PriorityClasses: []string{PriorityClassName},
+			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+		},
+	},
+}
+
+var CancelRunningOnQueue = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnQueue{
+		CancelOnQueue: &controlplaneevents.CancelOnQueue{
+			Name:            Queue,
+			PriorityClasses: []string{PriorityClassName},
+			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_RUNNING},
+		},
+	},
+}
+
 func JobSetCancelRequestedWithStateFilter(states ...armadaevents.JobState) *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
 		Created: testfixtures.BasetimeProto,

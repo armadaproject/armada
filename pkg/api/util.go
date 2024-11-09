@@ -217,6 +217,8 @@ func ActiveJobStateFromApiJobState(state JobState) controlplaneevents.ActiveJobS
 		return controlplaneevents.ActiveJobState_QUEUED
 	case JobState_LEASED:
 		return controlplaneevents.ActiveJobState_LEASED
+	case JobState_PENDING:
+		return controlplaneevents.ActiveJobState_PENDING
 	case JobState_RUNNING:
 		return controlplaneevents.ActiveJobState_RUNNING
 	}

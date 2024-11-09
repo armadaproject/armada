@@ -7,7 +7,6 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/utils/clock"
@@ -23,8 +22,6 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
-
-var activeApiJobStates = []api.JobState{api.JobState_QUEUED, api.JobState_LEASED, api.JobState_PENDING, api.JobState_RUNNING}
 
 type Server struct {
 	publisher       pulsarutils.Publisher[*controlplaneevents.Event]
@@ -243,7 +240,12 @@ func (s *Server) UncordonQueue(grpcCtx context.Context, req *api.QueueUncordonRe
 }
 
 func isActiveState(state api.JobState) bool {
-	return slices.Contains(activeApiJobStates, state)
+	switch state {
+	case api.JobState_QUEUED, api.JobState_LEASED, api.JobState_PENDING, api.JobState_RUNNING:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) CancelOnQueue(grpcCtx context.Context, req *api.QueueCancelRequest) (*types.Empty, error) {
@@ -303,19 +305,12 @@ func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRe
 		return nil, fmt.Errorf("cannot preempt jobs on queue with empty name")
 	}
 
-	if !armadaslices.AllFunc(req.JobStates, isActiveState) {
-		return nil, fmt.Errorf("provided job states must be non-terminal")
-	}
-
-	activeJobStates := armadaslices.Map(req.JobStates, api.ActiveJobStateFromApiJobState)
-
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_PreemptOnQueue{
 			PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
 				Name:            req.Name,
 				PriorityClasses: req.PriorityClasses,
-				JobStates:       activeJobStates,
 			},
 		},
 	}

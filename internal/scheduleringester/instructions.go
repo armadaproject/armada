@@ -483,7 +483,6 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnQueue(preempt *c
 			preempt.Name: {
 				Name:            preempt.Name,
 				PriorityClasses: preempt.PriorityClasses,
-				JobStates:       preempt.JobStates,
 			},
 		},
 	}, nil

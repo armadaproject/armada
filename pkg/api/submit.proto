@@ -284,8 +284,6 @@ message StreamingQueueMessage{
 message QueuePreemptRequest {
   string name = 1;
   repeated string priorityClasses = 2;
-  // In practice jobs are only preemptible from non-terminal states
-  repeated JobState jobStates = 3;
 }
 
 message QueueCancelRequest {

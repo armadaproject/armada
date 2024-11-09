@@ -91,7 +91,6 @@ type CancelOnExecutor struct {
 type PreemptOnQueue struct {
 	Name            string
 	PriorityClasses []string
-	JobStates       []controlplaneevents.ActiveJobState
 }
 
 type CancelOnQueue struct {

@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 const (
@@ -454,7 +455,9 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 	case PreemptQueue:
 		for _, preemptRequest := range o {
-			jobs, err := queries.SelectAllJobsByQueueAndJobState(ctx, preemptRequest.Name, preemptRequest.JobStates)
+			// Only allocated jobs can be preempted
+			jobStates := []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_LEASED, controlplaneevents.ActiveJobState_PENDING, controlplaneevents.ActiveJobState_RUNNING}
+			jobs, err := queries.SelectAllJobsByQueueAndJobState(ctx, preemptRequest.Name, jobStates)
 			if err != nil {
 				return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
 			}

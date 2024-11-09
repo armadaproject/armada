@@ -56,6 +56,8 @@ type QueueAPI struct {
 	Update   queue.UpdateAPI
 	Cordon   queue.CordonAPI
 	Uncordon queue.UncordonAPI
+	Cancel   queue.CancelAPI
+	Preempt  queue.PreemptAPI
 }
 
 type ExecutorAPI struct {

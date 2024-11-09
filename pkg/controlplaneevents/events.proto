@@ -53,7 +53,6 @@ enum ActiveJobState {
 message PreemptOnQueue {
   string name = 1;
   repeated string priorityClasses = 2;
-  repeated ActiveJobState jobStates = 3;
 }
 
 message CancelOnQueue {

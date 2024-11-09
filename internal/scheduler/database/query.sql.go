@@ -1020,7 +1020,8 @@ func (q *Queries) SelectAllJobsByExecutorAndQueues(ctx context.Context, executor
 
 const selectQueuedJobsByQueue = `-- name: selectQueuedJobsByQueue :many
 SELECT j.*
-WHERE j.queue = $1
+FROM jobs j
+WHERE j.queue = ANY($1::text[])
   AND j.queued = true
 `
 
@@ -1030,7 +1031,7 @@ SELECT j.*
 FROM runs jr
          JOIN jobs j
               ON jr.job_id = j.job_id
-WHERE j.queue = $1
+WHERE j.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = false
   AND jr.succeeded = false
@@ -1044,7 +1045,7 @@ SELECT j.*
 FROM runs jr
          JOIN jobs j
               ON jr.job_id = j.job_id
-WHERE j.queue = $1
+WHERE j.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = true
   AND jr.succeeded = false
@@ -1058,7 +1059,7 @@ SELECT j.*
 FROM runs jr
          JOIN jobs j
               ON jr.job_id = j.job_id
-WHERE j.queue = $1
+WHERE j.queue = ANY($1::text[])
   AND jr.running = true
   AND jr.returned = false
   AND jr.succeeded = false
