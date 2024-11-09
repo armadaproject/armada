@@ -76,6 +76,7 @@ func NewSchedulingContext(
 		QueueSchedulingContexts:  make(map[string]*QueueSchedulingContext),
 		TotalResources:           totalResources,
 		ScheduledResources:       internaltypes.ResourceList{},
+		EvictedResources:         internaltypes.ResourceList{},
 		SchedulingKeyGenerator:   schedulerobjects.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys: make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
@@ -121,6 +122,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Demand:                            demand,
 		CappedDemand:                      cappedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
+		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
 		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
