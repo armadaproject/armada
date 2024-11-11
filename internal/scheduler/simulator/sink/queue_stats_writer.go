@@ -90,12 +90,12 @@ func (j *QueueStatsWriter) Close(ctx *armadacontext.Context) {
 }
 
 func calculateResourceShare(sctx *context.SchedulingContext, qctx *context.QueueSchedulingContext, resource string) float64 {
-	total := sctx.Allocated.Resources[resource]
-	allocated := qctx.Allocated.Resources[resource]
+	total := sctx.Allocated.GetResourceByNameZeroIfMissing(resource)
+	allocated := qctx.Allocated.GetResourceByNameZeroIfMissing(resource)
 	return allocated.AsApproximateFloat64() / total.AsApproximateFloat64()
 }
 
 func allocatedResources(qctx *context.QueueSchedulingContext, resource string) int {
-	allocated := qctx.Allocated.Resources[resource]
+	allocated := qctx.Allocated.GetResourceByNameZeroIfMissing(resource)
 	return int(allocated.AsApproximateFloat64())
 }

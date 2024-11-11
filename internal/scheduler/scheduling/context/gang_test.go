@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -18,12 +17,12 @@ func TestNewGangSchedulingContext(t *testing.T) {
 	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.GangInfo.PriorityClassName)
 	assert.True(
 		t,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
+		testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("2"),
 				"memory": resource.MustParse("8Gi"),
 			},
-		}.Equal(
+		).Equal(
 			gctx.TotalResourceRequests,
 		),
 	)

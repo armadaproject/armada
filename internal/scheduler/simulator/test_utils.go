@@ -13,7 +13,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -86,19 +85,6 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 		MaximumPerQueueSchedulingRate:  math.Inf(1),
 		MaximumPerQueueSchedulingBurst: math.MaxInt,
 	}
-}
-
-// TotalResources returns the total resources available across all nodes in the ClusterSpec.
-func (cs *ClusterSpec) TotalResources() schedulerobjects.ResourceList {
-	total := schedulerobjects.NewResourceListWithDefaultSize()
-	for _, cluster := range cs.Clusters {
-		for _, nt := range cluster.NodeTemplates {
-			for t, q := range nt.TotalResources.Resources {
-				total.AddQuantity(t, constraints.ScaleQuantity(q, float64(nt.Number)))
-			}
-		}
-	}
-	return total
 }
 
 func NodeTemplate32Cpu(n int64) *NodeTemplate {

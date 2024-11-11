@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -25,6 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestGangScheduler(t *testing.T) {
@@ -605,7 +607,9 @@ func TestGangScheduler(t *testing.T) {
 			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
-				tc.TotalResources = nodeDb.TotalKubernetesResources()
+				tc.TotalResources = schedulerobjects.ResourceList{
+					Resources: nodeDb.TotalKubernetesResources().ToMap(),
+				}
 			}
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
@@ -614,8 +618,10 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 
+			totalResources := testfixtures.TestResourceListFactory.FromNodeProto(tc.TotalResources.Resources)
+
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				tc.TotalResources,
+				totalResources,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -626,15 +632,15 @@ func TestGangScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
-				tc.TotalResources,
+				totalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				err := sctx.AddQueueSchedulingContext(
 					queue,
 					priorityFactor,
 					nil,
-					schedulerobjects.NewResourceList(0),
-					schedulerobjects.NewResourceList(0),
+					internaltypes.ResourceList{},
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -642,8 +648,16 @@ func TestGangScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, nil)
-			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources)
+			constraints := schedulerconstraints.NewSchedulingConstraints(
+				"pool",
+				totalResources,
+				tc.SchedulingConfig,
+				armadaslices.Map(
+					maps.Keys(priorityFactorByQueue),
+					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
+				),
+			)
+			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)
 			require.NoError(t, err)
