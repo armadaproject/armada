@@ -292,6 +292,35 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				},
 			}},
 		},
+		"preempt on queue": {
+			event: f.PreemptOnQueue,
+			expected: []DbOperation{PreemptQueue{
+				f.Queue: &PreemptOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
+		"cancel queued on queue": {
+			event: f.CancelQueuedOnQueue,
+			expected: []DbOperation{CancelQueue{
+				f.Queue: &CancelOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+				},
+			}},
+		},
+		"cancel running on queue": {
+			event: f.CancelRunningOnQueue,
+			expected: []DbOperation{CancelQueue{
+				f.Queue: &CancelOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_RUNNING},
+				},
+			}},
+		},
 	}
 
 	for name, tc := range tests {

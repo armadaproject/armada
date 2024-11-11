@@ -414,6 +414,10 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
 	case *controlplaneevents.Event_CancelOnExecutor:
 		operations, err = c.handleCancelOnExecutor(event.GetCancelOnExecutor())
+	case *controlplaneevents.Event_PreemptOnQueue:
+		operations, err = c.handlePreemptOnQueue(event.GetPreemptOnQueue())
+	case *controlplaneevents.Event_CancelOnQueue:
+		operations, err = c.handleCancelOnQueue(event.GetCancelOnQueue())
 	default:
 		log.Errorf("Unknown event of type %T", ev)
 	}
@@ -468,6 +472,29 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnExecutor(cancel *
 				Name:            cancel.Name,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnQueue(preempt *controlplaneevents.PreemptOnQueue) ([]DbOperation, error) {
+	return []DbOperation{
+		PreemptQueue{
+			preempt.Name: {
+				Name:            preempt.Name,
+				PriorityClasses: preempt.PriorityClasses,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handleCancelOnQueue(cancel *controlplaneevents.CancelOnQueue) ([]DbOperation, error) {
+	return []DbOperation{
+		CancelQueue{
+			cancel.Name: {
+				Name:            cancel.Name,
+				PriorityClasses: cancel.PriorityClasses,
+				JobStates:       cancel.JobStates,
 			},
 		},
 	}, nil

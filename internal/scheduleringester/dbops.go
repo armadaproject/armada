@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 type Operation int
@@ -85,6 +86,17 @@ type CancelOnExecutor struct {
 	Name            string
 	Queues          []string
 	PriorityClasses []string
+}
+
+type PreemptOnQueue struct {
+	Name            string
+	PriorityClasses []string
+}
+
+type CancelOnQueue struct {
+	Name            string
+	PriorityClasses []string
+	JobStates       []controlplaneevents.ActiveJobState
 }
 
 // DbOperation captures a generic batch database operation.
@@ -185,6 +197,8 @@ type (
 	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
 	PreemptExecutor        map[string]*PreemptOnExecutor
 	CancelExecutor         map[string]*CancelOnExecutor
+	PreemptQueue           map[string]*PreemptOnQueue
+	CancelQueue            map[string]*CancelOnQueue
 )
 
 type jobSetOperation interface {
@@ -334,6 +348,14 @@ func (pe PreemptExecutor) Merge(_ DbOperation) bool {
 }
 
 func (ce CancelExecutor) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (pq PreemptQueue) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (cq CancelQueue) Merge(_ DbOperation) bool {
 	return false
 }
 
@@ -536,6 +558,30 @@ func (ce CancelExecutor) CanBeAppliedBefore(b DbOperation) bool {
 	return true
 }
 
+func (pq PreemptQueue) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case queueOperation:
+		for queue := range pq {
+			if affectsQueue := op.affectsQueue(queue); affectsQueue {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (cq CancelQueue) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case queueOperation:
+		for queue := range cq {
+			if affectsQueue := op.affectsQueue(queue); affectsQueue {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // definesJobInSet returns true if b is an InsertJobs operation
 // that inserts at least one job in any of the job sets that make
 // up the keys of a.
@@ -684,6 +730,14 @@ func (ce CancelExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (pq PreemptQueue) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (cq CancelQueue) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
 type executorOperation interface {
 	affectsExecutor(string) bool
 }
@@ -705,5 +759,19 @@ func (pe PreemptExecutor) affectsExecutor(executor string) bool {
 
 func (ce CancelExecutor) affectsExecutor(executor string) bool {
 	_, ok := ce[executor]
+	return ok
+}
+
+type queueOperation interface {
+	affectsQueue(string) bool
+}
+
+func (pq PreemptQueue) affectsQueue(queue string) bool {
+	_, ok := pq[queue]
+	return ok
+}
+
+func (cq CancelQueue) affectsQueue(queue string) bool {
+	_, ok := cq[queue]
 	return ok
 }

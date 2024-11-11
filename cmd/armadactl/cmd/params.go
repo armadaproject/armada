@@ -29,6 +29,8 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.QueueAPI.Update = cq.Update(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Cordon = cq.Cordon(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Uncordon = cq.Uncordon(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.QueueAPI.Preempt = cq.Preempt(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.QueueAPI.Cancel = cq.Cancel(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	params.ExecutorAPI.Cordon = ce.CordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.ExecutorAPI.Uncordon = ce.UncordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
