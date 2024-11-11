@@ -13,6 +13,8 @@ message Event {
     ExecutorSettingsDelete executorSettingsDelete = 3;
     PreemptOnExecutor preemptOnExecutor = 4;
     CancelOnExecutor cancelOnExecutor = 5;
+    PreemptOnQueue preemptOnQueue = 6;
+    CancelOnQueue cancelOnQueue = 7;
   }
 }
 
@@ -37,4 +39,24 @@ message CancelOnExecutor {
   string name = 1;
   repeated string queues = 2;
   repeated string priorityClasses = 3;
+}
+
+// A subset of JobState including only non-terminal states
+enum ActiveJobState {
+  UNKNOWN = 0;
+  QUEUED = 1;
+  LEASED = 2;
+  PENDING = 3;
+  RUNNING = 4;
+}
+
+message PreemptOnQueue {
+  string name = 1;
+  repeated string priorityClasses = 2;
+}
+
+message CancelOnQueue {
+  string name = 1;
+  repeated string priorityClasses = 2;
+  repeated ActiveJobState jobStates = 3;
 }

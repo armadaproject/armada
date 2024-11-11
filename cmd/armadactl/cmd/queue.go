@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/slices"
-
 	"github.com/spf13/cobra"
 
+	"github.com/armadaproject/armada/cmd/armadactl/cmd/utils"
 	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -58,7 +58,7 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 				return fmt.Errorf("error reading queue labels: %s", err)
 			}
 
-			labelsAsMap, err := labelSliceAsMap(labels)
+			labelsAsMap, err := utils.LabelSliceAsMap(labels)
 			if err != nil {
 				return fmt.Errorf("error converting queue labels to map: %s", err)
 			}
@@ -144,7 +144,7 @@ func queuesGetCmdWithApp(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, queues []string) error {
-			errs := slices.Filter(slices.Map(queues, queueNameValidation), func(err error) bool { return err != nil })
+			errs := slices.Filter(slices.Map(queues, utils.QueueNameValidation), func(err error) bool { return err != nil })
 			if len(errs) > 0 {
 				return fmt.Errorf("provided queue name invalid: %s", errs[0])
 			}
@@ -225,7 +225,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading queue labels: %s", err)
 			}
 
-			labelsAsMap, err := labelSliceAsMap(labels)
+			labelsAsMap, err := utils.LabelSliceAsMap(labels)
 			if err != nil {
 				return fmt.Errorf("error converting queue labels to map: %s", err)
 			}
