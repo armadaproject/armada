@@ -1,3 +1,5 @@
+import argparse
+from pathlib import Path
 import sys
 
 from armada_client.armada import event_pb2, submit_pb2
@@ -63,15 +65,7 @@ def gen_file(states, classes, jobstates):
     return import_text, states_text, union_text, jobstates_text
 
 
-def write_file(import_text, states_text, union_text, jobstates_text, file):
-    with open(f"{file}", "w", encoding="utf-8") as f:
-        f.write(import_text)
-        f.write(states_text)
-        f.write(jobstates_text)
-        f.write(union_text)
-
-
-def main():
+def main(typings_file: Path):
     states = get_event_states()
     print("Done creating EventStates")
 
@@ -84,13 +78,16 @@ def main():
     import_text, states_text, union_text, jobstates_text = gen_file(
         states, classes, jobstates
     )
-    write_file(import_text, states_text, union_text, jobstates_text, typings_file)
+    typings_file.write_text(import_text + states_text + jobstates_text + union_text)
 
 
 if __name__ == "__main__":
-    # get path to this files location
-    root = f"{sys.path[0]}/../../"
-    typings_file = f"{root}/armada_client/typings.py"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("typings_file", type=Path, help="Path to typings file")
 
-    main()
+    args = parser.parse_args()
+    print(f"{args}")
+    typings_file = args.typings_file or Path("armada_client") / "typings.py"
+    print(f"{typings_file}")
+    main(typings_file)
     sys.exit(0)
