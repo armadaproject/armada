@@ -119,3 +119,7 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2;
 -- name: SetTerminatedTime :exec
 UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2;
 
+-- name: SelectAllExecutorSettings :many
+SELECT * FROM executor_settings;
+
+
