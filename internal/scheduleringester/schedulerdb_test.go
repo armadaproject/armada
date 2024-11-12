@@ -939,15 +939,15 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		filtered := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSettings) bool {
-			_, ok := expected[e.ExecutorId]
+		filtered := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSetting) bool {
+			_, ok := expected[e.ExecutorID]
 			return ok
 		})
 
 		actual := UpsertExecutorSettings{}
 		for _, a := range filtered {
-			actual[a.ExecutorId] = &ExecutorSettingsUpsert{
-				ExecutorID:   a.ExecutorId,
+			actual[a.ExecutorID] = &ExecutorSettingsUpsert{
+				ExecutorID:   a.ExecutorID,
 				Cordoned:     a.Cordoned,
 				CordonReason: a.CordonReason,
 			}
@@ -958,8 +958,8 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		filtered := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSettings) bool {
-			_, ok := expected[e.ExecutorId]
+		filtered := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSetting) bool {
+			_, ok := expected[e.ExecutorID]
 			return ok
 		})
 		assert.Equal(t, 0, len(filtered))
