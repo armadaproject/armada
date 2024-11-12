@@ -100,7 +100,7 @@ func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []string) er
 }
 
 const markJobRunsPreemptRequestedByJobId = `-- name: MarkJobRunsPreemptRequestedByJobId :exec
-UPDATE runs SET preempt_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[])
+UPDATE runs SET preempt_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[]) and cancelled = false and succeeded = false and failed = false
 `
 
 type MarkJobRunsPreemptRequestedByJobIdParams struct {
@@ -142,7 +142,7 @@ func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []string)
 }
 
 const markJobsCancelRequestedById = `-- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[])
+UPDATE jobs SET cancel_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[]) and cancelled = false and succeeded = false and failed = false
 `
 
 type MarkJobsCancelRequestedByIdParams struct {
@@ -157,7 +157,7 @@ func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, arg MarkJobsC
 }
 
 const markJobsCancelRequestedBySetAndQueuedState = `-- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
-UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = $1 and queue = $2 and queued = ANY($3::bool[])
+UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = $1 and queue = $2 and queued = ANY($3::bool[]) and cancelled = false and succeeded = false and failed = false
 `
 
 type MarkJobsCancelRequestedBySetAndQueuedStateParams struct {
@@ -1169,7 +1169,7 @@ func (q *Queries) SetTerminatedTime(ctx context.Context, arg SetTerminatedTimePa
 }
 
 const updateJobPriorityById = `-- name: UpdateJobPriorityById :exec
-UPDATE jobs SET priority = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[])
+UPDATE jobs SET priority = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and cancelled = false and succeeded = false and failed = false
 `
 
 type UpdateJobPriorityByIdParams struct {
@@ -1190,7 +1190,7 @@ func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriori
 }
 
 const updateJobPriorityByJobSet = `-- name: UpdateJobPriorityByJobSet :exec
-UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3
+UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3 and cancelled = false and succeeded = false and failed = false
 `
 
 type UpdateJobPriorityByJobSetParams struct {
