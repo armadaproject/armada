@@ -7,7 +7,7 @@ RUN mkdir /proto
 
 COPY client/python/pyproject.toml /code/pyproject.toml
 
-RUN pip install "/code[test]"
+RUN pip install python-setuptools "/code[test]"
 
 # Creating folders, and files for a project:
 COPY client/python /code
