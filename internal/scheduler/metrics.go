@@ -288,12 +288,32 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 
 	txn := c.jobDb.ReadTxn()
+
+	for _, executorSetting := range executorSettings {
+		if executorSetting.Cordoned {
+			// We may have settings for executors that don't exist in the repository.
+			cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
+				status:    1.0,
+				reason:    executorSetting.CordonReason,
+				setByUser: executorSetting.SetByUser,
+			}
+		} else {
+			cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
+				status:    0.0,
+				reason:    executorSetting.CordonReason,
+				setByUser: executorSetting.SetByUser,
+			}
+		}
+	}
+
 	for _, executor := range executors {
-		// We may not have executorSettings for all known executors, but we still want a cordon status metric for them.
-		cordonedStatusByCluster[executor.Id] = &clusterCordonedStatus{
-			status:    0.0,
-			reason:    "",
-			setByUser: "",
+		if _, statusExists := cordonedStatusByCluster[executor.Id]; !statusExists {
+			// We may not have executorSettings for all known executors, but we still want a cordon status metric for them.
+			cordonedStatusByCluster[executor.Id] = &clusterCordonedStatus{
+				status:    0.0,
+				reason:    "",
+				setByUser: "",
+			}
 		}
 		for _, node := range executor.Nodes {
 			nodePool := node.GetPool()
@@ -305,6 +325,10 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				nodeType: node.ReportingNodeType,
 			}
 
+			if _, ok := schedulableNodeCountByCluster[clusterKey]; !ok {
+				schedulableNodeCountByCluster[clusterKey] = 0
+			}
+
 			awayClusterKeys := make([]clusterMetricKey, 0, len(awayPools))
 			for _, ap := range awayPools {
 				awayClusterKeys = append(awayClusterKeys, clusterMetricKey{
@@ -314,14 +338,20 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				})
 			}
 
-			if !node.Unschedulable {
-				addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
-				schedulableNodeCountByCluster[clusterKey]++
+			nodeResources := node.AvailableArmadaResource()
 
-				// Add available resources to the away cluster pool
-				for _, awayClusterKey := range awayClusterKeys {
-					addToResourceListMap(availableResourceByCluster, awayClusterKey, node.AvailableArmadaResource())
-				}
+			if !node.Unschedulable && cordonedStatusByCluster[executor.Id].status != 1.0 {
+				schedulableNodeCountByCluster[clusterKey]++
+			} else {
+				// We still want to publish these metrics, just with zeroed values
+				nodeResources.Zero()
+			}
+
+			addToResourceListMap(availableResourceByCluster, clusterKey, nodeResources)
+
+			// Add available resources to the away cluster pool
+			for _, awayClusterKey := range awayClusterKeys {
+				addToResourceListMap(availableResourceByCluster, awayClusterKey, nodeResources)
 			}
 			totalNodeCountByCluster[clusterKey]++
 
@@ -379,23 +409,6 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 							}
 						}
 					}
-				}
-			}
-		}
-	}
-
-	for _, executorSetting := range executorSettings {
-		if executorSetting.Cordoned {
-			if cordonedValue, ok := cordonedStatusByCluster[executorSetting.ExecutorId]; ok {
-				cordonedValue.status = 1.0
-				cordonedValue.reason = executorSetting.CordonReason
-				cordonedValue.setByUser = executorSetting.SetByUser
-			} else {
-				// We may have settings for executors that don't exist in the repository.
-				cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
-					status:    1.0,
-					reason:    executorSetting.CordonReason,
-					setByUser: executorSetting.SetByUser,
 				}
 			}
 		}
