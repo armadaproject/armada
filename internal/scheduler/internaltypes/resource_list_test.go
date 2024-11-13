@@ -379,6 +379,29 @@ func TestDivideZeroOnError_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, ResourceFractionList{}, ResourceList{}.DivideZeroOnError(ResourceList{}))
 }
 
+func TestDivideInfOnError(t *testing.T) {
+	factory := testFactory()
+	expected := testResourceFractionList(factory, 0.5, 0.25, math.Inf(1))
+	actual := testResourceList(factory, "2", "2Ki").DivideInfOnError(testResourceList(factory, "4", "8Ki"))
+	assert.Equal(t, expected, actual)
+}
+
+func TestDDivideInfOnError_HandlesZeroDenominatorCorrectly(t *testing.T) {
+	factory := testFactory()
+
+	expected := testResourceFractionList(factory, 2, math.Inf(1), math.Inf(1))
+	actual := testResourceList(factory, "2", "2Ki").DivideInfOnError(testResourceList(factory, "1", "0Ki"))
+	assert.Equal(t, expected, actual)
+}
+
+func TestDivideInfOnError_HandlesEmptyCorrectly(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, ResourceFractionList{}, testResourceList(factory, "1", "1Ki").DivideZeroOnError(ResourceList{}))
+	assert.Equal(t, ResourceFractionList{}, ResourceList{}.DivideInfOnError(testResourceList(factory, "1", "1Ki")))
+	assert.Equal(t, ResourceFractionList{}, ResourceList{}.DivideInfOnError(ResourceList{}))
+}
+
 func TestNegate(t *testing.T) {
 	factory := testFactory()
 
