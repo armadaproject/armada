@@ -37,6 +37,16 @@ func (rfl ResourceFractionList) Max() float64 {
 	return result
 }
 
+func (rfl ResourceFractionList) Min() float64 {
+	result := math.Inf(1)
+	for _, val := range rfl.fractions {
+		if val < result {
+			result = val
+		}
+	}
+	return result
+}
+
 func (rfl ResourceFractionList) GetByName(name string) (float64, error) {
 	if rfl.IsEmpty() {
 		return 0, fmt.Errorf("resource type %s not found as resource fraction list is empty", name)

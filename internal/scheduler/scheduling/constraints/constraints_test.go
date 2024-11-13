@@ -152,7 +152,7 @@ func TestCapResources(t *testing.T) {
 		resources         map[string]internaltypes.ResourceList
 		expectedResources map[string]internaltypes.ResourceList
 	}{
-		"no contraints": {
+		"no constraints": {
 			constraints:       NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{{Name: "queue-1"}}),
 			queue:             "queue-1",
 			resources:         map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi")},
@@ -184,7 +184,7 @@ func TestCapResources(t *testing.T) {
 			}, []*api.Queue{{Name: "queue-1"}}),
 			queue:             "queue-1",
 			resources:         map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "1000", "1000Gi")},
-			expectedResources: map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "100", "900Gi")},
+			expectedResources: map[string]internaltypes.ResourceList{"priority-class-1": makeResourceList(rlFactory, "100", "100Gi")},
 		},
 		"per queue cap": {
 			constraints: NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{

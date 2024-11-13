@@ -156,7 +156,13 @@ func (c *schedulingConstraints) CapResources(queue string, resourcesByPc map[str
 	}
 	cappedResourcesByPc := make(map[string]internaltypes.ResourceList, len(resourcesByPc))
 	for pc, resources := range resourcesByPc {
-		cappedResourcesByPc[pc] = resources.Cap(perQueueLimit[pc])
+		fractions := perQueueLimit[pc].DivideInfOnError(resources)
+		scalingFactor := fractions.Min()
+		if scalingFactor < 1.0 {
+			cappedResourcesByPc[pc] = resources.Scale(scalingFactor)
+		} else {
+			cappedResourcesByPc[pc] = resources
+		}
 	}
 	return cappedResourcesByPc
 }

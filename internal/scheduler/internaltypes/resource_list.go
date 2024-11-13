@@ -263,6 +263,14 @@ func (rl ResourceList) Subtract(other ResourceList) ResourceList {
 	return ResourceList{factory: rl.factory, resources: result}
 }
 
+func (rl ResourceList) Scale(multiplier float64) ResourceList {
+	result := make([]int64, len(rl.resources))
+	for i, r := range rl.resources {
+		result[i] = multiplyResource(r, multiplier)
+	}
+	return ResourceList{factory: rl.factory, resources: result}
+}
+
 func (rl ResourceList) Multiply(multipliers ResourceFractionList) ResourceList {
 	assertSameResourceListFactory(rl.factory, multipliers.factory)
 	if rl.IsEmpty() || multipliers.IsEmpty() {
@@ -274,6 +282,25 @@ func (rl ResourceList) Multiply(multipliers ResourceFractionList) ResourceList {
 		result[i] = multiplyResource(r, multipliers.fractions[i])
 	}
 	return ResourceList{factory: rl.factory, resources: result}
+}
+
+// Divide, return inf on attempt to divide by 0
+func (rl ResourceList) DivideInfOnError(other ResourceList) ResourceFractionList {
+	assertSameResourceListFactory(rl.factory, other.factory)
+	if rl.IsEmpty() || other.IsEmpty() {
+		return ResourceFractionList{}
+	}
+
+	result := make([]float64, len(rl.resources))
+	for i, r := range rl.resources {
+		denom := other.resources[i]
+		if denom != 0 {
+			result[i] = float64(r) / float64(denom)
+		} else {
+			result[i] = math.Inf(1)
+		}
+	}
+	return ResourceFractionList{factory: rl.factory, fractions: result}
 }
 
 // Divide, return 0 on attempt to divide by 0
