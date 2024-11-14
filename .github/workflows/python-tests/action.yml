@@ -21,7 +21,7 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
     # Tox to run tests; build to build the wheel after tests pass
-    - run: pip install tox==4.17.0 build twine setuptools
+    - run: pip install tox==3.27.1 build twine
       shell: bash
     - name: Install Protoc
       uses: arduino/setup-protoc@v3
@@ -45,7 +45,7 @@ runs:
       working-directory: ${{ inputs.path }}
     - name: Build and verify wheel
       run: |
-        python -m build --sdist
+        python -m build --wheel
         twine check dist/*
       shell: bash
       working-directory: ${{ inputs.path }}
