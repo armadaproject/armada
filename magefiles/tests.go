@@ -162,7 +162,7 @@ func Teste2eAirflow() error {
 // Teste2epython runs e2e tests for python client
 func Teste2epython() error {
 	mg.Deps(BuildPython)
-	mg.Deps(CheckForArmadaRunning)
+	// mg.Deps(CheckForArmadaRunning)
 	args := []string{
 		"run",
 		"-v", "${PWD}/client/python:/code",
@@ -172,9 +172,8 @@ func Teste2epython() error {
 		"--entrypoint", "python3",
 		"--network", "kind",
 		"armada-python-client-builder:latest",
-		"-m", "pytest",
-		"-v", "-s",
-		"/code/tests/integration/test_no_auth.py",
+		"-c",
+		"'pip install -e /code && python3 -m pytest -v -s /code/tests/integration/test_no_auth.py'",
 	}
 
 	return dockerRun(args...)
