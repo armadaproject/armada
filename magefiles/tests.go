@@ -169,10 +169,12 @@ func Teste2epython() error {
 		"--workdir", "/code",
 		"-e", "ARMADA_SERVER=server",
 		"-e", "ARMADA_PORT=50051",
+		"--entrypoint", "python3",
 		"--network", "kind",
 		"armada-python-client-builder:latest",
-		"-c",
-		"pip install -e . && python3 -m pytest -v -s /code/tests/integration/test_no_auth.py",
+		"-m", "pytest",
+		"-v", "-s",
+		"/code/tests/integration/test_no_auth.py",
 	}
 
 	return dockerRun(args...)

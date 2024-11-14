@@ -40,4 +40,3 @@ omit = [
 # from: https://mypy.readthedocs.io/en/stable/installed_packages.html#making-pep-561-compatible-packages
 [tool.setuptools.package-data]
 "*" = ["*.pyi", "py.typed", "proto/**/*.proto"]
-
