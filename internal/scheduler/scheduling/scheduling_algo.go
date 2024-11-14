@@ -237,21 +237,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 		healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
 	}
-	nodes := []*internaltypes.Node{}
-	for _, executor := range healthyExecutors {
-		for _, node := range executor.Nodes {
-			if executor.Id != node.Executor {
-				ctx.Errorf("Executor name mismatch: %q != %q", node.Executor, executor.Id)
-				continue
-			}
-			itNode, err := nodeFactory.FromSchedulerObjectsNode(node)
-			if err != nil {
-				ctx.Errorf("Invalid node %s: %v", node.Name, err)
-				continue
-			}
-			nodes = append(nodes, itNode)
-		}
-	}
+
+	nodes := nodeFactory.FromSchedulerObjectsExecutors(healthyExecutors, func(errMes string) {
+		ctx.Error(errMes)
+	})
+
 	homeJobs := jobSchedulingInfo.jobsByPool[pool.Name]
 	awayJobs := []*jobdb.Job{}
 
