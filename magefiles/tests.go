@@ -169,7 +169,6 @@ func Teste2epython() error {
 		"--workdir", "/code",
 		"-e", "ARMADA_SERVER=server",
 		"-e", "ARMADA_PORT=50051",
-		"--entrypoint", "python3",
 		"--network", "kind",
 		"armada-python-client-builder:latest",
 		"-c",
