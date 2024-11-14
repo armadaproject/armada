@@ -302,7 +302,7 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			m.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
 
 			for _, r := range s.EvictedResources.GetResources() {
-				m.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.Value))
+				m.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
 	}
