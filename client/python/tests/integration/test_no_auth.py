@@ -214,3 +214,7 @@ def test_get_job_events_stream(client: ArmadaClient, queue_name):
         found_event = True
         break
     assert found_event
+
+
+def test_assert_fails():
+    assert False
