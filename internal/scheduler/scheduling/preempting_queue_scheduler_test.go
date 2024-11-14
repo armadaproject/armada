@@ -1920,7 +1920,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
-			allocatedByQueueAndPriorityClass := make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
+			allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 			nodeIdByJobId := make(map[string]string)
 			var jobIdsByGangId map[string]map[string]bool
 			var gangIdByJobId map[string]string
@@ -1941,7 +1941,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				)
 			}
 
-			demandByQueue := map[string]schedulerobjects.ResourceList{}
+			demandByQueue := map[string]internaltypes.ResourceList{}
 
 			// Run the scheduler.
 			cordonedNodes := map[int]bool{}
@@ -1978,12 +1978,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						queuedJobs = append(queuedJobs, job.WithQueued(true))
 						roundByJobId[job.Id()] = i
 						indexByJobId[job.Id()] = j
-						r, ok := demandByQueue[job.Queue()]
-						if !ok {
-							r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
-							demandByQueue[job.Queue()] = r
-						}
-						r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+						demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Add(job.AllResourceRequirements())
 					}
 				}
 				err = jobDbTxn.Upsert(queuedJobs)
@@ -2005,12 +2000,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								delete(gangIdByJobId, job.Id())
 								delete(jobIdsByGangId[gangId], job.Id())
 							}
-							r, ok := demandByQueue[job.Queue()]
-							if !ok {
-								r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
-								demandByQueue[job.Queue()] = r
-							}
-							r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+							demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
 						}
 					}
 				}
@@ -2049,11 +2039,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
-					queueDemand := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(demandByQueue[queue].Resources)
+					queueDemand := demandByQueue[queue]
 					err := sctx.AddQueueSchedulingContext(
 						queue,
 						weight,
-						internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory),
+						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
 						queueDemand,
 						limiterByQueue[queue],
@@ -2092,28 +2082,22 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					job := jctx.Job
 					m := allocatedByQueueAndPriorityClass[job.Queue()]
 					if m == nil {
-						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						m = make(map[string]internaltypes.ResourceList)
 						allocatedByQueueAndPriorityClass[job.Queue()] = m
 					}
-					m.SubV1ResourceList(
-						job.PriorityClassName(),
-						job.ResourceRequirements().Requests,
-					)
+					m[job.PriorityClassName()] = m[job.PriorityClassName()].Subtract(job.AllResourceRequirements())
 				}
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
 					m := allocatedByQueueAndPriorityClass[job.Queue()]
 					if m == nil {
-						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						m = make(map[string]internaltypes.ResourceList)
 						allocatedByQueueAndPriorityClass[job.Queue()] = m
 					}
-					m.AddV1ResourceList(
-						job.PriorityClassName(),
-						job.ResourceRequirements().Requests,
-					)
+					m[job.PriorityClassName()] = m[job.PriorityClassName()].Add(job.AllResourceRequirements())
 				}
 				for queue, qctx := range sctx.QueueSchedulingContexts {
-					m := internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory)
+					m := allocatedByQueueAndPriorityClass[queue]
 					assert.Equal(t, internaltypes.RlMapRemoveZeros(m), internaltypes.RlMapRemoveZeros(qctx.AllocatedByPriorityClass))
 				}
 
