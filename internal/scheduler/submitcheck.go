@@ -92,13 +92,22 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 		panic(err)
 	}
 
+	nodeFactory := internaltypes.NewNodeFactory(
+		srv.schedulingConfig.IndexedTaints,
+		srv.schedulingConfig.IndexedNodeLabels,
+		srv.resourceListFactory)
+
 	executorsByPoolAndId := map[string]map[string]*executor{}
 	for _, ex := range executors {
-		nodes := ex.GetNodes()
-		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *schedulerobjects.Node) string {
+		nodes := nodeFactory.FromSchedulerObjectsExecutors(
+			[]*schedulerobjects.Executor{ex},
+			func(s string) { ctx.Error(s) })
+
+		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *internaltypes.Node) string {
 			return n.GetPool()
 		})
 		for pool, nodes := range nodesByPool {
+
 			nodeDb, err := srv.constructNodeDb(nodes)
 
 			if _, present := executorsByPoolAndId[pool]; !present {
@@ -115,7 +124,6 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 					WithStacktrace(ctx, err).
 					Warnf("Error constructing nodedb for executor: %s", ex.Id)
 			}
-
 		}
 	}
 	srv.state.Store(&schedulerState{
@@ -264,11 +272,7 @@ poolStart:
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
 }
 
-func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	nodeFactory := internaltypes.NewNodeFactory(srv.schedulingConfig.IndexedTaints,
-		srv.schedulingConfig.IndexedNodeLabels,
-		srv.resourceListFactory)
-
+func (srv *SubmitChecker) constructNodeDb(nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
 		srv.schedulingConfig.IndexedResources,
@@ -284,11 +288,7 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
-		dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
-		if err != nil {
-			return nil, err
-		}
-		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
 			return nil, err
 		}
 	}

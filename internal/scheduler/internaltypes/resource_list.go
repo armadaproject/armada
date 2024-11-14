@@ -24,10 +24,11 @@ type ResourceList struct {
 }
 
 type Resource struct {
-	Name  string
-	Value int64
-	Scale k8sResource.Scale
-	Type  ResourceType
+	Name     string
+	RawValue int64
+	Value    k8sResource.Quantity
+	Scale    k8sResource.Scale
+	Type     ResourceType
 }
 
 func (rl ResourceList) Equal(other ResourceList) bool {
@@ -87,7 +88,7 @@ func (rl ResourceList) GetResourceByNameZeroIfMissing(name string) k8sResource.Q
 		return k8sResource.Quantity{}
 	}
 
-	return *k8sResource.NewScaledQuantity(rl.resources[index], rl.factory.scales[index])
+	return *rl.asQuantity(index)
 }
 
 func (rl ResourceList) GetResources() []Resource {
@@ -98,10 +99,11 @@ func (rl ResourceList) GetResources() []Resource {
 	result := make([]Resource, len(rl.resources))
 	for i, q := range rl.resources {
 		result[i] = Resource{
-			Name:  rl.factory.indexToName[i],
-			Value: q,
-			Scale: rl.factory.scales[i],
-			Type:  rl.factory.types[i],
+			Name:     rl.factory.indexToName[i],
+			RawValue: q,
+			Value:    *rl.asQuantity(i),
+			Scale:    rl.factory.scales[i],
+			Type:     rl.factory.types[i],
 		}
 	}
 	return result

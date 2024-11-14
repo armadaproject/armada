@@ -415,7 +415,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 
 	for _, pool := range c.floatingResourceTypes.AllPools() {
-		totalFloatingResources := c.floatingResourceTypes.GetTotalAvailableForPool(pool)
+		totalFloatingResources := schedulerobjects.ResourceList{Resources: c.floatingResourceTypes.GetTotalAvailableForPoolAsMap(pool)}
 		clusterKey := clusterMetricKey{
 			cluster:  "floating",
 			pool:     pool,
