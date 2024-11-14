@@ -1941,7 +1941,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				)
 			}
 
-			demandByQueue := map[string]schedulerobjects.ResourceList{}
+			demandByQueue := map[string]internaltypes.ResourceList{}
 
 			// Run the scheduler.
 			cordonedNodes := map[int]bool{}
@@ -1978,12 +1978,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						queuedJobs = append(queuedJobs, job.WithQueued(true))
 						roundByJobId[job.Id()] = i
 						indexByJobId[job.Id()] = j
-						r, ok := demandByQueue[job.Queue()]
-						if !ok {
-							r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
-							demandByQueue[job.Queue()] = r
-						}
-						r.AddV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+						demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Add(job.AllResourceRequirements())
 					}
 				}
 				err = jobDbTxn.Upsert(queuedJobs)
@@ -2005,12 +2000,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								delete(gangIdByJobId, job.Id())
 								delete(jobIdsByGangId[gangId], job.Id())
 							}
-							r, ok := demandByQueue[job.Queue()]
-							if !ok {
-								r = schedulerobjects.NewResourceList(len(job.PodRequirements().ResourceRequirements.Requests))
-								demandByQueue[job.Queue()] = r
-							}
-							r.SubV1ResourceList(job.PodRequirements().ResourceRequirements.Requests)
+							demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
 						}
 					}
 				}
@@ -2049,7 +2039,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
-					queueDemand := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(demandByQueue[queue].Resources)
+					queueDemand := demandByQueue[queue]
 					err := sctx.AddQueueSchedulingContext(
 						queue,
 						weight,
