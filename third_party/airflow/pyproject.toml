@@ -4,21 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "armada_airflow"
-version = "1.0.9"
+version = "1.1.0"
 description = "Armada Airflow Operator"
 readme='README.md'
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
 dependencies=[
-    'armada-client==0.3.4',
-    'apache-airflow>=2.6.3',
-    'grpcio==1.58.0',
-    'grpcio-tools==1.58.0',
-    'types-protobuf==4.24.0.1',
+    'armada-client>=0.4.5',
+    'apache-airflow>=2.9.2',
     'kubernetes>=23.6.0',
     'kubernetes_asyncio>=24.2.3',
+    'opentelemetry-proto<=1.27.1', # We need to have compatible protobuf dependency opentelemetry-proto and armada-client
 ]
-requires-python=">=3.8"
+requires-python=">=3.9"
 classifiers=[
     'Programming Language :: Python :: 3',
     'Operating System :: OS Independent',
@@ -42,7 +40,7 @@ include = ["armada_airflow*"]
 
 [tool.black]
 line-length = 88
-target-version = ['py38', 'py39', 'py310']
+target-version = ['py39', 'py310', 'py311', 'py312']
 include = '''
 /(
     armada
