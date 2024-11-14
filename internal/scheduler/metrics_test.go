@@ -308,9 +308,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{},
 			executors: []*schedulerobjects.Executor{executor},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
@@ -387,17 +387,19 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 	node.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 
 	tests := map[string]struct {
-		poolConfig  []configuration.PoolConfig
-		runningJobs []*jobdb.Job
-		nodes       []*schedulerobjects.Node
-		expected    []prometheus.Metric
+		poolConfig       []configuration.PoolConfig
+		runningJobs      []*jobdb.Job
+		nodes            []*schedulerobjects.Node
+		executorSettings []*schedulerobjects.ExecutorSettings
+		expected         []prometheus.Metric
 	}{
 		"No away pools": {
 			poolConfig: []configuration.PoolConfig{
 				{Name: testfixtures.TestPool},
 			},
-			runningJobs: []*jobdb.Job{job},
-			nodes:       []*schedulerobjects.Node{node},
+			runningJobs:      []*jobdb.Job{job},
+			nodes:            []*schedulerobjects.Node{node},
+			executorSettings: []*schedulerobjects.ExecutorSettings{},
 			expected: []prometheus.Metric{
 				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
@@ -413,13 +415,32 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 					AwayPools: []string{testfixtures.TestPool},
 				},
 			},
-			runningJobs: []*jobdb.Job{job},
-			nodes:       []*schedulerobjects.Node{node},
+			runningJobs:      []*jobdb.Job{job},
+			nodes:            []*schedulerobjects.Node{node},
+			executorSettings: []*schedulerobjects.ExecutorSettings{},
 			expected: []prometheus.Metric{
 				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterAvailableCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1"),
+			},
+		},
+		"Cordoned cluster": {
+			poolConfig: []configuration.PoolConfig{
+				{Name: testfixtures.TestPool},
+			},
+			runningJobs: []*jobdb.Job{job},
+			nodes:       []*schedulerobjects.Node{node},
+			executorSettings: []*schedulerobjects.ExecutorSettings{
+				{
+					ExecutorId:   "cluster-1",
+					Cordoned:     true,
+					CordonReason: "bad executor",
+				},
+			},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 			},
 		},
 	}
@@ -446,7 +467,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 
 			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			executorRepository.EXPECT().GetExecutors(ctx).Return(executors, nil)
-			executorRepository.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil)
+			executorRepository.EXPECT().GetExecutorSettings(ctx).Return(tc.executorSettings, nil)
 
 			collector := NewMetricsCollector(
 				jobDb,

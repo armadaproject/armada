@@ -257,8 +257,12 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 }
 
 func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
+	executorId := uuid.NewString()
+	for _, node := range nodes {
+		node.Executor = executorId
+	}
 	return &schedulerobjects.Executor{
-		Id:    uuid.NewString(),
+		Id:    executorId,
 		Pool:  "cpu",
 		Nodes: nodes,
 	}
