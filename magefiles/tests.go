@@ -172,7 +172,7 @@ func Teste2epython() error {
 		"--network", "kind",
 		"armada-python-client-builder:latest",
 		"-c",
-		"'pip install -e /code && python3 -m pytest -v -s /code/tests/integration/test_no_auth.py'",
+		"'pip install -e . && python3 -m pytest -v -s /code/tests/integration/test_no_auth.py'",
 	}
 
 	return dockerRun(args...)
