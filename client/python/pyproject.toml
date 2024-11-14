@@ -1,10 +1,10 @@
 [project]
 name = "armada_client"
-version = "0.4.5"
+version = "0.4.6"
 description = "Armada gRPC API python client"
 readme = "README.md"
-requires-python = ">=3.9"
-dependencies = ["grpcio-tools", "protobuf>3.20,<5.0"]
+requires-python = ">=3.7"
+dependencies = ["grpcio==1.66.1", "grpcio-tools==1.66.1", "mypy-protobuf>=3.2.0", "protobuf>=5.26.1,<6.0dev" ]
 license = { text = "Apache Software License" }
 authors = [{ name = "G-Research Open Source Software", email = "armada@armadaproject.io" }]
 
@@ -12,10 +12,10 @@ authors = [{ name = "G-Research Open Source Software", email = "armada@armadapro
 format = ["black==23.7.0", "flake8==7.0.0", "pylint==2.17.5"]
 # note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
 docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
-test = ["pytest==7.3.1", "pytest-cov", "pytest-asyncio==0.21.1"]
+test = ["pytest==7.3.1", "coverage>=6.5.0", "pytest-asyncio==0.21.1"]
 
 [build-system]
-requires = ["setuptools", "wheel", "grpcio-tools", "mypy-protobuf", "protobuf>3.20,<5.0"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.mypy]
@@ -39,5 +39,4 @@ omit = [
 # py.typed is required for mypy to find type hints in the package
 # from: https://mypy.readthedocs.io/en/stable/installed_packages.html#making-pep-561-compatible-packages
 [tool.setuptools.package-data]
-"*" = ["*.pyi", "py.typed", "proto/**/*.proto"]
-
+"*" = ["*.pyi", "py.typed"]
