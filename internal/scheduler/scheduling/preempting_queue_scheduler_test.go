@@ -1920,7 +1920,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
-			allocatedByQueueAndPriorityClass := make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
+			allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 			nodeIdByJobId := make(map[string]string)
 			var jobIdsByGangId map[string]map[string]bool
 			var gangIdByJobId map[string]string
@@ -2053,7 +2053,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					err := sctx.AddQueueSchedulingContext(
 						queue,
 						weight,
-						internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory),
+						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
 						queueDemand,
 						limiterByQueue[queue],
@@ -2092,28 +2092,22 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					job := jctx.Job
 					m := allocatedByQueueAndPriorityClass[job.Queue()]
 					if m == nil {
-						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						m = make(map[string]internaltypes.ResourceList)
 						allocatedByQueueAndPriorityClass[job.Queue()] = m
 					}
-					m.SubV1ResourceList(
-						job.PriorityClassName(),
-						job.ResourceRequirements().Requests,
-					)
+					m[job.PriorityClassName()] = m[job.PriorityClassName()].Subtract(job.AllResourceRequirements())
 				}
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
 					m := allocatedByQueueAndPriorityClass[job.Queue()]
 					if m == nil {
-						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						m = make(map[string]internaltypes.ResourceList)
 						allocatedByQueueAndPriorityClass[job.Queue()] = m
 					}
-					m.AddV1ResourceList(
-						job.PriorityClassName(),
-						job.ResourceRequirements().Requests,
-					)
+					m[job.PriorityClassName()] = m[job.PriorityClassName()].Add(job.AllResourceRequirements())
 				}
 				for queue, qctx := range sctx.QueueSchedulingContexts {
-					m := internaltypes.RlMapFromJobSchedulerObjects(allocatedByQueueAndPriorityClass[queue], testfixtures.TestResourceListFactory)
+					m := allocatedByQueueAndPriorityClass[queue]
 					assert.Equal(t, internaltypes.RlMapRemoveZeros(m), internaltypes.RlMapRemoveZeros(qctx.AllocatedByPriorityClass))
 				}
 

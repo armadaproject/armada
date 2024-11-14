@@ -218,10 +218,10 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 	)
 	resourcesByQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []*jobdb.Job) schedulerobjects.ResourceList {
-			rv := schedulerobjects.NewResourceListWithDefaultSize()
+		func(jobs []*jobdb.Job) internaltypes.ResourceList {
+			rv := internaltypes.ResourceList{}
 			for _, job := range jobs {
-				rv.AddV1ResourceList(job.ResourceRequirements().Requests)
+				rv = rv.Add(job.AllResourceRequirements())
 			}
 			return rv
 		},
@@ -247,8 +247,8 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 		maps.Keys(jobsByQueue),
 		armadamaps.MapValues(
 			resourcesByQueue,
-			func(rl schedulerobjects.ResourceList) string {
-				return rl.CompactString()
+			func(rl internaltypes.ResourceList) string {
+				return rl.String()
 			},
 		),
 		jobCountPerQueue,

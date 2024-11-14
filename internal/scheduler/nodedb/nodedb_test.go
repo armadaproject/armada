@@ -12,7 +12,6 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -132,8 +131,6 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	request := job.KubernetesResourceRequirements()
-	requestInternalRl, err := nodeDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(job.ResourceRequirements().Requests))
-	assert.Nil(t, err)
 
 	jobId := job.Id()
 
@@ -177,14 +174,14 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{jobId: requestInternalRl},
+			map[string]internaltypes.ResourceList{jobId: request},
 			boundNode.AllocatedByJobId,
 		),
 	)
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{jobId: requestInternalRl},
+			map[string]internaltypes.ResourceList{jobId: request},
 			evictedNode.AllocatedByJobId,
 		),
 	)

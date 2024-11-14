@@ -4,7 +4,6 @@ import (
 	"os"
 
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -77,10 +76,10 @@ func (j *JobWriter) createJobRunRow(st *model.StateTransition) ([]*JobRunRow, er
 		associatedJob := jobsList[i]
 		if event.GetCancelledJob() != nil || event.GetJobSucceeded() != nil || event.GetJobRunPreempted() != nil {
 			// Resource requirements
-			cpuLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceCPU]
-			memoryLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceMemory]
-			ephemeralStorageLimit := associatedJob.ResourceRequirements().Requests[v1.ResourceEphemeralStorage]
-			gpuLimit := associatedJob.ResourceRequirements().Requests["nvidia.com/gpu"]
+			cpuLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("cpu")
+			memoryLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("memory")
+			ephemeralStorageLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("ephemeral-storage")
+			gpuLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("nvidia.com/gpu")
 			eventTime := protoutil.ToStdTime(event.Created)
 
 			rows = append(rows, &JobRunRow{
