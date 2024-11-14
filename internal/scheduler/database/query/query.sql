@@ -119,3 +119,79 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = $2;
 -- name: SetTerminatedTime :exec
 UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2;
 
+-- name: UpsertExecutorSettings :exec
+INSERT INTO executor_settings (executor_id, cordoned, cordon_reason, set_by_user, set_at_time)
+VALUES (@executor_id::text, @cordoned::boolean, @cordon_reason::text, @set_by_user::text, @set_at_time::timestamptz)
+ON CONFLICT (executor_id) DO UPDATE
+  SET
+    cordoned = excluded.cordoned,
+    cordon_reason = excluded.cordon_reason,
+    set_by_user = excluded.set_by_user,
+    set_at_time = excluded.set_at_time;
+
+-- name: DeleteExecutorSettings :exec
+DELETE FROM executor_settings WHERE executor_id = @executor_id::text;
+
+-- name: SelectAllExecutorSettings :many
+SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings;
+
+-- name: SelectLatestJobSerial :one
+SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
+
+-- name: SelectLatestJobRunSerial :one
+SELECT serial FROM runs ORDER BY serial DESC LIMIT 1;
+
+-- name: SelectJobsByExecutorAndQueues :many
+SELECT j.*
+FROM runs jr
+       JOIN jobs j
+            ON jr.job_id = j.job_id
+WHERE jr.executor = @executor
+  AND j.queue = ANY(@queues::text[])
+  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
+
+-- name: SelectQueuedJobsByQueue :many
+SELECT j.*
+FROM jobs j
+WHERE j.queue = ANY(@queue::text[])
+  AND j.queued = true;
+
+-- name: SelectLeasedJobsByQueue :many
+SELECT j.*
+FROM runs jr
+       JOIN jobs j
+            ON jr.job_id = j.job_id
+WHERE j.queue = ANY(@queue::text[])
+  AND jr.running = false
+  AND jr.pending = false
+  AND jr.succeeded = false
+  AND jr.failed = false
+  AND jr.cancelled = false
+  AND jr.preempted = false;
+
+-- name: SelectPendingJobsByQueue :many
+SELECT j.*
+FROM runs jr
+       JOIN jobs j
+            ON jr.job_id = j.job_id
+WHERE j.queue = ANY(@queue::text[])
+  AND jr.running = false
+  AND jr.pending = true
+  AND jr.succeeded = false
+  AND jr.failed = false
+  AND jr.cancelled = false
+  AND jr.preempted = false;
+
+-- name: SelectRunningJobsByQueue :many
+SELECT j.*
+FROM runs jr
+       JOIN jobs j
+            ON jr.job_id = j.job_id
+WHERE j.queue = ANY(@queue::text[])
+  AND jr.running = true
+  AND jr.returned = false
+  AND jr.succeeded = false
+  AND jr.failed = false
+  AND jr.cancelled = false
+  AND jr.preempted = false;
+
