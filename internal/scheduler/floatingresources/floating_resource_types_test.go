@@ -15,28 +15,86 @@ func TestAllPools(t *testing.T) {
 	assert.Equal(t, []string{"cpu", "gpu"}, sut.AllPools())
 }
 
-func TestGetTotalAvailableForPool(t *testing.T) {
-	sut := makeSut(t, makeRlFactory())
-	zero := resource.Quantity{}
-	assert.Equal(t, map[string]resource.Quantity{"floating-resource-1": resource.MustParse("200"), "floating-resource-2": resource.MustParse("300")}, sut.GetTotalAvailableForPool("cpu").Resources)
-	assert.Equal(t, map[string]resource.Quantity{"floating-resource-1": resource.MustParse("100"), "floating-resource-2": zero}, sut.GetTotalAvailableForPool("gpu").Resources)
-	assert.Equal(t, map[string]resource.Quantity{"floating-resource-1": zero, "floating-resource-2": zero}, sut.GetTotalAvailableForPool("some-other-pool").Resources)
+func TestNewFloatingResourceTypes_ErrorsOnDuplicateFloatingResource(t *testing.T) {
+	cfg := []configuration.FloatingResourceConfig{
+		{
+			Name: "floating-resource-1",
+			Pools: []configuration.FloatingResourcePoolConfig{
+				{
+					Name:     "cpu",
+					Quantity: resource.MustParse("200"),
+				},
+			},
+		},
+		{
+			Name: "floating-resource-1",
+			Pools: []configuration.FloatingResourcePoolConfig{
+				{
+					Name:     "gpu",
+					Quantity: resource.MustParse("300"),
+				},
+			},
+		},
+	}
+
+	frt, err := NewFloatingResourceTypes(cfg, makeRlFactory())
+	assert.Nil(t, frt)
+	assert.NotNil(t, err)
 }
 
-func TestGetTotalAvailableForPoolInternalTypes(t *testing.T) {
+func TestNewFloatingResourceTypes_ErrorsOnDuplicatePool(t *testing.T) {
+	cfg := []configuration.FloatingResourceConfig{
+		{
+			Name: "floating-resource-1",
+			Pools: []configuration.FloatingResourcePoolConfig{
+				{
+					Name:     "cpu",
+					Quantity: resource.MustParse("200"),
+				}, {
+					Name:     "cpu",
+					Quantity: resource.MustParse("200"),
+				},
+			},
+		},
+	}
+
+	frt, err := NewFloatingResourceTypes(cfg, makeRlFactory())
+	assert.Nil(t, frt)
+	assert.NotNil(t, err)
+}
+
+func TestGetTotalAvailableForPool(t *testing.T) {
 	sut := makeSut(t, makeRlFactory())
 
-	cpuPool := sut.GetTotalAvailableForPoolInternalTypes("cpu")
+	cpuPool := sut.GetTotalAvailableForPool("cpu")
 	assert.Equal(t, int64(200000), cpuPool.GetByNameZeroIfMissing("floating-resource-1"))
 	assert.Equal(t, int64(300000), cpuPool.GetByNameZeroIfMissing("floating-resource-2"))
 
-	gpuPool := sut.GetTotalAvailableForPoolInternalTypes("gpu")
+	gpuPool := sut.GetTotalAvailableForPool("gpu")
 	assert.Equal(t, int64(100000), gpuPool.GetByNameZeroIfMissing("floating-resource-1"))
 	assert.Equal(t, int64(0), gpuPool.GetByNameZeroIfMissing("floating-resource-2"))
 
-	notFound := sut.GetTotalAvailableForPoolInternalTypes("some-invalid-value")
-	assert.Equal(t, int64(0), notFound.GetByNameZeroIfMissing("floating-resource-1"))
-	assert.Equal(t, int64(0), notFound.GetByNameZeroIfMissing("floating-resource-2"))
+	notFound := sut.GetTotalAvailableForPool("some-invalid-value")
+	assert.True(t, notFound.IsEmpty())
+}
+
+func TestGetTotalAvailableForPoolAsMap(t *testing.T) {
+	sut := makeSut(t, makeRlFactory())
+
+	cpuPool := sut.GetTotalAvailableForPoolAsMap("cpu")
+	assert.Equal(t, map[string]resource.Quantity{
+		"floating-resource-1": *resource.NewMilliQuantity(200000, resource.DecimalSI),
+		"floating-resource-2": *resource.NewMilliQuantity(300000, resource.DecimalSI),
+	}, cpuPool)
+
+	gpuPool := sut.GetTotalAvailableForPoolAsMap("gpu")
+	assert.Equal(t, map[string]resource.Quantity{
+		"floating-resource-1": *resource.NewMilliQuantity(100000, resource.DecimalSI),
+		"floating-resource-2": *resource.NewMilliQuantity(0, resource.DecimalSI),
+	}, gpuPool)
+
+	notFound := sut.GetTotalAvailableForPoolAsMap("some-invalid-value")
+	assert.Equal(t, map[string]resource.Quantity{}, notFound)
 }
 
 func TestWithinLimits_WhenWithinLimits_ReturnsTrue(t *testing.T) {

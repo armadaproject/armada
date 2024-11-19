@@ -235,7 +235,7 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 		}
 		if time.Now().Unix()-lastLogTime.Unix() >= 5 {
 			ctx.Infof("Simulator time %s", s.time)
-			lastLogTime = s.time
+			lastLogTime = time.Now()
 		}
 		if s.time.After(simTerminationTime) {
 			ctx.Infof("Current simulated time (%s) exceeds runtime deadline (%s). Terminating", s.time, simTerminationTime)
@@ -465,6 +465,8 @@ func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId str
 		} else {
 			annotations[serverconfig.GangNodeUniformityLabelAnnotation] = "armadaproject.io/clusterName"
 		}
+		// Make it so gang jobs end at the same time, this means they don't have a distribution currently
+		jobTemplate.RuntimeDistribution.TailMean = 0
 	}
 
 	return &armadaevents.SubmitJob{

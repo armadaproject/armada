@@ -123,8 +123,8 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	defer outputSink.Close(ctx)
 
 	ctx.Info("Armada simulator")
-	ctx.Infof("ClusterSpec: %v", clusterSpec.Name)
-	ctx.Infof("WorkloadSpecs: %v", workloadSpec.Name)
+	ctx.Infof("ClusterSpec: %v", clusterFile)
+	ctx.Infof("WorkloadSpecs: %v", workloadFile)
 	ctx.Infof("SchedulingConfig: %v", configFile)
 	ctx.Infof("OutputDir: %v", outputDirPath)
 

@@ -1,6 +1,8 @@
 package internaltypes
 
 import (
+	"fmt"
+
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -50,4 +52,23 @@ func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) (*No
 		f.indexedNodeLabels,
 		f.resourceListFactory,
 	)
+}
+
+func (f *NodeFactory) FromSchedulerObjectsExecutors(executors []*schedulerobjects.Executor, errorLogger func(string)) []*Node {
+	result := []*Node{}
+	for _, executor := range executors {
+		for _, node := range executor.GetNodes() {
+			if executor.Id != node.Executor {
+				errorLogger(fmt.Sprintf("Executor name mismatch: %q != %q", node.Executor, executor.Id))
+				continue
+			}
+			itNode, err := f.FromSchedulerObjectsNode(node)
+			if err != nil {
+				errorLogger(fmt.Sprintf("Invalid node %s: %v", node.Name, err))
+				continue
+			}
+			result = append(result, itNode)
+		}
+	}
+	return result
 }
