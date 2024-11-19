@@ -107,7 +107,7 @@ func (r *PostgresExecutorRepository) GetExecutorSettings(ctx *armadacontext.Cont
 	executorSettings := make([]*schedulerobjects.ExecutorSettings, len(results))
 	for i, result := range results {
 		settings := &schedulerobjects.ExecutorSettings{
-			ExecutorId:   result.ExecutorId,
+			ExecutorId:   result.ExecutorID,
 			Cordoned:     result.Cordoned,
 			CordonReason: result.CordonReason,
 			SetByUser:    result.SetByUser,

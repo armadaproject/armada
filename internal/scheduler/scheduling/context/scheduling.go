@@ -42,11 +42,9 @@ type SchedulingContext struct {
 	// Allocated resources across all clusters in this pool
 	Allocated internaltypes.ResourceList
 	// Resources assigned across all queues during this scheduling cycle.
-	ScheduledResources                internaltypes.ResourceList
-	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+	ScheduledResources internaltypes.ResourceList
 	// Resources evicted across all queues during this scheduling cycle.
-	EvictedResources                schedulerobjects.ResourceList
-	EvictedResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+	EvictedResources internaltypes.ResourceList
 	// Total number of successfully scheduled jobs.
 	NumScheduledJobs int
 	// Total number of successfully scheduled gangs.
@@ -71,17 +69,16 @@ func NewSchedulingContext(
 	totalResources internaltypes.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
-		Started:                           time.Now(),
-		Pool:                              pool,
-		FairnessCostProvider:              fairnessCostProvider,
-		Limiter:                           limiter,
-		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
-		TotalResources:                    totalResources,
-		ScheduledResources:                internaltypes.ResourceList{},
-		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
-		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
-		SchedulingKeyGenerator:            schedulerobjects.NewSchedulingKeyGenerator(),
-		UnfeasibleSchedulingKeys:          make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
+		Started:                  time.Now(),
+		Pool:                     pool,
+		FairnessCostProvider:     fairnessCostProvider,
+		Limiter:                  limiter,
+		QueueSchedulingContexts:  make(map[string]*QueueSchedulingContext),
+		TotalResources:           totalResources,
+		ScheduledResources:       internaltypes.ResourceList{},
+		EvictedResources:         internaltypes.ResourceList{},
+		SchedulingKeyGenerator:   schedulerobjects.NewSchedulingKeyGenerator(),
+		UnfeasibleSchedulingKeys: make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
 }
 
@@ -125,8 +122,8 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Demand:                            demand,
 		CappedDemand:                      cappedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
-		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
-		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
+		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
+		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
 		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
 		EvictedJobsById:                   make(map[string]bool),
@@ -221,7 +218,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
 	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.String())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.String())
-	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
+	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.String())
 	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
 	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", sctx.NumEvictedJobs)
@@ -293,12 +290,10 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	}
 	if jctx.IsSuccessful() {
 		if evictedInThisRound {
-			sctx.EvictedResources.SubV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
-			sctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			sctx.EvictedResources = sctx.EvictedResources.Subtract(jctx.Job.AllResourceRequirements())
 			sctx.NumEvictedJobs--
 		} else {
 			sctx.ScheduledResources = sctx.ScheduledResources.Add(jctx.Job.AllResourceRequirements())
-			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
 		sctx.Allocated = sctx.Allocated.Add(jctx.Job.AllResourceRequirements())
@@ -340,14 +335,12 @@ func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error
 	if err != nil {
 		return false, err
 	}
-	rl := jctx.Job.ResourceRequirements().Requests
+
 	if scheduledInThisRound {
 		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
-		sctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), rl)
 		sctx.NumScheduledJobs--
 	} else {
-		sctx.EvictedResources.AddV1ResourceList(rl)
-		sctx.EvictedResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), rl)
+		sctx.EvictedResources = sctx.EvictedResources.Add(jctx.Job.AllResourceRequirements())
 		sctx.NumEvictedJobs++
 	}
 	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())

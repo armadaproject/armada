@@ -10,55 +10,55 @@ import (
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type FloatingResourceTypes struct {
-	zeroFloatingResources schedulerobjects.ResourceList
-	pools                 map[string]*floatingResourcePool
-	rlFactory             *internaltypes.ResourceListFactory
-}
-
-type floatingResourcePool struct {
-	totalResources schedulerobjects.ResourceList
+	floatingResourceLimitsByPool map[string]internaltypes.ResourceList
 }
 
 func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlFactory *internaltypes.ResourceListFactory) (*FloatingResourceTypes, error) {
-	zeroFloatingResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity, len(config))}
-	for _, c := range config {
-		if _, exists := zeroFloatingResources.Resources[c.Name]; exists {
-			return nil, fmt.Errorf("duplicate floating resource %s", c.Name)
-		}
-		zeroFloatingResources.Resources[c.Name] = resource.Quantity{}
+	err := validate(config)
+	if err != nil {
+		return nil, err
 	}
 
-	pools := map[string]*floatingResourcePool{}
+	floatingResourceLimitsByPool := map[string]internaltypes.ResourceList{}
 	for _, fr := range config {
 		for _, poolConfig := range fr.Pools {
-			pool, exists := pools[poolConfig.Name]
-			if !exists {
-				pool = &floatingResourcePool{
-					totalResources: zeroFloatingResources.DeepCopy(),
-				}
-				pools[poolConfig.Name] = pool
-			}
-			existing := pool.totalResources.Resources[fr.Name]
-			if existing.Cmp(resource.Quantity{}) != 0 {
-				return nil, fmt.Errorf("duplicate floating resource %s for pool %s", fr.Name, poolConfig.Name)
-			}
-			pool.totalResources.Resources[fr.Name] = poolConfig.Quantity.DeepCopy()
+			floatingResourceLimitsByPool[poolConfig.Name] = floatingResourceLimitsByPool[poolConfig.Name].Add(
+				rlFactory.FromNodeProto(map[string]resource.Quantity{fr.Name: poolConfig.Quantity}),
+			)
 		}
 	}
 
 	return &FloatingResourceTypes{
-		zeroFloatingResources: zeroFloatingResources,
-		pools:                 pools,
-		rlFactory:             rlFactory,
+		floatingResourceLimitsByPool: floatingResourceLimitsByPool,
 	}, nil
 }
 
+func validate(config []configuration.FloatingResourceConfig) error {
+	floatingResourceNamesSeen := map[string]bool{}
+	for _, c := range config {
+		if _, exists := floatingResourceNamesSeen[c.Name]; exists {
+			return fmt.Errorf("duplicate floating resource %s", c.Name)
+		}
+		floatingResourceNamesSeen[c.Name] = true
+	}
+
+	for _, fr := range config {
+		poolNamesSeen := map[string]bool{}
+		for _, poolConfig := range fr.Pools {
+			if _, exists := poolNamesSeen[poolConfig.Name]; exists {
+				return fmt.Errorf("floating resource %s has duplicate pool %s", fr.Name, poolConfig.Name)
+			}
+			poolNamesSeen[poolConfig.Name] = true
+		}
+	}
+	return nil
+}
+
 func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
-	available := frt.GetTotalAvailableForPoolInternalTypes(poolName)
+	available := frt.GetTotalAvailableForPool(poolName)
 	if available.AllZero() {
 		return false, fmt.Sprintf("floating resources not connfigured for pool %s", poolName)
 	}
@@ -72,26 +72,38 @@ func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated intern
 }
 
 func (frt *FloatingResourceTypes) AllPools() []string {
-	result := maps.Keys(frt.pools)
+	result := maps.Keys(frt.floatingResourceLimitsByPool)
 	slices.Sort(result)
 	return result
 }
 
-func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) schedulerobjects.ResourceList {
-	pool, exists := frt.pools[poolName]
-	if !exists {
-		return frt.zeroFloatingResources.DeepCopy()
+func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) internaltypes.ResourceList {
+	limits, ok := frt.floatingResourceLimitsByPool[poolName]
+	if !ok {
+		return internaltypes.ResourceList{}
 	}
-	return pool.totalResources.DeepCopy()
+	return limits
 }
 
-func (frt *FloatingResourceTypes) GetTotalAvailableForPoolInternalTypes(poolName string) internaltypes.ResourceList {
-	return frt.rlFactory.FromNodeProto(frt.GetTotalAvailableForPool(poolName).Resources)
+func (frt *FloatingResourceTypes) GetTotalAvailableForPoolAsMap(poolName string) map[string]resource.Quantity {
+	limits := frt.GetTotalAvailableForPool(poolName)
+	result := map[string]resource.Quantity{}
+	for _, res := range limits.GetResources() {
+		if res.Type != internaltypes.Floating {
+			continue
+		}
+		result[res.Name] = res.Value
+	}
+	return result
 }
 
 func (frt *FloatingResourceTypes) SummaryString() string {
-	if len(frt.zeroFloatingResources.Resources) == 0 {
+	if len(frt.floatingResourceLimitsByPool) == 0 {
 		return "none"
 	}
-	return strings.Join(maps.Keys(frt.zeroFloatingResources.Resources), " ")
+	poolSummaries := []string{}
+	for _, poolName := range frt.AllPools() {
+		poolSummaries = append(poolSummaries, fmt.Sprintf("%s: (%s)", poolName, frt.floatingResourceLimitsByPool[poolName]))
+	}
+	return strings.Join(poolSummaries, " ")
 }

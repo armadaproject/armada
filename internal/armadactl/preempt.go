@@ -55,3 +55,23 @@ func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasse
 	}
 	return nil
 }
+
+// PreemptOnQueues preempts all jobs on queues matching the provided QueueQueryArgs filter
+func (a *App) PreemptOnQueues(args *QueueQueryArgs, priorityClasses []string, dryRun bool) error {
+	queues, err := a.getAllQueuesAsAPIQueue(args)
+	if err != nil {
+		return errors.Errorf("error fetching queues: %s", err)
+	}
+
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+
+	for _, queue := range queues {
+		fmt.Fprintf(a.Out, "Requesting preemption of jobs matching queue: %s, priorityClasses: %s\n", queue.Name, priorityClassesMsg)
+		if !dryRun {
+			if err := a.Params.QueueAPI.Preempt(queue.Name, priorityClasses); err != nil {
+				return fmt.Errorf("error preempting jobs on queue %s: %s", queue.Name, err)
+			}
+		}
+	}
+	return nil
+}

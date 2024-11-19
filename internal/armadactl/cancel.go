@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/cmd/armadactl/cmd/utils"
 	"github.com/armadaproject/armada/internal/common"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
@@ -70,6 +71,28 @@ func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses
 	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
 	if err := a.Params.ExecutorAPI.CancelOnExecutor(executor, queues, priorityClasses); err != nil {
 		return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
+	}
+	return nil
+}
+
+// CancelOnQueues cancels all jobs on queues matching the provided QueueQueryArgs filter
+func (a *App) CancelOnQueues(args *QueueQueryArgs, priorityClasses []string, jobStates []utils.ActiveJobState, dryRun bool) error {
+	queues, err := a.getAllQueuesAsAPIQueue(args)
+	if err != nil {
+		return errors.Errorf("error fetching queues: %s", err)
+	}
+
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	jobStatesMsg := strings.Join(armadaslices.Map(jobStates, func(s utils.ActiveJobState) string { return s.String() }), ",")
+	apiJobStates := armadaslices.Map(jobStates, utils.ApiJobStateFromActiveJobState)
+
+	for _, queue := range queues {
+		fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching queue: %s, priorityClasses: %s, jobStates: %s\n", queue.Name, priorityClassesMsg, jobStatesMsg)
+		if !dryRun {
+			if err := a.Params.QueueAPI.Cancel(queue.Name, priorityClasses, apiJobStates); err != nil {
+				return fmt.Errorf("error cancelling jobs on queue %s: %s", queue.Name, err)
+			}
+		}
 	}
 	return nil
 }

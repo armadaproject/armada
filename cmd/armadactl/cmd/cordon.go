@@ -3,10 +3,11 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
+	"github.com/armadaproject/armada/cmd/armadactl/cmd/utils"
 	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/armadaproject/armada/internal/common/slices"
-
-	"github.com/spf13/cobra"
 )
 
 func cordon() *cobra.Command {
@@ -43,7 +44,7 @@ func cordonQueues(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, queues []string) error {
-			errs := slices.Filter(slices.Map(queues, queueNameValidation), func(err error) bool { return err != nil })
+			errs := slices.Filter(slices.Map(queues, utils.QueueNameValidation), func(err error) bool { return err != nil })
 			if len(errs) > 0 {
 				return fmt.Errorf("provided queue name invalid: %s", errs[0])
 			}
@@ -94,7 +95,7 @@ func uncordonQueues(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, queues []string) error {
-			errs := slices.Filter(slices.Map(queues, queueNameValidation), func(err error) bool { return err != nil })
+			errs := slices.Filter(slices.Map(queues, utils.QueueNameValidation), func(err error) bool { return err != nil })
 			if len(errs) > 0 {
 				return fmt.Errorf("provided queue name invalid: %s", errs[0])
 			}

@@ -129,7 +129,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		ctx.Infof("Scheduling on pool %s with capacity %s %s",
 			pool,
 			fsctx.nodeDb.TotalKubernetesResources().String(),
-			l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool.Name).String(),
+			l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name).String(),
 		)
 
 		start := time.Now()
@@ -237,21 +237,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 		healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
 	}
-	nodes := []*internaltypes.Node{}
-	for _, executor := range healthyExecutors {
-		for _, node := range executor.Nodes {
-			if executor.Id != node.Executor {
-				ctx.Errorf("Executor name mismatch: %q != %q", node.Executor, executor.Id)
-				continue
-			}
-			itNode, err := nodeFactory.FromSchedulerObjectsNode(node)
-			if err != nil {
-				ctx.Errorf("Invalid node %s: %v", node.Name, err)
-				continue
-			}
-			nodes = append(nodes, itNode)
-		}
-	}
+
+	nodes := nodeFactory.FromSchedulerObjectsExecutors(healthyExecutors, func(errMes string) {
+		ctx.Error(errMes)
+	})
+
 	homeJobs := jobSchedulingInfo.jobsByPool[pool.Name]
 	awayJobs := []*jobdb.Job{}
 
@@ -277,7 +267,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	totalResources := nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool.Name))
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
 
 	schedulingContext, err := l.constructSchedulingContext(
 		pool.Name,
@@ -528,7 +518,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	pool string,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPoolInternalTypes(pool))
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
 
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
