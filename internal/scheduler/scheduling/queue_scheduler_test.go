@@ -16,6 +16,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -476,13 +477,17 @@ func TestQueueScheduler(t *testing.T) {
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+				require.NoError(t, err)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
 				require.NoError(t, err)
 			}
 			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
-				tc.TotalResources = nodeDb.TotalResources()
+				tc.TotalResources = schedulerobjects.ResourceList{
+					Resources: nodeDb.TotalKubernetesResources().ToMap(),
+				}
 			}
 
 			queueNameToQueue := map[string]*api.Queue{}
@@ -497,17 +502,14 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.Id()] = i
 			}
-			legacySchedulerJobs := make([]*jobdb.Job, len(tc.Jobs))
-			for i, job := range tc.Jobs {
-				legacySchedulerJobs[i] = job
-			}
-			jobRepo := NewInMemoryJobRepository()
+			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool)
 			jobRepo.EnqueueMany(
-				context.JobSchedulingContextsFromJobs(legacySchedulerJobs),
+				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
 
+			totalResources := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(tc.TotalResources.Resources)
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				tc.TotalResources,
+				totalResources,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -518,15 +520,18 @@ func TestQueueScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
-				tc.TotalResources,
+				totalResources,
 			)
 			for _, q := range tc.Queues {
 				weight := 1.0 / float64(q.PriorityFactor)
 				err := sctx.AddQueueSchedulingContext(
 					q.Name, weight,
-					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
-					schedulerobjects.NewResourceList(0),
-					schedulerobjects.NewResourceList(0),
+					internaltypes.RlMapFromJobSchedulerObjects(
+						tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
+						testfixtures.TestResourceListFactory,
+					),
+					internaltypes.ResourceList{},
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -534,13 +539,13 @@ func TestQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.NewSchedulingConstraints("pool", tc.TotalResources, tc.SchedulingConfig, tc.Queues)
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, tc.Queues)
 			jobIteratorByQueue := make(map[string]JobContextIterator)
 			for _, q := range tc.Queues {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.MaxQueueLookback)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())

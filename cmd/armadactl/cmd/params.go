@@ -5,6 +5,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/armadaproject/armada/pkg/client"
+	ce "github.com/armadaproject/armada/pkg/client/executor"
 	cq "github.com/armadaproject/armada/pkg/client/queue"
 )
 
@@ -28,6 +29,14 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.QueueAPI.Update = cq.Update(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Cordon = cq.Cordon(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Uncordon = cq.Uncordon(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.QueueAPI.Preempt = cq.Preempt(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.QueueAPI.Cancel = cq.Cancel(client.ExtractCommandlineArmadaApiConnectionDetails)
+
+	params.ExecutorAPI.Cordon = ce.CordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.ExecutorAPI.Uncordon = ce.UncordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
+
+	params.ExecutorAPI.CancelOnExecutor = ce.CancelOnExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.ExecutorAPI.PreemptOnExecutor = ce.PreemptOnExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	return nil
 }

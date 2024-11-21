@@ -1,0 +1,89 @@
+grpcPort: 50051
+httpPort: 8080
+metricsPort: 9000
+corsAllowedOrigins:
+  - http://localhost:3000
+  - http://localhost:8089
+  - http://localhost:10000
+grpcGatewayPath: "/"
+queueCacheRefreshPeriod: 10s
+schedulerApiConnection:
+  armadaUrl: "localhost:50052"
+grpc:
+  keepaliveParams:
+    maxConnectionIdle: 5m
+    time: 120s
+    timeout: 20s
+  keepaliveEnforcementPolicy:
+    minTime: 10s
+    permitWithoutStream: true
+  tls:
+    enabled: false
+eventsApiRedis:
+  addrs:
+    - redis:6379
+  password: ""
+  db: 1
+  poolSize: 1000
+submission:
+  allowedPriorityClassNames:
+    armada-default: true
+    armada-preemptible: true
+    armada-resilient: true
+  defaultPriorityClassName: "armada-default"
+  defaultJobLimits:
+    cpu: "1"
+    memory: "1Gi"
+    ephemeral-storage: "8Gi"
+  defaultJobTolerations:
+    - key: "armadaproject.io/armada"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  defaultJobTolerationsByPriorityClass:
+    armada-default:
+      - key: "armadaproject.io/pc-armada-default"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    armada-preemptible:
+      - key: "armadaproject.io/pc-armada-preemptible"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+  defaultJobTolerationsByResourceRequest:
+    - "nvidia.com/gpu":
+        - key: "armadaproject.io/gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+  maxPodSpecSizeBytes: 65535
+  minJobResources:
+    memory: "1Mi"
+  minTerminationGracePeriod: "1s"
+  maxTerminationGracePeriod: "5m"
+  defaultActiveDeadline: "72h" # 3 days.
+  defaultActiveDeadlineByResourceRequest:
+    nvidia.com/gpu: "336h" # 14 days.
+  assertInitContainersRequestFractionalCpu: true
+pulsar:
+  URL: "pulsar://pulsar:6650"
+  jobsetEventsTopic: "events"
+  controlPlaneEventsTopic: "control-plane"
+  maxConnectionsPerBroker: 1
+  compressionType: zlib
+  compressionLevel: faster
+  maxAllowedEventsPerMessage: 1000
+  maxAllowedMessageSize: 4194304 # 4MB
+  sendTimeout: 5s
+  receiverQueueSize: 100
+postgres:
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: lookout
+    sslmode: disable
+queryapi:
+  maxQueryItems: 500

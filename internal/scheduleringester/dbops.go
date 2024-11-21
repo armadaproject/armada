@@ -7,6 +7,14 @@ import (
 	"golang.org/x/exp/maps"
 
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
+)
+
+type Operation int
+
+const (
+	JobSetOperation       Operation = iota
+	ControlPlaneOperation Operation = iota
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -56,6 +64,41 @@ type JobQueuedStateUpdate struct {
 	QueuedStateVersion int32
 }
 
+type ExecutorSettingsUpsert struct {
+	ExecutorID   string
+	Cordoned     bool
+	CordonReason string
+	SetByUser    string
+	SetAtTime    time.Time
+}
+
+type ExecutorSettingsDelete struct {
+	ExecutorID string
+}
+
+type PreemptOnExecutor struct {
+	Name            string
+	Queues          []string
+	PriorityClasses []string
+}
+
+type CancelOnExecutor struct {
+	Name            string
+	Queues          []string
+	PriorityClasses []string
+}
+
+type PreemptOnQueue struct {
+	Name            string
+	PriorityClasses []string
+}
+
+type CancelOnQueue struct {
+	Name            string
+	PriorityClasses []string
+	JobStates       []controlplaneevents.ActiveJobState
+}
+
 // DbOperation captures a generic batch database operation.
 //
 // There are 5 types of operations:
@@ -64,6 +107,7 @@ type JobQueuedStateUpdate struct {
 // - Job set operations (i.e., modify all jobs and runs in the schedulerdb part of a given job set).
 // - Job operations (i.e., modify particular jobs).
 // - Job run operations (i.e., modify particular runs).
+// - Control Plane Operations (i.e., upsert settings for a given executor)
 //
 // To improve performance, several ops can be merged into a single op if of the same type.
 // To increase the number of ops that can be merged, ops can sometimes be reordered.
@@ -74,6 +118,7 @@ type JobQueuedStateUpdate struct {
 // - Job set operations: if not affecting a job defined in prior op.
 // - Job operations: if not affecting a job defined in a prior op.
 // - Job run operations: if not affecting a run defined in a prior op.
+// - Control Plane Operations: if not conflicting with prior op.
 //
 // In addition, UpdateJobPriorities can never be applied beforee UpdateJobSetPriorities
 // and vice versa, since one may overwrite values set by the other.
@@ -86,6 +131,8 @@ type DbOperation interface {
 	// a.CanBeAppliedBefore(b) returns true if a can be placed before b
 	// without changing the end result of the overall set of operations.
 	CanBeAppliedBefore(DbOperation) bool
+	// GetOperation returns the Operation/grouping that this DbOperation belongs to.
+	GetOperation() Operation
 }
 
 // AppendDbOperation appends a sql operation,
@@ -145,9 +192,16 @@ type (
 	InsertPartitionMarker struct {
 		markers []*schedulerdb.Marker
 	}
+
+	UpsertExecutorSettings map[string]*ExecutorSettingsUpsert
+	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
+	PreemptExecutor        map[string]*PreemptOnExecutor
+	CancelExecutor         map[string]*CancelOnExecutor
+	PreemptQueue           map[string]*PreemptOnQueue
+	CancelQueue            map[string]*CancelOnQueue
 )
 
-type JobSetOperation interface {
+type jobSetOperation interface {
 	AffectsJobSet(queue string, jobSet string) bool
 }
 
@@ -281,7 +335,31 @@ func (a *InsertPartitionMarker) Merge(b DbOperation) bool {
 	return false
 }
 
-// mergeInMap merges an op b into a, provided that b is of the same type as a.
+func (a UpsertExecutorSettings) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (a DeleteExecutorSettings) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (pe PreemptExecutor) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (ce CancelExecutor) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (pq PreemptQueue) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (cq CancelQueue) Merge(_ DbOperation) bool {
+	return false
+}
+
+// MergeInMap merges an op b into a, provided that b is of the same type as a.
 // For example, if a is of type MarkJobSetsCancelRequested, b is only merged if also of type MarkJobSetsCancelRequested.
 // Returns true if the ops were merged and false otherwise.
 func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
@@ -320,7 +398,7 @@ func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	// We don't check for job and run ops here,
 	// since job and run ops can never appear before the corresponding InsertJobs.
 	switch op := b.(type) {
-	case JobSetOperation:
+	case jobSetOperation:
 		for _, job := range a {
 			if op.AffectsJobSet(job.Queue, job.JobSet) {
 				return false
@@ -334,7 +412,7 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	// We don't check for run ops here,
 	// since run ops can never appear before the corresponding InsertRuns.
 	switch op := b.(type) {
-	case JobSetOperation:
+	case jobSetOperation:
 		for _, run := range a {
 			if op.AffectsJobSet(run.Queue, run.DbRun.JobSet) {
 				return false
@@ -430,6 +508,80 @@ func (a MarkJobsValidated) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 
+// Can be applied before another operation only if it relates to a different executor
+func (a UpsertExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Can be applied before another operation only if it relates to a different executor
+func (a DeleteExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (pe PreemptExecutor) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range pe {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (ce CancelExecutor) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range ce {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (pq PreemptQueue) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case queueOperation:
+		for queue := range pq {
+			if affectsQueue := op.affectsQueue(queue); affectsQueue {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (cq CancelQueue) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case queueOperation:
+		for queue := range cq {
+			if affectsQueue := op.affectsQueue(queue); affectsQueue {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // definesJobInSet returns true if b is an InsertJobs operation
 // that inserts at least one job in any of the job sets that make
 // up the keys of a.
@@ -480,4 +632,146 @@ func definesRun[M ~map[string]V, V any](a M, b DbOperation) bool {
 		}
 	}
 	return false
+}
+
+func (a InsertJobs) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a InsertRuns) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a UpdateJobSetPriorities) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkJobSetsCancelRequested) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkJobsCancelRequested) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsForJobPreemptRequested) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a UpdateJobSchedulingInfo) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a UpdateJobQueuedState) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkJobsCancelled) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkJobsSucceeded) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkJobsFailed) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a *UpdateJobPriorities) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsSucceeded) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsFailed) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsRunning) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsPending) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsPreempted) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a InsertJobRunErrors) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkJobsValidated) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a *InsertPartitionMarker) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a UpsertExecutorSettings) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (a DeleteExecutorSettings) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (pe PreemptExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (ce CancelExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (pq PreemptQueue) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+func (cq CancelQueue) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
+type executorOperation interface {
+	affectsExecutor(string) bool
+}
+
+func (a UpsertExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (a DeleteExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (pe PreemptExecutor) affectsExecutor(executor string) bool {
+	_, ok := pe[executor]
+	return ok
+}
+
+func (ce CancelExecutor) affectsExecutor(executor string) bool {
+	_, ok := ce[executor]
+	return ok
+}
+
+type queueOperation interface {
+	affectsQueue(string) bool
+}
+
+func (pq PreemptQueue) affectsQueue(queue string) bool {
+	_, ok := pq[queue]
+	return ok
+}
+
+func (cq CancelQueue) affectsQueue(queue string) bool {
+	_, ok := cq[queue]
+	return ok
 }

@@ -50,8 +50,10 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
-	// Resource requirements of this job stored in efficient form.
-	resourceRequirements internaltypes.ResourceList
+	// All resource requirements, including floating resources, for this job
+	allResourceRequirements internaltypes.ResourceList
+	// Kubernetes (i.e. non-floating) resource requirements of this job
+	kubernetesResourceRequirements internaltypes.ResourceList
 	// Priority class of this job. Populated automatically on job creation.
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
@@ -500,17 +502,22 @@ func (job *Job) Tolerations() []v1.Toleration {
 }
 
 // ResourceRequirements returns the resource requirements of the Job
-// EfficientResourceRequirements below is preferred
-func (job *Job) ResourceRequirements() v1.ResourceRequirements {
+// KubernetesResourceRequirements below is preferred
+func (job *Job) resourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
 	}
 	return v1.ResourceRequirements{}
 }
 
-// EfficientResourceRequirements gets resource requirements as an efficient internaltypes.ResourceList
-func (job *Job) EfficientResourceRequirements() internaltypes.ResourceList {
-	return job.resourceRequirements
+// All resource requirements, including floating resources, for this job
+func (job *Job) AllResourceRequirements() internaltypes.ResourceList {
+	return job.allResourceRequirements
+}
+
+// Kubernetes (i.e. non-floating) resource requirements of this job
+func (job *Job) KubernetesResourceRequirements() internaltypes.ResourceList {
+	return job.kubernetesResourceRequirements
 }
 
 // PodRequirements returns the pod requirements of the Job
@@ -644,8 +651,7 @@ func (job *Job) ValidateResourceRequests() error {
 		return nil
 	}
 
-	resourcesExclFloating := job.jobDb.floatingResourceTypes.RemoveFloatingResources(adapters.K8sResourceListToMap(req))
-	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(resourcesExclFloating)
+	_, err := job.jobDb.resourceListFactory.FromJobResourceListFailOnUnknown(adapters.K8sResourceListToMap(req))
 	return err
 }
 
@@ -780,7 +786,7 @@ func (job *Job) Validated() bool {
 
 // Does this job request any floating resources?
 func (job *Job) RequestsFloatingResources() bool {
-	return job.jobDb.floatingResourceTypes.HasFloatingResources(safeGetRequirements(job.jobSchedulingInfo))
+	return !job.AllResourceRequirements().OfType(internaltypes.Floating).AllZero()
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
@@ -791,7 +797,9 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
-	j.resourceRequirements = job.jobDb.getResourceRequirements(jobSchedulingInfo)
+
+	j.allResourceRequirements = j.jobDb.getResourceRequirements(jobSchedulingInfo)
+	j.kubernetesResourceRequirements = j.allResourceRequirements.OfType(internaltypes.Kubernetes)
 
 	return j, nil
 }
@@ -823,7 +831,7 @@ func SchedulingKeyFromJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job
 		job.NodeSelector(),
 		job.Affinity(),
 		job.Tolerations(),
-		job.ResourceRequirements().Requests,
+		job.resourceRequirements().Requests,
 		job.PriorityClassName(),
 	)
 }

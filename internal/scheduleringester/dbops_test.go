@@ -9,11 +9,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
+	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
-
-const testQueueName = "test"
 
 func TestMerge(t *testing.T) {
 	jobId1 := util.NewULID()
@@ -270,6 +269,26 @@ func TestDbOperationOptimisation(t *testing.T) {
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},        // 1
 			UpdateJobQueuedState{jobIds[1]: &JobQueuedStateUpdate{false, 1}}, // 2
 			UpdateJobQueuedState{jobIds[2]: &JobQueuedStateUpdate{true, 3}},  // 2
+		}},
+		// No merging will occur for the below operations, so len(Ops) == N
+		"UpsertExecutorSettings": {N: 1, Ops: []DbOperation{
+			UpsertExecutorSettings{f.ExecutorId: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+		}},
+		"UpsertExecutorSettings x3, same executors": {N: 3, Ops: []DbOperation{
+			UpsertExecutorSettings{f.ExecutorId: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+			UpsertExecutorSettings{f.ExecutorId2: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId2, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+			UpsertExecutorSettings{f.ExecutorId: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId, Cordoned: false, CordonReason: ""}},
+		}},
+		"UpsertExecutorSettings x3, different executors": {N: 3, Ops: []DbOperation{
+			UpsertExecutorSettings{f.ExecutorId: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+			UpsertExecutorSettings{f.ExecutorId2: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId2, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+			UpsertExecutorSettings{f.ExecutorId3: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId3, Cordoned: false, CordonReason: ""}},
+		}},
+		"DeleteExecutorUpsert, ExecutorSettingsDelete": {N: 4, Ops: []DbOperation{
+			DeleteExecutorSettings{f.ExecutorId: &ExecutorSettingsDelete{ExecutorID: f.ExecutorId}},
+			UpsertExecutorSettings{f.ExecutorId: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+			UpsertExecutorSettings{f.ExecutorId2: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId2, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
+			UpsertExecutorSettings{f.ExecutorId3: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId3, Cordoned: false, CordonReason: ""}},
 		}},
 	}
 	for name, tc := range tests {

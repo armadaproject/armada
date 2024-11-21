@@ -4,19 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "armada_airflow"
-version = "1.0.4"
+version = "1.0.10"
 description = "Armada Airflow Operator"
 readme='README.md'
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
 dependencies=[
-    'armada-client==0.3.4',
+    'armada-client>=0.4.6',
     'apache-airflow>=2.6.3',
-    'grpcio==1.58.0',
-    'grpcio-tools==1.58.0',
     'types-protobuf==4.24.0.1',
     'kubernetes>=23.6.0',
     'kubernetes_asyncio>=24.2.3',
+    'opentelemetry-exporter-otlp>=1.28.1' # We want to force dependency upgrade for transitive Airflow dependency
 ]
 requires-python=">=3.8"
 classifiers=[

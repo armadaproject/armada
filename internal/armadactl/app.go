@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/executor"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
@@ -39,6 +40,7 @@ type App struct {
 type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
 	QueueAPI             *QueueAPI
+	ExecutorAPI          *ExecutorAPI
 }
 
 // QueueAPI struct holds pointers to functions that are called by armadactl.
@@ -54,6 +56,15 @@ type QueueAPI struct {
 	Update   queue.UpdateAPI
 	Cordon   queue.CordonAPI
 	Uncordon queue.UncordonAPI
+	Cancel   queue.CancelAPI
+	Preempt  queue.PreemptAPI
+}
+
+type ExecutorAPI struct {
+	Cordon            executor.CordonAPI
+	Uncordon          executor.UncordonAPI
+	CancelOnExecutor  executor.CancelAPI
+	PreemptOnExecutor executor.PreemptAPI
 }
 
 // New instantiates an App with default parameters, including standard output
@@ -65,5 +76,6 @@ func New() *App {
 		Random: rand.Reader,
 	}
 	app.Params.QueueAPI = &QueueAPI{}
+	app.Params.ExecutorAPI = &ExecutorAPI{}
 	return app
 }

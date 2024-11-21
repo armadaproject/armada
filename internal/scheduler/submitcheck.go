@@ -29,6 +29,7 @@ type schedulingResult struct {
 }
 
 type executor struct {
+	id     string
 	nodeDb *nodedb.NodeDb
 }
 
@@ -91,13 +92,22 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 		panic(err)
 	}
 
+	nodeFactory := internaltypes.NewNodeFactory(
+		srv.schedulingConfig.IndexedTaints,
+		srv.schedulingConfig.IndexedNodeLabels,
+		srv.resourceListFactory)
+
 	executorsByPoolAndId := map[string]map[string]*executor{}
 	for _, ex := range executors {
-		nodes := ex.GetNodes()
-		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *schedulerobjects.Node) string {
+		nodes := nodeFactory.FromSchedulerObjectsExecutors(
+			[]*schedulerobjects.Executor{ex},
+			func(s string) { ctx.Error(s) })
+
+		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *internaltypes.Node) string {
 			return n.GetPool()
 		})
 		for pool, nodes := range nodesByPool {
+
 			nodeDb, err := srv.constructNodeDb(nodes)
 
 			if _, present := executorsByPoolAndId[pool]; !present {
@@ -106,6 +116,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 
 			if err == nil {
 				executorsByPoolAndId[pool][ex.Id] = &executor{
+					id:     ex.Id,
 					nodeDb: nodeDb,
 				}
 			} else {
@@ -113,7 +124,6 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 					WithStacktrace(ctx, err).
 					Warnf("Error constructing nodedb for executor: %s", ex.Id)
 			}
-
 		}
 	}
 	srv.state.Store(&schedulerState{
@@ -184,21 +194,38 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedul
 // TODO: there are a number of things this won't catch:
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
-func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
 	sucessfulPools := map[string]bool{}
 	var sb strings.Builder
-	for pool, executors := range state.executorsByPoolAndId {
-		// If we already know we can schedule on this pool then we are good
-		if sucessfulPools[pool] {
+
+poolStart:
+	for _, pool := range srv.schedulingConfig.Pools {
+
+		if sucessfulPools[pool.Name] {
 			continue
 		}
 
-		for id, ex := range executors {
+		for _, awayPool := range pool.AwayPools {
+			if sucessfulPools[awayPool] {
+				continue poolStart
+			}
+		}
+
+		executors := maps.Values(state.executorsByPoolAndId[pool.Name])
+		for _, awayPool := range pool.AwayPools {
+			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool])...)
+		}
+
+		for _, ex := range executors {
+
+			// copy the gctx here, as we are going to mutate it
+			gctx := copyGangContext(originalGangCtx)
+
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
 
-			sb.WriteString(id)
+			sb.WriteString(ex.id)
 			if err != nil {
 				sb.WriteString(err.Error())
 				sb.WriteString("\n")
@@ -206,7 +233,9 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContex
 			}
 
 			if ok {
-				sucessfulPools[pool] = true
+				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
+					sucessfulPools[pool.Name] = true
+				}
 				continue
 			}
 
@@ -243,7 +272,7 @@ func (srv *SubmitChecker) getSchedulingResult(gctx *context.GangSchedulingContex
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
 }
 
-func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+func (srv *SubmitChecker) constructNodeDb(nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.schedulingConfig.PriorityClasses,
 		srv.schedulingConfig.IndexedResources,
@@ -255,17 +284,28 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 	if err != nil {
 		return nil, err
 	}
+
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
 			return nil, err
 		}
 	}
 	txn.Commit()
+
 	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err
 	}
+
 	return nodeDb, nil
+}
+
+func copyGangContext(gctx *context.GangSchedulingContext) *context.GangSchedulingContext {
+	jctxs := make([]*context.JobSchedulingContext, len(gctx.JobSchedulingContexts))
+	for i, jctx := range gctx.JobSchedulingContexts {
+		jctxs[i] = context.JobSchedulingContextFromJob(jctx.Job)
+	}
+	return context.NewGangSchedulingContext(jctxs)
 }

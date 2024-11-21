@@ -15,6 +15,7 @@ import (
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -63,7 +64,7 @@ type MetricsCollector struct {
 	jobDb                 *jobdb.JobDb
 	queueCache            queue.QueueCache
 	executorRepository    database.ExecutorRepository
-	poolAssigner          PoolAssigner
+	pools                 []configuration.PoolConfig
 	refreshPeriod         time.Duration
 	clock                 clock.WithTicker
 	state                 atomic.Value
@@ -74,7 +75,7 @@ func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueCache queue.QueueCache,
 	executorRepository database.ExecutorRepository,
-	poolAssigner PoolAssigner,
+	pools []configuration.PoolConfig,
 	refreshPeriod time.Duration,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *MetricsCollector {
@@ -82,7 +83,7 @@ func NewMetricsCollector(
 		jobDb:                 jobDb,
 		queueCache:            queueCache,
 		executorRepository:    executorRepository,
-		poolAssigner:          poolAssigner,
+		pools:                 pools,
 		refreshPeriod:         refreshPeriod,
 		clock:                 clock.RealClock{},
 		state:                 atomic.Value{},
@@ -162,11 +163,6 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
 	}
 
-	err = c.poolAssigner.Refresh(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	currentTime := c.clock.Now()
 	for _, job := range c.jobDb.ReadTxn().GetAll() {
 		// Don't calculate metrics for dead jobs
@@ -179,10 +175,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			continue
 		}
 
-		pools, err := c.poolAssigner.AssignPools(job)
-		if err != nil {
-			return nil, err
-		}
+		pools := job.ResolvedPools()
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
 		resourceRequirements := job.JobSchedulingInfo().GetObjectRequirements()[0].GetPodRequirements().GetResourceRequirements().Requests
@@ -262,12 +255,23 @@ type clusterMetricKey struct {
 	nodeType string
 }
 
+type clusterCordonedStatus struct {
+	status    float64
+	reason    string
+	setByUser string
+}
+
 func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
 	executors, err := c.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
 	}
+	executorSettings, err := c.executorRepository.GetExecutorSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
 
+	cordonedStatusByCluster := map[string]*clusterCordonedStatus{}
 	phaseCountByQueue := map[queuePhaseMetricKey]int{}
 	allocatedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
 	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
@@ -276,39 +280,107 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	schedulableNodeCountByCluster := map[clusterMetricKey]int{}
 	totalNodeCountByCluster := map[clusterMetricKey]int{}
 
+	poolToAwayPools := map[string][]string{}
+	for _, poolConfig := range c.pools {
+		for _, ap := range poolConfig.AwayPools {
+			poolToAwayPools[ap] = append(poolToAwayPools[ap], poolConfig.Name)
+		}
+	}
+
 	txn := c.jobDb.ReadTxn()
+
+	for _, executorSetting := range executorSettings {
+		if executorSetting.Cordoned {
+			// We may have settings for executors that don't exist in the repository.
+			cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
+				status:    1.0,
+				reason:    executorSetting.CordonReason,
+				setByUser: executorSetting.SetByUser,
+			}
+		} else {
+			cordonedStatusByCluster[executorSetting.ExecutorId] = &clusterCordonedStatus{
+				status:    0.0,
+				reason:    executorSetting.CordonReason,
+				setByUser: executorSetting.SetByUser,
+			}
+		}
+	}
+
 	for _, executor := range executors {
+		if _, statusExists := cordonedStatusByCluster[executor.Id]; !statusExists {
+			// We may not have executorSettings for all known executors, but we still want a cordon status metric for them.
+			cordonedStatusByCluster[executor.Id] = &clusterCordonedStatus{
+				status:    0.0,
+				reason:    "",
+				setByUser: "",
+			}
+		}
 		for _, node := range executor.Nodes {
-			pool := node.GetPool()
+			nodePool := node.GetPool()
+			awayPools := poolToAwayPools[nodePool]
+
 			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
-				pool:     pool,
+				pool:     nodePool,
 				nodeType: node.ReportingNodeType,
 			}
-			if !node.Unschedulable {
-				addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
-				schedulableNodeCountByCluster[clusterKey]++
+
+			if _, ok := schedulableNodeCountByCluster[clusterKey]; !ok {
+				schedulableNodeCountByCluster[clusterKey] = 0
 			}
-			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
+
+			awayClusterKeys := make([]clusterMetricKey, 0, len(awayPools))
+			for _, ap := range awayPools {
+				awayClusterKeys = append(awayClusterKeys, clusterMetricKey{
+					cluster:  executor.Id,
+					pool:     ap,
+					nodeType: node.ReportingNodeType,
+				})
+			}
+
+			nodeResources := node.AvailableArmadaResource()
+
+			if !node.Unschedulable && cordonedStatusByCluster[executor.Id].status != 1.0 {
+				schedulableNodeCountByCluster[clusterKey]++
+			} else {
+				// We still want to publish these metrics, just with zeroed values
+				nodeResources.Zero()
+			}
+
+			addToResourceListMap(availableResourceByCluster, clusterKey, nodeResources)
+
+			// Add available resources to the away cluster pool
+			for _, awayClusterKey := range awayClusterKeys {
+				addToResourceListMap(availableResourceByCluster, awayClusterKey, nodeResources)
+			}
 			totalNodeCountByCluster[clusterKey]++
 
-			for queueName, resourceUsage := range node.ResourceUsageByQueue {
+			// Add total resources to the home cluster pool
+			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
+
+			// Add total resources to the away cluster pool
+			for _, awayClusterKey := range awayClusterKeys {
+				addToResourceListMap(totalResourceByCluster, awayClusterKey, node.TotalResources)
+			}
+
+			for _, resourceUsageQp := range node.ResourceUsageByQueueAndPool {
 				queueKey := queueMetricKey{
 					cluster:   executor.Id,
-					pool:      pool,
-					queueName: queueName,
+					pool:      resourceUsageQp.Pool,
+					queueName: resourceUsageQp.Queue,
 					nodeType:  node.ReportingNodeType,
 				}
-				addToResourceListMap(usedResourceByQueue, queueKey, *resourceUsage)
+				addToResourceListMap(usedResourceByQueue, queueKey, *resourceUsageQp.Resources)
 			}
 
 			for runId, jobRunState := range node.StateByJobRunId {
 				job := txn.GetByRunId(runId)
-				if job != nil {
+				if job != nil && job.LatestRun() != nil {
+					jobPool := job.LatestRun().Pool()
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := queuePhaseMetricKey{
 						cluster:   executor.Id,
-						pool:      pool,
+						pool:      jobPool,
 						queueName: job.Queue(),
 						nodeType:  node.ReportingNodeType,
 						// Convert to string with first letter capitalised
@@ -318,14 +390,24 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
+						jobRequirements := schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
 						queueKey := queueMetricKey{
 							cluster:       executor.Id,
-							pool:          pool,
+							pool:          jobPool,
 							queueName:     job.Queue(),
 							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
 						}
-						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
+						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements)
+
+						// If the job is running on its home pool, then remove the resources from all the away pools
+						if jobPool == nodePool {
+							schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
+							for _, awayClusterKey := range awayClusterKeys {
+								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements)
+								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements)
+							}
+						}
 					}
 				}
 			}
@@ -333,7 +415,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 
 	for _, pool := range c.floatingResourceTypes.AllPools() {
-		totalFloatingResources := c.floatingResourceTypes.GetTotalAvailableForPool(pool)
+		totalFloatingResources := schedulerobjects.ResourceList{Resources: c.floatingResourceTypes.GetTotalAvailableForPoolAsMap(pool)}
 		clusterKey := clusterMetricKey{
 			cluster:  "floating",
 			pool:     pool,
@@ -373,6 +455,9 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	for k, v := range totalNodeCountByCluster {
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
 	}
+	for cluster, v := range cordonedStatusByCluster {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterCordonedStatus(v.status, cluster, v.reason, v.setByUser))
+	}
 	return clusterMetrics, nil
 }
 
@@ -382,5 +467,14 @@ func addToResourceListMap[K comparable](m map[K]schedulerobjects.ResourceList, k
 	}
 	newValue := m[key]
 	newValue.Add(value)
+	m[key] = newValue
+}
+
+func subtractFromResourceListMap[K comparable](m map[K]schedulerobjects.ResourceList, key K, value schedulerobjects.ResourceList) {
+	if _, exists := m[key]; !exists {
+		m[key] = schedulerobjects.ResourceList{}
+	}
+	newValue := m[key]
+	newValue.Sub(value)
 	m[key] = newValue
 }

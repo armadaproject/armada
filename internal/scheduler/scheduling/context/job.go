@@ -38,7 +38,7 @@ type JobSchedulingContext struct {
 	// We currently require that each job contains exactly one pod spec.
 	PodRequirements *schedulerobjects.PodRequirements
 	// Resource requirements in an efficient internaltypes.ResourceList
-	ResourceRequirements internaltypes.ResourceList
+	KubernetesResourceRequirements internaltypes.ResourceList
 	// Node selectors to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to further constrain where nodes are scheduled,
 	// e.g., to ensure evicted jobs are re-scheduled onto the same node.
@@ -60,6 +60,14 @@ type JobSchedulingContext struct {
 	// This is the node the pod is assigned to.
 	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
 	AssignedNodeId string
+	// Id of job that preempted this pod
+	PreemptingJobId string
+	// Description of the cause of preemption
+	PreemptionDescription string
+}
+
+func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
+	return IsHomeJob(jctx.Job, currentPool)
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -97,6 +105,7 @@ func (jctx *JobSchedulingContext) Fail(unschedulableReason string) {
 	jctx.UnschedulableReason = unschedulableReason
 	if pctx := jctx.PodSchedulingContext; pctx != nil {
 		pctx.NodeId = ""
+		pctx.SchedulingMethod = None
 	}
 }
 
@@ -183,12 +192,12 @@ func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
 		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
 	}
 	return &JobSchedulingContext{
-		Created:              time.Now(),
-		JobId:                job.Id(),
-		Job:                  job,
-		PodRequirements:      job.PodRequirements(),
-		ResourceRequirements: job.EfficientResourceRequirements(),
-		GangInfo:             gangInfo,
+		Created:                        time.Now(),
+		JobId:                          job.Id(),
+		Job:                            job,
+		PodRequirements:                job.PodRequirements(),
+		KubernetesResourceRequirements: job.KubernetesResourceRequirements(),
+		GangInfo:                       gangInfo,
 	}
 }
 
@@ -209,10 +218,10 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 	)
 	resourcesByQueue := armadamaps.MapValues(
 		jobsByQueue,
-		func(jobs []*jobdb.Job) schedulerobjects.ResourceList {
-			rv := schedulerobjects.NewResourceListWithDefaultSize()
+		func(jobs []*jobdb.Job) internaltypes.ResourceList {
+			rv := internaltypes.ResourceList{}
 			for _, job := range jobs {
-				rv.AddV1ResourceList(job.ResourceRequirements().Requests)
+				rv = rv.Add(job.AllResourceRequirements())
 			}
 			return rv
 		},
@@ -238,8 +247,8 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 		maps.Keys(jobsByQueue),
 		armadamaps.MapValues(
 			resourcesByQueue,
-			func(rl schedulerobjects.ResourceList) string {
-				return rl.CompactString()
+			func(rl internaltypes.ResourceList) string {
+				return rl.String()
 			},
 		),
 		jobCountPerQueue,

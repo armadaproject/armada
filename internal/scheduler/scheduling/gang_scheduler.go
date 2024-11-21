@@ -7,9 +7,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
@@ -54,7 +53,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *context.Gan
 	// Here, we evict the memebers of the gang that were not scheduled successfully.
 	for _, jctx := range gctx.JobSchedulingContexts {
 		if !jctx.IsSuccessful() {
-			if _, err := sch.schedulingContext.EvictJob(jctx.Job); err != nil {
+			if _, err := sch.schedulingContext.EvictJob(jctx); err != nil {
 				return err
 			}
 		}
@@ -65,8 +64,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *context.Gan
 func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *context.GangSchedulingContext, gangAddedToSchedulingContext bool, unschedulableReason string) error {
 	// If the job was added to the context, remove it first.
 	if gangAddedToSchedulingContext {
-		failedJobs := slices.Map(gctx.JobSchedulingContexts, func(jctx *context.JobSchedulingContext) *jobdb.Job { return jctx.Job })
-		if _, err := sch.schedulingContext.EvictGang(failedJobs); err != nil {
+		if _, err := sch.schedulingContext.EvictGang(gctx); err != nil {
 			return err
 		}
 	}
@@ -138,7 +136,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
 		// Only perform these checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
-		if ok, unschedulableReason, err = sch.constraints.CheckConstraints(sch.schedulingContext, gctx); err != nil || !ok {
+		if ok, unschedulableReason, err = sch.constraints.CheckJobConstraints(sch.schedulingContext, gctx); err != nil || !ok {
 			return
 		}
 	}
@@ -192,7 +190,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		}
 		if ok {
 			currentFit := gctx.Fit()
-			if currentFit.NumScheduled == gctx.Cardinality() && currentFit.MeanPreemptedAtPriority == float64(nodedb.MinPriority) {
+			if currentFit.NumScheduled == gctx.Cardinality() && currentFit.MeanPreemptedAtPriority == float64(internaltypes.MinPriority) {
 				// Best possible; no need to keep looking.
 				txn.Commit()
 				return true, "", nil

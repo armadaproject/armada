@@ -14,19 +14,17 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 var (
 	lease1                 = createJobRunLease("queue-1", "set-1")
 	lease2                 = createJobRunLease("queue-2", "set-1")
-	id1                    = armadaevents.ProtoUuidFromUuid(uuid.New())
-	id2                    = armadaevents.ProtoUuidFromUuid(uuid.New())
-	id3                    = armadaevents.ProtoUuidFromUuid(uuid.New())
+	id1                    = uuid.NewString()
+	id2                    = uuid.NewString()
+	id3                    = uuid.NewString()
 	defaultClusterIdentity = fake.NewFakeClusterIdentity("cluster-id", "cluster-pool")
 	endMarker              = &executorapi.LeaseStreamMessage{
 		Event: &executorapi.LeaseStreamMessage_End{
@@ -40,29 +38,29 @@ func TestLeaseJobRuns(t *testing.T) {
 	defer cancel()
 	tests := map[string]struct {
 		leaseMessages        []*executorapi.JobRunLease
-		cancelMessages       [][]*armadaevents.Uuid
-		preemptMessages      [][]*armadaevents.Uuid
+		cancelMessages       [][]string
+		preemptMessages      [][]string
 		expectedLeases       []*executorapi.JobRunLease
-		expectedIdsToCancel  []*armadaevents.Uuid
-		expectedIdsToPreempt []*armadaevents.Uuid
+		expectedIdsToCancel  []string
+		expectedIdsToPreempt []string
 	}{
 		"Lease Messages": {
 			leaseMessages:        []*executorapi.JobRunLease{lease1, lease2},
 			expectedLeases:       []*executorapi.JobRunLease{lease1, lease2},
-			expectedIdsToCancel:  []*armadaevents.Uuid{},
-			expectedIdsToPreempt: []*armadaevents.Uuid{},
+			expectedIdsToCancel:  []string{},
+			expectedIdsToPreempt: []string{},
 		},
 		"Cancel Messages": {
-			cancelMessages:       [][]*armadaevents.Uuid{{id1, id2}, {id3}},
+			cancelMessages:       [][]string{{id1, id2}, {id3}},
 			expectedLeases:       []*executorapi.JobRunLease{},
-			expectedIdsToCancel:  []*armadaevents.Uuid{id1, id2, id3},
-			expectedIdsToPreempt: []*armadaevents.Uuid{},
+			expectedIdsToCancel:  []string{id1, id2, id3},
+			expectedIdsToPreempt: []string{},
 		},
 		"Preempt Messages": {
-			preemptMessages:      [][]*armadaevents.Uuid{{id1, id2}, {id3}},
+			preemptMessages:      [][]string{{id1, id2}, {id3}},
 			expectedLeases:       []*executorapi.JobRunLease{},
-			expectedIdsToCancel:  []*armadaevents.Uuid{},
-			expectedIdsToPreempt: []*armadaevents.Uuid{id1, id2, id3},
+			expectedIdsToCancel:  []string{},
+			expectedIdsToPreempt: []string{id1, id2, id3},
 		},
 	}
 
@@ -99,7 +97,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 				RunIdsByState: map[string]api.JobState{"id1": api.JobState_RUNNING},
 			},
 		},
-		UnassignedJobRunIds: []*armadaevents.Uuid{id1},
+		UnassignedJobRunIds: []string{id1},
 		MaxJobsToLease:      uint32(5),
 	}
 
@@ -109,10 +107,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 		Resources:           leaseRequest.AvailableResource.ToProtoMap(),
 		Nodes:               leaseRequest.Nodes,
 		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
-		UnassignedJobRunIdsStr: armadaslices.Map(leaseRequest.UnassignedJobRunIds, func(uuid *armadaevents.Uuid) string {
-			return armadaevents.MustUuidStringFromProtoUuid(uuid)
-		}),
-		MaxJobsToLease: leaseRequest.MaxJobsToLease,
+		MaxJobsToLease:      leaseRequest.MaxJobsToLease,
 	}
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)
@@ -261,8 +256,8 @@ func setup(t *testing.T) (*JobLeaseRequester, *mocks.MockExecutorApiClient, *moc
 
 func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 	leaseMessages []*executorapi.JobRunLease,
-	cancelMessages [][]*armadaevents.Uuid,
-	preemptMessages [][]*armadaevents.Uuid,
+	cancelMessages [][]string,
+	preemptMessages [][]string,
 ) {
 	for _, lease := range leaseMessages {
 		message := &executorapi.LeaseStreamMessage{
@@ -296,7 +291,7 @@ func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 
 func createJobRunLease(queue string, jobSet string) *executorapi.JobRunLease {
 	return &executorapi.JobRunLease{
-		JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+		JobRunId: uuid.NewString(),
 		Queue:    queue,
 		Jobset:   jobSet,
 		User:     "user",

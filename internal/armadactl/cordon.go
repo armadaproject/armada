@@ -67,3 +67,23 @@ func (a *App) UncordonQueues(queryArgs *QueueQueryArgs, dryRun bool) error {
 
 	return nil
 }
+
+func (a *App) UncordonExecutor(executor string) error {
+	fmt.Println("Uncordoning the following executors:")
+	if err := a.Params.ExecutorAPI.Uncordon(executor); err != nil {
+		return fmt.Errorf("error uncordoning executor %s: %s", executor, err)
+	} else {
+		fmt.Printf("%s uncordoned\n", executor)
+	}
+	return nil
+}
+
+func (a *App) CordonExecutor(executor string, cordonReason string) error {
+	fmt.Println("Cordoning the following executors:")
+	if err := a.Params.ExecutorAPI.Cordon(executor, cordonReason); err != nil {
+		return fmt.Errorf("error cordoning executor %s: %s", executor, err)
+	} else {
+		fmt.Printf("%s cordoned\n", executor)
+	}
+	return nil
+}

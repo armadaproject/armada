@@ -12,17 +12,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
 // after validating that the resulting EventSequence is valid.
-func UnmarshalEventSequence(ctx *armadacontext.Context, payload []byte) (*armadaevents.EventSequence, error) {
+func UnmarshalEventSequence(payload []byte) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	err := proto.Unmarshal(payload, sequence)
 	if err != nil {
@@ -64,6 +64,28 @@ func UnmarshalEventSequence(ctx *armadacontext.Context, payload []byte) (*armada
 		return nil, err
 	}
 	return sequence, nil
+}
+
+// UnmarshalControlPlaneEvent returns a ControlPlane Event object contained in a byte buffer
+// after validating that the resulting ControlPlane Event is valid.
+func UnmarshalControlPlaneEvent(payload []byte) (*controlplaneevents.Event, error) {
+	event := &controlplaneevents.Event{}
+	err := proto.Unmarshal(payload, event)
+	if err != nil {
+		err = errors.WithStack(err)
+		return nil, err
+	}
+
+	if event.Event == nil {
+		err = &armadaerrors.ErrInvalidArgument{
+			Name:    "Event",
+			Value:   nil,
+			Message: "no event in controlplane event",
+		}
+		err = errors.WithStack(err)
+		return nil, err
+	}
+	return event, nil
 }
 
 // ShortSequenceString returns a short string representation of an events sequence.
@@ -139,7 +161,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	}
 
 	return &api.Job{
-		Id:       e.JobIdStr,
+		Id:       e.JobId,
 		ClientId: e.DeduplicationId,
 		Queue:    queueName,
 		JobSetId: jobSetName,

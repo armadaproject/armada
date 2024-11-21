@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -44,6 +45,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -74,13 +76,16 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Resource list factory
 	// ////////////////////////////////////////////////////////////////////////
-	resourceListFactory, err := internaltypes.MakeResourceListFactory(config.Scheduling.SupportedResourceTypes)
+	resourceListFactory, err := internaltypes.NewResourceListFactory(
+		config.Scheduling.SupportedResourceTypes,
+		config.Scheduling.ExperimentalFloatingResources,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources, resourceListFactory)
 	if err != nil {
 		return err
 	}
@@ -155,13 +160,20 @@ func Run(config schedulerconfig.Configuration) error {
 	// Executor Api
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
-	apiPublisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
-		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
-		CompressionType:  config.Pulsar.CompressionType,
-		CompressionLevel: config.Pulsar.CompressionLevel,
-		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
+	preProcessor := jobsetevents.NewPreProcessor(config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize)
+	apiPublisher, err := pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
+		pulsarClient,
+		pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
+			CompressionType:  config.Pulsar.CompressionType,
+			CompressionLevel: config.Pulsar.CompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		},
+		preProcessor,
+		jobsetevents.RetrieveKey,
+		config.Pulsar.SendTimeout,
+	)
 	if err != nil {
 		return errors.Wrapf(err, "error creating pulsar publisher for executor api")
 	}
@@ -249,7 +261,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
-		floatingResourceTypes,
 	)
 
 	schedulerMetrics, err := metrics.New(
@@ -287,12 +298,11 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Metrics
 	// ////////////////////////////////////////////////////////////////////////
-	poolAssigner := NewPoolAssigner(executorRepository)
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,
 		executorRepository,
-		poolAssigner,
+		config.Scheduling.Pools,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
 	)

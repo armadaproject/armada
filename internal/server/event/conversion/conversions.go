@@ -81,7 +81,7 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 	}
 
 	submitEvent := &api.JobSubmittedEvent{
-		JobId:    e.JobIdStr,
+		JobId:    e.JobId,
 		JobSetId: jobSet,
 		Queue:    queue,
 		Created:  protoutil.ToTimestamp(time),
@@ -89,7 +89,7 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 	}
 
 	queuedEvent := &api.JobQueuedEvent{
-		JobId:    e.JobIdStr,
+		JobId:    e.JobId,
 		JobSetId: jobSet,
 		Queue:    queue,
 		Created:  protoutil.ToTimestamp(time),
@@ -114,11 +114,12 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 		{
 			Events: &api.EventMessage_Preempting{
 				Preempting: &api.JobPreemptingEvent{
-					JobId:     e.JobIdStr,
+					JobId:     e.JobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
 					Requestor: userId,
+					Reason:    e.Reason,
 				},
 			},
 		},
@@ -130,7 +131,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 		{
 			Events: &api.EventMessage_Cancelling{
 				Cancelling: &api.JobCancellingEvent{
-					JobId:     e.JobIdStr,
+					JobId:     e.JobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
@@ -146,7 +147,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 		{
 			Events: &api.EventMessage_Cancelled{
 				Cancelled: &api.JobCancelledEvent{
-					JobId:     e.JobIdStr,
+					JobId:     e.JobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
@@ -162,7 +163,7 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 		{
 			Events: &api.EventMessage_Reprioritizing{
 				Reprioritizing: &api.JobReprioritizingEvent{
-					JobId:       e.JobIdStr,
+					JobId:       e.JobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
@@ -179,7 +180,7 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 		{
 			Events: &api.EventMessage_Reprioritized{
 				Reprioritized: &api.JobReprioritizedEvent{
-					JobId:       e.JobIdStr,
+					JobId:       e.JobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
@@ -196,7 +197,7 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 		{
 			Events: &api.EventMessage_Leased{
 				Leased: &api.JobLeasedEvent{
-					JobId:     e.JobIdStr,
+					JobId:     e.JobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
@@ -209,7 +210,7 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 
 func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Time, e *armadaevents.JobSucceeded) ([]*api.EventMessage, error) {
 	apiEvent := &api.JobSucceededEvent{
-		JobId:    e.JobIdStr,
+		JobId:    e.JobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
@@ -242,7 +243,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 			event := &api.EventMessage{
 				Events: &api.EventMessage_LeaseExpired{
 					LeaseExpired: &api.JobLeaseExpiredEvent{
-						JobId:    e.JobIdStr,
+						JobId:    e.JobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
@@ -255,7 +256,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 			event := &api.EventMessage{
 				Events: &api.EventMessage_UnableToSchedule{
 					UnableToSchedule: &api.JobUnableToScheduleEvent{
-						JobId:        e.JobIdStr,
+						JobId:        e.JobId,
 						ClusterId:    objectMeta.GetExecutorId(),
 						PodNamespace: objectMeta.GetNamespace(),
 						PodName:      objectMeta.GetName(),
@@ -275,7 +276,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 			event := &api.EventMessage{
 				Events: &api.EventMessage_LeaseReturned{
 					LeaseReturned: &api.JobLeaseReturnedEvent{
-						JobId:        e.JobIdStr,
+						JobId:        e.JobId,
 						JobSetId:     jobSetName,
 						Queue:        queueName,
 						Created:      protoutil.ToTimestamp(time),
@@ -305,7 +306,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 		case *armadaevents.Error_PodError:
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
-					Failed: makeJobFailed(e.JobIdStr, queueName, jobSetName, time, reason),
+					Failed: makeJobFailed(e.JobId, queueName, jobSetName, time, reason),
 				},
 			}
 			events = append(events, event)
@@ -313,11 +314,11 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobIdStr,
+						JobId:    e.JobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
-						Reason:   "preempted",
+						Reason:   reason.JobRunPreemptedError.Reason,
 					},
 				},
 			}
@@ -326,7 +327,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobIdStr,
+						JobId:    e.JobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
@@ -339,7 +340,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobIdStr,
+						JobId:    e.JobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
@@ -352,7 +353,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobIdStr,
+						JobId:    e.JobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
@@ -363,11 +364,11 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			}
 			events = append(events, event)
 		default:
-			log.Warnf("unknown error %T for job %s", reason, e.JobIdStr)
+			log.Warnf("unknown error %T for job %s", reason, e.JobId)
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobIdStr,
+						JobId:    e.JobId,
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
@@ -382,7 +383,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 
 func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunRunning) ([]*api.EventMessage, error) {
 	apiEvent := &api.JobRunningEvent{
-		JobId:    e.JobIdStr,
+		JobId:    e.JobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
@@ -409,7 +410,7 @@ func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Ti
 
 func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunAssigned) ([]*api.EventMessage, error) {
 	apiEvent := &api.JobPendingEvent{
-		JobId:    e.JobIdStr,
+		JobId:    e.JobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
@@ -439,11 +440,12 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
-		JobId:    e.PreemptedJobIdStr,
+		JobId:    e.PreemptedJobId,
 		JobSetId: jobSetName,
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
-		RunId:    e.PreemptedRunIdStr,
+		RunId:    e.PreemptedRunId,
+		Reason:   e.Reason,
 	}
 
 	return []*api.EventMessage{
@@ -457,7 +459,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 
 func FromInternalResourceUtilisation(queueName string, jobSetName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
 	apiEvent := &api.JobUtilisationEvent{
-		JobId:                 e.JobIdStr,
+		JobId:                 e.JobId,
 		JobSetId:              jobSetName,
 		Queue:                 queueName,
 		Created:               protoutil.ToTimestamp(time),
@@ -482,7 +484,7 @@ func FromInternalResourceUtilisation(queueName string, jobSetName string, time t
 
 func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time time.Time, e *armadaevents.StandaloneIngressInfo) ([]*api.EventMessage, error) {
 	apiEvent := &api.JobIngressInfoEvent{
-		JobId:            e.JobIdStr,
+		JobId:            e.JobId,
 		JobSetId:         jobSetName,
 		Queue:            queueName,
 		Created:          protoutil.ToTimestamp(time),

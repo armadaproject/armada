@@ -24,6 +24,11 @@ const (
 	ArmadaEventIngesterMetricsPrefix     = "armada_event_ingester_"
 )
 
+const (
+	JobSetEventsLabel       = "jobSet"
+	ControlPlaneEventsLabel = "controlPlane"
+)
+
 type Metrics struct {
 	dbErrorsCounter         *prometheus.CounterVec
 	pulsarConnectionError   prometheus.Counter
@@ -59,7 +64,7 @@ func NewMetrics(prefix string) *Metrics {
 		pulsarMessageError:      promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
 		pulsarConnectionError:   promauto.NewCounter(pulsarConnectionErrorOpts),
 		pulsarMessagesProcessed: promauto.NewCounter(pulsarMessagesProcessedOpts),
-		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue", "msgType"}),
+		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
 	}
 }
 
@@ -79,6 +84,10 @@ func (m *Metrics) RecordPulsarMessageProcessed() {
 	m.pulsarMessagesProcessed.Inc()
 }
 
-func (m *Metrics) RecordEventSequenceProcessed(queue, msgTpe string) {
-	m.eventsProcessed.With(map[string]string{"queue": queue, "msgType": msgTpe}).Inc()
+func (m *Metrics) RecordEventSequenceProcessed(queue string, msgType string) {
+	m.eventsProcessed.With(map[string]string{"queue": queue, "eventType": JobSetEventsLabel, "msgType": msgType}).Inc()
+}
+
+func (m *Metrics) RecordControlPlaneEventProcessed(msgType string) {
+	m.eventsProcessed.With(map[string]string{"queue": "N/A", "eventType": ControlPlaneEventsLabel, "msgType": msgType}).Inc()
 }

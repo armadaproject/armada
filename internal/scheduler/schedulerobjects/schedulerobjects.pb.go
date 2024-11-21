@@ -12,8 +12,8 @@ import (
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
-	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	types "github.com/gogo/protobuf/types"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
@@ -170,17 +170,15 @@ type Node struct {
 	// Ids of the job runs currently assigned to this node and their current state.
 	StateByJobRunId map[string]JobRunState `protobuf:"bytes,9,rep,name=state_by_job_run_id,json=stateByJobRunId,proto3" json:"stateByJobRunId" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3,enum=schedulerobjects.JobRunState"`
 	// Resource allocated to non-Armada pods on this node.
-	NonArmadaAllocatedResources map[int32]ResourceList `protobuf:"bytes,13,rep,name=non_armada_allocated_resources,json=nonArmadaAllocatedResources,proto3" json:"nonArmadaAllocatedResources" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	UnallocatableResources map[int32]ResourceList `protobuf:"bytes,13,rep,name=unallocatable_resources,json=unallocatableResources,proto3" json:"unallocatableResources" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
 	Unschedulable bool `protobuf:"varint,15,opt,name=unschedulable,proto3" json:"unschedulable,omitempty"`
-	// This should only be used for metrics
-	// An aggregated real usage of jobs by queue
-	ResourceUsageByQueue map[string]*ResourceList `protobuf:"bytes,16,rep,name=resource_usage_by_queue,json=resourceUsageByQueue,proto3" json:"resourceUsageByQueue,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// This should only be used for metrics
 	// This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
 	ReportingNodeType string `protobuf:"bytes,17,opt,name=reporting_node_type,json=reportingNodeType,proto3" json:"reportingNodeType,omitempty"`
 	// The pool that this node belongs to, this is used for scheduling purposes
-	Pool string `protobuf:"bytes,18,opt,name=pool,proto3" json:"pool,omitempty"`
+	Pool                        string               `protobuf:"bytes,18,opt,name=pool,proto3" json:"pool,omitempty"`
+	ResourceUsageByQueueAndPool []*PoolQueueResource `protobuf:"bytes,20,rep,name=resource_usage_by_queue_and_pool,json=resourceUsageByQueueAndPool,proto3" json:"resourceUsageByQueueAndPool,omitempty"`
 }
 
 func (m *Node) Reset()         { *m = Node{} }
@@ -279,9 +277,9 @@ func (m *Node) GetStateByJobRunId() map[string]JobRunState {
 	return nil
 }
 
-func (m *Node) GetNonArmadaAllocatedResources() map[int32]ResourceList {
+func (m *Node) GetUnallocatableResources() map[int32]ResourceList {
 	if m != nil {
-		return m.NonArmadaAllocatedResources
+		return m.UnallocatableResources
 	}
 	return nil
 }
@@ -291,13 +289,6 @@ func (m *Node) GetUnschedulable() bool {
 		return m.Unschedulable
 	}
 	return false
-}
-
-func (m *Node) GetResourceUsageByQueue() map[string]*ResourceList {
-	if m != nil {
-		return m.ResourceUsageByQueue
-	}
-	return nil
 }
 
 func (m *Node) GetReportingNodeType() string {
@@ -314,27 +305,31 @@ func (m *Node) GetPool() string {
 	return ""
 }
 
-// Captures the resource usage of a particular queue in a given cluster.
-type QueueClusterResourceUsage struct {
-	Created                      time.Time               `protobuf:"bytes,1,opt,name=created,proto3,stdtime" json:"created"`
-	Queue                        string                  `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
-	ExecutorId                   string                  `protobuf:"bytes,3,opt,name=executorId,proto3" json:"executorId,omitempty"`
-	ResourcesByPriority          map[int32]ResourceList  `protobuf:"bytes,4,rep,name=resourcesByPriority,proto3" json:"resourcesByPriority" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
-	ResourcesByPriorityClassName map[string]ResourceList `protobuf:"bytes,5,rep,name=resourcesByPriorityClassName,proto3" json:"resourcesByPriorityClassName" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+func (m *Node) GetResourceUsageByQueueAndPool() []*PoolQueueResource {
+	if m != nil {
+		return m.ResourceUsageByQueueAndPool
+	}
+	return nil
 }
 
-func (m *QueueClusterResourceUsage) Reset()         { *m = QueueClusterResourceUsage{} }
-func (m *QueueClusterResourceUsage) String() string { return proto.CompactTextString(m) }
-func (*QueueClusterResourceUsage) ProtoMessage()    {}
-func (*QueueClusterResourceUsage) Descriptor() ([]byte, []int) {
+type PoolQueueResource struct {
+	Pool      string        `protobuf:"bytes,1,opt,name=pool,proto3" json:"pool,omitempty"`
+	Queue     string        `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
+	Resources *ResourceList `protobuf:"bytes,3,opt,name=resources,proto3" json:"resources,omitempty"`
+}
+
+func (m *PoolQueueResource) Reset()         { *m = PoolQueueResource{} }
+func (m *PoolQueueResource) String() string { return proto.CompactTextString(m) }
+func (*PoolQueueResource) ProtoMessage()    {}
+func (*PoolQueueResource) Descriptor() ([]byte, []int) {
 	return fileDescriptor_97dadc5fbd620721, []int{2}
 }
-func (m *QueueClusterResourceUsage) XXX_Unmarshal(b []byte) error {
+func (m *PoolQueueResource) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *QueueClusterResourceUsage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *PoolQueueResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_QueueClusterResourceUsage.Marshal(b, m, deterministic)
+		return xxx_messageInfo_PoolQueueResource.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -344,112 +339,35 @@ func (m *QueueClusterResourceUsage) XXX_Marshal(b []byte, deterministic bool) ([
 		return b[:n], nil
 	}
 }
-func (m *QueueClusterResourceUsage) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_QueueClusterResourceUsage.Merge(m, src)
+func (m *PoolQueueResource) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PoolQueueResource.Merge(m, src)
 }
-func (m *QueueClusterResourceUsage) XXX_Size() int {
+func (m *PoolQueueResource) XXX_Size() int {
 	return m.Size()
 }
-func (m *QueueClusterResourceUsage) XXX_DiscardUnknown() {
-	xxx_messageInfo_QueueClusterResourceUsage.DiscardUnknown(m)
+func (m *PoolQueueResource) XXX_DiscardUnknown() {
+	xxx_messageInfo_PoolQueueResource.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_QueueClusterResourceUsage proto.InternalMessageInfo
+var xxx_messageInfo_PoolQueueResource proto.InternalMessageInfo
 
-func (m *QueueClusterResourceUsage) GetCreated() time.Time {
-	if m != nil {
-		return m.Created
-	}
-	return time.Time{}
-}
-
-func (m *QueueClusterResourceUsage) GetQueue() string {
-	if m != nil {
-		return m.Queue
-	}
-	return ""
-}
-
-func (m *QueueClusterResourceUsage) GetExecutorId() string {
-	if m != nil {
-		return m.ExecutorId
-	}
-	return ""
-}
-
-// Deprecated: Do not use.
-func (m *QueueClusterResourceUsage) GetResourcesByPriority() map[int32]ResourceList {
-	if m != nil {
-		return m.ResourcesByPriority
-	}
-	return nil
-}
-
-func (m *QueueClusterResourceUsage) GetResourcesByPriorityClassName() map[string]ResourceList {
-	if m != nil {
-		return m.ResourcesByPriorityClassName
-	}
-	return nil
-}
-
-// A collection of QueueClusterResourceUsage
-// This is only needed to brige the gap between the redis based scheduler and the new scheduler.
-type ClusterResourceUsageReport struct {
-	Pool             string                                `protobuf:"bytes,1,opt,name=pool,proto3" json:"pool,omitempty"`
-	Created          time.Time                             `protobuf:"bytes,2,opt,name=created,proto3,stdtime" json:"created"`
-	ResourcesByQueue map[string]*QueueClusterResourceUsage `protobuf:"bytes,3,rep,name=resourcesByQueue,proto3" json:"resourcesByQueue,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-}
-
-func (m *ClusterResourceUsageReport) Reset()         { *m = ClusterResourceUsageReport{} }
-func (m *ClusterResourceUsageReport) String() string { return proto.CompactTextString(m) }
-func (*ClusterResourceUsageReport) ProtoMessage()    {}
-func (*ClusterResourceUsageReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{3}
-}
-func (m *ClusterResourceUsageReport) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ClusterResourceUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ClusterResourceUsageReport.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ClusterResourceUsageReport) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ClusterResourceUsageReport.Merge(m, src)
-}
-func (m *ClusterResourceUsageReport) XXX_Size() int {
-	return m.Size()
-}
-func (m *ClusterResourceUsageReport) XXX_DiscardUnknown() {
-	xxx_messageInfo_ClusterResourceUsageReport.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ClusterResourceUsageReport proto.InternalMessageInfo
-
-func (m *ClusterResourceUsageReport) GetPool() string {
+func (m *PoolQueueResource) GetPool() string {
 	if m != nil {
 		return m.Pool
 	}
 	return ""
 }
 
-func (m *ClusterResourceUsageReport) GetCreated() time.Time {
+func (m *PoolQueueResource) GetQueue() string {
 	if m != nil {
-		return m.Created
+		return m.Queue
 	}
-	return time.Time{}
+	return ""
 }
 
-func (m *ClusterResourceUsageReport) GetResourcesByQueue() map[string]*QueueClusterResourceUsage {
+func (m *PoolQueueResource) GetResources() *ResourceList {
 	if m != nil {
-		return m.ResourcesByQueue
+		return m.Resources
 	}
 	return nil
 }
@@ -462,7 +380,7 @@ func (m *ResourceList) Reset()         { *m = ResourceList{} }
 func (m *ResourceList) String() string { return proto.CompactTextString(m) }
 func (*ResourceList) ProtoMessage()    {}
 func (*ResourceList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{4}
+	return fileDescriptor_97dadc5fbd620721, []int{3}
 }
 func (m *ResourceList) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -517,7 +435,7 @@ func (m *JobSchedulingInfo) Reset()         { *m = JobSchedulingInfo{} }
 func (m *JobSchedulingInfo) String() string { return proto.CompactTextString(m) }
 func (*JobSchedulingInfo) ProtoMessage()    {}
 func (*JobSchedulingInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{5}
+	return fileDescriptor_97dadc5fbd620721, []int{4}
 }
 func (m *JobSchedulingInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -616,7 +534,7 @@ func (m *ObjectRequirements) Reset()         { *m = ObjectRequirements{} }
 func (m *ObjectRequirements) String() string { return proto.CompactTextString(m) }
 func (*ObjectRequirements) ProtoMessage()    {}
 func (*ObjectRequirements) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{6}
+	return fileDescriptor_97dadc5fbd620721, []int{5}
 }
 func (m *ObjectRequirements) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -699,7 +617,7 @@ func (m *PodRequirements) Reset()         { *m = PodRequirements{} }
 func (m *PodRequirements) String() string { return proto.CompactTextString(m) }
 func (*PodRequirements) ProtoMessage()    {}
 func (*PodRequirements) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{7}
+	return fileDescriptor_97dadc5fbd620721, []int{6}
 }
 func (m *PodRequirements) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -770,26 +688,26 @@ func (m *PodRequirements) GetResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
-// Used to store details about pulsar scheduler jobs in Redis
-// Can be removed once we deprecate the legacy scheduler
-type PulsarSchedulerJobDetails struct {
-	JobId  string `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
-	Queue  string `protobuf:"bytes,2,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	JobSet string `protobuf:"bytes,3,opt,name=JobSet,proto3" json:"JobSet,omitempty"`
+type ExecutorSettings struct {
+	ExecutorId   string           `protobuf:"bytes,1,opt,name=executorId,proto3" json:"executorId,omitempty"`
+	Cordoned     bool             `protobuf:"varint,2,opt,name=cordoned,proto3" json:"cordoned,omitempty"`
+	CordonReason string           `protobuf:"bytes,3,opt,name=cordonReason,proto3" json:"cordonReason,omitempty"`
+	SetByUser    string           `protobuf:"bytes,4,opt,name=setByUser,proto3" json:"setByUser,omitempty"`
+	SetAtTime    *types.Timestamp `protobuf:"bytes,5,opt,name=setAtTime,proto3" json:"setAtTime,omitempty"`
 }
 
-func (m *PulsarSchedulerJobDetails) Reset()         { *m = PulsarSchedulerJobDetails{} }
-func (m *PulsarSchedulerJobDetails) String() string { return proto.CompactTextString(m) }
-func (*PulsarSchedulerJobDetails) ProtoMessage()    {}
-func (*PulsarSchedulerJobDetails) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{8}
+func (m *ExecutorSettings) Reset()         { *m = ExecutorSettings{} }
+func (m *ExecutorSettings) String() string { return proto.CompactTextString(m) }
+func (*ExecutorSettings) ProtoMessage()    {}
+func (*ExecutorSettings) Descriptor() ([]byte, []int) {
+	return fileDescriptor_97dadc5fbd620721, []int{7}
 }
-func (m *PulsarSchedulerJobDetails) XXX_Unmarshal(b []byte) error {
+func (m *ExecutorSettings) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *PulsarSchedulerJobDetails) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *ExecutorSettings) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_PulsarSchedulerJobDetails.Marshal(b, m, deterministic)
+		return xxx_messageInfo_ExecutorSettings.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -799,37 +717,51 @@ func (m *PulsarSchedulerJobDetails) XXX_Marshal(b []byte, deterministic bool) ([
 		return b[:n], nil
 	}
 }
-func (m *PulsarSchedulerJobDetails) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PulsarSchedulerJobDetails.Merge(m, src)
+func (m *ExecutorSettings) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ExecutorSettings.Merge(m, src)
 }
-func (m *PulsarSchedulerJobDetails) XXX_Size() int {
+func (m *ExecutorSettings) XXX_Size() int {
 	return m.Size()
 }
-func (m *PulsarSchedulerJobDetails) XXX_DiscardUnknown() {
-	xxx_messageInfo_PulsarSchedulerJobDetails.DiscardUnknown(m)
+func (m *ExecutorSettings) XXX_DiscardUnknown() {
+	xxx_messageInfo_ExecutorSettings.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_PulsarSchedulerJobDetails proto.InternalMessageInfo
+var xxx_messageInfo_ExecutorSettings proto.InternalMessageInfo
 
-func (m *PulsarSchedulerJobDetails) GetJobId() string {
+func (m *ExecutorSettings) GetExecutorId() string {
 	if m != nil {
-		return m.JobId
+		return m.ExecutorId
 	}
 	return ""
 }
 
-func (m *PulsarSchedulerJobDetails) GetQueue() string {
+func (m *ExecutorSettings) GetCordoned() bool {
 	if m != nil {
-		return m.Queue
+		return m.Cordoned
+	}
+	return false
+}
+
+func (m *ExecutorSettings) GetCordonReason() string {
+	if m != nil {
+		return m.CordonReason
 	}
 	return ""
 }
 
-func (m *PulsarSchedulerJobDetails) GetJobSet() string {
+func (m *ExecutorSettings) GetSetByUser() string {
 	if m != nil {
-		return m.JobSet
+		return m.SetByUser
 	}
 	return ""
+}
+
+func (m *ExecutorSettings) GetSetAtTime() *types.Timestamp {
+	if m != nil {
+		return m.SetAtTime
+	}
+	return nil
 }
 
 func init() {
@@ -838,14 +770,9 @@ func init() {
 	proto.RegisterType((*Node)(nil), "schedulerobjects.Node")
 	proto.RegisterMapType((map[int32]ResourceList)(nil), "schedulerobjects.Node.AllocatableByPriorityAndResourceEntry")
 	proto.RegisterMapType((map[string]string)(nil), "schedulerobjects.Node.LabelsEntry")
-	proto.RegisterMapType((map[int32]ResourceList)(nil), "schedulerobjects.Node.NonArmadaAllocatedResourcesEntry")
-	proto.RegisterMapType((map[string]*ResourceList)(nil), "schedulerobjects.Node.ResourceUsageByQueueEntry")
 	proto.RegisterMapType((map[string]JobRunState)(nil), "schedulerobjects.Node.StateByJobRunIdEntry")
-	proto.RegisterType((*QueueClusterResourceUsage)(nil), "schedulerobjects.QueueClusterResourceUsage")
-	proto.RegisterMapType((map[string]ResourceList)(nil), "schedulerobjects.QueueClusterResourceUsage.ResourcesByPriorityClassNameEntry")
-	proto.RegisterMapType((map[int32]ResourceList)(nil), "schedulerobjects.QueueClusterResourceUsage.ResourcesByPriorityEntry")
-	proto.RegisterType((*ClusterResourceUsageReport)(nil), "schedulerobjects.ClusterResourceUsageReport")
-	proto.RegisterMapType((map[string]*QueueClusterResourceUsage)(nil), "schedulerobjects.ClusterResourceUsageReport.ResourcesByQueueEntry")
+	proto.RegisterMapType((map[int32]ResourceList)(nil), "schedulerobjects.Node.UnallocatableResourcesEntry")
+	proto.RegisterType((*PoolQueueResource)(nil), "schedulerobjects.PoolQueueResource")
 	proto.RegisterType((*ResourceList)(nil), "schedulerobjects.ResourceList")
 	proto.RegisterMapType((map[string]resource.Quantity)(nil), "schedulerobjects.ResourceList.ResourcesEntry")
 	proto.RegisterType((*JobSchedulingInfo)(nil), "schedulerobjects.JobSchedulingInfo")
@@ -853,7 +780,7 @@ func init() {
 	proto.RegisterType((*PodRequirements)(nil), "schedulerobjects.PodRequirements")
 	proto.RegisterMapType((map[string]string)(nil), "schedulerobjects.PodRequirements.AnnotationsEntry")
 	proto.RegisterMapType((map[string]string)(nil), "schedulerobjects.PodRequirements.NodeSelectorEntry")
-	proto.RegisterType((*PulsarSchedulerJobDetails)(nil), "schedulerobjects.PulsarSchedulerJobDetails")
+	proto.RegisterType((*ExecutorSettings)(nil), "schedulerobjects.ExecutorSettings")
 }
 
 func init() {
@@ -861,125 +788,116 @@ func init() {
 }
 
 var fileDescriptor_97dadc5fbd620721 = []byte{
-	// 1887 bytes of a gzipped FileDescriptorProto
+	// 1735 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x58, 0xcd, 0x6f, 0xdb, 0xc8,
-	0x15, 0x37, 0xfd, 0x21, 0xcb, 0x23, 0x7f, 0xc8, 0x63, 0x27, 0xa1, 0x95, 0x44, 0xd4, 0x6a, 0xd3,
-	0xc2, 0xed, 0xee, 0x52, 0x5d, 0x6f, 0x81, 0x06, 0x69, 0x2f, 0x92, 0xed, 0x36, 0x76, 0x13, 0xd9,
-	0xa1, 0xe3, 0x16, 0x2d, 0xd0, 0x25, 0x46, 0xe4, 0x58, 0xe1, 0x9a, 0x9a, 0x61, 0xc8, 0x61, 0x5a,
-	0xf5, 0xde, 0x43, 0x51, 0x60, 0xbb, 0x28, 0xb6, 0xed, 0x02, 0x2d, 0x50, 0xec, 0x3f, 0xd1, 0x1e,
-	0x7a, 0xe8, 0x35, 0xc7, 0x3d, 0xf6, 0xa4, 0x16, 0xc9, 0x4d, 0x7f, 0x45, 0x31, 0x43, 0x52, 0x1c,
-	0x91, 0x92, 0xe5, 0x62, 0x77, 0x91, 0x93, 0x34, 0xef, 0xf3, 0xf7, 0xde, 0xbc, 0x79, 0xc3, 0x37,
-	0xe0, 0x81, 0x43, 0x18, 0xf6, 0x09, 0x72, 0x1b, 0x81, 0xf5, 0x0c, 0xdb, 0xa1, 0x8b, 0xfd, 0xf4,
-	0x1f, 0xed, 0x7c, 0x84, 0x2d, 0x16, 0xe4, 0x08, 0xba, 0xe7, 0x53, 0x46, 0x61, 0x39, 0x4b, 0xaf,
-	0x68, 0x5d, 0x4a, 0xbb, 0x2e, 0x6e, 0x08, 0x7e, 0x27, 0xbc, 0x68, 0x30, 0xa7, 0x87, 0x03, 0x86,
-	0x7a, 0x5e, 0xa4, 0x52, 0xa9, 0x5f, 0xde, 0x0f, 0x74, 0x87, 0x36, 0x90, 0xe7, 0x34, 0x2c, 0xea,
-	0xe3, 0xc6, 0x8b, 0xf7, 0x1b, 0x5d, 0x4c, 0xb0, 0x8f, 0x18, 0xb6, 0x63, 0x99, 0xef, 0xa6, 0x32,
-	0x3d, 0x64, 0x3d, 0x73, 0x08, 0xf6, 0xfb, 0x0d, 0xef, 0xb2, 0x2b, 0x94, 0x7c, 0x1c, 0xd0, 0xd0,
-	0xb7, 0x70, 0x4e, 0xeb, 0xbd, 0xae, 0xc3, 0x9e, 0x85, 0x1d, 0xdd, 0xa2, 0xbd, 0x46, 0x97, 0x76,
-	0x69, 0x8a, 0x81, 0xaf, 0xc4, 0x42, 0xfc, 0x8b, 0xc4, 0xeb, 0x2f, 0xe7, 0x41, 0xf1, 0xf0, 0x57,
-	0xd8, 0x0a, 0x19, 0xf5, 0x61, 0x0d, 0xcc, 0x3b, 0xb6, 0xaa, 0xd4, 0x94, 0xdd, 0x95, 0x56, 0x79,
-	0x38, 0xd0, 0x56, 0x1d, 0xfb, 0x5d, 0xda, 0x73, 0x18, 0xee, 0x79, 0xac, 0x6f, 0xcc, 0x3b, 0x36,
-	0xfc, 0x26, 0x58, 0xf4, 0x28, 0x75, 0xd5, 0x79, 0x21, 0x03, 0x87, 0x03, 0x6d, 0x9d, 0xaf, 0x25,
-	0x29, 0xc1, 0x87, 0x4d, 0xb0, 0x44, 0xa8, 0x8d, 0x03, 0x75, 0xa1, 0xb6, 0xb0, 0x5b, 0xda, 0xbb,
-	0xa9, 0xe7, 0x52, 0xd7, 0xa6, 0x36, 0x6e, 0x6d, 0x0d, 0x07, 0xda, 0x86, 0x10, 0x94, 0x2c, 0x44,
-	0x9a, 0xf0, 0x43, 0xb0, 0xee, 0xa2, 0x80, 0x9d, 0x7b, 0x36, 0x62, 0xf8, 0xa9, 0xd3, 0xc3, 0xea,
-	0x52, 0x4d, 0xd9, 0x2d, 0xed, 0x55, 0xf4, 0x28, 0xb9, 0x7a, 0x12, 0x98, 0xfe, 0x34, 0x49, 0x6e,
-	0xab, 0xf2, 0x72, 0xa0, 0xcd, 0x71, 0x50, 0xe3, 0x9a, 0x9f, 0xfc, 0x47, 0x53, 0x8c, 0x0c, 0x0d,
-	0x9e, 0x80, 0xad, 0x90, 0xa0, 0x20, 0x70, 0xba, 0x04, 0xdb, 0xe6, 0x47, 0xb4, 0x63, 0xfa, 0x21,
-	0x09, 0xd4, 0x95, 0xda, 0xc2, 0xee, 0x4a, 0x4b, 0x1b, 0x0e, 0xb4, 0xdb, 0x29, 0xfb, 0x98, 0x76,
-	0x8c, 0x90, 0xc8, 0x20, 0x37, 0x73, 0xcc, 0xfa, 0x5f, 0x37, 0xc0, 0x22, 0x8f, 0xea, 0x7a, 0x69,
-	0x24, 0xa8, 0x87, 0xd5, 0xd5, 0x34, 0x8d, 0x7c, 0x2d, 0xa7, 0x91, 0xaf, 0xe1, 0x1e, 0x28, 0xe2,
-	0x78, 0x73, 0xd4, 0x2d, 0x21, 0x7b, 0x73, 0x38, 0xd0, 0x60, 0x42, 0x93, 0xe4, 0x47, 0x72, 0xf0,
-	0x31, 0x58, 0xe1, 0x91, 0x9a, 0x01, 0xc6, 0x44, 0xec, 0xd3, 0xd5, 0x29, 0xdb, 0x8e, 0x53, 0x56,
-	0xe4, 0x4a, 0x67, 0x18, 0x13, 0x91, 0xac, 0xd1, 0x0a, 0x36, 0x41, 0x81, 0x21, 0x87, 0xb0, 0x40,
-	0x5d, 0x12, 0x5b, 0xb9, 0xa3, 0x47, 0x65, 0xa9, 0x23, 0xcf, 0xd1, 0x79, 0xe9, 0xea, 0x2f, 0xde,
-	0xd7, 0x9f, 0x72, 0x89, 0xd6, 0x7a, 0x6c, 0x2a, 0x56, 0x30, 0xe2, 0x5f, 0x78, 0x0a, 0x0a, 0x2e,
-	0xea, 0x60, 0x37, 0x50, 0x0b, 0xc2, 0x44, 0x7d, 0x72, 0x35, 0xe8, 0x8f, 0x84, 0xd0, 0x21, 0x61,
-	0x7e, 0xbf, 0xb5, 0x3d, 0x1c, 0x68, 0xe5, 0x48, 0x4b, 0x8a, 0x32, 0xb6, 0x03, 0x4d, 0xb0, 0xc1,
-	0x28, 0x43, 0xae, 0x99, 0x1c, 0x83, 0x40, 0x5d, 0x16, 0x91, 0x56, 0xf3, 0xa6, 0x8d, 0x58, 0xe4,
-	0x91, 0x13, 0xb0, 0xd6, 0xcd, 0xa4, 0x40, 0x84, 0x7a, 0xc2, 0x0a, 0x8c, 0xcc, 0x1a, 0xfe, 0x5d,
-	0x01, 0xf7, 0x90, 0xeb, 0x52, 0x0b, 0x31, 0xd4, 0x71, 0xb1, 0xd9, 0xe9, 0x9b, 0x9e, 0xef, 0x50,
-	0xdf, 0x61, 0x7d, 0x13, 0x11, 0x7b, 0xe4, 0x57, 0x2d, 0x8a, 0x88, 0x7e, 0x30, 0x25, 0xa2, 0x66,
-	0x6a, 0xa2, 0xd5, 0x3f, 0x8d, 0x0d, 0x34, 0x89, 0x9d, 0x38, 0x8a, 0x62, 0xdd, 0x8d, 0x41, 0xd5,
-	0xd0, 0x0c, 0x71, 0x63, 0xa6, 0x04, 0xf4, 0xc1, 0x56, 0xc0, 0x10, 0x13, 0x88, 0xe3, 0x9a, 0x36,
-	0x1d, 0x5b, 0x54, 0x75, 0x69, 0xef, 0x9d, 0x29, 0x30, 0xcf, 0xb8, 0x46, 0xab, 0x1f, 0x15, 0xf2,
-	0x91, 0x1d, 0xa1, 0xba, 0x15, 0xa3, 0xda, 0x08, 0xc6, 0xb9, 0x46, 0x96, 0x00, 0x3f, 0x57, 0x40,
-	0x95, 0x50, 0x62, 0x22, 0xbf, 0x87, 0x6c, 0x64, 0xc6, 0x18, 0xb1, 0x2d, 0xed, 0xce, 0x9a, 0xf0,
-	0xff, 0xbd, 0x29, 0xfe, 0xdb, 0x94, 0x34, 0x85, 0x6e, 0x33, 0x51, 0x1d, 0xed, 0x44, 0x84, 0xe5,
-	0xed, 0x18, 0xcb, 0x6d, 0x32, 0x5d, 0xd2, 0xb8, 0x8a, 0x09, 0x9b, 0x60, 0x2d, 0x24, 0xb1, 0x77,
-	0x9e, 0x3d, 0x75, 0xa3, 0xa6, 0xec, 0x16, 0x5b, 0xb7, 0x87, 0x03, 0xed, 0xd6, 0x18, 0x43, 0xaa,
-	0xb6, 0x71, 0x0d, 0xf8, 0x3b, 0x05, 0xdc, 0x4a, 0x22, 0x32, 0xc3, 0x00, 0x75, 0x45, 0x92, 0x9f,
-	0x87, 0x38, 0xc4, 0x6a, 0x59, 0xc4, 0xf7, 0x9d, 0x29, 0xf1, 0x25, 0x30, 0xce, 0xb9, 0x52, 0xab,
-	0xff, 0x84, 0xab, 0x44, 0x81, 0xd5, 0x87, 0x03, 0xad, 0xea, 0x4f, 0x60, 0x4b, 0x30, 0xb6, 0x27,
-	0xf1, 0x79, 0xfb, 0xf2, 0xb1, 0x47, 0x7d, 0xe6, 0x90, 0xae, 0xc9, 0x3b, 0xa6, 0xc9, 0xfa, 0x1e,
-	0x56, 0x37, 0x45, 0x97, 0x10, 0xed, 0x6b, 0xc4, 0xe6, 0x18, 0x9e, 0xf6, 0x3d, 0xd9, 0xe6, 0x66,
-	0x8e, 0x39, 0x6a, 0xed, 0xf0, 0xea, 0xd6, 0x5e, 0x41, 0xa0, 0x24, 0x1d, 0x54, 0xf8, 0x36, 0x58,
-	0xb8, 0xc4, 0xfd, 0xb8, 0xdb, 0x6d, 0x0e, 0x07, 0xda, 0xda, 0x25, 0xee, 0x4b, 0x4a, 0x9c, 0x0b,
-	0xbf, 0x05, 0x96, 0x5e, 0x20, 0x37, 0xc4, 0xf1, 0xbd, 0x21, 0xda, 0xbe, 0x20, 0xc8, 0x6d, 0x5f,
-	0x10, 0x1e, 0xcc, 0xdf, 0x57, 0x2a, 0x7f, 0x51, 0xc0, 0x37, 0xae, 0x75, 0x74, 0x64, 0xef, 0x4b,
-	0x53, 0xbd, 0x1f, 0xc9, 0xde, 0x67, 0xf7, 0x88, 0x59, 0xe8, 0x7e, 0xab, 0x80, 0xed, 0x49, 0x27,
-	0xe6, 0x7a, 0xa9, 0x78, 0x28, 0x83, 0x59, 0xdf, 0xbb, 0x9b, 0x07, 0x13, 0x19, 0x8d, 0x3c, 0xcc,
-	0xc2, 0xf2, 0x27, 0x05, 0xd4, 0x66, 0x9d, 0x9e, 0x37, 0x92, 0xa4, 0xdf, 0x2b, 0x60, 0x67, 0x6a,
-	0xd9, 0x5f, 0x2f, 0x53, 0x5f, 0x2d, 0xa2, 0xfa, 0xcb, 0x02, 0xd8, 0x11, 0x10, 0xf6, 0xdd, 0x30,
-	0x60, 0xd8, 0x1f, 0x43, 0x07, 0x8f, 0xc0, 0xb2, 0xe5, 0x63, 0x9e, 0x3c, 0x81, 0xea, 0xea, 0x3b,
-	0x73, 0x2b, 0x6e, 0x47, 0x89, 0x8a, 0xb8, 0x32, 0x93, 0x05, 0x2f, 0xf6, 0xa8, 0x29, 0x48, 0xc5,
-	0xfe, 0x3c, 0x73, 0xa6, 0x23, 0x09, 0x78, 0x1f, 0x80, 0xe4, 0xde, 0x3e, 0xb2, 0xd5, 0x05, 0x21,
-	0xaf, 0x0e, 0x07, 0xda, 0x76, 0x4a, 0x95, 0x94, 0x24, 0x59, 0xf8, 0x47, 0x85, 0x9f, 0xff, 0x78,
-	0x9b, 0xd3, 0x03, 0xa2, 0x2e, 0x8a, 0x46, 0x74, 0x90, 0xcf, 0xd5, 0xd4, 0xd0, 0x47, 0x59, 0x94,
-	0xcc, 0x44, 0xcd, 0xe9, 0x6e, 0x1c, 0xe6, 0x44, 0x47, 0x8a, 0x31, 0x89, 0x0c, 0xff, 0xa1, 0x80,
-	0x3b, 0x13, 0xe8, 0xfb, 0x2e, 0x0a, 0x82, 0x36, 0x12, 0x1f, 0x71, 0x1c, 0xe0, 0xe3, 0x2f, 0x09,
-	0x70, 0x64, 0x2f, 0x42, 0x7a, 0x2f, 0x46, 0x7a, 0xa5, 0x6b, 0xe3, 0x4a, 0x6e, 0xe5, 0x63, 0x05,
-	0xa8, 0xd3, 0x52, 0xf1, 0x46, 0x8e, 0xd0, 0x9f, 0x15, 0xf0, 0xd6, 0xcc, 0xd0, 0xdf, 0xc8, 0x51,
-	0xfa, 0xe7, 0x02, 0xa8, 0x4c, 0xda, 0x29, 0x43, 0x5c, 0x2a, 0xa3, 0x9b, 0x44, 0x99, 0x31, 0x24,
-	0x48, 0x67, 0x6e, 0xfe, 0x4b, 0x9e, 0xb9, 0x8f, 0x15, 0x50, 0x96, 0x76, 0x57, 0xd4, 0x52, 0x3c,
-	0x7b, 0xb4, 0xf2, 0xc1, 0x4e, 0xc7, 0x2e, 0xd7, 0x9a, 0x74, 0x4d, 0x57, 0x87, 0x03, 0xad, 0x92,
-	0xb5, 0x2f, 0xc5, 0x93, 0xf3, 0x5d, 0xf9, 0x4c, 0x01, 0x37, 0x26, 0xda, 0xba, 0xde, 0x86, 0xfd,
-	0x64, 0x7c, 0xc3, 0xde, 0xf9, 0x3f, 0x8e, 0xcb, 0xcc, 0xdd, 0xfb, 0xcd, 0x3c, 0x58, 0x95, 0xb7,
-	0x1b, 0x7e, 0x08, 0x56, 0xd2, 0x2f, 0x35, 0x45, 0x24, 0xed, 0xbd, 0xab, 0x2b, 0x44, 0xcf, 0x7c,
-	0x9f, 0x6d, 0xc6, 0x9b, 0x93, 0xda, 0x31, 0xd2, 0xbf, 0x95, 0x4f, 0x15, 0xb0, 0x3e, 0xfd, 0x4a,
-	0x9a, 0x9e, 0x84, 0x9f, 0x8d, 0x27, 0x41, 0x97, 0x26, 0x8f, 0xd1, 0x40, 0xac, 0x7b, 0x97, 0x5d,
-	0x31, 0x8a, 0x24, 0xee, 0xf4, 0x27, 0x21, 0x22, 0xcc, 0x61, 0xfd, 0x99, 0x79, 0xf8, 0x74, 0x09,
-	0x6c, 0x1e, 0xd3, 0xce, 0x59, 0x14, 0xa8, 0x43, 0xba, 0x47, 0xe4, 0x82, 0xf2, 0x91, 0xcb, 0x75,
-	0x2e, 0x30, 0x1f, 0xd8, 0x05, 0xbc, 0xb5, 0x68, 0xe4, 0x4a, 0x68, 0xf2, 0xc8, 0x95, 0xd0, 0xe0,
-	0x03, 0xb0, 0x8a, 0x98, 0xd9, 0xa3, 0x01, 0x33, 0x29, 0xb1, 0x22, 0xbc, 0xc5, 0xa8, 0x91, 0x23,
-	0xf6, 0x98, 0x06, 0xec, 0x84, 0x58, 0xb2, 0x26, 0x48, 0xa9, 0xf0, 0xfb, 0xa0, 0xe4, 0xf9, 0x98,
-	0xd3, 0x1d, 0xfe, 0x59, 0xba, 0x20, 0x54, 0x77, 0x86, 0x03, 0xed, 0x86, 0x44, 0x96, 0x74, 0x65,
-	0x69, 0xf8, 0x10, 0x94, 0x2d, 0x4a, 0xac, 0xd0, 0xf7, 0x31, 0xb1, 0xfa, 0x66, 0x80, 0x2e, 0xb0,
-	0xba, 0x28, 0x2c, 0xdc, 0x1d, 0x0e, 0xb4, 0x1d, 0x89, 0x77, 0x86, 0x2e, 0x64, 0x2b, 0x1b, 0x19,
-	0x16, 0xff, 0x9c, 0x1c, 0x0d, 0x38, 0x16, 0xef, 0x30, 0xa6, 0x18, 0x50, 0x0b, 0xe9, 0xe7, 0xa4,
-	0x97, 0xed, 0x3f, 0xf2, 0xe7, 0x64, 0x8e, 0x09, 0xcf, 0x40, 0x29, 0x08, 0x3b, 0x3d, 0x87, 0x99,
-	0x22, 0x95, 0xcb, 0x33, 0x0f, 0x78, 0x32, 0x9a, 0x81, 0x48, 0x6d, 0x34, 0xb7, 0x4b, 0x6b, 0xbe,
-	0x39, 0x89, 0x27, 0xb5, 0x98, 0x6e, 0x4e, 0x42, 0x93, 0x37, 0x27, 0xa1, 0xc1, 0x5f, 0x82, 0xad,
-	0xa8, 0x84, 0x4d, 0x1f, 0x3f, 0x0f, 0x1d, 0x1f, 0xf7, 0x70, 0x3a, 0xcd, 0xde, 0xcb, 0xd7, 0xf9,
-	0x89, 0xf8, 0x35, 0x24, 0xd9, 0x56, 0x8d, 0x5f, 0x2d, 0x34, 0x47, 0x97, 0xdc, 0xc1, 0x3c, 0x17,
-	0x36, 0xc0, 0xf2, 0x0b, 0xec, 0x07, 0x0e, 0x25, 0xea, 0x8a, 0xc0, 0x7a, 0x63, 0x38, 0xd0, 0x36,
-	0x63, 0x92, 0xa4, 0x9b, 0x48, 0x3d, 0x58, 0xfc, 0xec, 0x73, 0x4d, 0xa9, 0xff, 0x41, 0x01, 0x30,
-	0x8f, 0x01, 0xba, 0x60, 0xc3, 0xa3, 0xb6, 0x4c, 0x8a, 0x3f, 0x54, 0xde, 0xca, 0x87, 0x70, 0x3a,
-	0x2e, 0x18, 0x15, 0x43, 0x46, 0x3b, 0x05, 0xf0, 0x70, 0xce, 0xc8, 0x9a, 0x6e, 0xad, 0x83, 0x55,
-	0x39, 0x5b, 0xf5, 0x7f, 0x15, 0xc0, 0x46, 0xc6, 0x2a, 0x0c, 0xc0, 0x2a, 0x9f, 0x3b, 0xce, 0xb0,
-	0x8b, 0x2d, 0x46, 0xfd, 0xb8, 0x73, 0x7c, 0x30, 0x13, 0x8e, 0x98, 0x89, 0x12, 0xad, 0xa8, 0x7f,
-	0x54, 0x86, 0x03, 0xed, 0xa6, 0x6c, 0x4c, 0x4a, 0xcf, 0x98, 0x13, 0x78, 0x0a, 0x8a, 0xe8, 0xe2,
-	0xc2, 0x21, 0xbc, 0x02, 0xa2, 0xb6, 0x70, 0x67, 0xd2, 0x83, 0x44, 0x33, 0x96, 0x89, 0xea, 0x23,
-	0xd1, 0x90, 0xeb, 0x23, 0xa1, 0xc1, 0x73, 0x50, 0x62, 0xd4, 0xc5, 0x3e, 0x62, 0x0e, 0x25, 0xc9,
-	0x83, 0x55, 0x75, 0xe2, 0x2b, 0xc7, 0x48, 0x6c, 0x74, 0x1b, 0xc9, 0xaa, 0x86, 0xbc, 0x80, 0x14,
-	0x94, 0x10, 0x21, 0x94, 0xc5, 0x66, 0x97, 0x85, 0xd9, 0xbd, 0xd9, 0xc9, 0x69, 0xa6, 0x4a, 0x51,
-	0x6e, 0x44, 0x2f, 0x90, 0x4c, 0xc9, 0xbd, 0x40, 0x22, 0xc3, 0x63, 0x50, 0x4e, 0x5a, 0x03, 0x25,
-	0xa7, 0xd4, 0x75, 0xac, 0xbe, 0x78, 0x31, 0x5b, 0x89, 0x6e, 0xaf, 0x2c, 0x4f, 0xbe, 0xbd, 0xb2,
-	0x3c, 0xf8, 0x6b, 0x30, 0x1a, 0x3a, 0xc7, 0x2a, 0xae, 0x20, 0x32, 0xbe, 0x3b, 0x29, 0x39, 0xc6,
-	0x04, 0xf9, 0xd6, 0x9d, 0x38, 0x4d, 0x13, 0xad, 0x19, 0x13, 0xa9, 0x95, 0x2e, 0xd8, 0xcc, 0x15,
-	0xc8, 0xd7, 0x32, 0x65, 0x5e, 0x80, 0x72, 0x36, 0xd9, 0x5f, 0x87, 0x9f, 0xe3, 0xc5, 0x62, 0xb1,
-	0xbc, 0x52, 0xff, 0x9b, 0x02, 0x76, 0x4e, 0x43, 0x37, 0x40, 0xfe, 0x59, 0x52, 0x02, 0xc7, 0xb4,
-	0x73, 0x80, 0x19, 0x72, 0xdc, 0x80, 0x9b, 0x3c, 0xa6, 0x9d, 0xa3, 0xe4, 0xd5, 0x50, 0x98, 0x14,
-	0x04, 0xd9, 0xa4, 0x20, 0x70, 0xd1, 0x27, 0xd9, 0xf1, 0x22, 0xfb, 0x3d, 0x12, 0x49, 0xc0, 0x77,
-	0x41, 0x81, 0x5f, 0x70, 0x98, 0xc5, 0xa3, 0x85, 0x78, 0x54, 0x8b, 0x28, 0xf2, 0xa3, 0x5a, 0x44,
-	0xf9, 0xf6, 0x09, 0x28, 0x49, 0xa3, 0x27, 0x2c, 0x81, 0xe5, 0xf3, 0xf6, 0x8f, 0xdb, 0x27, 0x3f,
-	0x6d, 0x97, 0xe7, 0xf8, 0xe2, 0xf4, 0xb0, 0x7d, 0x70, 0xd4, 0xfe, 0x51, 0x59, 0xe1, 0x0b, 0xe3,
-	0xbc, 0xdd, 0xe6, 0x8b, 0x79, 0xb8, 0x06, 0x56, 0xce, 0xce, 0xf7, 0xf7, 0x0f, 0x0f, 0x0f, 0x0e,
-	0x0f, 0xca, 0x0b, 0x10, 0x80, 0xc2, 0x0f, 0x9b, 0x47, 0x8f, 0x0e, 0x0f, 0xca, 0x8b, 0xad, 0x5f,
-	0xbc, 0x7c, 0x55, 0x55, 0xbe, 0x78, 0x55, 0x55, 0xfe, 0xfb, 0xaa, 0xaa, 0x7c, 0xf2, 0xba, 0x3a,
-	0xf7, 0xc5, 0xeb, 0xea, 0xdc, 0xbf, 0x5f, 0x57, 0xe7, 0x7e, 0xbe, 0x2f, 0x3d, 0x52, 0x47, 0xaf,
-	0x46, 0x9e, 0x4f, 0xf9, 0x79, 0x88, 0x57, 0x8d, 0x6b, 0xbc, 0xc6, 0x77, 0x0a, 0xe2, 0x12, 0xf9,
-	0xe0, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x6e, 0xcf, 0x3c, 0x2e, 0xbb, 0x17, 0x00, 0x00,
+	0x15, 0x37, 0xfd, 0x29, 0x8d, 0xfc, 0x21, 0x8d, 0xbd, 0x09, 0xa3, 0x64, 0x45, 0x55, 0xbb, 0x5b,
+	0x38, 0x6d, 0x97, 0xc2, 0x7a, 0x5b, 0x20, 0x48, 0x8b, 0x02, 0x62, 0xe2, 0x36, 0x4e, 0xb3, 0xb2,
+	0x23, 0x47, 0x28, 0x5a, 0xa0, 0x4b, 0x8c, 0xc8, 0xb1, 0xc2, 0x35, 0x35, 0xc3, 0x25, 0x87, 0x69,
+	0xd9, 0x7b, 0x0f, 0x45, 0x2f, 0xdb, 0x62, 0x0b, 0x14, 0xe8, 0xa9, 0xff, 0x44, 0x6f, 0x45, 0xaf,
+	0x41, 0x4f, 0x7b, 0xec, 0x89, 0x2d, 0x92, 0x1b, 0xff, 0x83, 0xde, 0x8a, 0x19, 0x92, 0xe2, 0x48,
+	0x94, 0x2d, 0x5f, 0x16, 0x7b, 0xb2, 0xe7, 0xf7, 0x3e, 0xe7, 0xcd, 0x6f, 0xde, 0x3c, 0x0a, 0x3c,
+	0x74, 0x08, 0xc3, 0x3e, 0x41, 0x6e, 0x37, 0xb0, 0x5e, 0x62, 0x3b, 0x74, 0xb1, 0x5f, 0xfc, 0x47,
+	0x47, 0x9f, 0x61, 0x8b, 0x05, 0x25, 0x40, 0xf7, 0x7c, 0xca, 0x28, 0xac, 0xcf, 0xe3, 0x4d, 0x6d,
+	0x4c, 0xe9, 0xd8, 0xc5, 0x5d, 0x21, 0x1f, 0x85, 0x17, 0x5d, 0xe6, 0x4c, 0x70, 0xc0, 0xd0, 0xc4,
+	0x4b, 0x4d, 0x9a, 0x9d, 0xcb, 0x07, 0x81, 0xee, 0xd0, 0x2e, 0xf2, 0x9c, 0xae, 0x45, 0x7d, 0xdc,
+	0x7d, 0xf5, 0x51, 0x77, 0x8c, 0x09, 0xf6, 0x11, 0xc3, 0x76, 0xa6, 0xf3, 0xfd, 0x42, 0x67, 0x82,
+	0xac, 0x97, 0x0e, 0xc1, 0x7e, 0xd4, 0xf5, 0x2e, 0xc7, 0xc2, 0xc8, 0xc7, 0x01, 0x0d, 0x7d, 0x0b,
+	0x97, 0xac, 0x3e, 0x1c, 0x3b, 0xec, 0x65, 0x38, 0xd2, 0x2d, 0x3a, 0xe9, 0x8e, 0xe9, 0x98, 0x16,
+	0x39, 0xf0, 0x95, 0x58, 0x88, 0xff, 0x52, 0xf5, 0xce, 0xeb, 0x55, 0x50, 0x39, 0xfe, 0x0d, 0xb6,
+	0x42, 0x46, 0x7d, 0xd8, 0x06, 0xab, 0x8e, 0xad, 0x2a, 0x6d, 0xe5, 0xb0, 0x6a, 0xd4, 0x93, 0x58,
+	0xdb, 0x76, 0xec, 0xef, 0xd1, 0x89, 0xc3, 0xf0, 0xc4, 0x63, 0xd1, 0x60, 0xd5, 0xb1, 0xe1, 0xb7,
+	0xc1, 0xba, 0x47, 0xa9, 0xab, 0xae, 0x0a, 0x1d, 0x98, 0xc4, 0xda, 0x2e, 0x5f, 0x4b, 0x5a, 0x42,
+	0x0e, 0x7b, 0x60, 0x83, 0x50, 0x1b, 0x07, 0xea, 0x5a, 0x7b, 0xed, 0xb0, 0x76, 0x74, 0x4b, 0x2f,
+	0x95, 0xae, 0x4f, 0x6d, 0x6c, 0xec, 0x27, 0xb1, 0xb6, 0x27, 0x14, 0x25, 0x0f, 0xa9, 0x25, 0xfc,
+	0x14, 0xec, 0xba, 0x28, 0x60, 0x43, 0xcf, 0x46, 0x0c, 0xbf, 0x70, 0x26, 0x58, 0xdd, 0x68, 0x2b,
+	0x87, 0xb5, 0xa3, 0xa6, 0x9e, 0x16, 0x57, 0xcf, 0x37, 0xa6, 0xbf, 0xc8, 0x8b, 0x6b, 0x34, 0x5f,
+	0xc7, 0xda, 0x0a, 0x4f, 0x6a, 0xd6, 0xf2, 0x8b, 0xff, 0x68, 0xca, 0x60, 0x0e, 0x83, 0xa7, 0x60,
+	0x3f, 0x24, 0x28, 0x08, 0x9c, 0x31, 0xc1, 0xb6, 0xf9, 0x19, 0x1d, 0x99, 0x7e, 0x48, 0x02, 0xb5,
+	0xda, 0x5e, 0x3b, 0xac, 0x1a, 0x5a, 0x12, 0x6b, 0x77, 0x0b, 0xf1, 0x53, 0x3a, 0x1a, 0x84, 0x44,
+	0x4e, 0xb2, 0x51, 0x12, 0x76, 0xfe, 0xb7, 0x03, 0xd6, 0xf9, 0xae, 0x6e, 0x56, 0x46, 0x82, 0x26,
+	0x58, 0xdd, 0x2e, 0xca, 0xc8, 0xd7, 0x72, 0x19, 0xf9, 0x1a, 0x1e, 0x81, 0x0a, 0xce, 0x0e, 0x47,
+	0xdd, 0x17, 0xba, 0xb7, 0x92, 0x58, 0x83, 0x39, 0x26, 0xe9, 0x4f, 0xf5, 0xe0, 0x27, 0xa0, 0xca,
+	0x77, 0x6a, 0x06, 0x18, 0x13, 0x71, 0x4e, 0xd7, 0x97, 0xec, 0x20, 0x2b, 0x59, 0x85, 0x1b, 0x9d,
+	0x63, 0x4c, 0x44, 0xb1, 0xa6, 0x2b, 0xd8, 0x03, 0x9b, 0x0c, 0x39, 0x84, 0x05, 0xea, 0x86, 0x38,
+	0xca, 0x3b, 0x7a, 0x4a, 0x4b, 0x1d, 0x79, 0x8e, 0xce, 0xa9, 0xab, 0xbf, 0xfa, 0x48, 0x7f, 0xc1,
+	0x35, 0x8c, 0xdd, 0xcc, 0x55, 0x66, 0x30, 0xc8, 0xfe, 0xc2, 0x33, 0xb0, 0xe9, 0xa2, 0x11, 0x76,
+	0x03, 0x75, 0x53, 0xb8, 0xe8, 0x2c, 0x66, 0x83, 0xfe, 0x4c, 0x28, 0x1d, 0x13, 0xe6, 0x47, 0xc6,
+	0x41, 0x12, 0x6b, 0xf5, 0xd4, 0x4a, 0xda, 0x65, 0xe6, 0x07, 0x9a, 0x60, 0x8f, 0x51, 0x86, 0x5c,
+	0x33, 0xbf, 0x06, 0x81, 0xba, 0x25, 0x76, 0xda, 0x2a, 0xbb, 0x1e, 0x64, 0x2a, 0xcf, 0x9c, 0x80,
+	0x19, 0xb7, 0x72, 0x82, 0x08, 0xf3, 0x5c, 0x14, 0x0c, 0xe6, 0xd6, 0xf0, 0xef, 0x0a, 0x78, 0x1f,
+	0xb9, 0x2e, 0xb5, 0x10, 0x43, 0x23, 0x17, 0x9b, 0xa3, 0xc8, 0xf4, 0x7c, 0x87, 0xfa, 0x0e, 0x8b,
+	0x4c, 0x44, 0xec, 0x69, 0x5c, 0xb5, 0x22, 0x76, 0xf4, 0xa3, 0x2b, 0x76, 0xd4, 0x2b, 0x5c, 0x18,
+	0xd1, 0x59, 0xe6, 0xa0, 0x47, 0xec, 0x3c, 0x50, 0xba, 0xd7, 0xc3, 0x2c, 0xa9, 0x36, 0x5a, 0xa2,
+	0x3e, 0x58, 0xaa, 0x01, 0x7d, 0xb0, 0x1f, 0x30, 0xc4, 0x44, 0xc6, 0x19, 0xa7, 0x4d, 0xc7, 0x16,
+	0xac, 0xae, 0x1d, 0x7d, 0xf7, 0x8a, 0x34, 0xcf, 0xb9, 0x85, 0x11, 0xa5, 0x44, 0x3e, 0xb1, 0xd3,
+	0xac, 0x6e, 0x67, 0x59, 0xed, 0x05, 0xb3, 0xd2, 0xc1, 0x3c, 0x00, 0xff, 0xa0, 0x80, 0xdb, 0x21,
+	0x91, 0xcb, 0x55, 0x1c, 0xcb, 0x8e, 0x08, 0x7c, 0x74, 0x45, 0xe0, 0xa1, 0x6c, 0x35, 0xad, 0x7e,
+	0x1a, 0xbf, 0x95, 0xc5, 0xbf, 0x15, 0x2e, 0x54, 0x1a, 0x5c, 0x81, 0xc3, 0x1e, 0xd8, 0x09, 0x49,
+	0x16, 0x8e, 0x4b, 0xd4, 0xbd, 0xb6, 0x72, 0x58, 0x31, 0xee, 0x26, 0xb1, 0x76, 0x7b, 0x46, 0x20,
+	0xf1, 0x6a, 0xd6, 0x82, 0xb7, 0x06, 0x1f, 0x7b, 0xd4, 0x67, 0x0e, 0x19, 0x9b, 0xbc, 0x1b, 0x99,
+	0x2c, 0xf2, 0xb0, 0xda, 0x10, 0x37, 0x50, 0xb4, 0x86, 0xa9, 0x98, 0x6f, 0xe3, 0x45, 0xe4, 0xc9,
+	0xce, 0x1a, 0x25, 0xe1, 0xb4, 0x6d, 0xc2, 0x25, 0x6d, 0xf3, 0xcf, 0x0a, 0x68, 0xe7, 0xb5, 0x33,
+	0xc3, 0x00, 0x8d, 0xc5, 0x39, 0x7e, 0x1e, 0xe2, 0x10, 0x0b, 0xda, 0x09, 0x27, 0x07, 0xa2, 0xa4,
+	0xef, 0x95, 0x4b, 0x7a, 0x46, 0xa9, 0xfb, 0x9c, 0xeb, 0xe6, 0xc5, 0x30, 0xee, 0x27, 0xb1, 0xf6,
+	0x41, 0xee, 0x70, 0xc8, 0xfd, 0x19, 0x91, 0xd0, 0xe8, 0x11, 0xfb, 0x6c, 0x36, 0x81, 0xbb, 0xd7,
+	0xa8, 0x35, 0x11, 0xa8, 0x49, 0x97, 0x13, 0xbe, 0x07, 0xd6, 0x2e, 0x71, 0x94, 0x75, 0xb8, 0x46,
+	0x12, 0x6b, 0x3b, 0x97, 0x38, 0x92, 0x7c, 0x71, 0x29, 0xbc, 0x0f, 0x36, 0x5e, 0x21, 0x37, 0xc4,
+	0xd9, 0x5b, 0x21, 0x5a, 0xbd, 0x00, 0xe4, 0x56, 0x2f, 0x80, 0x87, 0xab, 0x0f, 0x94, 0xe6, 0x5f,
+	0x15, 0xf0, 0xc1, 0x8d, 0xae, 0x8b, 0x1c, 0x7d, 0xe3, 0xca, 0xe8, 0x27, 0x72, 0xf4, 0xe5, 0x7d,
+	0x61, 0x59, 0x76, 0xbf, 0x57, 0xc0, 0xc1, 0xa2, 0x5b, 0x72, 0xb3, 0x52, 0x3c, 0x91, 0x93, 0xd9,
+	0x3d, 0x7a, 0xb7, 0x9c, 0x4c, 0xea, 0x34, 0x8d, 0xb0, 0x2c, 0x97, 0x3f, 0x2a, 0xe0, 0xee, 0x35,
+	0x17, 0xe7, 0x9b, 0xa8, 0x4f, 0xe7, 0x1f, 0x0a, 0x68, 0x94, 0xe8, 0x37, 0xa5, 0xbd, 0xb2, 0x84,
+	0xf6, 0xf7, 0xc1, 0x86, 0xe0, 0xb8, 0x4c, 0x15, 0x01, 0xc8, 0xc1, 0x04, 0x00, 0x87, 0xa0, 0x5a,
+	0x34, 0x97, 0xb5, 0x1b, 0xe5, 0x7e, 0x3b, 0x89, 0xb5, 0xfd, 0xa9, 0x91, 0xe4, 0xb2, 0xf0, 0xd4,
+	0xf9, 0xdd, 0x2a, 0xd8, 0x96, 0x8d, 0xe0, 0xa7, 0x72, 0x1c, 0x45, 0xdc, 0xb8, 0x0f, 0xaf, 0x8f,
+	0xa3, 0xcf, 0xf5, 0xaf, 0x46, 0xd6, 0xbf, 0x0a, 0x3f, 0x52, 0xc0, 0xe6, 0x97, 0x0a, 0xd8, 0xbd,
+	0xfa, 0xdc, 0xae, 0xa6, 0xd2, 0x2f, 0x66, 0xcf, 0x4d, 0x97, 0x5e, 0xe3, 0xe9, 0x90, 0xa8, 0x7b,
+	0x97, 0x63, 0xf1, 0x3c, 0xe7, 0xe1, 0xf4, 0xe7, 0x21, 0x22, 0xcc, 0x61, 0xd1, 0xd2, 0x73, 0xfc,
+	0x72, 0x03, 0x34, 0x9e, 0xd2, 0xd1, 0x79, 0xba, 0x51, 0x87, 0x8c, 0x4f, 0xc8, 0x05, 0xe5, 0x63,
+	0x88, 0xeb, 0x5c, 0x60, 0x3e, 0xc4, 0x8a, 0xf4, 0x76, 0xd2, 0x31, 0x24, 0xc7, 0xe4, 0x31, 0x24,
+	0xc7, 0xe0, 0x43, 0xb0, 0x8d, 0x98, 0x39, 0xa1, 0x01, 0x33, 0x29, 0xb1, 0xd2, 0x7c, 0x2b, 0x86,
+	0x9a, 0xc4, 0xda, 0x01, 0x62, 0x9f, 0xd0, 0x80, 0x9d, 0x12, 0x4b, 0xb6, 0x04, 0x05, 0x0a, 0x7f,
+	0x08, 0x6a, 0x9e, 0x8f, 0x39, 0xee, 0xf0, 0x06, 0xbe, 0x26, 0x4c, 0xef, 0x24, 0xb1, 0xf6, 0x8e,
+	0x04, 0x4b, 0xb6, 0xb2, 0x36, 0x7c, 0x02, 0xea, 0x16, 0x25, 0x56, 0xe8, 0xfb, 0x98, 0x58, 0x91,
+	0x19, 0xa0, 0x0b, 0xac, 0xae, 0x0b, 0x0f, 0xef, 0x26, 0xb1, 0x76, 0x47, 0x92, 0x9d, 0xa3, 0x0b,
+	0xd9, 0xcb, 0xde, 0x9c, 0x88, 0x3f, 0x03, 0xd3, 0x47, 0xdf, 0x72, 0x51, 0x10, 0x98, 0x62, 0x68,
+	0xdb, 0x2c, 0x9e, 0x81, 0x5c, 0xfc, 0x88, 0x4b, 0xfb, 0xb3, 0x13, 0x5c, 0xa3, 0x24, 0x84, 0xe7,
+	0xa0, 0x16, 0x84, 0xa3, 0x89, 0xc3, 0x4c, 0x51, 0xca, 0xad, 0xa5, 0xc3, 0x59, 0x3e, 0xae, 0x80,
+	0xd4, 0x6c, 0x3a, 0xcb, 0x4a, 0x6b, 0x7e, 0x38, 0x79, 0x24, 0xb5, 0x52, 0x1c, 0x4e, 0x8e, 0xc9,
+	0x87, 0x93, 0x63, 0xf0, 0xd7, 0x60, 0x3f, 0xa5, 0xb0, 0xe9, 0xe3, 0xcf, 0x43, 0xc7, 0xc7, 0x13,
+	0x5c, 0x4c, 0x78, 0xef, 0x97, 0x79, 0x7e, 0x2a, 0xfe, 0x0e, 0x24, 0x5d, 0xa3, 0x9d, 0xc4, 0xda,
+	0x3d, 0x5a, 0xc2, 0xa5, 0x70, 0xb0, 0x2c, 0x85, 0x5d, 0xb0, 0xf5, 0x0a, 0xfb, 0x81, 0x43, 0x89,
+	0x5a, 0x15, 0xb9, 0xbe, 0x93, 0xc4, 0x5a, 0x23, 0x83, 0x24, 0xdb, 0x5c, 0xeb, 0xe1, 0xfa, 0x5f,
+	0xfe, 0xa6, 0x29, 0x9d, 0x3f, 0x29, 0x00, 0x96, 0x73, 0x80, 0x2e, 0xd8, 0xf3, 0xa8, 0x2d, 0x43,
+	0x82, 0x9e, 0xb5, 0xa3, 0x6f, 0x2d, 0x7a, 0x1c, 0x67, 0x14, 0x53, 0x32, 0xcc, 0x59, 0x17, 0x09,
+	0x3c, 0x59, 0x19, 0xcc, 0xbb, 0x36, 0x76, 0xc1, 0xb6, 0x5c, 0xad, 0xce, 0x3f, 0x37, 0xc1, 0xde,
+	0x9c, 0x57, 0x18, 0x80, 0x6d, 0x3e, 0x2f, 0x9c, 0x63, 0x17, 0x5b, 0x7c, 0x68, 0x4f, 0x3b, 0xc7,
+	0xc7, 0x4b, 0xd3, 0x11, 0xe3, 0x50, 0x6e, 0x95, 0xf6, 0x8f, 0x26, 0x9f, 0x7d, 0x64, 0x67, 0x52,
+	0x79, 0x66, 0x82, 0xc0, 0x33, 0x50, 0x41, 0x17, 0x17, 0x0e, 0xe1, 0x0c, 0x48, 0xdb, 0xc2, 0xbd,
+	0x45, 0x43, 0x7a, 0x2f, 0xd3, 0x49, 0xf9, 0x91, 0x5b, 0xc8, 0xfc, 0xc8, 0x31, 0x38, 0x04, 0x35,
+	0x46, 0x5d, 0xfe, 0x5d, 0xe9, 0x50, 0x92, 0x7f, 0xc4, 0xb5, 0x16, 0x4e, 0xfe, 0x53, 0x35, 0x63,
+	0x3f, 0x23, 0xab, 0x6c, 0x3a, 0x90, 0x17, 0x90, 0x82, 0x1a, 0x22, 0x84, 0xb2, 0xcc, 0xed, 0xd6,
+	0x55, 0xb3, 0xe1, 0x7c, 0x71, 0x7a, 0x85, 0x51, 0x5a, 0x1b, 0xd1, 0x0b, 0x24, 0x57, 0x72, 0x2f,
+	0x90, 0x60, 0xf8, 0x14, 0xd4, 0xf3, 0xd6, 0x40, 0xc9, 0x19, 0x75, 0x1d, 0x2b, 0x12, 0x5f, 0x91,
+	0x55, 0xa3, 0x95, 0xc4, 0x5a, 0x73, 0x5e, 0x26, 0xb9, 0x29, 0xd9, 0xc1, 0xdf, 0x82, 0x83, 0xbc,
+	0x9f, 0xce, 0x30, 0x6e, 0x53, 0x54, 0xfc, 0x70, 0x51, 0x71, 0x06, 0x0b, 0xf4, 0x8d, 0x7b, 0x59,
+	0x99, 0x16, 0x7a, 0x1b, 0x2c, 0x44, 0x9b, 0x63, 0xd0, 0x28, 0x11, 0xe4, 0x6b, 0x99, 0xc2, 0x2e,
+	0x40, 0x7d, 0xbe, 0xd8, 0x5f, 0x47, 0x9c, 0xa7, 0xeb, 0x95, 0x4a, 0xbd, 0xda, 0xf9, 0xd7, 0x2a,
+	0xa8, 0xe7, 0x3f, 0x3e, 0x9c, 0x63, 0xc6, 0x47, 0xe6, 0x00, 0x3e, 0x00, 0x20, 0xff, 0x96, 0x3d,
+	0xc9, 0xbf, 0xa2, 0xc5, 0xb3, 0x51, 0xa0, 0xf2, 0xb3, 0x51, 0xa0, 0xbc, 0x13, 0x5a, 0xd4, 0xb7,
+	0x29, 0xc1, 0x76, 0xf6, 0xdc, 0x08, 0xa6, 0xe7, 0x98, 0xcc, 0xf4, 0x1c, 0x83, 0x3f, 0x06, 0xdb,
+	0xe9, 0xff, 0x03, 0x8c, 0x02, 0x4a, 0xc4, 0x5b, 0x53, 0x4d, 0xef, 0x9e, 0x8c, 0xcb, 0x77, 0x4f,
+	0xc6, 0xe1, 0x0f, 0x40, 0x35, 0xc0, 0xcc, 0x88, 0x86, 0x01, 0xf6, 0xc5, 0x33, 0x53, 0x4d, 0xe7,
+	0x8d, 0x29, 0x28, 0xcf, 0x1b, 0x53, 0x10, 0x3e, 0x17, 0x66, 0x3d, 0x76, 0xc3, 0xdf, 0x35, 0x72,
+	0x97, 0xa9, 0xc1, 0x9c, 0xcb, 0x14, 0xfc, 0xce, 0x29, 0xa8, 0x49, 0x53, 0x24, 0xac, 0x81, 0xad,
+	0x61, 0xff, 0x67, 0xfd, 0xd3, 0x9f, 0xf7, 0xeb, 0x2b, 0x7c, 0x71, 0x76, 0xdc, 0x7f, 0x7c, 0xd2,
+	0xff, 0x69, 0x5d, 0xe1, 0x8b, 0xc1, 0xb0, 0xdf, 0xe7, 0x8b, 0x55, 0xb8, 0x03, 0xaa, 0xe7, 0xc3,
+	0x47, 0x8f, 0x8e, 0x8f, 0x1f, 0x1f, 0x3f, 0xae, 0xaf, 0x41, 0x00, 0x36, 0x7f, 0xd2, 0x3b, 0x79,
+	0x76, 0xfc, 0xb8, 0xbe, 0x6e, 0xfc, 0xea, 0xf5, 0x9b, 0x96, 0xf2, 0xd5, 0x9b, 0x96, 0xf2, 0xdf,
+	0x37, 0x2d, 0xe5, 0x8b, 0xb7, 0xad, 0x95, 0xaf, 0xde, 0xb6, 0x56, 0xfe, 0xfd, 0xb6, 0xb5, 0xf2,
+	0xcb, 0x47, 0xd2, 0x6f, 0x4c, 0xc8, 0x9f, 0x20, 0x1b, 0x79, 0x3e, 0xe5, 0x57, 0x37, 0x5b, 0x75,
+	0x6f, 0xf0, 0x63, 0xda, 0x68, 0x53, 0xec, 0xf3, 0xe3, 0xff, 0x07, 0x00, 0x00, 0xff, 0xff, 0x4f,
+	0xef, 0xf8, 0x20, 0x7a, 0x13, 0x00, 0x00,
 }
 
 func (m *Executor) Marshal() (dAtA []byte, err error) {
@@ -1070,6 +988,22 @@ func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.ResourceUsageByQueueAndPool) > 0 {
+		for iNdEx := len(m.ResourceUsageByQueueAndPool) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.ResourceUsageByQueueAndPool[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x1
+			i--
+			dAtA[i] = 0xa2
+		}
+	}
 	if len(m.Executor) > 0 {
 		i -= len(m.Executor)
 		copy(dAtA[i:], m.Executor)
@@ -1097,34 +1031,6 @@ func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x8a
 	}
-	if len(m.ResourceUsageByQueue) > 0 {
-		for k := range m.ResourceUsageByQueue {
-			v := m.ResourceUsageByQueue[k]
-			baseI := i
-			if v != nil {
-				{
-					size, err := v.MarshalToSizedBuffer(dAtA[:i])
-					if err != nil {
-						return 0, err
-					}
-					i -= size
-					i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
-				}
-				i--
-				dAtA[i] = 0x12
-			}
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x1
-			i--
-			dAtA[i] = 0x82
-		}
-	}
 	if m.Unschedulable {
 		i--
 		if m.Unschedulable {
@@ -1135,9 +1041,9 @@ func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x78
 	}
-	if len(m.NonArmadaAllocatedResources) > 0 {
-		for k := range m.NonArmadaAllocatedResources {
-			v := m.NonArmadaAllocatedResources[k]
+	if len(m.UnallocatableResources) > 0 {
+		for k := range m.UnallocatableResources {
+			v := m.UnallocatableResources[k]
 			baseI := i
 			{
 				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
@@ -1246,12 +1152,12 @@ func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA[i] = 0x2a
 		}
 	}
-	n6, err6 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastSeen, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastSeen):])
-	if err6 != nil {
-		return 0, err6
+	n5, err5 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastSeen, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastSeen):])
+	if err5 != nil {
+		return 0, err5
 	}
-	i -= n6
-	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n6))
+	i -= n5
+	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n5))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Id) > 0 {
@@ -1264,7 +1170,7 @@ func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *QueueClusterResourceUsage) Marshal() (dAtA []byte, err error) {
+func (m *PoolQueueResource) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1274,66 +1180,25 @@ func (m *QueueClusterResourceUsage) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *QueueClusterResourceUsage) MarshalTo(dAtA []byte) (int, error) {
+func (m *PoolQueueResource) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *QueueClusterResourceUsage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *PoolQueueResource) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ResourcesByPriorityClassName) > 0 {
-		for k := range m.ResourcesByPriorityClassName {
-			v := m.ResourcesByPriorityClassName[k]
-			baseI := i
-			{
-				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
+	if m.Resources != nil {
+		{
+			size, err := m.Resources.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
 			}
-			i--
-			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x2a
+			i -= size
+			i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
 		}
-	}
-	if len(m.ResourcesByPriority) > 0 {
-		for k := range m.ResourcesByPriority {
-			v := m.ResourcesByPriority[k]
-			baseI := i
-			{
-				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x12
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(k))
-			i--
-			dAtA[i] = 0x8
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if len(m.ExecutorId) > 0 {
-		i -= len(m.ExecutorId)
-		copy(dAtA[i:], m.ExecutorId)
-		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.ExecutorId)))
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -1344,71 +1209,6 @@ func (m *QueueClusterResourceUsage) MarshalToSizedBuffer(dAtA []byte) (int, erro
 		i--
 		dAtA[i] = 0x12
 	}
-	n9, err9 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err9 != nil {
-		return 0, err9
-	}
-	i -= n9
-	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n9))
-	i--
-	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
-}
-
-func (m *ClusterResourceUsageReport) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ClusterResourceUsageReport) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ClusterResourceUsageReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if len(m.ResourcesByQueue) > 0 {
-		for k := range m.ResourcesByQueue {
-			v := m.ResourcesByQueue[k]
-			baseI := i
-			if v != nil {
-				{
-					size, err := v.MarshalToSizedBuffer(dAtA[:i])
-					if err != nil {
-						return 0, err
-					}
-					i -= size
-					i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
-				}
-				i--
-				dAtA[i] = 0x12
-			}
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintSchedulerobjects(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x1a
-		}
-	}
-	n11, err11 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err11 != nil {
-		return 0, err11
-	}
-	i -= n11
-	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n11))
-	i--
-	dAtA[i] = 0x12
 	if len(m.Pool) > 0 {
 		i -= len(m.Pool)
 		copy(dAtA[i:], m.Pool)
@@ -1496,12 +1296,12 @@ func (m *JobSchedulingInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x40
 	}
-	n13, err13 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.SubmitTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.SubmitTime):])
-	if err13 != nil {
-		return 0, err13
+	n8, err8 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.SubmitTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.SubmitTime):])
+	if err8 != nil {
+		return 0, err8
 	}
-	i -= n13
-	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n13))
+	i -= n8
+	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n8))
 	i--
 	dAtA[i] = 0x3a
 	if len(m.PriorityClassName) > 0 {
@@ -1720,7 +1520,7 @@ func (m *PodRequirements) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *PulsarSchedulerJobDetails) Marshal() (dAtA []byte, err error) {
+func (m *ExecutorSettings) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1730,34 +1530,56 @@ func (m *PulsarSchedulerJobDetails) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *PulsarSchedulerJobDetails) MarshalTo(dAtA []byte) (int, error) {
+func (m *ExecutorSettings) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *PulsarSchedulerJobDetails) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *ExecutorSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.JobSet) > 0 {
-		i -= len(m.JobSet)
-		copy(dAtA[i:], m.JobSet)
-		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.JobSet)))
+	if m.SetAtTime != nil {
+		{
+			size, err := m.SetAtTime.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.SetByUser) > 0 {
+		i -= len(m.SetByUser)
+		copy(dAtA[i:], m.SetByUser)
+		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.SetByUser)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.CordonReason) > 0 {
+		i -= len(m.CordonReason)
+		copy(dAtA[i:], m.CordonReason)
+		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.CordonReason)))
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.Queue) > 0 {
-		i -= len(m.Queue)
-		copy(dAtA[i:], m.Queue)
-		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.Queue)))
+	if m.Cordoned {
 		i--
-		dAtA[i] = 0x12
+		if m.Cordoned {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
 	}
-	if len(m.JobId) > 0 {
-		i -= len(m.JobId)
-		copy(dAtA[i:], m.JobId)
-		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.JobId)))
+	if len(m.ExecutorId) > 0 {
+		i -= len(m.ExecutorId)
+		copy(dAtA[i:], m.ExecutorId)
+		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.ExecutorId)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -1855,8 +1677,8 @@ func (m *Node) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovSchedulerobjects(uint64(l))
 	}
-	if len(m.NonArmadaAllocatedResources) > 0 {
-		for k, v := range m.NonArmadaAllocatedResources {
+	if len(m.UnallocatableResources) > 0 {
+		for k, v := range m.UnallocatableResources {
 			_ = k
 			_ = v
 			l = v.Size()
@@ -1866,19 +1688,6 @@ func (m *Node) Size() (n int) {
 	}
 	if m.Unschedulable {
 		n += 2
-	}
-	if len(m.ResourceUsageByQueue) > 0 {
-		for k, v := range m.ResourceUsageByQueue {
-			_ = k
-			_ = v
-			l = 0
-			if v != nil {
-				l = v.Size()
-				l += 1 + sovSchedulerobjects(uint64(l))
-			}
-			mapEntrySize := 1 + len(k) + sovSchedulerobjects(uint64(len(k))) + l
-			n += mapEntrySize + 2 + sovSchedulerobjects(uint64(mapEntrySize))
-		}
 	}
 	l = len(m.ReportingNodeType)
 	if l > 0 {
@@ -1892,47 +1701,16 @@ func (m *Node) Size() (n int) {
 	if l > 0 {
 		n += 2 + l + sovSchedulerobjects(uint64(l))
 	}
-	return n
-}
-
-func (m *QueueClusterResourceUsage) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
-	n += 1 + l + sovSchedulerobjects(uint64(l))
-	l = len(m.Queue)
-	if l > 0 {
-		n += 1 + l + sovSchedulerobjects(uint64(l))
-	}
-	l = len(m.ExecutorId)
-	if l > 0 {
-		n += 1 + l + sovSchedulerobjects(uint64(l))
-	}
-	if len(m.ResourcesByPriority) > 0 {
-		for k, v := range m.ResourcesByPriority {
-			_ = k
-			_ = v
-			l = v.Size()
-			mapEntrySize := 1 + sovSchedulerobjects(uint64(k)) + 1 + l + sovSchedulerobjects(uint64(l))
-			n += mapEntrySize + 1 + sovSchedulerobjects(uint64(mapEntrySize))
-		}
-	}
-	if len(m.ResourcesByPriorityClassName) > 0 {
-		for k, v := range m.ResourcesByPriorityClassName {
-			_ = k
-			_ = v
-			l = v.Size()
-			mapEntrySize := 1 + len(k) + sovSchedulerobjects(uint64(len(k))) + 1 + l + sovSchedulerobjects(uint64(l))
-			n += mapEntrySize + 1 + sovSchedulerobjects(uint64(mapEntrySize))
+	if len(m.ResourceUsageByQueueAndPool) > 0 {
+		for _, e := range m.ResourceUsageByQueueAndPool {
+			l = e.Size()
+			n += 2 + l + sovSchedulerobjects(uint64(l))
 		}
 	}
 	return n
 }
 
-func (m *ClusterResourceUsageReport) Size() (n int) {
+func (m *PoolQueueResource) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1942,20 +1720,13 @@ func (m *ClusterResourceUsageReport) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovSchedulerobjects(uint64(l))
 	}
-	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
-	n += 1 + l + sovSchedulerobjects(uint64(l))
-	if len(m.ResourcesByQueue) > 0 {
-		for k, v := range m.ResourcesByQueue {
-			_ = k
-			_ = v
-			l = 0
-			if v != nil {
-				l = v.Size()
-				l += 1 + sovSchedulerobjects(uint64(l))
-			}
-			mapEntrySize := 1 + len(k) + sovSchedulerobjects(uint64(len(k))) + l
-			n += mapEntrySize + 1 + sovSchedulerobjects(uint64(mapEntrySize))
-		}
+	l = len(m.Queue)
+	if l > 0 {
+		n += 1 + l + sovSchedulerobjects(uint64(l))
+	}
+	if m.Resources != nil {
+		l = m.Resources.Size()
+		n += 1 + l + sovSchedulerobjects(uint64(l))
 	}
 	return n
 }
@@ -2082,22 +1853,29 @@ func (m *PodRequirements) Size() (n int) {
 	return n
 }
 
-func (m *PulsarSchedulerJobDetails) Size() (n int) {
+func (m *ExecutorSettings) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.JobId)
+	l = len(m.ExecutorId)
 	if l > 0 {
 		n += 1 + l + sovSchedulerobjects(uint64(l))
 	}
-	l = len(m.Queue)
+	if m.Cordoned {
+		n += 2
+	}
+	l = len(m.CordonReason)
 	if l > 0 {
 		n += 1 + l + sovSchedulerobjects(uint64(l))
 	}
-	l = len(m.JobSet)
+	l = len(m.SetByUser)
 	if l > 0 {
+		n += 1 + l + sovSchedulerobjects(uint64(l))
+	}
+	if m.SetAtTime != nil {
+		l = m.SetAtTime.Size()
 		n += 1 + l + sovSchedulerobjects(uint64(l))
 	}
 	return n
@@ -2872,7 +2650,7 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 13:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NonArmadaAllocatedResources", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field UnallocatableResources", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -2899,8 +2677,8 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.NonArmadaAllocatedResources == nil {
-				m.NonArmadaAllocatedResources = make(map[int32]ResourceList)
+			if m.UnallocatableResources == nil {
+				m.UnallocatableResources = make(map[int32]ResourceList)
 			}
 			var mapkey int32
 			mapvalue := &ResourceList{}
@@ -2983,7 +2761,7 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 					iNdEx += skippy
 				}
 			}
-			m.NonArmadaAllocatedResources[mapkey] = *mapvalue
+			m.UnallocatableResources[mapkey] = *mapvalue
 			iNdEx = postIndex
 		case 15:
 			if wireType != 0 {
@@ -3005,135 +2783,6 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Unschedulable = bool(v != 0)
-		case 16:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResourceUsageByQueue", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSchedulerobjects
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ResourceUsageByQueue == nil {
-				m.ResourceUsageByQueue = make(map[string]*ResourceList)
-			}
-			var mapkey string
-			var mapvalue *ResourceList
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowSchedulerobjects
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var mapmsglen int
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapmsglen |= int(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					if mapmsglen < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postmsgIndex := iNdEx + mapmsglen
-					if postmsgIndex < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postmsgIndex > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = &ResourceList{}
-					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
-						return err
-					}
-					iNdEx = postmsgIndex
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.ResourceUsageByQueue[mapkey] = mapvalue
-			iNdEx = postIndex
 		case 17:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ReportingNodeType", wireType)
@@ -3230,396 +2879,39 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 			}
 			m.Executor = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
-			if err != nil {
+		case 20:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceUsageByQueueAndPool", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceUsageByQueueAndPool = append(m.ResourceUsageByQueueAndPool, &PoolQueueResource{})
+			if err := m.ResourceUsageByQueueAndPool[len(m.ResourceUsageByQueueAndPool)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *QueueClusterResourceUsage) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowSchedulerobjects
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: QueueClusterResourceUsage: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: QueueClusterResourceUsage: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSchedulerobjects
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSchedulerobjects
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Queue = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ExecutorId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSchedulerobjects
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ExecutorId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResourcesByPriority", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSchedulerobjects
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ResourcesByPriority == nil {
-				m.ResourcesByPriority = make(map[int32]ResourceList)
-			}
-			var mapkey int32
-			mapvalue := &ResourceList{}
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowSchedulerobjects
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapkey |= int32(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-				} else if fieldNum == 2 {
-					var mapmsglen int
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapmsglen |= int(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					if mapmsglen < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postmsgIndex := iNdEx + mapmsglen
-					if postmsgIndex < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postmsgIndex > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = &ResourceList{}
-					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
-						return err
-					}
-					iNdEx = postmsgIndex
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.ResourcesByPriority[mapkey] = *mapvalue
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResourcesByPriorityClassName", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSchedulerobjects
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ResourcesByPriorityClassName == nil {
-				m.ResourcesByPriorityClassName = make(map[string]ResourceList)
-			}
-			var mapkey string
-			mapvalue := &ResourceList{}
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowSchedulerobjects
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var mapmsglen int
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapmsglen |= int(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					if mapmsglen < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postmsgIndex := iNdEx + mapmsglen
-					if postmsgIndex < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postmsgIndex > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = &ResourceList{}
-					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
-						return err
-					}
-					iNdEx = postmsgIndex
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.ResourcesByPriorityClassName[mapkey] = *mapvalue
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -3642,7 +2934,7 @@ func (m *QueueClusterResourceUsage) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *ClusterResourceUsageReport) Unmarshal(dAtA []byte) error {
+func (m *PoolQueueResource) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -3665,10 +2957,10 @@ func (m *ClusterResourceUsageReport) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ClusterResourceUsageReport: wiretype end group for non-group")
+			return fmt.Errorf("proto: PoolQueueResource: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ClusterResourceUsageReport: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PoolQueueResource: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -3705,9 +2997,9 @@ func (m *ClusterResourceUsageReport) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowSchedulerobjects
@@ -3717,28 +3009,27 @@ func (m *ClusterResourceUsageReport) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthSchedulerobjects
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthSchedulerobjects
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.Queue = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResourcesByQueue", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -3765,105 +3056,12 @@ func (m *ClusterResourceUsageReport) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.ResourcesByQueue == nil {
-				m.ResourcesByQueue = make(map[string]*QueueClusterResourceUsage)
+			if m.Resources == nil {
+				m.Resources = &ResourceList{}
 			}
-			var mapkey string
-			var mapvalue *QueueClusterResourceUsage
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowSchedulerobjects
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var mapmsglen int
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowSchedulerobjects
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapmsglen |= int(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					if mapmsglen < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					postmsgIndex := iNdEx + mapmsglen
-					if postmsgIndex < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if postmsgIndex > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = &QueueClusterResourceUsage{}
-					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
-						return err
-					}
-					iNdEx = postmsgIndex
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthSchedulerobjects
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
+			if err := m.Resources.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
 			}
-			m.ResourcesByQueue[mapkey] = mapvalue
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -4855,7 +4053,7 @@ func (m *PodRequirements) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *PulsarSchedulerJobDetails) Unmarshal(dAtA []byte) error {
+func (m *ExecutorSettings) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -4878,15 +4076,15 @@ func (m *PulsarSchedulerJobDetails) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: PulsarSchedulerJobDetails: wiretype end group for non-group")
+			return fmt.Errorf("proto: ExecutorSettings: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: PulsarSchedulerJobDetails: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: ExecutorSettings: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ExecutorId", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -4914,13 +4112,13 @@ func (m *PulsarSchedulerJobDetails) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.JobId = string(dAtA[iNdEx:postIndex])
+			m.ExecutorId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cordoned", wireType)
 			}
-			var stringLen uint64
+			var v int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowSchedulerobjects
@@ -4930,27 +4128,15 @@ func (m *PulsarSchedulerJobDetails) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthSchedulerobjects
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Queue = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
+			m.Cordoned = bool(v != 0)
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobSet", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field CordonReason", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -4978,7 +4164,75 @@ func (m *PulsarSchedulerJobDetails) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.JobSet = string(dAtA[iNdEx:postIndex])
+			m.CordonReason = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SetByUser", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SetByUser = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SetAtTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.SetAtTime == nil {
+				m.SetAtTime = &types.Timestamp{}
+			}
+			if err := m.SetAtTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

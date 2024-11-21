@@ -8,15 +8,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type MinimalQueue struct {
-	allocation schedulerobjects.ResourceList
+	allocation internaltypes.ResourceList
 	weight     float64
 }
 
-func (q MinimalQueue) GetAllocation() schedulerobjects.ResourceList {
+func (q MinimalQueue) GetAllocation() internaltypes.ResourceList {
 	return q.allocation
 }
 
@@ -25,12 +26,12 @@ func (q MinimalQueue) GetWeight() float64 {
 }
 
 func TestNewDominantResourceFairness(t *testing.T) {
+	rlFactory := makeTestResourceListFactory()
 	_, err := NewDominantResourceFairness(
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"foo": resource.MustParse("1"),
-			},
+		rlFactory.FromNodeProto(map[string]resource.Quantity{
+			"foo": resource.MustParse("1"),
 		},
+		),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{}},
 	)
 	require.Error(t, err)
@@ -204,20 +205,41 @@ func TestDominantResourceFairness(t *testing.T) {
 			expectedCost: 2,
 		},
 	}
+
+	rlFactory := makeTestResourceListFactory()
+
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			f, err := NewDominantResourceFairness(tc.totalResources, tc.config)
+			totalResources := rlFactory.FromNodeProto(tc.totalResources.Resources)
+			allocation := rlFactory.FromJobResourceListIgnoreUnknown(tc.allocation.Resources)
+			f, err := NewDominantResourceFairness(totalResources, tc.config)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
 				tc.expectedCost,
-				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
+				f.WeightedCostFromAllocation(allocation, tc.weight),
 			)
 			assert.Equal(
 				t,
-				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
-				f.WeightedCostFromQueue(MinimalQueue{allocation: tc.allocation, weight: tc.weight}),
+				f.WeightedCostFromAllocation(allocation, tc.weight),
+				f.WeightedCostFromQueue(MinimalQueue{allocation: allocation, weight: tc.weight}),
 			)
 		})
 	}
+}
+
+func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	rlFactory, err := internaltypes.NewResourceListFactory(
+		[]configuration.ResourceType{
+			{Name: "foo"},
+			{Name: "bar"},
+		},
+		[]configuration.FloatingResourceConfig{
+			{Name: "baz"},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return rlFactory
 }

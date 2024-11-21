@@ -3,6 +3,7 @@ package scheduling
 import (
 	"container/heap"
 	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
@@ -33,6 +35,8 @@ func NewQueueScheduler(
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
 	skipUnsuccessfulSchedulingKeyCheck bool,
+	considerPriorityClassPriority bool,
+	maxQueueLookBack uint,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -45,9 +49,9 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.GetMaxQueueLookBack(), true)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, maxQueueLookBack, true)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
 	if err != nil {
 		return nil, err
 	}
@@ -64,22 +68,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	nodeIdByJobId := make(map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sch.schedulingContext.Pool)
 
-	type queueStats struct {
-		gangsConsidered                  int
-		jobsConsidered                   int
-		gangsScheduled                   int
-		firstGangConsideredSampleJobId   string
-		firstGangConsideredResult        string
-		firstGangConsideredQueuePosition int
-		lastGangScheduledSampleJobId     string
-		lastGangScheduledQueuePosition   int
-		lastGangScheduledQueueCost       float64
-		lastGangScheduledResources       schedulerobjects.ResourceList
-		lastGangScheduledQueueResources  schedulerobjects.ResourceList
-		time                             time.Duration
-	}
-
-	statsPerQueue := map[string]queueStats{}
+	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
@@ -132,37 +121,37 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		duration := time.Now().Sub(start)
 		stats := statsPerQueue[gctx.Queue]
 
-		stats.gangsConsidered++
-		stats.jobsConsidered += gctx.Cardinality()
+		stats.GangsConsidered++
+		stats.JobsConsidered += gctx.Cardinality()
 		if scheduledOk {
-			stats.gangsScheduled++
+			stats.GangsScheduled++
 		}
 
-		if stats.firstGangConsideredSampleJobId == "" {
-			stats.firstGangConsideredSampleJobId = gctx.JobIds()[0]
-			stats.firstGangConsideredQueuePosition = loopNumber
+		if stats.FirstGangConsideredSampleJobId == "" {
+			stats.FirstGangConsideredSampleJobId = gctx.JobIds()[0]
+			stats.FirstGangConsideredQueuePosition = loopNumber
 			if scheduledOk {
-				stats.firstGangConsideredResult = "scheduled"
+				stats.FirstGangConsideredResult = "scheduled"
 			} else {
-				stats.firstGangConsideredResult = unschedulableReason
+				stats.FirstGangConsideredResult = unschedulableReason
 			}
 		}
 
 		if scheduledOk {
-			stats.lastGangScheduledSampleJobId = gctx.JobIds()[0]
-			stats.lastGangScheduledQueueCost = queueCostInclGang
-			stats.lastGangScheduledQueuePosition = loopNumber
+			stats.LastGangScheduledSampleJobId = gctx.JobIds()[0]
+			stats.LastGangScheduledQueueCost = queueCostInclGang
+			stats.LastGangScheduledQueuePosition = loopNumber
 			queue, queueOK := sch.candidateGangIterator.queueRepository.GetQueue(gctx.Queue)
 			if queueOK {
-				stats.lastGangScheduledResources = gctx.TotalResourceRequests.DeepCopy()
-				stats.lastGangScheduledQueueResources = queue.GetAllocation().DeepCopy()
+				stats.LastGangScheduledResources = gctx.TotalResourceRequests
+				stats.LastGangScheduledQueueResources = queue.GetAllocation()
 			} else {
-				stats.lastGangScheduledResources = schedulerobjects.NewResourceListWithDefaultSize()
-				stats.lastGangScheduledQueueResources = schedulerobjects.NewResourceListWithDefaultSize()
+				stats.LastGangScheduledResources = internaltypes.ResourceList{}
+				stats.LastGangScheduledQueueResources = internaltypes.ResourceList{}
 			}
 		}
 
-		stats.time += duration
+		stats.Time += duration
 		statsPerQueue[gctx.Queue] = stats
 		if duration.Seconds() > 1 {
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
@@ -177,23 +166,23 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		loopNumber++
 	}
 
-	ctx.Infof("Finished %d loops through candidate gangs for pool %s: details %v", loopNumber, sch.schedulingContext.Pool, armadamaps.MapValues(statsPerQueue, func(s queueStats) string {
+	ctx.Infof("Finished %d loops through candidate gangs for pool %s: details %v", loopNumber, sch.schedulingContext.Pool, armadamaps.MapValues(statsPerQueue, func(s QueueStats) string {
 		return fmt.Sprintf("{gangsConsidered=%d, jobsConsidered=%d, gangsScheduled=%d, "+
 			"firstGangConsideredSampleJobId=%s, firstGangConsideredResult=%s, firstGangConsideredQueuePosition=%d, "+
 			"lastGangScheduledSampleJobId=%s, lastGangScheduledQueuePosition=%d, lastGangScheduledQueueCost=%f,"+
 			"lastGangScheduledResources=%s, lastGangScheduledQueueResources=%s, time=%fs}",
-			s.gangsConsidered,
-			s.jobsConsidered,
-			s.gangsScheduled,
-			s.firstGangConsideredSampleJobId,
-			s.firstGangConsideredResult,
-			s.firstGangConsideredQueuePosition,
-			s.lastGangScheduledSampleJobId,
-			s.lastGangScheduledQueuePosition,
-			s.lastGangScheduledQueueCost,
-			s.lastGangScheduledResources.CompactString(),
-			s.lastGangScheduledQueueResources.CompactString(),
-			s.time.Seconds())
+			s.GangsConsidered,
+			s.JobsConsidered,
+			s.GangsScheduled,
+			s.FirstGangConsideredSampleJobId,
+			s.FirstGangConsideredResult,
+			s.FirstGangConsideredQueuePosition,
+			s.LastGangScheduledSampleJobId,
+			s.LastGangScheduledQueuePosition,
+			s.LastGangScheduledQueueCost,
+			s.LastGangScheduledResources.String(),
+			s.LastGangScheduledQueueResources.String(),
+			s.Time.Seconds())
 	}))
 
 	if sch.schedulingContext.TerminationReason == "" {
@@ -202,11 +191,20 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	if len(scheduledJobs) != len(nodeIdByJobId) {
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
+
+	schedulingStats := PerPoolSchedulingStats{
+		StatsPerQueue: statsPerQueue,
+		LoopNumber:    loopNumber,
+	}
+
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
 		NodeIdByJobId:      nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
+			sch.schedulingContext.Pool: schedulingStats,
+		},
 	}, nil
 }
 
@@ -326,6 +324,7 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // Specifically, it yields the next gang in the queue with smallest fraction of its fair share,
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
+	pool                 string
 	queueRepository      fairness.QueueRepository
 	fairnessCostProvider fairness.FairnessCostProvider
 	// If true, this iterator only yields gangs where all jobs are evicted.
@@ -333,24 +332,27 @@ type CandidateGangIterator struct {
 	// If, e.g., onlyYieldEvictedByQueue["A"] is true,
 	// this iterator only yields gangs where all jobs are evicted for queue A.
 	onlyYieldEvictedByQueue map[string]bool
-	// Reusable buffer to avoid allocations.
-	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
 	pq QueueCandidateGangIteratorPQ
 }
 
 func NewCandidateGangIterator(
+	pool string,
 	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
+	considerPriority bool,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
+		pool:                    pool,
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
-		buffer:                  schedulerobjects.NewResourceListWithDefaultSize(),
-		pq:                      make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
+		pq: QueueCandidateGangIteratorPQ{
+			considerPriority: considerPriority,
+			items:            make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
+		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
@@ -371,7 +373,7 @@ func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
 // Clear removes the first item in the iterator.
 // If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
 func (it *CandidateGangIterator) Clear() error {
-	if len(it.pq) == 0 {
+	if it.pq.Len() == 0 {
 		return nil
 	}
 	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
@@ -386,12 +388,12 @@ func (it *CandidateGangIterator) Clear() error {
 	// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
 	// Hence, it's safe to drop a queue if the first job is non-evicted.
 	if it.onlyYieldEvicted {
-		for len(it.pq) > 0 && !it.pq[0].gctx.AllJobsEvicted {
+		for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
 			heap.Pop(&it.pq)
 		}
 	} else {
 		// Same check as above on a per-queue basis.
-		for len(it.pq) > 0 && it.onlyYieldEvictedByQueue[it.pq[0].gctx.Queue] && !it.pq[0].gctx.AllJobsEvicted {
+		for it.pq.Len() > 0 && it.onlyYieldEvictedByQueue[it.pq.items[0].gctx.Queue] && !it.pq.items[0].gctx.AllJobsEvicted {
 			heap.Pop(&it.pq)
 		}
 	}
@@ -399,11 +401,11 @@ func (it *CandidateGangIterator) Clear() error {
 }
 
 func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
-	if len(it.pq) == 0 {
+	if it.pq.Len() == 0 {
 		// No queued jobs left.
 		return nil, 0.0, nil
 	}
-	first := it.pq[0]
+	first := it.pq.items[0]
 	return first.gctx, first.queueCost, nil
 }
 
@@ -441,32 +443,55 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 	if gctx == nil {
 		return nil
 	}
-	if gctx.Queue != item.queue {
-		return errors.Errorf("mismatched queue %s and %s for gctx", gctx.Queue, item.queue)
-	}
 	item.gctx = gctx
 	cost, err := it.queueCostWithGctx(gctx)
 	if err != nil {
 		return err
 	}
 	item.queueCost = cost
+
+	// The PQItem needs to have a priority class priority for the whole gang.  This may not be uniform as different
+	// Gang members may have been scheduled at different priorities due to home/away preemption. We therefore take the
+	// lowest priority across the whole gang
+	item.priorityClassPriority = math.MaxInt32
+	for _, jobCtx := range gctx.JobSchedulingContexts {
+		newPriority := jobCtx.Job.PriorityClass().Priority
+		if jobCtx.PodSchedulingContext != nil { // Jobs was already scheduled in this cycle, us the priority from that
+			newPriority = jobCtx.PodSchedulingContext.ScheduledAtPriority
+		} else {
+			priority, ok := jobCtx.Job.ScheduledAtPriority()
+			if ok { // Job was scheduled in a previous cycle
+				newPriority = priority
+			}
+		}
+
+		if newPriority < item.priorityClassPriority {
+			item.priorityClassPriority = newPriority
+		}
+	}
+
 	return nil
 }
 
 // queueCostWithGctx returns the cost associated with a queue if gctx were to be scheduled.
 func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSchedulingContext) (float64, error) {
-	queue, ok := it.queueRepository.GetQueue(gctx.Queue)
-	if !ok {
-		return 0, errors.Errorf("unknown queue %s", gctx.Queue)
+	gangQueue := gctx.Queue
+	if len(gctx.JobSchedulingContexts) > 0 && !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool) {
+		gangQueue = schedulercontext.CalculateAwayQueueName(gctx.Queue)
 	}
-	it.buffer.Zero()
-	it.buffer.Add(queue.GetAllocation())
-	it.buffer.Add(gctx.TotalResourceRequests)
-	return it.fairnessCostProvider.WeightedCostFromAllocation(it.buffer, queue.GetWeight()), nil
+	queue, ok := it.queueRepository.GetQueue(gangQueue)
+	if !ok {
+		return 0, errors.Errorf("unknown queue %s", gangQueue)
+	}
+
+	return it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation().Add(gctx.TotalResourceRequests), queue.GetWeight()), nil
 }
 
-// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
-type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
+// QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
+type QueueCandidateGangIteratorPQ struct {
+	considerPriority bool
+	items            []*QueueCandidateGangIteratorItem
+}
 
 type QueueCandidateGangIteratorItem struct {
 	// Each item corresponds to a queue.
@@ -478,41 +503,49 @@ type QueueCandidateGangIteratorItem struct {
 	gctx *schedulercontext.GangSchedulingContext
 	// Cost associated with the queue if the topmost gang in the queue were to be scheduled.
 	// Used to order queues fairly.
-	queueCost float64
+	queueCost             float64
+	priorityClassPriority int32
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
 	index int
 }
 
-func (pq QueueCandidateGangIteratorPQ) Len() int { return len(pq) }
+func (pq *QueueCandidateGangIteratorPQ) Len() int { return len(pq.items) }
 
-func (pq QueueCandidateGangIteratorPQ) Less(i, j int) bool {
-	// Tie-break by queue name.
-	if pq[i].queueCost == pq[j].queueCost {
-		return pq[i].queue < pq[j].queue
+func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
+	// Consider priority class priority first
+	if pq.considerPriority && pq.items[i].priorityClassPriority != pq.items[j].priorityClassPriority {
+		return pq.items[i].priorityClassPriority > pq.items[j].priorityClassPriority
 	}
-	return pq[i].queueCost < pq[j].queueCost
+
+	// Then queue cost
+	if pq.items[i].queueCost != pq.items[j].queueCost {
+		return pq.items[i].queueCost < pq.items[j].queueCost
+	}
+
+	// Tie-break by queue name.
+	return pq.items[i].queue < pq.items[j].queue
 }
 
-func (pq QueueCandidateGangIteratorPQ) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
+func (pq *QueueCandidateGangIteratorPQ) Swap(i, j int) {
+	pq.items[i], pq.items[j] = pq.items[j], pq.items[i]
+	pq.items[i].index = i
+	pq.items[j].index = j
 }
 
 func (pq *QueueCandidateGangIteratorPQ) Push(x any) {
-	n := len(*pq)
+	n := pq.Len()
 	item := x.(*QueueCandidateGangIteratorItem)
 	item.index = n
-	*pq = append(*pq, item)
+	pq.items = append(pq.items, item)
 }
 
 func (pq *QueueCandidateGangIteratorPQ) Pop() any {
-	old := *pq
+	old := pq.items
 	n := len(old)
 	item := old[n-1]
 	old[n-1] = nil  // avoid memory leak
 	item.index = -1 // for safety
-	*pq = old[0 : n-1]
+	pq.items = old[0 : n-1]
 	return item
 }

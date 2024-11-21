@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	jobIdString      = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString      = "123e4567-e89b-12d3-a456-426614174000"
+	JobId            = "01f3j0g1md4qx7z5qb148qnh4r"
+	RunId            = "123e4567-e89b-12d3-a456-426614174000"
 	jobSetName       = "testJobset"
 	cpu              = 12500
 	memory           = 2000 * 1024 * 1024 * 1024
@@ -77,6 +77,7 @@ type JobRow struct {
 	LatestRunId               *string
 	CancelReason              *string
 	Annotations               map[string]string
+	ExternalJobUri            string
 }
 
 type JobSpecRow struct {
@@ -105,24 +106,24 @@ type JobErrorRow struct {
 
 func defaultInstructionSet() *model.InstructionSet {
 	return &model.InstructionSet{
-		JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(jobIdString)},
+		JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(JobId)},
 		JobsToUpdate: []*model.UpdateJobInstruction{{
-			JobId:                     jobIdString,
+			JobId:                     JobId,
 			Priority:                  pointer.Int64(updatePriority),
 			State:                     pointer.Int32(lookout.JobFailedOrdinal),
 			LastTransitionTime:        &updateTime,
 			LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
 		}},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{{
-			RunId:       runIdString,
-			JobId:       jobIdString,
+			RunId:       RunId,
+			JobId:       JobId,
 			Cluster:     executorId,
 			Leased:      &updateTime,
 			Pending:     &updateTime,
 			JobRunState: lookout.JobRunPendingOrdinal,
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:       runIdString,
+			RunId:       RunId,
 			Node:        pointer.String(nodeName),
 			Started:     &startTime,
 			Finished:    &finishedTime,
@@ -131,7 +132,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			ExitCode:    pointer.Int32(0),
 		}},
 		JobErrorsToCreate: []*model.CreateJobErrorInstruction{{
-			JobId: jobIdString,
+			JobId: JobId,
 			Error: []byte(testfixtures.ErrMsg),
 		}},
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3)},
@@ -139,7 +140,7 @@ func defaultInstructionSet() *model.InstructionSet {
 }
 
 var expectedJobAfterSubmit = JobRow{
-	JobId:                     jobIdString,
+	JobId:                     JobId,
 	Queue:                     queue,
 	Owner:                     userId,
 	JobSet:                    jobSetName,
@@ -156,10 +157,11 @@ var expectedJobAfterSubmit = JobRow{
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
 	Annotations:               annotations,
+	ExternalJobUri:            "external-job-uri",
 }
 
 var expectedJobAfterUpdate = JobRow{
-	JobId:                     jobIdString,
+	JobId:                     JobId,
 	Queue:                     queue,
 	Owner:                     userId,
 	JobSet:                    jobSetName,
@@ -176,24 +178,25 @@ var expectedJobAfterUpdate = JobRow{
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
 	Annotations:               annotations,
+	ExternalJobUri:            "external-job-uri",
 }
 
 var expectedJobRun = JobRunRow{
-	RunId:       runIdString,
-	JobId:       jobIdString,
+	RunId:       RunId,
+	JobId:       JobId,
 	Cluster:     executorId,
 	Pending:     updateTime,
 	JobRunState: lookout.JobRunPendingOrdinal,
 }
 
 var expectedJobError = JobErrorRow{
-	JobId: jobIdString,
+	JobId: JobId,
 	Error: []byte(testfixtures.ErrMsg),
 }
 
 var expectedJobRunAfterUpdate = JobRunRow{
-	RunId:       runIdString,
-	JobId:       jobIdString,
+	RunId:       RunId,
+	JobId:       JobId,
 	Cluster:     executorId,
 	Node:        pointer.String(nodeName),
 	Pending:     updateTime,
@@ -210,13 +213,13 @@ func TestCreateJobsBatch(t *testing.T) {
 		// Insert
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
-		job := getJob(t, db, jobIdString)
+		job := getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and test that it's idempotent
 		err = ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should return an error and no updates should happen
@@ -243,12 +246,12 @@ func TestUpdateJobsBatch(t *testing.T) {
 		// Update
 		err = ldb.UpdateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
 		assert.Nil(t, err)
-		job := getJob(t, db, jobIdString)
+		job := getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		err = ldb.UpdateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
 		assert.Nil(t, err)
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If an update is bad then we should return an error and no updates should happen
@@ -261,7 +264,7 @@ func TestUpdateJobsBatch(t *testing.T) {
 		}
 		err = ldb.UpdateJobsBatch(armadacontext.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
 		assert.Error(t, err)
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 		return nil
 	})
@@ -277,12 +280,12 @@ func TestUpdateJobsScalar(t *testing.T) {
 
 		// Update
 		ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
-		job := getJob(t, db, jobIdString)
+		job := getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// Insert again and test that it's idempotent
 		ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If a update is bad then we should return an error and no updates should happen
@@ -294,7 +297,7 @@ func TestUpdateJobsScalar(t *testing.T) {
 			JobId: invalidId,
 		}
 		ldb.UpdateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		return nil
 	})
@@ -305,7 +308,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		initial := []*model.CreateJobInstruction{
 			{
-				JobId:                     jobIdString,
+				JobId:                     JobId,
 				Queue:                     queue,
 				Owner:                     userId,
 				JobSet:                    jobSetName,
@@ -362,7 +365,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 
 		update1 := []*model.UpdateJobInstruction{
 			{
-				JobId:                     jobIdString,
+				JobId:                     JobId,
 				State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 				Cancelled:                 &baseTime,
 				CancelReason:              pointer.String("some reason"),
@@ -386,23 +389,23 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		}
 
 		update2 := []*model.UpdateJobInstruction{{
-			JobId:                     jobIdString,
+			JobId:                     JobId,
 			State:                     pointer.Int32(lookout.JobRunningOrdinal),
 			LastTransitionTime:        &baseTime,
 			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-			LatestRunId:               pointer.String(runIdString),
+			LatestRunId:               pointer.String(RunId),
 		}, {
 			JobId:                     "job2",
 			State:                     pointer.Int32(lookout.JobRunningOrdinal),
 			LastTransitionTime:        &baseTime,
 			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-			LatestRunId:               pointer.String(runIdString),
+			LatestRunId:               pointer.String(RunId),
 		}, {
 			JobId:                     "job3",
 			State:                     pointer.Int32(lookout.JobRunningOrdinal),
 			LastTransitionTime:        &baseTime,
 			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-			LatestRunId:               pointer.String(runIdString),
+			LatestRunId:               pointer.String(RunId),
 		}}
 
 		ldb := NewLookoutDb(db, fatalErrors, m, 10)
@@ -417,7 +420,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		ldb.UpdateJobs(armadacontext.Background(), update2)
 
 		// Assert the states are still terminal
-		job := getJob(t, db, jobIdString)
+		job := getJob(t, db, JobId)
 		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
 		assert.Equal(t, "some reason", *job.CancelReason)
 
@@ -437,12 +440,12 @@ func TestCreateJobsScalar(t *testing.T) {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10)
 		// Simple create
 		ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
-		job := getJob(t, db, jobIdString)
+		job := getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and check for idempotency
 		ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should update only the good rows
@@ -452,7 +455,7 @@ func TestCreateJobsScalar(t *testing.T) {
 			JobId: invalidId,
 		}
 		ldb.CreateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
-		job = getJob(t, db, jobIdString)
+		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 		return nil
 	})
@@ -469,13 +472,13 @@ func TestCreateJobRunsBatch(t *testing.T) {
 		// Insert
 		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		job := getJobRun(t, db, runIdString)
+		job := getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
 		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		job = getJobRun(t, db, runIdString)
+		job = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we should return an error and no updates should happen
@@ -501,12 +504,12 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 		// Insert
 		ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
-		job := getJobRun(t, db, runIdString)
+		job := getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
 		ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
-		job = getJobRun(t, db, runIdString)
+		job = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we create rows that can be created
@@ -516,7 +519,7 @@ func TestCreateJobRunsScalar(t *testing.T) {
 			RunId: invalidId,
 		}
 		ldb.CreateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
-		job = getJobRun(t, db, runIdString)
+		job = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 		return nil
 	})
@@ -536,13 +539,13 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 		// Update
 		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
-		run := getJobRun(t, db, runIdString)
+		run := getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
 		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
-		run = getJobRun(t, db, runIdString)
+		run = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// If a row is bad then we should return an error and no updates should happen
@@ -555,7 +558,7 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 		assert.Nil(t, err)
 		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
 		assert.Error(t, err)
-		run = getJobRun(t, db, runIdString)
+		run = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, run)
 		return nil
 	})
@@ -575,13 +578,13 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 		// Update
 		ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
-		run := getJobRun(t, db, runIdString)
+		run := getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
 		ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
-		run = getJobRun(t, db, runIdString)
+		run = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// If a row is bad then we should update the rows we can
@@ -593,7 +596,7 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 		ldb.UpdateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
-		run = getJobRun(t, ldb.db, runIdString)
+		run = getJobRun(t, ldb.db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 		return nil
 	})
@@ -607,13 +610,13 @@ func TestCreateJobErrorsBatch(t *testing.T) {
 		// Insert
 		err := ldb.CreateJobErrorsBatch(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
 		assert.Nil(t, err)
-		jobError := getJobError(t, db, jobIdString)
+		jobError := getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 
 		// Insert again and test that it's idempotent
 		err = ldb.CreateJobErrorsBatch(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
 		assert.Nil(t, err)
-		jobError = getJobError(t, db, jobIdString)
+		jobError = getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 
 		// Insert again with a different value and check we don't overwrite
@@ -621,7 +624,7 @@ func TestCreateJobErrorsBatch(t *testing.T) {
 		jobErrors[0].Error = []byte{}
 		err = ldb.CreateJobErrorsBatch(armadacontext.Background(), jobErrors)
 		assert.Nil(t, err)
-		jobError = getJobError(t, db, jobIdString)
+		jobError = getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 
 		// If a row is bad then we should return an error and no updates should happen
@@ -644,12 +647,12 @@ func TestCreateJobErrorsScalar(t *testing.T) {
 
 		// Insert
 		ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
-		jobError := getJobError(t, db, jobIdString)
+		jobError := getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 
 		// Insert again and test that it's idempotent
 		ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
-		jobError = getJobError(t, db, jobIdString)
+		jobError = getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 		return nil
 	})
@@ -677,8 +680,8 @@ func TestStore(t *testing.T) {
 		err := ldb.Store(armadacontext.Background(), defaultInstructionSet())
 		assert.NoError(t, err)
 
-		job := getJob(t, ldb.db, jobIdString)
-		jobRun := getJobRun(t, ldb.db, runIdString)
+		job := getJob(t, ldb.db, JobId)
+		jobRun := getJobRun(t, ldb.db, RunId)
 
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		assert.Equal(t, expectedJobRunAfterUpdate, jobRun)
@@ -694,13 +697,13 @@ func TestConflateJobUpdates(t *testing.T) {
 
 	// Non-Empty
 	updates = conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, Priority: pointer.Int64(3)},
-		{JobId: jobIdString, State: pointer.Int32(2)},
+		{JobId: JobId, Priority: pointer.Int64(3)},
+		{JobId: JobId, State: pointer.Int32(2)},
 		{JobId: "someOtherJob", State: pointer.Int32(3)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, Priority: pointer.Int64(3), State: pointer.Int32(2)},
+		{JobId: JobId, Priority: pointer.Int64(3), State: pointer.Int32(2)},
 		{JobId: "someOtherJob", State: pointer.Int32(3)},
 	}
 	sort.Slice(updates, func(i, j int) bool {
@@ -716,8 +719,8 @@ func TestConflateJobUpdates(t *testing.T) {
 func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobCancelledOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
 		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobSucceededOrdinal)},
 		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
 		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobFailedOrdinal)},
@@ -725,7 +728,7 @@ func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	})
 
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobCancelledOrdinal)},
 		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobSucceededOrdinal)},
 		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobFailedOrdinal)},
 	}
@@ -743,10 +746,10 @@ func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 func TestConflateJobUpdatesWithPreempted(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobPreemptedOrdinal)},
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobFailedOrdinal)},
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobRunningOrdinal)},
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobPreemptedOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
 		{JobId: "job2", State: pointer.Int32(lookout.JobPreemptedOrdinal)},
 		{JobId: "job2", State: pointer.Int32(lookout.JobRunningOrdinal)},
 		{JobId: "job2", State: pointer.Int32(lookout.JobFailedOrdinal)},
@@ -756,7 +759,7 @@ func TestConflateJobUpdatesWithPreempted(t *testing.T) {
 	})
 
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobPreemptedOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobPreemptedOrdinal)},
 		{JobId: "job2", State: pointer.Int32(lookout.JobPreemptedOrdinal)},
 		{JobId: "job3", State: pointer.Int32(lookout.JobPreemptedOrdinal)},
 	}
@@ -773,13 +776,13 @@ func TestConflateJobUpdatesWithPreempted(t *testing.T) {
 
 func TestConflateJobUpdatesWithNullState(t *testing.T) {
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobFailedOrdinal)},
-		{JobId: jobIdString, LatestRunId: pointer.String("test-id")},
+		{JobId: JobId, State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: JobId, LatestRunId: pointer.String("test-id")},
 	})
 
 	// Ignored because terminal event received
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobFailedOrdinal)},
 	}
 
 	sort.Slice(updates, func(i, j int) bool {
@@ -799,13 +802,13 @@ func TestConflateJobRunUpdates(t *testing.T) {
 
 	// Non-Empty
 	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
-		{RunId: runIdString, Started: &baseTime},
-		{RunId: runIdString, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
+		{RunId: RunId, Started: &baseTime},
+		{RunId: RunId, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	})
 
 	expected := []*model.UpdateJobRunInstruction{
-		{RunId: runIdString, Started: &baseTime, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
+		{RunId: RunId, Started: &baseTime, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	}
 
@@ -820,12 +823,12 @@ func TestConflateJobRunUpdates(t *testing.T) {
 
 	// Latest job run state is used
 	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
-		{RunId: runIdString, Started: &baseTime, JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal)},
-		{RunId: runIdString, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
+		{RunId: RunId, Started: &baseTime, JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal)},
+		{RunId: RunId, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
 	})
 
 	expected = []*model.UpdateJobRunInstruction{
-		{RunId: runIdString, Started: &baseTime, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
+		{RunId: RunId, Started: &baseTime, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
 	}
 
 	assert.Equal(t, expected, updates)
@@ -846,8 +849,8 @@ func TestStoreNullValue(t *testing.T) {
 		err := ldb.Store(armadacontext.Background(), instructions)
 		assert.NoError(t, err)
 
-		jobSpec := getJobSpec(t, ldb.db, jobIdString)
-		jobRun := getJobRun(t, ldb.db, runIdString)
+		jobSpec := getJobSpec(t, ldb.db, JobId)
+		jobRun := getJobRun(t, ldb.db, RunId)
 
 		assert.Equal(t, jobProto, jobSpec.JobProto)
 		assert.Equal(t, errorMsg, jobRun.Error)
@@ -927,6 +930,7 @@ func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {
 		JobProto:                  []byte(jobProto),
 		PriorityClass:             pointer.String(priorityClass),
 		Annotations:               annotations,
+		ExternalJobUri:            "external-job-uri",
 	}
 }
 
@@ -964,7 +968,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 			priority_class,
 			latest_run_id,
 			cancel_reason,
-			annotations
+			annotations,
+			external_job_uri
 		FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
@@ -988,6 +993,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.LatestRunId,
 		&job.CancelReason,
 		&job.Annotations,
+		&job.ExternalJobUri,
 	)
 	assert.Nil(t, err)
 	return job

@@ -3,21 +3,19 @@ package utilisation
 import (
 	"fmt"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-
-	"github.com/armadaproject/armada/pkg/executorapi"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 type UtilisationService interface {
@@ -104,27 +102,18 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
 			return !util.IsManagedPod(pod)
 		})
-		allocatedByPriority := allocatedByPriorityAndResourceTypeFromPods(runningNodePods)
+
 		allocatedByPriorityNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
 		allocatedByPriorityNonArmada.MaxAggregatedByResource(
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 			schedulerobjects.ResourceList{Resources: cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode},
 		)
 
-		usageByQueue := cls.getPodUtilisationByQueue(runningNodePodsArmada)
-		resourceUsageByQueue := make(map[string]*executorapi.ComputeResource)
-		for queueName, resourceUsage := range usageByQueue {
-			resourceUsageByQueue[queueName] = executorapi.ComputeResourceFromProtoResources(resourceUsage)
-		}
-
-		nodeAllocatedResources := make(map[int32]*executorapi.ComputeResource)
-		for p, rl := range allocatedByPriority {
-			nodeAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
-		}
 		nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
 		for p, rl := range allocatedByPriorityNonArmada {
 			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
 		}
+		nodePool := cls.nodeInfoService.GetPool(node)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:   node.Name,
 			Labels: cls.filterTrackedLabels(node.Labels),
@@ -134,13 +123,12 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			AllocatableResources:        allocatable.ToProtoMap(),
 			AvailableResources:          available.ToProtoMap(),
 			TotalResources:              allocatable.ToProtoMap(),
-			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
 			Unschedulable:               !isSchedulable,
-			ResourceUsageByQueue:        resourceUsageByQueue,
 			NodeType:                    cls.nodeInfoService.GetType(node),
-			Pool:                        cls.nodeInfoService.GetPool(node),
+			Pool:                        nodePool,
+			ResourceUsageByQueueAndPool: cls.getPoolQueueResources(runningNodePodsArmada, nodePool),
 		})
 	}
 
@@ -348,25 +336,49 @@ func getAllPodsRequiringResourceOnNodes(allPods []*v1.Pod, nodes []*v1.Node) []*
 	return podsUsingResourceOnProcessingNodes
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
-	podsByQueue := util.GroupByQueue(pods)
-	result := make(map[string]armadaresource.ComputeResources, len(podsByQueue))
-	for queueName, queuePods := range podsByQueue {
-		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
-		result[queueName] = resourceUsed
+func (clusterUtilisationService *ClusterUtilisationService) getPoolQueueResources(pods []*v1.Pod, defaultPool string) []*executorapi.PoolQueueResource {
+	usageByQueueAndPool := clusterUtilisationService.getPodUtilisationByQueueAndPool(pods, defaultPool)
+	poolQueueResources := []*executorapi.PoolQueueResource{}
+	for queue, usageByPool := range usageByQueueAndPool {
+		for pool, usage := range usageByPool {
+			poolQueueResource := &executorapi.PoolQueueResource{
+				Pool:      pool,
+				Queue:     queue,
+				Resources: executorapi.ComputeResourceFromProtoResources(usage).Resources,
+			}
+			poolQueueResources = append(poolQueueResources, poolQueueResource)
+		}
 	}
-	return result
+	return poolQueueResources
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getTotalPodUtilisation(pods []*v1.Pod) armadaresource.ComputeResources {
-	totalUtilisation := armadaresource.ComputeResources{}
+func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQueueAndPool(pods []*v1.Pod, defaultPool string) map[string]map[string]armadaresource.ComputeResources {
+	podsByQueue := util.GroupByQueue(pods)
+	result := make(map[string]map[string]armadaresource.ComputeResources, len(podsByQueue))
 
 	for _, pod := range pods {
 		podUsage := clusterUtilisationService.queueUtilisationService.GetPodUtilisation(pod)
-		totalUtilisation.Add(podUsage.CurrentUsage)
-	}
+		if podUsage.IsEmpty() {
+			continue
+		}
+		queue := util.ExtractQueue(pod)
+		if queue == "" {
+			log.Warnf("Cannot compute pod utilisation for pod (%s/%s) as queue not set", pod.Namespace, pod.Name)
+		}
+		pool := util.ExtractPool(pod)
+		if pool == "" {
+			pool = defaultPool
+		}
 
-	return totalUtilisation
+		if _, ok := result[queue]; !ok {
+			result[queue] = map[string]armadaresource.ComputeResources{}
+		}
+		if _, ok := result[queue][pool]; !ok {
+			result[queue][pool] = armadaresource.ComputeResources{}
+		}
+		result[queue][pool].Add(podUsage.CurrentUsage)
+	}
+	return result
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(labels map[string]string) map[string]string {
@@ -399,38 +411,4 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResou
 	}
 
 	return utilisationByQueue
-}
-
-func GetAllocationByQueueAndPriority(pods []*v1.Pod) map[string]map[int32]armadaresource.ComputeResources {
-	rv := make(map[string]map[int32]armadaresource.ComputeResources)
-	for _, pod := range pods {
-
-		// Get the name of the queue this pod originated from,
-		// ignoring pods for which we can't find the queue.
-		queue, present := pod.Labels[domain.Queue]
-		if !present {
-			log.Errorf("Pod %s found not belonging to a queue, not reporting its allocation", pod.Name)
-			continue
-		}
-
-		// Get the priority of this pod.
-		var priority int32
-		if pod.Spec.Priority != nil {
-			priority = *pod.Spec.Priority
-		}
-
-		// Get total pod resource usage and add it to the aggregate.
-		podAllocatedResourece := armadaresource.CalculateTotalResourceRequest([]*v1.Pod{pod})
-		allocatedByPriority, ok := rv[queue]
-		if !ok {
-			allocatedByPriority = make(map[int32]armadaresource.ComputeResources)
-			rv[queue] = allocatedByPriority
-		}
-		if allocated, ok := allocatedByPriority[priority]; ok {
-			allocated.Add(podAllocatedResourece)
-		} else {
-			allocatedByPriority[priority] = podAllocatedResourece
-		}
-	}
-	return rv
 }

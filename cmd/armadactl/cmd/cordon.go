@@ -3,10 +3,11 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
+	"github.com/armadaproject/armada/cmd/armadactl/cmd/utils"
 	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/armadaproject/armada/internal/common/slices"
-
-	"github.com/spf13/cobra"
 )
 
 func cordon() *cobra.Command {
@@ -14,9 +15,10 @@ func cordon() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cordon",
 		Short: "Pause scheduling by resource",
-		Long:  "Pause scheduling by resource. Supported: queue, queues",
+		Long:  "Pause scheduling by resource. Supported: queue, queues, executor",
 	}
 	cmd.AddCommand(cordonQueues(a))
+	cmd.AddCommand(cordonExecutor(a))
 	return cmd
 }
 
@@ -25,9 +27,10 @@ func uncordon() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uncordon",
 		Short: "Resume scheduling by resource",
-		Long:  "Resume scheduling by resource. Supported: queue, queues",
+		Long:  "Resume scheduling by resource. Supported: queue, queues, executor",
 	}
 	cmd.AddCommand(uncordonQueues(a))
+	cmd.AddCommand(uncordonExecutor(a))
 	return cmd
 }
 
@@ -41,7 +44,7 @@ func cordonQueues(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, queues []string) error {
-			errs := slices.Filter(slices.Map(queues, queueNameValidation), func(err error) bool { return err != nil })
+			errs := slices.Filter(slices.Map(queues, utils.QueueNameValidation), func(err error) bool { return err != nil })
 			if len(errs) > 0 {
 				return fmt.Errorf("provided queue name invalid: %s", errs[0])
 			}
@@ -92,7 +95,7 @@ func uncordonQueues(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, queues []string) error {
-			errs := slices.Filter(slices.Map(queues, queueNameValidation), func(err error) bool { return err != nil })
+			errs := slices.Filter(slices.Map(queues, utils.QueueNameValidation), func(err error) bool { return err != nil })
 			if len(errs) > 0 {
 				return fmt.Errorf("provided queue name invalid: %s", errs[0])
 			}
@@ -130,5 +133,50 @@ func uncordonQueues(a *armadactl.App) *cobra.Command {
 	cmd.Flags().Bool("inverse", false, "Select all queues which do not match the provided parameters")
 	cmd.Flags().Bool("dry-run", false, "Show selection of queues that will be modified in this operation")
 
+	return cmd
+}
+
+func cordonExecutor(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "executor <executor_name> <cordon_reason>",
+		Short: "Pause scheduling on an executor",
+		Long:  "Pause scheduling on an executor",
+		Args:  cobra.ExactArgs(2),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			executorName := args[0]
+			cordonReason := args[1]
+			if executorName == "" {
+				return fmt.Errorf("provided executor name is invalid: %s", executorName)
+			} else if cordonReason == "" {
+				return fmt.Errorf("provided cordon reason is invalid: %s", cordonReason)
+			}
+
+			return a.CordonExecutor(executorName, cordonReason)
+		},
+	}
+	return cmd
+}
+
+func uncordonExecutor(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "executor <executor_name>",
+		Short: "Resume scheduling on an executor",
+		Long:  "Resume scheduling on an executor",
+		Args:  cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			executorName := args[0]
+			if executorName == "" {
+				return fmt.Errorf("provided executor name is invalid: %s", executorName)
+			}
+
+			return a.UncordonExecutor(executorName)
+		},
+	}
 	return cmd
 }

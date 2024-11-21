@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -15,21 +13,20 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 type LeaseRequest struct {
 	AvailableResource   armadaresource.ComputeResources
 	Nodes               []*executorapi.NodeInfo
-	UnassignedJobRunIds []*armadaevents.Uuid
+	UnassignedJobRunIds []string
 	MaxJobsToLease      uint32
 }
 
 type LeaseResponse struct {
 	LeasedRuns      []*executorapi.JobRunLease
-	RunIdsToCancel  []*armadaevents.Uuid
-	RunIdsToPreempt []*armadaevents.Uuid
+	RunIdsToCancel  []string
+	RunIdsToPreempt []string
 }
 
 type LeaseRequester interface {
@@ -62,18 +59,15 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		Resources:           request.AvailableResource.ToProtoMap(),
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
-		UnassignedJobRunIdsStr: armadaslices.Map(request.UnassignedJobRunIds, func(uuid *armadaevents.Uuid) string {
-			return armadaevents.MustUuidStringFromProtoUuid(uuid)
-		}),
-		MaxJobsToLease: request.MaxJobsToLease,
+		MaxJobsToLease:      request.MaxJobsToLease,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	leaseRuns := []*executorapi.JobRunLease{}
-	runIdsToCancel := []*armadaevents.Uuid{}
-	runIdsToPreempt := []*armadaevents.Uuid{}
+	runIdsToCancel := []string{}
+	runIdsToPreempt := []string{}
 	shouldEndStream := false
 	for !shouldEndStream {
 		res, err := stream.Recv()

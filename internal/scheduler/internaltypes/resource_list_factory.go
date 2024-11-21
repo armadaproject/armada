@@ -15,27 +15,46 @@ type ResourceListFactory struct {
 	nameToIndex map[string]int
 	indexToName []string
 	scales      []k8sResource.Scale
+	types       []ResourceType
 }
 
-func MakeResourceListFactory(supportedResourceTypes []configuration.ResourceType) (*ResourceListFactory, error) {
+func NewResourceListFactory(
+	supportedResourceTypes []configuration.ResourceType,
+	floatingResourceTypes []configuration.FloatingResourceConfig,
+) (*ResourceListFactory, error) {
 	if len(supportedResourceTypes) == 0 {
-		return nil, errors.New("no resource types configured")
+		return nil, errors.New("no resource types configured, please fill in the supportedResourceTypes section of the config")
 	}
-	indexToName := make([]string, len(supportedResourceTypes))
-	nameToIndex := make(map[string]int, len(supportedResourceTypes))
-	scales := make([]k8sResource.Scale, len(supportedResourceTypes))
-	for i, t := range supportedResourceTypes {
+
+	nameToIndex := map[string]int{}
+	indexToName := []string{}
+	scales := []k8sResource.Scale{}
+	types := []ResourceType{}
+
+	add := func(name string, resolution k8sResource.Quantity, t ResourceType) {
+		nameToIndex[name] = len(nameToIndex)
+		indexToName = append(indexToName, name)
+		scales = append(scales, resolutionToScale(resolution))
+		types = append(types, t)
+	}
+
+	for _, t := range supportedResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q", t.Name)
 		}
-		nameToIndex[t.Name] = i
-		indexToName[i] = t.Name
-		scales[i] = resolutionToScale(t.Resolution)
+		add(t.Name, t.Resolution, Kubernetes)
+	}
+	for _, t := range floatingResourceTypes {
+		if _, exists := nameToIndex[t.Name]; exists {
+			return nil, fmt.Errorf("duplicate resource type name %q (note names must be unique across supported resource types and floating resources)", t.Name)
+		}
+		add(t.Name, t.Resolution, Floating)
 	}
 	return &ResourceListFactory{
 		indexToName: indexToName,
 		nameToIndex: nameToIndex,
 		scales:      scales,
+		types:       types,
 	}, nil
 }
 
@@ -88,10 +107,23 @@ func (factory *ResourceListFactory) FromJobResourceListFailOnUnknown(resources m
 		if ok {
 			result[index] = QuantityToInt64RoundUp(v, factory.scales[index])
 		} else {
-			return ResourceList{}, fmt.Errorf("resource type %q is not supported (if you want to use it add to scheduling.supportedResourceTypes in the armada scheduler config)", string(k))
+			return ResourceList{}, fmt.Errorf("resource type %q is not supported (if you want to use it, add to supported resource types or floating resources in the scheduler config)", string(k))
 		}
 	}
 	return ResourceList{resources: result, factory: factory}, nil
+}
+
+func (factory *ResourceListFactory) MakeResourceFractionList(m map[string]float64, defaultValue float64) ResourceFractionList {
+	result := make([]float64, len(factory.indexToName))
+	for index, name := range factory.indexToName {
+		val, ok := m[name]
+		if ok {
+			result[index] = val
+		} else {
+			result[index] = defaultValue
+		}
+	}
+	return ResourceFractionList{fractions: result, factory: factory}
 }
 
 func (factory *ResourceListFactory) SummaryString() string {

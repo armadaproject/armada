@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -35,7 +36,7 @@ type Publisher interface {
 // PulsarPublisher is the default implementation of Publisher
 type PulsarPublisher struct {
 	// Used to send events sequences to pulsar
-	publisher pulsarutils.Publisher
+	publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 	// Used to send position markers to pulsar
 	producer pulsar.Producer
 	// Number of partitions on the pulsar topic
@@ -51,7 +52,14 @@ func NewPulsarPublisher(
 ) (*PulsarPublisher, error) {
 	id := uuid.NewString()
 	producerOptions.Name = fmt.Sprintf("armada-scheduler-events-%s", id)
-	publisher, err := pulsarutils.NewPulsarPublisher(pulsarClient, producerOptions, maxEventsPerMessage, maxAllowedMessageSize, sendTimeout)
+	preProcessor := jobsetevents.NewPreProcessor(maxEventsPerMessage, maxAllowedMessageSize)
+	publisher, err := pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
+		pulsarClient,
+		producerOptions,
+		preProcessor,
+		jobsetevents.RetrieveKey,
+		sendTimeout,
+	)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -88,9 +96,8 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	for i := 0; i < p.numPartitions; i++ {
 		pm := &armadaevents.PartitionMarker{
-			GroupId:    armadaevents.ProtoUuidFromUuid(groupId),
-			GroupIdStr: groupId.String(),
-			Partition:  uint32(i),
+			GroupId:   groupId.String(),
+			Partition: uint32(i),
 		}
 		es := &armadaevents.EventSequence{
 			Queue:      "armada-scheduler",

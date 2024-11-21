@@ -23,6 +23,7 @@ var (
 	msgLevelProcessors = []msgProcessor{
 		templateMeta,
 		defaultGangNodeUniformityLabel,
+		addGangIdLabel,
 	}
 	podLevelProcessors = []podProcessor{
 		defaultActiveDeadlineSeconds,
@@ -166,6 +167,24 @@ func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configur
 	}
 }
 
+// Add a gangId label if the gangId annotation is set.  We do this because labels are much faster to search on than
+// annotations and a gang may want to hit the kubeapi to find its other gang members.
+func addGangIdLabel(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
+	if !config.AddGangIdLabel {
+		return
+	}
+
+	gangId := msg.GetObjectMeta().GetAnnotations()[configuration.GangIdAnnotation]
+	if gangId != "" {
+		labels := msg.GetObjectMeta().GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[configuration.GangIdAnnotation] = gangId
+		msg.GetObjectMeta().Labels = labels
+	}
+}
+
 // Templates the JobId in labels and annotations. This allows users to define labels and annotations containing the string
 // {JobId} and have it populated with the actual id of the job.
 func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig) {
@@ -176,8 +195,6 @@ func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig)
 			labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
 		}
 	}
-
-	jobId := armadaevents.MustUlidStringFromProtoUuid(msg.JobId)
-	template(msg.GetObjectMeta().GetAnnotations(), jobId)
-	template(msg.GetObjectMeta().GetLabels(), jobId)
+	template(msg.GetObjectMeta().GetAnnotations(), msg.JobId)
+	template(msg.GetObjectMeta().GetLabels(), msg.JobId)
 }

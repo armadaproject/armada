@@ -179,7 +179,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, err
 	}
 
-	matches, reason = resourceRequirementsMet(node.GetTotalResources(), jctx.ResourceRequirements)
+	matches, reason = resourceRequirementsMet(node.GetTotalResources(), jctx.KubernetesResourceRequirements)
 	if !matches {
 		return matches, reason, nil
 	}
@@ -190,7 +190,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 // DynamicJobRequirementsMet checks if a pod can be scheduled onto this node,
 // accounting for resources allocated to pods already assigned to this node.
 func DynamicJobRequirementsMet(allocatableResources internaltypes.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason) {
-	matches, reason := resourceRequirementsMet(allocatableResources, jctx.ResourceRequirements)
+	matches, reason := resourceRequirementsMet(allocatableResources, jctx.KubernetesResourceRequirements)
 	return matches, reason
 }
 

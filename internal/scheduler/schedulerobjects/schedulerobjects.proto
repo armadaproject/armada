@@ -45,17 +45,15 @@ message Node {
     // Ids of the job runs currently assigned to this node and their current state.
     map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
     // Resource allocated to non-Armada pods on this node.
-    map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
+    map<int32, ResourceList> unallocatable_resources = 13 [(gogoproto.nullable) = false];
     // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
     bool unschedulable = 15;
     // This should only be used for metrics
-    // An aggregated real usage of jobs by queue
-    map<string, ResourceList> resource_usage_by_queue = 16;
-    // This should only be used for metrics
     // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
     string reporting_node_type = 17;
-  // The pool that this node belongs to, this is used for scheduling purposes
+    // The pool that this node belongs to, this is used for scheduling purposes
     string pool = 18;
+    repeated PoolQueueResource resource_usage_by_queue_and_pool = 20;
 }
 
 enum JobRunState {
@@ -66,21 +64,10 @@ enum JobRunState {
     FAILED = 4;
 }
 
-// Captures the resource usage of a particular queue in a given cluster.
-message QueueClusterResourceUsage {
-    google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    string queue = 2;
-    string executorId = 3;
-    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false, deprecated = true];
-    map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
-}
-
-// A collection of QueueClusterResourceUsage
-// This is only needed to brige the gap between the redis based scheduler and the new scheduler.
-message ClusterResourceUsageReport {
-    string pool = 1;
-    google.protobuf.Timestamp created = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    map<string, QueueClusterResourceUsage> resourcesByQueue = 3;
+message PoolQueueResource {
+  string pool = 1;
+  string queue = 2;
+  ResourceList resources = 3;
 }
 
 message ResourceList {
@@ -130,10 +117,10 @@ message PodRequirements {
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
 }
 
-// Used to store details about pulsar scheduler jobs in Redis
-// Can be removed once we deprecate the legacy scheduler
-message PulsarSchedulerJobDetails  {
-    string JobId = 1;
-    string Queue = 2;
-    string JobSet = 3;
+message ExecutorSettings {
+  string executorId = 1;
+  bool cordoned = 2;
+  string cordonReason = 3;
+  string setByUser = 4;
+  google.protobuf.Timestamp setAtTime = 5;
 }

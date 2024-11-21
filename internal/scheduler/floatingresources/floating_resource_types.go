@@ -9,110 +9,101 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
 type FloatingResourceTypes struct {
-	zeroFloatingResources schedulerobjects.ResourceList
-	pools                 map[string]*floatingResourcePool
+	floatingResourceLimitsByPool map[string]internaltypes.ResourceList
 }
 
-type floatingResourcePool struct {
-	totalResources schedulerobjects.ResourceList
-}
-
-func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig) (*FloatingResourceTypes, error) {
-	zeroFloatingResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity, len(config))}
-	for _, c := range config {
-		if _, exists := zeroFloatingResources.Resources[c.Name]; exists {
-			return nil, fmt.Errorf("duplicate floating resource %s", c.Name)
-		}
-		zeroFloatingResources.Resources[c.Name] = resource.Quantity{}
+func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlFactory *internaltypes.ResourceListFactory) (*FloatingResourceTypes, error) {
+	err := validate(config)
+	if err != nil {
+		return nil, err
 	}
 
-	pools := map[string]*floatingResourcePool{}
+	floatingResourceLimitsByPool := map[string]internaltypes.ResourceList{}
 	for _, fr := range config {
 		for _, poolConfig := range fr.Pools {
-			pool, exists := pools[poolConfig.Name]
-			if !exists {
-				pool = &floatingResourcePool{
-					totalResources: zeroFloatingResources.DeepCopy(),
-				}
-				pools[poolConfig.Name] = pool
-			}
-			existing := pool.totalResources.Resources[fr.Name]
-			if existing.Cmp(resource.Quantity{}) != 0 {
-				return nil, fmt.Errorf("duplicate floating resource %s for pool %s", fr.Name, poolConfig.Name)
-			}
-			pool.totalResources.Resources[fr.Name] = poolConfig.Quantity.DeepCopy()
+			floatingResourceLimitsByPool[poolConfig.Name] = floatingResourceLimitsByPool[poolConfig.Name].Add(
+				rlFactory.FromNodeProto(map[string]resource.Quantity{fr.Name: poolConfig.Quantity}),
+			)
 		}
 	}
 
 	return &FloatingResourceTypes{
-		zeroFloatingResources: zeroFloatingResources,
-		pools:                 pools,
+		floatingResourceLimitsByPool: floatingResourceLimitsByPool,
 	}, nil
 }
 
-func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated schedulerobjects.ResourceList) (bool, string) {
-	pool, exists := frt.pools[poolName]
-	if !exists {
+func validate(config []configuration.FloatingResourceConfig) error {
+	floatingResourceNamesSeen := map[string]bool{}
+	for _, c := range config {
+		if _, exists := floatingResourceNamesSeen[c.Name]; exists {
+			return fmt.Errorf("duplicate floating resource %s", c.Name)
+		}
+		floatingResourceNamesSeen[c.Name] = true
+	}
+
+	for _, fr := range config {
+		poolNamesSeen := map[string]bool{}
+		for _, poolConfig := range fr.Pools {
+			if _, exists := poolNamesSeen[poolConfig.Name]; exists {
+				return fmt.Errorf("floating resource %s has duplicate pool %s", fr.Name, poolConfig.Name)
+			}
+			poolNamesSeen[poolConfig.Name] = true
+		}
+	}
+	return nil
+}
+
+func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
+	available := frt.GetTotalAvailableForPool(poolName)
+	if available.AllZero() {
 		return false, fmt.Sprintf("floating resources not connfigured for pool %s", poolName)
 	}
-	rl := pool.totalResources.DeepCopy()
-	rl.Sub(allocated)
-	for resourceName, quantity := range rl.Resources {
-		if !frt.isFloatingResource(resourceName) {
-			continue
-		}
-		if quantity.Cmp(resource.Quantity{}) == -1 {
-			return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
-		}
+
+	resourceName, _, _, exceeds := allocated.OfType(internaltypes.Floating).ExceedsAvailable(available)
+	if exceeds {
+		return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
 	}
+
 	return true, ""
 }
 
-func (frt *FloatingResourceTypes) RemoveFloatingResources(allResources map[string]resource.Quantity) map[string]resource.Quantity {
-	result := make(map[string]resource.Quantity)
-	for k, v := range allResources {
-		if !frt.isFloatingResource(k) {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-func (frt *FloatingResourceTypes) HasFloatingResources(resources map[string]resource.Quantity) bool {
-	for resourceName, quantity := range resources {
-		if frt.isFloatingResource(resourceName) && quantity.Cmp(resource.Quantity{}) == 1 {
-			return true
-		}
-	}
-	return false
-}
-
 func (frt *FloatingResourceTypes) AllPools() []string {
-	result := maps.Keys(frt.pools)
+	result := maps.Keys(frt.floatingResourceLimitsByPool)
 	slices.Sort(result)
 	return result
 }
 
-func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) schedulerobjects.ResourceList {
-	pool, exists := frt.pools[poolName]
-	if !exists {
-		return frt.zeroFloatingResources.DeepCopy()
+func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) internaltypes.ResourceList {
+	limits, ok := frt.floatingResourceLimitsByPool[poolName]
+	if !ok {
+		return internaltypes.ResourceList{}
 	}
-	return pool.totalResources.DeepCopy()
+	return limits
+}
+
+func (frt *FloatingResourceTypes) GetTotalAvailableForPoolAsMap(poolName string) map[string]resource.Quantity {
+	limits := frt.GetTotalAvailableForPool(poolName)
+	result := map[string]resource.Quantity{}
+	for _, res := range limits.GetResources() {
+		if res.Type != internaltypes.Floating {
+			continue
+		}
+		result[res.Name] = res.Value
+	}
+	return result
 }
 
 func (frt *FloatingResourceTypes) SummaryString() string {
-	if len(frt.zeroFloatingResources.Resources) == 0 {
+	if len(frt.floatingResourceLimitsByPool) == 0 {
 		return "none"
 	}
-	return strings.Join(maps.Keys(frt.zeroFloatingResources.Resources), " ")
-}
-
-func (frt *FloatingResourceTypes) isFloatingResource(resourceName string) bool {
-	_, exists := frt.zeroFloatingResources.Resources[resourceName]
-	return exists
+	poolSummaries := []string{}
+	for _, poolName := range frt.AllPools() {
+		poolSummaries = append(poolSummaries, fmt.Sprintf("%s: (%s)", poolName, frt.floatingResourceLimitsByPool[poolName]))
+	}
+	return strings.Join(poolSummaries, " ")
 }

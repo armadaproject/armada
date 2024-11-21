@@ -2,16 +2,18 @@ package armadactl
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
 // Preempt a job.
-func (a *App) Preempt(queue string, jobSetId string, jobId string) (outerErr error) {
+func (a *App) Preempt(queue string, jobSetId string, jobId string, reason string) (outerErr error) {
 	apiConnectionDetails := a.Params.ApiConnectionDetails
 
 	fmt.Fprintf(a.Out, "Requesting preemption of job matching queue: %s, job set: %s, and job Id: %s\n", queue, jobSetId, jobId)
@@ -23,6 +25,7 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string) (outerErr err
 			JobIds:   []string{jobId},
 			JobSetId: jobSetId,
 			Queue:    queue,
+			Reason:   reason,
 		})
 		if err != nil {
 			return errors.Wrapf(err, "error preempting job matching queue: %s, job set: %s, and job id: %s", queue, jobSetId, jobId)
@@ -31,4 +34,44 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string) (outerErr err
 		fmt.Fprintf(a.Out, "Requested preemption for job %s\n", jobId)
 		return nil
 	})
+}
+
+func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasses []string) error {
+	queueMsg := strings.Join(queues, ",")
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	// If the provided slice of queues is empty, jobs on all queues will be cancelled
+	if len(queues) == 0 {
+		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
+		if err != nil {
+			return fmt.Errorf("error preempting jobs on executor %s: %s", executor, err)
+		}
+		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
+		queueMsg = "all"
+	}
+
+	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
+	if err := a.Params.ExecutorAPI.PreemptOnExecutor(executor, queues, priorityClasses); err != nil {
+		return fmt.Errorf("error preempting jobs on executor %s: %s", executor, err)
+	}
+	return nil
+}
+
+// PreemptOnQueues preempts all jobs on queues matching the provided QueueQueryArgs filter
+func (a *App) PreemptOnQueues(args *QueueQueryArgs, priorityClasses []string, dryRun bool) error {
+	queues, err := a.getAllQueuesAsAPIQueue(args)
+	if err != nil {
+		return errors.Errorf("error fetching queues: %s", err)
+	}
+
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+
+	for _, queue := range queues {
+		fmt.Fprintf(a.Out, "Requesting preemption of jobs matching queue: %s, priorityClasses: %s\n", queue.Name, priorityClassesMsg)
+		if !dryRun {
+			if err := a.Params.QueueAPI.Preempt(queue.Name, priorityClasses); err != nil {
+				return fmt.Errorf("error preempting jobs on queue %s: %s", queue.Name, err)
+			}
+		}
+	}
+	return nil
 }

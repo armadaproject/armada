@@ -1,0 +1,62 @@
+syntax = 'proto3';
+package controlplaneevents;
+option go_package = "github.com/armadaproject/armada/pkg/controlplaneevents";
+option csharp_namespace = "ArmadaProject.Io.ControlPlaneEvents";
+
+import "google/protobuf/timestamp.proto";
+
+
+message Event {
+  google.protobuf.Timestamp created = 1;
+  oneof event {
+    ExecutorSettingsUpsert executorSettingsUpsert = 2;
+    ExecutorSettingsDelete executorSettingsDelete = 3;
+    PreemptOnExecutor preemptOnExecutor = 4;
+    CancelOnExecutor cancelOnExecutor = 5;
+    PreemptOnQueue preemptOnQueue = 6;
+    CancelOnQueue cancelOnQueue = 7;
+  }
+}
+
+message ExecutorSettingsUpsert {
+  string name = 1;
+  bool cordoned = 2;
+  string cordonReason = 3;
+  string setByUser = 4;
+}
+
+message ExecutorSettingsDelete {
+  string name = 1;
+}
+
+message PreemptOnExecutor {
+  string name = 1;
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
+}
+
+message CancelOnExecutor {
+  string name = 1;
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
+}
+
+// A subset of JobState including only non-terminal states
+enum ActiveJobState {
+  UNKNOWN = 0;
+  QUEUED = 1;
+  LEASED = 2;
+  PENDING = 3;
+  RUNNING = 4;
+}
+
+message PreemptOnQueue {
+  string name = 1;
+  repeated string priorityClasses = 2;
+}
+
+message CancelOnQueue {
+  string name = 1;
+  repeated string priorityClasses = 2;
+  repeated ActiveJobState jobStates = 3;
+}

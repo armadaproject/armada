@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -23,7 +23,8 @@ const epsilon = 1e-6
 func TestReportStateTransitions(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
-		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
+	)
 	require.NoError(t, err)
 	result := scheduling.SchedulerResult{
 		SchedulingContexts: []*context.SchedulingContext{
@@ -82,7 +83,9 @@ func TestReportStateTransitions(t *testing.T) {
 func TestResetLeaderMetrics(t *testing.T) {
 	m := newCycleMetrics()
 
+	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
+	poolQueueResouceLabelValues := []string{"pool1", "queue1", "cpu"}
 	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -111,6 +114,14 @@ func TestResetLeaderMetrics(t *testing.T) {
 	testResetGauge(m.fairnessError, []string{"pool1"})
 	testResetGauge(m.demand, poolQueueLabelValues)
 	testResetGauge(m.cappedDemand, poolQueueLabelValues)
+	testResetGauge(m.gangsConsidered, poolQueueLabelValues)
+	testResetGauge(m.gangsScheduled, poolQueueLabelValues)
+	testResetGauge(m.firstGangQueuePosition, poolQueueLabelValues)
+	testResetGauge(m.lastGangQueuePosition, poolQueueLabelValues)
+	testResetGauge(m.perQueueCycleTime, poolQueueLabelValues)
+	testResetGauge(m.loopNumber, poolLabelValues)
+	testResetGauge(m.evictedJobs, poolQueueLabelValues)
+	testResetGauge(m.evictedResources, poolQueueResouceLabelValues)
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
@@ -131,6 +142,14 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.cappedDemand.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.scheduleCycleTime.Observe(float64(1000))
 		m.reconciliationCycleTime.Observe(float64(1000))
+		m.gangsConsidered.WithLabelValues("pool1", "queue1").Inc()
+		m.gangsScheduled.WithLabelValues("pool1", "queue1").Inc()
+		m.firstGangQueuePosition.WithLabelValues("pool1", "queue1").Inc()
+		m.lastGangQueuePosition.WithLabelValues("pool1", "queue1").Inc()
+		m.perQueueCycleTime.WithLabelValues("pool1", "queue1").Inc()
+		m.loopNumber.WithLabelValues("pool1").Inc()
+		m.evictedJobs.WithLabelValues("pool1", "queue1").Inc()
+		m.evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
 		m.collect(ch)
@@ -153,8 +172,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	assert.NotZero(t, len(collect(m)))
 }
 
-func cpu(n int) schedulerobjects.ResourceList {
-	return schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
-	}
+func cpu(n int) internaltypes.ResourceList {
+	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
+	)
 }

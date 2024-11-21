@@ -13,7 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
+	commonMocks "github.com/armadaproject/armada/internal/common/mocks/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
@@ -294,8 +294,8 @@ func TestPreemptJobs(t *testing.T) {
 		expectedEvents []*armadaevents.EventSequence_Event
 	}{
 		"Preempt jobs using JobIds": {
-			req:            &api.JobPreemptRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset},
-			expectedEvents: testfixtures.CreatePreemptJobSequenceEvents([]string{jobId1, jobId2}),
+			req:            &api.JobPreemptRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, Reason: "preemption-reason"},
+			expectedEvents: testfixtures.CreatePreemptJobSequenceEvents([]string{jobId1, jobId2}, "preemption-reason"),
 		},
 	}
 	for name, tc := range tests {

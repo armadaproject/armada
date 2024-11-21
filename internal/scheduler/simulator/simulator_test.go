@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -31,8 +32,14 @@ func TestSimulator(t *testing.T) {
 	}{
 		"Two jobs in parallel": {
 			clusterSpec: &ClusterSpec{
-				Name:  "basic",
-				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 2)},
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(2)},
+					},
+				},
 			},
 			workloadSpec: &WorkloadSpec{
 				Queues: []*Queue{
@@ -54,8 +61,14 @@ func TestSimulator(t *testing.T) {
 		},
 		"Two jobs in sequence": {
 			clusterSpec: &ClusterSpec{
-				Name:  "basic",
-				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 1)},
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+				},
 			},
 			workloadSpec: &WorkloadSpec{
 				Queues: []*Queue{
@@ -77,8 +90,14 @@ func TestSimulator(t *testing.T) {
 		},
 		"10 jobs in sequence": {
 			clusterSpec: &ClusterSpec{
-				Name:  "basic",
-				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 1)},
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+				},
 			},
 			workloadSpec: &WorkloadSpec{
 				Queues: []*Queue{
@@ -95,10 +114,50 @@ func TestSimulator(t *testing.T) {
 			),
 			simulatedTimeLimit: 20 * time.Minute,
 		},
+		"Multiple Clusters": {
+			clusterSpec: &ClusterSpec{
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "ClusterA",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+					{
+						Name:          "ClusterB",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+				},
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					WithJobTemplatesQueue(
+						&Queue{Name: "A", Weight: 1},
+						JobTemplate32Cpu(2, "foo", testfixtures.TestDefaultPriorityClass),
+					),
+				},
+			},
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			expectedEventSequences: []*armadaevents.EventSequence{
+				SubmitJob(2, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+			},
+			simulatedTimeLimit: 5 * time.Minute,
+		},
 		"JobTemplate dependencies": {
 			clusterSpec: &ClusterSpec{
-				Name:  "basic",
-				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 3)},
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(3)},
+					},
+				},
 			},
 			workloadSpec: &WorkloadSpec{
 				Queues: []*Queue{
@@ -130,8 +189,14 @@ func TestSimulator(t *testing.T) {
 		},
 		"Preemption": {
 			clusterSpec: &ClusterSpec{
-				Name:  "basic",
-				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 2)},
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(2)},
+					},
+				},
 			},
 			workloadSpec: &WorkloadSpec{
 				Queues: []*Queue{
@@ -164,67 +229,25 @@ func TestSimulator(t *testing.T) {
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
-		"Preemption cascade": {
+		"No preemption cascade": {
 			clusterSpec: &ClusterSpec{
 				Name: "test",
-				Pools: []*Pool{
-					WithExecutorGroupsPool(
-						&Pool{Name: "Pool"},
-						ExecutorGroup32Cpu(1, 1),
-						ExecutorGroup32Cpu(1, 1),
-						ExecutorGroup32Cpu(1, 1),
-					),
-				},
-			},
-			workloadSpec: &WorkloadSpec{
-				Queues: []*Queue{
-					WithJobTemplatesQueue(
-						&Queue{Name: "B", Weight: 1},
-						JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
-					),
-					WithJobTemplatesQueue(
-						&Queue{Name: "C", Weight: 1},
-						JobTemplate32Cpu(2, "foo", testfixtures.PriorityClass0),
-					),
-					WithJobTemplatesQueue(
-						&Queue{Name: "A", Weight: 1},
-						WithMinSubmitTimeJobTemplate(
-							JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
-							30*time.Second,
-						),
-					),
-				},
-			},
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			expectedEventSequences: []*armadaevents.EventSequence{
-				SubmitJob(1, "B", "foo"),
-				SubmitJob(2, "C", "foo"),
-				JobRunLeased(1, "B", "foo"),
-				JobRunLeased(1, "C", "foo"),
-				JobRunLeased(1, "C", "foo"),
-				SubmitJob(1, "A", "foo"),
-				JobRunPreempted(1, "B", "foo"),
-				JobRunLeased(1, "A", "foo"),
-				SubmitJob(1, "B", "foo"),
-				JobRunPreempted(1, "C", "foo"),
-				JobRunLeased(1, "B", "foo"),
-				SubmitJob(1, "C", "foo"),
-				JobSucceeded(1, "C", "foo"),
-				JobRunLeased(1, "C", "foo"),
-				JobSucceeded(1, "A", "foo"),
-				JobSucceeded(1, "B", "foo"),
-				JobSucceeded(1, "C", "foo"),
-			},
-			simulatedTimeLimit: 5 * time.Minute,
-		},
-		"No preemption cascade with unified scheduling": {
-			clusterSpec: &ClusterSpec{
-				Name: "test",
-				Pools: []*Pool{
-					WithExecutorGroupsPool(
-						&Pool{Name: "Pool"},
-						ExecutorGroup32Cpu(3, 1),
-					),
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster1",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+					{
+						Name:          "TestCluster2",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+					{
+						Name:          "TestCluster3",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
 				},
 			},
 			workloadSpec: &WorkloadSpec{
@@ -268,11 +291,12 @@ func TestSimulator(t *testing.T) {
 		"Consistent job ordering": {
 			clusterSpec: &ClusterSpec{
 				Name: "test",
-				Pools: []*Pool{
-					WithExecutorGroupsPool(
-						&Pool{Name: "Pool"},
-						ExecutorGroup32Cpu(1, 2),
-					),
+				Clusters: []*Cluster{
+					{
+						Name:          "TestCluster",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(2)},
+					},
 				},
 			},
 			workloadSpec: &WorkloadSpec{
@@ -297,23 +321,21 @@ func TestSimulator(t *testing.T) {
 		"Home-away preemption": {
 			clusterSpec: &ClusterSpec{
 				Name: "cluster",
-				Pools: func() []*Pool {
+				Clusters: func() []*Cluster {
 					whaleNodeTemplate := NodeTemplateGpu(2)
 					whaleNodeTemplate.Taints = []v1.Taint{
 						{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 					}
-					whaleCluster := Cluster{NodeTemplates: []*NodeTemplate{whaleNodeTemplate}}
-					return []*Pool{
+					return []*Cluster{
 						{
-							Name: "pool",
-							ClusterGroups: []*ClusterGroup{
-								{
-									Clusters: []*Cluster{
-										{NodeTemplates: []*NodeTemplate{NodeTemplateGpu(2)}},
-										&whaleCluster,
-									},
-								},
-							},
+							Name:          "WhaleCluster",
+							Pool:          "TestPool",
+							NodeTemplates: []*NodeTemplate{whaleNodeTemplate},
+						},
+						{
+							Name:          "TestCluster",
+							Pool:          "TestPool",
+							NodeTemplates: []*NodeTemplate{NodeTemplateGpu(2)},
 						},
 					}
 				}(),
@@ -326,7 +348,7 @@ func TestSimulator(t *testing.T) {
 						JobTemplates: []*JobTemplate{
 							{
 								Id:                "queue-0-template-0",
-								Number:            1,
+								Number:            2,
 								JobSet:            "job-set-0",
 								PriorityClassName: "armada-preemptible",
 								Requirements: schedulerobjects.PodRequirements{
@@ -341,27 +363,8 @@ func TestSimulator(t *testing.T) {
 										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 									},
 								},
+								EarliestSubmitTime:  1 * time.Minute,
 								RuntimeDistribution: ShiftedExponential{Minimum: 5 * time.Minute},
-							},
-							{
-								Id:                "queue-0-template-1",
-								Number:            4,
-								JobSet:            "job-set-0",
-								PriorityClassName: "armada-preemptible",
-								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
-										Requests: v1.ResourceList{
-											"cpu":            resource.MustParse("128"),
-											"memory":         resource.MustParse("4096Gi"),
-											"nvidia.com/gpu": resource.MustParse("8"),
-										},
-									},
-									Tolerations: []v1.Toleration{
-										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
-									},
-								},
-								Dependencies:        []string{"queue-0-template-0"},
-								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
 							},
 						},
 					},
@@ -370,6 +373,7 @@ func TestSimulator(t *testing.T) {
 						Weight: 1,
 						JobTemplates: []*JobTemplate{
 							{
+								Id:                "queue-1-template-0",
 								Number:            32,
 								JobSet:            "job-set-1",
 								PriorityClassName: "armada-preemptible-away",
@@ -412,41 +416,115 @@ func TestSimulator(t *testing.T) {
 				return config
 			}(),
 			expectedEventSequences: armadaslices.Concatenate(
-				armadaslices.Repeat(1, SubmitJob(1, "queue-0", "job-set-0")),
+				// Submit 32 1-gpu jobs to fill up all nodes.  16 Jobs will be scheduled away
 				armadaslices.Repeat(1, SubmitJob(32, "queue-1", "job-set-1")),
-				armadaslices.Repeat(1, JobRunLeased(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(24, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(1, JobSucceeded(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(1, SubmitJob(4, "queue-0", "job-set-0")),
-				armadaslices.Repeat(8, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(24, JobRunPreempted(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(3, JobRunLeased(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(24, SubmitJob(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(8, JobSucceeded(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(8, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(3, JobSucceeded(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(1, JobRunLeased(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(32, JobRunLeased(1, "queue-1", "job-set-1")),
+
+				// Submit 2 whole node-whale jobs
+				armadaslices.Repeat(1, SubmitJob(2, "queue-0", "job-set-0")),
+
+				// 16 Jobs should be preempted to make way and 2 of the whale jobs should start run
+				armadaslices.Repeat(16, JobRunPreempted(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(2, JobRunLeased(1, "queue-0", "job-set-0")),
+
+				// The 16 preempted jobs should be resubmitted
+				armadaslices.Repeat(16, SubmitJob(1, "queue-1", "job-set-1")),
+
+				// The 2 whale jobs finish, which means that 16 more 1-gpu jbs can be scheduled
+				armadaslices.Repeat(2, JobSucceeded(1, "queue-0", "job-set-0")),
 				armadaslices.Repeat(16, JobRunLeased(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(8, JobSucceeded(1, "queue-1", "job-set-1")),
-				armadaslices.Repeat(1, JobSucceeded(1, "queue-0", "job-set-0")),
-				armadaslices.Repeat(16, JobSucceeded(1, "queue-1", "job-set-1")),
+
+				// finally all the 1-gpu jobs finish
+				armadaslices.Repeat(32, JobSucceeded(1, "queue-1", "job-set-1")),
 			),
 			simulatedTimeLimit: 24 * time.Hour,
+		},
+		"Gang Job": {
+			clusterSpec: &ClusterSpec{
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "Cluster1",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(8)},
+					},
+					{
+						// This cluster should be too small to run gangs
+						Name:          "Cluster2",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)},
+					},
+				},
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					WithJobTemplatesQueue(
+						&Queue{Name: "A", Weight: 1},
+						GangJobTemplate32Cpu(16, 8, "foo", testfixtures.TestDefaultPriorityClass),
+					),
+				},
+			},
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			expectedEventSequences: armadaslices.Concatenate(
+				armadaslices.Repeat(1, SubmitJob(16, "A", "foo")),
+				armadaslices.Repeat(8, JobRunLeased(1, "A", "foo")),
+				armadaslices.Repeat(8, JobSucceeded(1, "A", "foo")),
+				armadaslices.Repeat(8, JobRunLeased(1, "A", "foo")),
+				armadaslices.Repeat(8, JobSucceeded(1, "A", "foo")),
+			),
+			simulatedTimeLimit: 5 * time.Minute,
+		},
+		"Preempted Gang Job": {
+			clusterSpec: &ClusterSpec{
+				Name: "basic",
+				Clusters: []*Cluster{
+					{
+						Name:          "Cluster1",
+						Pool:          "TestPool",
+						NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(8)},
+					},
+				},
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					WithJobTemplatesQueue(
+						&Queue{Name: "A", Weight: 1},
+						GangJobTemplate32Cpu(8, 8, "foo", testfixtures.PriorityClass2),
+					),
+					WithJobTemplatesQueue(
+						&Queue{Name: "B", Weight: 1},
+						WithMinSubmitTimeJobTemplate(
+							JobTemplate32Cpu(1, "bar", testfixtures.PriorityClass3),
+							30*time.Second,
+						),
+					),
+				},
+			},
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			expectedEventSequences: armadaslices.Concatenate(
+				armadaslices.Repeat(1, SubmitJob(8, "A", "foo")),
+				armadaslices.Repeat(8, JobRunLeased(1, "A", "foo")),
+				armadaslices.Repeat(1, SubmitJob(1, "B", "bar")),
+				armadaslices.Repeat(8, JobRunPreempted(1, "A", "foo")),
+				armadaslices.Repeat(1, JobRunLeased(1, "B", "bar")),
+				armadaslices.Repeat(8, SubmitJob(1, "A", "foo")),
+				armadaslices.Repeat(1, JobSucceeded(1, "B", "bar")),
+				armadaslices.Repeat(8, JobRunLeased(1, "A", "foo")),
+				armadaslices.Repeat(8, JobSucceeded(1, "A", "foo")),
+			),
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig, enableFastForward, int((tc.simulatedTimeLimit + time.Hour).Minutes()), schedulerCyclePeriodSeconds)
+			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig, enableFastForward, int((tc.simulatedTimeLimit + time.Hour).Minutes()), schedulerCyclePeriodSeconds, sink.NullSink{})
 			require.NoError(t, err)
-			mc := NewMetricsCollector(s.StateTransitions())
+			start := s.time
 			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
 			c := s.StateTransitions()
 
 			ctx := armadacontext.Background()
 			g, ctx := armadacontext.ErrGroup(ctx)
-			g.Go(func() error {
-				return mc.Run(ctx)
-			})
 			g.Go(func() error {
 				for {
 					select {
@@ -466,8 +544,6 @@ func TestSimulator(t *testing.T) {
 			})
 			err = g.Wait()
 			require.NoError(t, err)
-
-			t.Logf("Simulation Results: %s", mc.String())
 			if tc.expectedEventSequences != nil {
 				require.Equal(
 					t,
@@ -478,42 +554,9 @@ func TestSimulator(t *testing.T) {
 					EventSequencesSummary(actualEventSequences),
 				)
 			}
-			require.LessOrEqual(t, mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent, tc.simulatedTimeLimit)
+			require.LessOrEqual(t, s.time.Sub(start), tc.simulatedTimeLimit)
 		})
 	}
-}
-
-func TestSchedulingConfigsFromPattern(t *testing.T) {
-	actual, err := SchedulingConfigsFromPattern("./testdata/configs/basicSchedulingConfig.yaml")
-	require.NoError(t, err)
-	expected := []configuration.SchedulingConfig{GetBasicSchedulingConfig()}
-	assert.Equal(t, expected, actual)
-}
-
-func TestClusterSpecsFromPattern(t *testing.T) {
-	clusterSpecs, err := ClusterSpecsFromPattern("./testdata/clusters/tinyCluster.yaml")
-	require.NoError(t, err)
-	assert.Equal(t, []*ClusterSpec{GetTwoPoolTwoNodeCluster()}, clusterSpecs)
-	require.NoError(t, err)
-}
-
-func TestWorkloadsFromPattern(t *testing.T) {
-	workloadSpecs, err := WorkloadsFromPattern("./testdata/workloads/basicWorkload.yaml")
-	require.NoError(t, err)
-	assert.Equal(t, []*WorkloadSpec{GetOneQueue10JobWorkload()}, workloadSpecs)
-	require.NoError(t, err)
-}
-
-func TestClusterSpecTotalResources(t *testing.T) {
-	actual := GetTwoPoolTwoNodeCluster().TotalResources()
-	expected := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{
-			"cpu":            resource.MustParse("160"),
-			"memory":         resource.MustParse("4352Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
-		},
-	}
-	assert.True(t, expected.Equal(actual), "expected %s, but got %s", expected.CompactString(), actual.CompactString())
 }
 
 func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {

@@ -9,5 +9,7 @@ auth:
     cordon_queue: ["everyone"]
     cancel_any_jobs: ["everyone"]
     reprioritize_any_jobs: ["everyone"]
+    preempt_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]
+    update_executor_settings: ["everyone"]

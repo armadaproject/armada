@@ -13,21 +13,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-func GetTwoPoolTwoNodeCluster() *ClusterSpec {
-	cs := &ClusterSpec{
-		Name: "Tiny Cluster",
-		Pools: []*Pool{
-			Pool32Cpu("pool1", 1, 1, 1),
-			PoolGpu("pool2", 1, 1, 1),
-		},
-	}
-	initialiseClusterSpec(cs)
-	return cs
-}
 
 func GetOneQueue10JobWorkload() *WorkloadSpec {
 	ws := &WorkloadSpec{
@@ -75,100 +62,28 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 				Resolution: resource.MustParse("1"),
 			},
 		},
+		SupportedResourceTypes: []configuration.ResourceType{
+			{
+				Name:       "memory",
+				Resolution: resource.MustParse("1"),
+			},
+			{
+				Name:       "cpu",
+				Resolution: resource.MustParse("1m"),
+			},
+			{
+				Name:       "ephemeral-storage",
+				Resolution: resource.MustParse("1"),
+			},
+			{
+				Name:       "nvidia.com/gpu",
+				Resolution: resource.MustParse("1"),
+			},
+		},
 		MaximumSchedulingRate:          math.Inf(1),
 		MaximumSchedulingBurst:         math.MaxInt,
 		MaximumPerQueueSchedulingRate:  math.Inf(1),
 		MaximumPerQueueSchedulingBurst: math.MaxInt,
-	}
-}
-
-// TotalResources returns the total resources available across all nodes in the ClusterSpec.
-func (cs *ClusterSpec) TotalResources() schedulerobjects.ResourceList {
-	total := schedulerobjects.NewResourceListWithDefaultSize()
-	for _, pool := range cs.Pools {
-		for _, clusterGroup := range pool.ClusterGroups {
-			for _, cluster := range clusterGroup.Clusters {
-				for _, nt := range cluster.NodeTemplates {
-					for t, q := range nt.TotalResources.Resources {
-						total.AddQuantity(t, constraints.ScaleQuantity(q, float64(nt.Number)))
-					}
-				}
-			}
-		}
-	}
-	return total
-}
-
-func WithExecutorGroupsPool(pool *Pool, executorGroups ...*ClusterGroup) *Pool {
-	pool.ClusterGroups = append(pool.ClusterGroups, executorGroups...)
-	return pool
-}
-
-func WithExecutorsExecutorGroup(executorGroup *ClusterGroup, executors ...*Cluster) *ClusterGroup {
-	executorGroup.Clusters = append(executorGroup.Clusters, executors...)
-	return executorGroup
-}
-
-func WithNodeTemplatesExecutor(executor *Cluster, nodeTemplates ...*NodeTemplate) *Cluster {
-	executor.NodeTemplates = append(executor.NodeTemplates, nodeTemplates...)
-	return executor
-}
-
-func Pool32Cpu(name string, numExecutorGroups, numExecutorsPerGroup, numNodesPerExecutor int64) *Pool {
-	executorGroups := make([]*ClusterGroup, numExecutorGroups)
-	for i := 0; i < int(numExecutorGroups); i++ {
-		executorGroups[i] = ExecutorGroup32Cpu(numExecutorsPerGroup, numNodesPerExecutor)
-	}
-	return &Pool{
-		Name:          name,
-		ClusterGroups: executorGroups,
-	}
-}
-
-func PoolGpu(name string, numExecutorGroups, numExecutorsPerGroup, numNodesPerExecutor int64) *Pool {
-	executorGroups := make([]*ClusterGroup, numExecutorGroups)
-	for i := 0; i < int(numExecutorGroups); i++ {
-		executorGroups[i] = ExecutorGroupGpu(numExecutorsPerGroup, numNodesPerExecutor)
-	}
-	return &Pool{
-		Name:          name,
-		ClusterGroups: executorGroups,
-	}
-}
-
-func ExecutorGroup32Cpu(numExecutors, numNodesPerExecutor int64) *ClusterGroup {
-	executors := make([]*Cluster, numExecutors)
-	for i := 0; i < int(numExecutors); i++ {
-		executors[i] = Executor32Cpu(numNodesPerExecutor)
-	}
-	return &ClusterGroup{
-		Clusters: executors,
-	}
-}
-
-func ExecutorGroupGpu(numExecutors, numNodesPerExecutor int64) *ClusterGroup {
-	executors := make([]*Cluster, numExecutors)
-	for i := 0; i < int(numExecutors); i++ {
-		executors[i] = ExecutorGpu(numNodesPerExecutor)
-	}
-	return &ClusterGroup{
-		Clusters: executors,
-	}
-}
-
-func Executor32Cpu(numNodes int64) *Cluster {
-	return &Cluster{
-		NodeTemplates: []*NodeTemplate{
-			NodeTemplate32Cpu(numNodes),
-		},
-	}
-}
-
-func ExecutorGpu(numNodes int64) *Cluster {
-	return &Cluster{
-		NodeTemplates: []*NodeTemplate{
-			NodeTemplateGpu(numNodes),
-		},
 	}
 }
 
@@ -230,8 +145,14 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 				},
 			},
 		},
-		RuntimeDistribution: ShiftedExponential{Minimum: time.Minute},
+		RuntimeDistribution: ShiftedExponential{Minimum: 1 * time.Minute},
 	}
+}
+
+func GangJobTemplate32Cpu(numJobs int64, gangCardinality uint32, jobSet, priorityClassName string) *JobTemplate {
+	jobTemplate := JobTemplate32Cpu(numJobs, jobSet, priorityClassName)
+	jobTemplate.GangCardinality = gangCardinality
+	return jobTemplate
 }
 
 func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {

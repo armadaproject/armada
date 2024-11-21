@@ -43,12 +43,14 @@ func (it *InMemoryJobIterator) Next() (*schedulercontext.JobSchedulingContext, e
 type InMemoryJobRepository struct {
 	jctxsByQueue map[string][]*schedulercontext.JobSchedulingContext
 	jctxsById    map[string]*schedulercontext.JobSchedulingContext
+	currentPool  string
 	// Protects the above fields.
 	mu sync.Mutex
 }
 
-func NewInMemoryJobRepository() *InMemoryJobRepository {
+func NewInMemoryJobRepository(pool string) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
+		currentPool:  pool,
 		jctxsByQueue: make(map[string][]*schedulercontext.JobSchedulingContext),
 		jctxsById:    make(map[string]*schedulercontext.JobSchedulingContext),
 	}
@@ -60,6 +62,9 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 	updatedQueues := make(map[string]bool)
 	for _, jctx := range jctxs {
 		queue := jctx.Job.Queue()
+		if jctx.Job.LatestRun() != nil && jctx.Job.LatestRun().Pool() != repo.currentPool {
+			queue = schedulercontext.CalculateAwayQueueName(jctx.Job.Queue())
+		}
 		repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
 		repo.jctxsById[jctx.Job.Id()] = jctx
 		updatedQueues[queue] = true
@@ -106,26 +111,32 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobContextIterat
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 type QueuedJobsIterator struct {
 	jobIter jobdb.JobIterator
+	pool    string
 	ctx     *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
 		jobIter: repo.QueuedJobs(queue),
+		pool:    pool,
 		ctx:     ctx,
 	}
 }
 
 func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
-	select {
-	case <-it.ctx.Done():
-		return nil, it.ctx.Err()
-	default:
-		job, _ := it.jobIter.Next()
-		if job == nil {
-			return nil, nil
+	for {
+		select {
+		case <-it.ctx.Done():
+			return nil, it.ctx.Err()
+		default:
+			job, _ := it.jobIter.Next()
+			if job == nil {
+				return nil, nil
+			}
+			if slices.Contains(job.Pools(), it.pool) {
+				return schedulercontext.JobSchedulingContextFromJob(job), nil
+			}
 		}
-		return schedulercontext.JobSchedulingContextFromJob(job), nil
 	}
 }
 

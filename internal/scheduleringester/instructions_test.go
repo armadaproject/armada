@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 var (
@@ -26,16 +27,16 @@ var (
 	m            = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
 )
 
-func TestConvertSequence(t *testing.T) {
+func TestConvertEventSequence(t *testing.T) {
 	tests := map[string]struct {
 		events   []*armadaevents.EventSequence_Event
 		expected []DbOperation
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobIdString: &schedulerdb.Job{
-				JobID:          f.JobIdString,
-				JobSet:         f.JobSetName,
+			expected: []DbOperation{InsertJobs{f.JobId: &schedulerdb.Job{
+				JobID:          f.JobId,
+				JobSet:         f.JobsetName,
 				UserID:         f.UserId,
 				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
 				Queue:          f.Queue,
@@ -50,10 +51,10 @@ func TestConvertSequence(t *testing.T) {
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
-				InsertRuns{f.RunIdString: &JobRunDetails{Queue: f.Queue, DbRun: &schedulerdb.Run{
-					RunID:                  f.RunIdString,
-					JobID:                  f.JobIdString,
-					JobSet:                 f.JobSetName,
+				InsertRuns{f.RunId: &JobRunDetails{Queue: f.Queue, DbRun: &schedulerdb.Run{
+					RunID:                  f.RunId,
+					JobID:                  f.JobId,
+					JobSet:                 f.JobsetName,
 					Queue:                  f.Queue,
 					Executor:               f.ExecutorId,
 					Node:                   f.NodeName,
@@ -63,7 +64,7 @@ func TestConvertSequence(t *testing.T) {
 					LeasedTimestamp:        &f.BaseTime,
 					PodRequirementsOverlay: protoutil.MustMarshall(f.Leased.GetJobRunLeased().GetPodRequirementsOverlay()),
 				}}},
-				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+				UpdateJobQueuedState{f.JobId: &JobQueuedStateUpdate{
 					Queued:             false,
 					QueuedStateVersion: 1,
 				}},
@@ -71,56 +72,56 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
-			expected: []DbOperation{MarkRunsRunning{f.RunIdString: f.BaseTime}},
+			expected: []DbOperation{MarkRunsRunning{f.RunId: f.BaseTime}},
 		},
 		"job run succeeded": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
-			expected: []DbOperation{MarkRunsSucceeded{f.RunIdString: f.BaseTime}},
+			expected: []DbOperation{MarkRunsSucceeded{f.RunId: f.BaseTime}},
 		},
 		"job run pending": {
 			events:   []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{MarkRunsPending{f.RunIdString: f.BaseTime}},
+			expected: []DbOperation{MarkRunsPending{f.RunId: f.BaseTime}},
 		},
 		"job preemption requested": {
 			events:   []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
-			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: []string{f.JobIdString}}},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: []string{f.JobId}}},
 		},
 		"job run preempted": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
-			expected: []DbOperation{MarkRunsPreempted{f.RunIdString: f.BaseTime}},
+			expected: []DbOperation{MarkRunsPreempted{f.RunId: f.BaseTime}},
 		},
 		"lease returned": {
 			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
 			expected: []DbOperation{
-				InsertJobRunErrors{f.RunIdString: &schedulerdb.JobRunError{
-					RunID: f.RunIdString,
-					JobID: f.JobIdString,
+				InsertJobRunErrors{f.RunId: &schedulerdb.JobRunError{
+					RunID: f.RunId,
+					JobID: f.JobId,
 					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdString: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: f.BaseTime}},
+				MarkRunsFailed{f.RunId: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: f.BaseTime}},
 			},
 		},
 		"job failed": {
 			events: []*armadaevents.EventSequence_Event{f.JobRunFailed},
 			expected: []DbOperation{
-				InsertJobRunErrors{f.RunIdString: &schedulerdb.JobRunError{
-					RunID: f.RunIdString,
-					JobID: f.JobIdString,
+				InsertJobRunErrors{f.RunId: &schedulerdb.JobRunError{
+					RunID: f.RunId,
+					JobID: f.JobId,
 					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdString: &JobRunFailed{LeaseReturned: false, RunAttempted: true, FailureTime: f.BaseTime}},
+				MarkRunsFailed{f.RunId: &JobRunFailed{LeaseReturned: false, RunAttempted: true, FailureTime: f.BaseTime}},
 			},
 		},
 		"job errors terminal": {
 			events: []*armadaevents.EventSequence_Event{f.JobFailed},
 			expected: []DbOperation{
-				MarkJobsFailed{f.JobIdString: true},
+				MarkJobsFailed{f.JobId: true},
 			},
 		},
 		"job succeeded": {
 			events: []*armadaevents.EventSequence_Event{f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobsSucceeded{f.JobIdString: true},
+				MarkJobsSucceeded{f.JobId: true},
 			},
 		},
 		"reprioritise job": {
@@ -128,63 +129,63 @@ func TestConvertSequence(t *testing.T) {
 			expected: []DbOperation{
 				&UpdateJobPriorities{
 					key: JobReprioritiseKey{
-						JobSetKey: JobSetKey{queue: f.Queue, jobSet: f.JobSetName},
+						JobSetKey: JobSetKey{queue: f.Queue, jobSet: f.JobsetName},
 						Priority:  f.NewPriority,
 					},
-					jobIds: []string{f.JobIdString},
+					jobIds: []string{f.JobId},
 				},
 			},
 		},
 		"reprioritise jobset": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobSetPriorities{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: f.NewPriority},
+				UpdateJobSetPriorities{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: f.NewPriority},
 			},
 		},
 		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: {f.JobIdString}},
+				MarkJobsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId}},
 			},
 		},
 		"JobSetCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
 			},
 		},
 		"JobSetCancelRequested - Queued only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: false}},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: false}},
 			},
 		},
 		"JobSetCancelRequested - Pending only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
 			},
 		},
 		"JobSetCancelRequested - Running only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
 			},
 		},
 		"JobCancelled": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelled},
 			expected: []DbOperation{
-				MarkJobsCancelled{f.JobIdString: f.BaseTime},
+				MarkJobsCancelled{f.JobId: f.BaseTime},
 			},
 		},
 		"JobRequeued": {
 			events: []*armadaevents.EventSequence_Event{f.JobRequeued},
 			expected: []DbOperation{
-				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+				UpdateJobQueuedState{f.JobId: &JobQueuedStateUpdate{
 					Queued:             true,
 					QueuedStateVersion: f.JobRequeued.GetJobRequeued().UpdateSequenceNumber,
 				}},
-				UpdateJobSchedulingInfo{f.JobIdString: &JobSchedulingInfoUpdate{
+				UpdateJobSchedulingInfo{f.JobId: &JobSchedulingInfoUpdate{
 					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetJobRequeued().SchedulingInfo),
 					JobSchedulingInfoVersion: int32(f.JobRequeued.GetJobRequeued().SchedulingInfo.Version),
 				}},
@@ -193,7 +194,7 @@ func TestConvertSequence(t *testing.T) {
 		"SubmitChecked": {
 			events: []*armadaevents.EventSequence_Event{f.JobValidated},
 			expected: []DbOperation{
-				MarkJobsValidated{f.JobIdString: []string{"cpu"}},
+				MarkJobsValidated{f.JobId: []string{"cpu"}},
 			},
 		},
 		"PositionMarker": {
@@ -211,28 +212,121 @@ func TestConvertSequence(t *testing.T) {
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
-				MarkRunsRunning{f.RunIdString: f.BaseTime},
-				MarkJobsSucceeded{f.JobIdString: true},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+				MarkRunsRunning{f.RunId: f.BaseTime},
+				MarkJobsSucceeded{f.JobId: true},
 			},
 		},
 		"multiple events - multiple timestamps": {
 			events: multipleEventsMultipleTimeStamps(),
 			expected: []DbOperation{
-				MarkJobsCancelled{f.JobIdString: f.BaseTime},
-				MarkRunsSucceeded{f.RunIdString: f.BaseTime},
-				MarkRunsRunning{f.RunIdString: f.BaseTime},
-				MarkJobsCancelled{f.JobIdString: f.BaseTime.Add(time.Hour)},
-				MarkRunsSucceeded{f.RunIdString: f.BaseTime.Add(time.Hour)},
+				MarkJobsCancelled{f.JobId: f.BaseTime},
+				MarkRunsSucceeded{f.RunId: f.BaseTime},
+				MarkRunsRunning{f.RunId: f.BaseTime},
+				MarkJobsCancelled{f.JobId: f.BaseTime.Add(time.Hour)},
+				MarkRunsSucceeded{f.RunId: f.BaseTime.Add(time.Hour)},
 			},
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := InstructionConverter{m, compressor}
+			converter := JobSetEventsInstructionConverter{m, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.dbOperationsFromEventSequence(es)
+			assertOperationsEqual(t, tc.expected, results)
+		})
+	}
+}
+
+func TestConvertControlPlaneEvent(t *testing.T) {
+	tests := map[string]struct {
+		event    *controlplaneevents.Event
+		expected []DbOperation
+	}{
+		"upsert cordon executor event": {
+			event: f.UpsertExecutorSettingsCordon,
+			expected: []DbOperation{UpsertExecutorSettings{
+				f.ExecutorId: &ExecutorSettingsUpsert{
+					ExecutorID:   f.ExecutorId,
+					Cordoned:     true,
+					CordonReason: f.ExecutorCordonReason,
+				},
+			}},
+		},
+		"upsert uncordon executor event": {
+			event: f.UpsertExecutorSettingsUncordon,
+			expected: []DbOperation{UpsertExecutorSettings{
+				f.ExecutorId: &ExecutorSettingsUpsert{
+					ExecutorID:   f.ExecutorId,
+					Cordoned:     false,
+					CordonReason: "",
+				},
+			}},
+		},
+		"delete executor settings": {
+			event: f.DeleteExecutorSettings,
+			expected: []DbOperation{DeleteExecutorSettings{
+				f.ExecutorId: &ExecutorSettingsDelete{
+					ExecutorID: f.ExecutorId,
+				},
+			}},
+		},
+		"preempt on executor": {
+			event: f.PreemptOnExecutor,
+			expected: []DbOperation{PreemptExecutor{
+				f.ExecutorId: &PreemptOnExecutor{
+					Name:            f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
+		"cancel on executor": {
+			event: f.CancelOnExecutor,
+			expected: []DbOperation{CancelExecutor{
+				f.ExecutorId: &CancelOnExecutor{
+					Name:            f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
+		"preempt on queue": {
+			event: f.PreemptOnQueue,
+			expected: []DbOperation{PreemptQueue{
+				f.Queue: &PreemptOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
+		"cancel queued on queue": {
+			event: f.CancelQueuedOnQueue,
+			expected: []DbOperation{CancelQueue{
+				f.Queue: &CancelOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+				},
+			}},
+		},
+		"cancel running on queue": {
+			event: f.CancelRunningOnQueue,
+			expected: []DbOperation{CancelQueue{
+				f.Queue: &CancelOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_RUNNING},
+				},
+			}},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			converter := ControlPlaneEventsInstructionConverter{m}
+			results := converter.dbOperationFromControlPlaneEvent(tc.event)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}

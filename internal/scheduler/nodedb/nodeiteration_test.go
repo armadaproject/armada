@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -384,8 +386,15 @@ func TestNodeTypeIterator(t *testing.T) {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
 
-				entry, err := nodeDb.create(node)
+				entry, err := internaltypes.FromSchedulerObjectsNode(node,
+					uint64(i),
+					nodeDb.indexedTaints,
+					nodeDb.indexedNodeLabels,
+					nodeDb.resourceListFactory)
+
 				require.NoError(t, err)
+
+				nodeDb.AddNodeToDb(entry)
 
 				entries[i] = entry
 			}
@@ -788,8 +797,15 @@ func TestNodeTypesIterator(t *testing.T) {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
 
-				entry, err := nodeDb.create(node)
+				entry, err := internaltypes.FromSchedulerObjectsNode(node,
+					uint64(i),
+					nodeDb.indexedTaints,
+					nodeDb.indexedNodeLabels,
+					nodeDb.resourceListFactory)
+
 				require.NoError(t, err)
+
+				nodeDb.AddNodeToDb(entry)
 
 				entries[i] = entry
 			}
@@ -911,8 +927,8 @@ func labelsToNodeTypeId(labels map[string]string) uint64 {
 	nodeType := internaltypes.NewNodeType(
 		[]v1.Taint{},
 		labels,
-		mapFromSlice(testfixtures.TestIndexedTaints),
-		mapFromSlice(testfixtures.TestIndexedNodeLabels),
+		util.StringListToSet(testfixtures.TestIndexedTaints),
+		util.StringListToSet(testfixtures.TestIndexedNodeLabels),
 	)
 	return nodeType.GetId()
 }

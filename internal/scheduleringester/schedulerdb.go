@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
@@ -15,6 +16,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
+)
+
+const (
+	InvalidLockKey      = -1
+	JobSetEventsLockKey = 8741339439634283896
 )
 
 // SchedulerDb writes DbOperations into postgres.
@@ -55,9 +63,11 @@ func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperatio
 		}, func(tx pgx.Tx) error {
 			lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
-			// The lock is released automatically on transaction rollback/commit.
-			if err := s.acquireLock(lockCtx, tx); err != nil {
-				return err
+			if scope, err := getLockKey(instructions.Ops); err == nil {
+				// The lock is released automatically on transaction rollback/commit.
+				if err := s.acquireLock(lockCtx, tx, scope); err != nil {
+					return err
+				}
 			}
 			for _, dbOp := range instructions.Ops {
 				if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
@@ -79,9 +89,8 @@ func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperatio
 // rows with sequence numbers smaller than those already written.
 //
 // The scheduler relies on these sequence numbers to only fetch new or updated rows in each update cycle.
-func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx) error {
-	const lockId = 8741339439634283896
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId); err != nil {
+func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx, scope int) error {
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", scope); err != nil {
 		return errors.Wrapf(err, "could not obtain lock")
 	}
 	return nil
@@ -348,10 +357,239 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	case UpsertExecutorSettings:
+		for _, settingsUpsert := range o {
+			err := queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
+				ExecutorID:   settingsUpsert.ExecutorID,
+				Cordoned:     settingsUpsert.Cordoned,
+				CordonReason: settingsUpsert.CordonReason,
+				SetByUser:    settingsUpsert.SetByUser,
+				SetAtTime:    settingsUpsert.SetAtTime,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error upserting executor settings for %s", settingsUpsert.ExecutorID)
+			}
+		}
+		return nil
+	case DeleteExecutorSettings:
+		for _, settingsUpsert := range o {
+			err := queries.DeleteExecutorSettings(ctx, settingsUpsert.ExecutorID)
+			if err != nil {
+				return errors.Wrapf(err, "error deleting executor settings for %s", settingsUpsert.ExecutorID)
+			}
+		}
+		return nil
+	case CancelExecutor:
+		for executor, cancelRequest := range o {
+			jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, schedulerdb.SelectJobsByExecutorAndQueuesParams{
+				Executor: executor,
+				Queues:   cancelRequest.Queues,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
+			}
+			inPriorityClasses := jobInPriorityClasses(cancelRequest.PriorityClasses)
+			jobsToCancel := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
+				}
+				if ok {
+					jobsToCancel = append(jobsToCancel, job)
+				}
+			}
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobsToCancel) {
+				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
+				}
+			}
+		}
+	case PreemptExecutor:
+		for executor, preemptRequest := range o {
+			jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, schedulerdb.SelectJobsByExecutorAndQueuesParams{
+				Executor: executor,
+				Queues:   preemptRequest.Queues,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
+			}
+			inPriorityClasses := jobInPriorityClasses(preemptRequest.PriorityClasses)
+			jobsToPreempt := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
+				}
+				if ok {
+					jobsToPreempt = append(jobsToPreempt, job)
+				}
+			}
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobsToPreempt) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
+				}
+			}
+		}
+	case CancelQueue:
+		for _, cancelRequest := range o {
+			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, cancelRequest.Name, cancelRequest.JobStates)
+			if err != nil {
+				return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
+			}
+			inPriorityClasses := jobInPriorityClasses(cancelRequest.PriorityClasses)
+			jobsToCancel := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
+				}
+				if ok {
+					jobsToCancel = append(jobsToCancel, job)
+				}
+			}
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobsToCancel) {
+				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
+				if err != nil {
+					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
+				}
+			}
+		}
+	case PreemptQueue:
+		for _, preemptRequest := range o {
+			// Only allocated jobs can be preempted
+			jobStates := []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_LEASED, controlplaneevents.ActiveJobState_PENDING, controlplaneevents.ActiveJobState_RUNNING}
+			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, preemptRequest.Name, jobStates)
+			if err != nil {
+				return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
+			}
+			inPriorityClasses := jobInPriorityClasses(preemptRequest.PriorityClasses)
+			jobsToPreempt := make([]schedulerdb.Job, 0)
+			for _, job := range jobs {
+				ok, err := inPriorityClasses(job)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
+				}
+				if ok {
+					jobsToPreempt = append(jobsToPreempt, job)
+				}
+			}
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobsToPreempt) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
+				}
+			}
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+func (s *SchedulerDb) selectAllJobsByQueueAndJobState(ctx *armadacontext.Context, queries *schedulerdb.Queries, queue string, jobStates []controlplaneevents.ActiveJobState) ([]schedulerdb.Job, error) {
+	items := []schedulerdb.Job{}
+	for _, state := range jobStates {
+		var jobs []schedulerdb.Job
+		var err error
+		switch state {
+		case controlplaneevents.ActiveJobState_QUEUED:
+			jobs, err = queries.SelectQueuedJobsByQueue(ctx, []string{queue})
+		case controlplaneevents.ActiveJobState_LEASED:
+			jobs, err = queries.SelectLeasedJobsByQueue(ctx, []string{queue})
+		case controlplaneevents.ActiveJobState_PENDING:
+			jobs, err = queries.SelectPendingJobsByQueue(ctx, []string{queue})
+		case controlplaneevents.ActiveJobState_RUNNING:
+			jobs, err = queries.SelectRunningJobsByQueue(ctx, []string{queue})
+		default:
+			return nil, fmt.Errorf("unknown active job state %+v", state)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("unable to select jobs by queue and job state: %s", err)
+		}
+		items = append(items, jobs...)
+	}
+	return items, nil
+}
+
+// createMarkJobCancelRequestedById returns []*schedulerdb.MarkJobsCancelRequestedByIdParams for the specified jobs such
+// that no two MarkJobsCancelRequestedByIdParams are for the same queue and jobset
+func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job) []*schedulerdb.MarkJobsCancelRequestedByIdParams {
+	result := make([]*schedulerdb.MarkJobsCancelRequestedByIdParams, 0)
+	mapping := map[string]map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
+	for _, job := range jobs {
+		if _, ok := mapping[job.Queue]; !ok {
+			mapping[job.Queue] = map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
+		}
+		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
+			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobsCancelRequestedByIdParams{
+				Queue:  job.Queue,
+				JobSet: job.JobSet,
+				JobIds: make([]string, 0),
+			}
+			result = append(result, mapping[job.Queue][job.JobSet])
+		}
+
+		mapping[job.Queue][job.JobSet].JobIds = append(mapping[job.Queue][job.JobSet].JobIds, job.JobID)
+	}
+
+	return result
+}
+
+// createMarkJobRunsPreemptRequestedByJobIdParams returns []schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams for the specified jobs such
+// that no two MarkJobRunsPreemptRequestedByJobIdParams are for the same queue and jobset
+func createMarkJobRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job) []*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams {
+	result := make([]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams, 0)
+	mapping := map[string]map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
+	for _, job := range jobs {
+		if _, ok := mapping[job.Queue]; !ok {
+			mapping[job.Queue] = map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
+		}
+		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
+			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
+				Queue:  job.Queue,
+				JobSet: job.JobSet,
+				JobIds: make([]string, 0),
+			}
+			result = append(result, mapping[job.Queue][job.JobSet])
+		}
+
+		mapping[job.Queue][job.JobSet].JobIds = append(mapping[job.Queue][job.JobSet].JobIds, job.JobID)
+	}
+
+	return result
+}
+
+func jobInPriorityClasses(priorityClasses []string) func(schedulerdb.Job) (bool, error) {
+	priorityClassMap := map[string]bool{}
+	for _, priorityClass := range priorityClasses {
+		priorityClassMap[priorityClass] = true
+	}
+	return func(job schedulerdb.Job) (bool, error) {
+		schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
+		if err := proto.Unmarshal(job.SchedulingInfo, schedulingInfo); err != nil {
+			err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", job.JobID)
+			return false, err
+		}
+
+		_, ok := priorityClassMap[schedulingInfo.PriorityClassName]
+		return ok, nil
+	}
+}
+
+// getLockKey is a local method to determine a lock key for the provided set of operations. An error will be returned
+// if the operations don't have an associated lock key. Currently, only jobSet events require locking as they rely
+// on row sequence numbers being monotonically increasing.
+func getLockKey(operations []DbOperation) (int, error) {
+	for _, op := range operations {
+		if op.GetOperation() == JobSetOperation {
+			return JobSetEventsLockKey, nil
+		}
+	}
+	return InvalidLockKey, errors.Errorf("provided operations do not require locking")
 }
 
 func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {

@@ -57,13 +57,13 @@ type SubmissionConfig struct {
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
 	// Tolerations added to all submitted pods requesting a non-zero amount of some resource.
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
+	// Tolerations that cannot be user-set.  Jobs submitted with these tolerations will be rejected
+	RestrictedTolerationKeys []string
 	// Pods of size greater than this are rejected at submission.
 	MaxPodSpecSizeBytes uint
 	// Jobs requesting less than this amount of resources are rejected at submission.
 	MinJobResources v1.ResourceList
 	// Default value of GangNodeUniformityLabelAnnotation if not set on submitted jobs.
-	// TODO(albin): We should add a label to nodes in the nodeDb indicating which cluster it came from.
-	//              If we do, we can default to that label if the uniformity label is empty.
 	DefaultGangNodeUniformityLabel string
 	// Minimum allowed termination grace period for pods submitted to Armada.
 	// Should normally be set to a positive value, e.g., "10m".
@@ -93,6 +93,8 @@ type SubmissionConfig struct {
 	MaxOversubscriptionByResourceRequest map[string]float64
 	// Enforce that an init containers requestion non-integer cpu. This is due to https://github.com/kubernetes/kubernetes/issues/112228
 	AssertInitContainersRequestFractionalCpu bool
+	// Controls whether we add the gang id annotation as a label.
+	AddGangIdLabel bool
 }
 
 // TODO: we can probably just typedef this to map[string]string

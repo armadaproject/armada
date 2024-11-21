@@ -9,8 +9,10 @@ import (
 )
 
 var (
+	poolLabels                  = []string{poolLabel}
 	poolAndQueueLabels          = []string{poolLabel, queueLabel}
 	queueAndPriorityClassLabels = []string{queueLabel, priorityClassLabel}
+	poolQueueAndResourceLabels  = []string{poolLabel, queueLabel, resourceLabel}
 )
 
 type cycleMetrics struct {
@@ -27,6 +29,14 @@ type cycleMetrics struct {
 	cappedDemand            *prometheus.GaugeVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
+	gangsConsidered         *prometheus.GaugeVec
+	gangsScheduled          *prometheus.GaugeVec
+	firstGangQueuePosition  *prometheus.GaugeVec
+	lastGangQueuePosition   *prometheus.GaugeVec
+	perQueueCycleTime       *prometheus.GaugeVec
+	loopNumber              *prometheus.GaugeVec
+	evictedJobs             *prometheus.GaugeVec
+	evictedResources        *prometheus.GaugeVec
 	allResettableMetrics    []resettableMetric
 }
 
@@ -119,18 +129,90 @@ func newCycleMetrics() *cycleMetrics {
 		},
 	)
 
+	gangsConsidered := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "gangs_considered",
+			Help: "Number of gangs considered in this scheduling cycle",
+		},
+		poolAndQueueLabels,
+	)
+
+	gangsScheduled := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "gangs_scheduled",
+			Help: "Number of gangs scheduled in this scheduling cycle",
+		},
+		poolAndQueueLabels,
+	)
+
+	firstGangQueuePosition := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "first_gang_queue_position",
+			Help: "First position in the scheduling loop where a gang was considered",
+		},
+		poolAndQueueLabels,
+	)
+
+	lastGangQueuePosition := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "last_gang_queue_position",
+			Help: "Last position in the scheduling loop where a gang was considered",
+		},
+		poolAndQueueLabels,
+	)
+
+	perQueueCycleTime := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "per_queue_schedule_cycle_times",
+			Help: "Per queue cycle time when in a scheduling round.",
+		},
+		poolAndQueueLabels,
+	)
+
+	loopNumber := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "loop_number",
+			Help: "Number of scheduling loops in this cycle",
+		},
+		poolLabels,
+	)
+
+	evictedJobs := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "evicted_jobs",
+			Help: "Number of jobs evicted in this cycle",
+		},
+		poolAndQueueLabels,
+	)
+
+	evictedResources := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "evicted_resources",
+			Help: "Resources evicted in this cycle",
+		},
+		poolQueueAndResourceLabels,
+	)
+
 	return &cycleMetrics{
-		leaderMetricsEnabled: true,
-		scheduledJobs:        scheduledJobs,
-		premptedJobs:         premptedJobs,
-		consideredJobs:       consideredJobs,
-		fairShare:            fairShare,
-		adjustedFairShare:    adjustedFairShare,
-		actualShare:          actualShare,
-		demand:               demand,
-		cappedDemand:         cappedDemand,
-		fairnessError:        fairnessError,
-		scheduleCycleTime:    scheduleCycleTime,
+		leaderMetricsEnabled:   true,
+		scheduledJobs:          scheduledJobs,
+		premptedJobs:           premptedJobs,
+		consideredJobs:         consideredJobs,
+		fairShare:              fairShare,
+		adjustedFairShare:      adjustedFairShare,
+		actualShare:            actualShare,
+		demand:                 demand,
+		cappedDemand:           cappedDemand,
+		fairnessError:          fairnessError,
+		scheduleCycleTime:      scheduleCycleTime,
+		gangsConsidered:        gangsConsidered,
+		gangsScheduled:         gangsScheduled,
+		firstGangQueuePosition: firstGangQueuePosition,
+		lastGangQueuePosition:  lastGangQueuePosition,
+		perQueueCycleTime:      perQueueCycleTime,
+		loopNumber:             loopNumber,
+		evictedJobs:            evictedJobs,
+		evictedResources:       evictedResources,
 		allResettableMetrics: []resettableMetric{
 			scheduledJobs,
 			premptedJobs,
@@ -141,6 +223,14 @@ func newCycleMetrics() *cycleMetrics {
 			demand,
 			cappedDemand,
 			fairnessError,
+			gangsConsidered,
+			gangsScheduled,
+			firstGangQueuePosition,
+			lastGangQueuePosition,
+			perQueueCycleTime,
+			loopNumber,
+			evictedJobs,
+			evictedResources,
 		},
 		reconciliationCycleTime: reconciliationCycleTime,
 	}
@@ -196,6 +286,26 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 	for _, jobCtx := range result.PreemptedJobs {
 		m.premptedJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
 	}
+
+	for pool, schedulingStats := range result.PerPoolSchedulingStats {
+		for queue, s := range schedulingStats.StatsPerQueue {
+			m.gangsConsidered.WithLabelValues(pool, queue).Set(float64(s.GangsConsidered))
+			m.gangsScheduled.WithLabelValues(pool, queue).Set(float64(s.GangsScheduled))
+			m.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
+			m.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
+			m.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
+		}
+
+		m.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
+
+		for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
+			m.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
+
+			for _, r := range s.EvictedResources.GetResources() {
+				m.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+			}
+		}
+	}
 }
 
 func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
@@ -210,6 +320,14 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.demand.Describe(ch)
 		m.cappedDemand.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
+		m.gangsConsidered.Describe(ch)
+		m.gangsScheduled.Describe(ch)
+		m.firstGangQueuePosition.Describe(ch)
+		m.lastGangQueuePosition.Describe(ch)
+		m.perQueueCycleTime.Describe(ch)
+		m.loopNumber.Describe(ch)
+		m.evictedJobs.Describe(ch)
+		m.evictedResources.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -227,6 +345,14 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		m.demand.Collect(ch)
 		m.cappedDemand.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
+		m.gangsConsidered.Collect(ch)
+		m.gangsScheduled.Collect(ch)
+		m.firstGangQueuePosition.Collect(ch)
+		m.lastGangQueuePosition.Collect(ch)
+		m.perQueueCycleTime.Collect(ch)
+		m.loopNumber.Collect(ch)
+		m.evictedJobs.Collect(ch)
+		m.evictedResources.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

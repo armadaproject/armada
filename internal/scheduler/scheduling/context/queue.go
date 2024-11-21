@@ -12,8 +12,8 @@ import (
 	"golang.org/x/time/rate"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // QueueSchedulingContext captures the decisions made by the scheduler during one invocation
@@ -32,24 +32,24 @@ type QueueSchedulingContext struct {
 	Limiter *rate.Limiter
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
-	Allocated schedulerobjects.ResourceList
+	Allocated internaltypes.ResourceList
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
-	Demand schedulerobjects.ResourceList
+	Demand internaltypes.ResourceList
 	// Capped Demand for this queue. This differs from Demand in that it takes into account any limits that we have
 	// placed on the queue
-	CappedDemand schedulerobjects.ResourceList
+	CappedDemand internaltypes.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
 	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
 	AdjustedFairShare float64
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
-	AllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+	AllocatedByPriorityClass map[string]internaltypes.ResourceList
 	// Resources assigned to this queue during this scheduling cycle.
-	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+	ScheduledResourcesByPriorityClass map[string]internaltypes.ResourceList
 	// Resources evicted from this queue during this scheduling cycle.
-	EvictedResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+	EvictedResourcesByPriorityClass map[string]internaltypes.ResourceList
 	// Job scheduling contexts associated with successful scheduling attempts.
 	SuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Job scheduling contexts associated with unsuccessful scheduling attempts.
@@ -63,7 +63,7 @@ func (qctx *QueueSchedulingContext) String() string {
 }
 
 // GetAllocation is necessary to implement the fairness.Queue interface.
-func (qctx *QueueSchedulingContext) GetAllocation() schedulerobjects.ResourceList {
+func (qctx *QueueSchedulingContext) GetAllocation() internaltypes.ResourceList {
 	return qctx.Allocated
 }
 
@@ -81,13 +81,15 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
 		fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
 	}
-	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriorityClass.AggregateByResource().CompactString())
-	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriorityClass.String())
-	fmt.Fprintf(w, "Preempted resources:\t%s\n", qctx.EvictedResourcesByPriorityClass.AggregateByResource().CompactString())
-	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriorityClass.String())
+	fmt.Fprintf(w, "Scheduled resources:\t%s\n", internaltypes.RlMapSumValues(qctx.ScheduledResourcesByPriorityClass).String())
+	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", internaltypes.RlMapToString(qctx.ScheduledResourcesByPriorityClass))
+	fmt.Fprintf(w, "Preempted resources:\t%s\n", internaltypes.RlMapSumValues(qctx.EvictedResourcesByPriorityClass).String())
+	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", internaltypes.RlMapToString(qctx.EvictedResourcesByPriorityClass))
 	if verbosity >= 0 {
-		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.Allocated.CompactString())
-		fmt.Fprintf(w, "Total allocated resources after scheduling by priority class:\t%s\n", qctx.AllocatedByPriorityClass)
+		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.Allocated.String())
+		for pc, res := range qctx.AllocatedByPriorityClass {
+			fmt.Fprintf(w, "Total allocated resources after scheduling by for priority class %s:\t%s\n", pc, res.String())
+		}
 		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
 		fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
 		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
@@ -167,17 +169,19 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
-		qctx.Allocated.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
-		qctx.AllocatedByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+		pcName := jctx.Job.PriorityClassName()
+		rl := jctx.Job.AllResourceRequirements()
+		qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Add(rl)
+		qctx.Allocated = qctx.Allocated.Add(rl)
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
 		if evictedInThisRound {
 			delete(qctx.EvictedJobsById, jctx.JobId)
-			qctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			qctx.EvictedResourcesByPriorityClass[pcName] = qctx.EvictedResourcesByPriorityClass[pcName].Subtract(rl)
 		} else {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
-			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.PriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
+			qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Add(rl)
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
@@ -193,17 +197,19 @@ func (qctx *QueueSchedulingContext) evictJob(job *jobdb.Job) (bool, error) {
 	if _, ok := qctx.EvictedJobsById[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked evicted", jobId)
 	}
-	rl := job.ResourceRequirements().Requests
+	pcName := job.PriorityClassName()
+	rl := job.AllResourceRequirements()
 	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
 	if scheduledInThisRound {
-		qctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.PriorityClassName(), rl)
+		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
 		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
 	} else {
-		qctx.EvictedResourcesByPriorityClass.AddV1ResourceList(job.PriorityClassName(), rl)
+		qctx.EvictedResourcesByPriorityClass[pcName] = qctx.EvictedResourcesByPriorityClass[pcName].Add(rl)
 		qctx.EvictedJobsById[jobId] = true
 	}
-	qctx.Allocated.SubV1ResourceList(rl)
-	qctx.AllocatedByPriorityClass.SubV1ResourceList(job.PriorityClassName(), rl)
+	qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(job.AllResourceRequirements())
+	qctx.Allocated = qctx.Allocated.Subtract(job.AllResourceRequirements())
+
 	return scheduledInThisRound, nil
 }
 

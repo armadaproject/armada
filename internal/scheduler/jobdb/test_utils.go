@@ -8,19 +8,28 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-var TestResourceListFactory = MakeTestResourceListFactory()
+var testResourceListFactory = makeTestResourceListFactory()
 
-func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {
-	result, _ := internaltypes.MakeResourceListFactory(GetTestSupportedResourceTypes())
+func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
+	result, _ := internaltypes.NewResourceListFactory(
+		getTestSupportedResourceTypes(),
+		getTestFloatingResourceTypes(),
+	)
 	return result
 }
 
-func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
+func getTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 	return []schedulerconfiguration.ResourceType{
 		{Name: "memory", Resolution: resource.MustParse("1")},
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 		{Name: "foo", Resolution: resource.MustParse("1m")},
+	}
+}
+
+func getTestFloatingResourceTypes() []schedulerconfiguration.FloatingResourceConfig {
+	return []schedulerconfiguration.FloatingResourceConfig{
+		{Name: "storage-connections", Resolution: resource.MustParse("1")},
 	}
 }
 
