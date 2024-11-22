@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	unknownPreemptionCause            = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable"
+	unknownPreemptionCause            = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable\nNode Summary:\n%s"
 	unknownGangPreemptionCause        = "Preempted by scheduler due to the job failing to reschedule - possibly another job in the gang was preempted or the node resource changed causing this job to be unschedulable"
 	fairSharePreemptionTemplate       = "Preempted by scheduler using fair share preemption - preempting job %s"
 	urgencyPreemptionTemplate         = "Preempted by scheduler using urgency preemption - preempting job %s"
@@ -45,7 +45,7 @@ func PopulatePreemptionDescriptions(preemptedJobs []*context.JobSchedulingContex
 				if isGang {
 					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownGangPreemptionCause)
 				} else {
-					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownPreemptionCause)
+					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownPreemptionCause, preemptedJctx.GetAssignedNode().SummaryString())
 				}
 			} else if len(potentialPreemptingJobs) == 1 {
 				preemptedJctx.PreemptionDescription = fmt.Sprintf(urgencyPreemptionTemplate, potentialPreemptingJobs[0].JobId)
