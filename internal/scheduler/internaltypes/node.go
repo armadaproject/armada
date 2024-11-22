@@ -215,18 +215,23 @@ func (node *Node) GetTotalResources() ResourceList {
 	return node.totalResources
 }
 
+func (node *Node) GetUnallocatableResources() map[int32]ResourceList {
+	return maps.Clone(node.unallocatableResources)
+}
+
 func (node *Node) DeepCopyNilKeys() *Node {
 	return &Node{
 		// private fields are immutable so a shallow copy is fine
-		id:             node.id,
-		index:          node.index,
-		executor:       node.executor,
-		name:           node.name,
-		pool:           node.pool,
-		nodeType:       node.nodeType,
-		taints:         node.taints,
-		labels:         node.labels,
-		totalResources: node.totalResources,
+		id:                     node.id,
+		index:                  node.index,
+		executor:               node.executor,
+		name:                   node.name,
+		pool:                   node.pool,
+		nodeType:               node.nodeType,
+		taints:                 node.taints,
+		labels:                 node.labels,
+		totalResources:         node.totalResources,
+		unallocatableResources: node.unallocatableResources,
 
 		// keys set to nil
 		Keys: nil,
