@@ -503,7 +503,7 @@ func (job *Job) Tolerations() []v1.Toleration {
 
 // ResourceRequirements returns the resource requirements of the Job
 // KubernetesResourceRequirements below is preferred
-func (job *Job) ResourceRequirements() v1.ResourceRequirements {
+func (job *Job) resourceRequirements() v1.ResourceRequirements {
 	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
 	}
@@ -831,7 +831,7 @@ func SchedulingKeyFromJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job
 		job.NodeSelector(),
 		job.Affinity(),
 		job.Tolerations(),
-		job.ResourceRequirements().Requests,
+		job.resourceRequirements().Requests,
 		job.PriorityClassName(),
 	)
 }

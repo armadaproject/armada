@@ -210,7 +210,7 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 	}
 
 	queue := job.Queue()
-	requests := job.ResourceRequirements().Requests
+	requests := job.AllResourceRequirements()
 	latestRun := job.LatestRun()
 	pool := ""
 	node := ""
@@ -237,7 +237,7 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 
 	// Resource Seconds
 	for _, res := range m.trackedResourceNames {
-		resQty := requests[res]
+		resQty := requests.GetResourceByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobStateResourceSecondsByQueue.
 			WithLabelValues(queue, pool, state, priorState, res.String()).Add(resSeconds)
