@@ -103,6 +103,7 @@ func TestNode(t *testing.T) {
 		taints,
 		labels,
 		totalResources,
+		nil,
 		allocatableByPriority,
 		allocatedByQueue,
 		allocatedByJobId,

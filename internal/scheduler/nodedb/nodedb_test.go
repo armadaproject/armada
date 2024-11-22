@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	ittestfixtures "github.com/armadaproject/armada/internal/scheduler/internaltypes/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -81,7 +82,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	jctxs := context.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
-		jctx.SetAssignedNodeId(nodeId)
+		jctx.SetAssignedNode(ittestfixtures.TestSimpleNode(nodeId))
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
 		require.NoError(t, err)
@@ -106,7 +107,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	jctxs := context.JobSchedulingContextsFromJobs(jobs)
 	for _, jctx := range jctxs {
 		txn := db.Txn(false)
-		jctx.SetAssignedNodeId("non-existent node")
+		jctx.SetAssignedNode(ittestfixtures.TestSimpleNode("non-existent node"))
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
 		if !assert.NoError(t, err) {

@@ -1,6 +1,7 @@
 package internaltypes
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/pkg/errors"
@@ -43,6 +44,8 @@ type Node struct {
 
 	// Total space allocatable on this node
 	totalResources ResourceList
+
+	unallocatableResources map[int32]ResourceList
 
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
@@ -92,6 +95,11 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	}
 	allocatableByPriority[EvictedPriority] = allocatableByPriority[minimumPriority]
 
+	unallocatableResources := map[int32]ResourceList{}
+	for p, u := range node.UnallocatableResources {
+		unallocatableResources[p] = resourceListFactory.FromJobResourceListIgnoreUnknown(u.Resources)
+	}
+
 	return CreateNode(
 		node.Id,
 		nodeType,
@@ -102,6 +110,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		taints,
 		labels,
 		resourceListFactory.FromNodeProto(totalResources.Resources),
+		unallocatableResources,
 		allocatableByPriority,
 		map[string]ResourceList{},
 		map[string]ResourceList{},
@@ -119,6 +128,7 @@ func CreateNode(
 	taints []v1.Taint,
 	labels map[string]string,
 	totalResources ResourceList,
+	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 	allocatedByQueue map[string]ResourceList,
 	allocatedByJobId map[string]ResourceList,
@@ -126,20 +136,21 @@ func CreateNode(
 	keys [][]byte,
 ) *Node {
 	return &Node{
-		id:                    id,
-		nodeType:              nodeType,
-		index:                 index,
-		executor:              executor,
-		name:                  name,
-		pool:                  pool,
-		taints:                koTaint.DeepCopyTaints(taints),
-		labels:                deepCopyLabels(labels),
-		totalResources:        totalResources,
-		AllocatableByPriority: maps.Clone(allocatableByPriority),
-		AllocatedByQueue:      maps.Clone(allocatedByQueue),
-		AllocatedByJobId:      maps.Clone(allocatedByJobId),
-		EvictedJobRunIds:      evictedJobRunIds,
-		Keys:                  keys,
+		id:                     id,
+		nodeType:               nodeType,
+		index:                  index,
+		executor:               executor,
+		name:                   name,
+		pool:                   pool,
+		taints:                 koTaint.DeepCopyTaints(taints),
+		labels:                 deepCopyLabels(labels),
+		totalResources:         totalResources,
+		unallocatableResources: maps.Clone(unallocatableResources),
+		AllocatableByPriority:  maps.Clone(allocatableByPriority),
+		AllocatedByQueue:       maps.Clone(allocatedByQueue),
+		AllocatedByJobId:       maps.Clone(allocatedByJobId),
+		EvictedJobRunIds:       evictedJobRunIds,
+		Keys:                   keys,
 	}
 }
 
@@ -226,6 +237,26 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
 		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
 	}
+}
+
+func (node *Node) SummaryString() string {
+	if node == nil {
+		return ""
+	}
+
+	result := fmt.Sprintf("Id: %s\n", node.id)
+	result += fmt.Sprintf("Index: %d\n", node.index)
+	result += fmt.Sprintf("Executor: %s\n", node.executor)
+	result += fmt.Sprintf("Name: %s\n", node.name)
+	result += fmt.Sprintf("Pool: %s\n", node.pool)
+	result += fmt.Sprintf("TotalResources: %s\n", node.totalResources.String())
+	result += fmt.Sprintf("Labels: %v\n", node.labels)
+	result += fmt.Sprintf("Taints: %v\n", node.taints)
+	for p, u := range node.unallocatableResources {
+		result += fmt.Sprintf("Unallocatable at %d: %s\n", p, u.String())
+	}
+
+	return result
 }
 
 func deepCopyLabels(labels map[string]string) map[string]string {
