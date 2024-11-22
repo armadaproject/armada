@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ittestfixtures "github.com/armadaproject/armada/internal/scheduler/internaltypes/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -38,61 +39,61 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 	}{
 		"unknown cause - basic job": {
 			preemptedJobContext: &context.JobSchedulingContext{
-				JobId:          "job-1",
-				AssignedNodeId: "node-3",
-				Job:            makeJob(t, "job-1", false),
+				JobId:        "job-1",
+				AssignedNode: ittestfixtures.TestSimpleNode("node-3"),
+				Job:          makeJob(t, "job-1", false),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNodeId:        "node-3",
+				AssignedNode:          ittestfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", false),
-				PreemptionDescription: unknownPreemptionCause,
+				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, ittestfixtures.TestSimpleNode("node-3").SummaryString()),
 			},
 		},
 		"unknown cause - gang job": {
 			preemptedJobContext: &context.JobSchedulingContext{
-				JobId:          "job-1",
-				AssignedNodeId: "node-3",
-				Job:            makeJob(t, "job-1", true),
+				JobId:        "job-1",
+				AssignedNode: ittestfixtures.TestSimpleNode("node-3"),
+				Job:          makeJob(t, "job-1", true),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNodeId:        "node-3",
+				AssignedNode:          ittestfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", true),
 				PreemptionDescription: unknownGangPreemptionCause,
 			},
 		},
 		"urgency preemption - single preempting job": {
 			preemptedJobContext: &context.JobSchedulingContext{
-				JobId:          "job-1",
-				AssignedNodeId: "node-1",
+				JobId:        "job-1",
+				AssignedNode: ittestfixtures.TestSimpleNode("node-1"),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNodeId:        "node-1",
+				AssignedNode:          ittestfixtures.TestSimpleNode("node-1"),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionTemplate, "job-2"),
 			},
 		},
 		"urgency preemption - multiple preempting jobs": {
 			preemptedJobContext: &context.JobSchedulingContext{
-				JobId:          "job-1",
-				AssignedNodeId: "node-2",
+				JobId:        "job-1",
+				AssignedNode: ittestfixtures.TestSimpleNode("node-2"),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNodeId:        "node-2",
+				AssignedNode:          ittestfixtures.TestSimpleNode("node-2"),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionMultiJobTemplate, "job-3,job-4"),
 			},
 		},
 		"fairshare": {
 			preemptedJobContext: &context.JobSchedulingContext{
 				JobId:           "job-1",
-				AssignedNodeId:  "node-4",
+				AssignedNode:    ittestfixtures.TestSimpleNode("node-4"),
 				PreemptingJobId: "job-7",
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNodeId:        "node-4",
+				AssignedNode:          ittestfixtures.TestSimpleNode("node-4"),
 				PreemptingJobId:       "job-7",
 				PreemptionDescription: fmt.Sprintf(fairSharePreemptionTemplate, "job-7"),
 			},
