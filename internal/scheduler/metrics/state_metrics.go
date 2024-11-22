@@ -90,7 +90,7 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 	)
 	jobErrorsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "error_classification_by_node",
+			Name: prefix + "job_error_classification_by_node",
 			Help: "Failed jobs ey error classification at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
@@ -188,7 +188,8 @@ func (m *jobStateMetrics) ReportStateTransitions(
 			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 			jobRunError := jobRunErrorsByRunId[run.Id()]
 			category, subCategory := m.failedCategoryAndSubCategoryFromJob(jobRunError)
-			m.jobErrorsByQueue.WithLabelValues(job.Queue(), run.Executor(), category, subCategory).Inc()
+			m.jobErrorsByQueue.WithLabelValues(job.Queue(), run.Pool(), category, subCategory).Inc()
+			m.jobErrorsByNode.WithLabelValues(run.NodeName(), run.Pool(), run.Executor(), category, subCategory).Inc()
 		}
 		if jst.Succeeded {
 			duration, priorState := stateDuration(job, run, run.TerminatedTime())
