@@ -26,7 +26,6 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 import jinja2
 import tenacity
 from airflow.configuration import conf
-from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
 from airflow.models.taskinstancekey import TaskInstanceKey
 from airflow.serialization.serde import deserialize
@@ -40,6 +39,7 @@ from armada_client.typings import JobState
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
 
+from .errors import ArmadaOperatorJobFailedError
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
 from ..triggers import ArmadaPollJobTrigger
@@ -349,9 +349,11 @@ acknowledged by Armada.
             f"job {context.job_id} terminated with state: {context.state.name}"
         )
         if context.state != JobState.SUCCEEDED:
-            raise AirflowException(
-                f"job {context.job_id} did not succeed. "
-                f"Final status was {context.state.name}"
+            raise ArmadaOperatorJobFailedError(
+                context.armada_queue,
+                context.job_id,
+                context.state,
+                self.hook.job_termination_reason(context),
             )
 
     def _not_acknowledged_within_timeout(self) -> bool:
@@ -362,6 +364,13 @@ acknowledged by Armada.
             ):
                 return True
         return False
+
+    def _should_have_a_pod_in_k8s(self) -> bool:
+        return self.job_context.state in {
+            JobState.RUNNING,
+            JobState.FAILED,
+            JobState.SUCCEEDED,
+        }
 
     @log_exceptions
     def _check_job_status_and_fetch_logs(self, context) -> None:
@@ -377,7 +386,7 @@ acknowledged by Armada.
             self.job_context = self.hook.cancel_job(self.job_context)
             return
 
-        if self.job_context.cluster and self.container_logs:
+        if self._should_have_a_pod_in_k8s() and self.container_logs:
             try:
                 last_log_time = self.pod_manager.fetch_container_logs(
                     k8s_context=self.job_context.cluster,
