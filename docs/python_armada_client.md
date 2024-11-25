@@ -277,6 +277,38 @@ Retrieves the details of a job from Armada.
 
 
 
+#### get_job_errors(job_ids)
+Retrieves termination reason from query api.
+
+
+* **Parameters**
+
+    
+    * **queue** – The name of the queue
+
+
+    * **job_set_id** – The name of the job set (a grouping of jobs)
+
+
+    * **external_job_uri** – externalJobUri annotation value
+
+
+    * **job_ids** (*List**[**str**]*) – 
+
+
+
+* **Returns**
+
+    The response from the server containing the job errors.
+
+
+
+* **Return type**
+
+    JobErrorsResponse
+
+
+
 #### get_job_events_stream(queue, job_set_id, from_message_id=None)
 Get event stream for a job set.
 
@@ -347,6 +379,35 @@ Retrieves the status of a list of jobs from Armada.
 * **Parameters**
 
     **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+    The response from the server containing the job status.
+
+
+
+* **Return type**
+
+    JobStatusResponse
+
+
+
+#### get_job_status_by_external_job_uri(queue, job_set_id, external_job_uri)
+Retrieves the status of a job based on externalJobUri annotation.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
+
+
+    * **external_job_uri** (*str*) – externalJobUri annotation value
 
 
 
