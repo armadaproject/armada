@@ -10,7 +10,7 @@ readme='README.md'
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
 dependencies=[
-    'armada-client>=0.4.6',
+    'armada-client>=0.4.7',
     'apache-airflow>=2.6.3',
     'types-protobuf==4.24.0.1',
     'kubernetes>=23.6.0',

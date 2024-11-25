@@ -98,6 +98,18 @@ class ArmadaHook(LoggingMixin):
         reraise=True,
     )
     @log_exceptions
+    def job_termination_reason(self, job_context: RunningJobContext) -> str:
+        resp = self.client.get_job_errors([job_context.job_id])
+        job_error = resp.job_errors.get(job_context.job_id, "")
+
+        return job_error or ""
+
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
+        reraise=True,
+    )
+    @log_exceptions
     def refresh_context(
         self, job_context: RunningJobContext, tracking_url: str
     ) -> RunningJobContext:
