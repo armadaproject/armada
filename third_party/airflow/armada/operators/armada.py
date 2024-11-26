@@ -26,7 +26,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 import jinja2
 import tenacity
 from airflow.configuration import conf
-from airflow.exceptions import AirflowFailException, AirflowException
+from airflow.exceptions import AirflowFailException
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
 from airflow.models.taskinstance import TaskInstance
 from airflow.models.taskinstancekey import TaskInstanceKey
