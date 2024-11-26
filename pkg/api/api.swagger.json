@@ -881,6 +881,10 @@
             "$ref": "#/definitions/v1PodSpec"
           }
         },
+        "price": {
+          "type": "number",
+          "format": "double"
+        },
         "priority": {
           "type": "number",
           "format": "double"
@@ -893,11 +897,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "queueTtlSeconds": {
-          "description": "Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.",
-          "type": "string",
-          "format": "int64"
         },
         "requiredNodeLabels": {
           "type": "object",
@@ -1746,6 +1745,10 @@
           "items": {
             "$ref": "#/definitions/v1PodSpec"
           }
+        },
+        "price": {
+          "type": "number",
+          "format": "double"
         },
         "priority": {
           "type": "number",

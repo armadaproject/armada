@@ -156,6 +156,7 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
+    double price = 15;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
