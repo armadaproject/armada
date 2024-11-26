@@ -8,7 +8,7 @@ from airflow.exceptions import AirflowException
 from airflow.models import TaskInstance
 from airflow.utils.log.logging_mixin import LoggingMixin
 from armada.model import GrpcChannelArgs
-from armada_client.armada.job_pb2 import JobRunDetails
+from armada_client.armada.job_pb2 import JobDetailsResponse, JobRunDetails
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 from armada_client.typings import JobState
@@ -99,10 +99,55 @@ class ArmadaHook(LoggingMixin):
     )
     @log_exceptions
     def job_termination_reason(self, job_context: RunningJobContext) -> str:
-        resp = self.client.get_job_errors([job_context.job_id])
-        job_error = resp.job_errors.get(job_context.job_id, "")
+        if job_context.state in {
+            JobState.REJECTED,
+            JobState.PREEMPTED,
+            JobState.FAILED,
+        }:
+            resp = self.client.get_job_errors([job_context.job_id])
+            job_error = resp.job_errors.get(job_context.job_id, "")
+            return job_error or ""
+        return ""
 
-        return job_error or ""
+    @tenacity.retry(
+        wait=tenacity.wait_random_exponential(max=3),
+        stop=tenacity.stop_after_attempt(5),
+        reraise=True,
+    )
+    @log_exceptions
+    def job_by_external_job_uri(
+        self,
+        armada_queue: str,
+        job_set: str,
+        external_job_uri: str,
+    ) -> RunningJobContext:
+        response = self.client.get_job_status_by_external_job_uri(
+            armada_queue, job_set, external_job_uri
+        )
+        job_ids = list(response.job_states.keys())
+        job_details = self.client.get_job_details(job_ids).job_details.values()
+        last_submitted = next(
+            iter(
+                sorted(job_details, key=lambda d: d.submitted_ts.seconds, reverse=True)
+            ),
+            None,
+        )
+        if last_submitted:
+            cluster = None
+            latest_run = self._get_latest_job_run_details(last_submitted)
+            if latest_run:
+                cluster = latest_run.cluster
+            return RunningJobContext(
+                armada_queue,
+                last_submitted.job_id,
+                job_set,
+                DateTime.utcnow(),
+                last_log_time=None,
+                cluster=cluster,
+                job_state=JobState(last_submitted.state).name,
+            )
+
+        return None
 
     @tenacity.retry(
         wait=tenacity.wait_random_exponential(max=3),
@@ -125,7 +170,9 @@ class ArmadaHook(LoggingMixin):
         if not cluster:
             # Job is running / or completed already
             if state == JobState.RUNNING or state.is_terminal():
-                run_details = self._get_latest_job_run_details(job_context.job_id)
+                job_id = job_context.job_id
+                job_details = self.client.get_job_details([job_id]).job_details[job_id]
+                run_details = self._get_latest_job_run_details(job_details)
                 if run_details:
                     cluster = run_details.cluster
         return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
@@ -167,8 +214,9 @@ class ArmadaHook(LoggingMixin):
             },
         )
 
-    def _get_latest_job_run_details(self, job_id) -> Optional[JobRunDetails]:
-        job_details = self.client.get_job_details([job_id]).job_details[job_id]
+    def _get_latest_job_run_details(
+        self, job_details: Optional[JobDetailsResponse]
+    ) -> Optional[JobRunDetails]:
         if job_details and job_details.latest_run_id:
             for run in job_details.job_runs:
                 if run.run_id == job_details.latest_run_id:

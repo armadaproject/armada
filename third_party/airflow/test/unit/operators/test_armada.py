@@ -25,6 +25,8 @@ def default_hook() -> MagicMock:
     mock = MagicMock()
     job_context = running_job_context()
     mock.submit_job.return_value = job_context
+    mock.job_by_external_job_uri.return_value = None
+    mock.job_termination_reason.return_value = "FAILED"
     mock.refresh_context.return_value = dataclasses.replace(
         job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
     )
@@ -51,7 +53,7 @@ def mock_operator_dependencies():
 def context():
     mock_ti = MagicMock()
     mock_ti.task_id = DEFAULT_TASK_ID
-    mock_ti.try_number = 0
+    mock_ti.try_number = 1
     mock_ti.xcom_pull.return_value = None
 
     mock_dag = MagicMock()
