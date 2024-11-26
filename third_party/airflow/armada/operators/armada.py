@@ -105,8 +105,8 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
 :type dry_run: bool
-:param reattach_policy: Operator reattach policy to use (defaults to: always)
-:type reattach_policy: Optional[str]
+:param reattach_policy: Operator reattach policy to use (defaults to: never)
+:type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 """
 
@@ -135,7 +135,7 @@ acknowledged by Armada.
         dry_run: bool = conf.getboolean(
             "armada_operator", "default_dry_run", fallback=False
         ),
-        reattach_policy: Optional[str] = None,
+        reattach_policy: Optional[str] | Callable[[JobState, str], bool] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -154,14 +154,21 @@ acknowledged by Armada.
         self.dry_run = dry_run
         self.job_context = None
 
-        configured_reattach_policy: str = resolve_parameter_value(
-            "reattach_policy", reattach_policy, kwargs, "never"
-        )
-        self.log.info(
-            f"Configured reattach policy to: '{configured_reattach_policy}',"
-            f" max retries: {self.retries}"
-        )
-        self.reattach_policy = policy(configured_reattach_policy)
+        if reattach_policy is callable(reattach_policy):
+            self.log.info(
+                f"Configured reattach policy with callable',"
+                f" max retries: {self.retries}"
+            )
+            self.reattach_policy = reattach_policy
+        else:
+            configured_reattach_policy: str = resolve_parameter_value(
+                "reattach_policy", reattach_policy, kwargs, "never"
+            )
+            self.log.info(
+                f"Configured reattach policy to: '{configured_reattach_policy}',"
+                f" max retries: {self.retries}"
+            )
+            self.reattach_policy = policy(configured_reattach_policy)
 
         if self.container_logs and self.k8s_token_retriever is None:
             self.log.warning(
@@ -342,8 +349,11 @@ acknowledged by Armada.
         self, context: Context
     ) -> Optional[RunningJobContext]:
         # On first try we intentionally do not re-attach.
-        self.log.info(context)
-        if context["ti"].try_number == 1:
+        new_run = (
+            context["ti"].max_tries - context["ti"].try_number + 1
+            == context["ti"].task.retries
+        )
+        if new_run:
             return None
 
         expected_job_uri = external_job_uri(context)

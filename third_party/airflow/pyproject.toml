@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "armada_airflow"
-version = "1.0.10"
+version = "1.0.11"
 description = "Armada Airflow Operator"
 readme='README.md'
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
 dependencies=[
-    'armada-client>=0.4.7',
+    'armada-client>=0.4.8',
     'apache-airflow>=2.6.3',
     'types-protobuf==4.24.0.1',
     'kubernetes>=23.6.0',
