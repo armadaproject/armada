@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, reattach_policy=None, \*\*kwargs)
 Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
@@ -58,6 +58,9 @@ and handles job cancellation if the Airflow task is killed.
 
 
     * **dry_run** (*bool*) – 
+
+
+    * **reattach_policy** (*Optional**[**str**] **| **Callable**[**[**JobState**, **str**]**, **bool**]*) – 
 
 
 
@@ -167,6 +170,8 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
 :type dry_run: bool
+:param reattach_policy: Operator reattach policy to use (defaults to: never)
+:type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
 
