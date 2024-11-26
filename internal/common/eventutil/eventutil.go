@@ -172,8 +172,8 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 
 		K8SIngress: k8sIngresses,
 		K8SService: k8sServices,
-
-		Priority: float64(e.Priority),
+		Price:      e.Price,
+		Priority:   float64(e.Priority),
 
 		PodSpec:                        podSpec,
 		PodSpecs:                       podSpecs,

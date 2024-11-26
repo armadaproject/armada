@@ -37,6 +37,7 @@ var (
 		validatePorts,
 		validateClientId,
 		validateTolerations,
+		validatePrice,
 	}
 )
 
@@ -222,6 +223,14 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 
 	if exists := config.AllowedPriorityClassNames[priorityClassName]; !exists {
 		return fmt.Errorf("priority class %s is not supported", priorityClassName)
+	}
+	return nil
+}
+
+// Ensures that if a request specifies a Price, that the price is noon-negative
+func validatePrice(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	if j.Price < 0 {
+		return fmt.Errorf("price %.2f is invalid Prices must be greater than zero", j.Price)
 	}
 	return nil
 }

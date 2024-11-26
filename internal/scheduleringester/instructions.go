@@ -515,6 +515,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		ConcurrencySafe: submitJob.ConcurrencySafe,
 		SubmitTime:      submitTime,
 		Priority:        submitJob.Priority,
+		Price:           submitJob.Price,
 		Version:         0,
 	}
 
