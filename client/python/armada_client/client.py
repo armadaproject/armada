@@ -191,7 +191,7 @@ class ArmadaClient:
         :rtype: JobStatusResponse
         """
         req = job_pb2.JobStatusUsingExternalJobUriRequest(
-            queue, job_set_id, external_job_uri
+            queue=queue, jobset=job_set_id, external_job_uri=external_job_uri
         )
         return self.job_stub.GetJobStatusUsingExternalJobUri(req)
 
