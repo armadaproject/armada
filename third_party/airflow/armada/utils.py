@@ -48,7 +48,7 @@ def resolve_parameter_value(
         if param_name in default_args:
             return default_args[param_name]
 
-    airflow_config_value = conf.get("my_section", param_name, fallback=None)
+    airflow_config_value = conf.get("armada_operator", param_name, fallback=None)
     if airflow_config_value is not None:
         try:
             return type_converter(airflow_config_value)
