@@ -40,6 +40,7 @@ type PreemptingQueueScheduler struct {
 	jobIdsByGangId map[string]map[string]bool
 	// Maps job ids of gang jobs to the id of that gang.
 	gangIdByJobId map[string]string
+	marketDriven  bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -53,6 +54,7 @@ func NewPreemptingQueueScheduler(
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
+	marketDriven bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
@@ -118,6 +120,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				if job.NodeSelector() == nil {
 					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.Id())
 					return false
+				}
+				// If we are in market mode then everything is evictable
+				if sch.marketDriven {
+					return true
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
@@ -290,6 +296,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 		if _, err := sch.schedulingContext.EvictJob(jctx); err != nil {
 			return nil, nil, err
 		}
+		jctx.Job.SchedulingOrderCompare()
 	}
 	// TODO: Move gang accounting into context.
 	if err := sch.updateGangAccounting(evictedJctxs, nil); err != nil {
@@ -298,6 +305,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.evictionAssertions(result); err != nil {
 		return nil, nil, err
 	}
+
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.Pool)
 	inMemoryJobRepo.EnqueueMany(evictedJctxs)
 	txn.Commit()

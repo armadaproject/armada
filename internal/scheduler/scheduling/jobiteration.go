@@ -44,15 +44,17 @@ type InMemoryJobRepository struct {
 	jctxsByQueue map[string][]*schedulercontext.JobSchedulingContext
 	jctxsById    map[string]*schedulercontext.JobSchedulingContext
 	currentPool  string
+	sortOrder    func(a, b *jobdb.Job) int
 	// Protects the above fields.
 	mu sync.Mutex
 }
 
-func NewInMemoryJobRepository(pool string) *InMemoryJobRepository {
+func NewInMemoryJobRepository(pool string, sortOrder func(a, b *jobdb.Job) int) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
 		currentPool:  pool,
 		jctxsByQueue: make(map[string][]*schedulercontext.JobSchedulingContext),
 		jctxsById:    make(map[string]*schedulercontext.JobSchedulingContext),
+		sortOrder:    sortOrder,
 	}
 }
 
@@ -77,7 +79,7 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 // sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) int {
-		return a.Job.SchedulingOrderCompare(b.Job)
+		return repo.sortOrder(a.Job, b.Job)
 	})
 }
 

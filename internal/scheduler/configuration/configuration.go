@@ -271,6 +271,7 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name      string `validate:"required"`
-	AwayPools []string
+	Name         string `validate:"required"`
+	MarketDriven bool
+	AwayPools    []string
 }
