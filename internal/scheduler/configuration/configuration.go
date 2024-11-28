@@ -271,6 +271,16 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name      string `validate:"required"`
-	AwayPools []string
+	Name                         string `validate:"required"`
+	AwayPools                    []string
+	ProtectedFractionOfFairShare *float64
+}
+
+func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName && poolConfig.ProtectedFractionOfFairShare != nil {
+			return *poolConfig.ProtectedFractionOfFairShare
+		}
+	}
+	return sc.ProtectedFractionOfFairShare
 }

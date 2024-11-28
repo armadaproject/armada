@@ -126,12 +126,6 @@ func (l *FairSchedulingAlgo) Schedule(
 			continue
 		}
 
-		ctx.Infof("Scheduling on pool %s with capacity %s %s",
-			pool,
-			fsctx.nodeDb.TotalKubernetesResources().String(),
-			l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name).String(),
-		)
-
 		start := time.Now()
 		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name)
 
@@ -522,11 +516,12 @@ func (l *FairSchedulingAlgo) SchedulePool(
 
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
+	protectedFractionOfFairShare := l.schedulingConfig.GetProtectedFractionOfFairShare(pool)
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,
 		constraints,
 		l.floatingResourceTypes,
-		l.schedulingConfig.ProtectedFractionOfFairShare,
+		protectedFractionOfFairShare,
 		l.schedulingConfig.MaxQueueLookback,
 		fsctx.Txn,
 		fsctx.nodeDb,
@@ -534,6 +529,13 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 	)
+
+	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f",
+		pool,
+		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool)).String(),
+		protectedFractionOfFairShare,
+	)
+
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, nil, err

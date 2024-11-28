@@ -395,6 +395,18 @@ func TestNegate_HandlesEmptyCorrectly(t *testing.T) {
 	assert.Equal(t, ResourceList{}, ResourceList{}.Negate())
 }
 
+func TestString(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, "(memory=102400,cpu=100)", testResourceList(factory, "100", "100Ki").String())
+	assert.Equal(t, "(memory=102400)", testResourceList(factory, "0", "100Ki").String())
+	assert.Equal(t, "()", testResourceList(factory, "0", "0").String())
+}
+
+func TestString_HandlesEmptyCorrectly(t *testing.T) {
+	assert.Equal(t, "(empty)", ResourceList{}.String())
+}
+
 func testResourceList(factory *ResourceListFactory, cpu string, memory string) ResourceList {
 	return factory.FromJobResourceListIgnoreUnknown(map[string]k8sResource.Quantity{
 		"cpu":    k8sResource.MustParse(cpu),
