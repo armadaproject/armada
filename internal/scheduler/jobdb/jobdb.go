@@ -54,14 +54,6 @@ func (jq jobQueue) has(j *Job) bool {
 	return jq.fairShareQueue.Has(j)
 }
 
-func (jq jobQueue) fairShareIter() *immutable.SortedSetIterator[*Job] {
-	return jq.fairShareQueue.Iterator()
-}
-
-func (jq jobQueue) marketIter() *immutable.SortedSetIterator[*Job] {
-	return jq.marketQueue.Iterator()
-}
-
 func (jq jobQueue) len() int {
 	return jq.marketQueue.Len()
 }
