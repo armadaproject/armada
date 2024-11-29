@@ -49,6 +49,7 @@ func (jq jobQueue) delete(j *Job) jobQueue {
 		marketQueue:    jq.marketQueue.Delete(j),
 	}
 }
+
 func (jq jobQueue) has(j *Job) bool {
 	return jq.fairShareQueue.Has(j)
 }
@@ -199,7 +200,7 @@ func (jobDb *JobDb) NewJob(
 		queue:                          jobDb.stringInterner.Intern(queue),
 		jobSet:                         jobDb.stringInterner.Intern(jobSet),
 		priority:                       priority,
-		price:                          price,
+		bidPrice:                       price,
 		queued:                         queued,
 		queuedVersion:                  queuedVersion,
 		requestedPriority:              priority,

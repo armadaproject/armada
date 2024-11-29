@@ -1790,7 +1790,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		job.JobSet,
 		job.Queue,
 		uint32(job.Priority),
-		job.Price,
+		job.BidPrice,
 		&schedulingInfo,
 		job.Queued,
 		job.QueuedVersion,

@@ -165,8 +165,8 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 	}
 
 	bidPrice := 0.0
-	if job.PriceInfo != nil {
-		bidPrice = job.PriceInfo.BidPrice
+	if job.ExperimentalPriceInfo != nil {
+		bidPrice = job.ExperimentalPriceInfo.BidPrice
 	}
 
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{

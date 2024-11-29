@@ -841,16 +841,30 @@ func TestValidatePrice(t *testing.T) {
 		item          *api.JobSubmitRequestItem
 		expectSuccess bool
 	}{
-		"zero price is ok": {
+		"nil ExperimentalPriceInfo is ok": {
 			item:          &api.JobSubmitRequestItem{},
 			expectSuccess: true,
 		},
+		"zero price is ok": {
+			item: &api.JobSubmitRequestItem{
+				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{},
+			},
+			expectSuccess: true,
+		},
 		"positive price is ok": {
-			item:          &api.JobSubmitRequestItem{Price: 1.0},
+			item: &api.JobSubmitRequestItem{
+				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{
+					BidPrice: 1.0,
+				},
+			},
 			expectSuccess: true,
 		},
 		"negative price is rejected": {
-			item:          &api.JobSubmitRequestItem{Price: -1.0},
+			item: &api.JobSubmitRequestItem{
+				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{
+					BidPrice: -1.0,
+				},
+			},
 			expectSuccess: false,
 		},
 	}

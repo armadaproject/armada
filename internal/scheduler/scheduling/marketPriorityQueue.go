@@ -2,10 +2,11 @@ package scheduling
 
 import (
 	"container/heap"
+	"time"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
-	"time"
 )
 
 type MarketIteratorPQ struct {
@@ -54,7 +55,7 @@ func (it *MarketBasedCandidateGangIterator) newPQItem(queue string, queueIt *Que
 }
 
 func (it *MarketBasedCandidateGangIterator) GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -130,7 +131,7 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 
 	job := gctx.JobSchedulingContexts[0].Job
 	item.gctx = gctx
-	item.price = job.Price()
+	item.price = job.BidPrice()
 	if !job.Queued() && job.LatestRun() != nil {
 		item.runtime = time.Now().UnixNano() - job.LatestRun().Created()
 	} else {
@@ -167,7 +168,6 @@ type MarketIteratorPQItem struct {
 func (pq *MarketIteratorPQ) Len() int { return len(pq.items) }
 
 func (pq *MarketIteratorPQ) Less(i, j int) bool {
-
 	// First by price
 	if pq.items[i].price != pq.items[j].price {
 		return pq.items[i].price < pq.items[j].price

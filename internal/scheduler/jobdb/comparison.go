@@ -117,8 +117,8 @@ func MarketSchedulingOrderCompare(job, other *Job) int {
 		return 1
 	}
 
-	// Next we sort on price
-	if job.price < other.price {
+	// Next we sort on bidPrice
+	if job.bidPrice < other.bidPrice {
 		return -1
 	} else if job.priority > other.priority {
 		return 1

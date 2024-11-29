@@ -227,10 +227,13 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 	return nil
 }
 
-// Ensures that if a request specifies a Price, that the price is noon-negative
+// Ensures that if a request specifies a BidPrice, that the price is non-negative
 func validatePrice(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
-	if j.Price < 0 {
-		return fmt.Errorf("price %.2f is invalid Prices must be greater than zero", j.Price)
+	if j.ExperimentalPriceInfo == nil {
+		return nil
+	}
+	if j.ExperimentalPriceInfo.BidPrice < 0 {
+		return fmt.Errorf("price %.2f is invalid Prices must be greater than zero", j.ExperimentalPriceInfo.BidPrice)
 	}
 	return nil
 }

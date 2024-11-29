@@ -1741,6 +1741,9 @@ func SwaggerJsonTemplate() string {
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"experimentalPriceInfo\": {\n" +
+		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
+		"        },\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -1764,10 +1767,6 @@ func SwaggerJsonTemplate() string {
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"          }\n" +
-		"        },\n" +
-		"        \"price\": {\n" +
-		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
 		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +

@@ -32,7 +32,6 @@ func SubmitJobFromApiRequest(
 		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
-		Price:           jobReq.GetPrice(),
 		ObjectMeta: &armadaevents.ObjectMeta{
 			Namespace:   jobReq.GetNamespace(),
 			Annotations: jobReq.GetAnnotations(),
@@ -48,6 +47,13 @@ func SubmitJobFromApiRequest(
 		Objects:   ingressesAndServices,
 		Scheduler: jobReq.Scheduler,
 	}
+
+	if jobReq.ExperimentalPriceInfo != nil {
+		msg.ExperimentalPriceInfo = &armadaevents.ExperimentalPriceInfo{
+			BidPrice: jobReq.ExperimentalPriceInfo.BidPrice,
+		}
+	}
+
 	postProcess(msg, config)
 	return msg
 }

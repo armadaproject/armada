@@ -1730,6 +1730,9 @@
         "clientId": {
           "type": "string"
         },
+        "experimentalPriceInfo": {
+          "$ref": "#/definitions/apiExperimentalPriceInfo"
+        },
         "ingress": {
           "type": "array",
           "items": {
@@ -1753,10 +1756,6 @@
           "items": {
             "$ref": "#/definitions/v1PodSpec"
           }
-        },
-        "price": {
-          "type": "number",
-          "format": "double"
         },
         "priority": {
           "type": "number",
