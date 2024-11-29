@@ -777,6 +777,15 @@
         }
       }
     },
+    "apiExperimentalPriceInfo": {
+      "type": "object",
+      "properties": {
+        "bidPrice": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
     "apiIngressConfig": {
       "type": "object",
       "properties": {
@@ -881,9 +890,8 @@
             "$ref": "#/definitions/v1PodSpec"
           }
         },
-        "price": {
-          "type": "number",
-          "format": "double"
+        "priceInfo": {
+          "$ref": "#/definitions/apiExperimentalPriceInfo"
         },
         "priority": {
           "type": "number",

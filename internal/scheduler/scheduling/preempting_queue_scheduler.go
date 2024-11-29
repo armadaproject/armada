@@ -320,7 +320,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.nodeDb.Reset(); err != nil {
 		return nil, nil, err
 	}
-	if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo, sch.marketDriven); err != nil {
+	if err := sch.addEvictedJobsToNodeDb(ctx, inMemoryJobRepo); err != nil {
 		return nil, nil, err
 	}
 	return result, inMemoryJobRepo, nil
@@ -492,7 +492,8 @@ func (q MinimalQueue) GetWeight() float64 {
 
 // addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
 // Needed to enable the nodeDb accounting for these when preempting.
-func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository, marketDriven bool) error {
+func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository) error {
+	sctx := sch.schedulingContext
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(
@@ -502,11 +503,11 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 			false,
 		)
 	}
-	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
+	qr := NewMinimalQueueRepositoryFromSchedulingContext(sch.schedulingContext)
 	var candidateGangIterator CandidateGangIterator
 	var err error
-	if marketDriven {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false)
+	if sch.marketDriven {
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
 		if err != nil {
 			return err
 		}
@@ -516,8 +517,7 @@ func addEvictedJobsToNodeDb(_ *armadacontext.Context, sctx *schedulercontext.Sch
 			return err
 		}
 	}
-
-	txn := nodeDb.Txn(true)
+	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 	i := 0
 	for {

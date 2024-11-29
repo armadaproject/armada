@@ -156,7 +156,13 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
-    double price = 15;
+
+    // Pricing Information for the job.  Currently experimental
+    ExperimentalPriceInfo priceInfo = 15;
+}
+
+message ExperimentalPriceInfo {
+  double bidPrice = 1;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.

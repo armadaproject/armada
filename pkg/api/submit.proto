@@ -146,7 +146,11 @@ message Job {
   // Indicates which scheduler should manage this job.
   // If empty, the default scheduler is used.
   string scheduler = 20;
-  double price = 30;
+  ExperimentalPriceInfo priceInfo = 30;
+}
+
+message ExperimentalPriceInfo {
+  double bidPrice = 1;
 }
 
 // swagger:model

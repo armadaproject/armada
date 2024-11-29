@@ -788,6 +788,15 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiExperimentalPriceInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"bidPrice\": {\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiIngressConfig\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -892,9 +901,8 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"price\": {\n" +
-		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
+		"        \"priceInfo\": {\n" +
+		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
 		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
