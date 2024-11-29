@@ -131,6 +131,10 @@ type SchedulingConfig struct {
 	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
+	// Experimental
+	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
+	// This will result in larger jobs being ordered earlier in the job scheduling order
+	EnablePreferLargeJobOrdering bool
 	// Only queues allocated more than this fraction of their fair share are considered for preemption.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.

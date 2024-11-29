@@ -205,6 +205,7 @@ func TestSchedulingConfigWithPools(pools []schedulerconfiguration.PoolConfig) sc
 		IndexedNodeLabels:                           TestIndexedNodeLabels,
 		IndexedTaints:                               TestIndexedTaints,
 		WellKnownNodeTypes:                          TestWellKnownNodeTypes,
+		EnablePreferLargeJobOrdering:                true,
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
