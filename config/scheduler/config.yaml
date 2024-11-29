@@ -73,6 +73,7 @@ scheduling:
       resolution: "1"
   disableScheduling: false
   enableAssertions: false
+  enablePreferLargeJobOrdering: false
   protectedFractionOfFairShare: 1.0
   nodeIdLabel: "kubernetes.io/hostname"
   priorityClasses:

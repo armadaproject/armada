@@ -521,6 +521,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.schedulingContext,
 		constraints,
 		l.floatingResourceTypes,
+		l.schedulingConfig.EnablePreferLargeJobOrdering,
 		protectedFractionOfFairShare,
 		l.schedulingConfig.MaxQueueLookback,
 		fsctx.Txn,
