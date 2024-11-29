@@ -29,7 +29,7 @@ func TestInMemoryJobRepository(t *testing.T) {
 	for i, job := range jobs {
 		jctxs[i] = &schedulercontext.JobSchedulingContext{Job: job, KubernetesResourceRequirements: job.KubernetesResourceRequirements()}
 	}
-	repo := NewInMemoryJobRepository(testfixtures.TestPool)
+	repo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.SchedulingOrderCompare)
 	repo.EnqueueMany(jctxs)
 	expected := []*jobdb.Job{
 		jobs[4], jobs[1], jobs[2], jobs[0], jobs[5], jobs[3],

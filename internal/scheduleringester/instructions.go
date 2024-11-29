@@ -174,6 +174,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		QueuedVersion:         0,
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
+		Price:                 job.Price,
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
@@ -515,6 +516,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		ConcurrencySafe: submitJob.ConcurrencySafe,
 		SubmitTime:      submitTime,
 		Priority:        submitJob.Priority,
+		Price:           submitJob.Price,
 		Version:         0,
 	}
 

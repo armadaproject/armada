@@ -32,6 +32,7 @@ func SubmitJobFromApiRequest(
 		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
 		Priority:        priority,
+		Price:           jobReq.GetPrice(),
 		ObjectMeta: &armadaevents.ObjectMeta{
 			Namespace:   jobReq.GetNamespace(),
 			Annotations: jobReq.GetAnnotations(),

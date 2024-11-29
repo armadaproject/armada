@@ -46,6 +46,7 @@ type Job struct {
 	LastModified            time.Time `db:"last_modified"`
 	Validated               bool      `db:"validated"`
 	Pools                   []string  `db:"pools"`
+	Price                   float64   `db:"price"`
 }
 
 type JobRunError struct {

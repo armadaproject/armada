@@ -268,7 +268,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		},
 	}
 	jobDb := NewTestJobDb()
-	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
+	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, 0.0, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
 	assert.Nil(t, err)
 	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), job.SchedulingKey())
 }

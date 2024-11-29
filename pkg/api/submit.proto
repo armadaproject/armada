@@ -12,6 +12,7 @@ import "google/api/annotations.proto";
 import "pkg/api/health.proto";
 
 message JobSubmitRequestItem {
+    reserved 12;
     double priority = 1;
     string namespace = 3;
     string client_id = 8;
@@ -25,7 +26,7 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
-    // Ordinal 12 was previously used for queue_ttl_seconds
+    double price = 13;
 }
 
 message IngressConfig {
@@ -105,6 +106,7 @@ enum JobState {
 }
 
 message Job {
+  reserved 22;
   string id = 1;
   string client_id = 13;
   string job_set_id = 2;
@@ -144,8 +146,7 @@ message Job {
   // Indicates which scheduler should manage this job.
   // If empty, the default scheduler is used.
   string scheduler = 20;
-  // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
-  int64 queue_ttl_seconds = 22;
+  double price = 30;
 }
 
 // swagger:model

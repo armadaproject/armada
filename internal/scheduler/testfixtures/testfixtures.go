@@ -144,6 +144,7 @@ func NewJob(
 	jobSet string,
 	queue string,
 	priority uint32,
+	price float64,
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
@@ -157,6 +158,7 @@ func NewJob(
 		jobSet,
 		queue,
 		priority,
+		price,
 		schedulingInfo,
 		queued,
 		queuedVersion,
@@ -475,6 +477,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		queue,
 		// This is the per-queue priority of this job, which is unrelated to `priorityClassName`.
 		1000,
+		0.0,
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
 			SubmitTime:        submitTime,
@@ -869,6 +872,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		TestJobset,
 		TestQueue,
 		0,
+		0.0,
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
 			SubmitTime:        BaseTime,

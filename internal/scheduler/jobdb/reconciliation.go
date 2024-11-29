@@ -260,6 +260,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.JobSet,
 		dbJob.Queue,
 		uint32(dbJob.Priority),
+		dbJob.Price,
 		schedulingInfo,
 		dbJob.Queued,
 		dbJob.QueuedVersion,

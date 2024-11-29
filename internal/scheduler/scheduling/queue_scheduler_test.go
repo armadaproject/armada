@@ -503,7 +503,7 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.Id()] = i
 			}
-			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool)
+			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.SchedulingOrderCompare)
 			jobRepo.EnqueueMany(
 				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
@@ -546,7 +546,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, true, tc.SchedulingConfig.MaxQueueLookback)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, true, tc.SchedulingConfig.MaxQueueLookback, false)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())

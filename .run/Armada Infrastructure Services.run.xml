@@ -1,7 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Armada Infrastructure Services" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
+  <configuration default="false" name="Armada Infrastructure Services" type="docker-deploy" factoryName="docker-compose.yml">
     <deployment type="docker-compose.yml">
       <settings>
+        <option name="containerName" value="" />
         <option name="envFilePath" value="" />
         <option name="services">
           <list>
