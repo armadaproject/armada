@@ -855,6 +855,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"experimentalPriceInfo\": {\n" +
+		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
+		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -900,9 +903,6 @@ func SwaggerJsonTemplate() string {
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"          }\n" +
-		"        },\n" +
-		"        \"priceInfo\": {\n" +
-		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
 		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +

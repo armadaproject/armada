@@ -844,6 +844,9 @@
           "type": "string",
           "format": "date-time"
         },
+        "experimentalPriceInfo": {
+          "$ref": "#/definitions/apiExperimentalPriceInfo"
+        },
         "id": {
           "type": "string"
         },
@@ -889,9 +892,6 @@
           "items": {
             "$ref": "#/definitions/v1PodSpec"
           }
-        },
-        "priceInfo": {
-          "$ref": "#/definitions/apiExperimentalPriceInfo"
         },
         "priority": {
           "type": "number",

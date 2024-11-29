@@ -156,9 +156,8 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
-
     // Pricing Information for the job.  Currently experimental
-    ExperimentalPriceInfo priceInfo = 15;
+    ExperimentalPriceInfo experimentalPriceInfo = 15;
 }
 
 message ExperimentalPriceInfo {
