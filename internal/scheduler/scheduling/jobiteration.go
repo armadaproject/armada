@@ -175,7 +175,7 @@ type MarketDrivenMultiJobsIterator struct {
 	it1 JobContextIterator
 	it2 JobContextIterator
 
-	// TOOD: ideally we add peek() to JobContextIterator and remove these
+	// TODO: ideally we add peek() to JobContextIterator and remove these
 	it1Value *schedulercontext.JobSchedulingContext
 	it2Value *schedulercontext.JobSchedulingContext
 }

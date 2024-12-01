@@ -130,7 +130,6 @@ func TestJobDb_TestHasQueuedJobs(t *testing.T) {
 }
 
 func TestJobDb_TestQueuedJobsWithPriceOrdering(t *testing.T) {
-
 	a := newJob().WithQueued(true).WithBidPrice(100.0).WithSubmittedTime(4)
 	b := newJob().WithQueued(true).WithBidPrice(99.0).WithSubmittedTime(3)
 	c := newJob().WithQueued(true).WithBidPrice(101.0).WithSubmittedTime(2)

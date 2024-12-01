@@ -4,6 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -19,11 +25,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
-	"golang.org/x/time/rate"
 )
 
 func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
