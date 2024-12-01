@@ -55,8 +55,11 @@ func (it *MarketBasedCandidateGangIterator) newPQItem(queue string, queueIt *Que
 }
 
 func (it *MarketBasedCandidateGangIterator) GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool) {
-	// TODO implement me
-	panic("implement me")
+	q, ok := it.queueRepository.GetQueue(queue)
+	if !ok {
+		return internaltypes.ResourceList{}, false
+	}
+	return q.GetAllocation(), true
 }
 
 // Clear removes the first item in the iterator.
@@ -170,12 +173,12 @@ func (pq *MarketIteratorPQ) Len() int { return len(pq.items) }
 func (pq *MarketIteratorPQ) Less(i, j int) bool {
 	// First by price
 	if pq.items[i].price != pq.items[j].price {
-		return pq.items[i].price < pq.items[j].price
+		return pq.items[i].price > pq.items[j].price
 	}
 
 	// Then by runtime (highest first)
 	if pq.items[i].runtime != pq.items[j].runtime {
-		return pq.items[i].runtime < pq.items[j].runtime
+		return pq.items[i].runtime > pq.items[j].runtime
 	}
 
 	// Then by submitted time (lowest first)

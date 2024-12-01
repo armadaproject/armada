@@ -423,8 +423,8 @@ func (job *Job) WithPriority(priority uint32) *Job {
 	return j
 }
 
-// WithPrice returns a copy of the job with the bidPrice updated.
-func (job *Job) WithPrice(price float64) *Job {
+// WithBidPrice returns a copy of the job with the bidPrice updated.
+func (job *Job) WithBidPrice(price float64) *Job {
 	j := copyJob(*job)
 	j.bidPrice = price
 	return j

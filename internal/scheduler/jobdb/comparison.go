@@ -106,21 +106,10 @@ func MarketSchedulingOrderCompare(job, other *Job) int {
 		return 0
 	}
 
-	// Running jobs always come before queued jobs.
-	// This to ensure evicted jobs are rescheduled before scheduling new jobs.
-	// TODO: I'm keeping this because right now it means that you can't preempt your own jobs
-	jobIsActive := job.activeRun != nil && !job.activeRun.InTerminalState()
-	otherIsActive := other.activeRun != nil && !other.activeRun.InTerminalState()
-	if jobIsActive && !otherIsActive {
-		return -1
-	} else if !jobIsActive && otherIsActive {
-		return 1
-	}
-
 	// Next we sort on bidPrice
-	if job.bidPrice < other.bidPrice {
+	if job.bidPrice > other.bidPrice {
 		return -1
-	} else if job.priority > other.priority {
+	} else if job.bidPrice < other.bidPrice {
 		return 1
 	}
 
@@ -142,6 +131,8 @@ func MarketSchedulingOrderCompare(job, other *Job) int {
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
 	// which reduces wasted compute time when preempting.
+	jobIsActive := job.activeRun != nil && !job.activeRun.InTerminalState()
+	otherIsActive := other.activeRun != nil && !other.activeRun.InTerminalState()
 	if jobIsActive && otherIsActive {
 		if job.activeRunTimestamp < other.activeRunTimestamp {
 			return -1

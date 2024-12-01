@@ -16,7 +16,7 @@ type JobContextIterator interface {
 }
 
 type JobRepository interface {
-	QueuedJobs(queueName string) jobdb.JobIterator
+	QueuedJobs(queueName string, order jobdb.JobSortOrder) jobdb.JobIterator
 	GetById(id string) *jobdb.Job
 }
 
@@ -117,9 +117,9 @@ type QueuedJobsIterator struct {
 	ctx     *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository, order jobdb.JobSortOrder) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
-		jobIter: repo.QueuedJobs(queue),
+		jobIter: repo.QueuedJobs(queue, order),
 		pool:    pool,
 		ctx:     ctx,
 	}
@@ -168,4 +168,51 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 	} else {
 		return v, err
 	}
+}
+
+// MarketDrivenMultiJobsIterator combines two iterators by price
+type MarketDrivenMultiJobsIterator struct {
+	it1 JobContextIterator
+	it2 JobContextIterator
+}
+
+func NewMarketDrivenMultiJobsIterator(it1, it2 JobContextIterator) *MarketDrivenMultiJobsIterator {
+	return &MarketDrivenMultiJobsIterator{
+		it1: it1,
+		it2: it2,
+	}
+}
+
+func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
+	j1, err := it.it1.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	j2, err := it.it2.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	// Both iterators active.
+	if j1 != nil && j2 != nil {
+		if (jobdb.MarketSchedulingOrderCompare(j1.Job, j2.Job)) < 0 {
+			return j1, nil
+		} else {
+			return j2, nil
+		}
+	}
+
+	// Only first iterator has job
+	if j1 != nil {
+		return j1, nil
+	}
+
+	// Only second iterator has job
+	if j2 != nil {
+		return j2, nil
+	}
+
+	// If we get to here then both iterators exhausted
+	return nil, nil
 }

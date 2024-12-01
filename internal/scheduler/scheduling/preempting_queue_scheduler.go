@@ -507,12 +507,12 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	var candidateGangIterator CandidateGangIterator
 	var err error
 	if sch.marketDriven {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
 		if err != nil {
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
 		if err != nil {
 			return err
 		}
@@ -550,14 +550,22 @@ func (sch *PreemptingQueueScheduler) schedule(
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityCLassPriority bool,
 ) (*SchedulerResult, error) {
+	sortOrder := jobdb.FairShareOrder
+	if sch.marketDriven {
+		sortOrder = jobdb.PriceOrder
+	}
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo)
-			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
+			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo, sortOrder)
+			if sch.marketDriven {
+				jobIteratorByQueue[qctx.Queue] = NewMarketDrivenMultiJobsIterator(evictedIt, queueIt)
+			} else {
+				jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
+			}
 		}
 	}
 

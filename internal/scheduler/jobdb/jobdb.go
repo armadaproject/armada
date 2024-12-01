@@ -19,6 +19,13 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+type JobSortOrder int
+
+const (
+	PriceOrder JobSortOrder = iota
+	FairShareOrder
+)
+
 type JobIterator interface {
 	Next() (*Job, bool)
 	Done() bool
@@ -532,22 +539,15 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 }
 
 // QueuedJobs returns an iterator over all queued jobs ordered for fair share shceduling
-func (txn *Txn) QueuedJobs(queue string) JobIterator {
+func (txn *Txn) QueuedJobs(queue string, sortOrder JobSortOrder) JobIterator {
 	jobQueue, ok := txn.jobsByQueue[queue]
-	if ok {
-		return jobQueue.fairShareQueue.Iterator()
-	} else {
+	if !ok {
 		return emptyList.Iterator()
 	}
-}
-
-// QueuedJobsByPrice returns an iterator over all queued jobs ordered for market based scheduling
-func (txn *Txn) QueuedJobsByPrice(queue string) JobIterator {
-	jobQueue, ok := txn.jobsByQueue[queue]
-	if ok {
-		return jobQueue.marketQueue.Iterator()
+	if sortOrder == FairShareOrder {
+		return jobQueue.fairShareQueue.Iterator()
 	} else {
-		return emptyList.Iterator()
+		return jobQueue.marketQueue.Iterator()
 	}
 }
 

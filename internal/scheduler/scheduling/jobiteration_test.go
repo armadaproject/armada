@@ -64,7 +64,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	ctx := armadacontext.Background()
 	its := make([]JobContextIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
-		it := NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo)
+		it := NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo, jobdb.FairShareOrder)
 		its[i] = it
 	}
 	it := NewMultiJobsIterator(its...)
@@ -93,7 +93,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -115,7 +115,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -137,7 +137,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -164,7 +164,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		repo.Enqueue(job)
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -187,7 +187,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
 	defer cancel()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
 	job, err := it.Next()
 	assert.Nil(t, job)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
@@ -205,7 +205,7 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 		repo.Enqueue(job)
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
 	for job, err := it.Next(); job != nil; job, err = it.Next() {
 		require.NoError(t, err)
 	}
@@ -237,7 +237,7 @@ type mockJobRepository struct {
 	jobsById    map[string]*jobdb.Job
 }
 
-func (repo *mockJobRepository) QueuedJobs(queueName string) jobdb.JobIterator {
+func (repo *mockJobRepository) QueuedJobs(queueName string, _ jobdb.JobSortOrder) jobdb.JobIterator {
 	q := repo.jobsByQueue[queueName]
 	return &mockJobIterator{jobs: q}
 }
@@ -266,7 +266,7 @@ func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
 }
 
 func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) JobContextIterator {
-	return NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo)
+	return NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo, jobdb.FairShareOrder)
 }
 
 func jobFromPodSpec(queue string, req *schedulerobjects.PodRequirements) *jobdb.Job {

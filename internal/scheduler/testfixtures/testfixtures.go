@@ -420,6 +420,16 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 	return jobs
 }
 
+func N1Cpu4GiJobsWithPrice(queue string, bidPrice float64, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		j := Test1Cpu4GiJob(queue, PriorityClass0)
+		j = j.WithBidPrice(bidPrice)
+		rv[i] = j
+	}
+	return rv
+}
+
 func N1Cpu4GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
