@@ -114,7 +114,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
-
+		ctx.Infof("Scheduling job in queue %s with price %d and submit time %s", gctx.Queue, gctx.JobSchedulingContexts[0].Job.BidPrice(), gctx.JobSchedulingContexts[0].Job.SubmitTime())
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {

@@ -401,6 +401,9 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
+				for _, j := range result.PreemptedJobs {
+					ctx.Infof("Preempted job with submittred time %d", j.Job.SubmitTime())
+				}
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
 

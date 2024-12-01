@@ -174,6 +174,10 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 type MarketDrivenMultiJobsIterator struct {
 	it1 JobContextIterator
 	it2 JobContextIterator
+
+	// TOOD: ideally we add peek() to JobContextIterator and remove these
+	it1Value *schedulercontext.JobSchedulingContext
+	it2Value *schedulercontext.JobSchedulingContext
 }
 
 func NewMarketDrivenMultiJobsIterator(it1, it2 JobContextIterator) *MarketDrivenMultiJobsIterator {
@@ -184,32 +188,44 @@ func NewMarketDrivenMultiJobsIterator(it1, it2 JobContextIterator) *MarketDriven
 }
 
 func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
-	j1, err := it.it1.Next()
-	if err != nil {
-		return nil, err
+	if it.it1Value == nil {
+		j, err := it.it1.Next()
+		if err != nil {
+			return nil, err
+		}
+		it.it1Value = j
 	}
 
-	j2, err := it.it2.Next()
-	if err != nil {
-		return nil, err
+	if it.it2Value == nil {
+		j, err := it.it2.Next()
+		if err != nil {
+			return nil, err
+		}
+		it.it2Value = j
 	}
 
+	j1 := it.it1Value
+	j2 := it.it2Value
 	// Both iterators active.
-	if j1 != nil && j2 != nil {
+	if it.it1Value != nil && j2 != nil {
 		if (jobdb.MarketSchedulingOrderCompare(j1.Job, j2.Job)) < 0 {
+			it.it1Value = nil
 			return j1, nil
 		} else {
+			it.it2Value = nil
 			return j2, nil
 		}
 	}
 
 	// Only first iterator has job
 	if j1 != nil {
+		it.it1Value = nil
 		return j1, nil
 	}
 
 	// Only second iterator has job
 	if j2 != nil {
+		it.it2Value = nil
 		return j2, nil
 	}
 
