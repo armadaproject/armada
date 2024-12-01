@@ -37,6 +37,7 @@ type cycleMetrics struct {
 	loopNumber              *prometheus.GaugeVec
 	evictedJobs             *prometheus.GaugeVec
 	evictedResources        *prometheus.GaugeVec
+	spotPrice               *prometheus.GaugeVec
 	allResettableMetrics    []resettableMetric
 }
 
@@ -193,6 +194,14 @@ func newCycleMetrics() *cycleMetrics {
 		poolQueueAndResourceLabels,
 	)
 
+	spotPrice := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "spot_price",
+			Help: "spop price for given pool",
+		},
+		poolLabels,
+	)
+
 	return &cycleMetrics{
 		leaderMetricsEnabled:   true,
 		scheduledJobs:          scheduledJobs,
@@ -213,6 +222,7 @@ func newCycleMetrics() *cycleMetrics {
 		loopNumber:             loopNumber,
 		evictedJobs:            evictedJobs,
 		evictedResources:       evictedResources,
+		spotPrice:              spotPrice,
 		allResettableMetrics: []resettableMetric{
 			scheduledJobs,
 			premptedJobs,
@@ -231,6 +241,7 @@ func newCycleMetrics() *cycleMetrics {
 			loopNumber,
 			evictedJobs,
 			evictedResources,
+			spotPrice,
 		},
 		reconciliationCycleTime: reconciliationCycleTime,
 	}
@@ -277,6 +288,7 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			m.cappedDemand.WithLabelValues(pool, queue).Set(cappedDemand)
 		}
 		m.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
+		m.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
 	}
 
 	for _, jobCtx := range result.ScheduledJobs {

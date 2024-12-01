@@ -60,6 +60,7 @@ type SchedulingContext struct {
 	// Used to immediately reject new jobs with identical reqirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys map[schedulerobjects.SchedulingKey]*JobSchedulingContext
+	SpotPrice                float64
 }
 
 func NewSchedulingContext(
