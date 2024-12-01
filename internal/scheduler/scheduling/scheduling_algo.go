@@ -711,7 +711,6 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 }
 
 func (l *FairSchedulingAlgo) calculateSpotPrice(initialRunningJobIds []string, scheduledJobs, preemptedJobs []*schedulercontext.JobSchedulingContext, fractionAllocated float64, txn *jobdb.Txn) float64 {
-
 	// If we've allocated less that 95% of available resources then we don't charge.
 	// TODO: make this configurable
 	if fractionAllocated < 0.95 {
@@ -732,7 +731,7 @@ func (l *FairSchedulingAlgo) calculateSpotPrice(initialRunningJobIds []string, s
 	}
 
 	// Find the minimum bid price among running jobs
-	var minPrice = math.MaxFloat64
+	minPrice := math.MaxFloat64
 	for jobId := range allRunningJobIds {
 		job := txn.GetById(jobId)
 		if job != nil && job.BidPrice() < minPrice {
