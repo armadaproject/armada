@@ -15,10 +15,6 @@ Compile / PB.targets := Seq(
   scalapb.gen() -> (Compile / sourceManaged).value
 )
 
-// Additional directories to search for imports:
-// Compile / PB.includePaths ++= Seq(file("../../../proto"), file("../../../proto/armada"))
-// Compile / PB.protoSources ++= Seq(file("../../../proto"))
-
 libraryDependencies ++= Seq(
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
     "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
