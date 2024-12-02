@@ -1,0 +1,296 @@
+syntax = 'proto3';
+
+package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
+option csharp_namespace = "ArmadaProject.Io.Api";
+
+import "google/protobuf/timestamp.proto";
+import "armada/submit.proto";
+import "armada/health.proto";
+import "google/protobuf/empty.proto";
+import "google/api/annotations.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+
+message JobSubmittedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    Job job = 5;
+}
+
+message JobQueuedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+}
+
+message JobLeasedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+}
+
+message JobLeaseReturnedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string reason = 6;
+    string kubernetes_id = 7;
+    int32  pod_number = 8;
+    bool run_attempted = 9;
+}
+
+message JobLeaseExpiredEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+}
+
+message JobPendingEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    int32 pod_number = 7;
+    string pod_name = 8;
+    string pod_namespace = 9;
+}
+
+message JobRunningEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    string node_name = 7;
+    int32 pod_number = 8;
+    string pod_name = 9;
+    string pod_namespace = 10;
+}
+
+message JobIngressInfoEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    string node_name = 7;
+    int32 pod_number = 8;
+    string pod_name = 10;
+    string pod_namespace = 11;
+    map<int32, string> ingress_addresses = 9;
+}
+
+message JobUnableToScheduleEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string reason = 6;
+    string kubernetes_id = 7;
+    string node_name = 8;
+    int32 pod_number = 9;
+    string pod_name = 10;
+    string pod_namespace = 11;
+}
+
+message JobFailedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string reason = 6;
+    map<string, int32> exit_codes = 7 [deprecated = true];
+    string kubernetes_id = 8;
+    string node_name = 9;
+    int32 pod_number = 10;
+    string pod_name = 13;
+    string pod_namespace = 14;
+    repeated ContainerStatus container_statuses = 11;
+    Cause cause = 12;
+}
+
+message JobPreemptingEvent {
+  string job_id = 1;
+  string job_set_id = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+  string requestor = 5;
+  string reason = 6;
+}
+
+message JobPreemptedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string run_id = 6;
+    string preemptive_job_id = 7;
+    string preemptive_run_id = 8;
+    string reason = 9;
+}
+
+message JobSucceededEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    string node_name = 7;
+    int32 pod_number = 8;
+    string pod_name = 9;
+    string pod_namespace = 10;
+}
+
+message JobUtilisationEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7;
+    string node_name = 8;
+    int32 pod_number = 9;
+    string pod_name = 10;
+    string pod_namespace = 11;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12;
+}
+
+message JobReprioritizingEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    double new_priority = 5;
+    string requestor = 6;
+}
+
+message JobReprioritizedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    double new_priority = 5;
+    string requestor = 6;
+}
+
+message JobCancellingEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string requestor = 5;
+    string reason = 6;
+}
+
+message JobCancelledEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string requestor = 5;
+    string reason = 6;
+}
+
+message JobTerminatedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4;
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    int32 pod_number = 7;
+    string pod_name = 9;
+    string pod_namespace = 10;
+    string reason = 8;
+}
+
+
+message EventMessage {
+    oneof events {
+        JobSubmittedEvent submitted = 1;
+        JobQueuedEvent queued = 2;
+        JobLeasedEvent leased = 3;
+        JobLeaseReturnedEvent lease_returned = 4;
+        JobLeaseExpiredEvent lease_expired = 5;
+        JobPendingEvent pending = 6;
+        JobRunningEvent running = 7;
+        JobUnableToScheduleEvent unable_to_schedule = 8;
+        JobFailedEvent failed = 9;
+        JobSucceededEvent succeeded = 10;
+        JobReprioritizedEvent reprioritized = 11;
+        JobCancellingEvent cancelling = 12;
+        JobCancelledEvent cancelled = 13;
+        JobUtilisationEvent utilisation = 15;
+        JobIngressInfoEvent ingress_info = 17;
+        JobReprioritizingEvent reprioritizing = 18;
+        JobPreemptedEvent preempted = 21;
+        JobPreemptingEvent preempting = 22;
+    }
+}
+
+enum Cause {
+    Error = 0;
+    Evicted = 1;
+    OOM = 2;
+    DeadlineExceeded = 3;
+    Rejected  = 4;
+}
+
+message ContainerStatus {
+    string name = 1;
+    int32 exitCode = 2;
+    string message = 3;
+    string reason = 4;
+    Cause cause = 5;
+}
+
+// swagger:model
+message EventStreamMessage {
+    string id = 1;
+    EventMessage message = 2;
+}
+
+// swagger:model
+message JobSetRequest {
+    string id = 1;
+    bool watch = 2;
+    string from_message_id = 3;
+    string queue = 4;
+    bool errorIfMissing = 5;
+}
+
+message WatchRequest {
+    string queue = 1;
+    string job_set_id = 2;
+    string from_id = 3;
+}
+
+service Event {
+    rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
+        option (google.api.http) = {
+            post: "/v1/job-set/{queue}/{id}"
+            body: "*"
+        };
+    }
+    rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
+        option deprecated = true;
+    }
+    rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
+}
