@@ -253,6 +253,52 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
 		},
+		"gang preemption": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					// Fill half of node 1 and half of node 2.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPrice("A", 100.0, 16),
+						"B": testfixtures.N1Cpu4GiJobsWithPrice("B", 100.0, 16),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 15),
+						"B": testfixtures.IntRange(0, 15),
+					},
+				},
+				{
+					// Schedule a gang filling the remaining space on both nodes.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobsWithPrice("C", 101.0, 32)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"C": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					// Schedule jobs that requires preempting one job in the gang,
+					// and assert that all jobs in the gang are preempted.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPrice("A", 101.0, 17),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 16),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"C": {
+							1: testfixtures.IntRange(0, 31),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
