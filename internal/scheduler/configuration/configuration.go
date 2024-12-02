@@ -278,6 +278,7 @@ type PoolConfig struct {
 	Name                         string `validate:"required"`
 	AwayPools                    []string
 	ProtectedFractionOfFairShare *float64
+	MarketDriven                 bool
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {

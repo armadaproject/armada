@@ -20,11 +20,19 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
 
+type CandidateGangIterator interface {
+	Peek() (*schedulercontext.GangSchedulingContext, float64, error)
+	Clear() error
+	GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool)
+	OnlyYieldEvicted()
+	OnlyYieldEvictedForQueue(queue string)
+}
+
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
 // Relies on GangScheduler for scheduling once a gang is chosen.
 type QueueScheduler struct {
 	schedulingContext     *schedulercontext.SchedulingContext
-	candidateGangIterator *CandidateGangIterator
+	candidateGangIterator CandidateGangIterator
 	gangScheduler         *GangScheduler
 }
 
@@ -38,6 +46,7 @@ func NewQueueScheduler(
 	considerPriorityClassPriority bool,
 	prioritiseLargerJobs bool,
 	maxQueueLookBack uint,
+	marketDriven bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -52,10 +61,19 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, maxQueueLookBack, true)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
-	if err != nil {
-		return nil, err
+	var candidateGangIterator CandidateGangIterator
+	if marketDriven {
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangIteratorsByQueue)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return &QueueScheduler{
 		schedulingContext:     sctx,
 		candidateGangIterator: candidateGangIterator,
@@ -96,7 +114,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
-
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {
@@ -142,10 +159,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			stats.LastGangScheduledSampleJobId = gctx.JobIds()[0]
 			stats.LastGangScheduledQueueCost = queueCostInclGang
 			stats.LastGangScheduledQueuePosition = loopNumber
-			queue, queueOK := sch.candidateGangIterator.queueRepository.GetQueue(gctx.Queue)
-			if queueOK {
+			allocation, ok := sch.candidateGangIterator.GetAllocationForQueue(gctx.Queue)
+			if ok {
 				stats.LastGangScheduledResources = gctx.TotalResourceRequests
-				stats.LastGangScheduledQueueResources = queue.GetAllocation()
+				stats.LastGangScheduledQueueResources = allocation
 			} else {
 				stats.LastGangScheduledResources = internaltypes.ResourceList{}
 				stats.LastGangScheduledQueueResources = internaltypes.ResourceList{}
@@ -321,10 +338,10 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 	return it.jobsSeen > it.maxLookback
 }
 
-// CandidateGangIterator determines which gang to try scheduling next across queues.
+// CostBasedCandidateGangIterator determines which gang to try scheduling next across queues.
 // Specifically, it yields the next gang in the queue with smallest fraction of its fair share,
 // where the fraction of fair share computation includes the yielded gang.
-type CandidateGangIterator struct {
+type CostBasedCandidateGangIterator struct {
 	pool                 string
 	queueRepository      fairness.QueueRepository
 	fairnessCostProvider fairness.FairnessCostProvider
@@ -338,15 +355,23 @@ type CandidateGangIterator struct {
 	pq QueueCandidateGangIteratorPQ
 }
 
-func NewCandidateGangIterator(
+func (it *CostBasedCandidateGangIterator) GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool) {
+	q, ok := it.queueRepository.GetQueue(queue)
+	if !ok {
+		return internaltypes.ResourceList{}, false
+	}
+	return q.GetAllocation(), true
+}
+
+func NewCostBasedCandidateGangIterator(
 	pool string,
 	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 	considerPriority bool,
 	prioritiseLargerJobs bool,
-) (*CandidateGangIterator, error) {
-	it := &CandidateGangIterator{
+) (*CostBasedCandidateGangIterator, error) {
+	it := &CostBasedCandidateGangIterator{
 		pool:                    pool,
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
@@ -366,17 +391,17 @@ func NewCandidateGangIterator(
 	return it, nil
 }
 
-func (it *CandidateGangIterator) OnlyYieldEvicted() {
+func (it *CostBasedCandidateGangIterator) OnlyYieldEvicted() {
 	it.onlyYieldEvicted = true
 }
 
-func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
+func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
 	it.onlyYieldEvictedByQueue[queue] = true
 }
 
 // Clear removes the first item in the iterator.
 // If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
-func (it *CandidateGangIterator) Clear() error {
+func (it *CostBasedCandidateGangIterator) Clear() error {
 	if it.pq.Len() == 0 {
 		return nil
 	}
@@ -404,7 +429,7 @@ func (it *CandidateGangIterator) Clear() error {
 	return nil
 }
 
-func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
+func (it *CostBasedCandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
 	if it.pq.Len() == 0 {
 		// No queued jobs left.
 		return nil, 0.0, nil
@@ -413,7 +438,7 @@ func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext
 	return first.gctx, first.proposedQueueCost, nil
 }
 
-func (it *CandidateGangIterator) newPQItem(queue string, queueFairShare float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
+func (it *CostBasedCandidateGangIterator) newPQItem(queue string, queueFairShare float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
 	return &QueueCandidateGangIteratorItem{
 		queue:     queue,
 		fairShare: queueFairShare,
@@ -421,7 +446,7 @@ func (it *CandidateGangIterator) newPQItem(queue string, queueFairShare float64,
 	}
 }
 
-func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIteratorItem) (bool, error) {
+func (it *CostBasedCandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIteratorItem) (bool, error) {
 	if err := it.updatePQItem(item); err != nil {
 		return false, err
 	}
@@ -438,7 +463,7 @@ func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIte
 	return true, nil
 }
 
-func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorItem) error {
+func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorItem) error {
 	item.gctx = nil
 	item.proposedQueueCost = 0
 	item.currentQueueCost = 0
@@ -485,7 +510,7 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 }
 
 // returns the queue of the supplied gctx
-func (it *CandidateGangIterator) getQueue(gctx *schedulercontext.GangSchedulingContext) (fairness.Queue, error) {
+func (it *CostBasedCandidateGangIterator) getQueue(gctx *schedulercontext.GangSchedulingContext) (fairness.Queue, error) {
 	gangQueue := gctx.Queue
 	if len(gctx.JobSchedulingContexts) > 0 && !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool) {
 		gangQueue = schedulercontext.CalculateAwayQueueName(gctx.Queue)

@@ -16,7 +16,7 @@ type JobContextIterator interface {
 }
 
 type JobRepository interface {
-	QueuedJobs(queueName string) jobdb.JobIterator
+	QueuedJobs(queueName string, order jobdb.JobSortOrder) jobdb.JobIterator
 	GetById(id string) *jobdb.Job
 }
 
@@ -44,15 +44,17 @@ type InMemoryJobRepository struct {
 	jctxsByQueue map[string][]*schedulercontext.JobSchedulingContext
 	jctxsById    map[string]*schedulercontext.JobSchedulingContext
 	currentPool  string
+	sortOrder    func(a, b *jobdb.Job) int
 	// Protects the above fields.
 	mu sync.Mutex
 }
 
-func NewInMemoryJobRepository(pool string) *InMemoryJobRepository {
+func NewInMemoryJobRepository(pool string, sortOrder func(a, b *jobdb.Job) int) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
 		currentPool:  pool,
 		jctxsByQueue: make(map[string][]*schedulercontext.JobSchedulingContext),
 		jctxsById:    make(map[string]*schedulercontext.JobSchedulingContext),
+		sortOrder:    sortOrder,
 	}
 }
 
@@ -77,7 +79,7 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 // sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) int {
-		return a.Job.SchedulingOrderCompare(b.Job)
+		return repo.sortOrder(a.Job, b.Job)
 	})
 }
 
@@ -115,9 +117,9 @@ type QueuedJobsIterator struct {
 	ctx     *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository, order jobdb.JobSortOrder) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
-		jobIter: repo.QueuedJobs(queue),
+		jobIter: repo.QueuedJobs(queue, order),
 		pool:    pool,
 		ctx:     ctx,
 	}
@@ -166,4 +168,67 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 	} else {
 		return v, err
 	}
+}
+
+// MarketDrivenMultiJobsIterator combines two iterators by price
+type MarketDrivenMultiJobsIterator struct {
+	it1 JobContextIterator
+	it2 JobContextIterator
+
+	// TODO: ideally we add peek() to JobContextIterator and remove these
+	it1Value *schedulercontext.JobSchedulingContext
+	it2Value *schedulercontext.JobSchedulingContext
+}
+
+func NewMarketDrivenMultiJobsIterator(it1, it2 JobContextIterator) *MarketDrivenMultiJobsIterator {
+	return &MarketDrivenMultiJobsIterator{
+		it1: it1,
+		it2: it2,
+	}
+}
+
+func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
+	if it.it1Value == nil {
+		j, err := it.it1.Next()
+		if err != nil {
+			return nil, err
+		}
+		it.it1Value = j
+	}
+
+	if it.it2Value == nil {
+		j, err := it.it2.Next()
+		if err != nil {
+			return nil, err
+		}
+		it.it2Value = j
+	}
+
+	j1 := it.it1Value
+	j2 := it.it2Value
+	// Both iterators active.
+	if it.it1Value != nil && j2 != nil {
+		if (jobdb.MarketSchedulingOrderCompare(j1.Job, j2.Job)) < 0 {
+			it.it1Value = nil
+			return j1, nil
+		} else {
+			it.it2Value = nil
+			return j2, nil
+		}
+	}
+
+	// Only first iterator has job
+	if j1 != nil {
+		it.it1Value = nil
+		return j1, nil
+	}
+
+	// Only second iterator has job
+	if j2 != nil {
+		it.it2Value = nil
+		return j2, nil
+	}
+
+	// If we get to here then both iterators exhausted
+	return nil, nil
 }

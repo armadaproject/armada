@@ -41,6 +41,7 @@ type PreemptingQueueScheduler struct {
 	jobIdsByGangId map[string]map[string]bool
 	// Maps job ids of gang jobs to the id of that gang.
 	gangIdByJobId map[string]string
+	marketDriven  bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -55,6 +56,7 @@ func NewPreemptingQueueScheduler(
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
+	marketDriven bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
@@ -81,6 +83,7 @@ func NewPreemptingQueueScheduler(
 		nodeIdByJobId:                maps.Clone(initialNodeIdByJobId),
 		jobIdsByGangId:               initialJobIdsByGangId,
 		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
+		marketDriven:                 marketDriven,
 	}
 }
 
@@ -121,6 +124,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				if job.NodeSelector() == nil {
 					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.Id())
 					return false
+				}
+				// If we are in market mode then everything is evictable
+				if sch.marketDriven {
+					return true
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
@@ -257,7 +264,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
-		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.Pool), nil
+		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.Pool, jobdb.MarketSchedulingOrderCompare), nil
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -301,7 +308,12 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.evictionAssertions(result); err != nil {
 		return nil, nil, err
 	}
-	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.Pool)
+
+	schedulingOrder := jobdb.SchedulingOrderCompare
+	if sch.marketDriven {
+		schedulingOrder = jobdb.MarketSchedulingOrderCompare
+	}
+	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.Pool, schedulingOrder)
 	inMemoryJobRepo.EnqueueMany(evictedJctxs)
 	txn.Commit()
 
@@ -481,6 +493,7 @@ func (q MinimalQueue) GetWeight() float64 {
 // addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
 // Needed to enable the nodeDb accounting for these when preempting.
 func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository) error {
+	sctx := sch.schedulingContext
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(
@@ -491,9 +504,18 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 		)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sch.schedulingContext)
-	candidateGangIterator, err := NewCandidateGangIterator(sch.schedulingContext.Pool, qr, sch.schedulingContext.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
-	if err != nil {
-		return err
+	var candidateGangIterator CandidateGangIterator
+	var err error
+	if sch.marketDriven {
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
+		if err != nil {
+			return err
+		}
+	} else {
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		if err != nil {
+			return err
+		}
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -528,14 +550,22 @@ func (sch *PreemptingQueueScheduler) schedule(
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityCLassPriority bool,
 ) (*SchedulerResult, error) {
+	sortOrder := jobdb.FairShareOrder
+	if sch.marketDriven {
+		sortOrder = jobdb.PriceOrder
+	}
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo)
-			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
+			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo, sortOrder)
+			if sch.marketDriven {
+				jobIteratorByQueue[qctx.Queue] = NewMarketDrivenMultiJobsIterator(evictedIt, queueIt)
+			} else {
+				jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
+			}
 		}
 	}
 
@@ -552,6 +582,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		considerPriorityCLassPriority,
 		sch.preferLargeJobOrdering,
 		sch.maxQueueLookBack,
+		sch.marketDriven,
 	)
 	if err != nil {
 		return nil, err

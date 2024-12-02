@@ -788,6 +788,15 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiExperimentalPriceInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"bidPrice\": {\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiIngressConfig\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -845,6 +854,9 @@ func SwaggerJsonTemplate() string {
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"experimentalPriceInfo\": {\n" +
+		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
 		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
@@ -904,11 +916,6 @@ func SwaggerJsonTemplate() string {
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
-		"        },\n" +
-		"        \"queueTtlSeconds\": {\n" +
-		"          \"description\": \"Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"int64\"\n" +
 		"        },\n" +
 		"        \"requiredNodeLabels\": {\n" +
 		"          \"type\": \"object\",\n" +
@@ -1733,6 +1740,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"experimentalPriceInfo\": {\n" +
+		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
 		"        },\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +

@@ -836,6 +836,50 @@ func TestValidateQueue(t *testing.T) {
 	}
 }
 
+func TestValidatePrice(t *testing.T) {
+	tests := map[string]struct {
+		item          *api.JobSubmitRequestItem
+		expectSuccess bool
+	}{
+		"nil ExperimentalPriceInfo is ok": {
+			item:          &api.JobSubmitRequestItem{},
+			expectSuccess: true,
+		},
+		"zero price is ok": {
+			item: &api.JobSubmitRequestItem{
+				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{},
+			},
+			expectSuccess: true,
+		},
+		"positive price is ok": {
+			item: &api.JobSubmitRequestItem{
+				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{
+					BidPrice: 1.0,
+				},
+			},
+			expectSuccess: true,
+		},
+		"negative price is rejected": {
+			item: &api.JobSubmitRequestItem{
+				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{
+					BidPrice: -1.0,
+				},
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validatePrice(tc.item, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateResources(t *testing.T) {
 	oneCpu := v1.ResourceList{
 		v1.ResourceCPU: resource.MustParse("1"),

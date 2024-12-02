@@ -160,6 +160,13 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		podSpecs = k8sPodSpecs
 	}
 
+	var priceInfo *api.ExperimentalPriceInfo
+	if e.ExperimentalPriceInfo != nil {
+		priceInfo = &api.ExperimentalPriceInfo{
+			BidPrice: e.ExperimentalPriceInfo.BidPrice,
+		}
+	}
+
 	return &api.Job{
 		Id:       e.JobId,
 		ClientId: e.DeduplicationId,
@@ -170,10 +177,10 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Labels:      e.ObjectMeta.Labels,
 		Annotations: e.ObjectMeta.Annotations,
 
-		K8SIngress: k8sIngresses,
-		K8SService: k8sServices,
-
-		Priority: float64(e.Priority),
+		K8SIngress:            k8sIngresses,
+		K8SService:            k8sServices,
+		ExperimentalPriceInfo: priceInfo,
+		Priority:              float64(e.Priority),
 
 		PodSpec:                        podSpec,
 		PodSpecs:                       podSpecs,
