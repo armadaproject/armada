@@ -197,7 +197,7 @@ func newCycleMetrics() *cycleMetrics {
 	spotPrice := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "spot_price",
-			Help: "spop price for given pool",
+			Help: "spot price for given pool",
 		},
 		poolLabels,
 	)
