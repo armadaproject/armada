@@ -293,11 +293,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					},
 				},
 			},
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-				"C": 1,
-			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
 		},
 	}
 	for name, tc := range tests {
