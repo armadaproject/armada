@@ -62,6 +62,7 @@ grpc:
 scheduling:
   pools:
     - name: default
+      marketDriven: true
   supportedResourceTypes:
     - name: memory
       resolution: "1"
