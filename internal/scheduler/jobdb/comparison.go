@@ -113,30 +113,23 @@ func MarketSchedulingOrderCompare(job, other *Job) int {
 		return 1
 	}
 
-	// PriorityClassPriority indicates urgency.
-	// Hence, jobs of higher priorityClassPriority come first.
-	if job.priorityClass.Priority > other.priorityClass.Priority {
+	// Next put a job with an active run ahead of queued jobs
+	jobIsActive := job.activeRun != nil && !job.activeRun.InTerminalState()
+	otherIsActive := other.activeRun != nil && !other.activeRun.InTerminalState()
+	if jobIsActive && !otherIsActive {
 		return -1
-	} else if job.priorityClass.Priority < other.priorityClass.Priority {
-		return 1
 	}
-
-	// Jobs higher in queue-priority come first.
-	if job.priority < other.priority {
-		return -1
-	} else if job.priority > other.priority {
+	if !jobIsActive && otherIsActive {
 		return 1
 	}
 
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
 	// which reduces wasted compute time when preempting.
-	jobIsActive := job.activeRun != nil && !job.activeRun.InTerminalState()
-	otherIsActive := other.activeRun != nil && !other.activeRun.InTerminalState()
 	if jobIsActive && otherIsActive {
-		if job.activeRunTimestamp < other.activeRunTimestamp {
+		if job.activeRunTimestamp > other.activeRunTimestamp {
 			return -1
-		} else if job.activeRunTimestamp > other.activeRunTimestamp {
+		} else if job.activeRunTimestamp < other.activeRunTimestamp {
 			return 1
 		}
 	}
