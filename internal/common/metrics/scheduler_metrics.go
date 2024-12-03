@@ -23,6 +23,7 @@ var QueueDistinctSchedulingKeysDesc = prometheus.NewDesc(
 	[]string{"queueName", "queue"},
 	nil,
 )
+
 var MinQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_min",
 	"Minimum price of queued jobs",
