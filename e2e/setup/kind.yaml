@@ -3,6 +3,8 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: armada-test
 featureGates:
   "KubeletInUserNamespace": true
+networking:
+  apiServerAddress: 0.0.0.0
 nodes:
 - role: worker
   image: kindest/node:v1.26.15
@@ -28,3 +30,4 @@ nodes:
   - containerPort: 6443 # control plane
     hostPort: 6443  # exposes control plane on localhost:6443
     protocol: TCP
+

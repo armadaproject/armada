@@ -56,6 +56,7 @@ func makeTestNode(id string) *internaltypes.Node {
 		[]v1.Taint{},
 		map[string]string{},
 		internaltypes.ResourceList{},
+		nil,
 		map[int32]internaltypes.ResourceList{},
 		map[string]internaltypes.ResourceList{},
 		map[string]internaltypes.ResourceList{},

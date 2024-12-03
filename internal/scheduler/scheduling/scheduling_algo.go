@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -126,14 +127,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			continue
 		}
 
-		ctx.Infof("Scheduling on pool %s with capacity %s %s",
-			pool,
-			fsctx.nodeDb.TotalKubernetesResources().String(),
-			l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name).String(),
-		)
-
 		start := time.Now()
-		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name)
+		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name, pool.MarketDriven)
 
 		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool, time.Now().Sub(start), err)
 
@@ -516,24 +511,35 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	ctx *armadacontext.Context,
 	fsctx *FairSchedulingAlgoContext,
 	pool string,
+	marketDriven bool,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
 
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
+	protectedFractionOfFairShare := l.schedulingConfig.GetProtectedFractionOfFairShare(pool)
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,
 		constraints,
 		l.floatingResourceTypes,
-		l.schedulingConfig.ProtectedFractionOfFairShare,
+		l.schedulingConfig.EnablePreferLargeJobOrdering,
+		protectedFractionOfFairShare,
 		l.schedulingConfig.MaxQueueLookback,
 		fsctx.Txn,
 		fsctx.nodeDb,
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
+		marketDriven,
 	)
+
+	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f",
+		pool,
+		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool)).String(),
+		protectedFractionOfFairShare,
+	)
+
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -568,6 +574,13 @@ func (l *FairSchedulingAlgo) SchedulePool(
 			WithQueued(false).
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool, priority)
 	}
+
+	if marketDriven {
+		fractionAllocated := fsctx.schedulingContext.FairnessCostProvider.UnweightedCostFromAllocation(fsctx.schedulingContext.Allocated)
+		price := l.calculateSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
+		fsctx.schedulingContext.SpotPrice = price
+	}
+
 	return result, fsctx.schedulingContext, nil
 }
 
@@ -695,4 +708,40 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		}
 	}
 	return activeExecutors
+}
+
+func (l *FairSchedulingAlgo) calculateSpotPrice(initialRunningJobIds []string, scheduledJobs, preemptedJobs []*schedulercontext.JobSchedulingContext, fractionAllocated float64, txn *jobdb.Txn) float64 {
+	// If we've allocated less that 95% of available resources then we don't charge.
+	// TODO: make this configurable
+	if fractionAllocated < 0.95 {
+		return 0.0
+	}
+
+	allRunningJobIds := make(map[string]bool, len(initialRunningJobIds))
+	for _, jobId := range initialRunningJobIds {
+		allRunningJobIds[jobId] = true
+	}
+
+	for _, scheduledJob := range scheduledJobs {
+		allRunningJobIds[scheduledJob.JobId] = true
+	}
+
+	for _, preemptedJob := range preemptedJobs {
+		delete(allRunningJobIds, preemptedJob.JobId)
+	}
+
+	// Find the minimum bid price among running jobs
+	minPrice := math.MaxFloat64
+	for jobId := range allRunningJobIds {
+		job := txn.GetById(jobId)
+		if job != nil && job.BidPrice() < minPrice {
+			minPrice = job.BidPrice()
+		}
+	}
+
+	// Return the lowest bid price, or 0 if no valid price was found
+	if minPrice == math.MaxFloat64 {
+		return 0.0
+	}
+	return minPrice
 }

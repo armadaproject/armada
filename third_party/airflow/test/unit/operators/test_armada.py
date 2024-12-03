@@ -4,9 +4,10 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-from airflow.exceptions import AirflowException, TaskDeferred
+from airflow.exceptions import TaskDeferred
 from armada.model import GrpcChannelArgs, RunningJobContext
 from armada.operators.armada import ArmadaOperator
+from armada.operators.errors import ArmadaOperatorJobFailedError
 from armada.triggers import ArmadaPollJobTrigger
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.typings import JobState
@@ -24,6 +25,8 @@ def default_hook() -> MagicMock:
     mock = MagicMock()
     job_context = running_job_context()
     mock.submit_job.return_value = job_context
+    mock.job_by_external_job_uri.return_value = None
+    mock.job_termination_reason.return_value = "FAILED"
     mock.refresh_context.return_value = dataclasses.replace(
         job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
     )
@@ -50,7 +53,7 @@ def mock_operator_dependencies():
 def context():
     mock_ti = MagicMock()
     mock_ti.task_id = DEFAULT_TASK_ID
-    mock_ti.try_number = 0
+    mock_ti.try_number = 1
     mock_ti.xcom_pull.return_value = None
 
     mock_dag = MagicMock()
@@ -166,12 +169,12 @@ def test_execute_fail(terminal_state, context):
         for s in [JobState.RUNNING, terminal_state]
     ]
 
-    with pytest.raises(AirflowException) as exec_info:
+    with pytest.raises(ArmadaOperatorJobFailedError) as exec_info:
         op.execute(context)
 
     # Error message contain terminal state and job id
     assert DEFAULT_JOB_ID in str(exec_info)
-    assert terminal_state.name in str(exec_info)
+    assert terminal_state.name.capitalize() in str(exec_info)
 
     op.hook.submit_job.assert_called_once_with(
         DEFAULT_QUEUE, DEFAULT_JOB_SET, op.job_request
@@ -199,12 +202,12 @@ def test_not_acknowledged_within_timeout_terminates_running_job(context):
     op = operator(JobSubmitRequestItem(), job_acknowledgement_timeout_s=-1)
     op.hook.refresh_context.return_value = job_context
 
-    with pytest.raises(AirflowException) as exec_info:
+    with pytest.raises(ArmadaOperatorJobFailedError) as exec_info:
         op.execute(context)
 
     # Error message contain terminal state and job id
     assert DEFAULT_JOB_ID in str(exec_info)
-    assert JobState.CANCELLED.name in str(exec_info)
+    assert JobState.CANCELLED.name.capitalize() in str(exec_info)
 
     # We also cancel already submitted job
     op.hook.cancel_job.assert_called_once_with(job_context)

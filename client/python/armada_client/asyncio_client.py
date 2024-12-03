@@ -202,6 +202,39 @@ class ArmadaAsyncIOClient:
         resp = await self.job_stub.GetJobStatus(req)
         return resp
 
+    async def get_job_status_by_external_job_uri(
+        self, queue: str, job_set_id: str, external_job_uri: str
+    ) -> job_pb2.JobDetailsResponse:
+        """
+        Retrieves the status of a job based on externalJobUri annotation.
+
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set (a grouping of jobs)
+        :param external_job_uri: externalJobUri annotation value
+
+        :returns: The response from the server containing the job status.
+        :rtype: JobStatusResponse
+        """
+        req = job_pb2.JobStatusUsingExternalJobUriRequest(
+            queue=queue, jobset=job_set_id, external_job_uri=external_job_uri
+        )
+        resp = await self.job_stub.GetJobStatusUsingExternalJobUri(req)
+        return resp
+
+    async def get_job_errors(self, job_ids: List[str]) -> job_pb2.JobErrorsResponse:
+        """
+        Retrieves termination reason from query api.
+
+        :param job_ids: A list of unique job identifiers.
+        :type job_ids: List[str]
+
+        :returns: The response from the server containing the job errors.
+        :rtype: JobErrorsResponse
+        """
+        req = job_pb2.JobErrorsRequest(job_ids=job_ids)
+        resp = await self.job_stub.GetJobErrors(req)
+        return resp
+
     async def get_job_details(self, job_ids: List[str]) -> job_pb2.JobDetailsResponse:
         """
         Asynchronously retrieves the details of a job from Armada.

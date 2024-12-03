@@ -59,7 +59,7 @@ type JobSchedulingContext struct {
 	GangInfo
 	// This is the node the pod is assigned to.
 	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
-	AssignedNodeId string
+	AssignedNode *internaltypes.Node
 	// Id of job that preempted this pod
 	PreemptingJobId string
 	// Description of the cause of preemption
@@ -109,14 +109,21 @@ func (jctx *JobSchedulingContext) Fail(unschedulableReason string) {
 	}
 }
 
-func (jctx *JobSchedulingContext) GetAssignedNodeId() string {
-	return jctx.AssignedNodeId
+func (jctx *JobSchedulingContext) GetAssignedNode() *internaltypes.Node {
+	return jctx.AssignedNode
 }
 
-func (jctx *JobSchedulingContext) SetAssignedNodeId(assignedNodeId string) {
-	if assignedNodeId != "" {
-		jctx.AssignedNodeId = assignedNodeId
-		jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, assignedNodeId)
+func (jctx *JobSchedulingContext) GetAssignedNodeId() string {
+	if jctx.AssignedNode == nil {
+		return ""
+	}
+	return jctx.AssignedNode.GetId()
+}
+
+func (jctx *JobSchedulingContext) SetAssignedNode(assignedNode *internaltypes.Node) {
+	if assignedNode != nil {
+		jctx.AssignedNode = assignedNode
+		jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, assignedNode.GetId())
 	}
 }
 

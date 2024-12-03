@@ -3,6 +3,7 @@ package internaltypes
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"golang.org/x/exp/slices"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
@@ -44,16 +45,17 @@ func (rl ResourceList) Equal(other ResourceList) bool {
 
 func (rl ResourceList) String() string {
 	if rl.IsEmpty() {
-		return "empty"
+		return "(empty)"
 	}
-	result := ""
+
+	parts := []string{}
 	for i, name := range rl.factory.indexToName {
-		if i > 0 {
-			result += " "
+		if rl.resources[i] == 0 {
+			continue
 		}
-		result += fmt.Sprintf("%s=%s", name, rl.asQuantity(i).String())
+		parts = append(parts, fmt.Sprintf("%s=%s", name, rl.asQuantity(i).String()))
 	}
-	return result
+	return "(" + strings.Join(parts, ",") + ")"
 }
 
 func (rl ResourceList) GetByName(name string) (int64, error) {

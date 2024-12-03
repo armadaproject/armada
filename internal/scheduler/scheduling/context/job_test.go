@@ -6,21 +6,26 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	ittestfixtures "github.com/armadaproject/armada/internal/scheduler/internaltypes/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestJobSchedulingContext_SetAssignedNodeId(t *testing.T) {
+func TestJobSchedulingContext_SetAssignedNode(t *testing.T) {
 	jctx := &JobSchedulingContext{}
 
-	assert.Equal(t, "", jctx.GetAssignedNodeId())
+	assert.Nil(t, jctx.GetAssignedNode())
+	assert.Empty(t, jctx.GetAssignedNodeId())
 	assert.Empty(t, jctx.AdditionalNodeSelectors)
 
-	// Will not add a node selector if input is empty
-	jctx.SetAssignedNodeId("")
-	assert.Equal(t, "", jctx.GetAssignedNodeId())
+	// Will not add a node selector if input is nil
+	jctx.SetAssignedNode(nil)
+	assert.Nil(t, jctx.GetAssignedNode())
+	assert.Empty(t, jctx.GetAssignedNodeId())
 	assert.Empty(t, jctx.AdditionalNodeSelectors)
 
-	jctx.SetAssignedNodeId("node1")
+	n := ittestfixtures.TestSimpleNode("node1")
+	jctx.SetAssignedNode(n)
+	assert.Equal(t, n, jctx.GetAssignedNode())
 	assert.Equal(t, "node1", jctx.GetAssignedNodeId())
 	assert.Len(t, jctx.AdditionalNodeSelectors, 1)
 	assert.Equal(t, map[string]string{configuration.NodeIdLabel: "node1"}, jctx.AdditionalNodeSelectors)

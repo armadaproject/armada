@@ -395,11 +395,11 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "queue1", PriorityFactor: 0.01}, {Name: "queue2", PriorityFactor: 0.01}},
-			queuedJobs:       testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass0, 1),
+			queuedJobs:       testfixtures.N32Cpu256GiJobs("queue2", testfixtures.PriorityClass0, 1),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu16GiJobs("queue1", testfixtures.PriorityClass0, 2)),
 						acknowledged: true,
 					},
 				},

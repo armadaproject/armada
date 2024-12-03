@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -341,6 +342,45 @@ func TestReportJobStateTransitions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCategoriseErrors(t *testing.T) {
+	run := baseRun.
+		WithExecutor(testCluster).
+		WithNodeName(testNode).
+		WithPool(testPool)
+
+	job := baseJob.WithUpdatedRun(run)
+
+	r, err := regexp.Compile("generic pod error")
+	require.NoError(t, err)
+
+	jobRunErrorsByRunId := map[string]*armadaevents.Error{
+		run.Id(): {
+			Terminal: true,
+			Reason: &armadaevents.Error_PodError{
+				PodError: &armadaevents.PodError{
+					Message: "generic pod error",
+				},
+			},
+		},
+	}
+
+	jsts := []jobdb.JobStateTransitions{
+		{
+			Job:    job,
+			Failed: true,
+		},
+	}
+
+	metrics := newJobStateMetrics([]*regexp.Regexp{r}, []v1.ResourceName{"cpu"}, 12*time.Hour)
+	metrics.ReportStateTransitions(jsts, jobRunErrorsByRunId)
+
+	actualjobErrorsByQueue := testutil.ToFloat64(metrics.jobErrorsByQueue.WithLabelValues(testQueue, testPool, "podError", "generic pod error"))
+	assert.InDelta(t, 1, actualjobErrorsByQueue, epsilon)
+
+	actualjobErrorsByNode := testutil.ToFloat64(metrics.jobErrorsByNode.WithLabelValues(testNode, testPool, testCluster, "podError", "generic pod error"))
+	assert.InDelta(t, 1, actualjobErrorsByNode, epsilon)
 }
 
 func TestReset(t *testing.T) {

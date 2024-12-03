@@ -192,7 +192,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			// TODO(albin): We can remove the checkOnlyDynamicRequirements flag in the nodeDb now that we've added the tolerations.
 			jctx := schedulercontext.JobSchedulingContextFromJob(job)
 			jctx.IsEvicted = true
-			jctx.SetAssignedNodeId(node.GetId())
+			jctx.SetAssignedNode(node)
 			evictedJctxsByJobId[job.Id()] = jctx
 			jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, node.GetTolerationsForTaints()...)
 

@@ -164,6 +164,11 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		return nil, err
 	}
 
+	bidPrice := 0.0
+	if job.ExperimentalPriceInfo != nil {
+		bidPrice = job.ExperimentalPriceInfo.BidPrice
+	}
+
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
@@ -174,6 +179,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		QueuedVersion:         0,
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
+		BidPrice:              bidPrice,
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),

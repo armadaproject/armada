@@ -129,6 +129,35 @@ func TestJobDb_TestHasQueuedJobs(t *testing.T) {
 	assert.False(t, txn.HasQueuedJobs("non-existent-queue"))
 }
 
+func TestJobDb_TestQueuedJobsWithPriceOrdering(t *testing.T) {
+	a := newJob().WithQueued(true).WithBidPrice(100.0).WithSubmittedTime(4)
+	b := newJob().WithQueued(true).WithBidPrice(99.0).WithSubmittedTime(3)
+	c := newJob().WithQueued(true).WithBidPrice(101.0).WithSubmittedTime(2)
+	d := newJob().WithQueued(true).WithBidPrice(100.0).WithSubmittedTime(1)
+
+	txn := jobDb.WriteTxn()
+	err := txn.Upsert([]*Job{a, b, c, d})
+	require.NoError(t, err)
+
+	iter := txn.QueuedJobs("test-queue", PriceOrder)
+
+	job, ok := iter.Next()
+	require.True(t, ok)
+	assert.Equal(t, c, job)
+
+	job, ok = iter.Next()
+	require.True(t, ok)
+	assert.Equal(t, d, job)
+
+	job, ok = iter.Next()
+	require.True(t, ok)
+	assert.Equal(t, a, job)
+
+	job, ok = iter.Next()
+	require.True(t, ok)
+	assert.Equal(t, b, job)
+}
+
 func TestJobDb_TestQueuedJobs(t *testing.T) {
 	jobDb := NewTestJobDb()
 	jobs := make([]*Job, 10)
@@ -145,7 +174,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	require.NoError(t, err)
 	collect := func() []*Job {
 		retrieved := make([]*Job, 0)
-		iter := txn.QueuedJobs(jobs[0].Queue())
+		iter := txn.QueuedJobs(jobs[0].Queue(), FairShareOrder)
 		for !iter.Done() {
 			j, _ := iter.Next()
 			retrieved = append(retrieved, j)
@@ -268,7 +297,7 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		},
 	}
 	jobDb := NewTestJobDb()
-	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
+	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, 0.0, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
 	assert.Nil(t, err)
 	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), job.SchedulingKey())
 }
