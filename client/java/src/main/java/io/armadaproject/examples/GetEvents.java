@@ -4,9 +4,9 @@ import api.EventOuterClass.JobSetRequest;
 import io.armadaproject.ArmadaClient;
 import java.util.logging.Logger;
 
-public class EventExample {
+public class GetEvents {
 
-  private static final Logger LOG = Logger.getLogger(EventExample.class.getName());
+  private static final Logger LOG = Logger.getLogger(GetEvents.class.getName());
 
   public static void main(String[] args) {
     ArmadaClient armadaClient = new ArmadaClient("localhost", 30002);
@@ -16,7 +16,10 @@ public class EventExample {
         .setQueue("example")
         .setErrorIfMissing(true)
         .build();
-    armadaClient.getEvents(jobSetRequest).forEachRemaining(e -> LOG.info("event:" + e));
+
+    armadaClient.getEvents(jobSetRequest).forEachRemaining(e -> {
+      LOG.info("event:" + e);
+    });
   }
 
 }

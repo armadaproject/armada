@@ -5,11 +5,18 @@ import api.EventOuterClass.EventStreamMessage;
 import api.EventOuterClass.JobSetRequest;
 import api.Health.HealthCheckResponse;
 import api.Health.HealthCheckResponse.ServingStatus;
+import api.Job.JobStatusRequest;
+import api.Job.JobStatusResponse;
+import api.JobsGrpc;
 import api.SubmitGrpc;
 import api.SubmitOuterClass.CancellationResult;
 import api.SubmitOuterClass.JobCancelRequest;
 import api.SubmitOuterClass.JobSubmitRequest;
 import api.SubmitOuterClass.JobSubmitResponse;
+import api.SubmitOuterClass.Queue;
+import api.SubmitOuterClass.QueueGetRequest;
+import api.SubmitOuterClass.StreamingQueueGetRequest;
+import api.SubmitOuterClass.StreamingQueueMessage;
 import com.google.protobuf.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -68,6 +75,22 @@ public class ArmadaClient {
   public Iterator<EventStreamMessage> getEvents(JobSetRequest jobSetRequest) {
     EventGrpc.EventBlockingStub eventBlockingStub = EventGrpc.newBlockingStub(channel);
     return eventBlockingStub.getJobSetEvents(jobSetRequest);
+  }
+
+  public Queue getQueue(QueueGetRequest queueGetRequest) {
+    SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
+    return submitBlockingStub.getQueue(queueGetRequest);
+  }
+
+  public Iterator<StreamingQueueMessage> getQueueInfo(
+      StreamingQueueGetRequest streamingQueueGetRequest) {
+    SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
+    return submitBlockingStub.getQueues(streamingQueueGetRequest);
+  }
+
+  public JobStatusResponse getJobStatus(JobStatusRequest jobStatusRequest) {
+    JobsGrpc.JobsBlockingStub jobsBlockingStub = JobsGrpc.newBlockingStub(channel);
+    return jobsBlockingStub.getJobStatus(jobStatusRequest);
   }
 
 }
