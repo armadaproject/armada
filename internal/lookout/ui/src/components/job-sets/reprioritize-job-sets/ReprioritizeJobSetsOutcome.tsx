@@ -1,5 +1,4 @@
-import React from "react"
-
+import { LoadingButton } from "@mui/lab"
 import {
   List,
   ListItem,
@@ -11,10 +10,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-} from "@material-ui/core"
+} from "@mui/material"
 
 import { ReprioritizeJobSetsResponse } from "../../../services/lookoutV2/UpdateJobSetsService"
-import LoadingButton from "../../jobs/LoadingButton"
 
 import "./ReprioritizeJobSets.css"
 import "../../Dialog.css"
@@ -28,14 +26,19 @@ type ReprioritizeJobSetsOutcomeProps = {
   onReprioritizeJobSets: () => void
 }
 
-export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOutcomeProps) {
+export default function ReprioritizeJobSetsOutcome({
+  reprioritizeJobSetResponse,
+  newPriority,
+  onReprioritizeJobSets,
+  isLoading,
+}: ReprioritizeJobSetsOutcomeProps) {
   return (
     <div className="lookout-dialog-container">
-      {props.reprioritizeJobSetResponse.reprioritizedJobSets.length > 0 && (
+      {reprioritizeJobSetResponse.reprioritizedJobSets.length > 0 && (
         <>
           <p className="lookout-dialog-fixed">The following Job Sets were reprioritized successfully:</p>
           <List component={Paper} className="lookout-dialog-varying success">
-            {props.reprioritizeJobSetResponse.reprioritizedJobSets.map((jobSet) => (
+            {reprioritizeJobSetResponse.reprioritizedJobSets.map((jobSet) => (
               <ListItem key={jobSet.jobSetId} className="lookout-word-wrapped">
                 <ListItemText>{jobSet.jobSetId}</ListItemText>
               </ListItem>
@@ -43,7 +46,7 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
           </List>
         </>
       )}
-      {props.reprioritizeJobSetResponse.failedJobSetReprioritizations.length > 0 && (
+      {reprioritizeJobSetResponse.failedJobSetReprioritizations.length > 0 && (
         <>
           <p className="lookout-dialog-fixed">The following Job Sets failed to reprioritize:</p>
           <TableContainer component={Paper} className="lookout-dialog-varying lookout-table-container">
@@ -55,7 +58,7 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
                 </TableRow>
               </TableHead>
               <TableBody className="failure">
-                {props.reprioritizeJobSetResponse.failedJobSetReprioritizations.map((failedReprioritization) => (
+                {reprioritizeJobSetResponse.failedJobSetReprioritizations.map((failedReprioritization) => (
                   <TableRow key={failedReprioritization.jobSet.jobSetId}>
                     <TableCell className="job-sets-action-id lookout-word-wrapped">
                       {failedReprioritization.jobSet.jobSetId}
@@ -69,11 +72,9 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
             </Table>
           </TableContainer>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
-            <LoadingButton
-              content={`Retry - New priority: ${props.newPriority}`}
-              isLoading={props.isLoading}
-              onClick={props.onReprioritizeJobSets}
-            />
+            <LoadingButton loading={isLoading} variant="contained" onClick={onReprioritizeJobSets}>
+              Retry - New priority: {newPriority}
+            </LoadingButton>
           </div>
         </>
       )}

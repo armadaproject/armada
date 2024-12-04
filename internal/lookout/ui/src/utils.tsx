@@ -1,3 +1,5 @@
+import { Component, FC } from "react"
+
 import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { BinocularsApi, Configuration, ConfigurationParameters } from "./openapi/binoculars"
@@ -121,7 +123,7 @@ export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): 
   }
 }
 
-export function setStateAsync<T>(component: React.Component<any, T>, state: T): Promise<void> {
+export function setStateAsync<T>(component: Component<any, T>, state: T): Promise<void> {
   return new Promise((resolve) => {
     component.setState(state, resolve)
   })
@@ -215,14 +217,14 @@ export interface PropsWithRouter {
   router: Router
 }
 
-export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): React.FC<Omit<T, "router">> {
+export function withRouter<T extends PropsWithRouter>(Component: FC<T>): FC<Omit<T, "router">> {
   function ComponentWithRouterProp(props: T) {
     const location = useLocation()
     const navigate = useNavigate()
     const params = useParams()
     return <Component {...props} router={{ location, navigate, params }} />
   }
-  return ComponentWithRouterProp as React.FC<Omit<T, "router">>
+  return ComponentWithRouterProp as FC<Omit<T, "router">>
 }
 
 export const PlatformCancelReason = "Platform error marked by user"

@@ -1,6 +1,4 @@
-import React from "react"
-
-import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core"
+import { AppBar, Tab, Tabs, Toolbar, Typography } from "@mui/material"
 import { Link } from "react-router-dom"
 
 import { Router, withRouter } from "../utils"
@@ -71,6 +69,8 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
               const newLocation = locationFromIndex(PAGES, newIndex)
               router.navigate(newLocation)
             }}
+            textColor="inherit"
+            indicatorColor="secondary"
           >
             {PAGES.map((page, idx) => (
               <Tab key={idx} label={page.title} component={Link} to={page.location} />

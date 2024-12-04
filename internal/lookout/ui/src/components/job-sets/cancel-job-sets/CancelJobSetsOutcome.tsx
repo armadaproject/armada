@@ -1,5 +1,4 @@
-import React from "react"
-
+import { LoadingButton } from "@mui/lab"
 import {
   Checkbox,
   List,
@@ -12,10 +11,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-} from "@material-ui/core"
+} from "@mui/material"
 
 import { CancelJobSetsResponse } from "../../../services/lookoutV2/UpdateJobSetsService"
-import LoadingButton from "../../jobs/LoadingButton"
 
 import "./CancelJobSets.css"
 import "../../Dialog.css"
@@ -93,7 +91,9 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
             />
           </div>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
-            <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
+            <LoadingButton loading={props.isLoading} onClick={props.onCancelJobs}>
+              Retry
+            </LoadingButton>
           </div>
         </>
       )}
