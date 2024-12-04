@@ -237,6 +237,8 @@ func Run(config schedulerconfig.Configuration) error {
 	submitChecker := NewSubmitChecker(
 		config.Scheduling,
 		executorRepository,
+		queueCache,
+		floatingResourceTypes,
 		resourceListFactory,
 	)
 	services = append(services, func() error {
