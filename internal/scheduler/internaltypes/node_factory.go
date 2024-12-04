@@ -5,6 +5,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	v1 "k8s.io/api/core/v1"
 )
 
 type NodeFactory struct {
@@ -42,6 +43,49 @@ func NewNodeFactory(
 		resourceListFactory: resourceListFactory,
 		nodeIndexCounter:    0,
 	}
+}
+
+func (f *NodeFactory) NewNode(node *schedulerobjects.Node,
+	id string,
+	executor string,
+	name string,
+	pool string,
+	taints []v1.Taint,
+	labels map[string]string,
+	totalResources ResourceList,
+	unallocatableResources map[int32]ResourceList,
+	allocatableByPriority map[int32]ResourceList,
+	allocatedByQueue map[string]ResourceList,
+	allocatedByJobId map[string]ResourceList,
+	evictedJobRunIds map[string]bool,
+) *Node {
+
+	nodeType := NewNodeType(
+		taints,
+		labels,
+		f.indexedTaints,
+		f.indexedNodeLabels,
+	)
+
+	f.nodeIndexCounter++
+
+	return CreateNode(
+		node.Id,
+		nodeType,
+		f.nodeIndexCounter,
+		node.Executor,
+		node.Name,
+		node.Pool,
+		taints,
+		labels,
+		totalResources,
+		unallocatableResources,
+		allocatableByPriority,
+		allocatedByQueue,
+		allocatedByJobId,
+		evictedJobRunIds,
+		nil,
+	)
 }
 
 func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) (*Node, error) {

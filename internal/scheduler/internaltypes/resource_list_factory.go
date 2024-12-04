@@ -75,6 +75,14 @@ func (factory *ResourceListFactory) MakeAllZero() ResourceList {
 	return ResourceList{resources: result, factory: factory}
 }
 
+func (factory *ResourceListFactory) MakeAllMax() ResourceList {
+	result := make([]int64, len(factory.indexToName))
+	for i := range result {
+		result[i] = math.MaxInt64
+	}
+	return ResourceList{resources: result, factory: factory}
+}
+
 // Ignore unknown resources, round down.
 func (factory *ResourceListFactory) FromNodeProto(resources map[string]k8sResource.Quantity) ResourceList {
 	result := make([]int64, len(factory.indexToName))

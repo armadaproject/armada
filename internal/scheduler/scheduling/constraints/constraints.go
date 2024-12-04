@@ -18,6 +18,7 @@ import (
 type SchedulingConstraints interface {
 	CheckRoundConstraints(sctx *context.SchedulingContext) (bool, string, error)
 	CheckJobConstraints(sctx *context.SchedulingContext, gctx *context.GangSchedulingContext) (bool, string, error)
+	GetQueueResourceLimit(queueName string, priorityClassName string) internaltypes.ResourceList
 	CapResources(queue string, resourcesByPc map[string]internaltypes.ResourceList) map[string]internaltypes.ResourceList
 }
 
@@ -139,14 +140,20 @@ func (constraints *schedulingConstraints) CheckJobConstraints(
 		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
 	}
 
-	// Quantity scheduled by queue and priority class
-	queueLimit, haslimit := constraints.resourceLimitsPerQueuePerPriorityClass[qctx.Queue][gctx.PriorityClassName]
+	queueLimit := constraints.GetQueueResourceLimit(qctx.Queue, gctx.PriorityClassName)
 	allocatedResources := qctx.AllocatedByPriorityClass[gctx.PriorityClassName]
-	if haslimit && allocatedResources.Exceeds(queueLimit) {
+	if !queueLimit.IsEmpty() && allocatedResources.Exceeds(queueLimit) {
 		return false, UnschedulableReasonMaximumResourcesExceeded, nil
 	}
 
 	return true, "", nil
+}
+
+func (constraints *schedulingConstraints) GetQueueResourceLimit(
+	queueName string,
+	priorityClassName string,
+) internaltypes.ResourceList {
+	return constraints.resourceLimitsPerQueuePerPriorityClass[queueName][priorityClassName]
 }
 
 func (c *schedulingConstraints) CapResources(queue string, resourcesByPc map[string]internaltypes.ResourceList) map[string]internaltypes.ResourceList {

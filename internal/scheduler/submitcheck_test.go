@@ -15,10 +15,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
@@ -52,6 +54,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		executors      []*schedulerobjects.Executor
 		jobs           []*jobdb.Job
 		expectedResult map[string]schedulingResult
+		queue          *api.Queue
 	}{
 		"One job schedulable": {
 			executorTimout: defaultTimeout,
@@ -226,17 +229,74 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallJob1.Id():       {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
+		"One job exceeds queue fraction limit": {
+			executorTimout: defaultTimeout,
+			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:           []*jobdb.Job{smallJob1},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: false},
+			},
+			queue: &api.Queue{
+				Name:           "queue",
+				PriorityFactor: 100,
+				ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{
+					testfixtures.PriorityClass1: {
+						MaximumResourceFraction: map[string]float64{
+							"cpu": 0.0001,
+						},
+					},
+				},
+			},
+		},
+		"One job exceeds total floating resources": {
+			executorTimout: defaultTimeout,
+			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs: testfixtures.WithRequestsJobs(
+				schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"test-floating-resource": resource.MustParse("11"),
+					},
+				},
+				[]*jobdb.Job{smallJob1}),
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: false},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
+			queue := tc.queue
+			if queue == nil {
+				queue = &api.Queue{Name: "queue"}
+			}
+
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
+			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+			mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{queue}, nil).AnyTimes()
+			floatingResources, _ := floatingresources.NewFloatingResourceTypes(
+				[]configuration.FloatingResourceConfig{
+					{
+						Name: "test-floating-resource",
+						Pools: []configuration.FloatingResourcePoolConfig{
+							{
+								Name:     "cpu",
+								Quantity: resource.MustParse("10"),
+							},
+						},
+					},
+				},
+				testfixtures.TestResourceListFactory)
 			fakeClock := clock.NewFakeClock(baseTime)
-			submitCheck := NewSubmitChecker(schedulingConfig, mockExecutorRepo, testfixtures.TestResourceListFactory)
+			submitCheck := NewSubmitChecker(schedulingConfig,
+				mockExecutorRepo,
+				mockQueueCache,
+				floatingResources,
+				testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
 			results, err := submitCheck.Check(ctx, tc.jobs)

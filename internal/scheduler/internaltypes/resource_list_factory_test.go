@@ -125,6 +125,22 @@ func TestGetScaleFailsOnUnknown(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestMakeAllZero(t *testing.T) {
+	factory := testFactory()
+	allZero := factory.MakeAllZero()
+	assert.False(t, allZero.IsEmpty())
+	assert.True(t, allZero.AllZero())
+}
+
+func TestMakeAllMax(t *testing.T) {
+	factory := testFactory()
+	allMax := factory.MakeAllMax()
+	assert.False(t, allMax.IsEmpty())
+	for _, res := range allMax.GetResources() {
+		assert.Equal(t, int64(math.MaxInt64), res.RawValue)
+	}
+}
+
 func testFactory() *ResourceListFactory {
 	factory, _ := NewResourceListFactory(
 		[]configuration.ResourceType{

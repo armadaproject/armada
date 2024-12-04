@@ -62,6 +62,46 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	indexedNodeLabels map[string]bool,
 	resourceListFactory *ResourceListFactory,
 ) (*Node, error) {
+	allocatableByPriority := map[int32]ResourceList{}
+	minimumPriority := int32(math.MaxInt32)
+	for p, rl := range node.AllocatableByPriorityAndResource {
+		if p < minimumPriority {
+			minimumPriority = p
+		}
+		allocatableByPriority[p] = resourceListFactory.FromNodeProto(rl.Resources)
+	}
+	if minimumPriority < 0 {
+		return nil, errors.Errorf("found negative priority %d on node %s; negative priorities are reserved for internal use", minimumPriority, node.Id)
+	}
+	allocatableByPriority[EvictedPriority] = allocatableByPriority[minimumPriority]
+
+	unallocatableResources := map[int32]ResourceList{}
+	for p, u := range node.UnallocatableResources {
+		unallocatableResources[p] = resourceListFactory.FromJobResourceListIgnoreUnknown(u.Resources)
+	}
+
+	return CreateNodeAndNodeType(
+		node.Id,
+	), nil
+
+}
+
+func CreateNodeAndNodeType(
+	id string,
+	index uint64,
+	executor string,
+	name string,
+	pool string,
+	taints []v1.Taint,
+	labels map[string]string,
+	totalResources ResourceList,
+	unallocatableResources map[int32]ResourceList,
+	allocatableByPriority map[int32]ResourceList,
+	allocatedByQueue map[string]ResourceList,
+	allocatedByJobId map[string]ResourceList,
+	evictedJobRunIds map[string]bool,
+	keys [][]byte,
+) *Node {
 	taints := node.GetTaints()
 	if node.Unschedulable {
 		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
@@ -82,26 +122,8 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		indexedNodeLabels,
 	)
 
-	allocatableByPriority := map[int32]ResourceList{}
-	minimumPriority := int32(math.MaxInt32)
-	for p, rl := range node.AllocatableByPriorityAndResource {
-		if p < minimumPriority {
-			minimumPriority = p
-		}
-		allocatableByPriority[p] = resourceListFactory.FromNodeProto(rl.Resources)
-	}
-	if minimumPriority < 0 {
-		return nil, errors.Errorf("found negative priority %d on node %s; negative priorities are reserved for internal use", minimumPriority, node.Id)
-	}
-	allocatableByPriority[EvictedPriority] = allocatableByPriority[minimumPriority]
-
-	unallocatableResources := map[int32]ResourceList{}
-	for p, u := range node.UnallocatableResources {
-		unallocatableResources[p] = resourceListFactory.FromJobResourceListIgnoreUnknown(u.Resources)
-	}
-
 	return CreateNode(
-		node.Id,
+		id,
 		nodeType,
 		nodeIndex,
 		node.Executor,
@@ -115,7 +137,8 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		map[string]ResourceList{},
 		map[string]ResourceList{},
 		map[string]bool{},
-		nil), nil
+		nil)
+
 }
 
 func CreateNode(
