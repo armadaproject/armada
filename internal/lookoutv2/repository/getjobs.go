@@ -66,13 +66,15 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 	if err != nil {
 		return nil, err
 	}
-	logQuery(query, "GetJobs")
 	var jobs []*model.Job
 
+	queryStart := time.Now()
 	rows, err := r.db.Query(ctx, query.Sql, query.Args...)
 	if err != nil {
 		return nil, err
 	}
+	queryDuration := time.Now().Sub(queryStart)
+	logQuery(query, "GetJobs", queryDuration)
 	defer rows.Close()
 	for rows.Next() {
 		var row jobRow
