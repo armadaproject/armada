@@ -25,16 +25,13 @@ type constraintTest struct {
 	priorityClassName                   string
 	expectedCheckRoundConstraintsReason string
 	expectedCheckConstraintsReason      string
+	expectedQueueResourceLimit          internaltypes.ResourceList
 }
 
 func TestConstraints(t *testing.T) {
 	rlFactory, err := internaltypes.NewResourceListFactory([]configuration.ResourceType{
 		{Name: "cpu"},
 		{Name: "memory"},
-		{Name: "a"},
-		{Name: "b"},
-		{Name: "c"},
-		{Name: "d"},
 	}, nil)
 	assert.Nil(t, err)
 
@@ -43,15 +40,20 @@ func TestConstraints(t *testing.T) {
 			NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"),
 				makeSchedulingConfig(),
 				[]*api.Queue{{Name: "queue-1"}},
-			), rlFactory),
+			), rlFactory).withExpectedQueueResourceLimit(rlFactory.MakeAllMax()),
 		"empty-queue-constraints": makeConstraintsTest(
 			NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"),
 				makeSchedulingConfig(),
-				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}}), rlFactory),
-		"within-constraints": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{
-			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
-			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
-		}, []*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}), rlFactory),
+				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{}}}), rlFactory).withExpectedQueueResourceLimit(rlFactory.MakeAllMax()),
+		"within-constraints": makeConstraintsTest(
+			NewSchedulingConstraints(
+				"pool-1", makeResourceList(rlFactory, "1000", "1000Gi"),
+				configuration.SchedulingConfig{
+					MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
+					PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.9, "memory": 0.9}}}},
+				},
+				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
+			), rlFactory).withExpectedQueueResourceLimit(makeResourceList(rlFactory, "900", "900Gi")),
 		"exceeds-queue-priority-class-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
 				{
@@ -65,6 +67,7 @@ func TestConstraints(t *testing.T) {
 				},
 			}), rlFactory)
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
+			t.expectedQueueResourceLimit = makeResourceList(rlFactory, "1m", "900Gi")
 			return t
 		}(),
 		"exceeds-queue-priority-class-pool-constraint": func() *constraintTest {
@@ -84,6 +87,7 @@ func TestConstraints(t *testing.T) {
 				},
 			}), rlFactory)
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
+			t.expectedQueueResourceLimit = makeResourceList(rlFactory, "1m", "900Gi")
 			return t
 		}(),
 		"exceeds-priority-class-constraint": func() *constraintTest {
@@ -92,41 +96,41 @@ func TestConstraints(t *testing.T) {
 				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
 			}, []*api.Queue{{Name: "queue-1"}}), rlFactory)
 			t.expectedCheckConstraintsReason = "resource limit exceeded"
+			t.expectedQueueResourceLimit = makeResourceList(rlFactory, "10n", "900Gi")
 			return t
 		}(),
-		"priority-class-constraint-ignored-if-there-is-a-queue-constraint": makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{
-			MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
-			PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
-		}, []*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}), rlFactory),
+		"priority-class-constraint-ignored-if-there-is-a-queue-constraint": makeConstraintsTest(
+			NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), configuration.SchedulingConfig{
+				MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
+				PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {MaximumResourceFractionPerQueueByPool: map[string]map[string]float64{"pool-1": {"cpu": 0.00000001, "memory": 0.9}}}},
+			},
+				[]*api.Queue{{Name: "queue-1", ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}}),
+			rlFactory,
+		).withExpectedQueueResourceLimit(makeResourceList(rlFactory, "900", "900Gi")),
 		"one-constraint-per-level-falls-back-as-expected--within-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
 			"",
 			"",
-			rlFactory,
 		),
 		"one-constraint-per-level-falls-back-as-expected--a-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("101"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
 			UnschedulableReasonMaximumResourcesExceeded,
 			"",
-			rlFactory,
 		),
 		"one-constraint-per-level-falls-back-as-expected--b-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("21"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.39")},
 			UnschedulableReasonMaximumResourcesExceeded,
 			"",
-			rlFactory,
 		),
 		"one-constraint-per-level-falls-back-as-expected--c-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("3.1"), "d": resource.MustParse("0.39")},
 			UnschedulableReasonMaximumResourcesExceeded,
 			"",
-			rlFactory,
 		),
 		"one-constraint-per-level-falls-back-as-expected--d-exceeds-limits": makeMultiLevelConstraintsTest(
 			map[string]resource.Quantity{"a": resource.MustParse("99"), "b": resource.MustParse("19"), "c": resource.MustParse("2.9"), "d": resource.MustParse("0.41")},
 			UnschedulableReasonMaximumResourcesExceeded,
 			"",
-			rlFactory,
 		),
 	}
 	for name, tc := range tests {
@@ -140,6 +144,8 @@ func TestConstraints(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedCheckConstraintsReason == "", ok)
 			require.Equal(t, tc.expectedCheckConstraintsReason, unscheduledReason)
+
+			require.Equal(t, tc.expectedQueueResourceLimit.String(), tc.constraints.GetQueueResourceLimit(tc.gctx.Queue, tc.gctx.PriorityClassName).String())
 		})
 	}
 }
@@ -259,7 +265,18 @@ func TestCapResources(t *testing.T) {
 	}
 }
 
-func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, expectedCheckConstraintsReason string, expectedCheckRoundConstraintsReason string, rlFactory *internaltypes.ResourceListFactory) *constraintTest {
+func makeMultiLevelConstraintsTest(
+	requirements map[string]resource.Quantity,
+	expectedCheckConstraintsReason string,
+	expectedCheckRoundConstraintsReason string,
+) *constraintTest {
+	rlFactory, _ := internaltypes.NewResourceListFactory([]configuration.ResourceType{
+		{Name: "a"},
+		{Name: "b"},
+		{Name: "c"},
+		{Name: "d"},
+	}, nil)
+
 	rr := rlFactory.FromJobResourceListIgnoreUnknown(requirements)
 	return &constraintTest{
 		constraints: makeMultiLevelConstraints(rlFactory),
@@ -293,6 +310,13 @@ func makeMultiLevelConstraintsTest(requirements map[string]resource.Quantity, ex
 		priorityClassName:                   "priority-class-1",
 		expectedCheckConstraintsReason:      expectedCheckConstraintsReason,
 		expectedCheckRoundConstraintsReason: expectedCheckRoundConstraintsReason,
+		expectedQueueResourceLimit: rlFactory.FromJobResourceListIgnoreUnknown(
+			map[string]resource.Quantity{
+				"a": resource.MustParse("100"),
+				"b": resource.MustParse("20"),
+				"c": resource.MustParse("3"),
+				"d": resource.MustParse("0.4"),
+			}),
 	}
 }
 
@@ -370,7 +394,13 @@ func makeConstraintsTest(constraints SchedulingConstraints, rlFactory *internalt
 		priorityClassName:                   "priority-class-1",
 		expectedCheckConstraintsReason:      "",
 		expectedCheckRoundConstraintsReason: "",
+		expectedQueueResourceLimit:          internaltypes.ResourceList{},
 	}
+}
+
+func (ct *constraintTest) withExpectedQueueResourceLimit(limit internaltypes.ResourceList) *constraintTest {
+	ct.expectedQueueResourceLimit = limit
+	return ct
 }
 
 func makeSchedulingConfig() configuration.SchedulingConfig {

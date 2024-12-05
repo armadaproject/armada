@@ -340,6 +340,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.loopNumber.Describe(ch)
 		m.evictedJobs.Describe(ch)
 		m.evictedResources.Describe(ch)
+		m.spotPrice.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -365,6 +366,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		m.loopNumber.Collect(ch)
 		m.evictedJobs.Collect(ch)
 		m.evictedResources.Collect(ch)
+		m.spotPrice.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)
