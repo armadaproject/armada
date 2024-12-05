@@ -26,8 +26,9 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 import jinja2
 import tenacity
 from airflow.configuration import conf
-from airflow.exceptions import AirflowException
+from airflow.exceptions import AirflowFailException
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
+from airflow.models.taskinstance import TaskInstance
 from airflow.models.taskinstancekey import TaskInstanceKey
 from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
@@ -40,10 +41,12 @@ from armada_client.typings import JobState
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
 
+from .errors import ArmadaOperatorJobFailedError
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
+from ..policies.reattach import external_job_uri, policy
 from ..triggers import ArmadaPollJobTrigger
-from ..utils import log_exceptions, xcom_pull_for_ti
+from ..utils import log_exceptions, xcom_pull_for_ti, resolve_parameter_value
 
 
 class LookoutLink(BaseOperatorLink):
@@ -102,6 +105,8 @@ acknowledged by Armada.
 :type job_acknowledgement_timeout: int
 :param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
 :type dry_run: bool
+:param reattach_policy: Operator reattach policy to use (defaults to: never)
+:type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 """
 
@@ -130,6 +135,7 @@ acknowledged by Armada.
         dry_run: bool = conf.getboolean(
             "armada_operator", "default_dry_run", fallback=False
         ),
+        reattach_policy: Optional[str] | Callable[[JobState, str], bool] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -147,6 +153,22 @@ acknowledged by Armada.
         self.job_acknowledgement_timeout = job_acknowledgement_timeout
         self.dry_run = dry_run
         self.job_context = None
+
+        if reattach_policy is callable(reattach_policy):
+            self.log.info(
+                f"Configured reattach policy with callable',"
+                f" max retries: {self.retries}"
+            )
+            self.reattach_policy = reattach_policy
+        else:
+            configured_reattach_policy: str = resolve_parameter_value(
+                "reattach_policy", reattach_policy, kwargs, "never"
+            )
+            self.log.info(
+                f"Configured reattach policy to: '{configured_reattach_policy}',"
+                f" max retries: {self.retries}"
+            )
+            self.reattach_policy = policy(configured_reattach_policy)
 
         if self.container_logs and self.k8s_token_retriever is None:
             self.log.warning(
@@ -326,33 +348,55 @@ acknowledged by Armada.
     def _try_reattach_to_running_job(
         self, context: Context
     ) -> Optional[RunningJobContext]:
-        # TODO: We should support re-attaching to currently running jobs.
-        # This is subject to re-attach policy / discovering jobs we already submitted.
-        # Issue - xcom state gets cleared before re-entry.
-        # ctx = self.hook.context_from_xcom(ti, re_attach=True)
+        # On first try we intentionally do not re-attach.
+        new_run = (
+            context["ti"].max_tries - context["ti"].try_number + 1
+            == context["ti"].task.retries
+        )
+        if new_run:
+            return None
 
-        # if ctx:
-        #     if ctx.state not in {JobState.FAILED, JobState.PREEMPTED}:
+        expected_job_uri = external_job_uri(context)
+        ctx = self.hook.job_by_external_job_uri(
+            self.armada_queue, self.job_set_id, expected_job_uri
+        )
+
+        if ctx:
+            termination_reason = self.hook.job_termination_reason(ctx)
+            if self.reattach_policy(ctx.state, termination_reason):
+                return ctx
+            else:
+                self.log.info(
+                    f"Found: job-id {ctx.job_id} in {ctx.state}. "
+                    "Didn't reattach due to reattach policy."
+                )
 
         return None
 
-    def _poll_for_termination(self, context) -> None:
+    def _poll_for_termination(self, context: Context) -> None:
         while self.job_context.state.is_active():
             self._check_job_status_and_fetch_logs(context)
             if self.job_context.state.is_active():
                 self._yield()
 
-        self._running_job_terminated(self.job_context)
+        self._running_job_terminated(context["ti"], self.job_context)
 
-    def _running_job_terminated(self, context: RunningJobContext):
+    def _running_job_terminated(self, ti: TaskInstance, context: RunningJobContext):
         self.log.info(
             f"job {context.job_id} terminated with state: {context.state.name}"
         )
         if context.state != JobState.SUCCEEDED:
-            raise AirflowException(
-                f"job {context.job_id} did not succeed. "
-                f"Final status was {context.state.name}"
+            error = ArmadaOperatorJobFailedError(
+                context.armada_queue,
+                context.job_id,
+                context.state,
+                self.hook.job_termination_reason(context),
             )
+            if self.reattach_policy(error.state, error.reason):
+                self.log.error(str(error))
+                raise AirflowFailException()
+            else:
+                raise error
 
     def _not_acknowledged_within_timeout(self) -> bool:
         if self.job_context.state == JobState.UNKNOWN:
@@ -362,6 +406,13 @@ acknowledged by Armada.
             ):
                 return True
         return False
+
+    def _should_have_a_pod_in_k8s(self) -> bool:
+        return self.job_context.state in {
+            JobState.RUNNING,
+            JobState.FAILED,
+            JobState.SUCCEEDED,
+        }
 
     @log_exceptions
     def _check_job_status_and_fetch_logs(self, context) -> None:
@@ -377,7 +428,7 @@ acknowledged by Armada.
             self.job_context = self.hook.cancel_job(self.job_context)
             return
 
-        if self.job_context.cluster and self.container_logs:
+        if self._should_have_a_pod_in_k8s() and self.container_logs:
             try:
                 last_log_time = self.pod_manager.fetch_container_logs(
                     k8s_context=self.job_context.cluster,
@@ -407,14 +458,6 @@ acknowledged by Armada.
         task_instance = context["ti"]
         task_instance.xcom_push(key=key, value=value)
 
-    def _external_job_uri(self, context: Context) -> str:
-        task_id = context["ti"].task_id
-        map_index = context["ti"].map_index
-        run_id = context["run_id"]
-        dag_id = context["dag"].dag_id
-
-        return f"airflow://{dag_id}/{task_id}/{run_id}/{map_index}"
-
     def _annotate_job_request(self, context, request: JobSubmitRequestItem):
         if "ANNOTATION_KEY_PREFIX" in os.environ:
             annotation_key_prefix = f'{os.environ.get("ANNOTATION_KEY_PREFIX")}'
@@ -429,5 +472,5 @@ acknowledged by Armada.
         request.annotations[annotation_key_prefix + "taskRunId"] = run_id
         request.annotations[annotation_key_prefix + "dagId"] = dag_id
         request.annotations[annotation_key_prefix + "externalJobUri"] = (
-            self._external_job_uri(context)
+            external_job_uri(context)
         )

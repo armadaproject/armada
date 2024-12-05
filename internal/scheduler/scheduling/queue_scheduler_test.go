@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -502,7 +503,7 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.Id()] = i
 			}
-			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool)
+			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.SchedulingOrderCompare)
 			jobRepo.EnqueueMany(
 				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
@@ -545,7 +546,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.MaxQueueLookback)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, true, tc.SchedulingConfig.MaxQueueLookback, false)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -692,4 +693,134 @@ func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinte
 		return nil, err
 	}
 	return nodeDb, nil
+}
+
+func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_EvenCurrentCost(t *testing.T) {
+	queueA := &QueueCandidateGangIteratorItem{
+		queue:             "A",
+		proposedQueueCost: 2,
+		currentQueueCost:  0,
+		fairShare:         5,
+		itemSize:          2,
+	}
+	queueB := &QueueCandidateGangIteratorItem{
+		queue:             "B",
+		proposedQueueCost: 3,
+		currentQueueCost:  0,
+		fairShare:         5,
+		itemSize:          3,
+	}
+	queueC := &QueueCandidateGangIteratorItem{
+		queue:             "C",
+		proposedQueueCost: 1,
+		currentQueueCost:  0,
+		fairShare:         5,
+		itemSize:          1,
+	}
+	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
+
+	sort.Sort(pq)
+	// Should be in order of biggest job as currentQueueCosts are all equal
+	expectedOrder := []*QueueCandidateGangIteratorItem{queueB, queueA, queueC}
+	assert.Equal(t, expectedOrder, pq.items)
+}
+
+func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_UnevenCurrentCost(t *testing.T) {
+	queueA := &QueueCandidateGangIteratorItem{
+		queue:             "A",
+		proposedQueueCost: 4,
+		currentQueueCost:  2,
+		fairShare:         5,
+		itemSize:          2,
+	}
+	queueB := &QueueCandidateGangIteratorItem{
+		queue:             "B",
+		proposedQueueCost: 3,
+		currentQueueCost:  2,
+		fairShare:         5,
+		itemSize:          1,
+	}
+	queueC := &QueueCandidateGangIteratorItem{
+		queue:             "C",
+		proposedQueueCost: 2,
+		currentQueueCost:  1,
+		fairShare:         5,
+		itemSize:          1,
+	}
+	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
+
+	sort.Sort(pq)
+	// Should be in order lowest current queue cost, then when current queue cost is equal it should be in order of largest job
+	expectedOrder := []*QueueCandidateGangIteratorItem{queueC, queueA, queueB}
+	assert.Equal(t, expectedOrder, pq.items)
+}
+
+func TestQueueCandidateGangIteratorPQ_Ordering_AboveFairShare(t *testing.T) {
+	queueA := &QueueCandidateGangIteratorItem{
+		queue:             "A",
+		proposedQueueCost: 8,
+		currentQueueCost:  6,
+		fairShare:         5,
+		itemSize:          2,
+	}
+	queueB := &QueueCandidateGangIteratorItem{
+		queue:             "B",
+		proposedQueueCost: 7,
+		currentQueueCost:  4,
+		fairShare:         5,
+		itemSize:          3,
+	}
+	queueC := &QueueCandidateGangIteratorItem{
+		queue:             "C",
+		proposedQueueCost: 9,
+		currentQueueCost:  8,
+		fairShare:         5,
+		itemSize:          1,
+	}
+	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
+
+	sort.Sort(pq)
+	// Should be in order of smallest amount over their fairshare
+	expectedOrder := []*QueueCandidateGangIteratorItem{queueB, queueA, queueC}
+	assert.Equal(t, expectedOrder, pq.items)
+}
+
+func TestQueueCandidateGangIteratorPQ_Ordering_MixedFairShare(t *testing.T) {
+	aboveFairShare := &QueueCandidateGangIteratorItem{
+		queue:             "A",
+		proposedQueueCost: 8,
+		currentQueueCost:  6,
+		fairShare:         5,
+		itemSize:          2,
+	}
+	belowFairShare := &QueueCandidateGangIteratorItem{
+		queue:             "B",
+		proposedQueueCost: 3,
+		currentQueueCost:  2,
+		fairShare:         5,
+		itemSize:          1,
+	}
+	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{aboveFairShare, belowFairShare}}
+
+	sort.Sort(pq)
+	expectedOrder := []*QueueCandidateGangIteratorItem{belowFairShare, aboveFairShare}
+	assert.Equal(t, expectedOrder, pq.items)
+}
+
+func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
+	queueA := &QueueCandidateGangIteratorItem{
+		queue: "A",
+	}
+	queueB := &QueueCandidateGangIteratorItem{
+		queue: "B",
+	}
+	queueC := &QueueCandidateGangIteratorItem{
+		queue: "C",
+	}
+	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueB, queueC, queueA}}
+
+	sort.Sort(pq)
+	// Will fallback to ordering by queue name in the case all queues are the same sizes etc
+	expectedOrder := []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}
+	assert.Equal(t, expectedOrder, pq.items)
 }

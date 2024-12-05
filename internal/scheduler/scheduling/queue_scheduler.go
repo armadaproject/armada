@@ -20,11 +20,19 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
 
+type CandidateGangIterator interface {
+	Peek() (*schedulercontext.GangSchedulingContext, float64, error)
+	Clear() error
+	GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool)
+	OnlyYieldEvicted()
+	OnlyYieldEvictedForQueue(queue string)
+}
+
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
 // Relies on GangScheduler for scheduling once a gang is chosen.
 type QueueScheduler struct {
 	schedulingContext     *schedulercontext.SchedulingContext
-	candidateGangIterator *CandidateGangIterator
+	candidateGangIterator CandidateGangIterator
 	gangScheduler         *GangScheduler
 }
 
@@ -36,7 +44,9 @@ func NewQueueScheduler(
 	jobIteratorByQueue map[string]JobContextIterator,
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityClassPriority bool,
+	prioritiseLargerJobs bool,
 	maxQueueLookBack uint,
+	marketDriven bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -51,10 +61,19 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, maxQueueLookBack, true)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority)
-	if err != nil {
-		return nil, err
+	var candidateGangIterator CandidateGangIterator
+	if marketDriven {
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangIteratorsByQueue)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return &QueueScheduler{
 		schedulingContext:     sctx,
 		candidateGangIterator: candidateGangIterator,
@@ -95,7 +114,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
-
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {
@@ -141,10 +159,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			stats.LastGangScheduledSampleJobId = gctx.JobIds()[0]
 			stats.LastGangScheduledQueueCost = queueCostInclGang
 			stats.LastGangScheduledQueuePosition = loopNumber
-			queue, queueOK := sch.candidateGangIterator.queueRepository.GetQueue(gctx.Queue)
-			if queueOK {
+			allocation, ok := sch.candidateGangIterator.GetAllocationForQueue(gctx.Queue)
+			if ok {
 				stats.LastGangScheduledResources = gctx.TotalResourceRequests
-				stats.LastGangScheduledQueueResources = queue.GetAllocation()
+				stats.LastGangScheduledQueueResources = allocation
 			} else {
 				stats.LastGangScheduledResources = internaltypes.ResourceList{}
 				stats.LastGangScheduledQueueResources = internaltypes.ResourceList{}
@@ -320,10 +338,10 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 	return it.jobsSeen > it.maxLookback
 }
 
-// CandidateGangIterator determines which gang to try scheduling next across queues.
+// CostBasedCandidateGangIterator determines which gang to try scheduling next across queues.
 // Specifically, it yields the next gang in the queue with smallest fraction of its fair share,
 // where the fraction of fair share computation includes the yielded gang.
-type CandidateGangIterator struct {
+type CostBasedCandidateGangIterator struct {
 	pool                 string
 	queueRepository      fairness.QueueRepository
 	fairnessCostProvider fairness.FairnessCostProvider
@@ -337,42 +355,53 @@ type CandidateGangIterator struct {
 	pq QueueCandidateGangIteratorPQ
 }
 
-func NewCandidateGangIterator(
+func (it *CostBasedCandidateGangIterator) GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool) {
+	q, ok := it.queueRepository.GetQueue(queue)
+	if !ok {
+		return internaltypes.ResourceList{}, false
+	}
+	return q.GetAllocation(), true
+}
+
+func NewCostBasedCandidateGangIterator(
 	pool string,
 	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 	considerPriority bool,
-) (*CandidateGangIterator, error) {
-	it := &CandidateGangIterator{
+	prioritiseLargerJobs bool,
+) (*CostBasedCandidateGangIterator, error) {
+	it := &CostBasedCandidateGangIterator{
 		pool:                    pool,
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
 		pq: QueueCandidateGangIteratorPQ{
-			considerPriority: considerPriority,
-			items:            make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
+			considerPriority:     considerPriority,
+			prioritiseLargerJobs: prioritiseLargerJobs,
+			items:                make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
 		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
-		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
+		queueContext := queueIt.schedulingContext.QueueSchedulingContexts[queue]
+		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueContext.AdjustedFairShare, queueIt)); err != nil {
 			return nil, err
 		}
 	}
 	return it, nil
 }
 
-func (it *CandidateGangIterator) OnlyYieldEvicted() {
+func (it *CostBasedCandidateGangIterator) OnlyYieldEvicted() {
 	it.onlyYieldEvicted = true
 }
 
-func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
+func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
 	it.onlyYieldEvictedByQueue[queue] = true
 }
 
 // Clear removes the first item in the iterator.
 // If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
-func (it *CandidateGangIterator) Clear() error {
+func (it *CostBasedCandidateGangIterator) Clear() error {
 	if it.pq.Len() == 0 {
 		return nil
 	}
@@ -400,23 +429,24 @@ func (it *CandidateGangIterator) Clear() error {
 	return nil
 }
 
-func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
+func (it *CostBasedCandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, float64, error) {
 	if it.pq.Len() == 0 {
 		// No queued jobs left.
 		return nil, 0.0, nil
 	}
 	first := it.pq.items[0]
-	return first.gctx, first.queueCost, nil
+	return first.gctx, first.proposedQueueCost, nil
 }
 
-func (it *CandidateGangIterator) newPQItem(queue string, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
+func (it *CostBasedCandidateGangIterator) newPQItem(queue string, queueFairShare float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
 	return &QueueCandidateGangIteratorItem{
-		queue: queue,
-		it:    queueIt,
+		queue:     queue,
+		fairShare: queueFairShare,
+		it:        queueIt,
 	}
 }
 
-func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIteratorItem) (bool, error) {
+func (it *CostBasedCandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIteratorItem) (bool, error) {
 	if err := it.updatePQItem(item); err != nil {
 		return false, err
 	}
@@ -433,9 +463,11 @@ func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIte
 	return true, nil
 }
 
-func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorItem) error {
+func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorItem) error {
 	item.gctx = nil
-	item.queueCost = 0
+	item.proposedQueueCost = 0
+	item.currentQueueCost = 0
+	item.itemSize = 0
 	gctx, err := item.it.Peek()
 	if err != nil {
 		return err
@@ -444,11 +476,15 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 		return nil
 	}
 	item.gctx = gctx
-	cost, err := it.queueCostWithGctx(gctx)
+	queue, err := it.getQueue(gctx)
 	if err != nil {
 		return err
 	}
-	item.queueCost = cost
+	item.proposedQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation().Add(gctx.TotalResourceRequests), queue.GetWeight())
+	item.currentQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation(), queue.GetWeight())
+	// We multiply here, as queue weights are a fraction
+	// So for the same job size, highly weighted queues jobs will look larger
+	item.itemSize = it.fairnessCostProvider.UnweightedCostFromAllocation(gctx.TotalResourceRequests) * queue.GetWeight()
 
 	// The PQItem needs to have a priority class priority for the whole gang.  This may not be uniform as different
 	// Gang members may have been scheduled at different priorities due to home/away preemption. We therefore take the
@@ -473,24 +509,24 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 	return nil
 }
 
-// queueCostWithGctx returns the cost associated with a queue if gctx were to be scheduled.
-func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSchedulingContext) (float64, error) {
+// returns the queue of the supplied gctx
+func (it *CostBasedCandidateGangIterator) getQueue(gctx *schedulercontext.GangSchedulingContext) (fairness.Queue, error) {
 	gangQueue := gctx.Queue
 	if len(gctx.JobSchedulingContexts) > 0 && !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool) {
 		gangQueue = schedulercontext.CalculateAwayQueueName(gctx.Queue)
 	}
 	queue, ok := it.queueRepository.GetQueue(gangQueue)
 	if !ok {
-		return 0, errors.Errorf("unknown queue %s", gangQueue)
+		return nil, errors.Errorf("unknown queue %s", gangQueue)
 	}
-
-	return it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation().Add(gctx.TotalResourceRequests), queue.GetWeight()), nil
+	return queue, nil
 }
 
 // QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
 type QueueCandidateGangIteratorPQ struct {
-	considerPriority bool
-	items            []*QueueCandidateGangIteratorItem
+	considerPriority     bool
+	prioritiseLargerJobs bool
+	items                []*QueueCandidateGangIteratorItem
 }
 
 type QueueCandidateGangIteratorItem struct {
@@ -501,9 +537,16 @@ type QueueCandidateGangIteratorItem struct {
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
 	gctx *schedulercontext.GangSchedulingContext
-	// Cost associated with the queue if the topmost gang in the queue were to be scheduled.
-	// Used to order queues fairly.
-	queueCost             float64
+	// Cost associated with the queue if the top most gang in the queue were to be scheduled.
+	proposedQueueCost float64
+	// Current cost associated with the queue
+	currentQueueCost float64
+	// The fairshare of the queue
+	// used to compare with proposedQueueCost to determine if scheduling the next item will put the queue over its fairshare
+	fairShare float64
+	// The size of top most gang
+	// Used to determine which job is larger
+	itemSize              float64
 	priorityClassPriority int32
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
@@ -513,18 +556,51 @@ type QueueCandidateGangIteratorItem struct {
 func (pq *QueueCandidateGangIteratorPQ) Len() int { return len(pq.items) }
 
 func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
+	item1 := pq.items[i]
+	item2 := pq.items[j]
+
 	// Consider priority class priority first
-	if pq.considerPriority && pq.items[i].priorityClassPriority != pq.items[j].priorityClassPriority {
-		return pq.items[i].priorityClassPriority > pq.items[j].priorityClassPriority
+	if pq.considerPriority && item1.priorityClassPriority != item2.priorityClassPriority {
+		return item1.priorityClassPriority > item2.priorityClassPriority
 	}
 
-	// Then queue cost
-	if pq.items[i].queueCost != pq.items[j].queueCost {
-		return pq.items[i].queueCost < pq.items[j].queueCost
+	if pq.prioritiseLargerJobs {
+		if item1.proposedQueueCost <= item1.fairShare && item2.proposedQueueCost <= item2.fairShare {
+			// If adding the items results in neither queue exceeding its fairshare
+			// Take the largest job if the queues are equal current cost (which is the case if all jobs get evicted / on an empty farm)
+			// The reason we prefer larger jobs is:
+			// - It reduces fragmentation - a typical strategy is to schedule larger jobs first as smaller jobs can fit in around larger jobs
+			// - It makes it easier for larger jobs to get on and helps to reduce to bias towards smaller jobs.
+			//   Particularly helpful if users have a single large gang they want to get on, as they'll get considered first
+			if item1.currentQueueCost == item2.currentQueueCost && item1.itemSize != item2.itemSize {
+				return item1.itemSize > item2.itemSize
+			}
+			// Otherwise let whichever queue has the lowest current cost go first, regardless of job size
+			// This is so that:
+			// - We interleave smaller jobs and don't just schedule a queue of large jobs first until it hits its fairshare
+			// - So we don't block queues with larger jobs from getting on as they make a bigger step than queues with smaller jobs
+			if item1.currentQueueCost != item2.currentQueueCost {
+				return item1.currentQueueCost < item2.currentQueueCost
+			}
+		} else if item1.proposedQueueCost > item1.fairShare && item2.proposedQueueCost > item2.fairShare {
+			// If adding the items results in both queues being above their fairshare
+			//  take the item that results in the smallest amount over the fairshare
+			if item1.proposedQueueCost != item2.proposedQueueCost {
+				return item1.proposedQueueCost < item2.proposedQueueCost
+			}
+		} else if item1.proposedQueueCost <= item1.fairShare {
+			return true
+		} else if item2.proposedQueueCost <= item2.fairShare {
+			return false
+		}
+	} else {
+		if item1.proposedQueueCost != item2.proposedQueueCost {
+			return item1.proposedQueueCost < item2.proposedQueueCost
+		}
 	}
 
 	// Tie-break by queue name.
-	return pq.items[i].queue < pq.items[j].queue
+	return item1.queue < item2.queue
 }
 
 func (pq *QueueCandidateGangIteratorPQ) Swap(i, j int) {

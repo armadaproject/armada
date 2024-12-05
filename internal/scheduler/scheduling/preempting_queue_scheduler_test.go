@@ -2063,6 +2063,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
+					true,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					tc.SchedulingConfig.MaxQueueLookback,
 					jobDbTxn,
@@ -2070,6 +2071,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
+					false,
 				)
 
 				result, err := sch.Schedule(ctx)
@@ -2415,6 +2417,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				sctx,
 				constraints,
 				testfixtures.TestEmptyFloatingResources,
+				true,
 				tc.SchedulingConfig.ProtectedFractionOfFairShare,
 				tc.SchedulingConfig.MaxQueueLookback,
 				jobDbTxn,
@@ -2422,6 +2425,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 				nil,
+				false,
 			)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
@@ -2477,6 +2481,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
+					true,
 					tc.SchedulingConfig.ProtectedFractionOfFairShare,
 					tc.SchedulingConfig.MaxQueueLookback,
 					jobDbTxn,
@@ -2484,6 +2489,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 					nil,
+					false,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)

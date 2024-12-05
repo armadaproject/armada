@@ -47,6 +47,13 @@ func SubmitJobFromApiRequest(
 		Objects:   ingressesAndServices,
 		Scheduler: jobReq.Scheduler,
 	}
+
+	if jobReq.ExperimentalPriceInfo != nil {
+		msg.ExperimentalPriceInfo = &armadaevents.ExperimentalPriceInfo{
+			BidPrice: jobReq.ExperimentalPriceInfo.BidPrice,
+		}
+	}
+
 	postProcess(msg, config)
 	return msg
 }
