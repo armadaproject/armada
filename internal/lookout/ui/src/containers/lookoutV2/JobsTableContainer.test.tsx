@@ -604,7 +604,7 @@ describe("JobsTableContainer", () => {
   }
 
   async function groupByColumn(columnDisplayName: string) {
-    const groupByDropdownButton = await screen.findByRole("button", { name: "Group by" })
+    const groupByDropdownButton = await screen.findByLabelText("Group by")
     await userEvent.click(groupByDropdownButton)
 
     const dropdown = await screen.findByRole("listbox")
@@ -649,7 +649,7 @@ describe("JobsTableContainer", () => {
 
   async function toggleEnumFilterOptions(columnDisplayName: string, filterOptions: string[]) {
     const headerCell = await getHeaderCell(columnDisplayName)
-    const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter\u2026" })
+    const dropdownTrigger = await within(headerCell).findByLabelText("Filter\u2026")
     await userEvent.click(dropdownTrigger)
     for (const filterOption of filterOptions) {
       const optionButton = await screen.findByRole("option", { name: filterOption })
