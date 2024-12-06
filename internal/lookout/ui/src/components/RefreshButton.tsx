@@ -1,7 +1,5 @@
-import React from "react"
-
-import { CircularProgress, IconButton } from "@material-ui/core"
-import RefreshIcon from "@material-ui/icons/Refresh"
+import { Refresh } from "@mui/icons-material"
+import { CircularProgress, IconButton } from "@mui/material"
 
 import "./RefreshButton.css"
 
@@ -17,7 +15,7 @@ export default function RefreshButton(props: RefreshButtonProps) {
         <CircularProgress size={20} />
       ) : (
         <IconButton title={"Refresh"} onClick={props.onClick} color={"primary"} size="small">
-          <RefreshIcon />
+          <Refresh />
         </IconButton>
       )}
     </div>

@@ -1,4 +1,4 @@
-import React from "react"
+import { Component } from "react"
 
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
@@ -41,7 +41,7 @@ export type JobSetsContainerState = {
   reprioritizeJobSetsIsOpen: boolean
 } & JobSetsContainerParams
 
-class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
+class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainerState> {
   autoRefreshService: IntervalService | undefined
   localStorageService: JobSetsLocalStorageService
   queryParamsService: JobSetsQueryParamsService

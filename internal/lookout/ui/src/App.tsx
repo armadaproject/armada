@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from "react"
+import { Dispatch, ReactNode, SetStateAction, useEffect, useState } from "react"
 
-import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
-import { createGenerateClassName } from "@material-ui/core/styles"
-import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
+import { ThemeProvider, createTheme } from "@mui/material"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { UserManager, WebStorageStateStore, UserManagerSettings, User } from "oidc-client-ts"
@@ -25,18 +23,7 @@ import { OidcConfig } from "./utils"
 
 import "./App.css"
 
-// Required for Mui V4 and V5 to be compatible with each other
-// See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
-const generateClassName = createGenerateClassName({
-  // By enabling this option, if you have non-MUI elements (e.g. `<div />`)
-  // using MUI classes (e.g. `.MuiButton`) they will lose styles.
-  // Make sure to convert them to use `styled()` or `<Box />` first.
-  disableGlobal: true,
-  // Class names will receive this seed to avoid name collisions.
-  seed: "mui-jss",
-})
-
-const theme = {
+const theme = createTheme({
   palette: {
     primary: {
       main: "#00aae1",
@@ -58,10 +45,7 @@ const theme = {
       "sans-serif",
     ].join(","),
   },
-}
-
-const themeV4 = createThemeV4(theme)
-const themeV5 = createThemeV5(theme)
+})
 
 type AppProps = {
   customTitle: string
@@ -83,13 +67,13 @@ type AppProps = {
 // Handling authentication on page opening
 
 interface AuthWrapperProps {
-  children: React.ReactNode
+  children: ReactNode
   userManager: UserManager | undefined
   isAuthenticated: boolean
 }
 
 interface OidcCallbackProps {
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>
+  setIsAuthenticated: Dispatch<SetStateAction<boolean>>
 }
 
 export const UserManagerProvider = UserManagerContext.Provider
@@ -182,60 +166,52 @@ export function App(props: AppProps): JSX.Element {
   }, [props.customTitle])
 
   const result = (
-    <StylesProvider generateClassName={generateClassName}>
-      <ThemeProviderV4 theme={themeV4}>
-        <ThemeProviderV5 theme={themeV5}>
-          <SnackbarProvider
-            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-            autoHideDuration={8000}
-            maxSnack={3}
-          >
-            <BrowserRouter>
-              <UserManagerProvider value={userManager}>
-                <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
-                  <div className="app-container">
-                    <NavBar customTitle={props.customTitle} username={username} />
-                    <div className="app-content">
-                      <Routes>
-                        <Route
-                          path="/"
-                          element={
-                            <JobsTableContainer
-                              getJobsService={props.v2GetJobsService}
-                              groupJobsService={props.v2GroupJobsService}
-                              updateJobsService={props.v2UpdateJobsService}
-                              runInfoService={props.v2RunInfoService}
-                              jobSpecService={props.v2JobSpecService}
-                              logService={props.v2LogService}
-                              cordonService={props.v2CordonService}
-                              debug={props.debugEnabled}
-                              autoRefreshMs={props.jobsAutoRefreshMs}
-                              commandSpecs={props.commandSpecs}
-                            />
-                          }
+    <ThemeProvider theme={theme}>
+      <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000} maxSnack={3}>
+        <BrowserRouter>
+          <UserManagerProvider value={userManager}>
+            <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
+              <div className="app-container">
+                <NavBar customTitle={props.customTitle} username={username} />
+                <div className="app-content">
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={
+                        <JobsTableContainer
+                          getJobsService={props.v2GetJobsService}
+                          groupJobsService={props.v2GroupJobsService}
+                          updateJobsService={props.v2UpdateJobsService}
+                          runInfoService={props.v2RunInfoService}
+                          jobSpecService={props.v2JobSpecService}
+                          logService={props.v2LogService}
+                          cordonService={props.v2CordonService}
+                          debug={props.debugEnabled}
+                          autoRefreshMs={props.jobsAutoRefreshMs}
+                          commandSpecs={props.commandSpecs}
                         />
-                        <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
-                        <Route path="/oidc" element={<OidcCallback setIsAuthenticated={setIsAuthenticated} />} />
-                        <Route path="/v2" element={<V2Redirect />} />
-                        <Route
-                          path="*"
-                          element={
-                            // This wildcard route ensures that users who follow old
-                            // links to /job-sets or /jobs see something other than
-                            // a blank page.
-                            <Navigate to="/" />
-                          }
-                        />
-                      </Routes>
-                    </div>
-                  </div>
-                </AuthWrapper>
-              </UserManagerProvider>
-            </BrowserRouter>
-          </SnackbarProvider>
-        </ThemeProviderV5>
-      </ThemeProviderV4>
-    </StylesProvider>
+                      }
+                    />
+                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                    <Route path="/oidc" element={<OidcCallback setIsAuthenticated={setIsAuthenticated} />} />
+                    <Route path="/v2" element={<V2Redirect />} />
+                    <Route
+                      path="*"
+                      element={
+                        // This wildcard route ensures that users who follow old
+                        // links to /job-sets or /jobs see something other than
+                        // a blank page.
+                        <Navigate to="/" />
+                      }
+                    />
+                  </Routes>
+                </div>
+              </div>
+            </AuthWrapper>
+          </UserManagerProvider>
+        </BrowserRouter>
+      </SnackbarProvider>
+    </ThemeProvider>
   )
 
   return result

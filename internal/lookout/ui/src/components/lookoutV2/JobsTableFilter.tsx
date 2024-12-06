@@ -1,7 +1,6 @@
-import React, { RefObject, useEffect, useRef, useState } from "react"
+import { MouseEvent, RefObject, useEffect, useRef, useState } from "react"
 
-import MoreVert from "@material-ui/icons/MoreVert"
-import { Check } from "@mui/icons-material"
+import { Check, MoreVert } from "@mui/icons-material"
 import {
   Box,
   Checkbox,
@@ -184,23 +183,26 @@ const TextFilter = ({
       sx={{
         width: "100%",
       }}
-      inputProps={{
-        "aria-label": label,
-        sx: {
-          padding: "3.5px 7px",
-          height: "1em",
-          width: "100%",
+      slotProps={{
+        input: {
+          style: {
+            paddingRight: 0,
+          },
+          endAdornment: (
+            <InputAdornment position="end">
+              <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
+            </InputAdornment>
+          ),
         },
-      }}
-      InputProps={{
-        style: {
-          paddingRight: 0,
+
+        htmlInput: {
+          "aria-label": label,
+          sx: {
+            padding: "3.5px 7px",
+            height: "1em",
+            width: "100%",
+          },
         },
-        endAdornment: (
-          <InputAdornment position="end">
-            <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
-          </InputAdornment>
-        ),
       }}
     />
   )
@@ -215,7 +217,7 @@ interface MatchSelectProps {
 const MatchSelect = ({ possibleMatches, currentMatch, onSelect }: MatchSelectProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget)
   }
   const handleClose = () => {

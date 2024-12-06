@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 
 import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
 import AutoRefreshToggle from "components/AutoRefreshToggle"

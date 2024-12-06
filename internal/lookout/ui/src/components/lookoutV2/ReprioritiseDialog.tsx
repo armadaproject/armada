@@ -145,7 +145,6 @@ export const ReprioritiseDialog = ({
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
       <DialogTitle>Reprioritise {isLoadingJobs ? "jobs" : pl(reprioritisableJobs, "job")}</DialogTitle>
-
       <DialogContent sx={{ display: "flex", flexDirection: "column" }}>
         {isLoadingJobs && (
           <div className={dialogStyles.loadingInfo}>
@@ -190,14 +189,15 @@ export const ReprioritiseDialog = ({
               margin={"normal"}
               type={"text"}
               required
-              inputProps={{ inputMode: "numeric", pattern: "[0-9]+" }}
               onChange={handlePriorityChange}
               sx={{ maxWidth: "250px" }}
+              slotProps={{
+                htmlInput: { inputMode: "numeric", pattern: "[0-9]+" },
+              }}
             />
           </>
         )}
       </DialogContent>
-
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
         <Button

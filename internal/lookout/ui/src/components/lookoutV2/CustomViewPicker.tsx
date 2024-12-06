@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react"
+import { useRef, useState } from "react"
 
 import { Delete, Settings } from "@mui/icons-material"
 import {
@@ -68,7 +68,14 @@ export const CustomViewPicker = ({
       >
         <div className={styles.customViewPickerContainer}>
           <div className={styles.createCustomViewContainer}>
-            <Typography display="block" variant="caption" sx={{ width: "100%", paddingBottom: "10px" }}>
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                width: "100%",
+                paddingBottom: "10px",
+              }}
+            >
               Click here to create a custom view with your current configuration.
             </Typography>
             <div className={styles.addCustomViewButton}>
