@@ -15,10 +15,13 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
@@ -35,6 +38,7 @@ type executor struct {
 
 type schedulerState struct {
 	executorsByPoolAndId      map[string]map[string]*executor
+	constraintsByPool         map[string]constraints.SchedulingConstraints
 	jobSchedulingResultsCache *lru.Cache
 }
 
@@ -43,23 +47,29 @@ type SubmitScheduleChecker interface {
 }
 
 type SubmitChecker struct {
-	schedulingConfig    configuration.SchedulingConfig
-	executorRepository  database.ExecutorRepository
-	resourceListFactory *internaltypes.ResourceListFactory
-	state               atomic.Pointer[schedulerState]
-	clock               clock.Clock // can  be  overridden for testing
+	schedulingConfig      configuration.SchedulingConfig
+	executorRepository    database.ExecutorRepository
+	queueCache            queue.QueueCache
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	resourceListFactory   *internaltypes.ResourceListFactory
+	state                 atomic.Pointer[schedulerState]
+	clock                 clock.Clock // can  be  overridden for testing
 }
 
 func NewSubmitChecker(
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
+	queueCache queue.QueueCache,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) *SubmitChecker {
 	return &SubmitChecker{
-		schedulingConfig:    schedulingConfig,
-		executorRepository:  executorRepository,
-		resourceListFactory: resourceListFactory,
-		clock:               clock.RealClock{},
+		schedulingConfig:      schedulingConfig,
+		executorRepository:    executorRepository,
+		queueCache:            queueCache,
+		floatingResourceTypes: floatingResourceTypes,
+		resourceListFactory:   resourceListFactory,
+		clock:                 clock.RealClock{},
 	}
 }
 
@@ -78,6 +88,14 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 }
 
 func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
+	queues, err := srv.queueCache.GetAll(ctx)
+	if err != nil {
+		logging.
+			WithStacktrace(ctx, err).
+			Error("Error fetching queues")
+		return
+	}
+
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		logging.
@@ -98,11 +116,11 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 		srv.resourceListFactory)
 
 	executorsByPoolAndId := map[string]map[string]*executor{}
+	totalResourcesByPool := map[string]internaltypes.ResourceList{}
 	for _, ex := range executors {
 		nodes := nodeFactory.FromSchedulerObjectsExecutors(
 			[]*schedulerobjects.Executor{ex},
 			func(s string) { ctx.Error(s) })
-
 		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *internaltypes.Node) string {
 			return n.GetPool()
 		})
@@ -115,6 +133,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			}
 
 			if err == nil {
+				totalResourcesByPool[pool] = totalResourcesByPool[pool].Add(nodeDb.TotalKubernetesResources())
+
 				executorsByPoolAndId[pool][ex.Id] = &executor{
 					id:     ex.Id,
 					nodeDb: nodeDb,
@@ -126,8 +146,24 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			}
 		}
 	}
+
+	for _, pool := range srv.floatingResourceTypes.AllPools() {
+		totalResourcesByPool[pool] = totalResourcesByPool[pool].Add(srv.floatingResourceTypes.GetTotalAvailableForPool(pool))
+	}
+
+	constraintsByPool := map[string]constraints.SchedulingConstraints{}
+	for pool, totalResources := range totalResourcesByPool {
+		constraintsByPool[pool] = constraints.NewSchedulingConstraints(
+			pool,
+			totalResources,
+			srv.schedulingConfig,
+			queues,
+		)
+	}
+
 	srv.state.Store(&schedulerState{
 		executorsByPoolAndId:      executorsByPoolAndId,
+		constraintsByPool:         constraintsByPool,
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
 	})
 }
@@ -208,6 +244,27 @@ poolStart:
 		for _, awayPool := range pool.AwayPools {
 			if sucessfulPools[awayPool] {
 				continue poolStart
+			}
+		}
+
+		if originalGangCtx.RequestsFloatingResources {
+			rr := originalGangCtx.TotalResourceRequests
+			if ok, reason := srv.floatingResourceTypes.WithinLimits(pool.Name, rr); !ok {
+				sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
+				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", rr.OfType(internaltypes.Floating).String(), reason))
+				sb.WriteString("\n---\n")
+				continue
+			}
+		}
+
+		c := state.constraintsByPool[pool.Name]
+		if c != nil {
+			queueLimit := c.GetQueueResourceLimit(originalGangCtx.Queue, originalGangCtx.PriorityClassName)
+			if !queueLimit.IsEmpty() && originalGangCtx.TotalResourceRequests.Exceeds(queueLimit) {
+				sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
+				sb.WriteString(fmt.Sprintf("job/gang requests resources %s which exceeds the total limit of %s for its queue/priority class\n", originalGangCtx.TotalResourceRequests, queueLimit))
+				sb.WriteString("\n---\n")
+				continue
 			}
 		}
 
