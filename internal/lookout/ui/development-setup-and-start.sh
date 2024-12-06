@@ -14,4 +14,7 @@ if [ "$1" ]; then
 fi
 
 yarn openapi
+
+git checkout HEAD -- yarn.lock
+
 DANGEROUSLY_DISABLE_HOST_CHECK=true yarn start
