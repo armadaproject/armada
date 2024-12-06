@@ -3,6 +3,8 @@ package internaltypes
 import (
 	"fmt"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -42,6 +44,36 @@ func NewNodeFactory(
 		resourceListFactory: resourceListFactory,
 		nodeIndexCounter:    0,
 	}
+}
+
+func (f *NodeFactory) CreateNodeAndType(
+	id string,
+	executor string,
+	name string,
+	pool string,
+	unschedulable bool,
+	taints []v1.Taint,
+	labels map[string]string,
+	totalResources ResourceList,
+	unallocatableResources map[int32]ResourceList,
+	allocatableByPriority map[int32]ResourceList,
+) *Node {
+	f.nodeIndexCounter++
+	return CreateNodeAndType(
+		id,
+		f.nodeIndexCounter,
+		executor,
+		name,
+		pool,
+		unschedulable,
+		taints,
+		labels,
+		f.indexedTaints,
+		f.indexedNodeLabels,
+		totalResources,
+		unallocatableResources,
+		allocatableByPriority,
+	)
 }
 
 func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) (*Node, error) {
