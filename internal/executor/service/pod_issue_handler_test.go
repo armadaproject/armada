@@ -91,6 +91,10 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testin
 func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *testing.T) {
 	startTime := time.Now().Add(-time.Minute * 10)
 
+	completedPodPastDeadline := makePodWithDeadline(startTime, 300, 0)
+	completedPodPastDeadline.Status.Phase = v1.PodFailed
+	completedPodPastDeadline.Annotations[string(v1.PodFailed)] = "true"
+
 	tests := map[string]struct {
 		expectIssueDetected bool
 		pod                 *v1.Pod
@@ -100,6 +104,10 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 			// Created 10 mins ago, 5 min deadline
 			pod: makePodWithDeadline(startTime, 300, 0),
 		},
+		"PodPastDeadline - Completed pod": {
+			expectIssueDetected: false,
+			pod:                 completedPodPastDeadline,
+		},
 		"PodPastDeadlineWithinTerminationGracePeriod": {
 			expectIssueDetected: false,
 			// Created 10 mins ago, 5 min deadline, 10 minute grace period
@@ -107,7 +115,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 		},
 		"PodWithNoStartTime": {
 			expectIssueDetected: false,
-			// Created 10 mins ago, 5 min deadline, no start time
+			// No start time so cannot determine if past its deadline
 			pod: makePodWithDeadline(time.Time{}, 300, 0),
 		},
 	}
