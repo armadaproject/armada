@@ -7,5 +7,11 @@ if [ "$1" ]; then
 fi
 
 yarn install
+
+if [ "$1" ]; then
+	echo "Reverting changes to yarn.lock"
+	sed -i "s|${1}|https://registry.yarnpkg.com|g" yarn.lock
+fi
+
 yarn openapi
 DANGEROUSLY_DISABLE_HOST_CHECK=true yarn start

@@ -1,7 +1,7 @@
-import React, { useCallback, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 
-import { CircularProgress } from "@material-ui/core"
 import { ContentCopy, Download } from "@mui/icons-material"
+import { CircularProgress } from "@mui/material"
 import { IconButton } from "@mui/material"
 import yaml from "js-yaml"
 import { Job } from "models/lookoutV2Models"

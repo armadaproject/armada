@@ -18,14 +18,11 @@
     "fmt": "eslint './src/**/*.{js,ts,tsx}' --max-warnings 0 --no-error-on-unmatched-pattern --fix"
   },
   "dependencies": {
-    "@emotion/react": "^11.10.5",
-    "@emotion/styled": "^11.11.0",
-    "@material-ui/core": "^4.11.4",
-    "@material-ui/icons": "^4.9.1",
-    "@material-ui/lab": "^4.0.0-alpha.58",
-    "@mui/icons-material": "^5.14.3",
-    "@mui/lab": "^5.0.0-alpha.111",
-    "@mui/material": "^5.14.4",
+    "@emotion/react": "^11.13.5",
+    "@emotion/styled": "^11.13.5",
+    "@mui/icons-material": "^6.1.10",
+    "@mui/lab": "^6.0.0-beta.18",
+    "@mui/material": "^6.1.10",
     "@tanstack/react-table": "^8.7.0",
     "@testing-library/jest-dom": "^5.11.5",
     "@testing-library/react": "^12.1.5",
@@ -33,8 +30,8 @@
     "@types/jest": "^26.0.15",
     "@types/js-yaml": "^4.0.0",
     "@types/node": "^12.19.3",
-    "@types/react": "^16.14.43",
-    "@types/react-dom": "^16.9.19",
+    "@types/react": "^17.0.83",
+    "@types/react-dom": "^17.0.25",
     "@types/react-virtualized": "^9.21.10",
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^5.61.0",
@@ -87,9 +84,5 @@
   "devDependencies": {
     "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3"
-  },
-  "resolutions": {
-    "@types/react": "17.0.1",
-    "@types/react-dom": "17.0.1"
   }
 }

@@ -1,6 +1,4 @@
-import React from "react"
-
-import { ArrowDropDown, ArrowDropUp } from "@material-ui/icons"
+import { ArrowDropDown, ArrowDropUp } from "@mui/icons-material"
 import { TableHeaderProps } from "react-virtualized"
 
 import "./SortableHeaderCell.css"

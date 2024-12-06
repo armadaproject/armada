@@ -1,6 +1,6 @@
-import React, { useState } from "react"
+import { useState } from "react"
 
-import { Checkbox } from "@material-ui/core"
+import { Checkbox } from "@mui/material"
 import { TableRowProps } from "react-virtualized"
 
 import "./Row.css"
