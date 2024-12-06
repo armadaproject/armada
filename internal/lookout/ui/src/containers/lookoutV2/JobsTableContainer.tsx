@@ -1,4 +1,4 @@
-import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   Box,
@@ -943,7 +943,7 @@ const recursiveRowRender = (
   const isOpenInSidebar = sidebarJobId !== undefined && original.jobId === sidebarJobId
 
   return (
-    <React.Fragment key={`${row.id}_d${row.depth}`}>
+    <Fragment key={`${row.id}_d${row.depth}`}>
       {/* Render the current row */}
       <JobsTableRow
         row={row}
@@ -996,6 +996,6 @@ const recursiveRowRender = (
           </TableCell>
         </TableRow>
       )}
-    </React.Fragment>
+    </Fragment>
   )
 }

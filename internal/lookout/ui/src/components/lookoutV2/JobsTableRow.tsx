@@ -1,4 +1,4 @@
-import React, { useState, MouseEvent } from "react"
+import { useState, MouseEvent } from "react"
 
 import { TableRow } from "@mui/material"
 import { Row } from "@tanstack/table-core"
@@ -16,7 +16,7 @@ export interface JobsTableRowProps {
 export const JobsTableRow = ({ row, isOpenInSidebar, onClick, onClickRowCheckbox }: JobsTableRowProps) => {
   // Helpers to avoid triggering onClick if the user is selecting text
   const [{ pageX, pageY }, setPagePosition] = useState({ pageX: -1, pageY: -1 })
-  const isDragging = (e: React.MouseEvent) => {
+  const isDragging = (e: MouseEvent) => {
     const dragThresholdPixels = 6
     const diffX = Math.abs(e.pageX - pageX)
     const diffY = Math.abs(e.pageY - pageY)

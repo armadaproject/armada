@@ -1,6 +1,4 @@
-import React from "react"
-
-import { Checkbox } from "@material-ui/core"
+import { Checkbox } from "@mui/material"
 import { TableHeaderRowProps } from "react-virtualized"
 
 import { CHECKBOX_WIDTH } from "./CheckboxRow"

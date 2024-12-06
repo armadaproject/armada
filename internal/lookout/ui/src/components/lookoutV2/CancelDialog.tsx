@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { Checkbox } from "@material-ui/core"
 import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
+import { Checkbox } from "@mui/material"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
