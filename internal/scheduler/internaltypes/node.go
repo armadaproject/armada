@@ -62,26 +62,6 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	indexedNodeLabels map[string]bool,
 	resourceListFactory *ResourceListFactory,
 ) (*Node, error) {
-	taints := node.GetTaints()
-	if node.Unschedulable {
-		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
-	}
-
-	labels := maps.Clone(node.GetLabels())
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	labels[configuration.NodeIdLabel] = node.Id
-
-	totalResources := node.TotalResources
-
-	nodeType := NewNodeType(
-		taints,
-		labels,
-		indexedTaints,
-		indexedNodeLabels,
-	)
-
 	allocatableByPriority := map[int32]ResourceList{}
 	minimumPriority := int32(math.MaxInt32)
 	for p, rl := range node.AllocatableByPriorityAndResource {
@@ -100,22 +80,72 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		unallocatableResources[p] = resourceListFactory.FromJobResourceListIgnoreUnknown(u.Resources)
 	}
 
-	return CreateNode(
+	return CreateNodeAndType(
 		node.Id,
-		nodeType,
 		nodeIndex,
 		node.Executor,
 		node.Name,
 		node.Pool,
+		node.Unschedulable,
+		node.Taints,
+		node.Labels,
+		indexedTaints,
+		indexedNodeLabels,
+		resourceListFactory.FromNodeProto(node.TotalResources.Resources),
+		unallocatableResources,
+		allocatableByPriority,
+	), nil
+}
+
+func CreateNodeAndType(
+	id string,
+	index uint64,
+	executor string,
+	name string,
+	pool string,
+	unschedulable bool,
+	taints []v1.Taint,
+	labels map[string]string,
+	indexedTaints map[string]bool,
+	indexedNodeLabels map[string]bool,
+	totalResources ResourceList,
+	unallocatableResources map[int32]ResourceList,
+	allocatableByPriority map[int32]ResourceList,
+) *Node {
+	if unschedulable {
+		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
+	}
+
+	if labels == nil {
+		labels = map[string]string{}
+	} else {
+		labels = maps.Clone(labels)
+	}
+	labels[configuration.NodeIdLabel] = id
+
+	nodeType := NewNodeType(
 		taints,
 		labels,
-		resourceListFactory.FromNodeProto(totalResources.Resources),
+		indexedTaints,
+		indexedNodeLabels,
+	)
+
+	return CreateNode(
+		id,
+		nodeType,
+		index,
+		executor,
+		name,
+		pool,
+		taints,
+		labels,
+		totalResources,
 		unallocatableResources,
 		allocatableByPriority,
 		map[string]ResourceList{},
 		map[string]ResourceList{},
 		map[string]bool{},
-		nil), nil
+		nil)
 }
 
 func CreateNode(
