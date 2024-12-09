@@ -39,7 +39,12 @@ interface HeaderSectionProps {
 const HeaderSection = ({ title, value }: HeaderSectionProps) => {
   return (
     <div>
-      <Typography sx={{ fontSize: 14 }} color="text.secondary">
+      <Typography
+        sx={{
+          color: "text.secondary",
+          fontSize: 14,
+        }}
+      >
         {title}
       </Typography>
       <Typography variant="subtitle2">{value}</Typography>

@@ -1,6 +1,6 @@
-import React, { useState } from "react"
+import { useState } from "react"
 
-import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
+import { Dialog, DialogContent, DialogTitle } from "@mui/material"
 
 import ReprioritizeJobSets from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSetsOutcome"

@@ -1,6 +1,7 @@
+import { getContrastText } from "utils/styleUtils"
+
 import styles from "./JobGroupStateCounts.module.css"
-import { JobState } from "../../models/lookoutV2Models"
-import { colorForJobState } from "../../utils/jobsTableFormatters"
+import { JobState, jobStateColors } from "../../models/lookoutV2Models"
 
 interface JobGroupStateCountsProps {
   stateCounts: Record<string, number>
@@ -12,13 +13,14 @@ export const JobGroupStateCounts = ({ stateCounts }: JobGroupStateCountsProps) =
     if (!((state as string) in stateCounts)) {
       continue
     }
-    const color = colorForJobState(state)
+    const backgroundColor = jobStateColors[state]
     const val = (
       <span
         className={styles.state}
         key={state}
         style={{
-          backgroundColor: color,
+          backgroundColor,
+          color: getContrastText(backgroundColor),
         }}
       >
         {stateCounts[state as string]}

@@ -1,4 +1,4 @@
-import React, { useCallback } from "react"
+import { useCallback } from "react"
 
 import { ContentCopy } from "@mui/icons-material"
 import { IconButton, Link } from "@mui/material"

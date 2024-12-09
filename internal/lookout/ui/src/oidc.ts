@@ -1,11 +1,11 @@
-import React from "react"
+import { createContext, useContext } from "react"
 
 import { UserManager } from "oidc-client-ts"
 
-export const UserManagerContext = React.createContext<UserManager | undefined>(undefined)
+export const UserManagerContext = createContext<UserManager | undefined>(undefined)
 
 export function useUserManager(): UserManager | undefined {
-  return React.useContext(UserManagerContext)
+  return useContext(UserManagerContext)
 }
 
 export async function getAccessToken(userManager: UserManager): Promise<string> {

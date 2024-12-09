@@ -1,8 +1,5 @@
-import React from "react"
-
-import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@material-ui/core"
-import CancelIcon from "@material-ui/icons/Cancel"
-import LowPriority from "@material-ui/icons/LowPriority"
+import { Cancel, LowPriority } from "@mui/icons-material"
+import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@mui/material"
 import { AutoSizer } from "react-virtualized"
 
 import JobSetTable from "./JobSetTable"
@@ -106,7 +103,7 @@ export default function JobSets(props: JobSetsProps) {
               disabled={!props.canCancel}
               variant="contained"
               color="secondary"
-              startIcon={<CancelIcon />}
+              startIcon={<Cancel />}
               onClick={props.onCancelJobSetsClick}
             >
               Cancel
