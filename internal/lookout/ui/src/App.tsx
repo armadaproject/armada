@@ -1,6 +1,7 @@
 import { Dispatch, ReactNode, SetStateAction, useEffect, useState } from "react"
 
 import { ThemeProvider, createTheme } from "@mui/material"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { UserManager, WebStorageStateStore, UserManagerSettings, User } from "oidc-client-ts"
@@ -22,6 +23,12 @@ import { CommandSpec } from "./utils"
 import { OidcConfig } from "./utils"
 
 import "./App.css"
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: Infinity },
+  },
+})
 
 const theme = createTheme({
   palette: {
@@ -168,48 +175,50 @@ export function App(props: AppProps): JSX.Element {
   const result = (
     <ThemeProvider theme={theme}>
       <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000} maxSnack={3}>
-        <BrowserRouter>
-          <UserManagerProvider value={userManager}>
-            <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
-              <div className="app-container">
-                <NavBar customTitle={props.customTitle} username={username} />
-                <div className="app-content">
-                  <Routes>
-                    <Route
-                      path="/"
-                      element={
-                        <JobsTableContainer
-                          getJobsService={props.v2GetJobsService}
-                          groupJobsService={props.v2GroupJobsService}
-                          updateJobsService={props.v2UpdateJobsService}
-                          runInfoService={props.v2RunInfoService}
-                          jobSpecService={props.v2JobSpecService}
-                          logService={props.v2LogService}
-                          cordonService={props.v2CordonService}
-                          debug={props.debugEnabled}
-                          autoRefreshMs={props.jobsAutoRefreshMs}
-                          commandSpecs={props.commandSpecs}
-                        />
-                      }
-                    />
-                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
-                    <Route path="/oidc" element={<OidcCallback setIsAuthenticated={setIsAuthenticated} />} />
-                    <Route path="/v2" element={<V2Redirect />} />
-                    <Route
-                      path="*"
-                      element={
-                        // This wildcard route ensures that users who follow old
-                        // links to /job-sets or /jobs see something other than
-                        // a blank page.
-                        <Navigate to="/" />
-                      }
-                    />
-                  </Routes>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <UserManagerProvider value={userManager}>
+              <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
+                <div className="app-container">
+                  <NavBar customTitle={props.customTitle} username={username} />
+                  <div className="app-content">
+                    <Routes>
+                      <Route
+                        path="/"
+                        element={
+                          <JobsTableContainer
+                            getJobsService={props.v2GetJobsService}
+                            groupJobsService={props.v2GroupJobsService}
+                            updateJobsService={props.v2UpdateJobsService}
+                            runInfoService={props.v2RunInfoService}
+                            jobSpecService={props.v2JobSpecService}
+                            logService={props.v2LogService}
+                            cordonService={props.v2CordonService}
+                            debug={props.debugEnabled}
+                            autoRefreshMs={props.jobsAutoRefreshMs}
+                            commandSpecs={props.commandSpecs}
+                          />
+                        }
+                      />
+                      <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                      <Route path="/oidc" element={<OidcCallback setIsAuthenticated={setIsAuthenticated} />} />
+                      <Route path="/v2" element={<V2Redirect />} />
+                      <Route
+                        path="*"
+                        element={
+                          // This wildcard route ensures that users who follow old
+                          // links to /job-sets or /jobs see something other than
+                          // a blank page.
+                          <Navigate to="/" />
+                        }
+                      />
+                    </Routes>
+                  </div>
                 </div>
-              </div>
-            </AuthWrapper>
-          </UserManagerProvider>
-        </BrowserRouter>
+              </AuthWrapper>
+            </UserManagerProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
       </SnackbarProvider>
     </ThemeProvider>
   )

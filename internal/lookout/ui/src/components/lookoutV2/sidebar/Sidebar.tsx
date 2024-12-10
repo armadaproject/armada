@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, SyntheticEvent, useCallback, useEffect, useRef, useState } from "react"
 
 import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
@@ -57,7 +57,7 @@ export const Sidebar = memo(
   }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
 
-    const handleTabChange = useCallback((_, newValue: SidebarTab) => {
+    const handleTabChange = useCallback((_: SyntheticEvent, newValue: SidebarTab) => {
       setOpenTab(newValue)
     }, [])
 

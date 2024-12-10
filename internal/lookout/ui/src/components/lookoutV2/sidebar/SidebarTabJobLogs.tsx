@@ -101,6 +101,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
     }
     return job.runs[job.runs.length - 1].cluster
   }, [job])
+  console.log(cluster)
 
   useEffect(() => {
     if (containers.length > 0) {

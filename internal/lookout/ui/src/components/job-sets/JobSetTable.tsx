@@ -1,6 +1,5 @@
 import Truncate from "react-truncate"
-import { TableCellProps, Table as VirtualizedTable } from "react-virtualized"
-import { Column, defaultTableCellRenderer } from "react-virtualized"
+import { TableCellProps, Table as VirtualizedTable, Column, defaultTableCellRenderer } from "react-virtualized"
 
 import { JobState } from "../../models/lookoutV2Models"
 import { JobSet } from "../../services/JobService"

@@ -115,8 +115,8 @@ export const CancelDialog = ({
   }, [fetchSelectedJobs])
 
   const jobsToRender = useMemo(() => cancellableJobs.slice(0, 1000), [cancellableJobs])
-  const formatState = useCallback((job) => formatJobState(job.state), [])
-  const formatSubmittedTime = useCallback((job) => job.submitted, [])
+  const formatState = useCallback((job: Job) => formatJobState(job.state), [])
+  const formatSubmittedTime = useCallback((job: Job) => job.submitted, [])
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
       <DialogTitle>Cancel {isLoadingJobs ? "jobs" : pl(cancellableJobs, "job")}</DialogTitle>

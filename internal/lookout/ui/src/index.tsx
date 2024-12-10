@@ -1,4 +1,4 @@
-import ReactDOM from "react-dom"
+import { createRoot } from "react-dom/client"
 import { GetJobsService } from "services/lookoutV2/GetJobsService"
 import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
@@ -50,7 +50,13 @@ import "./index.css"
     ? new FakeCordonService()
     : new CordonService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
 
-  ReactDOM.render(
+  const container = document.getElementById("root")
+
+  if (container === null) {
+    throw new Error('DOM element with ID "root" was not found')
+  }
+
+  createRoot(container).render(
     <App
       customTitle={uiConfig.customTitle}
       oidcConfig={uiConfig.oidcEnabled ? uiConfig.oidc : undefined}
@@ -67,7 +73,6 @@ import "./index.css"
       debugEnabled={uiConfig.debugEnabled}
       commandSpecs={uiConfig.commandSpecs}
     />,
-    document.getElementById("root"),
   )
 
   reportWebVitals()
