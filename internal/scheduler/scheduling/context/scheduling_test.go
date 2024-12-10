@@ -198,6 +198,86 @@ func TestCalculateFairShares(t *testing.T) {
 	}
 }
 
+func TestCalculateTheoreticalShare(t *testing.T) {
+	oneCpu := cpu(1)
+	oneHundredCpu := cpu(100)
+	oneThousandCpu := cpu(1000)
+	tests := map[string]struct {
+		availableResources       internaltypes.ResourceList
+		queueCtxs                map[string]*QueueSchedulingContext
+		basePrice                float64
+		basePriority             float64
+		expectedTheoreticalShare float64
+	}{
+		"Cluster Empty": {
+			availableResources:       oneHundredCpu,
+			queueCtxs:                map[string]*QueueSchedulingContext{},
+			basePriority:             1.0,
+			expectedTheoreticalShare: 1.0,
+		},
+		"One user": {
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
+			},
+			basePriority:             1.0,
+			expectedTheoreticalShare: 0.5,
+		},
+		"Two users": {
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueB": {Weight: 1.0, Demand: oneThousandCpu},
+			},
+			basePriority:             1.0,
+			expectedTheoreticalShare: 1.0 / 3,
+		},
+		"One user with lower priority": {
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 0.5, Demand: oneThousandCpu},
+			},
+			basePriority:             1.0,
+			expectedTheoreticalShare: 2.0 / 3,
+		},
+		"One user with higher priority": {
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 2, Demand: oneThousandCpu},
+			},
+			basePriority:             1.0,
+			expectedTheoreticalShare: 1.0 / 3,
+		},
+		"One user with a low demand": {
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneCpu},
+			},
+			basePriority:             1.0,
+			expectedTheoreticalShare: 0.99,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			require.NoError(t, err)
+			sctx := NewSchedulingContext(
+				"pool",
+				fairnessCostProvider,
+				nil,
+				tc.availableResources,
+			)
+			for qName, q := range tc.queueCtxs {
+				err = sctx.AddQueueSchedulingContext(
+					qName, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
+				require.NoError(t, err)
+			}
+			theoreticalShare := sctx.CalculateTheoreticalShare(tc.basePriority)
+			assert.InDelta(t, tc.expectedTheoreticalShare, theoreticalShare, 1e-6)
+		})
+	}
+}
+
 func TestCalculateFairnessError(t *testing.T) {
 	tests := map[string]struct {
 		availableResources internaltypes.ResourceList

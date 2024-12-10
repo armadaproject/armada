@@ -575,9 +575,13 @@ func (l *FairSchedulingAlgo) SchedulePool(
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool, priority)
 	}
 
+	// set spot price
 	if marketDriven {
 		fractionAllocated := fsctx.schedulingContext.FairnessCostProvider.UnweightedCostFromAllocation(fsctx.schedulingContext.Allocated)
-		price := l.calculateSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
+		price := l.calculateMarketDrivenSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
+		fsctx.schedulingContext.SpotPrice = price
+	} else {
+		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
 		fsctx.schedulingContext.SpotPrice = price
 	}
 
@@ -710,7 +714,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 	return activeExecutors
 }
 
-func (l *FairSchedulingAlgo) calculateSpotPrice(initialRunningJobIds []string, scheduledJobs, preemptedJobs []*schedulercontext.JobSchedulingContext, fractionAllocated float64, txn *jobdb.Txn) float64 {
+func (l *FairSchedulingAlgo) calculateMarketDrivenSpotPrice(initialRunningJobIds []string, scheduledJobs, preemptedJobs []*schedulercontext.JobSchedulingContext, fractionAllocated float64, txn *jobdb.Txn) float64 {
 	// If we've allocated less that 95% of available resources then we don't charge.
 	// TODO: make this configurable
 	if fractionAllocated < 0.95 {
@@ -744,4 +748,21 @@ func (l *FairSchedulingAlgo) calculateSpotPrice(initialRunningJobIds []string, s
 		return 0.0
 	}
 	return minPrice
+}
+
+func (l *FairSchedulingAlgo) calculateFairShareDrivenSpotPrice(sctx *schedulercontext.SchedulingContext, basePrice float64, basePriority float64) float64 {
+	theoreticalShare := sctx.CalculateTheoreticalShare(basePriority)
+
+	// If you can get 50% or greater than we don't charge
+	if theoreticalShare >= 0.5 {
+		return 0
+	}
+
+	// Linear interpolation between 50% and 10%
+	if theoreticalShare >= 0.1 {
+		return basePrice * (0.5 - theoreticalShare)
+	}
+
+	// Reciprocal growth below 10%
+	return basePrice * (0.1 / theoreticalShare)
 }
