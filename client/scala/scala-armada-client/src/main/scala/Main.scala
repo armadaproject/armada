@@ -1,10 +1,27 @@
+import api.event.EventGrpc
+import api.health.HealthCheckResponse
 import api.submit.Job
+import com.google.protobuf.empty
+import io.grpc.ManagedChannelBuilder
+import queryapi.queryapi.QueryApiGrpc
+import queryapi.queryapi.JobStatusResponse
 
-@main def hello(): Unit =
-  println("Hello world!")
+val host = "localhost"
+val port = 30002
 
-  Job(id = "test ID")
+@main def getArmadaHealth(): Unit =
+  val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+  val blockingStub = EventGrpc.blockingStub(channel)
 
-  println(msg)
+  val reply: HealthCheckResponse = blockingStub.health(empty.Empty())
 
-def msg = "I was compiled by Scala 3. :) api.submit.Job exists"
+  println(reply.status)
+
+def getJobStatus(): Unit =
+  val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+  val blockingStub = QueryApiGrpc.blockingStub(channel)
+
+  val jsReq = queryapi.queryapi.JobStatusRequest(jobId = "foobar")
+  val reply: queryapi.queryapi.JobStatusResponse = blockingStub.getJobStatus(jsReq)
+
+  println(reply)
