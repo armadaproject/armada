@@ -57,3 +57,28 @@ func RlMapRemoveZeros(m map[string]ResourceList) map[string]ResourceList {
 	}
 	return result
 }
+
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) map[int32]ResourceList {
+	result := map[int32]ResourceList{}
+	for _, priority := range priorities {
+		result[priority] = rl
+
+	}
+	return result
+}
+
+// MarkAllocated indicates resources have been allocated to pods of priority p,
+// hence reducing the resources allocatable to pods of priority p or lower.
+func MarkAllocated(m map[int32]ResourceList, p int32, rs ResourceList) {
+	MarkAllocatable(m, p, rs.Negate())
+}
+
+// MarkAllocatable indicates resources have been released by pods of priority p,
+// thus increasing the resources allocatable to pods of priority p or lower.
+func MarkAllocatable(m map[int32]ResourceList, p int32, rs ResourceList) {
+	for priority, allocatableResourcesAtPriority := range m {
+		if priority <= p {
+			m[priority] = allocatableResourcesAtPriority.Add(rs)
+		}
+	}
+}

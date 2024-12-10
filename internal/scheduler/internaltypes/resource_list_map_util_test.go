@@ -78,6 +78,16 @@ func TestRlMapRemoveZeros(t *testing.T) {
 	assert.Equal(t, expected, RlMapRemoveZeros(input))
 }
 
+func TestNewAllocatableByPriorityAndResourceType(t *testing.T) {
+	factory := testFactory()
+	rl := testResourceList(factory, "2", "2Ki")
+
+	result := NewAllocatableByPriorityAndResourceType([]int32{1, 2}, rl)
+	assert.Equal(t, 2, len(result))
+	assert.Equal(t, int64(2000), result[1].GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(2000), result[2].GetByNameZeroIfMissing("cpu"))
+}
+
 func testMapAllPositive(factory *ResourceListFactory) map[string]ResourceList {
 	return map[string]ResourceList{
 		"a": testResourceList(factory, "1", "1Ki"),

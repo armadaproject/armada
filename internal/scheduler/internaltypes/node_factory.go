@@ -104,3 +104,7 @@ func (f *NodeFactory) FromSchedulerObjectsExecutors(executors []*schedulerobject
 	}
 	return result
 }
+
+func (f *NodeFactory) ResourceListFactory() *ResourceListFactory {
+	return f.resourceListFactory
+}

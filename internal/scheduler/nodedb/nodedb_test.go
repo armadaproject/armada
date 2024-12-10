@@ -918,6 +918,28 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	return nodeDb, nil
 }
 
+func itNewNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
+	nodeDb, err := NewNodeDb(
+		testfixtures.TestPriorityClasses,
+		testfixtures.TestResources,
+		testfixtures.TestIndexedTaints,
+		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
+		testfixtures.TestResourceListFactory,
+	)
+	if err != nil {
+		return nil, err
+	}
+	txn := nodeDb.Txn(true)
+	for _, node := range nodes {
+		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
+		}
+	}
+	txn.Commit()
+	return nodeDb, nil
+}
+
 func BenchmarkNodeDbStringFromPodRequirementsNotMetReason(b *testing.B) {
 	nodeDb := &NodeDb{
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
