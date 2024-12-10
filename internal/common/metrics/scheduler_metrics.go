@@ -448,27 +448,27 @@ func NewQueuePriorityMetric(value float64, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueuePriorityDesc, prometheus.GaugeValue, value, queue, queue)
 }
 
-func NewMinQueuePriceQueuedMetric(value float64, queue string, pool string, priorityClass string) prometheus.Metric {
+func NewMinQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MinQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
-func NewMaxQueuePriceQueuedMetric(value float64, queue string, pool string, priorityClass string) prometheus.Metric {
+func NewMaxQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MaxQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
-func NewMedianQueuePriceQueuedMetric(value float64, queue string, pool string, priorityClass string) prometheus.Metric {
+func NewMedianQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MedianQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
-func NewMinQueuePriceRunningMetric(value float64, queue string, pool string, priorityClass string) prometheus.Metric {
+func NewMinQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MinQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
-func NewMaxQueuePriceRunningMetric(value float64, queue string, pool string, priorityClass string) prometheus.Metric {
+func NewMaxQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MaxQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
-func NewMedianQueuePriceRunningMetric(value float64, queue string, pool string, priorityClass string) prometheus.Metric {
+func NewMedianQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MedianQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 

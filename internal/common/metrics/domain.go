@@ -67,13 +67,13 @@ func (r *JobMetricsRecorder) Metrics() []*QueueMetrics {
 	return result
 }
 
-func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, pritorityClass string) *QueueMetricsRecorder {
-	recorderKey := key(pool, pritorityClass)
+func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, priorityClass string) *QueueMetricsRecorder {
+	recorderKey := key(pool, priorityClass)
 	qmr, ok := r.recordersByPoolAndPriorityClass[recorderKey]
 	if !ok {
 		qmr = &QueueMetricsRecorder{
 			Pool:             pool,
-			PriorityClass:    pritorityClass,
+			PriorityClass:    priorityClass,
 			resourceRecorder: NewResourceMetricsRecorder(),
 			durationRecorder: NewDefaultJobDurationMetricsRecorder(),
 			bidPriceRecorder: NewFloatMetricsRecorder(),
