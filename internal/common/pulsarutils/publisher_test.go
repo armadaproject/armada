@@ -2,13 +2,13 @@ package pulsarutils
 
 import (
 	"fmt"
+	"go.uber.org/mock/gomock"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
