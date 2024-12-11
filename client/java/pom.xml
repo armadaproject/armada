@@ -5,7 +5,7 @@
 
   <groupId>io.armadaproject</groupId>
   <artifactId>armada-grpc-java-client</artifactId>
-  <version>0.0.3</version>
+  <version>0.0.4</version>
   <packaging>jar</packaging>
 
   <name>armada-grpc-java-client</name>

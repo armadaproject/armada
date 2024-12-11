@@ -23,11 +23,9 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Metadata;
 import io.grpc.stub.MetadataUtils;
 import java.util.Iterator;
-import java.util.logging.Logger;
 
 public class ArmadaClient {
 
-  private static final Logger LOG = Logger.getLogger(ArmadaClient.class.getName());
   private final ManagedChannel channel;
 
   public ArmadaClient(String host, int port) {
@@ -50,26 +48,19 @@ public class ArmadaClient {
   }
 
   public ServingStatus checkHealth() {
-    LOG.info("checking connection to armada server...");
     SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
     HealthCheckResponse healthCheckResponse = submitBlockingStub.health(Empty.getDefaultInstance());
-    ServingStatus status = healthCheckResponse.getStatus();
-    LOG.info("connection to armada server: " + status);
-    return status;
+    return healthCheckResponse.getStatus();
   }
 
   public JobSubmitResponse submitJob(JobSubmitRequest jobSubmitRequest) {
     SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
-    JobSubmitResponse jobSubmitResponse = submitBlockingStub.submitJobs(jobSubmitRequest);
-    LOG.info("job submitted! response: \n" + jobSubmitResponse);
-    return jobSubmitResponse;
+    return submitBlockingStub.submitJobs(jobSubmitRequest);
   }
 
   public CancellationResult cancelJob(JobCancelRequest jobCancelRequest) {
     SubmitGrpc.SubmitBlockingStub submitBlockingStub = SubmitGrpc.newBlockingStub(channel);
-    CancellationResult cancellationResult = submitBlockingStub.cancelJobs(jobCancelRequest);
-    LOG.info("job cancelled! response: \n" + cancellationResult);
-    return cancellationResult;
+    return submitBlockingStub.cancelJobs(jobCancelRequest);
   }
 
   public Iterator<EventStreamMessage> getEvents(JobSetRequest jobSetRequest) {
