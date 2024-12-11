@@ -179,11 +179,12 @@ export const Sidebar = memo(
                 </Tabs>
 
                 <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobDetails job={job} />
+                  <SidebarTabJobDetails key={job.jobId} job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.JobResult} className={styles.sidebarTabPanel}>
                   <SidebarTabJobResult
+                    key={job.jobId}
                     job={job}
                     jobInfoService={jobSpecService}
                     runInfoService={runInfoService}
@@ -192,15 +193,15 @@ export const Sidebar = memo(
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Yaml} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobYaml job={job} />
+                  <SidebarTabJobYaml key={job.jobId} job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Logs} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobLogs job={job} key={job.jobId} />
+                  <SidebarTabJobLogs key={job.jobId} job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Commands} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobCommands job={job} commandSpecs={commandSpecs} />
+                  <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
                 </TabPanel>
               </TabContext>
             </div>
