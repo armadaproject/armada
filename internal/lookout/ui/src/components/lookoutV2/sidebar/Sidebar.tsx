@@ -14,7 +14,6 @@ import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
-import { ILogService } from "../../../services/lookoutV2/LogService"
 import { CommandSpec } from "../../../utils"
 
 enum SidebarTab {
@@ -35,7 +34,6 @@ export interface SidebarProps {
   job: Job
   runInfoService: IGetRunInfoService
   jobSpecService: IGetJobInfoService
-  logService: ILogService
   cordonService: ICordonService
   sidebarWidth: number
   commandSpecs: CommandSpec[]
@@ -48,7 +46,6 @@ export const Sidebar = memo(
     job,
     runInfoService,
     jobSpecService,
-    logService,
     cordonService,
     sidebarWidth,
     onClose,
@@ -182,7 +179,7 @@ export const Sidebar = memo(
                 </Tabs>
 
                 <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobDetails job={job} jobSpecService={jobSpecService} />
+                  <SidebarTabJobDetails job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.JobResult} className={styles.sidebarTabPanel}>
@@ -195,11 +192,11 @@ export const Sidebar = memo(
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Yaml} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobYaml job={job} jobSpecService={jobSpecService} />
+                  <SidebarTabJobYaml job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Logs} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobLogs job={job} jobSpecService={jobSpecService} logService={logService} />
+                  <SidebarTabJobLogs job={job} key={job.jobId} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Commands} className={styles.sidebarTabPanel}>

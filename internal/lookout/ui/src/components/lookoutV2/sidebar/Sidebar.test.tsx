@@ -1,14 +1,16 @@
+import { QueryClientProvider } from "@tanstack/react-query"
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { queryClient } from "App"
 import { Job, JobRunState, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { makeTestJob } from "utils/fakeJobsUtils"
 
 import { Sidebar } from "./Sidebar"
+import { FakeServicesProvider } from "../../../services/fakeContext"
 import { FakeCordonService } from "../../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobInfoService from "../../../services/lookoutV2/mocks/FakeGetJobInfoService"
 import { FakeGetRunInfoService } from "../../../services/lookoutV2/mocks/FakeGetRunInfoService"
-import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
@@ -41,17 +43,20 @@ describe("Sidebar", () => {
   const renderComponent = () =>
     render(
       <SnackbarProvider>
-        <Sidebar
-          job={job}
-          runInfoService={new FakeGetRunInfoService()}
-          jobSpecService={new FakeGetJobInfoService()}
-          logService={new FakeLogService()}
-          cordonService={new FakeCordonService()}
-          sidebarWidth={600}
-          onClose={onClose}
-          onWidthChange={() => undefined}
-          commandSpecs={[]}
-        />
+        <QueryClientProvider client={queryClient}>
+          <FakeServicesProvider fakeJobs={[job]}>
+            <Sidebar
+              job={job}
+              runInfoService={new FakeGetRunInfoService()}
+              jobSpecService={new FakeGetJobInfoService()}
+              cordonService={new FakeCordonService()}
+              sidebarWidth={600}
+              onClose={onClose}
+              onWidthChange={() => undefined}
+              commandSpecs={[]}
+            />
+          </FakeServicesProvider>
+        </QueryClientProvider>
       </SnackbarProvider>,
     )
 

@@ -60,14 +60,16 @@ import "./index.css"
     <App
       customTitle={uiConfig.customTitle}
       oidcConfig={uiConfig.oidcEnabled ? uiConfig.oidc : undefined}
-      v2GetJobsService={v2GetJobsService}
-      v2GroupJobsService={v2GroupJobsService}
-      v2UpdateJobsService={v2UpdateJobsService}
-      v2UpdateJobSetsService={v2UpdateJobSetsService}
-      v2RunInfoService={v2RunInfoService}
-      v2JobSpecService={v2JobSpecService}
-      v2LogService={v2LogService}
-      v2CordonService={v2CordonService}
+      services={{
+        v2GetJobsService,
+        v2GroupJobsService,
+        v2UpdateJobsService,
+        v2UpdateJobSetsService,
+        v2RunInfoService,
+        v2JobSpecService,
+        v2LogService,
+        v2CordonService,
+      }}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
       jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
       debugEnabled={uiConfig.debugEnabled}

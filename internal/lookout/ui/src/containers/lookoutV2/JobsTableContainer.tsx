@@ -72,7 +72,6 @@ import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
 import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
-import { ILogService } from "../../services/lookoutV2/LogService"
 import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
 
@@ -84,7 +83,6 @@ interface JobsTableContainerProps {
   updateJobsService: UpdateJobsService
   runInfoService: IGetRunInfoService
   jobSpecService: IGetJobInfoService
-  logService: ILogService
   cordonService: ICordonService
   debug: boolean
   autoRefreshMs: number | undefined
@@ -129,7 +127,6 @@ export const JobsTableContainer = ({
   updateJobsService,
   runInfoService,
   jobSpecService,
-  logService,
   cordonService,
   debug,
   autoRefreshMs,
@@ -856,7 +853,6 @@ export const JobsTableContainer = ({
           job={sidebarJobDetails}
           runInfoService={runInfoService}
           jobSpecService={jobSpecService}
-          logService={logService}
           cordonService={cordonService}
           sidebarWidth={sidebarWidth}
           onClose={sideBarClose}

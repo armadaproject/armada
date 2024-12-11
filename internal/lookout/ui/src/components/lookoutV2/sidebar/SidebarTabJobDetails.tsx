@@ -3,15 +3,13 @@ import { Job } from "models/lookoutV2Models"
 
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
-import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
 export interface SidebarTabJobDetailsProps {
   job: Job
-  jobSpecService: IGetJobInfoService
 }
 
-export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetailsProps) => {
+export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
   const details = [
     { key: "Queue", value: job.queue },
     { key: "Job Set", value: job.jobSet },
@@ -46,7 +44,7 @@ export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetai
       ) : (
         " No annotations"
       )}
-      <ContainerDetails job={job} jobSpecService={jobSpecService} />
+      <ContainerDetails job={job} />
     </>
   )
 }
