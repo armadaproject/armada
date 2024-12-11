@@ -22,6 +22,7 @@ func init() {
 	loadtestCmd.Flags().Bool("watch", false, "If enabled, the program will watch the events of all submitted jobs before exiting")
 	loadtestCmd.Flags().Duration("timeout", defaultTimeout, "The duration the test will last for, before cancelling all remaining jobs")
 	loadtestCmd.Flags().Bool("checkSuccess", false, "If enabled, the program will exit with -1 if any jobs submitted do not succeed")
+	loadtestCmd.Flags().Bool("createQueue", false, "If enabled, queues will be created")
 	if err := viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch")); err != nil {
 		panic(err)
 	}
@@ -29,6 +30,9 @@ func init() {
 		panic(err)
 	}
 	if err := viper.BindPFlag("checkSuccess", loadtestCmd.Flags().Lookup("checkSuccess")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("createQueue", loadtestCmd.Flags().Lookup("createQueue")); err != nil {
 		panic(err)
 	}
 }
@@ -79,6 +83,7 @@ var loadtestCmd = &cobra.Command{
 		watchEvents := viper.GetBool("watch")
 		timeout := viper.GetDuration("timeout")
 		checkSuccess := viper.GetBool("checkSuccess")
+		createQueue := viper.GetBool("createQueue")
 
 		loadTestTimeout := context.Background()
 		if timeout != defaultTimeout {
@@ -90,7 +95,7 @@ var loadtestCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		loadTester := client.NewArmadaLoadTester(apiConnectionDetails)
-		result := loadTester.RunSubmissionTest(loadTestTimeout, *loadTestSpec, watchEvents)
+		result := loadTester.RunSubmissionTest(loadTestTimeout, *loadTestSpec, watchEvents, createQueue)
 
 		if watchEvents && checkSuccess {
 			checkLoadTestSuccess(loadTestTimeout, result, loadTestSpec)

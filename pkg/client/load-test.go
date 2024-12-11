@@ -31,7 +31,7 @@ func NewArmadaLoadTester(connectionDetails *ApiConnectionDetails) *ArmadaLoadTes
 	}
 }
 
-func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spec domain.LoadTestSpecification, watchEvents bool) domain.LoadTestSummary {
+func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spec domain.LoadTestSpecification, watchEvents bool, createQueue bool) domain.LoadTestSummary {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -51,13 +51,14 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spe
 			wg.Add(1)
 			go func(i int, submission *domain.SubmissionDescription) {
 				defer wg.Done()
-				jobIdChannel, jobSetId, submissionComplete := apiLoadTester.runSubmission(ctx, submission, i)
+				queueName := createQueueName(submission, i)
+				jobIdChannel, jobSetId, submissionComplete := apiLoadTester.runSubmission(ctx, submission, queueName, createQueue, i)
 				if watchEvents {
-					submittedIds := apiLoadTester.monitorJobsUntilCompletion(ctx, createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
+					submittedIds := apiLoadTester.monitorJobsUntilCompletion(ctx, queueName, jobSetId, jobIdChannel, eventChannel)
 					allSubmittedJobs.Append(submittedIds)
 				}
 				if ctx.Err() != nil {
-					apiLoadTester.cancelRemainingJobs(createQueueName(submission, i), jobSetId)
+					apiLoadTester.cancelRemainingJobs(queueName, jobSetId)
 				}
 				submissionComplete.Wait()
 			}(i, submission)
@@ -107,9 +108,10 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 func (apiLoadTester ArmadaLoadTester) runSubmission(
 	ctx context.Context,
 	submission *domain.SubmissionDescription,
+	queueName string,
+	createQueue bool,
 	i int,
 ) (jobIds chan string, jobSetId string, submissionComplete *sync.WaitGroup) {
-	queue := createQueueName(submission, i)
 	startTime := time.Now()
 
 	priorityFactor := submission.QueuePriorityFactor
@@ -132,15 +134,16 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 	go func() {
 		err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 			defer submissionComplete.Done()
-
-			e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
-			if status.Code(e) == codes.AlreadyExists {
-				log.Infof("queue %s already exists so no need to create it.\n", queue)
-			} else if e != nil {
-				log.Errorf("failed to create queue: %s because: %s\n", queue, e)
-				return nil
-			} else {
-				log.Infof("queue %s created.\n", queue)
+			if createQueue {
+				e := CreateQueue(client, &api.Queue{Name: queueName, PriorityFactor: priorityFactor})
+				if status.Code(e) == codes.AlreadyExists {
+					log.Infof("queue %s already exists so no need to create it.\n", queueName)
+				} else if e != nil {
+					log.Errorf("failed to create queue: %s because: %s\n", queueName, e)
+					return nil
+				} else {
+					log.Infof("queue %s created.\n", queueName)
+				}
 			}
 
 			for len(jobs) > 0 {
@@ -153,7 +156,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 				jobs = remainingJobs
 
 				readyRequests := createJobSubmitRequestItems(readyJobs)
-				requests := CreateChunkedSubmitRequests(queue, jobSetId, readyRequests)
+				requests := CreateChunkedSubmitRequests(queueName, jobSetId, readyRequests)
 
 				for _, request := range requests {
 					response, e := SubmitJobs(client, request)
@@ -172,9 +175,9 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 						}
 					}
 
-					log.Infof("submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+					log.Infof("submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queueName, jobSetId)
 					if failedJobs > 0 {
-						log.Errorf("%d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+						log.Errorf("%d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queueName, jobSetId)
 					}
 				}
 
