@@ -1,15 +1,15 @@
+import { Stack } from "@mui/material"
 import Truncate from "react-truncate"
 import { TableCellProps, Table as VirtualizedTable, Column } from "react-virtualized"
 
 import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutV2Models"
 import { JobSet } from "../../services/JobService"
+import { formatJobState } from "../../utils/jobsTableFormatters"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
 import "./JobSetTable.css"
 import SortableHeaderCell from "../SortableHeaderCell"
 import { JobStateCountChip } from "../lookoutV2/JobStateCountChip"
-import { Stack } from "@mui/material"
-import { formatJobState } from "../../utils/jobsTableFormatters"
 
 interface JobSetTableProps {
   height: number

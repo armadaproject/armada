@@ -17,7 +17,7 @@ postgres:
     dbname: lookout
     sslmode: disable
 prunerConfig:
-  expireAfter: 1008h  # 42 days / 6 weeks
+  expireAfter: 1008h # 42 days / 6 weeks
   deduplicationExpireAfter: 168h # 7 days
   timeout: 1h
   batchSize: 1000
@@ -28,7 +28,7 @@ uiConfig:
   userAnnotationPrefix: "armadaproject.io/"
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"
   commandSpecs:
-  - name: Logs
-    template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} logs armada-{{ jobId }}-0"
-  - name: Exec
-    template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} exec -it armada-{{ jobId }}-0 /bin/sh"
+    - name: Logs
+      template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} logs armada-{{ jobId }}-0"
+    - name: Exec
+      template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} exec -it armada-{{ jobId }}-0 /bin/sh"
