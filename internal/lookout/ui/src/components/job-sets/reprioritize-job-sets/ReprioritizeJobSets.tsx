@@ -1,9 +1,7 @@
-import React from "react"
-
-import { List, ListItem, ListItemText, Paper, TextField } from "@material-ui/core"
+import { LoadingButton } from "@mui/lab"
+import { List, ListItem, ListItemText, Paper, TextField } from "@mui/material"
 
 import { JobSet } from "../../../services/JobService"
-import LoadingButton from "../../jobs/LoadingButton"
 
 import "./ReprioritizeJobSets.css"
 import "../../Dialog.css"
@@ -41,12 +39,9 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
           />
         </div>
         <div>
-          <LoadingButton
-            content={"Reprioritize Job Sets"}
-            isDisabled={!props.isValid}
-            isLoading={props.isLoading}
-            onClick={props.onReprioritizeJobsSets}
-          />
+          <LoadingButton disabled={!props.isValid} loading={props.isLoading} onClick={props.onReprioritizeJobsSets}>
+            Reprioritize Job Sets
+          </LoadingButton>
         </div>
       </div>
     </div>

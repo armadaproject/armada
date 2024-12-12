@@ -1,7 +1,6 @@
 import { useRef, useState } from "react"
 
-import { ArrowDropDown, ArrowDropUp } from "@material-ui/icons"
-import { Check, Delete, Edit } from "@mui/icons-material"
+import { ArrowDropDown, ArrowDropUp, Check, Delete, Edit } from "@mui/icons-material"
 import {
   Button,
   Checkbox,
@@ -191,10 +190,22 @@ export default function ColumnSelect({
               })}
             </div>
             <div className={styles.annotationSelectContainer}>
-              <Typography display="block" variant="caption" sx={{ width: "100%" }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  width: "100%",
+                }}
+              >
                 Click here to add an annotation column.
               </Typography>
-              <Typography display="block" variant="caption" sx={{ width: "100%" }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  width: "100%",
+                }}
+              >
                 Annotations are metadata (key-value pairs) that you can add to your job.
               </Typography>
               <div className={styles.addColumnButton}>

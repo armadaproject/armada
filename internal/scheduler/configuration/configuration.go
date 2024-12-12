@@ -239,7 +239,8 @@ type SchedulingConfig struct {
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
 	// TODO: Remove this feature gate
-	EnableExecutorCordoning bool
+	EnableExecutorCordoning       bool
+	ExperimentalIndicativePricing ExperimentalIndicativePricing
 }
 
 const (
@@ -288,4 +289,9 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 		}
 	}
 	return sc.ProtectedFractionOfFairShare
+}
+
+type ExperimentalIndicativePricing struct {
+	BasePrice    float64
+	BasePriority float64
 }

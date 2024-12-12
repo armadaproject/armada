@@ -1,23 +1,27 @@
+import { QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { v4 as uuidv4 } from "uuid"
 
 import { JobsTableContainer } from "./JobsTableContainer"
+import { queryClient } from "../../App"
+import { FakeServicesProvider } from "../../services/fakeContext"
+import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
 import { IGetRunInfoService } from "../../services/lookoutV2/GetRunInfoService"
+import { IGroupJobsService } from "../../services/lookoutV2/GroupJobsService"
 import { ILogService } from "../../services/lookoutV2/LogService"
+import { UpdateJobSetsService } from "../../services/lookoutV2/UpdateJobSetsService"
+import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
 import { FakeCordonService } from "../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobInfoService from "../../services/lookoutV2/mocks/FakeGetJobInfoService"
+import FakeGetJobsService from "../../services/lookoutV2/mocks/FakeGetJobsService"
 import { FakeGetRunInfoService } from "../../services/lookoutV2/mocks/FakeGetRunInfoService"
-import { FakeLogService } from "../../services/lookoutV2/mocks/FakeLogService"
+import FakeGroupJobsService from "../../services/lookoutV2/mocks/FakeGroupJobsService"
 
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(30_000)
@@ -58,19 +62,12 @@ describe("JobsTableContainer", () => {
     groupJobsService: IGroupJobsService,
     runErrorService: IGetRunInfoService,
     jobSpecService: IGetJobInfoService,
-    logService: ILogService,
     updateJobsService: UpdateJobsService
 
-  function setUp(jobs: Job[]) {
-    getJobsService = new FakeGetJobsService(jobs, false)
-    groupJobsService = new FakeGroupJobsService(jobs, false)
-  }
-
   beforeEach(() => {
-    setUp([])
     runErrorService = new FakeGetRunInfoService(false)
     jobSpecService = new FakeGetJobInfoService(false)
-    logService = new FakeLogService()
+
     localStorage.clear()
 
     updateJobsService = {
@@ -78,21 +75,39 @@ describe("JobsTableContainer", () => {
     } as any
   })
 
-  const renderComponent = (search?: string) => {
+  const renderComponent = (
+    fakeJobs: Job[] = [],
+    search?: string,
+    fakeServices: {
+      v2GetJobsService?: IGetJobsService
+      v2GroupJobsService?: IGroupJobsService
+      v2RunInfoService?: IGetRunInfoService
+      v2JobSpecService?: IGetJobInfoService
+      v2LogService?: ILogService
+      v2UpdateJobsService?: UpdateJobsService
+      v2UpdateJobSetsService?: UpdateJobSetsService
+      v2CordonService?: ICordonService
+    } = {},
+  ) => {
+    getJobsService = new FakeGetJobsService(fakeJobs, false)
+    groupJobsService = new FakeGroupJobsService(fakeJobs, false)
     const element = (
       <SnackbarProvider>
-        <JobsTableContainer
-          getJobsService={getJobsService}
-          groupJobsService={groupJobsService}
-          updateJobsService={updateJobsService}
-          runInfoService={runErrorService}
-          jobSpecService={jobSpecService}
-          logService={logService}
-          cordonService={new FakeCordonService()}
-          debug={false}
-          autoRefreshMs={30000}
-          commandSpecs={[]}
-        />
+        <QueryClientProvider client={queryClient}>
+          <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
+            <JobsTableContainer
+              getJobsService={fakeServices.v2GetJobsService ?? getJobsService}
+              groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
+              updateJobsService={fakeServices.v2UpdateJobsService ?? updateJobsService}
+              runInfoService={fakeServices.v2RunInfoService ?? runErrorService}
+              jobSpecService={fakeServices.v2JobSpecService ?? jobSpecService}
+              cordonService={fakeServices.v2CordonService ?? new FakeCordonService()}
+              debug={false}
+              autoRefreshMs={30000}
+              commandSpecs={[]}
+            />
+          </FakeServicesProvider>
+        </QueryClientProvider>
       </SnackbarProvider>
     )
     let initialEntry = "/v2"
@@ -121,8 +136,11 @@ describe("JobsTableContainer", () => {
   }
 
   it("should render a spinner while loading initially", async () => {
-    getJobsService.getJobs = jest.fn(() => new Promise(() => undefined))
-    const { findAllByRole } = renderComponent()
+    const fakeGetJobsService = new FakeGetJobsService([])
+    fakeGetJobsService.getJobs = jest.fn(() => new Promise(() => undefined))
+    const { findAllByRole } = renderComponent([], undefined, {
+      v2GetJobsService: fakeGetJobsService,
+    })
     await findAllByRole("progressbar")
   })
 
@@ -135,17 +153,19 @@ describe("JobsTableContainer", () => {
   })
 
   it("should show the correct total row count on the first page", async () => {
-    setUp(makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued))
-
-    const { findByText } = renderComponent(`?page=0&sort[id]=jobId&sort[desc]=false`)
+    const { findByText } = renderComponent(
+      makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued),
+      `?page=0&sort[id]=jobId&sort[desc]=false`,
+    )
     await waitForFinishedLoading()
     await findByText("1–50 of more than 50")
   })
 
   it("should show the correct total row count on the last page", async () => {
-    setUp(makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued))
-
-    const { findByText } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
+    const { findByText } = renderComponent(
+      makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued),
+      `?page=1&sort[id]=jobId&sort[desc]=false`,
+    )
     await waitForFinishedLoading()
     await findByText("51–60 of 60")
   })
@@ -161,12 +181,11 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-3", JobState.Running),
       ]
-      setUp(jobs)
 
       const jobObjKey = groupKey as keyof Job
       const numUniqueForJobKey = new Set(jobs.map((j) => j[jobObjKey])).size
 
-      renderComponent()
+      renderComponent(jobs)
       await waitForFinishedLoading()
 
       await groupByColumn(displayString)
@@ -189,9 +208,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-1", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      renderComponent()
+      renderComponent(jobs)
 
       // Group to 3 levels
       await groupByColumn("Queue")
@@ -220,9 +238,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-1", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      const { getByRole, queryAllByRole } = renderComponent()
+      const { getByRole, queryAllByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       await groupByColumn("Queue")
@@ -252,9 +269,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      const { findByRole } = renderComponent()
+      const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
       await groupByColumn("Queue")
 
@@ -286,9 +302,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      const { findByRole } = renderComponent()
+      const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       await toggleSelectedRow("jobId", jobs[0].jobId)
@@ -303,9 +318,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(1000, "queue-1", "job-set-1", JobState.Pending),
         ...makeTestJobs(1500, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      const { findByRole } = renderComponent()
+      const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
       await groupByColumn("Queue")
 
@@ -331,9 +345,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      renderComponent()
+      renderComponent(jobs)
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
@@ -351,9 +364,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
 
-      renderComponent()
+      renderComponent(jobs)
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -372,9 +384,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running, { hyperparameter: "some-test-hyperparameter" }),
       ]
-      setUp(jobs)
 
-      const { findAllByRole } = renderComponent()
+      const { findAllByRole } = renderComponent(jobs)
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -395,7 +406,6 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
       const sorted = [...jobs].sort((a, b) => {
         if (a.jobId < b.jobId) {
           return -1
@@ -404,7 +414,7 @@ describe("JobsTableContainer", () => {
         }
       })
 
-      const { getAllByRole } = renderComponent()
+      const { getAllByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       await toggleSorting("Job ID")
@@ -432,8 +442,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
-      const { findByRole } = renderComponent()
+      const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
@@ -459,8 +468,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
-      const { findByText } = renderComponent()
+      const { findByText } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       // Applying grouping and filtering
@@ -488,8 +496,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
-      const { getByRole } = renderComponent()
+      const { getByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
@@ -506,8 +513,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-2", JobState.Running),
       ]
-      setUp(jobs)
-      const { findByRole, queryByRole } = renderComponent()
+      const { findByRole, queryByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       await groupByColumn("Queue")
@@ -534,8 +540,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-1", JobState.Running),
       ]
-      setUp(jobs)
-      const { router } = renderComponent()
+      const { router } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       await groupByColumn("Job Set")
@@ -559,8 +564,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-3", JobState.Running),
       ]
-      setUp(jobs)
       renderComponent(
+        jobs,
         `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
       )
 
@@ -575,9 +580,8 @@ describe("JobsTableContainer", () => {
       for (let i = 0; i < 51; i++) {
         jobs[i].jobId = "job-" + `${i}`.padStart(2, "0")
       }
-      setUp(jobs)
 
-      const { getAllByRole } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
+      const { getAllByRole } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
       await waitForFinishedLoading()
       await waitFor(() => {
         const rows = getAllByRole("row")
@@ -604,7 +608,7 @@ describe("JobsTableContainer", () => {
   }
 
   async function groupByColumn(columnDisplayName: string) {
-    const groupByDropdownButton = await screen.findByRole("button", { name: "Group by" })
+    const groupByDropdownButton = await screen.findByLabelText("Group by")
     await userEvent.click(groupByDropdownButton)
 
     const dropdown = await screen.findByRole("listbox")
@@ -649,7 +653,7 @@ describe("JobsTableContainer", () => {
 
   async function toggleEnumFilterOptions(columnDisplayName: string, filterOptions: string[]) {
     const headerCell = await getHeaderCell(columnDisplayName)
-    const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter\u2026" })
+    const dropdownTrigger = await within(headerCell).findByLabelText("Filter\u2026")
     await userEvent.click(dropdownTrigger)
     for (const filterOption of filterOptions) {
       const optionButton = await screen.findByRole("option", { name: filterOption })

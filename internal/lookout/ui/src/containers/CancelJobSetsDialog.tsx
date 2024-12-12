@@ -1,6 +1,6 @@
-import React, { useState } from "react"
+import { useState } from "react"
 
-import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
+import { Dialog, DialogContent, DialogTitle } from "@mui/material"
 
 import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"

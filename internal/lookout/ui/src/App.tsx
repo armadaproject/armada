@@ -1,42 +1,29 @@
-import React, { useEffect, useState } from "react"
+import { Dispatch, ReactNode, SetStateAction, useEffect, useState } from "react"
 
-import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
-import { createGenerateClassName } from "@material-ui/core/styles"
-import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
+import { ThemeProvider, createTheme } from "@mui/material"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { UserManager, WebStorageStateStore, UserManagerSettings, User } from "oidc-client-ts"
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
+import { Services, ServicesProvider } from "services/context"
 import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { UserManagerContext, useUserManager } from "./oidc"
-import { ICordonService } from "./services/lookoutV2/CordonService"
-import { IGetJobInfoService } from "./services/lookoutV2/GetJobInfoService"
-import { IGetRunInfoService } from "./services/lookoutV2/GetRunInfoService"
-import { ILogService } from "./services/lookoutV2/LogService"
 import { CommandSpec } from "./utils"
 import { OidcConfig } from "./utils"
 
 import "./App.css"
 
-// Required for Mui V4 and V5 to be compatible with each other
-// See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
-const generateClassName = createGenerateClassName({
-  // By enabling this option, if you have non-MUI elements (e.g. `<div />`)
-  // using MUI classes (e.g. `.MuiButton`) they will lose styles.
-  // Make sure to convert them to use `styled()` or `<Box />` first.
-  disableGlobal: true,
-  // Class names will receive this seed to avoid name collisions.
-  seed: "mui-jss",
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 0, retry: false, refetchOnMount: "always" },
+  },
 })
 
-const theme = {
+const theme = createTheme({
   palette: {
     primary: {
       main: "#00aae1",
@@ -58,22 +45,12 @@ const theme = {
       "sans-serif",
     ].join(","),
   },
-}
-
-const themeV4 = createThemeV4(theme)
-const themeV5 = createThemeV5(theme)
+})
 
 type AppProps = {
   customTitle: string
   oidcConfig?: OidcConfig
-  v2GetJobsService: IGetJobsService
-  v2GroupJobsService: IGroupJobsService
-  v2RunInfoService: IGetRunInfoService
-  v2JobSpecService: IGetJobInfoService
-  v2LogService: ILogService
-  v2UpdateJobsService: UpdateJobsService
-  v2UpdateJobSetsService: UpdateJobSetsService
-  v2CordonService: ICordonService
+  services: Services
   jobSetsAutoRefreshMs: number | undefined
   jobsAutoRefreshMs: number | undefined
   debugEnabled: boolean
@@ -83,13 +60,13 @@ type AppProps = {
 // Handling authentication on page opening
 
 interface AuthWrapperProps {
-  children: React.ReactNode
+  children: ReactNode
   userManager: UserManager | undefined
   isAuthenticated: boolean
 }
 
 interface OidcCallbackProps {
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>
+  setIsAuthenticated: Dispatch<SetStateAction<boolean>>
 }
 
 export const UserManagerProvider = UserManagerContext.Provider
@@ -182,17 +159,13 @@ export function App(props: AppProps): JSX.Element {
   }, [props.customTitle])
 
   const result = (
-    <StylesProvider generateClassName={generateClassName}>
-      <ThemeProviderV4 theme={themeV4}>
-        <ThemeProviderV5 theme={themeV5}>
-          <SnackbarProvider
-            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-            autoHideDuration={8000}
-            maxSnack={3}
-          >
-            <BrowserRouter>
-              <UserManagerProvider value={userManager}>
-                <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
+    <ThemeProvider theme={theme}>
+      <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000} maxSnack={3}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <UserManagerProvider value={userManager}>
+              <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
+                <ServicesProvider services={props.services}>
                   <div className="app-container">
                     <NavBar customTitle={props.customTitle} username={username} />
                     <div className="app-content">
@@ -201,20 +174,28 @@ export function App(props: AppProps): JSX.Element {
                           path="/"
                           element={
                             <JobsTableContainer
-                              getJobsService={props.v2GetJobsService}
-                              groupJobsService={props.v2GroupJobsService}
-                              updateJobsService={props.v2UpdateJobsService}
-                              runInfoService={props.v2RunInfoService}
-                              jobSpecService={props.v2JobSpecService}
-                              logService={props.v2LogService}
-                              cordonService={props.v2CordonService}
+                              getJobsService={props.services.v2GetJobsService}
+                              groupJobsService={props.services.v2GroupJobsService}
+                              updateJobsService={props.services.v2UpdateJobsService}
+                              runInfoService={props.services.v2RunInfoService}
+                              jobSpecService={props.services.v2JobSpecService}
+                              cordonService={props.services.v2CordonService}
                               debug={props.debugEnabled}
                               autoRefreshMs={props.jobsAutoRefreshMs}
                               commandSpecs={props.commandSpecs}
                             />
                           }
                         />
-                        <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                        <Route
+                          path="/job-sets"
+                          element={
+                            <JobSetsContainer
+                              v2GroupJobsService={props.services.v2GroupJobsService}
+                              v2UpdateJobSetsService={props.services.v2UpdateJobSetsService}
+                              jobSetsAutoRefreshMs={props.jobSetsAutoRefreshMs}
+                            />
+                          }
+                        />
                         <Route path="/oidc" element={<OidcCallback setIsAuthenticated={setIsAuthenticated} />} />
                         <Route path="/v2" element={<V2Redirect />} />
                         <Route
@@ -229,13 +210,13 @@ export function App(props: AppProps): JSX.Element {
                       </Routes>
                     </div>
                   </div>
-                </AuthWrapper>
-              </UserManagerProvider>
-            </BrowserRouter>
-          </SnackbarProvider>
-        </ThemeProviderV5>
-      </ThemeProviderV4>
-    </StylesProvider>
+                </ServicesProvider>
+              </AuthWrapper>
+            </UserManagerProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </SnackbarProvider>
+    </ThemeProvider>
   )
 
   return result

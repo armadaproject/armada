@@ -1,9 +1,7 @@
-import React from "react"
-
-import { Checkbox, List, ListItem, ListItemText, Paper } from "@material-ui/core"
+import { LoadingButton } from "@mui/lab"
+import { Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
 
 import { JobSet } from "../../../services/JobService"
-import LoadingButton from "../../jobs/LoadingButton"
 
 import "./CancelJobSets.css"
 import "../../Dialog.css"
@@ -56,7 +54,9 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
         />
       </div>
       <div className="lookout-dialog-centered lookout-dialog-fixed">
-        <LoadingButton content={"Cancel Job Sets"} isLoading={props.isLoading} onClick={props.onCancelJobSets} />
+        <LoadingButton loading={props.isLoading} onClick={props.onCancelJobSets}>
+          Cancel Job Sets
+        </LoadingButton>
       </div>
     </div>
   )

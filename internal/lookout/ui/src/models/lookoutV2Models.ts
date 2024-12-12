@@ -11,16 +11,30 @@ export enum JobState {
   Rejected = "REJECTED",
 }
 
-export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
-  [JobState.Leased]: { displayName: "Leased", color: "#f5c056" },
-  [JobState.Queued]: { displayName: "Queued", color: "#ffff00" },
-  [JobState.Pending]: { displayName: "Pending", color: "#ff9900" },
-  [JobState.Running]: { displayName: "Running", color: "#00ff00" },
-  [JobState.Succeeded]: { displayName: "Succeeded", color: "#0000ff" },
-  [JobState.Failed]: { displayName: "Failed", color: "#ff0000" },
-  [JobState.Cancelled]: { displayName: "Cancelled", color: "#999999" },
-  [JobState.Preempted]: { displayName: "Preempted", color: "#f8bbd0" },
-  [JobState.Rejected]: { displayName: "Rejected", color: "#ef5350" },
+export const jobStateColors: Record<JobState, string> = {
+  [JobState.Queued]: "#6c757d",
+  [JobState.Pending]: "#6c757d",
+  [JobState.Running]: "#007bff",
+  [JobState.Succeeded]: "#28a745",
+  [JobState.Failed]: "#88022b",
+  [JobState.Cancelled]: "#ffc107",
+  [JobState.Preempted]: "#ffc107",
+  [JobState.Leased]: "#6c757d",
+  [JobState.Rejected]: "#88022b",
+}
+
+export const defaultJobStateColor = "#6f42c1"
+
+export const jobStateDisplayNames: Record<JobState, string> = {
+  [JobState.Leased]: "Leased",
+  [JobState.Queued]: "Queued",
+  [JobState.Pending]: "Pending",
+  [JobState.Running]: "Running",
+  [JobState.Succeeded]: "Succeeded",
+  [JobState.Failed]: "Failed",
+  [JobState.Cancelled]: "Cancelled",
+  [JobState.Preempted]: "Preempted",
+  [JobState.Rejected]: "Rejected",
 }
 
 const terminatedJobStates = new Set([
@@ -60,11 +74,6 @@ export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }
   [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Exceeded" },
   [JobRunState.RunLeased]: { displayName: "Leased" },
   [JobRunState.RunCancelled]: { displayName: "Cancelled" },
-}
-
-type ColoredState = {
-  displayName: string
-  color: string
 }
 
 export type JobId = string

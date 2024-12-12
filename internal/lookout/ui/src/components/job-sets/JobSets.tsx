@@ -1,9 +1,8 @@
-import React from "react"
+import { FC } from "react"
 
-import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@material-ui/core"
-import CancelIcon from "@material-ui/icons/Cancel"
-import LowPriority from "@material-ui/icons/LowPriority"
-import { AutoSizer } from "react-virtualized"
+import { Cancel, LowPriority } from "@mui/icons-material"
+import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@mui/material"
+import { AutoSizer as _AutoSizer, AutoSizerProps } from "react-virtualized"
 
 import JobSetTable from "./JobSetTable"
 import { JobSet } from "../../services/JobService"
@@ -12,6 +11,9 @@ import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
 
 import "./JobSets.css"
+
+// This works around a type bug in react-virtualized: https://github.com/bvaughn/react-virtualized/issues/1739
+const AutoSizer = _AutoSizer as unknown as FC<AutoSizerProps>
 
 interface JobSetsProps {
   queue: string
@@ -106,7 +108,7 @@ export default function JobSets(props: JobSetsProps) {
               disabled={!props.canCancel}
               variant="contained"
               color="secondary"
-              startIcon={<CancelIcon />}
+              startIcon={<Cancel />}
               onClick={props.onCancelJobSetsClick}
             >
               Cancel

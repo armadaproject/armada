@@ -1,19 +1,17 @@
-import React, { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 
-import { CircularProgress } from "@material-ui/core"
 import { ContentCopy, Download } from "@mui/icons-material"
+import { CircularProgress } from "@mui/material"
 import { IconButton } from "@mui/material"
 import yaml from "js-yaml"
 import { Job } from "models/lookoutV2Models"
 
 import styles from "./SidebarTabJobYaml.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
-import { useJobSpec } from "../../../hooks/useJobSpec"
-import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
+import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
 
 export interface SidebarTabJobYamlProps {
   job: Job
-  jobSpecService: IGetJobInfoService
 }
 
 function toJobSubmissionYaml(jobSpec: Record<string, any>): string {
@@ -42,16 +40,22 @@ function toJobSubmissionYaml(jobSpec: Record<string, any>): string {
   })
 }
 
-export const SidebarTabJobYaml = ({ job, jobSpecService }: SidebarTabJobYamlProps) => {
+export const SidebarTabJobYaml = ({ job }: SidebarTabJobYamlProps) => {
   const openSnackbar = useCustomSnackbar()
-  const jobSpecState = useJobSpec(job, jobSpecService, openSnackbar)
+
+  const getJobSpecResult = useGetJobSpec(job.jobId, Boolean(job.jobId))
+  useEffect(() => {
+    if (getJobSpecResult.status === "error") {
+      openSnackbar(`Failed to retrieve Job spec for Job with ID: ${job.jobId}: ${getJobSpecResult.error}`, "error")
+    }
+  }, [getJobSpecResult.status, getJobSpecResult.error])
 
   const submission = useMemo(() => {
-    if (jobSpecState.jobSpec !== undefined) {
-      return toJobSubmissionYaml(jobSpecState.jobSpec)
+    if (getJobSpecResult.status === "success") {
+      return toJobSubmissionYaml(getJobSpecResult.data)
     }
     return undefined
-  }, [jobSpecState])
+  }, [getJobSpecResult.status, getJobSpecResult.data])
 
   const downloadYamlFile = useCallback(() => {
     if (submission === undefined) {
@@ -65,7 +69,7 @@ export const SidebarTabJobYaml = ({ job, jobSpecService }: SidebarTabJobYamlProp
     element.download = `${job.jobId}.yaml`
     document.body.appendChild(element)
     element.click()
-  }, [submission, jobSpecState, job])
+  }, [submission, job])
 
   const copyYaml = useCallback(async () => {
     if (submission === undefined) {
@@ -76,16 +80,16 @@ export const SidebarTabJobYaml = ({ job, jobSpecService }: SidebarTabJobYamlProp
       autoHideDuration: 3000,
       preventDuplicate: true,
     })
-  }, [submission, jobSpecState, job])
+  }, [submission, job])
 
   return (
     <div style={{ width: "100%", height: "100%" }}>
-      {jobSpecState.loadState === "Loading" && (
+      {getJobSpecResult.status === "pending" && (
         <div className={styles.loading}>
           <CircularProgress size={24} />
         </div>
       )}
-      {jobSpecState.jobSpec && (
+      {getJobSpecResult.status === "success" && (
         <div className={styles.jobYaml}>
           <div className={styles.jobYamlActions}>
             <div>
@@ -97,7 +101,7 @@ export const SidebarTabJobYaml = ({ job, jobSpecService }: SidebarTabJobYamlProp
               </IconButton>
             </div>
           </div>
-          {toJobSubmissionYaml(jobSpecState.jobSpec)}
+          {toJobSubmissionYaml(getJobSpecResult.data)}
         </div>
       )}
     </div>
