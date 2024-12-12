@@ -1,15 +1,15 @@
 import { Checkbox } from "@mui/material"
 import { CellContext, Row } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
-import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
-import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
-import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
-import { JobState, Match } from "models/lookoutV2Models"
 
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
 import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
+import { JobStateChip } from "../components/lookoutV2/JobStateChip"
+import { EnumFilterOption } from "../components/lookoutV2/JobsTableFilter"
 import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+import { isJobGroupRow, JobTableRow } from "../models/jobsTableModels"
+import { JobState, jobStateColors, jobStateIcons, Match } from "../models/lookoutV2Models"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 
@@ -225,7 +225,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
-      cell: (cell) => {
+      cell: (cell: CellContext<JobTableRow, JobState>) => {
         if (
           cell.row.original &&
           isJobGroupRow(cell.row.original) &&
@@ -234,14 +234,10 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         ) {
           return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
         } else {
-          return (
-            <JobStateLabel state={cell.getValue() as JobState}>
-              {formatJobState(cell.getValue() as JobState)}
-            </JobStateLabel>
-          )
+          return <JobStateChip state={cell.getValue()} />
         }
       },
-      aggregatedCell: (cell) => {
+      aggregatedCell: (cell: CellContext<JobTableRow, JobState>) => {
         if (
           cell.row.original &&
           isJobGroupRow(cell.row.original) &&
@@ -250,11 +246,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         ) {
           return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
         } else {
-          return (
-            <JobStateLabel state={cell.getValue() as JobState}>
-              {formatJobState(cell.getValue() as JobState)}
-            </JobStateLabel>
-          )
+          return <JobStateChip state={cell.getValue()} />
         }
       },
     },
@@ -263,6 +255,8 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enumFilterValues: Object.values(JobState).map((state) => ({
         value: state,
         displayName: formatJobState(state),
+        Icon: jobStateIcons[state],
+        iconColor: jobStateColors[state],
       })),
       defaultMatchType: Match.AnyOf,
     },
