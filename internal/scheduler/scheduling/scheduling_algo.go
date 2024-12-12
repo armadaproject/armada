@@ -760,7 +760,7 @@ func (l *FairSchedulingAlgo) calculateFairShareDrivenSpotPrice(sctx *schedulerco
 
 	// Linear interpolation between 50% and 10%
 	if theoreticalShare >= 0.1 {
-		return basePrice * (0.5 - theoreticalShare)
+		return basePrice * 2.5 * (0.5 - theoreticalShare)
 	}
 
 	// Reciprocal growth below 10%
