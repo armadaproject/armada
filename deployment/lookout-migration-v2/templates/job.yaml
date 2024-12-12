@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: lookout-migration-v2
+  name: {{ include "lookout_v2.name" . }}
   labels:
     {{- include "lookout_v2.labels.all" . | nindent 4 }}
 spec:
@@ -10,7 +10,7 @@ spec:
   parallelism: 1
   template:
     metadata:
-      name: lookout-migration-v2
+      name: {{ include "lookout_v2.name" . }}
       labels:
         {{- include "lookout_v2.labels.all" . | nindent 8 }}
     spec:
