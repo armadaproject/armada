@@ -2,7 +2,6 @@ package pulsarutils
 
 import (
 	"fmt"
-	"go.uber.org/mock/gomock"
 	"math"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
