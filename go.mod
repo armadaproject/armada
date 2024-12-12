@@ -71,7 +71,6 @@ require (
 	github.com/go-openapi/validate v0.22.6
 	github.com/go-playground/validator/v10 v10.15.4
 	github.com/gogo/status v1.1.1
-	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.24.0
 	github.com/jackc/pgx/v5 v5.5.4
 	github.com/jessevdk/go-flags v1.5.0
@@ -83,6 +82,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
+	go.uber.org/mock v0.5.0
 	golang.org/x/term v0.25.0
 	golang.org/x/time v0.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
