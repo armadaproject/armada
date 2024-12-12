@@ -140,8 +140,8 @@ export const ReprioritiseDialog = ({
   }, [fetchSelectedJobs])
 
   const jobsToRender = useMemo(() => reprioritisableJobs.slice(0, 1000), [reprioritisableJobs])
-  const formatPriority = useCallback((job) => job.priority, [])
-  const formatSubmittedTime = useCallback((job) => job.submitted, [])
+  const formatPriority = useCallback((job: Job) => job.priority.toString(), [])
+  const formatSubmittedTime = useCallback((job: Job) => job.submitted, [])
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
       <DialogTitle>Reprioritise {isLoadingJobs ? "jobs" : pl(reprioritisableJobs, "job")}</DialogTitle>
