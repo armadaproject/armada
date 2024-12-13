@@ -106,7 +106,7 @@ spec:
         {{- if .Values.applicationConfig.tls.enabled }}
         - name: tls-certs
           secret:
-            secretName: lookout-service-tls-v2
+            secretName: {{ include "lookout_v2.name" . }}-service-tls
         {{- end }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}
