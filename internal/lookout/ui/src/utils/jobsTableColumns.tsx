@@ -225,7 +225,8 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
-      cell: (cell: CellContext<JobTableRow, JobState>) => {
+      cell: (_cell) => {
+        const cell = _cell as CellContext<JobTableRow, JobState>
         if (
           cell.row.original &&
           isJobGroupRow(cell.row.original) &&
@@ -237,7 +238,8 @@ export const JOB_COLUMNS: JobTableColumn[] = [
           return <JobStateChip state={cell.getValue()} />
         }
       },
-      aggregatedCell: (cell: CellContext<JobTableRow, JobState>) => {
+      aggregatedCell: (_cell) => {
+        const cell = _cell as CellContext<JobTableRow, JobState>
         if (
           cell.row.original &&
           isJobGroupRow(cell.row.original) &&
