@@ -235,7 +235,7 @@ export const SidebarTabJobResult = ({
             <AccordionDetails sx={{ padding: 0 }}>
               <KeyValuePairTable
                 data={[
-                  { key: "Run ID", value: run.runId },
+                  { key: "Run ID", value: run.runId, allowCopy: true },
                   { key: "State", value: formatJobRunState(run.jobRunState) },
                   { key: "Leased (UTC)", value: formatUtcDate(run.leased) },
                   { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
@@ -246,8 +246,8 @@ export const SidebarTabJobResult = ({
                     value:
                       run.started && run.finished ? formatTimeSince(run.started, new Date(run.finished).getTime()) : "",
                   },
-                  { key: "Cluster", value: run.cluster },
-                  { key: "Node", value: run.node ?? "" },
+                  { key: "Cluster", value: run.cluster, allowCopy: true },
+                  { key: "Node", value: run.node ?? "", allowCopy: true },
                   { key: "Exit code", value: run.exitCode?.toString() ?? "" },
                 ].filter((pair) => pair.value !== "")}
               />

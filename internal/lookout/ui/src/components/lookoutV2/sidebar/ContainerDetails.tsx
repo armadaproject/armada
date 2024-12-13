@@ -125,6 +125,7 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
                 {
                   key: "image",
                   value: container.image,
+                  allowCopy: true,
                 },
               ]}
             />

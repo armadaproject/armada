@@ -11,13 +11,13 @@ export interface SidebarTabJobDetailsProps {
 
 export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
   const details = [
-    { key: "Queue", value: job.queue },
-    { key: "Job Set", value: job.jobSet },
-    { key: "Owner", value: job.owner },
-    ...(job.namespace ? [{ key: "Namespace", value: job.namespace }] : []),
+    { key: "Queue", value: job.queue, allowCopy: true },
+    { key: "Job Set", value: job.jobSet, allowCopy: true },
+    { key: "Owner", value: job.owner, allowCopy: true },
+    ...(job.namespace ? [{ key: "Namespace", value: job.namespace, allowCopy: true }] : []),
     { key: "Priority", value: job.priority.toString() },
     { key: "Run Count", value: job.runs.length.toString() },
-    ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason }] : []),
+    ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason, allowCopy: true }] : []),
   ]
   return (
     <>
@@ -39,6 +39,7 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
             key: annotationKey,
             value: job.annotations[annotationKey],
             isAnnotation: true,
+            allowCopy: true,
           }))}
         />
       ) : (
