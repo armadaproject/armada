@@ -1,13 +1,15 @@
+import { Stack } from "@mui/material"
 import Truncate from "react-truncate"
-import { TableCellProps, Table as VirtualizedTable, Column, defaultTableCellRenderer } from "react-virtualized"
+import { TableCellProps, Table as VirtualizedTable, Column } from "react-virtualized"
 
-import { JobState } from "../../models/lookoutV2Models"
+import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutV2Models"
 import { JobSet } from "../../services/JobService"
+import { formatJobState } from "../../utils/jobsTableFormatters"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
 import "./JobSetTable.css"
-import LinkCell from "../LinkCell"
 import SortableHeaderCell from "../SortableHeaderCell"
+import { JobStateCountChip } from "../lookoutV2/JobStateCountChip"
 
 interface JobSetTableProps {
   height: number
@@ -24,12 +26,8 @@ interface JobSetTableProps {
   onJobSetStateClick(rowIndex: number, state: string): void
 }
 
-function cellRendererForState(cellProps: TableCellProps, onClickFunc: () => void) {
-  if (cellProps.cellData > 0) {
-    return <LinkCell onClick={onClickFunc} {...cellProps} />
-  }
-
-  return defaultTableCellRenderer(cellProps)
+function cellRendererForState(cellProps: TableCellProps, jobState: JobState, onClickFunc: () => void) {
+  return <JobStateCountChip state={jobState} count={cellProps.cellData} onClick={onClickFunc} />
 }
 
 function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
@@ -99,6 +97,7 @@ export default function JobSetTable(props: JobSetTableProps) {
           dataKey="jobSetId"
           width={0.5 * props.width}
           label="Job Set"
+          headerRenderer={(cellProps) => cellProps.label}
           cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, 0.5 * props.width)}
           className="job-set-table-job-set-name-cell"
         />
@@ -116,60 +115,35 @@ export default function JobSetTable(props: JobSetTableProps) {
             />
           )}
         />
-        <Column
-          dataKey="jobsQueued"
-          width={0.06 * props.width}
-          label="Queued"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Queued))
-          }
-        />
-        <Column
-          dataKey="jobsPending"
-          width={0.06 * props.width}
-          label="Pending"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Pending))
-          }
-        />
-        <Column
-          dataKey="jobsRunning"
-          width={0.06 * props.width}
-          label="Running"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Running))
-          }
-        />
-        <Column
-          dataKey="jobsSucceeded"
-          width={0.06 * props.width}
-          label="Succeeded"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Succeeded))
-          }
-        />
-        <Column
-          dataKey="jobsFailed"
-          width={0.06 * props.width}
-          label="Failed"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Failed))
-          }
-        />
-        <Column
-          dataKey="jobsCancelled"
-          width={0.06 * props.width}
-          label="Cancelled"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Cancelled))
-          }
-        />
+        {(
+          [
+            [JobState.Queued, "jobsQueued"],
+            [JobState.Pending, "jobsPending"],
+            [JobState.Running, "jobsRunning"],
+            [JobState.Succeeded, "jobsSucceeded"],
+            [JobState.Failed, "jobsFailed"],
+            [JobState.Cancelled, "jobsCancelled"],
+          ] as [JobState, keyof JobSet][]
+        ).map(([jobState, dataKey]) => {
+          const Icon = jobStateIcons[jobState]
+          return (
+            <Column
+              key={jobState}
+              dataKey={dataKey}
+              width={0.06 * props.width}
+              label={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <span>{formatJobState(jobState)}</span>
+                  <Icon fontSize="inherit" color={jobStateColors[jobState]} />
+                </Stack>
+              }
+              className="job-set-table-number-cell"
+              cellRenderer={(cellProps) =>
+                cellRendererForState(cellProps, jobState, () => props.onJobSetStateClick(cellProps.rowIndex, jobState))
+              }
+            />
+          )
+        })}
       </VirtualizedTable>
     </div>
   )

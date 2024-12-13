@@ -1,3 +1,18 @@
+import { SvgIconProps } from "@mui/material"
+
+import {
+  FaHourglassHalf,
+  FaSpinner,
+  FaPlayCircle,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaBan,
+  FaExcahngeAlt,
+  FaFileContract,
+  FaHand,
+} from "../components/fontAwesomeIcons"
+import { CustomPaletteColorToken } from "../theme/palette"
+
 // Values must match the server-side states
 export enum JobState {
   Queued = "QUEUED",
@@ -11,19 +26,29 @@ export enum JobState {
   Rejected = "REJECTED",
 }
 
-export const jobStateColors: Record<JobState, string> = {
-  [JobState.Queued]: "#6c757d",
-  [JobState.Pending]: "#6c757d",
-  [JobState.Running]: "#007bff",
-  [JobState.Succeeded]: "#28a745",
-  [JobState.Failed]: "#88022b",
-  [JobState.Cancelled]: "#ffc107",
-  [JobState.Preempted]: "#ffc107",
-  [JobState.Leased]: "#6c757d",
-  [JobState.Rejected]: "#88022b",
+export const jobStateColors: Record<JobState, CustomPaletteColorToken> = {
+  [JobState.Queued]: "statusGrey",
+  [JobState.Pending]: "statusGrey",
+  [JobState.Running]: "statusBlue",
+  [JobState.Succeeded]: "statusGreen",
+  [JobState.Failed]: "statusRed",
+  [JobState.Cancelled]: "statusAmber",
+  [JobState.Preempted]: "statusAmber",
+  [JobState.Leased]: "statusGrey",
+  [JobState.Rejected]: "statusRed",
 }
 
-export const defaultJobStateColor = "#6f42c1"
+export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => JSX.Element> = {
+  [JobState.Queued]: FaHourglassHalf,
+  [JobState.Pending]: FaSpinner,
+  [JobState.Running]: FaPlayCircle,
+  [JobState.Succeeded]: FaCheckCircle,
+  [JobState.Failed]: FaTimesCircle,
+  [JobState.Cancelled]: FaBan,
+  [JobState.Preempted]: FaExcahngeAlt,
+  [JobState.Leased]: FaFileContract,
+  [JobState.Rejected]: FaHand,
+}
 
 export const jobStateDisplayNames: Record<JobState, string> = {
   [JobState.Leased]: "Leased",

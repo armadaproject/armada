@@ -4,9 +4,9 @@ import { Close } from "@mui/icons-material"
 import { Box, IconButton, Typography } from "@mui/material"
 
 import { Job } from "../../../models/lookoutV2Models"
-import { formatJobState, formatTimeSince } from "../../../utils/jobsTableFormatters"
+import { formatTimeSince } from "../../../utils/jobsTableFormatters"
 import { CopyIconButton } from "../../CopyIconButton"
-import { JobStateLabel } from "../JobStateLabel"
+import { JobStateChip } from "../JobStateChip"
 
 export interface SidebarHeaderProps {
   job: Job
@@ -31,11 +31,11 @@ export const SidebarHeader = memo(({ job, onClose, className }: SidebarHeaderPro
         }
       />
       <HeaderSection
-        title={"State"}
+        title="State"
         value={
-          <JobStateLabel state={job.state}>
-            {formatJobState(job.state)} for {formatTimeSince(job.lastTransitionTime)}
-          </JobStateLabel>
+          <>
+            <JobStateChip state={job.state} /> for {formatTimeSince(job.lastTransitionTime)}
+          </>
         }
       />
       <IconButton sx={{ marginLeft: "auto" }} onClick={onClose}>

@@ -1,49 +1,24 @@
 import { Dispatch, ReactNode, SetStateAction, useEffect, useState } from "react"
 
-import { ThemeProvider, createTheme } from "@mui/material"
+import { ThemeProvider } from "@mui/material"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { UserManager, WebStorageStateStore, UserManagerSettings, User } from "oidc-client-ts"
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom"
-import { Services, ServicesProvider } from "services/context"
-import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
+import { JobsTableContainer } from "./containers/lookoutV2/JobsTableContainer"
 import { UserManagerContext, useUserManager } from "./oidc"
-import { CommandSpec } from "./utils"
-import { OidcConfig } from "./utils"
+import { Services, ServicesProvider } from "./services/context"
+import { theme } from "./theme/theme"
+import { CommandSpec, OidcConfig, withRouter } from "./utils"
 
 import "./App.css"
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 0, retry: false, refetchOnMount: "always" },
-  },
-})
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: "#00aae1",
-      contrastText: "#fff",
-    },
-  },
-  typography: {
-    fontFamily: [
-      "-apple-system",
-      "BlinkMacSystemFont",
-      "'Segoe UI'",
-      "'Roboto'",
-      "'Oxygen'",
-      "'Ubuntu'",
-      "'Cantarell'",
-      "'Fira Sans'",
-      "'Droid Sans'",
-      "'Helvetica Neue'",
-      "sans-serif",
-    ].join(","),
   },
 })
 
@@ -159,7 +134,7 @@ export function App(props: AppProps): JSX.Element {
   }, [props.customTitle])
 
   const result = (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} defaultMode="light">
       <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000} maxSnack={3}>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
