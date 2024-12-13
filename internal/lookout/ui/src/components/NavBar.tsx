@@ -51,17 +51,19 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
-        <a href="/" className="title">
-          <img className="logo" src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"} alt={""} />
-          <Typography variant="h6" className="app-name">
-            Lookout
-          </Typography>
-          {customTitle && (
-            <Typography variant="h5" className="app-name" style={{ paddingLeft: "3em" }}>
-              {customTitle}
+        <div>
+          <a href="/" className="title">
+            <img className="logo" src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"} alt={""} />
+            <Typography variant="h6" className="app-name">
+              Lookout
             </Typography>
-          )}
-        </a>
+            {customTitle && (
+              <Typography variant="h5" className="app-name" style={{ paddingLeft: "3em" }}>
+                {customTitle}
+              </Typography>
+            )}
+          </a>
+        </div>
         <div className="nav-items">
           <Tabs
             value={currentValue}
@@ -77,11 +79,15 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
             ))}
           </Tabs>
         </div>
-        {username && (
-          <Typography variant="h6" className="username" style={{ marginLeft: "auto" }}>
-            Welcome, {username}!
-          </Typography>
-        )}
+        <div className="nav-end">
+          <div>
+            {username && (
+              <Typography variant="h6" className="username" style={{ marginLeft: "auto" }}>
+                Welcome, {username}!
+              </Typography>
+            )}
+          </div>
+        </div>
       </Toolbar>
     </AppBar>
   )
