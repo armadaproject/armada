@@ -20,6 +20,7 @@ export enum FilterType {
 
 export interface JobTableColumnMetadata {
   displayName: string
+  allowCopy?: boolean
   isRightAligned?: boolean
 
   filterType?: FilterType
@@ -172,6 +173,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalMetadata: {
       filterType: FilterType.Text,
       defaultMatchType: Match.StartsWith,
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -186,6 +188,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalMetadata: {
       filterType: FilterType.Text,
       defaultMatchType: Match.StartsWith,
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -201,6 +204,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalMetadata: {
       filterType: FilterType.Text,
       defaultMatchType: Match.StartsWith,
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -215,6 +219,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalMetadata: {
       filterType: FilterType.Text,
       defaultMatchType: Match.Exact, // Job ID does not support startsWith
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -301,6 +306,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalMetadata: {
       filterType: FilterType.Text,
       defaultMatchType: Match.StartsWith,
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -359,6 +365,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -401,6 +408,9 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       size: 200,
     },
+    additionalMetadata: {
+      allowCopy: true,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.Cluster,
@@ -408,6 +418,9 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     displayName: "Cluster",
     additionalOptions: {
       size: 200,
+    },
+    additionalMetadata: {
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -565,6 +578,7 @@ export const createAnnotationColumn = (annotationKey: string): JobTableColumn =>
       },
       filterType: FilterType.Text,
       defaultMatchType: Match.StartsWith,
+      allowCopy: true,
     },
   })
 }

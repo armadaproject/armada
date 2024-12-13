@@ -34,4 +34,4 @@ spec:
   tls:
     - hosts:
       {{- toYaml .Values.hostnames  | nindent 8 }}
-      secretName: lookout-service-tls-v2
+      secretName: {{ include "lookout_v2.name" . }}-service-tls

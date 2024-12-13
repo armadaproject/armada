@@ -3,13 +3,14 @@ import { RefObject } from "react"
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
-import { JobRow, JobTableRow } from "models/jobsTableModels"
-import { Match } from "models/lookoutV2Models"
-import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
 import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
+import { JobRow, JobTableRow } from "../../models/jobsTableModels"
+import { Match } from "../../models/lookoutV2Models"
+import { getColumnMetadata, toColId } from "../../utils/jobsTableColumns"
 import { matchForColumn } from "../../utils/jobsTableUtils"
+import { CopyableValueOnHover } from "../CopyableValueOnHover"
 
 const sharedCellStyle = {
   padding: 0,
@@ -254,6 +255,13 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
           ...cell.getContext(),
           onClickRowCheckbox,
         })
+      ) : !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy ? (
+        <CopyableValueOnHover copyContent={String(cell.getValue())} onCopyButtonClick={(e) => e.stopPropagation()}>
+          {flexRender(cell.column.columnDef.cell, {
+            ...cell.getContext(),
+            onClickRowCheckbox,
+          })}
+        </CopyableValueOnHover>
       ) : (
         flexRender(cell.column.columnDef.cell, {
           ...cell.getContext(),
