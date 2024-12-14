@@ -2,7 +2,7 @@
 # TODO: Use latest goreleaser. After upgrading k8s.io packages.
 tools:
 - github.com/go-swagger/go-swagger/cmd/swagger@v0.31.0
-- github.com/golang/mock/mockgen@v1.6.0
+- go.uber.org/mock/mockgen@v0.5.0
 - github.com/gordonklaus/ineffassign@v0.0.0-20210914165742-4cc7213b9bc8
 - github.com/goreleaser/goreleaser@v1.20.0
 - github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.16.0
