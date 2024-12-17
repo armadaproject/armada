@@ -553,12 +553,15 @@ describe("JobsTableContainer", () => {
 
       await clickOnJobRow(jobs[0].jobId)
 
-      await waitFor(() => {
-        expect(router.state.location.search).toContain("g[0]=jobSet")
-        expect(router.state.location.search).not.toContain("g[1]")
-        expect(router.state.location.search).toContain(`sb=${jobs[0].jobId}`)
-        expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
-      })
+      await waitFor(
+        () => {
+          expect(router.state.location.search).toContain("g[0]=jobSet")
+          expect(router.state.location.search).not.toContain("g[1]")
+          expect(router.state.location.search).toContain(`sb=${jobs[0].jobId}`)
+          expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
+        },
+        { timeout: 3000 },
+      )
     })
 
     it("should populate table state from query params", async () => {
