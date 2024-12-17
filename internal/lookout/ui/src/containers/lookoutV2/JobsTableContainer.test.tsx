@@ -551,10 +551,9 @@ describe("JobsTableContainer", () => {
 
       await expandRow("job-set-1")
 
-      await clickOnJobRow(jobs[0].jobId)
-
       await waitFor(
         () => {
+          await clickOnJobRow(jobs[0].jobId)
           expect(router.state.location.search).toContain("g[0]=jobSet")
           expect(router.state.location.search).not.toContain("g[1]")
           expect(router.state.location.search).toContain(`sb=${jobs[0].jobId}`)
