@@ -1,52 +1,78 @@
-# Getting Started with Create React App
+# Lookout UI
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+The Lookout UI is a single-page web application written in
+[TypeScript](https://www.typescriptlang.org/) with [React](https://react.dev/),
+and is built using [Vite](https://vitejs.dev/).
 
-## Available Scripts
+## Development
 
-In the project directory, you can run:
+### Pre-requisites
 
-### `yarn openapi`
+Developing the Lookout UI requires the following to be installed on your
+machine:
 
-This step requires Docker.
+1. [Node.js](https://nodejs.org/en/download/package-manager)
+1. [Yarn](https://yarnpkg.com/getting-started/install) - this should usually
+   just involve running `corepack enable`
+1. [Docker](https://www.docker.com/)
 
-Generate the OpenAPI client code from the OpenAPI specification. This step is required to be run before the first time the application is run, and any time the OpenAPI specification is updated.
+### Installing dependencies and generating OpenAPI client code
 
-### `yarn start`
+First, install all packages depended on by this web app using Yarn. In this
+directory, run:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```bash
+yarn
+```
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+Generate the OpenAPI client code from the OpenAPI specification. This step is
+required to be run before the first time the application is run, and any time
+the OpenAPI specification is updated.
 
-### `yarn test`
+```bash
+yarn openapi
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Live development server
 
-### `yarn run build`
+You can run a Vite development server to see your changes in the browser in
+real-time. This serves the web app on
+[http://localhost:3000](http://localhost:3000), and proxies API requests to a
+locally-running instance of the Lookout API. Please see
+[the main developer docs](../../../docs/developer/ui.md) for details of how to
+set this up.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+yarn dev
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Run unit tests
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Unit tests are run using [Vitest](https://vitest.dev/).
 
-### `yarn run eject`
+```bash
+yarn test --watch=false
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+If you are actively changing unit tests or code covered by unit tests, you may
+find it useful to omit `--watch=false` to continuously run affected tests.
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Lint
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Formatting and linting is done using [Prettier](https://prettier.io/) and
+[ESLint](https://eslint.org/).
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+```bash
+yarn lint
+```
 
-## Learn More
+You can add the flag, `--fix` to automatically fix issues where possible.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Building the application for production
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+yarn build
+```
+
+This builds the app for production to the `build` folder. It correctly bundles
+React in production mode and optimizes the build for the best performance.

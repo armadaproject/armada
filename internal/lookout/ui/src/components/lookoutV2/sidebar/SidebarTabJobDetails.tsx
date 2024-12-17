@@ -1,8 +1,8 @@
 import { Typography } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
 
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
+import { Job } from "../../../models/lookoutV2Models"
 import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
 export interface SidebarTabJobDetailsProps {

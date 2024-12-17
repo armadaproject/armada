@@ -3,11 +3,11 @@ import { useCallback } from "react"
 import { ContentCopy } from "@mui/icons-material"
 import { IconButton, Link } from "@mui/material"
 import { template, templateSettings } from "lodash"
-import { Job } from "models/lookoutV2Models"
 import validator from "validator"
 
 import styles from "./SidebarTabJobCommands.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { Job } from "../../../models/lookoutV2Models"
 import { CommandSpec } from "../../../utils"
 
 export interface SidebarTabJobCommandsProps {
