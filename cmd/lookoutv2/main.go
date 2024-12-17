@@ -130,8 +130,6 @@ func main() {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
-	log.SetLevel(log.DebugLevel)
-
 	ctx, cleanup := makeContext()
 	defer cleanup()
 
