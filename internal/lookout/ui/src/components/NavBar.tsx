@@ -1,6 +1,4 @@
-import { useState } from "react"
-
-import { AppBar, IconButton, Tab, Tabs, Toolbar, Typography } from "@mui/material"
+import { AppBar, Tab, Tabs, Toolbar, Typography } from "@mui/material"
 import { Link } from "react-router-dom"
 
 import { Router, withRouter } from "../utils"
