@@ -1,7 +1,7 @@
-import { JobSet } from "models/lookoutV2Models"
-import { getAuthorizationHeaders } from "oidc"
-import { ApiJobState, SubmitApi } from "openapi/armada"
-import { getErrorMessage } from "utils"
+import { JobSet } from "../../models/lookoutV2Models"
+import { getAuthorizationHeaders } from "../../oidc"
+import { ApiJobState, SubmitApi } from "../../openapi/armada"
+import { getErrorMessage } from "../../utils"
 
 export interface CancelJobSetsResponse {
   cancelledJobSets: JobSet[]

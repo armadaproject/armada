@@ -50,9 +50,9 @@ export const palette: PaletteOptions = {
 }
 
 declare module "@mui/material/styles" {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface Palette extends CustomPaletteColorTokensPaletteMap {}
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface PaletteOptions extends CustomPaletteColorTokensPaletteOptionsMap {}
 }
 
@@ -63,16 +63,16 @@ declare module "@mui/material/Alert" {
 }
 
 declare module "@mui/material/Button" {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface ButtonPropsColorOverrides extends CustomPaletteColorTokensTrueMap {}
 }
 
 declare module "@mui/material/Chip" {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface ChipPropsColorOverrides extends CustomPaletteColorTokensTrueMap {}
 }
 
 declare module "@mui/material/SvgIcon" {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface SvgIconPropsColorOverrides extends CustomPaletteColorTokensTrueMap {}
 }

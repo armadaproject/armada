@@ -4,10 +4,10 @@ import { ContentCopy, Download } from "@mui/icons-material"
 import { CircularProgress } from "@mui/material"
 import { IconButton } from "@mui/material"
 import yaml from "js-yaml"
-import { Job } from "models/lookoutV2Models"
 
 import styles from "./SidebarTabJobYaml.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { Job } from "../../../models/lookoutV2Models"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
 
 export interface SidebarTabJobYamlProps {

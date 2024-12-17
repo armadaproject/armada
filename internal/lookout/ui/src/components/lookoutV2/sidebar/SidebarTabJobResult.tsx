@@ -14,18 +14,18 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material"
-import { Job, JobRun, JobState } from "models/lookoutV2Models"
-import { formatJobRunState, formatTimeSince, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import styles from "./SidebarTabJobResult.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { Job, JobRun, JobState } from "../../../models/lookoutV2Models"
 import { getAccessToken, useUserManager } from "../../../oidc"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
 import { getErrorMessage } from "../../../utils"
+import { formatJobRunState, formatTimeSince, formatUtcDate } from "../../../utils/jobsTableFormatters"
 
 export interface SidebarTabJobResultProps {
   job: Job

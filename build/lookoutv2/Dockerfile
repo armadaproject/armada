@@ -13,7 +13,7 @@ FROM ${NODE_BUILD_IMAGE} AS NODE
 COPY --from=OPENAPI /project/internal/lookout/ui /ui/
 WORKDIR /ui
 RUN yarn install --immutable
-RUN yarn run build
+RUN yarn build
 
 FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada

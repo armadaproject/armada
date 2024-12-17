@@ -1,4 +1,4 @@
-import { JobFilter, JobGroup, JobOrder } from "models/lookoutV2Models"
+import { JobFilter, JobGroup, JobOrder } from "../../models/lookoutV2Models"
 
 export interface IGroupJobsService {
   groupJobs(

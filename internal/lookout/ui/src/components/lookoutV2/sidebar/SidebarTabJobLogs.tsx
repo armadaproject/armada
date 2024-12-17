@@ -12,10 +12,10 @@ import {
   MenuItem,
   Select,
 } from "@mui/material"
-import { Job, JobRun } from "models/lookoutV2Models"
 
 import styles from "./SidebarTabJobLogs.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { Job, JobRun } from "../../../models/lookoutV2Models"
 import { LogLine } from "../../../services/lookoutV2/LogService"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
 import { useGetLogs } from "../../../services/lookoutV2/useGetLogs"
@@ -81,7 +81,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   }, [containers])
 
   const namespace = useMemo(() => {
-    return getJobSpecResult.status === "success" ? getJobSpecResult.data.namespace ?? "" : ""
+    return getJobSpecResult.status === "success" ? (getJobSpecResult.data.namespace ?? "") : ""
   }, [getJobSpecResult.status, getJobSpecResult.data])
 
   const cluster = useMemo(() => {

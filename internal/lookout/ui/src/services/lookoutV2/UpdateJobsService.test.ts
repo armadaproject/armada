@@ -11,7 +11,7 @@ describe("UpdateJobsService", () => {
     })
   })
 
-  describe("splits jobs by queue and jobset", () => {
+  it("splits jobs by queue and jobset", () => {
     const jobArrs = [
       createManyJobs("queue-1", "job-set-1-1", 10),
       createManyJobs("queue-1", "job-set-1-2", 10),
@@ -42,7 +42,7 @@ describe("UpdateJobsService", () => {
     )
   })
 
-  describe("splits jobs by queue and jobset and batches", () => {
+  it("splits jobs by queue and jobset and batches", () => {
     const jobArrs = [
       createManyJobs("queue-1", "job-set-1-1", 99),
       createManyJobs("queue-1", "job-set-1-2", 101),
