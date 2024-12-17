@@ -1,7 +1,8 @@
 import { memo } from "react"
 
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
+
+import { Job } from "../../models/lookoutV2Models"
 
 interface JobStatusTableProps {
   jobsToRender: Job[]

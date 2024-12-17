@@ -5,17 +5,17 @@ import { LoadingButton } from "@mui/lab"
 import { Checkbox } from "@mui/material"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
-import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { pl, waitMillis, PlatformCancelReason } from "utils"
-import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
-import { formatJobState } from "utils/jobsTableFormatters"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { isTerminatedJobState, Job, JobFilter, JobId } from "../../models/lookoutV2Models"
 import { getAccessToken, useUserManager } from "../../oidc"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
+import { pl, waitMillis, PlatformCancelReason } from "../../utils"
+import { getUniqueJobsMatchingFilters } from "../../utils/jobsDialogUtils"
+import { formatJobState } from "../../utils/jobsTableFormatters"
 
 interface CancelDialogProps {
   onClose: () => void

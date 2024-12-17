@@ -1,9 +1,9 @@
 import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstack/react-table"
-import { isValidMatch, JobId, Match } from "models/lookoutV2Models"
 import qs from "qs"
 import { SortDirection } from "react-virtualized"
 
 import { LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
+import { isValidMatch, JobId, Match } from "../../models/lookoutV2Models"
 import { removeUndefined, Router } from "../../utils"
 import {
   AnnotationColumnId,

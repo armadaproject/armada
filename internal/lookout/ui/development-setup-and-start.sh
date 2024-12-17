@@ -15,4 +15,4 @@ fi
 
 yarn openapi
 
-DANGEROUSLY_DISABLE_HOST_CHECK=true yarn start
+yarn dev

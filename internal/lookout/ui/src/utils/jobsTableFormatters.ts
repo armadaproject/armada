@@ -1,12 +1,13 @@
 import { intervalToDuration } from "date-fns"
 import { parseISO } from "date-fns/fp"
 import { formatInTimeZone } from "date-fns-tz"
-import { JobRunState, jobRunStateDisplayInfo, JobState, jobStateDisplayNames } from "models/lookoutV2Models"
 
-export const formatJobState = (state?: JobState): string => (state ? jobStateDisplayNames[state] ?? state : "")
+import { JobRunState, jobRunStateDisplayInfo, JobState, jobStateDisplayNames } from "../models/lookoutV2Models"
+
+export const formatJobState = (state?: JobState): string => (state ? (jobStateDisplayNames[state] ?? state) : "")
 
 export const formatJobRunState = (state?: JobRunState): string =>
-  state !== undefined ? jobRunStateDisplayInfo[state]?.displayName ?? state : ""
+  state !== undefined ? (jobRunStateDisplayInfo[state]?.displayName ?? state) : ""
 
 export const formatUtcDate = (date?: string): string => {
   if (date !== undefined) {
