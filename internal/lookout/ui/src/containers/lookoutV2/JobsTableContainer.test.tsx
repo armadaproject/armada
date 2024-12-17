@@ -1,17 +1,17 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 
 import { JobsTableContainer } from "./JobsTableContainer"
 import { queryClient } from "../../App"
+import { Job, JobState } from "../../models/lookoutV2Models"
 import { FakeServicesProvider } from "../../services/fakeContext"
 import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
-import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { GetJobsResponse, IGetJobsService } from "../../services/lookoutV2/GetJobsService"
 import { IGetRunInfoService } from "../../services/lookoutV2/GetRunInfoService"
 import { IGroupJobsService } from "../../services/lookoutV2/GroupJobsService"
 import { ILogService } from "../../services/lookoutV2/LogService"
@@ -23,8 +23,10 @@ import FakeGetJobsService from "../../services/lookoutV2/mocks/FakeGetJobsServic
 import { FakeGetRunInfoService } from "../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import FakeGroupJobsService from "../../services/lookoutV2/mocks/FakeGroupJobsService"
 
-// This is quite a heavy component, and tests can timeout on a slower machine
-jest.setTimeout(30_000)
+vi.setConfig({
+  // This is quite a heavy component, and tests can timeout on a slower machine
+  testTimeout: 30_000,
+})
 
 function makeTestJobs(
   n: number,
@@ -71,7 +73,7 @@ describe("JobsTableContainer", () => {
     localStorage.clear()
 
     updateJobsService = {
-      cancelJobs: jest.fn(),
+      cancelJobs: vi.fn(),
     } as any
   })
 
@@ -137,7 +139,7 @@ describe("JobsTableContainer", () => {
 
   it("should render a spinner while loading initially", async () => {
     const fakeGetJobsService = new FakeGetJobsService([])
-    fakeGetJobsService.getJobs = jest.fn(() => new Promise(() => undefined))
+    fakeGetJobsService.getJobs = vi.fn(() => new Promise(() => undefined) as Promise<GetJobsResponse>)
     const { findAllByRole } = renderComponent([], undefined, {
       v2GetJobsService: fakeGetJobsService,
     })
@@ -195,7 +197,7 @@ describe("JobsTableContainer", () => {
 
       // Expand a row
       const job = jobs[0]
-      await expandRow(job[jobObjKey]!.toString()) // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      await expandRow(job[jobObjKey]!.toString())
 
       // Check the right number of rows is being shown
       const numShownJobs = jobs.filter((j) => j[jobObjKey] === job[jobObjKey]).length

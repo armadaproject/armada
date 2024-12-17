@@ -1,8 +1,9 @@
 import _ from "lodash"
-import { Job, JobId } from "models/lookoutV2Models"
-import { getAuthorizationHeaders } from "oidc"
-import { SubmitApi } from "openapi/armada"
-import { getErrorMessage } from "utils"
+
+import { Job, JobId } from "../../models/lookoutV2Models"
+import { getAuthorizationHeaders } from "../../oidc"
+import { SubmitApi } from "../../openapi/armada"
+import { getErrorMessage } from "../../utils"
 
 export type UpdateJobsResponse = {
   successfulJobIds: JobId[]

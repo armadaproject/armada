@@ -13,16 +13,16 @@ import {
   TextField,
 } from "@mui/material"
 import _ from "lodash"
-import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { pl, waitMillis } from "utils"
-import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { isTerminatedJobState, Job, JobFilter, JobId } from "../../models/lookoutV2Models"
 import { getAccessToken, useUserManager } from "../../oidc"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
+import { pl, waitMillis } from "../../utils"
+import { getUniqueJobsMatchingFilters } from "../../utils/jobsDialogUtils"
 
 interface ReprioritiseDialogProps {
   onClose: () => void

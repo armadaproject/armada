@@ -1,13 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import { makeManyTestJobs } from "utils/fakeJobsUtils"
 
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
+import { Job, JobFilter, JobState, Match } from "../../models/lookoutV2Models"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { UpdateJobsResponse, UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
+import FakeGetJobsService from "../../services/lookoutV2/mocks/FakeGetJobsService"
+import { makeManyTestJobs } from "../../utils/fakeJobsUtils"
 
 describe("ReprioritiseDialog", () => {
   const numJobs = 5
@@ -31,9 +31,9 @@ describe("ReprioritiseDialog", () => {
     ]
     getJobsService = new FakeGetJobsService(jobs)
     updateJobsService = {
-      reprioritiseJobs: jest.fn(),
+      reprioritiseJobs: vi.fn(),
     } as any
-    onClose = jest.fn()
+    onClose = vi.fn()
   })
 
   const renderComponent = () =>
@@ -96,7 +96,7 @@ describe("ReprioritiseDialog", () => {
   it("allows the user to reprioritise jobs", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.reprioritiseJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritiseJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [],
@@ -141,7 +141,7 @@ describe("ReprioritiseDialog", () => {
   it("shows error reasons if reprioritisation fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.reprioritiseJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritiseJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [],
         failedJobIds: [{ jobId: jobs[0].jobId, errorReason: "This is a test" }],
@@ -185,7 +185,7 @@ describe("ReprioritiseDialog", () => {
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    updateJobsService.reprioritiseJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritiseJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [{ jobId: jobs[1].jobId, errorReason: "This is a test" }],

@@ -1,4 +1,6 @@
-import { AppBar, Tab, Tabs, Toolbar, Typography } from "@mui/material"
+import { useState } from "react"
+
+import { AppBar, IconButton, Tab, Tabs, Toolbar, Typography } from "@mui/material"
 import { Link } from "react-router-dom"
 
 import { Router, withRouter } from "../utils"
@@ -53,7 +55,7 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
       <Toolbar className="toolbar">
         <div>
           <a href="/" className="title">
-            <img className="logo" src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"} alt={""} />
+            <img className="logo" src={import.meta.env.BASE_URL + "./Armada-white-rectangle.png"} alt={""} />
             <Typography variant="h6" className="app-name">
               Lookout
             </Typography>
@@ -67,7 +69,7 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
         <div className="nav-items">
           <Tabs
             value={currentValue}
-            onChange={(event, newIndex) => {
+            onChange={(_, newIndex) => {
               const newLocation = locationFromIndex(PAGES, newIndex)
               router.navigate(newLocation)
             }}
@@ -81,11 +83,9 @@ function NavBar({ customTitle, router, username }: NavBarProps) {
         </div>
         <div className="nav-end">
           <div>
-            {username && (
-              <Typography variant="h6" className="username" style={{ marginLeft: "auto" }}>
-                Welcome, {username}!
-              </Typography>
-            )}
+            <Typography variant="h6" className="username" style={{ marginLeft: "auto" }}>
+              {username ? <>Welcome, {username}!</> : <>Welcome!</>}
+            </Typography>
           </div>
         </div>
       </Toolbar>

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react"
 
 import { ExpandedStateList, PaginationState, RowSelectionState } from "@tanstack/react-table"
-import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
-import { Job, JobFilter, JobId, JobOrder, Match } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { getErrorMessage } from "utils"
+
+import { LookoutColumnFilter, LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+import { JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
+import { Job, JobFilter, JobId, JobOrder, Match } from "../models/lookoutV2Models"
+import { IGetJobsService } from "../services/lookoutV2/GetJobsService"
+import { GroupedField, IGroupJobsService } from "../services/lookoutV2/GroupJobsService"
+import { getErrorMessage } from "../utils"
 import {
   AnnotationColumnId,
   ColumnId,
@@ -14,7 +16,7 @@ import {
   isStandardColId,
   JobTableColumn,
   StandardColumnId,
-} from "utils/jobsTableColumns"
+} from "../utils/jobsTableColumns"
 import {
   fetchJobGroups,
   fetchJobs,
@@ -24,10 +26,8 @@ import {
   groupsToRows,
   jobsToRows,
   PendingData,
-} from "utils/jobsTableUtils"
-import { fromRowId, mergeSubRows } from "utils/reactTableUtils"
-
-import { LookoutColumnFilter, LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+} from "../utils/jobsTableUtils"
+import { fromRowId, mergeSubRows } from "../utils/reactTableUtils"
 
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]

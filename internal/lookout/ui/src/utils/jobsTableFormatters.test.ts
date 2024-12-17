@@ -1,15 +1,14 @@
-import { JobState } from "models/lookoutV2Models"
-
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
+import { JobState } from "../models/lookoutV2Models"
 
 describe("JobsTableFormatters", () => {
   beforeEach(() => {
-    jest.useFakeTimers().setSystemTime(new Date("2022-12-13T13:00:00.000Z"))
+    vi.useFakeTimers().setSystemTime(new Date("2022-12-13T13:00:00.000Z"))
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   describe("formatJobState", () => {
