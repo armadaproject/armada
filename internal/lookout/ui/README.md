@@ -51,11 +51,11 @@ yarn dev
 Unit tests are run using [Vitest](https://vitest.dev/).
 
 ```bash
-yarn test --watch=false
+yarn test --run
 ```
 
 If you are actively changing unit tests or code covered by unit tests, you may
-find it useful to omit `--watch=false` to continuously run affected tests.
+find it useful to omit `--run` to continuously run affected tests.
 
 ### Lint
 
