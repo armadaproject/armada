@@ -186,14 +186,23 @@ const TextFilter = ({
   useEffect(() => {
     onSetTextFieldRef(ref)
   }, [ref])
+  const [textFieldValue, setTextFieldValue] = useState(defaultValue)
+  useEffect(() => {
+    setTextFieldValue(defaultValue)
+  }, [defaultValue])
+
   const debouncedOnChange = useDebouncedCallback(onChange, 300)
+  useEffect(() => {
+    debouncedOnChange(textFieldValue)
+  }, [textFieldValue, debouncedOnChange])
+
   return (
     <TextField
-      onChange={(e) => debouncedOnChange(e.currentTarget.value)}
+      onChange={(e) => setTextFieldValue(e.currentTarget.value)}
+      value={textFieldValue}
       inputRef={ref}
       type={"text"}
       size={"small"}
-      defaultValue={defaultValue}
       error={parseError !== undefined}
       placeholder={label}
       sx={{
