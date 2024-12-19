@@ -3,6 +3,7 @@ package configuration
 import (
 	"time"
 
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -280,6 +281,17 @@ type PoolConfig struct {
 	AwayPools                    []string
 	ProtectedFractionOfFairShare *float64
 	MarketDriven                 bool
+	Defrag                       *DefragConfig
+}
+
+type DefragConfig struct {
+	Enabled                           bool
+	Interval                          time.Duration
+	MaximumJobsPerRound               int
+	MaximumResourceFractionToSchedule map[string]float64
+	MinimumJobSizeToSchedule          *armadaresource.ComputeResources
+	MaximumJobSizeToPreempt           *armadaresource.ComputeResources
+	FairnessImprovementThreshold      float64
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {

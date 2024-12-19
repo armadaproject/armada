@@ -319,6 +319,10 @@ func (nodeDb *NodeDb) GetNode(id string) (*internaltypes.Node, error) {
 	return nodeDb.GetNodeWithTxn(nodeDb.Txn(false), id)
 }
 
+func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
+	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
+}
+
 // GetNodeWithTxn returns a node in the db with given id,
 // within the provided transactions.
 func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.Node, error) {
@@ -331,6 +335,24 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 		return nil, nil
 	}
 	return obj.(*internaltypes.Node), nil
+}
+
+// GetNodesWithTxn returns all nodes in the nodeDb
+func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, error) {
+	it, err := txn.Get("nodes", "id")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// TODO length
+	nodes := []*internaltypes.Node{}
+	for obj := it.Next(); obj != nil; obj = it.Next() {
+		node := obj.(*internaltypes.Node)
+		if node == nil {
+			break
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
 }
 
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, error) {

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -33,6 +34,7 @@ type PreemptingQueueScheduler struct {
 	preferLargeJobOrdering       bool
 	jobRepo                      JobRepository
 	nodeDb                       *nodedb.NodeDb
+	defragConfig                 *configuration.DefragConfig
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -239,6 +241,12 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		return nil, err
 	}
 	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
+
+	if sch.defragConfig != nil && sch.defragConfig.Enabled {
+		nodeScheduler := NewNodeScheduler(sch.jobRepo, sch.nodeDb, *sch.defragConfig)
+		defragQueueScheduler := NewDefragQueueScheduler(nodeScheduler)
+		defragQueueScheduler.Schedule(ctx, sch.schedulingContext)
+	}
 
 	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
