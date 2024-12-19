@@ -8,9 +8,9 @@ import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 import { JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { Match } from "../../models/lookoutV2Models"
-import { getColumnMetadata, toColId } from "../../utils/jobsTableColumns"
+import { FilterType, getColumnMetadata, toColId } from "../../utils/jobsTableColumns"
 import { matchForColumn } from "../../utils/jobsTableUtils"
-import { CopyableValueOnHover } from "../CopyableValueOnHover"
+import { ActionableValueOnHover } from "../ActionableValueOnHover"
 
 const sharedCellStyle = {
   padding: 0,
@@ -255,18 +255,31 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
           ...cell.getContext(),
           onClickRowCheckbox,
         })
-      ) : !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy ? (
-        <CopyableValueOnHover copyContent={String(cell.getValue())} onCopyButtonClick={(e) => e.stopPropagation()}>
+      ) : (
+        <ActionableValueOnHover
+          stopPropogationOnActionClick
+          copyAction={
+            !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy
+              ? { copyContent: String(cell.getValue()) }
+              : undefined
+          }
+          filterAction={
+            columnMetadata.filterType === undefined
+              ? undefined
+              : {
+                  onFilter: () => {
+                    cell.column.setFilterValue(
+                      columnMetadata.filterType === FilterType.Enum ? [cell.getValue()] : cell.getValue(),
+                    )
+                  },
+                }
+          }
+        >
           {flexRender(cell.column.columnDef.cell, {
             ...cell.getContext(),
             onClickRowCheckbox,
           })}
-        </CopyableValueOnHover>
-      ) : (
-        flexRender(cell.column.columnDef.cell, {
-          ...cell.getContext(),
-          onClickRowCheckbox,
-        })
+        </ActionableValueOnHover>
       )}
     </TableCell>
   )
