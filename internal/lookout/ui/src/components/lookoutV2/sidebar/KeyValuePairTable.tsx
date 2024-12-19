@@ -2,7 +2,7 @@ import { Table, TableBody, TableCell, TableRow, Link } from "@mui/material"
 import validator from "validator"
 
 import styles from "./KeyValuePairTable.module.css"
-import { CopyableValueOnHover } from "../../CopyableValueOnHover"
+import { ActionableValueOnHover } from "../../ActionableValueOnHover"
 
 export interface KeyValuePairTable {
   data: {
@@ -37,11 +37,9 @@ export const KeyValuePairTable = ({ data }: KeyValuePairTable) => {
             <TableRow key={key}>
               <TableCell className={styles.cell}>{key}</TableCell>
               <TableCell className={styles.cell}>
-                {allowCopy ? (
-                  <CopyableValueOnHover copyContent={value}>{nodeToDisplay}</CopyableValueOnHover>
-                ) : (
-                  nodeToDisplay
-                )}
+                <ActionableValueOnHover copyAction={allowCopy ? { copyContent: value } : undefined}>
+                  {nodeToDisplay}
+                </ActionableValueOnHover>
               </TableCell>
             </TableRow>
           )
