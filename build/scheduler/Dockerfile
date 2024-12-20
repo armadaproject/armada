@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.20.3
+ARG BASE_IMAGE=alpine:3.21.0
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=scheduler
