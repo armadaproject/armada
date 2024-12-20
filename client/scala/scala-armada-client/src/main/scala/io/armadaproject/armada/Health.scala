@@ -13,8 +13,9 @@ object Health {
     println(healthStatus)
   }
 
-  def getHealth(host: String, port: Int): HealthCheckResponse.ServingStatus  = {
-    val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+  def getHealth(host: String, port: Int): HealthCheckResponse.ServingStatus = {
+    val channel =
+      ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
     val blockingStub = EventGrpc.blockingStub(channel)
 
     val reply: HealthCheckResponse = blockingStub.health(Empty())
