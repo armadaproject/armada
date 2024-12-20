@@ -37,7 +37,19 @@ const augmentColor = (main: string): PaletteColorOptions => ({
   contrastText: getContrastRatio(main, "#fff") > CONTRAST_THRESHOLD ? "#fff" : "#000",
 })
 
-export const palette: PaletteOptions = {
+export const lightModePalette: PaletteOptions = {
+  primary: { main: LIGHT_BLUE, contrastText: "#FFF" },
+  secondary: { main: ORANGE },
+  statusGrey: augmentColor(STATUS_GREY),
+  statusBlue: augmentColor(STATUS_BLUE),
+  statusGreen: augmentColor(STATUS_GREEN),
+  statusAmber: augmentColor(STATUS_AMBER),
+  statusRed: augmentColor(STATUS_RED),
+  tonalOffset: TONAL_OFFSET,
+  contrastThreshold: CONTRAST_THRESHOLD,
+}
+
+export const darkModePalette: PaletteOptions = {
   primary: { main: LIGHT_BLUE, contrastText: "#FFF" },
   secondary: { main: ORANGE },
   statusGrey: augmentColor(STATUS_GREY),
