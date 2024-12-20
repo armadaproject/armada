@@ -7,6 +7,7 @@ import { KeyValuePairTable } from "./KeyValuePairTable"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutV2Models"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
+import { CodeBlock } from "../../CodeBlock"
 
 export interface ContainerData {
   name: string
@@ -107,7 +108,7 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
         <div className={styles.singleContainer}>
           <div className={styles.commandContainer}>
             <Typography>Command</Typography>
-            <div className={styles.command}>{entrypoint}</div>
+            <CodeBlock code={entrypoint} language="bash" downloadable={false} showLineNumbers={false} />
           </div>
           <div>
             <Typography>Resources</Typography>

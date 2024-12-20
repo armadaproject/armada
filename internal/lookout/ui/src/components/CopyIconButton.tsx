@@ -6,7 +6,6 @@ import { IconButton, IconButtonProps, styled, Tooltip } from "@mui/material"
 const LEAVE_DELAY_MS = 1_000
 
 const StyledIconButton = styled(IconButton)<IconButtonProps & { hidden: boolean }>(({ hidden }) => ({
-  padding: 0,
   visibility: hidden ? "hidden" : "unset",
 }))
 

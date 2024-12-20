@@ -6,6 +6,7 @@ import {
   Checkbox,
   IconButton,
   InputAdornment,
+  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -130,7 +131,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
           selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName ?? s).join(", ")
         ) : (
           // Approximately matches the styling for a text input's placeholder
-          <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>{label}</div>
+          <InputLabel>{label}</InputLabel>
         )
       }
       // Matches the styling for TextFilter component below

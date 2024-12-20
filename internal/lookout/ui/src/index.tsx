@@ -20,7 +20,6 @@ import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
 import { makeRandomJobs } from "./utils/fakeJobsUtils"
 
-import "react-virtualized/styles.css"
 import "./index.css"
 ;(async () => {
   const uiConfig = await getUIConfig()

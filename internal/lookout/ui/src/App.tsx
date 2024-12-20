@@ -1,6 +1,6 @@
 import { Dispatch, ReactNode, SetStateAction, useEffect, useState } from "react"
 
-import { ThemeProvider } from "@mui/material"
+import { CssBaseline, styled, ThemeProvider } from "@mui/material"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SnackbarProvider } from "notistack"
 import { UserManager, WebStorageStateStore, UserManagerSettings, User } from "oidc-client-ts"
@@ -14,7 +14,18 @@ import { Services, ServicesProvider } from "./services/context"
 import { theme } from "./theme/theme"
 import { CommandSpec, OidcConfig, withRouter } from "./utils"
 
-import "./App.css"
+const AppContainer = styled("div")({
+  display: "flex",
+  flexDirection: "column",
+  height: "100vh",
+})
+
+const AppContent = styled("div")({
+  height: "100%",
+  minHeight: 0,
+  display: "flex",
+  flexDirection: "column",
+})
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,15 +146,16 @@ export function App(props: AppProps): JSX.Element {
 
   const result = (
     <ThemeProvider theme={theme} defaultMode="light">
+      <CssBaseline />
       <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000} maxSnack={3}>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <UserManagerProvider value={userManager}>
               <AuthWrapper userManager={userManager} isAuthenticated={isAuthenticated}>
                 <ServicesProvider services={props.services}>
-                  <div className="app-container">
+                  <AppContainer>
                     <NavBar customTitle={props.customTitle} username={username} />
-                    <div className="app-content">
+                    <AppContent>
                       <Routes>
                         <Route
                           path="/"
@@ -183,8 +195,8 @@ export function App(props: AppProps): JSX.Element {
                           }
                         />
                       </Routes>
-                    </div>
-                  </div>
+                    </AppContent>
+                  </AppContainer>
                 </ServicesProvider>
               </AuthWrapper>
             </UserManagerProvider>
