@@ -12,7 +12,8 @@ object Job {
   val port = 30002
 
   def getJobStatus(host: String, port: Int, jId: String): JobStatusResponse = {
-    val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
+    val channel =
+      ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
     val blockingStub = QueryApiGrpc.blockingStub(channel)
 
     val jsReq = JobStatusRequest(jobId = jId)
@@ -27,17 +28,20 @@ object Job {
       .withImage("alpine:3.10")
       .withCommand(Seq("ls"))
       .withArgs(
-        Seq("-c", "ls -l; sleep 30; date; echo '========'; ls -l; sleep 10; date")
+        Seq(
+          "-c",
+          "ls -l; sleep 30; date; echo '========'; ls -l; sleep 10; date"
+        )
       )
       .withResources(
         ResourceRequirements(
           limits = Map(
             "memory" -> Quantity(Option("10Mi")),
-            "cpu" -> Quantity(Option("100m")),
+            "cpu" -> Quantity(Option("100m"))
           ),
           requests = Map(
             "memory" -> Quantity(Option("10Mi")),
-            "cpu" -> Quantity(Option("100m")),
+            "cpu" -> Quantity(Option("100m"))
           )
         )
       )
@@ -47,7 +51,8 @@ object Job {
       .withRestartPolicy("Never")
       .withContainers(Seq(sleepContainer))
 
-    val testJob = api.submit.JobSubmitRequestItem()
+    val testJob = api.submit
+      .JobSubmitRequestItem()
       .withPriority(0)
       .withNamespace("personal-anonymous")
       .withPodSpec(podSpec)
@@ -58,7 +63,8 @@ object Job {
       jobRequestItems = Seq(testJob)
     )
 
-    val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
+    val channel =
+      ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
     val blockingStub = SubmitGrpc.blockingStub(channel)
 
     val jobSubmitResponse = blockingStub.submitJobs(testJobRequest)
