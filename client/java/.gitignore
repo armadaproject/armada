@@ -39,4 +39,3 @@ build/
 .DS_Store
 
 src/main/proto
-settings.xml

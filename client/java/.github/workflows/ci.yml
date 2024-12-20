@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    environment: release
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Maven Central Repository
+      uses: actions/setup-java@c3ac5dd0ed8db40fedb61c32fbe677e6b355e94c
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        server-id: central
+        server-username: MAVEN_USERNAME
+        server-password: MAVEN_PASSWORD
+        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+        gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+    - name: Build
+      run: |
+        cp settings.xml /home/runner/.m2
+        cat /home/runner/.m2/settings.xml
+        mvn clean install -DskipTests
+      env:
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+    - name: Release artifacts
+      run: |
+        pwd
+        ls -la /home/runner/.m2
+        cat /home/runner/.m2/settings.xml
+        mvn --batch-mode deploy -DskipTests
+      env:
+        MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+        MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
