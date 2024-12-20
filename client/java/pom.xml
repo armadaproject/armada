@@ -4,11 +4,12 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.armadaproject</groupId>
-  <artifactId>armada-grpc-java-client</artifactId>
-  <version>0.0.4</version>
+  <artifactId>java-client</artifactId>
+  <version>0.0.1</version>
   <packaging>jar</packaging>
 
-  <name>armada-grpc-java-client</name>
+  <name>java-client</name>
+  <url>https://github.com/armadaproject/java-client</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -26,10 +27,38 @@
     <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
   </properties>
 
+  <licenses>
+    <license>
+      <name>Apache 2.0 License</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Mladjan Gadzic</name>
+      <email>mladjan@gr-oss.io</email>
+      <organization>G-Research</organization>
+      <organizationUrl>https://www.gresearch.com/</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git://github.com/armadaproject/java-client.git</connection>
+      <developerConnection>scm:git:ssh://github.com:armadaproject/java-client.git</developerConnection>
+    <url>http://github.com/armadaproject/java-client/tree/main</url>
+    <tag/>
+  </scm>
+
   <distributionManagement>
     <repository>
       <id>github</id>
       <url>https://maven.pkg.github.com/mladjan-gadzic/armada-grpc-java-client</url>
+    </repository>
+    <repository>
+      <id>central</id>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
 
@@ -202,6 +231,32 @@
             <phase>validate</phase>
             <goals>
               <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.6.0</version>
+        <extensions>true</extensions>
+        <configuration>
+          <publishingServerId>central</publishingServerId>
+          <autoPublish>true</autoPublish>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
+        <version>3.2.7</version>
+        <executions>
+          <execution>
+            <id>sign-artifacts</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>sign</goal>
             </goals>
           </execution>
         </executions>
