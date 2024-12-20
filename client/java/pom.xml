@@ -53,10 +53,6 @@
 
   <distributionManagement>
     <repository>
-      <id>github</id>
-      <url>https://maven.pkg.github.com/mladjan-gadzic/armada-grpc-java-client</url>
-    </repository>
-    <repository>
       <id>central</id>
       <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
