@@ -1,10 +1,9 @@
 import { createTheme } from "@mui/material"
 
-import { palette } from "./palette"
+import { darkModePalette, lightModePalette } from "./palette"
 import { typography } from "./typography"
 
 export const theme = createTheme({
-  colorSchemes: { dark: false, light: true },
-  palette,
+  colorSchemes: { dark: { palette: darkModePalette }, light: { palette: lightModePalette } },
   typography,
 })

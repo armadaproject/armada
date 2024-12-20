@@ -8,11 +8,11 @@ import { AddFilter } from "./icons"
 const OuterContainer = styled("div")({
   display: "flex",
   flexDirection: "row",
+  alignItems: "center",
   gap: "0.5ch",
 })
 
 const StyledIconButton = styled(IconButton)<IconButtonProps & { hidden: boolean }>(({ hidden }) => ({
-  padding: 0,
   visibility: hidden ? "hidden" : "unset",
 }))
 

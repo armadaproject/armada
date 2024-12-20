@@ -15,7 +15,6 @@ import {
   Typography,
 } from "@mui/material"
 
-import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import styles from "./SidebarTabJobResult.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
@@ -26,6 +25,7 @@ import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoServic
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
 import { getErrorMessage } from "../../../utils"
 import { formatJobRunState, formatTimeSince, formatUtcDate } from "../../../utils/jobsTableFormatters"
+import { CodeBlock } from "../../CodeBlock"
 
 export interface SidebarTabJobResultProps {
   job: Job
@@ -220,7 +220,7 @@ export const SidebarTabJobResult = ({
       {topLevelError !== "" ? (
         <>
           <Typography variant="subtitle2">{topLevelErrorTitle}:</Typography>
-          <CodeBlock text={topLevelError} />
+          <CodeBlock code={topLevelError} language="text" downloadable={false} showLineNumbers={false} />
         </>
       ) : null}
       <Typography variant="subtitle2">Runs:</Typography>
@@ -301,7 +301,14 @@ export const SidebarTabJobResult = ({
                 <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
                   Error
                 </AccordionSummary>
-                <AccordionDetails>{<CodeBlock text={runErrorMap.get(run.runId) ?? ""} />}</AccordionDetails>
+                <AccordionDetails>
+                  <CodeBlock
+                    code={runErrorMap.get(run.runId) ?? ""}
+                    language="text"
+                    downloadable={false}
+                    showLineNumbers={false}
+                  />
+                </AccordionDetails>
               </Accordion>
             )}
             {runDebugMessageLoadingMap.has(run.runId) && runDebugMessageLoadingMap.get(run.runId) === "Loading" && (
@@ -314,7 +321,14 @@ export const SidebarTabJobResult = ({
                 <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
                   Debug
                 </AccordionSummary>
-                <AccordionDetails>{<CodeBlock text={runDebugMessageMap.get(run.runId) ?? ""} />}</AccordionDetails>
+                <AccordionDetails>
+                  <CodeBlock
+                    code={runDebugMessageMap.get(run.runId) ?? ""}
+                    language="text"
+                    downloadable={false}
+                    showLineNumbers={false}
+                  />
+                </AccordionDetails>
               </Accordion>
             )}
           </Accordion>

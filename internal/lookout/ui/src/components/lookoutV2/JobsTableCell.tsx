@@ -1,7 +1,7 @@
 import { RefObject } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
+import { TableCell, IconButton, TableSortLabel, Box, styled } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
 
 import styles from "./JobsTableCell.module.css"
@@ -27,6 +27,13 @@ const sharedCellStyleWithOpacity = {
     opacity: 0.85,
   },
 }
+
+const HeaderTableCell = styled(TableCell)(({ theme }) => ({
+  backgroundColor: theme.palette.grey[200],
+  ...theme.applyStyles("dark", {
+    backgroundColor: theme.palette.grey[800],
+  }),
+}))
 
 export interface HeaderCellProps {
   header: Header<JobRow, unknown>
@@ -64,7 +71,7 @@ export function HeaderCell({
   const match = matchForColumn(header.id, columnMatches)
   if (header.isPlaceholder) {
     return (
-      <TableCell
+      <HeaderTableCell
         key={id}
         align={isRightAligned ? "right" : "left"}
         aria-label={metadata.displayName}
@@ -75,15 +82,13 @@ export function HeaderCell({
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
-          backgroundColor: "#f2f2f2",
         }}
-        className={styles.headerCell}
       />
     )
   }
 
   return (
-    <TableCell
+    <HeaderTableCell
       key={id}
       align={isRightAligned ? "right" : "left"}
       aria-label={metadata.displayName}
@@ -95,7 +100,6 @@ export function HeaderCell({
         whiteSpace: "nowrap",
         overflow: "hidden",
       }}
-      className={styles.headerCell}
     >
       <div
         style={{
@@ -106,7 +110,6 @@ export function HeaderCell({
           justifyContent: "space-between",
           alignItems: "center",
           margin: 0,
-          backgroundColor: "#f2f2f2",
         }}
       >
         <div
@@ -190,7 +193,7 @@ export function HeaderCell({
           }}
         />
       </div>
-    </TableCell>
+    </HeaderTableCell>
   )
 }
 
@@ -264,7 +267,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
               : undefined
           }
           filterAction={
-            columnMetadata.filterType === undefined
+            rowIsGroup || !cell.getValue() || columnMetadata.filterType === undefined
               ? undefined
               : {
                   onFilter: () => {

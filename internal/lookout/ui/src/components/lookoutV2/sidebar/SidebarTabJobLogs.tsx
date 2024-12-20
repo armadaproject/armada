@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, UIEvent } from "react"
 
 import { Refresh } from "@mui/icons-material"
 import {
+  Alert,
+  alpha,
   Checkbox,
   CircularProgress,
   FormControl,
@@ -11,6 +13,8 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Stack,
+  styled,
 } from "@mui/material"
 
 import styles from "./SidebarTabJobLogs.module.css"
@@ -19,6 +23,12 @@ import { Job, JobRun } from "../../../models/lookoutV2Models"
 import { LogLine } from "../../../services/lookoutV2/LogService"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
 import { useGetLogs } from "../../../services/lookoutV2/useGetLogs"
+import { SPACING } from "../../../styling/spacing"
+
+const Container = styled(Stack)({
+  height: "100%",
+  maxWidth: "100%",
+})
 
 export interface SidebarTabJobLogsProps {
   job: Job
@@ -121,7 +131,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   }
 
   return (
-    <div className={styles.sidebarLogsTabContainer}>
+    <Container spacing={SPACING.md}>
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
           <FormControl
@@ -230,31 +240,47 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
       {getLogsResult.status === "success" && (
         <LogView logLines={getLogsResult.data?.pages?.flat() ?? []} showTimestamps={showTimestamps} />
       )}
-      <div className={styles.gutter}>
-        {getLogsResult.status === "error" && (
-          <>
-            <div className={styles.errorMessage}>{getLogsResult.error}</div>
-            <div>
-              <IconButton onClick={() => getLogsResult.refetch()}>
+      {getLogsResult.status === "error" && (
+        <div>
+          <Alert
+            severity="error"
+            action={
+              <IconButton color="inherit" size="small" onClick={() => getLogsResult.refetch()}>
                 <Refresh />
               </IconButton>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            }
+          >
+            <code>{getLogsResult.error}</code>
+          </Alert>
+        </div>
+      )}
+    </Container>
   )
 }
 
-function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
-  if (logLines.length === 0) {
-    return (
-      <div key={"EMPTY"} className={styles.emptyLogView}>
-        No logs to display
-      </div>
-    )
-  }
+const LogsContainer = styled("div")(({ theme }) => ({
+  width: "100%",
+  whiteSpace: "pre-wrap",
+  fontFamily: "monospace",
+  wordWrap: "break-word",
+  marginTop: 5,
+  backgroundColor: theme.palette.background.paper,
+  padding: 5,
+  borderRadius: 5,
+  position: "relative",
+  overflowY: "auto",
+  overflowX: "auto",
+}))
 
+const Timestamp = styled("span")(({ theme }) => ({
+  marginRight: 10,
+  backgroundColor: alpha(theme.palette.primary.light, 0.15),
+  ...theme.applyStyles("dark", {
+    backgroundColor: alpha(theme.palette.primary.main, 0.15),
+  }),
+}))
+
+function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
   const [shouldScrollDown, setShouldScrollDown] = useState<boolean>(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const previousScrollTopRef = useRef<number | undefined>()
@@ -287,16 +313,24 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
     }
   }
 
+  if (logLines.length === 0) {
+    return (
+      <div key={"EMPTY"} className={styles.emptyLogView}>
+        No logs to display
+      </div>
+    )
+  }
+
   return (
-    <div className={styles.logView} onScroll={handleScroll}>
+    <LogsContainer onScroll={handleScroll}>
       {logLines.map((logLine, i) => (
         <span key={`${i}-${logLine.timestamp}`}>
-          {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
+          {showTimestamps && <Timestamp>{logLine.timestamp}</Timestamp>}
           {logLine.line + "\n"}
         </span>
       ))}
       <div ref={logsEndRef} key={"END"} />
-    </div>
+    </LogsContainer>
   )
 }
 

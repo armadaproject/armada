@@ -1,8 +1,5 @@
-import { FC } from "react"
-
 import { Cancel, LowPriority } from "@mui/icons-material"
 import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@mui/material"
-import { AutoSizer as _AutoSizer, AutoSizerProps } from "react-virtualized"
 
 import JobSetTable from "./JobSetTable"
 import { JobSet } from "../../services/JobService"
@@ -11,9 +8,6 @@ import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
 
 import "./JobSets.css"
-
-// This works around a type bug in react-virtualized: https://github.com/bvaughn/react-virtualized/issues/1739
-const AutoSizer = _AutoSizer as unknown as FC<AutoSizerProps>
 
 interface JobSetsProps {
   queue: string
@@ -40,23 +34,6 @@ interface JobSetsProps {
 }
 
 export default function JobSets(props: JobSetsProps) {
-  const content = (height: number, width: number) => (
-    <JobSetTable
-      height={height}
-      width={width}
-      queue={props.queue}
-      jobSets={props.jobSets}
-      selectedJobSets={props.selectedJobSets}
-      newestFirst={props.newestFirst}
-      onSelectJobSet={props.onSelectJobSet}
-      onShiftSelectJobSet={props.onShiftSelectJobSet}
-      onDeselectAllClick={props.onDeselectAllClick}
-      onSelectAllClick={props.onSelectAllClick}
-      onOrderChange={props.onOrderChange}
-      onJobSetStateClick={props.onJobSetStateClick}
-    />
-  )
-
   return (
     <Container className="job-sets" maxWidth={false}>
       <div className="job-sets-header">
@@ -125,11 +102,18 @@ export default function JobSets(props: JobSetsProps) {
         </div>
       </div>
       <div className="job-sets-content">
-        <AutoSizer>
-          {({ height, width }) => {
-            return content(height, width)
-          }}
-        </AutoSizer>
+        <JobSetTable
+          queue={props.queue}
+          jobSets={props.jobSets}
+          selectedJobSets={props.selectedJobSets}
+          newestFirst={props.newestFirst}
+          onSelectJobSet={props.onSelectJobSet}
+          onShiftSelectJobSet={props.onShiftSelectJobSet}
+          onDeselectAllClick={props.onDeselectAllClick}
+          onSelectAllClick={props.onSelectAllClick}
+          onOrderChange={props.onOrderChange}
+          onJobSetStateClick={props.onJobSetStateClick}
+        />
       </div>
     </Container>
   )
