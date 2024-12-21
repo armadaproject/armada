@@ -2,13 +2,9 @@ package logging
 
 import (
 	"io"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 )
 
-var NullLogger = &logrus.Logger{
-	Out:       io.Discard,
-	Formatter: new(logrus.TextFormatter),
-	Hooks:     make(logrus.LevelHooks),
-	Level:     logrus.PanicLevel,
-}
+var NullLogger = slog.New(
+	slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}),
+)

@@ -2,13 +2,13 @@ package context
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
@@ -196,7 +196,7 @@ func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingConte
 func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
 	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
-		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
+		slog.Error(fmt.Sprintf("failed to extract gang info from job %s: %s", job.Id(), err))
 	}
 	return &JobSchedulingContext{
 		Created:                        time.Now(),

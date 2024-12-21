@@ -29,15 +29,6 @@ func FromContext(ctx context.Context) (string, bool) {
 	return ids[0], true
 }
 
-// FromContextOrMissing returns the request Id embedded in gRPC metadata stored in a context,
-// if one is available. If none is available, the string "missing" is returned.
-func FromContextOrMissing(ctx context.Context) string {
-	if id, ok := FromContext(ctx); ok {
-		return id
-	}
-	return "missing"
-}
-
 // AddToIncomingContext returns a new context derived from ctx that is annotated with an Id.
 // The Id is stored in the request gRPC metadata. If ctx already has an Id, it is overwritten.
 // The second return value is true if the operation was successful.

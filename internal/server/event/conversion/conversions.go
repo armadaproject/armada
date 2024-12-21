@@ -1,9 +1,9 @@
 package conversion
 
 import (
+	"fmt"
+	"log/slog"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -60,9 +60,9 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			*armadaevents.EventSequence_Event_JobValidated,
 			*armadaevents.EventSequence_Event_PartitionMarker:
 			// These events have no api analog right now, so we ignore
-			log.Debugf("ignoring event type %T", esEvent)
+			slog.Debug(fmt.Sprintf("ignoring event type %T", esEvent))
 		default:
-			log.Warnf("unknown event type: %T", esEvent)
+			slog.Warn(fmt.Sprintf("unknown event type: %T", esEvent))
 			convertedEvents = nil
 		}
 		if err != nil {
@@ -290,7 +290,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 			}
 			events = append(events, event)
 		default:
-			log.Debugf("Ignoring event %T", reason)
+			slog.Debug(fmt.Sprintf("Ignoring event %T", reason))
 		}
 	}
 	return events, nil
@@ -364,7 +364,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			}
 			events = append(events, event)
 		default:
-			log.Warnf("unknown error %T for job %s", reason, e.JobId)
+			slog.Warn(fmt.Sprintf("unknown error %T for job %s", reason, e.JobId))
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
@@ -531,7 +531,7 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 	case armadaevents.KubernetesReason_OOM:
 		event.Cause = api.Cause_OOM
 	default:
-		log.Warnf("Unknown KubernetesReason of type %T", podError.KubernetesReason)
+		slog.Warn(fmt.Sprintf("Unknown KubernetesReason of type %T", podError.KubernetesReason))
 	}
 
 	containerStatuses := make([]*api.ContainerStatus, 0)
@@ -552,7 +552,7 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 		case armadaevents.KubernetesReason_OOM:
 			containerStatus.Cause = api.Cause_OOM
 		default:
-			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)
+			slog.Warn(fmt.Sprintf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason))
 		}
 		containerStatuses = append(containerStatuses, containerStatus)
 	}

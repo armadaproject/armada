@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
-	"github.com/armadaproject/armada/internal/executor/util"
-
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
+	config "github.com/
+	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 type containerStateChecker interface {

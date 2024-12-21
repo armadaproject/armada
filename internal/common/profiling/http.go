@@ -3,28 +3,27 @@ package profiling
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/serve"
 )
 
 func SetupPprof(config *configuration.ProfilingConfig, ctx *armadacontext.Context, g *errgroup.Group) error {
 	if config == nil {
-		log.Infof("Pprof server not configured, skipping")
+		ctx.Infof("Pprof server not configured, skipping")
 		return nil
 	}
 
-	log.Infof("Setting up pprof server on port %d", config.Port)
+	ctx.Infof("Setting up pprof server on port %d", config.Port)
 	if config.Auth == nil {
-		log.Errorf("Pprof server auth not configured, will not set up pprof")
+		ctx.Errorf("Pprof server auth not configured, will not set up pprof")
 		return nil
 	}
 
@@ -54,7 +53,7 @@ func SetupPprof(config *configuration.ProfilingConfig, ctx *armadacontext.Contex
 
 	serveFunc := func() error {
 		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+			ctx.Logger.WithStacktrace(err).Error("pprof server failure")
 		}
 		return err
 	}
@@ -99,10 +98,10 @@ type AuthInterceptor struct {
 func (i AuthInterceptor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, err := i.authFunc(w, r)
 	if err != nil {
-		log.Errorf("Pprof auth failed: %v", err)
+		slog.With("error", err.Error()).Error("Pprof auth failed")
 		return
 	}
 	principal := auth.GetPrincipal(ctx)
-	log.Infof("Pprof auth succeeded (method %s, principal %s)", principal.GetAuthMethod(), principal.GetName())
+	slog.Info(fmt.Sprintf("Pprof auth succeeded (method %s, principal %s)", principal.GetAuthMethod(), principal.GetName()))
 	i.underlying.ServeHTTP(w, r)
 }

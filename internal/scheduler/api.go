@@ -2,12 +2,13 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -17,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
@@ -262,12 +262,12 @@ func (srv *ExecutorApi) isPreemptible(job *armadaevents.SubmitJob) bool {
 
 	priority, known := srv.priorityClasses[priorityClassName]
 	if priorityClassName == "" {
-		log.Errorf("priority class name not set on job %s", job.JobId)
+		slog.Error(fmt.Sprintf("priority class name not set on job %s", job.JobId))
 		return false
 	}
 
 	if !known {
-		log.Errorf("unknown priority class found %s on job %s", priorityClassName, job.JobId)
+		slog.Error(fmt.Sprintf("unknown priority class found %s on job %s", priorityClassName, job.JobId))
 		return false
 	}
 
@@ -371,7 +371,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
 		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
-			logging.WithStacktrace(ctx, err).Warnf(
+			ctx.Logger.WithStacktrace(err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {

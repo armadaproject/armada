@@ -10,7 +10,6 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -142,7 +141,7 @@ func (repo *RedisEventRepository) extractEvents(ctx *armadacontext.Context, msg 
 	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
-			log.WithError(err).Errorf("Error returning decompressor to pool")
+			ctx.Logger.WithError(err).Errorf("Error returning decompressor to pool")
 		}
 	}(repo.decompressorPool, ctx, decompressor)
 	decompressedData, err := decompressor.(compress.Decompressor).Decompress(bytes)

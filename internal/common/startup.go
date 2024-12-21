@@ -3,29 +3,23 @@ package common
 import (
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
-	"path"
-	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
-
-	"github.com/armadaproject/armada/internal/common/certs"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/weaveworks/promrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/certs"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"
@@ -36,7 +30,7 @@ const logTimestampFormat = "2006-01-02T15:04:05.999Z07:00"
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
-		log.Error()
+		log.Error(err.Error())
 		os.Exit(-1)
 	}
 }
@@ -72,7 +66,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	var metadata mapstructure.Metadata
 	customHooks := append(slices.Clone(commonconfig.CustomHooks), func(c *mapstructure.DecoderConfig) { c.Metadata = &metadata })
 	if err := v.Unmarshal(config, customHooks...); err != nil {
-		log.Error(err)
+		log.Error(err.Error())
 		os.Exit(-1)
 	}
 
@@ -90,7 +84,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	}
 
 	if err := config.Validate(); err != nil {
-		log.Error(commonconfig.FormatValidationErrors(err))
+		log.Error(commonconfig.FormatValidationErrors(err).Error())
 		os.Exit(-1)
 	}
 
@@ -103,84 +97,68 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 
 // TODO Move logging-related code out of common into a new package internal/logging
 func ConfigureCommandLineLogging() {
-	commandLineFormatter := new(logging.CommandLineFormatter)
-	log.SetFormatter(commandLineFormatter)
-	log.SetOutput(os.Stdout)
+
 }
 
 func ConfigureLogging() {
-	log.SetLevel(readEnvironmentLogLevel())
-	log.SetFormatter(readEnvironmentLogFormat())
-	log.SetReportCaller(true)
-	log.SetOutput(os.Stdout)
-}
-
-func readEnvironmentLogLevel() log.Level {
-	level, ok := os.LookupEnv("LOG_LEVEL")
-	if ok {
-		logLevel, err := log.ParseLevel(level)
-		if err == nil {
-			return logLevel
-		}
+	opts := &slog.HandlerOptions{
+		Level:     readEnvironmentLogLevel(),
+		AddSource: true,
 	}
-	return log.InfoLevel
+	logger := slog.New(createLogHandler(opts))
+	slog.SetDefault(logger)
 }
 
-func readEnvironmentLogFormat() log.Formatter {
+func createLogHandler(opts *slog.HandlerOptions) slog.Handler {
 	formatStr, ok := os.LookupEnv("LOG_FORMAT")
 	if !ok {
-		formatStr = "colourful"
-	}
-
-	textFormatter := &log.TextFormatter{
-		ForceColors:     true,
-		FullTimestamp:   true,
-		TimestampFormat: logTimestampFormat,
-		CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
-			fileName := path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
-			return "", fileName
-		},
+		return slog.NewTextHandler(os.Stdout, opts)
 	}
 
 	switch strings.ToLower(formatStr) {
 	case "json":
-		return &log.JSONFormatter{TimestampFormat: logTimestampFormat}
-	case "colourful":
-		return textFormatter
+		return slog.NewJSONHandler(os.Stdout, nil)
 	case "text":
-		textFormatter.ForceColors = false
-		textFormatter.DisableColors = true
-		return textFormatter
+		return slog.NewTextHandler(os.Stdout, opts)
 	default:
-		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return textFormatter
+		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to text format", formatStr))
+		return slog.NewTextHandler(os.Stdout, opts)
 	}
 }
 
-func ServeMetrics(port uint16) (shutdown func()) {
-	return ServeMetricsFor(port, prometheus.DefaultGatherer)
+func readEnvironmentLogLevel() slog.Leveler {
+	levelFromEnv, ok := os.LookupEnv("LOG_LEVEL")
+	if ok {
+		var level slog.Level
+		var err = level.UnmarshalText([]byte(levelFromEnv))
+		if err == nil {
+			return level
+		}
+	}
+	return slog.LevelInfo
 }
 
-func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()) {
-	hook := promrus.MustNewPrometheusHook()
-	log.AddHook(hook)
+func ServeMetrics(ctx *armadacontext.Context, port uint16) (shutdown func()) {
+	return ServeMetricsFor(ctx, port, prometheus.DefaultGatherer)
+}
 
+func ServeMetricsFor(ctx *armadacontext.Context, port uint16, gatherer prometheus.Gatherer) (shutdown func()) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
-	return ServeHttp(port, mux)
+	return ServeHttp(ctx, port, mux)
 }
 
 // ServeHttp starts an HTTP server listening on the given port.
 // TODO: Make block until a context passed in is cancelled.
-func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
-	return serveHttp(port, mux, false, "", "")
+func ServeHttp(ctx *armadacontext.Context, port uint16, mux http.Handler) func() {
+	return serveHttp(ctx, port, mux, false, "", "")
 }
 
-func ServeHttps(port uint16, mux http.Handler, certFile, keyFile string) (shutdown func()) {
-	return serveHttp(port, mux, true, certFile, keyFile)
+func ServeHttps(ctx *armadacontext.Context, port uint16, mux http.Handler, certFile, keyFile string) (shutdown func()) {
+	return serveHttp(ctx, port, mux, true, certFile, keyFile)
 }
 
-func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile string) (shutdown func()) {
+func serveHttp(ctx *armadacontext.Context, port uint16, mux http.Handler, useTls bool, certFile, keyFile string) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
@@ -192,7 +170,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	}
 
 	go func() {
-		log.Printf("Starting %s server listening on %d", scheme, port)
+		log.Infof("Starting %s server listening on %d", scheme, port)
 		var err error
 		if useTls {
 			certWatcher := certs.NewCachedCertificateService(certFile, keyFile, time.Minute)
@@ -217,7 +195,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	return func() {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 		defer cancel()
-		log.Printf("Stopping %s server listening on %d", scheme, port)
+		log.Infof("Stopping %s server listening on %d", scheme, port)
 		e := srv.Shutdown(ctx)
 		if e != nil {
 			panic(e)

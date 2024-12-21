@@ -7,7 +7,6 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
@@ -146,7 +145,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 			case <-ticker.C:
 				timeSinceLastReceived := time.Now().Sub(lastReceivedTime)
 				if timeSinceLastReceived > timeout {
-					log.Infof("%s - Last pulsar message received %s ago", i.pulsarTopic, timeSinceLastReceived)
+					ctx.Infof("%s - Last pulsar message received %s ago", i.pulsarTopic, timeSinceLastReceived)
 				}
 			}
 		}
@@ -197,7 +196,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 			start := time.Now()
 			converted := i.converter.Convert(ctx, batch)
 			taken := time.Now().Sub(start)
-			log.Infof("%s - Processed %d pulsar messages in %dms", i.pulsarTopic, len(batch.MessageIds), taken.Milliseconds())
+			ctx.Infof("%s - Processed %d pulsar messages in %dms", i.pulsarTopic, len(batch.MessageIds), taken.Milliseconds())
 			instructions <- converted
 		}
 		close(instructions)
@@ -212,9 +211,9 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 			err := i.sink.Store(ctx, msg)
 			taken := time.Now().Sub(start)
 			if err != nil {
-				log.WithError(err).Warnf("%s - Error inserting messages", i.pulsarTopic)
+				ctx.Logger.WithError(err).Warnf("%s - Error inserting messages", i.pulsarTopic)
 			} else {
-				log.Infof("%s - Inserted %d pulsar messages in %dms", i.pulsarTopic, len(msg.GetMessageIDs()), taken.Milliseconds())
+				ctx.Infof("%s - Inserted %d pulsar messages in %dms", i.pulsarTopic, len(msg.GetMessageIDs()), taken.Milliseconds())
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
 				// This occurs when we're shutting down- it's a signal to stop processing immediately
@@ -225,7 +224,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 						armadacontext.Background(),
 						func() error { return i.consumer.AckID(msgId) },
 						func(err error) {
-							log.WithError(err).Warnf("%s - Pulsar ack failed; backing off for %s", i.pulsarTopic, i.pulsarConfig.BackoffTime)
+							ctx.Logger.WithError(err).Warnf("%s - Pulsar ack failed; backing off for %s", i.pulsarTopic, i.pulsarConfig.BackoffTime)
 							time.Sleep(i.pulsarConfig.BackoffTime)
 						},
 					)
@@ -236,10 +235,10 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 		wg.Done()
 	}()
 
-	log.Infof("%s - Ingestion pipeline set up. Running until shutdown event received", i.pulsarTopic)
+	ctx.Infof("%s - Ingestion pipeline set up. Running until shutdown event received", i.pulsarTopic)
 	// wait for a shutdown event
 	wg.Wait()
-	log.Infof("%s - Shutdown event received - closing", i.pulsarTopic)
+	ctx.Infof("%s - Shutdown event received - closing", i.pulsarTopic)
 	return nil
 }
 

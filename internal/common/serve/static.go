@@ -41,7 +41,7 @@ func ListenAndServe(ctx *armadacontext.Context, server *http.Server) error {
 		// Shutdown server on ctx done.
 		<-ctx.Done()
 		if err := server.Shutdown(ctx); err != nil {
-			logging.WithStacktrace(ctx, err).Errorf("failed to shutdown server serving %s", server.Addr)
+			logging.WithStacktrace(err).Errorf("failed to shutdown server serving %s", server.Addr)
 		}
 	}()
 	if err := server.ListenAndServe(); err != nil {

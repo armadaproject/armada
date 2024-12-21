@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -39,8 +38,8 @@ import (
 )
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
-	log.Info("Armada server starting")
-	defer log.Info("Armada server shutting down")
+	ctx.Info("Armada server starting")
+	defer ctx.Info("Armada server shutting down")
 
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
 	startupCompleteCheck := health.NewStartupCompleteChecker()
@@ -97,7 +96,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
 		if err := eventDb.Close(); err != nil {
-			log.WithError(err).Error("failed to close events api Redis client")
+			ctx.Logger.WithError(err).Error("failed to close events api Redis client")
 		}
 	}()
 	prometheus.MustRegister(
@@ -197,7 +196,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	grpc_prometheus.Register(grpcServer)
 
 	// Cancel the errgroup if grpcServer.Serve returns an error.
-	log.Infof("Armada gRPC server listening on %d", config.GrpcPort)
+	ctx.Infof("Armada gRPC server listening on %d", config.GrpcPort)
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {
 		return errors.WithStack(err)

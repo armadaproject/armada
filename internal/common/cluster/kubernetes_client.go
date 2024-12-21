@@ -2,11 +2,11 @@ package cluster
 
 import (
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/flowcontrol"
+	"log/slog"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
@@ -82,11 +82,11 @@ func (c *ConfigKubernetesClientProvider) ClientForUser(user string, groups []str
 func loadConfig() (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err == rest.ErrNotInCluster {
-		log.Info("Running with default client configuration")
+		slog.Info("Running with default client configuration")
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}
 		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	}
-	log.Info("Running with in cluster client configuration")
+	slog.Info("Running with in cluster client configuration")
 	return config, err
 }

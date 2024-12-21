@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -16,7 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/server"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -70,7 +69,7 @@ func main() {
 
 	// TODO This starts a separate HTTP server. Is that intended? Should we have a single mux for everything?
 	// TODO: Run in errgroup
-	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	shutdownMetricServer := common.ServeMetrics(ctx, config.MetricsPort)
 	defer shutdownMetricServer()
 
 	// Register /health API endpoint
@@ -99,9 +98,9 @@ func main() {
 	// TODO: Run in errgroup
 	var shutdownHttpServer func()
 	if config.Grpc.Tls.Enabled {
-		shutdownHttpServer = common.ServeHttps(config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+		shutdownHttpServer = common.ServeHttps(ctx, config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
 	} else {
-		shutdownHttpServer = common.ServeHttp(config.HttpPort, mux)
+		shutdownHttpServer = common.ServeHttp(ctx, config.HttpPort, mux)
 	}
 	defer shutdownHttpServer()
 
@@ -117,6 +116,6 @@ func main() {
 	}()
 
 	if err := g.Wait(); err != nil {
-		logging.WithStacktrace(log.NewEntry(log.StandardLogger()), err).Error("Armada server shut down")
+		log.WithStacktrace(err).Error("Armada server shut down uncleanly")
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -14,26 +14,16 @@ import (
 	"github.com/armadaproject/armada/pkg/client/domain"
 )
 
-func GetJobSetState(client api.EventClient, queue, jobSetId string, context context.Context, errorOnNotExists bool, forceNew bool, forceLegacy bool) *domain.WatchContext {
-	latestState := domain.NewWatchContext()
-	WatchJobSet(client, queue, jobSetId, false, errorOnNotExists, forceNew, forceLegacy, context, func(state *domain.WatchContext, _ api.Event) bool {
-		latestState = state
-		return false
-	})
-	return latestState
-}
-
 func WatchJobSet(
 	client api.EventClient,
-	queue, jobSetId string,
+	queue,
+	jobSetId string,
 	waitForNew bool,
 	errorOnNotExists bool,
-	forceNew bool,
-	forceLegacy bool,
 	context context.Context,
 	onUpdate func(*domain.WatchContext, api.Event) bool,
 ) *domain.WatchContext {
-	return WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, errorOnNotExists, forceNew, forceLegacy, []string{}, context, onUpdate)
+	return WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, errorOnNotExists, []string{}, context, onUpdate)
 }
 
 func WatchJobSetWithJobIdsFilter(
@@ -41,8 +31,6 @@ func WatchJobSetWithJobIdsFilter(
 	queue, jobSetId string,
 	waitForNew bool,
 	errorOnNotExists bool,
-	forceNew bool,
-	forceLegacy bool,
 	jobIds []string,
 	context context.Context,
 	onUpdate func(*domain.WatchContext, api.Event) bool,
@@ -71,7 +59,7 @@ func WatchJobSetWithJobIdsFilter(
 		)
 
 		if e != nil {
-			log.Error(e)
+			log.Error(e.Error())
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -94,7 +82,7 @@ func WatchJobSetWithJobIdsFilter(
 					return state
 				}
 				if !isTransportClosingError(e) {
-					log.Error(e)
+					log.Error(e.Error())
 				}
 				time.Sleep(5 * time.Second)
 				break
@@ -104,7 +92,7 @@ func WatchJobSetWithJobIdsFilter(
 			event, e := api.UnwrapEvent(msg.Message)
 			if e != nil {
 				// This can mean that the event type reported from server is unknown to the client
-				log.Error(e)
+				log.Error(e.Error())
 				continue
 			}
 

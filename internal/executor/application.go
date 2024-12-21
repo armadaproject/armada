@@ -11,7 +11,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"k8s.io/utils/clock"
@@ -39,10 +38,10 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
+func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	err := validateConfig(config)
 	if err != nil {
-		log.Errorf("Invalid config: %s", err)
+		ctx.Errorf("Invalid config: %s", err)
 		os.Exit(-1)
 	}
 
@@ -52,7 +51,7 @@ func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration
 		config.Kubernetes.Burst,
 	)
 	if err != nil {
-		log.Errorf("Failed to connect to kubernetes because %s", err)
+		ctx.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
 	}
 
@@ -87,17 +86,17 @@ func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration
 	}
 	var etcdClustersHealthMonitoring healthmonitor.HealthMonitor
 	if len(etcdClusterHealthMonitoringByName) > 0 {
-		log.Info("etcd URLs provided; monitoring etcd health enabled")
+		ctx.Info("etcd URLs provided; monitoring etcd health enabled")
 		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
 			"overall_etcd",
 			etcdClusterHealthMonitoringByName,
 		).WithMetricsPrefix(
 			metrics.ArmadaExecutorMetricsPrefix,
 		)
-		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx, log) })
+		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx) })
 		prometheus.MustRegister(etcdClustersHealthMonitoring)
 	} else {
-		log.Info("no etcd URLs provided; etcd health isn't monitored")
+		ctx.Info("no etcd URLs provided; etcd health isn't monitored")
 	}
 
 	clusterContext := executor_context.NewClusterContext(
@@ -113,11 +112,11 @@ func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(log, config, clusterContext, etcdClustersHealthMonitoring, taskManager, wg)
+	return StartUpWithContext(ctx, config, clusterContext, etcdClustersHealthMonitoring, taskManager, wg)
 }
 
 func StartUpWithContext(
-	log *logrus.Entry,
+	ctx *armadacontext.Context,
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
 	clusterHealthMonitor healthmonitor.HealthMonitor,
@@ -133,20 +132,20 @@ func StartUpWithContext(
 	)
 
 	if config.Kubernetes.PendingPodChecks == nil {
-		log.Error("Config error: Missing pending pod checks")
+		ctx.Error("Config error: Missing pending pod checks")
 		os.Exit(-1)
 	}
 	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks)
 	if err != nil {
-		log.Errorf("Config error in pending pod checks: %s", err)
+		ctx.Errorf("Config error in pending pod checks: %s", err)
 		os.Exit(-1)
 	}
 
-	stopExecutorApiComponents := setupExecutorApiComponents(log, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
+	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
 
 	resourceCleanupService, err := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 	if err != nil {
-		log.Errorf("Error creating resource cleanup service: %s", err)
+		ctx.Errorf("Error creating resource cleanup service: %s", err)
 		os.Exit(-1)
 	}
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
@@ -159,15 +158,15 @@ func StartUpWithContext(
 		clusterContext.Stop()
 		stopExecutorApiComponents()
 		if taskManager.StopAll(10 * time.Second) {
-			log.Warnf("Graceful shutdown timed out")
+			ctx.Warnf("Graceful shutdown timed out")
 		}
-		log.Infof("Shutdown complete")
+		ctx.Infof("Shutdown complete")
 		wg.Done()
 	}, wg
 }
 
 func setupExecutorApiComponents(
-	log *logrus.Entry,
+	ctx *armadacontext.Context,
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
 	clusterHealthMonitor healthmonitor.HealthMonitor,
@@ -178,7 +177,7 @@ func setupExecutorApiComponents(
 ) func() {
 	conn, err := createConnectionToApi(config.ExecutorApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
-		log.Errorf("Failed to connect to Executor API because: %s", err)
+		ctx.Errorf("Failed to connect to Executor API because: %s", err)
 		os.Exit(-1)
 	}
 
@@ -203,7 +202,7 @@ func setupExecutorApiComponents(
 		clock.RealClock{},
 		200)
 	if err != nil {
-		log.Errorf("Failed to create job event reporter: %s", err)
+		ctx.Errorf("Failed to create job event reporter: %s", err)
 		os.Exit(-1)
 	}
 
@@ -243,7 +242,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.StuckTerminatingPodExpiry,
 	)
 	if err != nil {
-		log.Errorf("Failed to create pod issue service: %s", err)
+		ctx.Errorf("Failed to create pod issue service: %s", err)
 		os.Exit(-1)
 	}
 
@@ -255,7 +254,7 @@ func setupExecutorApiComponents(
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	_, err = pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 	if err != nil {
-		log.Errorf("Failed to setup cluster context metrics: %s", err)
+		ctx.Errorf("Failed to setup cluster context metrics: %s", err)
 		os.Exit(-1)
 	}
 	runStateMetricsCollector := runstate.NewJobRunStateStoreMetricsCollector(jobRunState)
@@ -268,7 +267,7 @@ func setupExecutorApiComponents(
 			eventReporter,
 			config.Task.UtilisationEventReportingInterval)
 		if err != nil {
-			log.Errorf("Failed to pod utilisation reporter: %s", err)
+			ctx.Errorf("Failed to pod utilisation reporter: %s", err)
 			os.Exit(-1)
 		}
 		taskManager.Register(

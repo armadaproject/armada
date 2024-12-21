@@ -3,10 +3,11 @@ package nodedb
 import (
 	"bytes"
 	"container/heap"
+	"fmt"
+	"log/slog"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -361,9 +362,11 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 					it.lowerBound = it.newLowerBound
 					it.newLowerBound = lowerBound
 				} else {
-					log.Warnf(
-						"new lower-bound %x is not greater than current bound %x",
-						it.newKey, it.key,
+					slog.Warn(
+						fmt.Sprintf(
+							"new lower-bound %x is not greater than current bound %x",
+							it.newKey, it.key,
+						),
 					)
 					break
 				}

@@ -6,7 +6,6 @@ import (
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
@@ -85,13 +84,13 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		case *executorapi.LeaseStreamMessage_End:
 			shouldEndStream = true
 		default:
-			log.Errorf("unexpected lease stream message type %T", typed)
+			ctx.Errorf("unexpected lease stream message type %T", typed)
 		}
 	}
 
 	err = closeStream(stream)
 	if err != nil {
-		log.Warnf("Failed to close lease jobs stream cleanly - %s", err)
+		ctx.Warnf("Failed to close lease jobs stream cleanly - %s", err)
 	}
 
 	return &LeaseResponse{

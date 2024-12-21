@@ -6,9 +6,8 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 type CachedCertificateService struct {
@@ -62,7 +61,7 @@ func (c *CachedCertificateService) Run(ctx *armadacontext.Context) {
 		case <-ticker.C:
 			err := c.refresh()
 			if err != nil {
-				log.WithError(err).Errorf("failed refreshing certificate from files cert: %s key: %s", c.certPath, c.keyPath)
+				ctx.Logger.WithError(err).Errorf("failed refreshing certificate from files cert: %s key: %s", c.certPath, c.keyPath)
 			}
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 

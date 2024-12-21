@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -48,7 +47,7 @@ func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogPa
 		params.LogOptions.SinceTime = &metav1.Time{Time: since}
 	} else {
 		if params.SinceTime != "" {
-			log.Warnf("failed to parse since time for pod %s: %v", params.PodName, err)
+			ctx.Warnf("failed to parse since time for pod %s: %v", params.PodName, err)
 		}
 	}
 
@@ -77,7 +76,7 @@ func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogPa
 
 	logLines, errs := ConvertLogs(rawLog)
 	for _, err := range errs {
-		log.Errorf(
+		ctx.Errorf(
 			"failed to parse log line for namespace: %q, pod: %q: %v",
 			params.Namespace,
 			params.PodName,

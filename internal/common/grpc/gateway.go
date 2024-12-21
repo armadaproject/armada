@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -74,7 +74,7 @@ func CreateGatewayHandler(
 
 func logRestRequests(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Infof("Received REST request performing %s %s", r.Method, r.URL.Path)
+		slog.Info(fmt.Sprintf("Received REST request performing %s %s", r.Method, r.URL.Path))
 		h.ServeHTTP(w, r)
 	})
 }

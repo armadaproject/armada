@@ -3,13 +3,6 @@ package submit
 import (
 	"context"
 	"fmt"
-
-	"github.com/gogo/protobuf/types"
-	"github.com/gogo/status"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"k8s.io/utils/clock"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
@@ -25,6 +18,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
+	"google.golang.org/grpc/codes"
+	"k8s.io/utils/clock"
 )
 
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
@@ -88,7 +85,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	originalIds, err := s.deduplicator.GetOriginalJobIds(ctx, req.Queue, req.JobRequestItems)
 	if err != nil {
 		// Deduplication is best-effort, therefore this is not fatal
-		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
+		ctx.Logger.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
 	}
 
 	submitMsgs := make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems))
@@ -140,14 +137,14 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 
 	err = s.publisher.PublishMessages(ctx, es)
 	if err != nil {
-		log.WithError(err).Error("failed send events to Pulsar")
+		ctx.Logger.WithError(err).Error("failed send events to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
 	// Store the deduplication ids. Note that this will not be called if pulsar submission has failed, hence
 	// a partial pulsar submission can result in duplicate jobs.
 	if err = s.deduplicator.StoreOriginalJobIds(ctx, req.Queue, idMappings); err != nil {
-		log.WithError(err).Warn("failed to store deduplication ids")
+		ctx.Logger.WithError(err).Warn("failed to store deduplication ids")
 	}
 	return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 }
@@ -162,7 +159,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	jobIds = slices.Unique(jobIds)
 
 	if len(jobIds) == 0 {
-		log.Warnf("CancelJobs called for queue=%s and jobset=%s but with empty job id. Redirecting to CancelJobSet()", req.Queue, req.JobSetId)
+		ctx.Warnf("CancelJobs called for queue=%s and jobset=%s but with empty job id. Redirecting to CancelJobSet()", req.Queue, req.JobSetId)
 		_, err := s.CancelJobSet(ctx, &api.JobSetCancelRequest{
 			Queue:    req.Queue,
 			JobSetId: req.JobSetId,
@@ -191,7 +188,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 
 	err = s.publisher.PublishMessages(ctx, es)
 	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
+		ctx.Logger.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 	return &api.CancellationResult{
@@ -218,7 +215,7 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 
 	err = s.publisher.PublishMessages(ctx, sequence)
 	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
+		ctx.Logger.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
@@ -304,7 +301,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 
 	err = s.publisher.PublishMessages(ctx, sequence)
 	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
+		ctx.Logger.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
@@ -361,7 +358,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	}
 	err = s.publisher.PublishMessages(ctx, pulsarSchedulerSequence)
 	if err != nil {
-		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
+		ctx.Logger.WithError(err).Error("failed to send cancel jobset message to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
 	}
 

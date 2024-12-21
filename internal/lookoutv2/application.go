@@ -4,11 +4,12 @@ package lookoutv2
 
 import (
 	"github.com/IBM/pgxpoolprometheus"
+	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -48,10 +49,6 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
-	logger := logrus.NewEntry(logrus.StandardLogger())
-
-	api.Logger = logger.Debugf
-
 	api.GetHealthHandler = operations.GetHealthHandlerFunc(
 		func(params operations.GetHealthParams) middleware.Responder {
 			return operations.NewGetHealthOK().WithPayload("Health check passed")
@@ -63,7 +60,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 			filters := slices.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
 			result, err := getJobsRepo.GetJobs(
-				armadacontext.New(params.HTTPRequest.Context(), logger),
+				armadacontext.New(params.HTTPRequest.Context(), logging.NewLogger()),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
 				order,
@@ -84,7 +81,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 			filters := slices.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
 			result, err := groupJobsRepo.GroupBy(
-				armadacontext.New(params.HTTPRequest.Context(), logger),
+				armadacontext.New(params.HTTPRequest.Context(), logging.NewLogger()),
 				filters,
 				params.GroupJobsRequest.ActiveJobSets,
 				order,
@@ -104,7 +101,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 
 	api.GetJobRunErrorHandler = operations.GetJobRunErrorHandlerFunc(
 		func(params operations.GetJobRunErrorParams) middleware.Responder {
-			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logging.NewLogger())
 			result, err := getJobRunErrorRepo.GetJobRunError(ctx, params.GetJobRunErrorRequest.RunID)
 			if err != nil {
 				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
@@ -117,7 +114,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 
 	api.GetJobRunDebugMessageHandler = operations.GetJobRunDebugMessageHandlerFunc(
 		func(params operations.GetJobRunDebugMessageParams) middleware.Responder {
-			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logging.NewLogger())
 			result, err := getJobRunDebugMessageRepo.GetJobRunDebugMessage(ctx, params.GetJobRunDebugMessageRequest.RunID)
 			if err != nil {
 				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
@@ -130,7 +127,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 
 	api.GetJobErrorHandler = operations.GetJobErrorHandlerFunc(
 		func(params operations.GetJobErrorParams) middleware.Responder {
-			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logging.NewLogger())
 			result, err := getJobErrorRepo.GetJobErrorMessage(ctx, params.GetJobErrorRequest.JobID)
 			if err != nil {
 				return operations.NewGetJobErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
@@ -143,7 +140,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 
 	api.GetJobSpecHandler = operations.GetJobSpecHandlerFunc(
 		func(params operations.GetJobSpecParams) middleware.Responder {
-			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logging.NewLogger())
 			result, err := getJobSpecRepo.GetJobSpec(ctx, params.GetJobSpecRequest.JobID)
 			if err != nil {
 				return operations.NewGetJobSpecBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
@@ -154,14 +151,16 @@ func Serve(configuration configuration.LookoutV2Config) error {
 		},
 	)
 
-	shutdownMetricServer := common.ServeMetrics(uint16(configuration.MetricsPort))
+	ctx := app.CreateContextWithShutdown()
+
+	shutdownMetricServer := common.ServeMetrics(ctx, uint16(configuration.MetricsPort))
 	defer shutdownMetricServer()
 
 	server := restapi.NewServer(api)
 	defer func() {
 		shutdownErr := server.Shutdown()
 		if shutdownErr != nil {
-			logger.WithError(shutdownErr).Error("Failed to shut down server")
+			ctx.Logger.WithError(shutdownErr).Error("Failed to shut down server")
 		}
 	}()
 

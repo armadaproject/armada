@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -53,7 +52,7 @@ type Results struct {
 	TotalEventsProcessed     int
 }
 
-func Setup(lookoutIngesterConfig configuration.LookoutIngesterV2Configuration, testConfig Config) *LoadTester {
+func Setup(ctx armadacontext.Context, lookoutIngesterConfig configuration.LookoutIngesterV2Configuration, testConfig Config) *LoadTester {
 	m := metrics.Get()
 
 	db, err := database.OpenPgxPool(lookoutIngesterConfig.Postgres)
@@ -65,7 +64,7 @@ func Setup(lookoutIngesterConfig configuration.LookoutIngesterV2Configuration, t
 	for i, str := range lookoutIngesterConfig.FatalInsertionErrors {
 		rgx, err := regexp.Compile(str)
 		if err != nil {
-			log.Errorf("Error compiling regex %s", str)
+			ctx.Errorf("Error compiling regex %s", str)
 			panic(err)
 		}
 		fatalRegexes[i] = rgx
@@ -154,7 +153,7 @@ func (l *LoadTester) Run(ctx *armadacontext.Context) (*Results, error) {
 			start := time.Now()
 			converted := l.converter.Convert(ctx, msg)
 			taken := time.Now().Sub(start)
-			log.Infof("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
+			ctx.Infof("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
 			instructionSets <- converted
 		}
 		close(instructionSets)
@@ -168,10 +167,10 @@ func (l *LoadTester) Run(ctx *armadacontext.Context) (*Results, error) {
 		err := l.db.Store(ctx, msg)
 		totalDBTime += time.Now().Sub(start)
 		if err != nil {
-			log.WithError(err).Warn("Error inserting messages")
-			log.Panic("db err")
+			ctx.Logger.WithError(err).Warn("Error inserting messages")
+			ctx.Fatal("db err")
 		} else {
-			log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), totalDBTime.Milliseconds())
+			ctx.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), totalDBTime.Milliseconds())
 			totalMessages += len(msg.GetMessageIDs())
 		}
 		if errors.Is(err, context.DeadlineExceeded) {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -60,7 +59,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		if err != nil {
 			return errors.Wrapf(err, "Could not convert legacy message id over to new message id for request for queue %s, jobset %s", request.Queue, request.Id)
 		}
-		log.Warnf("Converted legacy sequene id [%s] for queues %s, jobset %s to new sequenceId [%s]", request.Id, request.Queue, request.Id, convertedSeqId)
+		ctx.Warnf("Converted legacy sequence id [%s] for queues %s, jobset %s to new sequenceId [%s]", request.Id, request.Queue, request.Id, convertedSeqId)
 		request.FromMessageId = convertedSeqId.String()
 	}
 

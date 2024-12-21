@@ -8,7 +8,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
@@ -18,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -706,8 +706,8 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 
 func logQuery(query *Query, description string) {
 	log.
-		WithField("query", removeNewlinesAndTabs(query.Sql)).
-		WithField("values", query.Args).
+		With("query", removeNewlinesAndTabs(query.Sql)).
+		With("values", query.Args).
 		Debug(description)
 }
 

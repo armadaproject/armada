@@ -6,7 +6,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -107,20 +106,20 @@ func (repo *RedisEventStore) doStore(ctx *armadacontext.Context, update []*model
 		if err == nil {
 			return false, nil
 		} else {
-			return repo.isRetryableRedisError(err), err
+			return repo.isRetryableRedisError(ctx, err), err
 		}
 	}, repo.intialRetryBackoff, repo.maxRetryBackoff)
 }
 
 // IsRetryableRedisError returns true if the error doesn't match the list of nonRetryableErrors
-func (repo *RedisEventStore) isRetryableRedisError(err error) bool {
+func (repo *RedisEventStore) isRetryableRedisError(ctx *armadacontext.Context, err error) bool {
 	if err == nil {
 		return true
 	}
 	s := err.Error()
 	for _, r := range repo.fatalErrors {
 		if r.MatchString(s) {
-			log.Infof("Error %s matched regex %s and so will be considered fatal", s, r)
+			ctx.Infof("Error %s matched regex %s and so will be considered fatal", s, r)
 			return false
 		}
 	}

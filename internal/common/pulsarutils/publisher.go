@@ -79,7 +79,7 @@ func (p *PulsarPublisher[T]) PublishMessages(ctx *armadacontext.Context, events 
 		p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 			if err != nil {
 				logging.
-					WithStacktrace(ctx, err).
+					WithStacktrace(err).
 					Error("error sending message to Pulsar")
 				errored = true
 			}

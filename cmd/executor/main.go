@@ -1,13 +1,13 @@
 package main
 
 import (
+	"github.com/armadaproject/armada/internal/common/logging"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -33,15 +33,16 @@ func init() {
 func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
+	ctx := armadacontext.New(armadacontext.Background(), logging.NewLogger())
 
 	var config configuration.ExecutorConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
 	// Expose profiling endpoints if enabled.
-	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	err := profiling.SetupPprof(config.Profiling, ctx, nil)
 	if err != nil {
-		log.Fatalf("Pprof setup failed, exiting, %v", err)
+		ctx.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	mux := http.NewServeMux()
@@ -49,19 +50,20 @@ func main() {
 	healthChecks := health.NewMultiChecker(startupCompleteCheck)
 	health.SetupHttpMux(mux, healthChecks)
 
-	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
+	shutdownHttpServer := common.ServeHttp(ctx, config.HttpPort, mux)
 	defer shutdownHttpServer()
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
 
 	shutdownMetricServer := common.ServeMetricsFor(
+		ctx,
 		config.Metric.Port,
 		prometheus.Gatherers{prometheus.DefaultGatherer},
 	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(armadacontext.Background(), log.NewEntry(log.StandardLogger()), config)
+	shutdown, wg := executor.StartUp(ctx, config)
 	go func() {
 		<-shutdownChannel
 		shutdown()

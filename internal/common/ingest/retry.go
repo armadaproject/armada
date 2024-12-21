@@ -1,9 +1,9 @@
 package ingest
 
 import (
+	"fmt"
+	"log/slog"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // WithRetry executes the supplied action until it either completes successfully or it returns false, indicating that
@@ -17,7 +17,7 @@ func WithRetry(action func() (bool, error), intialBackoff time.Duration, maxBack
 		}
 		if retry {
 			backOff = min(2*backOff, maxBackOff)
-			log.WithError(err).Warnf("Retryable error encountered, will wait for %s before retrying", backOff)
+			slog.With("error", err.Error()).Warn(fmt.Sprintf("Retryable error encountered, will wait for %s before retrying", backOff))
 			time.Sleep(backOff)
 		} else {
 			// Non retryable error

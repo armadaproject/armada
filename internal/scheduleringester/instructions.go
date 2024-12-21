@@ -6,7 +6,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
@@ -55,18 +54,18 @@ func NewJobSetEventsInstructionConverter(
 func (c *JobSetEventsInstructionConverter) Convert(ctx *armadacontext.Context, eventsWithIds *utils.EventsWithIds[*armadaevents.EventSequence]) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, es := range eventsWithIds.Events {
-		for _, op := range c.dbOperationsFromEventSequence(es) {
+		for _, op := range c.dbOperationsFromEventSequence(ctx, es) {
 			operations = AppendDbOperation(operations, op)
 		}
 	}
-	log.Infof("Converted sequences into %d db operations", len(operations))
+	ctx.Infof("Converted sequences into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
 		MessageIds: eventsWithIds.MessageIds,
 	}
 }
 
-func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *armadaevents.EventSequence) []DbOperation {
+func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(ctx *armadacontext.Context, es *armadaevents.EventSequence) []DbOperation {
 	meta := eventSequenceCommon{
 		queue:  es.Queue,
 		jobset: es.JobSetName,
@@ -120,14 +119,14 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 			*armadaevents.EventSequence_Event_JobRunCancelled,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
-			log.Debugf("Ignoring event type %T", event)
+			ctx.Debugf("Ignoring event type %T", event)
 		default:
 			// This is an event type we haven't considered. Log a warning
-			log.Warnf("Ignoring unknown event type %T", eventType)
+			ctx.Warnf("Ignoring unknown event type %T", eventType)
 		}
 		if err != nil {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-			log.WithError(err).Errorf("Could not convert event at index %d.", idx)
+			ctx.Logger.WithError(err).Errorf("Could not convert event at index %d.", idx)
 		} else {
 			operations = append(operations, operationsFromEvent...)
 		}
@@ -394,19 +393,19 @@ func NewControlPlaneEventsInstructionConverter(
 func (c *ControlPlaneEventsInstructionConverter) Convert(ctx *armadacontext.Context, controlPlaneEvents *utils.EventsWithIds[*controlplaneevents.Event]) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, controlPlaneEvent := range controlPlaneEvents.Events {
-		for _, op := range c.dbOperationFromControlPlaneEvent(controlPlaneEvent) {
+		for _, op := range c.dbOperationFromControlPlaneEvent(ctx, controlPlaneEvent) {
 			operations = AppendDbOperation(operations, op)
 		}
 	}
 
-	log.Infof("Converted events into %d db operations", len(operations))
+	ctx.Infof("Converted events into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
 		MessageIds: controlPlaneEvents.MessageIds,
 	}
 }
 
-func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEvent(event *controlplaneevents.Event) []DbOperation {
+func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEvent(ctx *armadacontext.Context, event *controlplaneevents.Event) []DbOperation {
 	var operations []DbOperation
 	var err error
 
@@ -425,11 +424,11 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 	case *controlplaneevents.Event_CancelOnQueue:
 		operations, err = c.handleCancelOnQueue(event.GetCancelOnQueue())
 	default:
-		log.Errorf("Unknown event of type %T", ev)
+		ctx.Errorf("Unknown event of type %T", ev)
 	}
 
 	if err != nil {
-		log.Errorf("Failed to convert event to db operations: %v", err)
+		ctx.Logger.WithError(err).Errorf("Failed to convert event to db operations")
 	}
 
 	return operations

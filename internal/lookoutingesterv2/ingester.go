@@ -5,7 +5,6 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
@@ -26,7 +25,8 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Lookout database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.LookoutIngesterV2Configuration) {
-	log.Infof("Opening connection pool to postgres")
+	ctx := app.CreateContextWithShutdown()
+	ctx.Infof("Opening connection pool to postgres")
 	m := metrics.Get()
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
@@ -37,7 +37,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 	for i, str := range config.FatalInsertionErrors {
 		rgx, err := regexp.Compile(str)
 		if err != nil {
-			log.Errorf("Error compiling regex %s", str)
+			ctx.Errorf("Error compiling regex %s", str)
 			panic(err)
 		}
 		fatalRegexes[i] = rgx
@@ -53,11 +53,11 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 	// Expose profiling endpoints if enabled.
 	err = profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
 	if err != nil {
-		log.Fatalf("Pprof setup failed, exiting, %v", err)
+		ctx.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	// Start metric server
-	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	shutdownMetricServer := common.ServeMetrics(ctx, config.MetricsPort)
 	defer shutdownMetricServer()
 
 	converter := instructions.NewInstructionConverter(m.Metrics, config.UserAnnotationPrefix, compressor)
@@ -78,7 +78,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		m.Metrics,
 	)
 
-	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {
+	if err := ingester.Run(ctx); err != nil {
 		panic(errors.WithMessage(err, "Error running ingestion pipeline"))
 	}
 }

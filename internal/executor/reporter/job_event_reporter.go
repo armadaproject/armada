@@ -4,15 +4,16 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
+	clusterCont
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/util"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 type EventReporter interface {

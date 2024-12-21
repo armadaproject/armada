@@ -2,11 +2,12 @@ package scheduling
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"math"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
@@ -603,9 +604,11 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		}
 		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
-			logrus.Errorf(
-				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), nodeId, job.LatestRun().Executor(),
+			slog.Error(
+				fmt.Sprintf(
+					"job %s assigned to node %s on executor %s, but no such node found",
+					job.Id(), nodeId, job.LatestRun().Executor(),
+				),
 			)
 			continue
 		}
@@ -618,9 +621,11 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		nodeId := job.LatestRun().NodeId()
 		node, ok := nodesById[nodeId]
 		if !ok {
-			logrus.Errorf(
-				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), nodeId, job.LatestRun().Executor(),
+			slog.Error(
+				fmt.Sprintf(
+					"job %s assigned to node %s on executor %s, but no such node found",
+					job.Id(), nodeId, job.LatestRun().Executor(),
+				),
 			)
 			continue
 		}

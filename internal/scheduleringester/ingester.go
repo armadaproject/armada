@@ -6,7 +6,6 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
@@ -23,10 +22,10 @@ import (
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the schedulerDb.
 // This pipeline will run until a SIGTERM is received.
-func Run(config Configuration) error {
+func Run(ctx *armadacontext.Context, config Configuration) error {
 	svcMetrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
 
-	log.Infof("opening connection pool to postgres")
+	ctx.Infof("opening connection pool to postgres")
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
@@ -41,11 +40,11 @@ func Run(config Configuration) error {
 	// Expose profiling endpoints if enabled.
 	err = profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
 	if err != nil {
-		log.Fatalf("Pprof setup failed, exiting, %v", err)
+		ctx.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
 
 	// Start metric server
-	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	shutdownMetricServer := common.ServeMetrics(ctx, config.MetricsPort)
 	defer shutdownMetricServer()
 
 	jobSetEventsIngester := ingest.NewIngestionPipeline[*DbOperationsWithMessageIds, *armadaevents.EventSequence](
@@ -92,7 +91,7 @@ func Run(config Configuration) error {
 	go func() {
 		defer wg.Done()
 		if err := jobSetEventsIngester.Run(app.CreateContextWithShutdown()); err != nil {
-			log.Errorf("error running jobSet event ingestion pipeline: %s", err)
+			ctx.Logger.WithError(err).Error("error running jobSet event ingestion pipeline")
 		}
 	}()
 
@@ -101,7 +100,7 @@ func Run(config Configuration) error {
 	go func() {
 		defer wg.Done()
 		if err := controlPlaneEventsIngester.Run(app.CreateContextWithShutdown()); err != nil {
-			log.Errorf("error running control plane event ingestion pipeline: %s", err)
+			ctx.Logger.WithError(err).Error("error running control plane event ingestion pipeline")
 		}
 	}()
 

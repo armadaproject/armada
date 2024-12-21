@@ -3,21 +3,17 @@ package grpc
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/certs"
+	"google.golang.org/grpc/credentials"
 	"net"
 	"runtime/debug"
 	"sync"
 	"time"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	log "github.com/sirupsen/logrus"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
@@ -25,92 +21,42 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/certs"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
-// CreateGrpcServer creates a gRPC server (by calling grpc.NewServer) with settings specific to
-// this project, and registers services for, e.g., logging and authentication.
+// CreateGrpcServer creates a gRPC server with settings specific to this project, and registers services for, e.g.
+// logging and authentication.
 func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []auth.AuthService,
 	tlsConfig configuration.TlsConfig,
-	logrusOptions ...grpc_logrus.Option,
 ) *grpc.Server {
-	// Logging, authentication, etc. are implemented via gRPC interceptors
-	// (i.e., via functions that are called before handling the actual request).
-	// There are separate interceptors for unary and streaming gRPC calls.
-	unaryInterceptors := []grpc.UnaryServerInterceptor{}
-	streamInterceptors := []grpc.StreamServerInterceptor{}
 
-	// Automatically recover from panics
-	// NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor
-	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
-	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
-	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))
-
-	// Logging (using logrus)
-	// By default, information contained in the request context is logged
-	// tagsExtractor pulls information out of the request payload (a protobuf) and stores it in
-	// the context, such that it is logged.
-	messageDefault := log.NewEntry(log.StandardLogger())
-	tagsExtractor := grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)
-	unaryInterceptors = append(unaryInterceptors,
-		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
-		requestid.UnaryServerInterceptor(false),
-		armadaerrors.UnaryServerInterceptor(2000),
-		grpc_logrus.UnaryServerInterceptor(messageDefault, logrusOptions...),
-	)
-	streamInterceptors = append(streamInterceptors,
-		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
-		requestid.StreamServerInterceptor(false),
-		armadaerrors.StreamServerInterceptor(2000),
-		grpc_logrus.StreamServerInterceptor(messageDefault, logrusOptions...),
-	)
-
-	// Authentication
-	// The provided authServices represents a list of services that can be used to authenticate
-	// the client (e.g., username/password and OpenId). authFunction is a combination of these.
 	authFunction := auth.CreateGrpcMiddlewareAuthFunction(auth.NewMultiAuthService(authServices))
-	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
-	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 
-	// Prometheus timeseries collection integration
-	grpc_prometheus.EnableHandlingTimeHistogram()
-	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
-	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
-
-	serverOptions := []grpc.ServerOption{
+	return grpc.NewServer(
 		grpc.KeepaliveParams(keepaliveParams),
 		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
-		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
-	}
+		setupTls(tlsConfig),
+		grpc.ChainUnaryInterceptor(
+			requestid.UnaryServerInterceptor(false),
+			armadaerrors.UnaryServerInterceptor(2000),
+			grpc_auth.UnaryServerInterceptor(authFunction),
+			grpc_recovery.UnaryServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
+		),
+		grpc.ChainStreamInterceptor(
+			requestid.StreamServerInterceptor(false),
+			armadaerrors.StreamServerInterceptor(2000),
+			grpc_auth.StreamServerInterceptor(authFunction),
+			grpc_recovery.StreamServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
+		),
+	)
 
-	if tlsConfig.Enabled {
-		cachedCertificateService := certs.NewCachedCertificateService(tlsConfig.CertPath, tlsConfig.KeyPath, time.Minute)
-		go func() {
-			cachedCertificateService.Run(armadacontext.Background())
-		}()
-		tlsCreds := credentials.NewTLS(&tls.Config{
-			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				cert := cachedCertificateService.GetCertificate()
-				if cert == nil {
-					return nil, fmt.Errorf("unexpectedly received nil from certificate cache")
-				}
-				return cert, nil
-			},
-		})
-		serverOptions = append(serverOptions, grpc.Creds(tlsCreds))
-	}
-
-	// Interceptors are registered at server creation
-	return grpc.NewServer(serverOptions...)
 }
 
-// TODO We don't need this function. Just do this at the caller.
 func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil { // TODO Don't call fatal, return an error.
@@ -118,11 +64,11 @@ func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 	}
 
 	go func() {
-		defer log.Println("Stopping server.")
+		defer log.Infof("Stopping server.")
 
-		log.Printf("Grpc listening on %d", port)
+		log.Infof("Grpc listening on %d", port)
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+			log.Errorf("failed to serve: %v", err)
 		}
 
 		wg.Done()
@@ -130,7 +76,7 @@ func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 }
 
 // CreateShutdownHandler returns a function that shuts down the grpcServer when the context is closed.
-// The server is given gracePeriod to perform a graceful showdown and is then forcably stopped if necessary
+// The server is given gracePeriod to perform a graceful showdown and is then forcibly stopped if necessary
 func CreateShutdownHandler(ctx *armadacontext.Context, gracePeriod time.Duration, grpcServer *grpc.Server) func() error {
 	return func() error {
 		<-ctx.Done()
@@ -141,6 +87,27 @@ func CreateShutdownHandler(ctx *armadacontext.Context, gracePeriod time.Duration
 		grpcServer.GracefulStop()
 		return nil
 	}
+}
+
+func setupTls(tlsConfig configuration.TlsConfig) grpc.ServerOption {
+	if !tlsConfig.Enabled {
+		return grpc.EmptyServerOption{}
+	}
+
+	cachedCertificateService := certs.NewCachedCertificateService(tlsConfig.CertPath, tlsConfig.KeyPath, time.Minute)
+	go func() {
+		cachedCertificateService.Run(armadacontext.Background())
+	}()
+	tlsCreds := credentials.NewTLS(&tls.Config{
+		GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			cert := cachedCertificateService.GetCertificate()
+			if cert == nil {
+				return nil, fmt.Errorf("unexpectedly received nil from certificate cache")
+			}
+			return cert, nil
+		},
+	})
+	return grpc.Creds(tlsCreds)
 }
 
 // This function is called whenever a gRPC handler panics.

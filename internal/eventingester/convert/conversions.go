@@ -3,7 +3,6 @@ package convert
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -56,13 +55,13 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 		bytes, err := proto.Marshal(es)
 		if err != nil {
 			ec.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-			log.WithError(err).Warnf("Could not marshall proto for msg")
+			ctx.Logger.WithError(err).Warnf("Could not marshall proto for msg")
 			continue
 		}
 		compressedBytes, err := ec.Compressor.Compress(bytes)
 		if err != nil {
 			ec.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-			log.WithError(err).Warnf("Could not compress event")
+			ctx.Logger.WithError(err).Warnf("Could not compress event")
 			continue
 		}
 

@@ -3,12 +3,10 @@ package service
 import (
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
@@ -49,7 +47,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	// If a health monitor is provided, avoid leasing jobs when the cluster is unhealthy.
 	if allocationService.clusterHealthMonitor != nil {
 		if ok, reason, err := allocationService.clusterHealthMonitor.IsHealthy(); err != nil {
-			logging.WithStacktrace(logrus.NewEntry(logrus.StandardLogger()), err).Error("failed to check cluster health")
+			log.WithStacktrace(err).Error("failed to check cluster health")
 			return
 		} else if !ok {
 			log.Warnf("cluster is not healthy; will not request more jobs: %s", reason)

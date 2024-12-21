@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -47,7 +46,7 @@ func (b *Batcher[T]) Run(ctx *armadacontext.Context) {
 		for appendToBatch := true; appendToBatch; {
 			select {
 			case <-ctx.Done():
-				log.Info("Batcher: context is done")
+				ctx.Info("Batcher: context is done")
 				// context is finished
 				return
 			case value, ok := <-b.input:
