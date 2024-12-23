@@ -28,7 +28,7 @@ jobs:
       run: |
         cp settings.xml /home/runner/.m2
         cat /home/runner/.m2/settings.xml
-        mvn clean install -DskipTests
+        mvn clean install
       env:
         MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
@@ -37,7 +37,7 @@ jobs:
         pwd
         ls -la /home/runner/.m2
         cat /home/runner/.m2/settings.xml
-        mvn --batch-mode deploy -DskipTests
+        mvn --batch-mode deploy -DskipTests -Pci
       env:
         MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
         MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
