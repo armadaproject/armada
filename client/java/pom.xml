@@ -46,7 +46,8 @@
 
   <scm>
     <connection>scm:git:git://github.com/armadaproject/java-client.git</connection>
-      <developerConnection>scm:git:ssh://github.com:armadaproject/java-client.git</developerConnection>
+    <developerConnection>scm:git:ssh://github.com:armadaproject/java-client.git
+    </developerConnection>
     <url>http://github.com/armadaproject/java-client/tree/main</url>
     <tag/>
   </scm>
@@ -57,6 +58,150 @@
       <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
+
+  <profiles>
+    <profile>
+      <id>local</id>
+      <properties>
+        <env>local</env>
+      </properties>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <!-- get proto files -->
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>${exec-maven-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>clone-armada-repo</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>git</executable>
+                  <arguments>
+                    <argument>clone</argument>
+                    <argument>https://github.com/armadaproject/armada.git</argument>
+                    <argument>${project.build.directory}/armada</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+              <execution>
+                <id>clone-api-repo</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>git</executable>
+                  <arguments>
+                    <argument>clone</argument>
+                    <argument>https://github.com/kubernetes/api.git</argument>
+                    <argument>${project.build.directory}/k8s.io/api</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+              <execution>
+                <id>clone-apimachinery-repo</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>git</executable>
+                  <arguments>
+                    <argument>clone</argument>
+                    <argument>https://github.com/kubernetes/apimachinery.git</argument>
+                    <argument>${project.build.directory}/k8s.io/apimachinery</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- copy proto files -->
+          <plugin>
+            <artifactId>maven-resources-plugin</artifactId>
+            <version>${maven-resources-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>copy-protos</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>copy-resources</goal>
+                </goals>
+                <configuration>
+                  <outputDirectory>${project.basedir}/src/main/proto</outputDirectory>
+                  <resources>
+                    <resource>
+                      <directory>${project.build.directory}/armada</directory>
+                      <includes>
+                        <include>pkg/api/*.proto</include>
+                        <include>pkg/api/binoculars/*.proto</include>
+                      </includes>
+                    </resource>
+                    <resource>
+                      <directory>${project.build.directory}</directory>
+                      <includes>
+                        <include>k8s.io/api/core/v1/generated.proto</include>
+                        <include>k8s.io/api/networking/v1/generated.proto</include>
+                        <include>k8s.io/apimachinery/pkg/api/resource/generated.proto</include>
+                        <include>k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto</include>
+                        <include>k8s.io/apimachinery/pkg/runtime/generated.proto</include>
+                        <include>k8s.io/apimachinery/pkg/runtime/schema/generated.proto</include>
+                        <include>k8s.io/apimachinery/pkg/util/intstr/generated.proto</include>
+                      </includes>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <id>ci</id>
+      <properties>
+        <env>ci</env>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.6.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+            </configuration>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
   <build>
     <plugins>
@@ -70,99 +215,6 @@
             <goals>
               <goal>detect</goal>
             </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- get proto files -->
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <version>${exec-maven-plugin.version}</version>
-        <executions>
-          <execution>
-            <id>clone-armada-repo</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>git</executable>
-              <arguments>
-                <argument>clone</argument>
-                <argument>https://github.com/armadaproject/armada.git</argument>
-                <argument>${project.build.directory}/armada</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>clone-api-repo</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>git</executable>
-              <arguments>
-                <argument>clone</argument>
-                <argument>https://github.com/kubernetes/api.git</argument>
-                <argument>${project.build.directory}/k8s.io/api</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>clone-apimachinery-repo</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>git</executable>
-              <arguments>
-                <argument>clone</argument>
-                <argument>https://github.com/kubernetes/apimachinery.git</argument>
-                <argument>${project.build.directory}/k8s.io/apimachinery</argument>
-              </arguments>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- copy proto files -->
-      <plugin>
-        <artifactId>maven-resources-plugin</artifactId>
-        <version>${maven-resources-plugin.version}</version>
-        <executions>
-          <execution>
-            <id>copy-protos</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>copy-resources</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>${project.basedir}/src/main/proto</outputDirectory>
-              <resources>
-                <resource>
-                  <directory>${project.build.directory}/armada</directory>
-                  <includes>
-                    <include>pkg/api/*.proto</include>
-                    <include>pkg/api/binoculars/*.proto</include>
-                  </includes>
-                </resource>
-                <resource>
-                  <directory>${project.build.directory}</directory>
-                  <includes>
-                    <include>k8s.io/api/core/v1/generated.proto</include>
-                    <include>k8s.io/api/networking/v1/generated.proto</include>
-                    <include>k8s.io/apimachinery/pkg/api/resource/generated.proto</include>
-                    <include>k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto</include>
-                    <include>k8s.io/apimachinery/pkg/runtime/generated.proto</include>
-                    <include>k8s.io/apimachinery/pkg/runtime/schema/generated.proto</include>
-                    <include>k8s.io/apimachinery/pkg/util/intstr/generated.proto</include>
-                  </includes>
-                </resource>
-              </resources>
-            </configuration>
           </execution>
         </executions>
       </plugin>
@@ -227,32 +279,6 @@
             <phase>validate</phase>
             <goals>
               <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>org.sonatype.central</groupId>
-        <artifactId>central-publishing-maven-plugin</artifactId>
-        <version>0.6.0</version>
-        <extensions>true</extensions>
-        <configuration>
-          <publishingServerId>central</publishingServerId>
-          <autoPublish>true</autoPublish>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-gpg-plugin</artifactId>
-        <version>3.2.7</version>
-        <executions>
-          <execution>
-            <id>sign-artifacts</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>sign</goal>
             </goals>
           </execution>
         </executions>
