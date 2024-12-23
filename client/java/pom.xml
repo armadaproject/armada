@@ -162,6 +162,86 @@
               </execution>
             </executions>
           </plugin>
+
+          <!-- detect os -->
+          <plugin>
+            <groupId>kr.motd.maven</groupId>
+            <artifactId>os-maven-plugin</artifactId>
+            <version>${os-maven-plugin.version}</version>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>detect</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- checkstyle -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-checkstyle-plugin</artifactId>
+            <version>${maven-checkstyle-plugin.version}</version>
+            <dependencies>
+              <dependency>
+                <groupId>com.puppycrawl.tools</groupId>
+                <artifactId>checkstyle</artifactId>
+                <version>${checkstyle.version}</version>
+              </dependency>
+            </dependencies>
+            <configuration>
+              <configLocation>dev-support/google_checks.xml</configLocation>
+              <suppressionsLocation>dev-support/checkstyle-suppressions.xml</suppressionsLocation>
+              <consoleOutput>true</consoleOutput>
+              <failsOnError>true</failsOnError>
+              <failOnViolation>true</failOnViolation>
+              <violationSeverity>warning</violationSeverity>
+              <linkXRef>false</linkXRef>
+            </configuration>
+            <executions>
+              <execution>
+                <id>validate</id>
+                <phase>validate</phase>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- generate java sources from proto -->
+          <plugin>
+            <groupId>org.xolstice.maven.plugins</groupId>
+            <artifactId>protobuf-maven-plugin</artifactId>
+            <version>${protobuf-maven-plugin.version}</version>
+            <configuration>
+              <protocArtifact>
+                com.google.protobuf:protoc:${protobuf-java.version}:exe:${os.detected.classifier}
+              </protocArtifact>
+              <pluginId>grpc-java</pluginId>
+              <pluginArtifact>
+                io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}
+              </pluginArtifact>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>compile</goal>
+                  <goal>compile-custom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- compile java -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>${maven-compiler-plugin.version}</version>
+            <configuration>
+              <release>${maven-compiler-plugin.release}</release>
+            </configuration>
+          </plugin>
         </plugins>
       </build>
     </profile>
@@ -198,93 +278,44 @@
               </execution>
             </executions>
           </plugin>
+
+          <!-- generate java sources from proto -->
+          <plugin>
+            <groupId>org.xolstice.maven.plugins</groupId>
+            <artifactId>protobuf-maven-plugin</artifactId>
+            <version>${protobuf-maven-plugin.version}</version>
+            <configuration>
+              <protocArtifact>
+                com.google.protobuf:protoc:${protobuf-java.version}:exe:${os.detected.classifier}
+              </protocArtifact>
+              <pluginId>grpc-java</pluginId>
+              <pluginArtifact>
+                io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}
+              </pluginArtifact>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>compile</goal>
+                  <goal>compile-custom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- compile java -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>${maven-compiler-plugin.version}</version>
+            <configuration>
+              <release>${maven-compiler-plugin.release}</release>
+            </configuration>
+          </plugin>
         </plugins>
       </build>
     </profile>
   </profiles>
-
-  <build>
-    <plugins>
-      <!-- detect os -->
-      <plugin>
-        <groupId>kr.motd.maven</groupId>
-        <artifactId>os-maven-plugin</artifactId>
-        <version>${os-maven-plugin.version}</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>detect</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- compile java -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>${maven-compiler-plugin.version}</version>
-        <configuration>
-          <release>${maven-compiler-plugin.release}</release>
-        </configuration>
-      </plugin>
-
-      <!-- generate java sources from proto -->
-      <plugin>
-        <groupId>org.xolstice.maven.plugins</groupId>
-        <artifactId>protobuf-maven-plugin</artifactId>
-        <version>${protobuf-maven-plugin.version}</version>
-        <configuration>
-          <protocArtifact>
-            com.google.protobuf:protoc:${protobuf-java.version}:exe:${os.detected.classifier}
-          </protocArtifact>
-          <pluginId>grpc-java</pluginId>
-          <pluginArtifact>
-            io.grpc:protoc-gen-grpc-java:${io.grpc.version}:exe:${os.detected.classifier}
-          </pluginArtifact>
-        </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>compile</goal>
-              <goal>compile-custom</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-checkstyle-plugin</artifactId>
-        <version>${maven-checkstyle-plugin.version}</version>
-        <dependencies>
-          <dependency>
-            <groupId>com.puppycrawl.tools</groupId>
-            <artifactId>checkstyle</artifactId>
-            <version>${checkstyle.version}</version>
-          </dependency>
-        </dependencies>
-        <configuration>
-          <configLocation>dev-support/google_checks.xml</configLocation>
-          <suppressionsLocation>dev-support/checkstyle-suppressions.xml</suppressionsLocation>
-          <consoleOutput>true</consoleOutput>
-          <failsOnError>true</failsOnError>
-          <failOnViolation>true</failOnViolation>
-          <violationSeverity>warning</violationSeverity>
-          <linkXRef>false</linkXRef>
-        </configuration>
-        <executions>
-          <execution>
-            <id>validate</id>
-            <phase>validate</phase>
-            <goals>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
 
   <dependencies>
     <dependency>
