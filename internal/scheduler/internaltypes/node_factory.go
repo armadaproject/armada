@@ -122,8 +122,8 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 			newLabels,
 			f.indexedTaints,
 			f.indexedNodeLabels,
-			node.totalResources,
-			node.unallocatableResources,
+			node.GetTotalResources(),
+			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 		)
 	}
@@ -143,8 +143,8 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 			node.GetLabels(),
 			f.indexedTaints,
 			f.indexedNodeLabels,
-			node.totalResources,
-			node.unallocatableResources,
+			node.GetTotalResources(),
+			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 		)
 	}

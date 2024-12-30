@@ -88,6 +88,46 @@ func TestNewAllocatableByPriorityAndResourceType(t *testing.T) {
 	assert.Equal(t, int64(2000), result[2].GetByNameZeroIfMissing("cpu"))
 }
 
+func TestMarkAllocated(t *testing.T) {
+	factory := testFactory()
+	m := map[int32]ResourceList{
+		1: testResourceList(factory, "10", "10Gi"),
+		2: testResourceList(factory, "20", "20Gi"),
+		3: testResourceList(factory, "30", "30Gi"),
+		4: testResourceList(factory, "40", "40Gi"),
+	}
+
+	expected := map[int32]ResourceList{
+		1: testResourceList(factory, "8", "8Gi"),
+		2: testResourceList(factory, "18", "18Gi"),
+		3: testResourceList(factory, "30", "30Gi"),
+		4: testResourceList(factory, "40", "40Gi"),
+	}
+
+	MarkAllocated(m, 2, testResourceList(factory, "2", "2Gi"))
+	assert.Equal(t, expected, m)
+}
+
+func TestMarkAllocatable(t *testing.T) {
+	factory := testFactory()
+	m := map[int32]ResourceList{
+		1: testResourceList(factory, "10", "10Gi"),
+		2: testResourceList(factory, "20", "20Gi"),
+		3: testResourceList(factory, "30", "30Gi"),
+		4: testResourceList(factory, "40", "40Gi"),
+	}
+
+	expected := map[int32]ResourceList{
+		1: testResourceList(factory, "12", "12Gi"),
+		2: testResourceList(factory, "22", "22Gi"),
+		3: testResourceList(factory, "30", "30Gi"),
+		4: testResourceList(factory, "40", "40Gi"),
+	}
+
+	MarkAllocatable(m, 2, testResourceList(factory, "2", "2Gi"))
+	assert.Equal(t, expected, m)
+}
+
 func testMapAllPositive(factory *ResourceListFactory) map[string]ResourceList {
 	return map[string]ResourceList{
 		"a": testResourceList(factory, "1", "1Ki"),

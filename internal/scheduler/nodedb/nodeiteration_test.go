@@ -38,7 +38,7 @@ func TestNodesIterator(t *testing.T) {
 			for i, node := range tc.Nodes {
 				indexById[node.GetId()] = i
 			}
-			nodeDb, err := itNewNodeDbWithNodes(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}

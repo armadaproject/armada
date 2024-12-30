@@ -358,12 +358,13 @@ func TestScheduleIndividually(t *testing.T) {
 			ExpectSuccess: []bool{false, false, true},
 		},
 		"node selector": {
-			Nodes: testfixtures.TestNodeFactory.AddLabels(
-				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
-				map[string]string{
-					"key": "value",
-				},
-			),
+			Nodes: append(testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{
+						"key": "value",
+					},
+				)...),
 			Jobs: testfixtures.WithNodeSelectorJobs(
 				map[string]string{
 					"key": "value",
@@ -877,28 +878,6 @@ func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 }
 
 func newNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
-	nodeDb, err := NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
-		testfixtures.TestWellKnownNodeTypes,
-		testfixtures.TestResourceListFactory,
-	)
-	if err != nil {
-		return nil, err
-	}
-	txn := nodeDb.Txn(true)
-	for _, node := range nodes {
-		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
-			return nil, err
-		}
-	}
-	txn.Commit()
-	return nodeDb, nil
-}
-
-func itNewNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestResources,
