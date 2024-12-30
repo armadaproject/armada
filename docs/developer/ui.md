@@ -4,8 +4,8 @@ Armada bundles a web UI referred to as Lookout. To understand its components see
 
 In short, Lookout is made of two components:
 
-* Lookout API: a Go service that provides an API to the Armada backend
-* Lookout UI: a React application that provides a web interface to the Lookout API
+-   Lookout API: a Go service that provides an API to the Armada backend
+-   Lookout UI: a React application that provides a web interface to the Lookout API
 
 After running `mage localdev full` and `mage ui`, the Lookout UI should be accessible through your browser at `http://localhost:8089`
 
@@ -13,13 +13,13 @@ You can also re-build a production build of the UI by running `mage ui` in the r
 
 ## Local Development
 
-To quickly get started developing on the UI locally without having to build, ensure you have Docker, NPM and Yarn installed for your platform, then run:
+To quickly get started developing on the UI locally without having to build, ensure you have Docker, Node and Yarn installed for your platform, then run:
 
 ```bash
 cd ./internal/lookout/ui
-yarn install
-yarn run openapi
-yarn start
+yarn
+yarn openapi
+yarn dev
 ```
 
 This will start a live development server on [http://localhost:3000](http://localhost:3000).
@@ -37,3 +37,5 @@ This displays the TanStack table state as a JSON string, at the bottom of the pa
 Make sure you scroll at the bottom to see it.
 
 Note that you can have both `fakeData` and `debug` query parameters enabled at the same time: [http://localhost:3000/v2?fakeData=&debug=](http://localhost:3000/v2?fakeData=&debug=)
+
+See [the README for the Lookout UI](../../internal/lookout/ui/README.md) for more information about UI development.

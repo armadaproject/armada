@@ -1,26 +1,25 @@
-import ReactDOM from "react-dom"
-import { GetJobsService } from "services/lookoutV2/GetJobsService"
-import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
-import { makeRandomJobs } from "utils/fakeJobsUtils"
+import { createRoot } from "react-dom/client"
 
 import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
 import reportWebVitals from "./reportWebVitals"
 import { CordonService } from "./services/lookoutV2/CordonService"
 import { GetJobInfoService } from "./services/lookoutV2/GetJobInfoService"
+import { GetJobsService } from "./services/lookoutV2/GetJobsService"
 import { GetRunInfoService } from "./services/lookoutV2/GetRunInfoService"
+import { GroupJobsService } from "./services/lookoutV2/GroupJobsService"
 import { LogService as V2LogService } from "./services/lookoutV2/LogService"
+import { UpdateJobSetsService } from "./services/lookoutV2/UpdateJobSetsService"
+import { UpdateJobsService } from "./services/lookoutV2/UpdateJobsService"
 import { FakeCordonService } from "./services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobInfoService from "./services/lookoutV2/mocks/FakeGetJobInfoService"
+import FakeGetJobsService from "./services/lookoutV2/mocks/FakeGetJobsService"
 import { FakeGetRunInfoService } from "./services/lookoutV2/mocks/FakeGetRunInfoService"
+import FakeGroupJobsService from "./services/lookoutV2/mocks/FakeGroupJobsService"
 import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
+import { makeRandomJobs } from "./utils/fakeJobsUtils"
 
-import "react-virtualized/styles.css"
 import "./index.css"
 ;(async () => {
   const uiConfig = await getUIConfig()
@@ -50,24 +49,31 @@ import "./index.css"
     ? new FakeCordonService()
     : new CordonService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
 
-  ReactDOM.render(
+  const container = document.getElementById("root")
+
+  if (container === null) {
+    throw new Error('DOM element with ID "root" was not found')
+  }
+
+  createRoot(container).render(
     <App
       customTitle={uiConfig.customTitle}
       oidcConfig={uiConfig.oidcEnabled ? uiConfig.oidc : undefined}
-      v2GetJobsService={v2GetJobsService}
-      v2GroupJobsService={v2GroupJobsService}
-      v2UpdateJobsService={v2UpdateJobsService}
-      v2UpdateJobSetsService={v2UpdateJobSetsService}
-      v2RunInfoService={v2RunInfoService}
-      v2JobSpecService={v2JobSpecService}
-      v2LogService={v2LogService}
-      v2CordonService={v2CordonService}
+      services={{
+        v2GetJobsService,
+        v2GroupJobsService,
+        v2UpdateJobsService,
+        v2UpdateJobSetsService,
+        v2RunInfoService,
+        v2JobSpecService,
+        v2LogService,
+        v2CordonService,
+      }}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
       jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
       debugEnabled={uiConfig.debugEnabled}
       commandSpecs={uiConfig.commandSpecs}
     />,
-    document.getElementById("root"),
   )
 
   reportWebVitals()

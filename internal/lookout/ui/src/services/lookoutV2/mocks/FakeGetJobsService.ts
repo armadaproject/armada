@@ -1,9 +1,12 @@
-import { Job, JobFilter, JobKey, JobOrder } from "models/lookoutV2Models"
-import { GetJobsResponse, IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
+import { Job, JobFilter, JobKey, JobOrder } from "../../../models/lookoutV2Models"
+import { GetJobsResponse, IGetJobsService } from "../../../services/lookoutV2/GetJobsService"
+import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../utils/fakeJobsUtils"
 
 export default class FakeGetJobsService implements IGetJobsService {
-  constructor(private jobs: Job[], private simulateApiWait = true) {}
+  constructor(
+    private jobs: Job[],
+    private simulateApiWait = true,
+  ) {}
 
   async getJobs(
     filters: JobFilter[],

@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -143,22 +145,52 @@ func (sctx *SchedulingContext) GetQueue(queue string) (fairness.Queue, bool) {
 	return qctx, ok
 }
 
+type queueInfo struct {
+	queueName     string
+	adjustedShare float64
+	fairShare     float64
+	weight        float64
+	cappedShare   float64
+}
+
 // UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
 // SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
 // AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
 func (sctx *SchedulingContext) UpdateFairShares() {
+	queueInfos := sctx.updateFairShares(sctx.QueueSchedulingContexts)
+	for _, q := range queueInfos {
+		qtx := sctx.QueueSchedulingContexts[q.queueName]
+		qtx.FairShare = q.fairShare
+		qtx.AdjustedFairShare = q.adjustedShare
+	}
+}
+
+// CalculateTheoreticalShare calculates the maximum potential adjustedFairShare share of a new queue at a given priority.
+func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float64 {
+	qctxs := maps.Clone(sctx.QueueSchedulingContexts)
+	queueName := util.NewULID()
+	qctxs[queueName] = &QueueSchedulingContext{
+		Queue:        queueName,
+		Weight:       1 / priority,
+		CappedDemand: sctx.TotalResources.Factory().MakeAllMax(), // Infinite demand
+	}
+	queueInfos := sctx.updateFairShares(qctxs)
+	for _, q := range queueInfos {
+		if q.queueName == queueName {
+			return q.adjustedShare
+		}
+	}
+	return math.NaN()
+}
+
+// UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
+// SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
+// AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
+func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulingContext) []*queueInfo {
 	const maxIterations = 5
 
-	type queueInfo struct {
-		queueName     string
-		adjustedShare float64
-		fairShare     float64
-		weight        float64
-		cappedShare   float64
-	}
-
-	queueInfos := make([]*queueInfo, 0, len(sctx.QueueSchedulingContexts))
-	for queueName, qctx := range sctx.QueueSchedulingContexts {
+	queueInfos := make([]*queueInfo, 0, len(qctxs))
+	for queueName, qctx := range qctxs {
 		cappedShare := 1.0
 		if !sctx.TotalResources.AllZero() {
 			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
@@ -202,12 +234,7 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 			}
 		}
 	}
-
-	for _, q := range queueInfos {
-		qtx := sctx.QueueSchedulingContexts[q.queueName]
-		qtx.FairShare = q.fairShare
-		qtx.AdjustedFairShare = q.adjustedShare
-	}
+	return queueInfos
 }
 
 func (sctx *SchedulingContext) ReportString(verbosity int32) string {

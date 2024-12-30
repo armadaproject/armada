@@ -1,8 +1,7 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, SyntheticEvent, useCallback, useEffect, useRef, useState } from "react"
 
 import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
-import { Job, JobState } from "models/lookoutV2Models"
 
 import styles from "./Sidebar.module.css"
 import { SidebarHeader } from "./SidebarHeader"
@@ -11,10 +10,10 @@ import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
 import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobResult } from "./SidebarTabJobResult"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
+import { Job, JobState } from "../../../models/lookoutV2Models"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
-import { ILogService } from "../../../services/lookoutV2/LogService"
 import { CommandSpec } from "../../../utils"
 
 enum SidebarTab {
@@ -35,7 +34,6 @@ export interface SidebarProps {
   job: Job
   runInfoService: IGetRunInfoService
   jobSpecService: IGetJobInfoService
-  logService: ILogService
   cordonService: ICordonService
   sidebarWidth: number
   commandSpecs: CommandSpec[]
@@ -48,7 +46,6 @@ export const Sidebar = memo(
     job,
     runInfoService,
     jobSpecService,
-    logService,
     cordonService,
     sidebarWidth,
     onClose,
@@ -57,7 +54,7 @@ export const Sidebar = memo(
   }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
 
-    const handleTabChange = useCallback((_, newValue: SidebarTab) => {
+    const handleTabChange = useCallback((_: SyntheticEvent, newValue: SidebarTab) => {
       setOpenTab(newValue)
     }, [])
 
@@ -182,11 +179,12 @@ export const Sidebar = memo(
                 </Tabs>
 
                 <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobDetails job={job} jobSpecService={jobSpecService} />
+                  <SidebarTabJobDetails key={job.jobId} job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.JobResult} className={styles.sidebarTabPanel}>
                   <SidebarTabJobResult
+                    key={job.jobId}
                     job={job}
                     jobInfoService={jobSpecService}
                     runInfoService={runInfoService}
@@ -195,15 +193,15 @@ export const Sidebar = memo(
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Yaml} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobYaml job={job} jobSpecService={jobSpecService} />
+                  <SidebarTabJobYaml key={job.jobId} job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Logs} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobLogs job={job} jobSpecService={jobSpecService} logService={logService} />
+                  <SidebarTabJobLogs key={job.jobId} job={job} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Commands} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobCommands job={job} commandSpecs={commandSpecs} />
+                  <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
                 </TabPanel>
               </TabContext>
             </div>

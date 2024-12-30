@@ -5,17 +5,17 @@ import { LoadingButton } from "@mui/lab"
 import { Checkbox } from "@mui/material"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
-import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { pl, waitMillis, PlatformCancelReason } from "utils"
-import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
-import { formatJobState } from "utils/jobsTableFormatters"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { isTerminatedJobState, Job, JobFilter, JobId } from "../../models/lookoutV2Models"
 import { getAccessToken, useUserManager } from "../../oidc"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
+import { pl, waitMillis, PlatformCancelReason } from "../../utils"
+import { getUniqueJobsMatchingFilters } from "../../utils/jobsDialogUtils"
+import { formatJobState } from "../../utils/jobsTableFormatters"
 
 interface CancelDialogProps {
   onClose: () => void
@@ -115,8 +115,8 @@ export const CancelDialog = ({
   }, [fetchSelectedJobs])
 
   const jobsToRender = useMemo(() => cancellableJobs.slice(0, 1000), [cancellableJobs])
-  const formatState = useCallback((job) => formatJobState(job.state), [])
-  const formatSubmittedTime = useCallback((job) => job.submitted, [])
+  const formatState = useCallback((job: Job) => formatJobState(job.state), [])
+  const formatSubmittedTime = useCallback((job: Job) => job.submitted, [])
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
       <DialogTitle>Cancel {isLoadingJobs ? "jobs" : pl(cancellableJobs, "job")}</DialogTitle>

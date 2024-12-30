@@ -2,10 +2,10 @@ import { useState, MouseEvent } from "react"
 
 import { TableRow } from "@mui/material"
 import { Row } from "@tanstack/table-core"
-import { JobTableRow, isJobGroupRow } from "models/jobsTableModels"
 
 import { BodyCell } from "./JobsTableCell"
 import styles from "./JobsTableRow.module.css"
+import { JobTableRow, isJobGroupRow } from "../../models/jobsTableModels"
 
 export interface JobsTableRowProps {
   row: Row<JobTableRow>
