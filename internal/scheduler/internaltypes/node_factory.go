@@ -31,7 +31,7 @@ type NodeFactory struct {
 	resourceListFactory *ResourceListFactory
 
 	// Used for assigning node index
-	nodeIndexCounter uint64
+	nodeIndexCounter atomic.Uint64
 }
 
 func NewNodeFactory(
@@ -43,7 +43,7 @@ func NewNodeFactory(
 		indexedTaints:       util.StringListToSet(indexedTaints),
 		indexedNodeLabels:   util.StringListToSet(indexedNodeLabels),
 		resourceListFactory: resourceListFactory,
-		nodeIndexCounter:    0,
+		nodeIndexCounter:    atomic.Uint64{},
 	}
 }
 
@@ -152,5 +152,5 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 }
 
 func (f *NodeFactory) allocateNodeIndex() uint64 {
-	return atomic.AddUint64(&f.nodeIndexCounter, 1)
+	return f.nodeIndexCounter.Add(1)
 }
