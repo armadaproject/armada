@@ -333,7 +333,6 @@ func ItWithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltype
 			node.AllocatedByJobId,
 			node.EvictedJobRunIds,
 			nil)
-
 	}
 	return result
 }
@@ -357,7 +356,6 @@ func ItWithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.
 			node.EvictedJobRunIds,
 			nil,
 		)
-
 	}
 	return result
 }
@@ -867,7 +865,6 @@ func ItTestNode(priorities []int32, resources map[string]resource.Quantity) *int
 		rl,
 		map[int32]internaltypes.ResourceList{},
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
-
 }
 
 func Test32CpuNode(priorities []int32) *schedulerobjects.Node {

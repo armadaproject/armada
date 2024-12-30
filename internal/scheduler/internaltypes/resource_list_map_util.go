@@ -62,7 +62,6 @@ func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList
 	result := map[int32]ResourceList{}
 	for _, priority := range priorities {
 		result[priority] = rl
-
 	}
 	return result
 }

@@ -374,11 +374,6 @@ func TestNodeTypeIterator(t *testing.T) {
 }
 
 func TestNodeTypesIterator(t *testing.T) {
-	const nodeTypeALabel = "a"
-	const nodeTypeBLabel = "b"
-	const nodeTypeCLabel = "c"
-	const nodeTypeDLabel = "d"
-
 	nodeTypeA := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "a"})
 	nodeTypeB := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "b"})
 	nodeTypeC := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "c"})
@@ -753,16 +748,6 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			}
 		}
 	}
-}
-
-func labelsToNodeTypeId(labels map[string]string) uint64 {
-	nodeType := internaltypes.NewNodeType(
-		[]v1.Taint{},
-		labels,
-		util.StringListToSet(testfixtures.TestIndexedTaints),
-		util.StringListToSet(testfixtures.TestIndexedNodeLabels),
-	)
-	return nodeType.GetId()
 }
 
 func labelsToNodeType(labels map[string]string) *internaltypes.NodeType {
