@@ -34,42 +34,34 @@ func TestTotalResources(t *testing.T) {
 	assert.False(t, nodeDb.TotalKubernetesResources().IsEmpty())
 	assert.True(t, nodeDb.TotalKubernetesResources().AllZero())
 
-	expected := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
+	expected := testfixtures.TestNodeFactory.ResourceListFactory().MakeAllZero()
 	// Upserting nodes for the first time should increase the resource count.
-	nodes := testfixtures.N32CpuNodes(2, testfixtures.TestPriorities)
+	nodes := testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities)
 	for _, node := range nodes {
-		expected.Add(node.TotalResources)
+		expected = expected.Add(node.GetTotalResources())
 	}
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
-		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-		require.NoError(t, err)
-		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
 		require.NoError(t, err)
 	}
 	txn.Commit()
 
-	assert.True(t, expected.Equal(schedulerobjects.ResourceList{
-		Resources: nodeDb.TotalKubernetesResources().ToMap(),
-	}))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 
 	// Upserting new nodes should increase the resource count.
-	nodes = testfixtures.N8GpuNodes(3, testfixtures.TestPriorities)
+	nodes = testfixtures.ItN8GpuNodes(3, testfixtures.TestPriorities)
 	for _, node := range nodes {
-		expected.Add(node.TotalResources)
+		expected = expected.Add(node.GetTotalResources())
 	}
 	txn = nodeDb.Txn(true)
 	for _, node := range nodes {
-		dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-		require.NoError(t, err)
-		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
 		require.NoError(t, err)
 	}
 	txn.Commit()
 
-	assert.True(t, expected.Equal(schedulerobjects.ResourceList{
-		Resources: nodeDb.TotalKubernetesResources().ToMap(),
-	}))
+	assert.True(t, expected.Equal(nodeDb.TotalKubernetesResources()))
 }
 
 func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
@@ -287,13 +279,12 @@ func TestEviction(t *testing.T) {
 				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass0),
 				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
 			}
-			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-			dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
+			node := testfixtures.ItTest32CpuNode(testfixtures.TestPriorities)
 			require.NoError(t, err)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, dbNode)
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
 			txn.Commit()
 			require.NoError(t, err)
-			entry, err := nodeDb.GetNode(node.Id)
+			entry, err := nodeDb.GetNode(node.GetId())
 			require.NoError(t, err)
 
 			existingJobs := make([]*jobdb.Job, len(jobs))
@@ -565,18 +556,18 @@ func TestAwayNodeTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeDbTxn := nodeDb.Txn(true)
-	node := testfixtures.Test32CpuNode([]int32{29000, 30000})
-	node.Taints = append(
-		node.Taints,
-		v1.Taint{
-			Key:    "gpu",
-			Value:  "true",
-			Effect: v1.TaintEffectNoSchedule,
+	node := testfixtures.ItTest32CpuNode([]int32{29000, 30000})
+	node = testfixtures.TestNodeFactory.AddTaints(
+		[]*internaltypes.Node{node},
+		[]v1.Taint{
+			{
+				Key:    "gpu",
+				Value:  "true",
+				Effect: v1.TaintEffectNoSchedule,
+			},
 		},
-	)
-	dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-	require.NoError(t, err)
-	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, dbNode))
+	)[0]
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
 
 	jobId := util.ULID()
 	job := testfixtures.TestJob(

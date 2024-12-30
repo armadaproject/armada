@@ -15,7 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -754,21 +753,6 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			}
 		}
 	}
-}
-
-func withNodeTypeNodes(nodeTypeLabel string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
-	for _, node := range nodes {
-		node.Labels[testfixtures.NodeTypeLabel] = nodeTypeLabel
-	}
-	return nodes
-}
-
-func nodeTypeLabelToNodeTypeId(nodeTypeLabel string) uint64 {
-	return labelsToNodeTypeId(map[string]string{testfixtures.NodeTypeLabel: nodeTypeLabel})
-}
-
-func gpuNodeTypeLabelToNodeTypeId(nodeTypeLabel string) uint64 {
-	return labelsToNodeTypeId(map[string]string{testfixtures.NodeTypeLabel: nodeTypeLabel, "gpu": "true"})
 }
 
 func labelsToNodeTypeId(labels map[string]string) uint64 {
