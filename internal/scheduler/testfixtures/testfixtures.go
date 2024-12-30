@@ -387,6 +387,25 @@ func ItWithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.
 	return result
 }
 
+func ItWithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
+	return internaltypes.CreateNode(node.GetId(),
+		node.GetNodeType(),
+		idx,
+		node.GetExecutor(),
+		node.GetName(),
+		node.GetPool(),
+		node.GetTaints(),
+		node.GetLabels(),
+		node.GetTotalResources(),
+		node.GetUnallocatableResources(),
+		node.AllocatableByPriority,
+		node.AllocatedByQueue,
+		node.AllocatedByJobId,
+		node.EvictedJobRunIds,
+		nil,
+	)
+}
+
 func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
 	for i, job := range jobs {
 		jobs[i] = job.WithPriority(priority)

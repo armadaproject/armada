@@ -380,39 +380,36 @@ func TestNodeTypesIterator(t *testing.T) {
 	const nodeTypeCLabel = "c"
 	const nodeTypeDLabel = "d"
 
-	nodeTypeAId := nodeTypeLabelToNodeTypeId(nodeTypeALabel)
-	nodeTypeBId := nodeTypeLabelToNodeTypeId(nodeTypeBLabel)
-	nodeTypeCId := nodeTypeLabelToNodeTypeId(nodeTypeCLabel)
-
-	gpuNodeTypeAId := gpuNodeTypeLabelToNodeTypeId(nodeTypeALabel)
-	gpuNodeTypeBId := gpuNodeTypeLabelToNodeTypeId(nodeTypeBLabel)
-	gpuNodeTypeCId := gpuNodeTypeLabelToNodeTypeId(nodeTypeCLabel)
+	nodeTypeA := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "a"})
+	nodeTypeB := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "b"})
+	nodeTypeC := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "c"})
+	nodeTypeD := labelsToNodeType(map[string]string{testfixtures.NodeTypeLabel: "d"})
 
 	tests := map[string]struct {
-		nodes            []*schedulerobjects.Node
+		nodes            []*internaltypes.Node
 		nodeTypeIds      []uint64
 		priority         int32
-		resourceRequests schedulerobjects.ResourceList
+		resourceRequests internaltypes.ResourceList
 		expected         []int
 	}{
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
-				withNodeTypeNodes(
-					nodeTypeALabel,
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeA,
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				withNodeTypeNodes(
-					nodeTypeBLabel,
-					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeB,
+					testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				withNodeTypeNodes(
-					nodeTypeCLabel,
-					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeC,
+					testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeIds:      []uint64{nodeTypeAId, nodeTypeCId},
+			nodeTypeIds:      []uint64{nodeTypeA.GetId(), nodeTypeC.GetId()},
 			priority:         0,
-			resourceRequests: schedulerobjects.ResourceList{},
+			resourceRequests: testfixtures.TestResourceListFactory.MakeAllZero(),
 			expected: armadaslices.Concatenate(
 				testfixtures.IntRange(0, 0),
 				testfixtures.IntRange(3, 5),
@@ -420,294 +417,227 @@ func TestNodeTypesIterator(t *testing.T) {
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: armadaslices.Concatenate(
-				withNodeTypeNodes(
-					nodeTypeALabel,
-					testfixtures.WithUsedResourcesNodes(
-						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeA,
+					testfixtures.ItWithUsedResourcesNodes(0,
+						cpu("15"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				withNodeTypeNodes(
-					nodeTypeBLabel,
-					testfixtures.WithUsedResourcesNodes(
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeB,
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("16"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				withNodeTypeNodes(
-					nodeTypeCLabel,
-					testfixtures.WithUsedResourcesNodes(
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeC,
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("17"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
-				withNodeTypeNodes(
-					nodeTypeDLabel,
-					testfixtures.WithUsedResourcesNodes(
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeD,
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("14")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("14"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeIds:      []uint64{nodeTypeAId, nodeTypeBId, nodeTypeCId},
+			nodeTypeIds:      []uint64{nodeTypeA.GetId(), nodeTypeB.GetId(), nodeTypeC.GetId()},
 			priority:         0,
-			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
+			resourceRequests: cpu("16"),
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
-			nodes: withNodeTypeNodes(
-				nodeTypeALabel,
+			nodes: testfixtures.ItWithNodeTypeNodes(
+				nodeTypeA,
 				armadaslices.Concatenate(
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("15"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("16"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("17"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						1,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("15"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						1,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("16"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						1,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("17"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						2,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("15"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						2,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("16"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						2,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("17"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeIds:      []uint64{nodeTypeAId},
+			nodeTypeIds:      []uint64{nodeTypeA.GetId()},
 			priority:         1,
-			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
+			resourceRequests: cpu("16"),
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
-			nodes: withNodeTypeNodes(
-				nodeTypeALabel,
+			nodes: testfixtures.ItWithNodeTypeNodes(
+				nodeTypeA,
 				armadaslices.Concatenate(
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("15"),
-							"memory": resource.MustParse("1Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("15", "1Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("15"),
-							"memory": resource.MustParse("2Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("15", "2Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("15"),
-							"memory": resource.MustParse("129Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("15", "129Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("15"),
-							"memory": resource.MustParse("130Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("15", "130Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("15"),
-							"memory": resource.MustParse("131Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("15", "131Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("16"),
-							"memory": resource.MustParse("130Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("16", "130Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("16"),
-							"memory": resource.MustParse("128Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("16", "128Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("16"),
-							"memory": resource.MustParse("129Gi"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpuMem("16", "129Gi"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
-					testfixtures.WithUsedResourcesNodes(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("17"),
-						}},
-						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+						cpu("17"),
+						testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeIds: []uint64{nodeTypeAId},
-			priority:    0,
-			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("16"),
-				"memory": resource.MustParse("128Gi"),
-			}},
-			expected: []int{6, 1, 0},
+			nodeTypeIds:      []uint64{nodeTypeA.GetId()},
+			priority:         0,
+			resourceRequests: cpuMem("16", "128Gi"),
+			expected:         []int{6, 1, 0},
 		},
 		"double-nested ordering": {
 			nodes: armadaslices.Concatenate(
-				withNodeTypeNodes(
-					nodeTypeALabel,
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeA,
 					armadaslices.Concatenate(
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("31"),
-								"memory": resource.MustParse("1Gi"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMem("31", "1Gi"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":            resource.MustParse("31"),
-								"memory":         resource.MustParse("1Gi"),
-								"nvidia.com/gpu": resource.MustParse("1"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMemGpu("31", "1Gi", "1"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":            resource.MustParse("31"),
-								"memory":         resource.MustParse("1Gi"),
-								"nvidia.com/gpu": resource.MustParse("2"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMemGpu("31", "1Gi", "2"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":            resource.MustParse("31"),
-								"memory":         resource.MustParse("1Gi"),
-								"nvidia.com/gpu": resource.MustParse("5"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMemGpu("31", "1Gi", "5"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
-				withNodeTypeNodes(
-					nodeTypeBLabel,
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeB,
 					armadaslices.Concatenate(
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("31"),
-								"memory": resource.MustParse("2Gi"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMem("31", "2Gi"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":            resource.MustParse("31"),
-								"memory":         resource.MustParse("2Gi"),
-								"nvidia.com/gpu": resource.MustParse("1"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMemGpu("31", "2Gi", "1"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("32"),
-								"memory": resource.MustParse("514Gi"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMem("32", "514Gi"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("32"),
-								"memory": resource.MustParse("512Gi"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMem("32", "512Gi"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
-				withNodeTypeNodes(
-					nodeTypeCLabel,
+				testfixtures.ItWithNodeTypeNodes(
+					nodeTypeC,
 					armadaslices.Concatenate(
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu":    resource.MustParse("32"),
-								"memory": resource.MustParse("513Gi"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpuMem("32", "513Gi"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
-						testfixtures.WithUsedResourcesNodes(
+						testfixtures.ItWithUsedResourcesNodes(
 							0,
-							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-								"cpu": resource.MustParse("33"),
-							}},
-							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+							cpu("33"),
+							testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
 			),
-			nodeTypeIds: []uint64{gpuNodeTypeAId, gpuNodeTypeBId, gpuNodeTypeCId},
-			priority:    0,
-			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
-				"cpu":            resource.MustParse("32"),
-				"memory":         resource.MustParse("512Gi"),
-				"nvidia.com/gpu": resource.MustParse("4"),
-			}},
-			expected: []int{7, 5, 4, 2, 1, 0},
+			nodeTypeIds:      []uint64{nodeTypeA.GetId(), nodeTypeB.GetId(), nodeTypeC.GetId()},
+			priority:         0,
+			resourceRequests: cpuMemGpu("32", "512Gi", "4"),
+			expected:         []int{7, 5, 4, 2, 1, 0},
 		},
 	}
 	for name, tc := range tests {
@@ -718,13 +648,9 @@ func TestNodeTypesIterator(t *testing.T) {
 			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
-				node.Id = fmt.Sprintf("%d", i)
-
-				entry, err := internaltypes.FromSchedulerObjectsNode(node,
-					uint64(i),
-					nodeDb.indexedTaints,
-					nodeDb.indexedNodeLabels,
-					nodeDb.resourceListFactory)
+				nodeId := fmt.Sprintf("%d", i)
+				entry := testfixtures.ItWithIdNodes(nodeId, []*internaltypes.Node{node})[0]
+				entry = testfixtures.ItWithIndexNode(uint64(i), entry)
 
 				require.NoError(t, err)
 
@@ -734,8 +660,7 @@ func TestNodeTypesIterator(t *testing.T) {
 			}
 			require.NoError(t, nodeDb.UpsertMany(entries))
 
-			rr, err := testfixtures.TestResourceListFactory.FromJobResourceListFailOnUnknown(tc.resourceRequests.Resources)
-			assert.Nil(t, err)
+			rr := tc.resourceRequests
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
 			for i, resourceName := range testfixtures.TestResourceNames {
