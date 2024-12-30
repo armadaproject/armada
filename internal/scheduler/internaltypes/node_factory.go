@@ -2,6 +2,7 @@ package internaltypes
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -58,10 +59,9 @@ func (f *NodeFactory) CreateNodeAndType(
 	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 ) *Node {
-	f.nodeIndexCounter++
 	return CreateNodeAndType(
 		id,
-		f.nodeIndexCounter,
+		f.allocateNodeIndex(),
 		executor,
 		name,
 		pool,
@@ -77,9 +77,8 @@ func (f *NodeFactory) CreateNodeAndType(
 }
 
 func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) (*Node, error) {
-	f.nodeIndexCounter++
 	return FromSchedulerObjectsNode(node,
-		f.nodeIndexCounter,
+		f.allocateNodeIndex(),
 		f.indexedTaints,
 		f.indexedNodeLabels,
 		f.resourceListFactory,
@@ -107,4 +106,51 @@ func (f *NodeFactory) FromSchedulerObjectsExecutors(executors []*schedulerobject
 
 func (f *NodeFactory) ResourceListFactory() *ResourceListFactory {
 	return f.resourceListFactory
+}
+
+func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []*Node {
+	result := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		newLabels := util.MergeMaps(node.GetLabels(), extraLabels)
+		result[i] = CreateNodeAndType(node.GetId(),
+			node.GetIndex(),
+			node.GetExecutor(),
+			node.GetName(),
+			node.GetPool(),
+			false,
+			node.GetTaints(),
+			newLabels,
+			f.indexedTaints,
+			f.indexedNodeLabels,
+			node.totalResources,
+			node.unallocatableResources,
+			node.AllocatableByPriority,
+		)
+	}
+	return result
+}
+
+func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
+	result := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		result[i] = CreateNodeAndType(node.GetId(),
+			node.GetIndex(),
+			node.GetExecutor(),
+			node.GetName(),
+			node.GetPool(),
+			false,
+			append(node.GetTaints(), extraTaints...),
+			node.GetLabels(),
+			f.indexedTaints,
+			f.indexedNodeLabels,
+			node.totalResources,
+			node.unallocatableResources,
+			node.AllocatableByPriority,
+		)
+	}
+	return result
+}
+
+func (f *NodeFactory) allocateNodeIndex() uint64 {
+	return atomic.AddUint64(&f.nodeIndexCounter, 1)
 }

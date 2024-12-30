@@ -315,31 +315,6 @@ func WithLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) [
 	return nodes
 }
 
-func ItWithLabelsNodes(additionalLabels map[string]string, nodes []*internaltypes.Node) []*internaltypes.Node {
-	result := make([]*internaltypes.Node, len(nodes))
-	for i, node := range nodes {
-		labels := node.GetLabels()
-		maps.Copy(labels, additionalLabels)
-		result[i] = internaltypes.CreateNode(node.GetId(),
-			node.GetNodeType(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetTaints(),
-			labels,
-			node.GetTotalResources(),
-			node.GetUnallocatableResources(),
-			node.AllocatableByPriority,
-			node.AllocatedByQueue,
-			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
-			nil)
-
-	}
-	return result
-}
-
 func ItWithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
@@ -828,6 +803,14 @@ func NTainted32CpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
+func ItNTainted32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
+	rv := make([]*internaltypes.Node, n)
+	for i := 0; i < n; i++ {
+		rv[i] = ItTestTainted32CpuNode(priorities)
+	}
+	return rv
+}
+
 func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
@@ -920,6 +903,26 @@ func TestTainted32CpuNode(priorities []int32) *schedulerobjects.Node {
 	return node
 }
 
+func ItTestTainted32CpuNode(priorities []int32) *internaltypes.Node {
+	node := ItTest32CpuNode(priorities)
+
+	node = TestNodeFactory.AddTaints([]*internaltypes.Node{node},
+		[]v1.Taint{
+			{
+				Key:    "largeJobsOnly",
+				Value:  "true",
+				Effect: v1.TaintEffectNoSchedule,
+			},
+		})[0]
+
+	node = TestNodeFactory.AddLabels(
+		[]*internaltypes.Node{node},
+		map[string]string{"largeJobsOnly": "true"},
+	)[0]
+
+	return node
+}
+
 func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
 	node := TestNode(
 		priorities,
@@ -942,9 +945,9 @@ func ItTest8GpuNode(priorities []int32) *internaltypes.Node {
 			"nvidia.com/gpu": resource.MustParse("8"),
 		},
 	)
-	return ItWithLabelsNodes(
-		map[string]string{"gpu": "true"},
+	return TestNodeFactory.AddLabels(
 		[]*internaltypes.Node{node},
+		map[string]string{"gpu": "true"},
 	)[0]
 }
 

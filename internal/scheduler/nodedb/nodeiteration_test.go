@@ -710,14 +710,14 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 		2, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900,
 		3, 4, 5, 6, 7, 8, 9,
 	}
-	nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+	nodes := testfixtures.ItN32CpuNodes(numNodes, testfixtures.TestPriorities)
 	for i, node := range nodes {
 		var q resource.Quantity
 		q.SetMilli(allocatedMilliCpus[i%len(allocatedMilliCpus)])
-		testfixtures.WithUsedResourcesNodes(
+		testfixtures.ItWithUsedResourcesNodes(
 			testfixtures.TestPriorities[len(testfixtures.TestPriorities)-1],
-			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": q}},
-			[]*schedulerobjects.Node{node},
+			testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"cpu": q}),
+			[]*internaltypes.Node{node},
 		)
 	}
 	nodeDb, err := newNodeDbWithNodes(nodes)
