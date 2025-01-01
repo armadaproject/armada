@@ -10,6 +10,9 @@ import {
   DEFAULT_COLUMN_MATCHES,
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COLUMN_VISIBILITY,
+  JOB_COLUMNS,
+  toAnnotationColId,
+  toColId,
   fromAnnotationColId,
   isStandardColId,
 } from "../../utils/jobsTableColumns"
@@ -18,6 +21,7 @@ import { matchForColumn } from "../../utils/jobsTableUtils"
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]
   visibleColumns: VisibilityState
+  columnOrder: ColumnId[]
   groupedColumns: ColumnId[]
   expandedState: ExpandedStateList
   pageIndex: number
@@ -36,6 +40,7 @@ export interface JobsTablePreferences {
 export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   annotationColumnKeys: [],
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
+  columnOrder: JOB_COLUMNS.map(({ id }) => toColId(id)),
   filters: [],
   columnMatches: DEFAULT_COLUMN_MATCHES,
   groupedColumns: [],
@@ -208,6 +213,15 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
       }
     }
   }
+
+  // Make sure all annotation columns are contained in columnOrder
+  const remainingAnnotationKeys = new Set(annotationKeysSet)
+  preferences.columnOrder.forEach((id) => {
+    remainingAnnotationKeys.delete(fromAnnotationColId(id as AnnotationColumnId))
+  })
+  remainingAnnotationKeys.forEach((annotationColumnKey) => {
+    preferences.columnOrder.push(toAnnotationColId(annotationColumnKey))
+  })
 
   // Make sure grouped columns, order columns, and filtered columns are visible
   ensureVisible(preferences.visibleColumns, preferences.groupedColumns ?? [])

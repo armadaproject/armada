@@ -1,8 +1,10 @@
 import { memo, useCallback, useMemo, useState } from "react"
 
+import { ViewColumn } from "@mui/icons-material"
 import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
 
 import { CancelDialog } from "./CancelDialog"
+import { ColumnConfigurationDialog } from "./ColumnConfigurationDialog"
 import { CustomViewPicker } from "./CustomViewPicker"
 import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
@@ -21,6 +23,8 @@ export interface JobsTableActionBarProps {
   allColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
+  columnOrder: ColumnId[]
+  setColumnOrder: (columnOrder: ColumnId[]) => void
   selectedItemFilters: JobFilter[][]
   customViews: string[]
   activeJobSets: boolean
@@ -48,6 +52,8 @@ export const JobsTableActionBar = memo(
     allColumns,
     groupedColumns,
     visibleColumns,
+    columnOrder,
+    setColumnOrder,
     selectedItemFilters,
     customViews,
     activeJobSets,
@@ -68,6 +74,7 @@ export const JobsTableActionBar = memo(
     onDeleteCustomView,
     onLoadCustomView,
   }: JobsTableActionBarProps) => {
+    const [columnConfigurationDialogOpen, setColumnConfigurationDialogOpen] = useState(false)
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
     const openSnackbar = useCustomSnackbar()
@@ -80,6 +87,16 @@ export const JobsTableActionBar = memo(
     const reprioritiseDialogOnClose = useCallback(() => setReprioritiseDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
+        <ColumnConfigurationDialog
+          open={columnConfigurationDialogOpen}
+          onClose={() => setColumnConfigurationDialogOpen(false)}
+          allColumns={allColumns}
+          groupedColumns={groupedColumns}
+          visibleColumns={visibleColumns}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          toggleColumnVisibility={toggleColumnVisibility}
+        />
         {cancelDialogOpen && (
           <CancelDialog
             onClose={cancelDialogOnClose}
@@ -134,6 +151,14 @@ export const JobsTableActionBar = memo(
             onDeleteCustomView={onDeleteCustomView}
             onLoadCustomView={onLoadCustomView}
           />
+          <Button
+            variant="outlined"
+            color="secondary"
+            endIcon={<ViewColumn />}
+            onClick={() => setColumnConfigurationDialogOpen(true)}
+          >
+            Configure columns
+          </Button>
           <ColumnSelect
             selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}
