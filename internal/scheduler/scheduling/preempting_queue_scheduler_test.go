@@ -1940,11 +1940,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				ctx.FieldLogger = ctx.WithField("round", i)
 				ctx.Infof("starting scheduling round %d", i)
 
-				jobsByNode := map[string][]*jobdb.Job{}
+				jobsByNodeId := map[string][]*jobdb.Job{}
 				for _, job := range jobDbTxn.GetAll() {
 					if job.LatestRun() != nil && !job.LatestRun().InTerminalState() {
 						node := job.LatestRun().NodeId()
-						jobsByNode[node] = append(jobsByNode[node], job)
+						jobsByNodeId[node] = append(jobsByNodeId[node], job)
 					}
 				}
 
@@ -1952,7 +1952,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				nodeDbTxn := nodeDb.Txn(true)
 				for _, node := range tc.Nodes {
-					err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsByNode[node.GetName()], node.DeepCopyNilKeys())
+					err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsByNodeId[node.GetId()], node.DeepCopyNilKeys())
 					require.NoError(t, err)
 				}
 				nodeDbTxn.Commit()
