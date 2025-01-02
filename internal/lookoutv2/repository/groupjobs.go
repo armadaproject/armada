@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,14 +58,19 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	logQuery(query, "GroupBy")
+	logQueryDebug(query, "GroupBy")
 
 	var groups []*model.JobGroup
 
+	queryStart := time.Now()
 	groupRows, err := r.db.Query(ctx, query.Sql, query.Args...)
+	queryDuration := time.Since(queryStart)
 	if err != nil {
+		logQueryError(query, "GroupBy", queryDuration)
 		return nil, err
 	}
+	logSlowQuery(query, "GroupBy", queryDuration)
+
 	groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 	if err != nil {
 		return nil, err

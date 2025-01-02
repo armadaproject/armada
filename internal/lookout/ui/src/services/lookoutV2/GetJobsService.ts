@@ -1,4 +1,4 @@
-import { Job, JobFilter, JobOrder } from "models/lookoutV2Models"
+import { Job, JobFilter, JobOrder } from "../../models/lookoutV2Models"
 
 export interface IGetJobsService {
   getJobs(

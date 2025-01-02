@@ -1,14 +1,14 @@
 import { render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import { makeManyTestJobs } from "utils/fakeJobsUtils"
-import { formatJobState } from "utils/jobsTableFormatters"
 
 import { CancelDialog } from "./CancelDialog"
+import { Job, JobFilter, JobState, Match } from "../../models/lookoutV2Models"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { UpdateJobsResponse, UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
+import FakeGetJobsService from "../../services/lookoutV2/mocks/FakeGetJobsService"
+import { makeManyTestJobs } from "../../utils/fakeJobsUtils"
+import { formatJobState } from "../../utils/jobsTableFormatters"
 
 describe("CancelDialog", () => {
   const numJobs = 5
@@ -32,9 +32,9 @@ describe("CancelDialog", () => {
     ]
     getJobsService = new FakeGetJobsService(jobs)
     updateJobsService = {
-      cancelJobs: jest.fn(),
+      cancelJobs: vi.fn(),
     } as any
-    onClose = jest.fn()
+    onClose = vi.fn()
   })
 
   const renderComponent = () =>
@@ -97,7 +97,7 @@ describe("CancelDialog", () => {
   it("allows the user to cancel jobs", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.cancelJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [],
@@ -136,7 +136,7 @@ describe("CancelDialog", () => {
   it("shows error reasons if cancellation fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.cancelJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [],
         failedJobIds: [{ jobId: jobs[0].jobId, errorReason: "This is a test" }],
@@ -179,7 +179,7 @@ describe("CancelDialog", () => {
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.cancelJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [{ jobId: jobs[1].jobId, errorReason: "This is a test" }],

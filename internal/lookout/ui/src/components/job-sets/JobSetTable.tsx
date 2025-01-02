@@ -1,18 +1,39 @@
-import Truncate from "react-truncate"
-import { TableCellProps, Table as VirtualizedTable } from "react-virtualized"
-import { Column, defaultTableCellRenderer } from "react-virtualized"
+import { useCallback, useEffect, useState } from "react"
 
-import { JobState } from "../../models/lookoutV2Models"
+import {
+  Alert,
+  Box,
+  Checkbox,
+  Stack,
+  styled,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableSortLabel,
+} from "@mui/material"
+import { visuallyHidden } from "@mui/utils"
+import { Truncate } from "@re-dev/react-truncate"
+
+import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutV2Models"
 import { JobSet } from "../../services/JobService"
-import CheckboxHeaderRow from "../CheckboxHeaderRow"
-import CheckboxRow from "../CheckboxRow"
-import "./JobSetTable.css"
-import LinkCell from "../LinkCell"
-import SortableHeaderCell from "../SortableHeaderCell"
+import { formatJobState } from "../../utils/jobsTableFormatters"
+import { JobStateCountChip } from "../lookoutV2/JobStateCountChip"
+
+const JOB_STATES_TO_DISPLAY = [
+  [JobState.Queued, "jobsQueued"],
+  [JobState.Pending, "jobsPending"],
+  [JobState.Running, "jobsRunning"],
+  [JobState.Succeeded, "jobsSucceeded"],
+  [JobState.Failed, "jobsFailed"],
+  [JobState.Cancelled, "jobsCancelled"],
+] as const
+
+const MinWidthTableCell = styled(TableCell)({ width: "0%", textWrap: "nowrap" })
 
 interface JobSetTableProps {
-  height: number
-  width: number
   queue: string
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
@@ -25,153 +46,125 @@ interface JobSetTableProps {
   onJobSetStateClick(rowIndex: number, state: string): void
 }
 
-function cellRendererForState(cellProps: TableCellProps, onClickFunc: () => void) {
-  if (cellProps.cellData > 0) {
-    return <LinkCell onClick={onClickFunc} {...cellProps} />
+export default function JobSetTable({
+  queue,
+  jobSets,
+  selectedJobSets,
+  newestFirst,
+  onSelectJobSet,
+  onShiftSelectJobSet,
+  onDeselectAllClick,
+  onSelectAllClick,
+  onOrderChange,
+  onJobSetStateClick,
+}: JobSetTableProps) {
+  const [shiftKeyPressed, setShiftKeyPressed] = useState(false)
+  const onKeyDown = useCallback((ev: KeyboardEvent) => {
+    if (ev.key === "Shift") {
+      setShiftKeyPressed(true)
+    }
+  }, [])
+  const onKeyUp = useCallback((ev: KeyboardEvent) => {
+    if (ev.key === "Shift") {
+      setShiftKeyPressed(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener("keydown", onKeyDown, false)
+    document.addEventListener("keyup", onKeyUp, false)
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, false)
+      document.removeEventListener("keyup", onKeyUp, false)
+    }
+  }, [onKeyDown, onKeyUp])
+
+  if (queue === "") {
+    return <Alert severity="info">Enter a queue name into the "Queue" field to view job sets.</Alert>
   }
 
-  return defaultTableCellRenderer(cellProps)
-}
-
-function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
-  return (
-    <Truncate width={width * 1.5} lines={1}>
-      {cellProps.cellData}
-    </Truncate>
-  )
-}
-
-export default function JobSetTable(props: JobSetTableProps) {
-  if (props.queue === "") {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: props.height,
-          width: props.width,
-        }}
-      >
-        Enter a queue name into the "Queue" field to view job sets.
-      </div>
-    )
+  if (jobSets.length === 0) {
+    return <Alert severity="warning">No job sets found for this queue.</Alert>
   }
+
   return (
-    <div
-      style={{
-        height: props.height,
-        width: props.width,
-      }}
-    >
-      <VirtualizedTable
-        rowGetter={({ index }) => props.jobSets[index]}
-        rowCount={props.jobSets.length}
-        rowHeight={50}
-        headerHeight={60}
-        height={props.height}
-        width={props.width}
-        headerClassName="job-set-table-header"
-        rowRenderer={(tableRowProps) => {
-          return (
-            <CheckboxRow
-              isChecked={props.selectedJobSets.has(tableRowProps.rowData.jobSetId)}
-              onChangeChecked={(selected) => props.onSelectJobSet(tableRowProps.index, selected)}
-              onChangeCheckedShift={(selected) => props.onShiftSelectJobSet(tableRowProps.index, selected)}
-              tableKey={tableRowProps.key}
-              {...tableRowProps}
-            />
-          )
-        }}
-        headerRowRenderer={(tableHeaderRowProps) => {
-          const jobSetsAreSelected = props.selectedJobSets.size > 0
-          const noJobSetsArePresent = props.jobSets.length == 0
-          return (
-            <CheckboxHeaderRow
-              checked={jobSetsAreSelected}
-              disabled={!jobSetsAreSelected && noJobSetsArePresent}
-              onClick={jobSetsAreSelected ? () => props.onDeselectAllClick() : props.onSelectAllClick}
-              {...tableHeaderRowProps}
-            />
-          )
-        }}
-      >
-        <Column
-          dataKey="jobSetId"
-          width={0.5 * props.width}
-          label="Job Set"
-          cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, 0.5 * props.width)}
-          className="job-set-table-job-set-name-cell"
-        />
-        <Column
-          dataKey="latestSubmissionTime"
-          width={0.14 * props.width}
-          label="Submission Time"
-          headerRenderer={(cellProps) => (
-            <SortableHeaderCell
-              name="Submission Time"
-              descending={props.newestFirst}
-              className="job-set-submission-time-header-cell"
-              onOrderChange={props.onOrderChange}
-              {...cellProps}
-            />
-          )}
-        />
-        <Column
-          dataKey="jobsQueued"
-          width={0.06 * props.width}
-          label="Queued"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Queued))
-          }
-        />
-        <Column
-          dataKey="jobsPending"
-          width={0.06 * props.width}
-          label="Pending"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Pending))
-          }
-        />
-        <Column
-          dataKey="jobsRunning"
-          width={0.06 * props.width}
-          label="Running"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Running))
-          }
-        />
-        <Column
-          dataKey="jobsSucceeded"
-          width={0.06 * props.width}
-          label="Succeeded"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Succeeded))
-          }
-        />
-        <Column
-          dataKey="jobsFailed"
-          width={0.06 * props.width}
-          label="Failed"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Failed))
-          }
-        />
-        <Column
-          dataKey="jobsCancelled"
-          width={0.06 * props.width}
-          label="Cancelled"
-          className="job-set-table-number-cell"
-          cellRenderer={(cellProps) =>
-            cellRendererForState(cellProps, () => props.onJobSetStateClick(cellProps.rowIndex, JobState.Cancelled))
-          }
-        />
-      </VirtualizedTable>
-    </div>
+    <TableContainer>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell padding="checkbox">
+              <Checkbox
+                color="primary"
+                inputProps={{
+                  "aria-label": "select all job sets",
+                }}
+                indeterminate={0 < selectedJobSets.size && selectedJobSets.size < jobSets.length}
+                checked={selectedJobSets.size === jobSets.length}
+                onChange={(_, checked) => (checked ? onSelectAllClick() : onDeselectAllClick())}
+              />
+            </TableCell>
+            <TableCell>Job Set</TableCell>
+            <TableCell>
+              <TableSortLabel
+                active
+                direction={newestFirst ? "desc" : "asc"}
+                onClick={() => onOrderChange(!newestFirst)}
+              >
+                Submission time
+                <Box component="span" sx={visuallyHidden}>
+                  {newestFirst ? "sorted descending" : "sorted ascending"}
+                </Box>
+              </TableSortLabel>
+            </TableCell>
+            {JOB_STATES_TO_DISPLAY.map(([jobState]) => {
+              const Icon = jobStateIcons[jobState]
+              return (
+                <MinWidthTableCell key={jobState} align="right">
+                  <Stack direction="row" spacing={1} alignItems="center" display="inline">
+                    <span>{formatJobState(jobState)}</span>
+                    <Icon fontSize="inherit" color={jobStateColors[jobState]} />
+                  </Stack>
+                </MinWidthTableCell>
+              )
+            })}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {jobSets.map(({ jobSetId, latestSubmissionTime, ...jobSetRest }, jobSetIndex) => {
+            const rowSelected = selectedJobSets.has(jobSetId)
+            return (
+              <TableRow key={jobSetId} hover selected={rowSelected}>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    color="primary"
+                    inputProps={{
+                      "aria-label": `select job set ${jobSetId}`,
+                    }}
+                    checked={rowSelected}
+                    onChange={(_, checked) =>
+                      shiftKeyPressed ? onShiftSelectJobSet(jobSetIndex, checked) : onSelectJobSet(jobSetIndex, checked)
+                    }
+                  />
+                </TableCell>
+                <TableCell>
+                  <Truncate lines={1}>{jobSetId}</Truncate>
+                </TableCell>
+                <TableCell>{latestSubmissionTime}</TableCell>
+                {JOB_STATES_TO_DISPLAY.map(([jobState, jobSetKey]) => (
+                  <MinWidthTableCell key={jobState} align="right">
+                    <JobStateCountChip
+                      state={jobState}
+                      count={jobSetRest[jobSetKey]}
+                      onClick={() => onJobSetStateClick(jobSetIndex, jobState)}
+                    />
+                  </MinWidthTableCell>
+                ))}
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 }

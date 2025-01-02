@@ -32,20 +32,27 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
-import { HeaderCell } from "components/lookoutV2/JobsTableCell"
-import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
-import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
-import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
-import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
-import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGetRunInfoService } from "services/lookoutV2/GetRunInfoService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { JobsTablePreferences, JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
-import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
+
+import styles from "./JobsTableContainer.module.css"
+import { JobsTableActionBar } from "../../components/lookoutV2/JobsTableActionBar"
+import { HeaderCell } from "../../components/lookoutV2/JobsTableCell"
+import { JobsTableRow } from "../../components/lookoutV2/JobsTableRow"
+import { Sidebar } from "../../components/lookoutV2/sidebar/Sidebar"
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { columnIsAggregatable, useFetchJobsTableData } from "../../hooks/useJobsTableData"
+import { isJobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
+import { Job, JobFilter, JobId, Match, SortDirection } from "../../models/lookoutV2Models"
+import { ICordonService } from "../../services/lookoutV2/CordonService"
+import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
+import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
+import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
+import { IGetRunInfoService } from "../../services/lookoutV2/GetRunInfoService"
+import { IGroupJobsService } from "../../services/lookoutV2/GroupJobsService"
+import { JobsTablePreferences, JobsTablePreferencesService } from "../../services/lookoutV2/JobsTablePreferencesService"
+import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
+import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
 import {
   COLUMN_PARSE_TYPES,
   ColumnId,
@@ -57,23 +64,15 @@ import {
   StandardColumnId,
   toAnnotationColId,
   toColId,
-} from "utils/jobsTableColumns"
+} from "../../utils/jobsTableColumns"
 import {
   diffOfKeys,
   getFiltersForRows,
   PendingData,
   pendingDataForAllVisibleData,
   updaterToValue,
-} from "utils/jobsTableUtils"
-import { fromRowId, RowId } from "utils/reactTableUtils"
-
-import styles from "./JobsTableContainer.module.css"
-import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
-import { ICordonService } from "../../services/lookoutV2/CordonService"
-import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
-import { IGetJobInfoService } from "../../services/lookoutV2/GetJobInfoService"
-import { ILogService } from "../../services/lookoutV2/LogService"
-import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
+} from "../../utils/jobsTableUtils"
+import { fromRowId, RowId } from "../../utils/reactTableUtils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -84,7 +83,6 @@ interface JobsTableContainerProps {
   updateJobsService: UpdateJobsService
   runInfoService: IGetRunInfoService
   jobSpecService: IGetJobInfoService
-  logService: ILogService
   cordonService: ICordonService
   debug: boolean
   autoRefreshMs: number | undefined
@@ -129,7 +127,6 @@ export const JobsTableContainer = ({
   updateJobsService,
   runInfoService,
   jobSpecService,
-  logService,
   cordonService,
   debug,
   autoRefreshMs,
@@ -856,7 +853,6 @@ export const JobsTableContainer = ({
           job={sidebarJobDetails}
           runInfoService={runInfoService}
           jobSpecService={jobSpecService}
-          logService={logService}
           cordonService={cordonService}
           sidebarWidth={sidebarWidth}
           onClose={sideBarClose}

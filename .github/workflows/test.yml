@@ -19,13 +19,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 16.14.2
+          node-version: 22.12.0
           cache: yarn
           cache-dependency-path: ./internal/lookout/ui/yarn.lock
 
       - name: Install Dependencies And Run Unit Tests
         run: |
-          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test --reporters=jest-junit
+          yarn install --frozen-lockfile && yarn openapi && CI=true yarn test --reporter=junit
         working-directory: ./internal/lookout/ui
 
       - name: Publish JUnit Report
@@ -201,7 +201,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go

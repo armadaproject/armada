@@ -2,9 +2,9 @@ import { Fragment } from "react"
 
 import { Clear } from "@mui/icons-material"
 import { Divider, FormControl, IconButton, InputLabel, MenuItem, OutlinedInput, Select } from "@mui/material"
-import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "utils/jobsTableColumns"
 
 import styles from "./GroupBySelect.module.css"
+import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "../../utils/jobsTableColumns"
 
 interface GroupColumnProps {
   columns: JobTableColumn[]

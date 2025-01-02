@@ -1,6 +1,7 @@
 import _ from "lodash"
-import { Job, JobFilter } from "models/lookoutV2Models"
-import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+
+import { Job, JobFilter } from "../models/lookoutV2Models"
+import { IGetJobsService } from "../services/lookoutV2/GetJobsService"
 
 export const getAllJobsMatchingFilters = async (
   filters: JobFilter[],

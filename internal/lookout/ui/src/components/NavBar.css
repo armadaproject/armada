@@ -27,3 +27,10 @@
   flex-direction: row;
   align-items: flex-end;
 }
+
+.toolbar .nav-end {
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+  align-items: center;
+}

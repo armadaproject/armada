@@ -1,25 +1,23 @@
 import { Typography } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
 
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
-import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
+import { Job } from "../../../models/lookoutV2Models"
 import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
 export interface SidebarTabJobDetailsProps {
   job: Job
-  jobSpecService: IGetJobInfoService
 }
 
-export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetailsProps) => {
+export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
   const details = [
-    { key: "Queue", value: job.queue },
-    { key: "Job Set", value: job.jobSet },
-    { key: "Owner", value: job.owner },
-    ...(job.namespace ? [{ key: "Namespace", value: job.namespace }] : []),
+    { key: "Queue", value: job.queue, allowCopy: true },
+    { key: "Job Set", value: job.jobSet, allowCopy: true },
+    { key: "Owner", value: job.owner, allowCopy: true },
+    ...(job.namespace ? [{ key: "Namespace", value: job.namespace, allowCopy: true }] : []),
     { key: "Priority", value: job.priority.toString() },
     { key: "Run Count", value: job.runs.length.toString() },
-    ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason }] : []),
+    ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason, allowCopy: true }] : []),
   ]
   return (
     <>
@@ -41,12 +39,13 @@ export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetai
             key: annotationKey,
             value: job.annotations[annotationKey],
             isAnnotation: true,
+            allowCopy: true,
           }))}
         />
       ) : (
         " No annotations"
       )}
-      <ContainerDetails job={job} jobSpecService={jobSpecService} />
+      <ContainerDetails job={job} />
     </>
   )
 }

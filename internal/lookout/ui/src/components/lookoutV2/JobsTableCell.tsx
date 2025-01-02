@@ -1,15 +1,16 @@
 import { RefObject } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
+import { TableCell, IconButton, TableSortLabel, Box, styled } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
-import { JobRow, JobTableRow } from "models/jobsTableModels"
-import { Match } from "models/lookoutV2Models"
-import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
 import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
+import { JobRow, JobTableRow } from "../../models/jobsTableModels"
+import { Match } from "../../models/lookoutV2Models"
+import { FilterType, getColumnMetadata, toColId } from "../../utils/jobsTableColumns"
 import { matchForColumn } from "../../utils/jobsTableUtils"
+import { ActionableValueOnHover } from "../ActionableValueOnHover"
 
 const sharedCellStyle = {
   padding: 0,
@@ -26,6 +27,13 @@ const sharedCellStyleWithOpacity = {
     opacity: 0.85,
   },
 }
+
+const HeaderTableCell = styled(TableCell)(({ theme }) => ({
+  backgroundColor: theme.palette.grey[200],
+  ...theme.applyStyles("dark", {
+    backgroundColor: theme.palette.grey[800],
+  }),
+}))
 
 export interface HeaderCellProps {
   header: Header<JobRow, unknown>
@@ -63,7 +71,7 @@ export function HeaderCell({
   const match = matchForColumn(header.id, columnMatches)
   if (header.isPlaceholder) {
     return (
-      <TableCell
+      <HeaderTableCell
         key={id}
         align={isRightAligned ? "right" : "left"}
         aria-label={metadata.displayName}
@@ -74,15 +82,13 @@ export function HeaderCell({
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
-          backgroundColor: "#f2f2f2",
         }}
-        className={styles.headerCell}
       />
     )
   }
 
   return (
-    <TableCell
+    <HeaderTableCell
       key={id}
       align={isRightAligned ? "right" : "left"}
       aria-label={metadata.displayName}
@@ -94,7 +100,6 @@ export function HeaderCell({
         whiteSpace: "nowrap",
         overflow: "hidden",
       }}
-      className={styles.headerCell}
     >
       <div
         style={{
@@ -105,7 +110,6 @@ export function HeaderCell({
           justifyContent: "space-between",
           alignItems: "center",
           margin: 0,
-          backgroundColor: "#f2f2f2",
         }}
       >
         <div
@@ -189,7 +193,7 @@ export function HeaderCell({
           }}
         />
       </div>
-    </TableCell>
+    </HeaderTableCell>
   )
 }
 
@@ -255,10 +259,30 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
           onClickRowCheckbox,
         })
       ) : (
-        flexRender(cell.column.columnDef.cell, {
-          ...cell.getContext(),
-          onClickRowCheckbox,
-        })
+        <ActionableValueOnHover
+          stopPropogationOnActionClick
+          copyAction={
+            !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy
+              ? { copyContent: String(cell.getValue()) }
+              : undefined
+          }
+          filterAction={
+            rowIsGroup || !cell.getValue() || columnMetadata.filterType === undefined
+              ? undefined
+              : {
+                  onFilter: () => {
+                    cell.column.setFilterValue(
+                      columnMetadata.filterType === FilterType.Enum ? [cell.getValue()] : cell.getValue(),
+                    )
+                  },
+                }
+          }
+        >
+          {flexRender(cell.column.columnDef.cell, {
+            ...cell.getContext(),
+            onClickRowCheckbox,
+          })}
+        </ActionableValueOnHover>
       )}
     </TableCell>
   )
