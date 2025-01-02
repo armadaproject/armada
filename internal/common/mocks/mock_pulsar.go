@@ -194,6 +194,20 @@ func (mr *MockProducerMockRecorder) Flush() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockProducer)(nil).Flush))
 }
 
+// FlushWithCtx mocks base method.
+func (m *MockProducer) FlushWithCtx(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FlushWithCtx", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FlushWithCtx indicates an expected call of FlushWithCtx.
+func (mr *MockProducerMockRecorder) FlushWithCtx(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushWithCtx", reflect.TypeOf((*MockProducer)(nil).FlushWithCtx), ctx)
+}
+
 // LastSequenceID mocks base method.
 func (m *MockProducer) LastSequenceID() int64 {
 	m.ctrl.T.Helper()
