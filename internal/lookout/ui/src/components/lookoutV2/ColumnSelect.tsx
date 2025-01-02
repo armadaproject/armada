@@ -15,9 +15,9 @@ import {
   TextField,
   Typography,
 } from "@mui/material"
-import { ColumnId, getColumnMetadata, JobTableColumn, StandardColumnId, toColId } from "utils/jobsTableColumns"
 
 import styles from "./ColumnSelect.module.css"
+import { ColumnId, getColumnMetadata, JobTableColumn, StandardColumnId, toColId } from "../../utils/jobsTableColumns"
 
 type ColumnSelectProps = {
   selectableColumns: JobTableColumn[]

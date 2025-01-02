@@ -1,14 +1,12 @@
-import { useCallback } from "react"
-
-import { ContentCopy } from "@mui/icons-material"
-import { IconButton, Link } from "@mui/material"
+import { OpenInNew } from "@mui/icons-material"
+import { Link, Stack, Typography } from "@mui/material"
 import { template, templateSettings } from "lodash"
-import { Job } from "models/lookoutV2Models"
 import validator from "validator"
 
-import styles from "./SidebarTabJobCommands.module.css"
-import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { Job } from "../../../models/lookoutV2Models"
+import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
+import { CodeBlock } from "../../CodeBlock"
 
 export interface SidebarTabJobCommandsProps {
   job: Job
@@ -27,40 +25,33 @@ function getCommandText(job: Job, commandSpec: CommandSpec): string {
 }
 
 export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobCommandsProps) => {
-  const openSnackbar = useCustomSnackbar()
-
-  const copyCommand = useCallback(async (commandText: string) => {
-    await navigator.clipboard.writeText(commandText)
-    openSnackbar("Copied command to clipboard!", "info", {
-      autoHideDuration: 3000,
-      preventDuplicate: true,
-    })
-  }, [])
+  if ((job.runs ?? []).length === 0) {
+    return null
+  }
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
-      {job.runs?.length ? (
-        <div>
-          {commandSpecs.map((c, i) => (
-            <>
-              <div>
-                {i > 0 ? <br /> : undefined}
-                {c.name}
-                <IconButton size="small" title="Copy to clipboard" onClick={() => copyCommand(getCommandText(job, c))}>
-                  <ContentCopy />
-                </IconButton>
-              </div>
-              {validator.isURL(getCommandText(job, c)) ? (
-                <Link href={getCommandText(job, c)} target="_blank">
-                  <div>{getCommandText(job, c)}</div>
-                </Link>
-              ) : (
-                <div className={styles.commandsText}>{getCommandText(job, c)}</div>
-              )}
-            </>
-          ))}
-        </div>
-      ) : undefined}
-    </div>
+    <Stack spacing={SPACING.sm}>
+      {commandSpecs.map((commandSpec) => {
+        const { name } = commandSpec
+        const commandText = getCommandText(job, commandSpec)
+        return (
+          <div key={name}>
+            <Typography variant="h6" component="h3">
+              {name}
+            </Typography>
+            {validator.isURL(commandText) ? (
+              <Link href={commandText} target="_blank">
+                <Stack direction="row" spacing={SPACING.xs} alignItems="center">
+                  <div>{commandText}</div>
+                  <OpenInNew fontSize="inherit" />
+                </Stack>
+              </Link>
+            ) : (
+              <CodeBlock code={commandText} language="bash" downloadable={false} showLineNumbers={false} />
+            )}
+          </div>
+        )
+      })}
+    </Stack>
   )
 }

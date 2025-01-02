@@ -14,18 +14,18 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material"
-import { Job, JobRun, JobState } from "models/lookoutV2Models"
-import { formatJobRunState, formatTimeSince, formatUtcDate } from "utils/jobsTableFormatters"
 
-import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import styles from "./SidebarTabJobResult.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { Job, JobRun, JobState } from "../../../models/lookoutV2Models"
 import { getAccessToken, useUserManager } from "../../../oidc"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
 import { getErrorMessage } from "../../../utils"
+import { formatJobRunState, formatTimeSince, formatUtcDate } from "../../../utils/jobsTableFormatters"
+import { CodeBlock } from "../../CodeBlock"
 
 export interface SidebarTabJobResultProps {
   job: Job
@@ -220,7 +220,7 @@ export const SidebarTabJobResult = ({
       {topLevelError !== "" ? (
         <>
           <Typography variant="subtitle2">{topLevelErrorTitle}:</Typography>
-          <CodeBlock text={topLevelError} />
+          <CodeBlock code={topLevelError} language="text" downloadable={false} showLineNumbers={false} />
         </>
       ) : null}
       <Typography variant="subtitle2">Runs:</Typography>
@@ -235,7 +235,7 @@ export const SidebarTabJobResult = ({
             <AccordionDetails sx={{ padding: 0 }}>
               <KeyValuePairTable
                 data={[
-                  { key: "Run ID", value: run.runId },
+                  { key: "Run ID", value: run.runId, allowCopy: true },
                   { key: "State", value: formatJobRunState(run.jobRunState) },
                   { key: "Leased (UTC)", value: formatUtcDate(run.leased) },
                   { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
@@ -246,8 +246,8 @@ export const SidebarTabJobResult = ({
                     value:
                       run.started && run.finished ? formatTimeSince(run.started, new Date(run.finished).getTime()) : "",
                   },
-                  { key: "Cluster", value: run.cluster },
-                  { key: "Node", value: run.node ?? "" },
+                  { key: "Cluster", value: run.cluster, allowCopy: true },
+                  { key: "Node", value: run.node ?? "", allowCopy: true },
                   { key: "Exit code", value: run.exitCode?.toString() ?? "" },
                 ].filter((pair) => pair.value !== "")}
               />
@@ -301,7 +301,14 @@ export const SidebarTabJobResult = ({
                 <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
                   Error
                 </AccordionSummary>
-                <AccordionDetails>{<CodeBlock text={runErrorMap.get(run.runId) ?? ""} />}</AccordionDetails>
+                <AccordionDetails>
+                  <CodeBlock
+                    code={runErrorMap.get(run.runId) ?? ""}
+                    language="text"
+                    downloadable={false}
+                    showLineNumbers={false}
+                  />
+                </AccordionDetails>
               </Accordion>
             )}
             {runDebugMessageLoadingMap.has(run.runId) && runDebugMessageLoadingMap.get(run.runId) === "Loading" && (
@@ -314,7 +321,14 @@ export const SidebarTabJobResult = ({
                 <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
                   Debug
                 </AccordionSummary>
-                <AccordionDetails>{<CodeBlock text={runDebugMessageMap.get(run.runId) ?? ""} />}</AccordionDetails>
+                <AccordionDetails>
+                  <CodeBlock
+                    code={runDebugMessageMap.get(run.runId) ?? ""}
+                    language="text"
+                    downloadable={false}
+                    showLineNumbers={false}
+                  />
+                </AccordionDetails>
               </Accordion>
             )}
           </Accordion>

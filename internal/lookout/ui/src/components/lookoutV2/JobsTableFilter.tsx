@@ -1,4 +1,4 @@
-import { MouseEvent, RefObject, useEffect, useRef, useState } from "react"
+import { ElementType, MouseEvent, RefObject, useEffect, useRef, useState } from "react"
 
 import { Check, MoreVert } from "@mui/icons-material"
 import {
@@ -6,16 +6,26 @@ import {
   Checkbox,
   IconButton,
   InputAdornment,
+  InputLabel,
+  ListItemIcon,
   ListItemText,
   MenuItem,
   OutlinedInput,
   Select,
+  SvgIconProps,
   TextField,
 } from "@mui/material"
 import Menu from "@mui/material/Menu"
-import { Match, MATCH_DISPLAY_STRINGS } from "models/lookoutV2Models"
 import { useDebouncedCallback } from "use-debounce"
-import { ANNOTATION_COLUMN_PREFIX, FilterType, isStandardColId, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
+
+import { Match, MATCH_DISPLAY_STRINGS } from "../../models/lookoutV2Models"
+import { CustomPaletteColorToken } from "../../theme/palette"
+import {
+  ANNOTATION_COLUMN_PREFIX,
+  FilterType,
+  isStandardColId,
+  VALID_COLUMN_MATCHES,
+} from "../../utils/jobsTableColumns"
 
 const ELLIPSIS = "\u2026"
 
@@ -91,6 +101,8 @@ export const JobsTableFilter = ({
 export interface EnumFilterOption {
   value: string
   displayName: string
+  Icon?: ElementType<SvgIconProps>
+  iconColor?: CustomPaletteColorToken
 }
 interface EnumFilterProps {
   currentFilter: string[]
@@ -119,7 +131,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
           selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName ?? s).join(", ")
         ) : (
           // Approximately matches the styling for a text input's placeholder
-          <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>{label}</div>
+          <InputLabel>{label}</InputLabel>
         )
       }
       // Matches the styling for TextFilter component below
@@ -135,10 +147,15 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
         },
       }}
     >
-      {(enumFilterValues ?? []).map((option) => (
-        <MenuItem key={option.value} value={option.value} dense>
-          <Checkbox checked={currentFilter.indexOf(option.value) > -1} size="small" sx={{ padding: "3px" }} />
-          <ListItemText primary={option.displayName} />
+      {(enumFilterValues ?? []).map(({ value, displayName, Icon, iconColor }) => (
+        <MenuItem key={value} value={value} dense>
+          <Checkbox checked={currentFilter.indexOf(value) > -1} size="small" sx={{ padding: "3px" }} />
+          <ListItemText primary={displayName} />
+          {Icon && (
+            <ListItemIcon>
+              <Icon fontSize="inherit" color={iconColor ?? "inherit"} />
+            </ListItemIcon>
+          )}
         </MenuItem>
       ))}
     </Select>
@@ -170,14 +187,23 @@ const TextFilter = ({
   useEffect(() => {
     onSetTextFieldRef(ref)
   }, [ref])
+  const [textFieldValue, setTextFieldValue] = useState(defaultValue)
+  useEffect(() => {
+    setTextFieldValue(defaultValue)
+  }, [defaultValue])
+
   const debouncedOnChange = useDebouncedCallback(onChange, 300)
+  useEffect(() => {
+    debouncedOnChange(textFieldValue)
+  }, [textFieldValue, debouncedOnChange])
+
   return (
     <TextField
-      onChange={(e) => debouncedOnChange(e.currentTarget.value)}
+      onChange={(e) => setTextFieldValue(e.currentTarget.value)}
+      value={textFieldValue}
       inputRef={ref}
       type={"text"}
       size={"small"}
-      defaultValue={defaultValue}
       error={parseError !== undefined}
       placeholder={label}
       sx={{

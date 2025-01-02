@@ -1,9 +1,8 @@
 import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstack/react-table"
-import { isValidMatch, JobId, Match } from "models/lookoutV2Models"
 import qs from "qs"
-import { SortDirection } from "react-virtualized"
 
 import { LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
+import { isValidMatch, JobId, Match } from "../../models/lookoutV2Models"
 import { removeUndefined, Router } from "../../utils"
 import {
   AnnotationColumnId,
@@ -100,7 +99,7 @@ export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs
     }),
     sort: {
       id: prefs.order.id,
-      desc: String(prefs.order.direction === SortDirection.DESC),
+      desc: String(prefs.order.direction === "DESC"),
     },
     e: Object.entries(prefs.expandedState)
       .filter(([_, expanded]) => expanded)
@@ -135,7 +134,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(page !== undefined && { pageIndex: Number(page) }),
     ...(ps !== undefined && { pageSize: Number(ps) }),
     ...(sort && {
-      order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? SortDirection.DESC : SortDirection.ASC },
+      order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? "DESC" : "ASC" },
     }),
     ...(f && { filters: columnFiltersFromQueryStringFilters(f) }),
     ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),

@@ -1,4 +1,4 @@
-ARG NODE_BUILD_IMAGE=node:16.14-buster
+ARG NODE_BUILD_IMAGE=node:22.12-bullseye
 ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
 ARG BASE_IMAGE=alpine:3.20.3
 
@@ -15,7 +15,7 @@ FROM ${NODE_BUILD_IMAGE} AS NODE
 COPY --from=OPENAPI /project/internal/lookout/ui /ui/
 WORKDIR /ui
 RUN yarn install --immutable
-RUN yarn run build
+RUN yarn build
 
 FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada

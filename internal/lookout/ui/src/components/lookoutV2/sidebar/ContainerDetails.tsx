@@ -1,13 +1,13 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { CircularProgress, Collapse, ListItemButton, Typography } from "@mui/material"
 
 import styles from "./ContainerDetails.module.css"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
-import { useJobSpec } from "../../../hooks/useJobSpec"
 import { Job } from "../../../models/lookoutV2Models"
-import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
+import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
+import { CodeBlock } from "../../CodeBlock"
 
 export interface ContainerData {
   name: string
@@ -19,7 +19,6 @@ export interface ContainerData {
 
 interface ContainerDetailsProps {
   job: Job
-  jobSpecService: IGetJobInfoService
 }
 
 const getContainerData = (container: any): ContainerData => {
@@ -48,24 +47,31 @@ const getContainerData = (container: any): ContainerData => {
   return details
 }
 
-export const ContainerDetails = ({ job, jobSpecService }: ContainerDetailsProps) => {
+export const ContainerDetails = ({ job }: ContainerDetailsProps) => {
   const openSnackbar = useCustomSnackbar()
-  const jobSpecState = useJobSpec(job, jobSpecService, openSnackbar)
+
+  const getJobSpecResult = useGetJobSpec(job.jobId, Boolean(job.jobId))
+  useEffect(() => {
+    if (getJobSpecResult.status === "error") {
+      openSnackbar(`Failed to retrieve Job spec for Job with ID: ${job.jobId}: ${getJobSpecResult.error}`, "error")
+    }
+  }, [getJobSpecResult.status, getJobSpecResult.error])
 
   const containers: ContainerData[] = useMemo(() => {
-    if (jobSpecState.loadState === "Loading" || jobSpecState.jobSpec === undefined) {
+    if (getJobSpecResult.status !== "success") {
       return []
     }
+
     const containerDetails: ContainerData[] = []
-    if (jobSpecState.jobSpec.podSpec && jobSpecState.jobSpec.podSpec.containers) {
-      for (const container of jobSpecState.jobSpec.podSpec.containers as Record<string, unknown>[]) {
+    if (getJobSpecResult.data.podSpec?.containers) {
+      for (const container of getJobSpecResult.data.podSpec.containers as Record<string, unknown>[]) {
         containerDetails.push(getContainerData(container))
       }
     }
     return containerDetails
-  }, [jobSpecState])
+  }, [getJobSpecResult.status, getJobSpecResult.data])
 
-  if (jobSpecState.loadState === "Loading") {
+  if (getJobSpecResult.status === "pending") {
     return (
       <div className={styles.container + " " + styles.centerContent}>
         <CircularProgress />
@@ -102,7 +108,7 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
         <div className={styles.singleContainer}>
           <div className={styles.commandContainer}>
             <Typography>Command</Typography>
-            <div className={styles.command}>{entrypoint}</div>
+            <CodeBlock code={entrypoint} language="bash" downloadable={false} showLineNumbers={false} />
           </div>
           <div>
             <Typography>Resources</Typography>
@@ -120,6 +126,7 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
                 {
                   key: "image",
                   value: container.image,
+                  allowCopy: true,
                 },
               ]}
             />
