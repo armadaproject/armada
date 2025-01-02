@@ -40,7 +40,7 @@ func TestQueueScheduler(t *testing.T) {
 		// Initial resource usage for all queues.
 		InitialAllocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string]
 		// Nodes to be considered by the scheduler.
-		Nodes []*schedulerobjects.Node
+		Nodes []*internaltypes.Node
 		// Jobs to try scheduling.
 		Jobs []*jobdb.Job
 		// Indices of jobs expected to be scheduled.
@@ -51,48 +51,48 @@ func TestQueueScheduler(t *testing.T) {
 		"simple success": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 31),
 		},
 		"simple failure": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 31),
 		},
 		"multiple nodes": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:                    testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 64),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 63),
 		},
 		"preempt lower-priority jobs": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 1),
 		},
 		"no preemption of higher-priority jobs": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1), testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
 		},
 		"unschedulable jobs do not block schedulable jobs": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 10), testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{0, 11},
 		},
 		"MaximumSchedulingBurst": {
 			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 10),
@@ -104,7 +104,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"MaximumPerQueueSchedulingBurst": {
 			SchedulingConfig: testfixtures.WithPerQueueSchedulingLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 10),
@@ -117,7 +117,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"MaximumSchedulingBurst is not exceeded by gangs": {
 			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
@@ -131,7 +131,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"MaximumPerQueueSchedulingBurst is not exceeded by gangs": {
 			SchedulingConfig: testfixtures.WithPerQueueSchedulingLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
@@ -149,7 +149,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Queues:                        testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:                         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                         testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			ExpectedScheduledIndices:      testfixtures.IntRange(0, 16),
 			ExpectedNeverAttemptedIndices: testfixtures.IntRange(17, 31),
@@ -165,7 +165,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Queues: testfixtures.SingleQueuePriorityOne("A"),
-			Nodes:  testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:  testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
@@ -201,20 +201,20 @@ func TestQueueScheduler(t *testing.T) {
 					},
 				},
 			},
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 15),
 		},
 		"fairness two queues": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32), testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32)),
 			Queues:                   []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
 			ExpectedScheduledIndices: armadaslices.Concatenate(testfixtures.IntRange(0, 15), testfixtures.IntRange(32, 47)),
 		},
 		"fairness three queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
@@ -229,7 +229,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"weighted fairness two queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 96),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 96),
@@ -242,7 +242,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"weighted fairness three queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 96),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 96),
@@ -257,7 +257,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"fairness two queues with initial allocation": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
@@ -276,14 +276,10 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"node with no available capacity": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes: testfixtures.WithUsedResourcesNodes(
+			Nodes: testfixtures.ItWithUsedResourcesNodes(
 				0,
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("32"),
-					},
-				},
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.Cpu("32"),
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
@@ -291,14 +287,10 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"node with some available capacity": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes: testfixtures.WithUsedResourcesNodes(
+			Nodes: testfixtures.ItWithUsedResourcesNodes(
 				0,
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("31"),
-					},
-				},
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.Cpu("31"),
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
@@ -306,14 +298,10 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"preempt used resources of lower-priority jobs": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes: testfixtures.WithUsedResourcesNodes(
+			Nodes: testfixtures.ItWithUsedResourcesNodes(
 				0,
-				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("32"),
-					},
-				},
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.Cpu("32"),
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			),
 			Jobs:                     testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
@@ -321,14 +309,14 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"respect taints": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItNTainted32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{1},
 		},
 		"taints and tolerations": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItNTainted32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{1},
@@ -336,8 +324,11 @@ func TestQueueScheduler(t *testing.T) {
 		"Node selector": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes: armadaslices.Concatenate(
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-				testfixtures.WithLabelsNodes(map[string]string{"foo": "foo"}, testfixtures.N32CpuNodes(1, testfixtures.TestPriorities)),
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{"foo": "foo"},
+				),
 			),
 			Jobs:                     testfixtures.WithNodeSelectorJobs(map[string]string{"foo": "foo"}, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
@@ -345,7 +336,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"taints and tolerations (indexed)": {
 			SchedulingConfig:         testfixtures.WithIndexedTaintsConfig([]string{"largeJobsOnly"}, testfixtures.TestSchedulingConfig()),
-			Nodes:                    testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItNTainted32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     armadaslices.Concatenate(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{1},
@@ -353,8 +344,11 @@ func TestQueueScheduler(t *testing.T) {
 		"Node selector (indexed)": {
 			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig([]string{"foo"}, testfixtures.TestSchedulingConfig()),
 			Nodes: append(
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-				testfixtures.WithLabelsNodes(map[string]string{"foo": "foo"}, testfixtures.N32CpuNodes(1, testfixtures.TestPriorities))...,
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{"foo": "foo"},
+				)...,
 			),
 			Jobs:                     testfixtures.WithNodeSelectorJobs(map[string]string{"foo": "foo"}, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
@@ -362,7 +356,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"MaxQueueLookback": {
 			SchedulingConfig: testfixtures.WithMaxQueueLookbackConfig(3, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
@@ -374,14 +368,14 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"gang success": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: []int{0, 1},
 		},
 		"non-consecutive gang success": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithAnnotationsJobs(map[string]string{
 					armadaconfiguration.GangIdAnnotation:          "my-gang",
@@ -400,14 +394,14 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"gang failure": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
-			Nodes:                    testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:                    testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3)),
 			Queues:                   testfixtures.SingleQueuePriorityOne("A"),
 			ExpectedScheduledIndices: nil,
 		},
 		"non-consecutive gang failure": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithAnnotationsJobs(map[string]string{
 					armadaconfiguration.GangIdAnnotation:          "my-gang",
@@ -426,7 +420,7 @@ func TestQueueScheduler(t *testing.T) {
 		},
 		"job priority": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithPriorityJobs(10, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithPriorityJobs(1, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -438,19 +432,19 @@ func TestQueueScheduler(t *testing.T) {
 		"nodeAffinity node notIn": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes: armadaslices.Concatenate(
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val1"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val2"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val3"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithNodeAffinityJobs(
@@ -478,9 +472,7 @@ func TestQueueScheduler(t *testing.T) {
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-				require.NoError(t, err)
-				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
 				require.NoError(t, err)
 			}
 			txn.Commit()

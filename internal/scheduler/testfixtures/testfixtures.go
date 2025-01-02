@@ -1131,3 +1131,30 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 	}
 }
+
+func Cpu(cpu string) internaltypes.ResourceList {
+	return TestResourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu": resource.MustParse(cpu),
+		},
+	)
+}
+
+func CpuMem(cpu string, memory string) internaltypes.ResourceList {
+	return TestResourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse(cpu),
+			"memory": resource.MustParse(memory),
+		},
+	)
+}
+
+func CpuMemGpu(cpu string, memory string, gpu string) internaltypes.ResourceList {
+	return TestResourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu":            resource.MustParse(cpu),
+			"memory":         resource.MustParse(memory),
+			"nvidia.com/gpu": resource.MustParse(gpu),
+		},
+	)
+}
