@@ -3,6 +3,10 @@ package grpc
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
+	"runtime/debug"
+	"sync"
+	"time"
 
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
@@ -16,10 +20,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
-	"net"
-	"runtime/debug"
-	"sync"
-	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
