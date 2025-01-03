@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"google.golang.org/grpc/codes"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -11,9 +10,11 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
+	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -47,7 +48,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
-	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
