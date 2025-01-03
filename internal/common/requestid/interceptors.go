@@ -3,7 +3,7 @@ package requestid
 import (
 	"context"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/renstrom/shortuuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
