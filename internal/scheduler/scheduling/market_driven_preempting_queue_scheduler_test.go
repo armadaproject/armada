@@ -54,7 +54,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 	}{
 		"three users, highest price jobs from single queue get on": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -78,7 +78,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"three users, highest price jobs between queues get on": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -114,7 +114,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Two users, no preemption if price lower": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -134,7 +134,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Two users, preemption if price higher": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -162,7 +162,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Two users, partial preemption if price higher": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -193,7 +193,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Self Preemption If Price Is Higher": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -224,7 +224,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Two Users. Self preemption plus cross user preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -254,7 +254,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		},
 		"gang preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
