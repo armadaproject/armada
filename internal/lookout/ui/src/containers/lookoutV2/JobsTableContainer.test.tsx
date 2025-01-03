@@ -23,6 +23,12 @@ import FakeGetJobsService from "../../services/lookoutV2/mocks/FakeGetJobsServic
 import { FakeGetRunInfoService } from "../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import FakeGroupJobsService from "../../services/lookoutV2/mocks/FakeGroupJobsService"
 
+const intersectionObserverMock = () => ({
+  observe: () => null,
+  disconnect: () => null,
+})
+window.IntersectionObserver = vi.fn().mockImplementation(intersectionObserverMock)
+
 vi.setConfig({
   // This is quite a heavy component, and tests can timeout on a slower machine
   testTimeout: 30_000,
@@ -177,15 +183,14 @@ describe("JobsTableContainer", () => {
       ["Job Set", "jobSet"],
       ["Queue", "queue"],
       ["State", "state"],
-    ])("should allow grouping by %s", async (displayString, groupKey) => {
+    ] as [string, keyof Job][])("should allow grouping by %s", async (displayString, groupKey) => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
         ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-3", JobState.Running),
       ]
 
-      const jobObjKey = groupKey as keyof Job
-      const numUniqueForJobKey = new Set(jobs.map((j) => j[jobObjKey])).size
+      const numUniqueForJobKey = new Set(jobs.map((j) => j[groupKey])).size
 
       renderComponent(jobs)
       await waitForFinishedLoading()
@@ -197,10 +202,10 @@ describe("JobsTableContainer", () => {
 
       // Expand a row
       const job = jobs[0]
-      await expandRow(job[jobObjKey]!.toString())
+      await expandRow(job[groupKey]!.toString())
 
       // Check the right number of rows is being shown
-      const numShownJobs = jobs.filter((j) => j[jobObjKey] === job[jobObjKey]).length
+      const numShownJobs = jobs.filter((j) => j[groupKey] === job[groupKey]).length
       await assertNumDataRowsShown(numUniqueForJobKey + numShownJobs)
     })
 
@@ -682,21 +687,17 @@ describe("JobsTableContainer", () => {
   }
 
   async function addAnnotationColumn(annotationKey: string) {
-    const editColumnsButton = await screen.findByRole("button", { name: /columns selected/i })
+    const editColumnsButton = await screen.findByRole("button", { name: /configure columns/i })
     await userEvent.click(editColumnsButton)
 
-    const addColumnButton = await screen.findByRole("button", { name: /Add column/i })
-    await userEvent.click(addColumnButton)
-
-    const textbox = await screen.findByRole("textbox", { name: /Annotation key/i })
+    const textbox = await screen.findByRole("textbox", { name: /annotation key/i })
     await userEvent.type(textbox, annotationKey)
 
-    const saveButton = await screen.findByRole("button", { name: /Save/i })
+    const saveButton = await screen.findByRole("button", { name: /add a column for annotation/i })
     await userEvent.click(saveButton)
 
-    // Close pop up
-    await userEvent.click(screen.getByText(/Click here to add an annotation column/i))
-    await userEvent.keyboard("{Escape}")
+    const closeButton = await screen.findByRole("button", { name: /close/i })
+    await userEvent.click(closeButton)
   }
 
   async function clickOnJobRow(jobId: string) {
