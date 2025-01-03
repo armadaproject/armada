@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	ittestfixtures "github.com/armadaproject/armada/internal/scheduler/internaltypes/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -23,7 +22,7 @@ func TestJobSchedulingContext_SetAssignedNode(t *testing.T) {
 	assert.Empty(t, jctx.GetAssignedNodeId())
 	assert.Empty(t, jctx.AdditionalNodeSelectors)
 
-	n := ittestfixtures.TestSimpleNode("node1")
+	n := testfixtures.TestSimpleNode("node1")
 	jctx.SetAssignedNode(n)
 	assert.Equal(t, n, jctx.GetAssignedNode())
 	assert.Equal(t, "node1", jctx.GetAssignedNodeId())
