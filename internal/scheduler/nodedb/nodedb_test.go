@@ -728,6 +728,7 @@ func benchmarkUpsert(nodes []*internaltypes.Node, b *testing.B) {
 		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
 		require.NoError(b, err)
 		entry, err := nodeDb.GetNodeWithTxn(txn, node.GetId())
+		require.NotNil(b, entry)
 		require.NoError(b, err)
 		entries[i] = entry
 	}
