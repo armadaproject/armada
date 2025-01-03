@@ -833,7 +833,7 @@ func BenchmarkScheduleMany100CpuNodes1CpuUnused(b *testing.B) {
 		b,
 		testfixtures.ItWithUsedResourcesNodes(
 			0,
-			cpu("31"),
+			testfixtures.Cpu("31"),
 			testfixtures.ItN32CpuNodes(100, testfixtures.TestPriorities),
 		),
 		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 100),
@@ -845,7 +845,7 @@ func BenchmarkScheduleMany1000CpuNodes1CpuUnused(b *testing.B) {
 		b,
 		testfixtures.ItWithUsedResourcesNodes(
 			0,
-			cpu("31"),
+			testfixtures.Cpu("31"),
 			testfixtures.ItN32CpuNodes(1000, testfixtures.TestPriorities),
 		),
 		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1000),
@@ -857,7 +857,7 @@ func BenchmarkScheduleMany10000CpuNodes1CpuUnused(b *testing.B) {
 		b,
 		testfixtures.ItWithUsedResourcesNodes(
 			0,
-			cpu("31"),
+			testfixtures.Cpu("31"),
 			testfixtures.ItN32CpuNodes(10000, testfixtures.TestPriorities),
 		),
 		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10000),

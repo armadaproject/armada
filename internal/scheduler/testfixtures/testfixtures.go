@@ -290,27 +290,9 @@ func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfigura
 	return config
 }
 
-func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
-	for _, node := range nodes {
-		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)
-	}
-	return nodes
-}
-
 func ItWithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
 	for _, node := range nodes {
 		internaltypes.MarkAllocated(node.AllocatableByPriority, p, rl)
-	}
-	return nodes
-}
-
-func WithLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
-	for _, node := range nodes {
-		if node.Labels == nil {
-			node.Labels = maps.Clone(labels)
-		} else {
-			maps.Copy(node.Labels, labels)
-		}
 	}
 	return nodes
 }
@@ -777,14 +759,6 @@ func TestCluster() []*schedulerobjects.Node {
 	}
 }
 
-func N32CpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = Test32CpuNode(priorities)
-	}
-	return rv
-}
-
 func ItN32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
 	for i := 0; i < n; i++ {
@@ -793,26 +767,10 @@ func ItN32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	return rv
 }
 
-func NTainted32CpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = TestTainted32CpuNode(priorities)
-	}
-	return rv
-}
-
 func ItNTainted32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
 	for i := 0; i < n; i++ {
 		rv[i] = ItTestTainted32CpuNode(priorities)
-	}
-	return rv
-}
-
-func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = Test8GpuNode(priorities)
 	}
 	return rv
 }
@@ -1130,4 +1088,22 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 	}
+}
+
+func Cpu(cpu string) internaltypes.ResourceList {
+	return CpuMemGpu(cpu, "0", "0")
+}
+
+func CpuMem(cpu string, memory string) internaltypes.ResourceList {
+	return CpuMemGpu(cpu, memory, "0")
+}
+
+func CpuMemGpu(cpu string, memory string, gpu string) internaltypes.ResourceList {
+	return TestResourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu":            resource.MustParse(cpu),
+			"memory":         resource.MustParse(memory),
+			"nvidia.com/gpu": resource.MustParse(gpu),
+		},
+	)
 }
