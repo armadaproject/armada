@@ -33,10 +33,10 @@ func TestGangScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
 		// Nodes to be considered by the scheduler.
-		Nodes []*schedulerobjects.Node
+		Nodes []*internaltypes.Node
 		// Total resources across all clusters.
 		// Set to the total resources across all nodes if not provided.
-		TotalResources schedulerobjects.ResourceList
+		TotalResources internaltypes.ResourceList
 		// Gangs to try scheduling.
 		Gangs [][]*jobdb.Job
 		// Indices of gangs expected to be scheduled.
@@ -54,7 +54,7 @@ func TestGangScheduler(t *testing.T) {
 	}{
 		"simple success": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)),
 			},
@@ -65,7 +65,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"simple failure": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33)),
 			},
@@ -76,7 +76,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"one success and one failure": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -88,7 +88,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"multiple nodes": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 64)),
 			},
@@ -103,7 +103,7 @@ func TestGangScheduler(t *testing.T) {
 				cfg.ExperimentalFloatingResources = testfixtures.TestFloatingResourceConfig
 				return cfg
 			}(),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				// we have 10 of test-floating-resource so only the first of these two jobs should fit
 				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1))),
@@ -119,7 +119,7 @@ func TestGangScheduler(t *testing.T) {
 				map[string]float64{"cpu": 0.5},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 8)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 16)),
@@ -138,7 +138,7 @@ func TestGangScheduler(t *testing.T) {
 					testfixtures.TestSchedulingConfig(),
 				),
 			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -159,7 +159,7 @@ func TestGangScheduler(t *testing.T) {
 					testfixtures.TestSchedulingConfig(),
 				),
 			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -182,7 +182,7 @@ func TestGangScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2)),
@@ -206,7 +206,7 @@ func TestGangScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -228,7 +228,7 @@ func TestGangScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -250,25 +250,15 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes: armadaslices.Concatenate(
-				testfixtures.WithUsedResourcesNodes(
+				testfixtures.ItWithUsedResourcesNodes(
 					0,
-					schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
-							"cpu":            resource.MustParse("31.5"),
-							"memory":         resource.MustParse("512Gi"),
-							"nvidia.com/gpu": resource.MustParse("8"),
-						},
-					},
-					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+					testfixtures.CpuMemGpu("31.5", "512Gi", "8"),
+					testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithUsedResourcesNodes(
+				testfixtures.ItWithUsedResourcesNodes(
 					0,
-					schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("32"),
-						},
-					},
-					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+					testfixtures.Cpu("32"),
+					testfixtures.ItN8GpuNodes(1, testfixtures.TestPriorities),
 				),
 			),
 			Gangs: [][]*jobdb.Job{
@@ -281,9 +271,9 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"NodeUniformityLabel set but not indexed": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes: testfixtures.WithLabelsNodes(
+			Nodes: testfixtures.TestNodeFactory.AddLabels(
+				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 				map[string]string{"foo": "foov"},
-				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(
@@ -302,7 +292,7 @@ func TestGangScheduler(t *testing.T) {
 				[]string{"foo", "bar"},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.WithNodeUniformityLabelAnnotationJobs(
@@ -321,13 +311,13 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes: armadaslices.Concatenate(
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"foo": "foov1"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"foo": "foov2"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 			),
 			Gangs: [][]*jobdb.Job{
@@ -346,25 +336,25 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes: armadaslices.Concatenate(
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItWithUsedResourcesNodes(
+						0,
+						testfixtures.Cpu("1"),
+						testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+					),
 					map[string]string{"foo": "foov1"},
-					testfixtures.WithUsedResourcesNodes(
-						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-						testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
-					),
 				),
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 					map[string]string{"foo": "foov2"},
-					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
-					map[string]string{"foo": "foov3"},
-					testfixtures.WithUsedResourcesNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItWithUsedResourcesNodes(
 						0,
-						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-						testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+						testfixtures.Cpu("1"),
+						testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 					),
+					map[string]string{"foo": "foov3"},
 				),
 			),
 			Gangs: [][]*jobdb.Job{
@@ -385,13 +375,13 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes: append(
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
 					map[string]string{"my-cool-node-uniformity": "a"},
-					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
 					map[string]string{"my-cool-node-uniformity": "b"},
-					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				)...,
 			),
 			Gangs: [][]*jobdb.Job{
@@ -454,16 +444,12 @@ func TestGangScheduler(t *testing.T) {
 				}
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
-				nodes := testfixtures.N8GpuNodes(1, []int32{29000, 30000})
-				for _, node := range nodes {
-					node.Taints = []v1.Taint{
-						{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
-						{Key: "taint-b", Value: "true", Effect: v1.TaintEffectNoSchedule},
-					}
-				}
-				return nodes
-			}(),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(
+				testfixtures.ItN8GpuNodes(1, []int32{29000, 30000}),
+				[]v1.Taint{
+					{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
+					{Key: "taint-b", Value: "true", Effect: v1.TaintEffectNoSchedule},
+				}),
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				var jobId ulid.ULID
 				jobId = util.ULID()
@@ -507,15 +493,12 @@ func TestGangScheduler(t *testing.T) {
 				}
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
-				nodes := testfixtures.N32CpuNodes(1, []int32{29000, 30000})
-				for _, node := range nodes {
-					node.Taints = []v1.Taint{
-						{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
-					}
-				}
-				return nodes
-			}(),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(
+				testfixtures.ItN32CpuNodes(1, []int32{29000, 30000}),
+				[]v1.Taint{
+					{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
+				},
+			),
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				jobId := util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiPodReqs("A", jobId, 30000))})
@@ -535,7 +518,7 @@ func TestGangScheduler(t *testing.T) {
 				cfg.MaximumPerQueueSchedulingRate = 2
 				return cfg
 			}(),
-			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
@@ -548,7 +531,7 @@ func TestGangScheduler(t *testing.T) {
 		},
 		"Hitting globally applicable constraint makes job scheduling key unfeasible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1GpuJobs("B", testfixtures.PriorityClass0, 1)),
@@ -584,9 +567,9 @@ func TestGangScheduler(t *testing.T) {
 				expectedUnfeasibleJobSchedulingKeys = append(expectedUnfeasibleJobSchedulingKeys, key)
 			}
 
-			nodesById := make(map[string]*schedulerobjects.Node, len(tc.Nodes))
+			nodesById := make(map[string]*internaltypes.Node, len(tc.Nodes))
 			for _, node := range tc.Nodes {
-				nodesById[node.Id] = node
+				nodesById[node.GetId()] = node
 			}
 			nodeDb, err := nodedb.NewNodeDb(
 				tc.SchedulingConfig.PriorityClasses,
@@ -599,17 +582,13 @@ func TestGangScheduler(t *testing.T) {
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-				require.NoError(t, err)
-				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys())
 				require.NoError(t, err)
 			}
 			txn.Commit()
-			if tc.TotalResources.Resources == nil {
+			if tc.TotalResources.AllZero() {
 				// Default to NodeDb total.
-				tc.TotalResources = schedulerobjects.ResourceList{
-					Resources: nodeDb.TotalKubernetesResources().ToMap(),
-				}
+				tc.TotalResources = nodeDb.TotalKubernetesResources()
 			}
 			priorityFactorByQueue := make(map[string]float64)
 			for _, jobs := range tc.Gangs {
@@ -618,10 +597,8 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 
-			totalResources := testfixtures.TestResourceListFactory.FromNodeProto(tc.TotalResources.Resources)
-
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				totalResources,
+				tc.TotalResources,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -632,7 +609,7 @@ func TestGangScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
-				totalResources,
+				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				err := sctx.AddQueueSchedulingContext(
@@ -650,7 +627,7 @@ func TestGangScheduler(t *testing.T) {
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
-				totalResources,
+				tc.TotalResources,
 				tc.SchedulingConfig,
 				armadaslices.Map(
 					maps.Keys(priorityFactorByQueue),
@@ -687,7 +664,7 @@ func TestGangScheduler(t *testing.T) {
 							}
 							node := nodesById[pctx.NodeId]
 							require.NotNil(t, node)
-							value, ok := node.Labels[nodeUniformity]
+							value, ok := node.GetLabelValue(nodeUniformity)
 							require.True(t, ok, "gang job scheduled onto node with missing nodeUniformityLabel")
 							nodeUniformityLabelValues[value] = true
 						}
