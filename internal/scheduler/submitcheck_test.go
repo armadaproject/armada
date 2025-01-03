@@ -329,7 +329,7 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 }
 
 func GpuNode(pool string) *schedulerobjects.Node {
-	node := testfixtures.TestNode(
+	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
 		map[string]resource.Quantity{
 			"cpu":            resource.MustParse("30"),
@@ -348,7 +348,7 @@ func GpuNode(pool string) *schedulerobjects.Node {
 }
 
 func SmallNode(pool string) *schedulerobjects.Node {
-	node := testfixtures.TestNode(
+	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
 		map[string]resource.Quantity{
 			"cpu":    resource.MustParse("2"),
