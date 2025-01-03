@@ -1,6 +1,8 @@
-import { Chip } from "@mui/material"
+import { Chip, styled } from "@mui/material"
 
 import { JobState, jobStateColors } from "../../models/lookoutV2Models"
+
+const StyledChip = styled(Chip)({ padding: "0 1ch" })
 
 export interface JobStateCountChipProps {
   state: JobState
@@ -11,7 +13,7 @@ export const JobStateCountChip = ({ state, count, onClick }: JobStateCountChipPr
   const label = count.toString()
 
   return count > 0 ? (
-    <Chip label={label} color={jobStateColors[state]} clickable component="button" onClick={onClick} variant="filled" />
+    <StyledChip label={label} color={jobStateColors[state]} clickable onClick={onClick} variant="filled" size="small" />
   ) : (
     <>{label}</>
   )
