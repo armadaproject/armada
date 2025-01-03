@@ -290,14 +290,14 @@ func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfigura
 	return config
 }
 
-func ItWithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
+func WithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
 	for _, node := range nodes {
 		internaltypes.MarkAllocated(node.AllocatableByPriority, p, rl)
 	}
 	return nodes
 }
 
-func ItWithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
+func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		result[i] = internaltypes.CreateNode(node.GetId(),
@@ -319,7 +319,7 @@ func ItWithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltype
 	return result
 }
 
-func ItWithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.Node {
+func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		result[i] = internaltypes.CreateNode(nodeId,
@@ -342,7 +342,7 @@ func ItWithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.
 	return result
 }
 
-func ItWithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
+func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 	return internaltypes.CreateNode(node.GetId(),
 		node.GetNodeType(),
 		idx,
@@ -700,26 +700,26 @@ func TestUnitReqs() *schedulerobjects.PodRequirements {
 	}
 }
 
-func ItN32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
+func N32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
 	for i := 0; i < n; i++ {
-		rv[i] = ItTest32CpuNode(priorities)
+		rv[i] = Test32CpuNode(priorities)
 	}
 	return rv
 }
 
-func ItNTainted32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
+func NTainted32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
 	for i := 0; i < n; i++ {
-		rv[i] = ItTestTainted32CpuNode(priorities)
+		rv[i] = TestTainted32CpuNode(priorities)
 	}
 	return rv
 }
 
-func ItN8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
+func N8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
 	for i := 0; i < n; i++ {
-		rv[i] = ItTest8GpuNode(priorities)
+		rv[i] = Test8GpuNode(priorities)
 	}
 	return rv
 }
@@ -767,7 +767,7 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		nil)
 }
 
-func ItTestNode(priorities []int32, resources map[string]resource.Quantity) *internaltypes.Node {
+func TestNode(priorities []int32, resources map[string]resource.Quantity) *internaltypes.Node {
 	rl := TestNodeFactory.ResourceListFactory().FromNodeProto(resources)
 	id := uuid.NewString()
 	return TestNodeFactory.CreateNodeAndType(id,
@@ -785,8 +785,8 @@ func ItTestNode(priorities []int32, resources map[string]resource.Quantity) *int
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
 }
 
-func ItTest32CpuNode(priorities []int32) *internaltypes.Node {
-	return ItTestNode(
+func Test32CpuNode(priorities []int32) *internaltypes.Node {
+	return TestNode(
 		priorities,
 		map[string]resource.Quantity{
 			"cpu":    resource.MustParse("32"),
@@ -795,8 +795,8 @@ func ItTest32CpuNode(priorities []int32) *internaltypes.Node {
 	)
 }
 
-func ItTestTainted32CpuNode(priorities []int32) *internaltypes.Node {
-	node := ItTest32CpuNode(priorities)
+func TestTainted32CpuNode(priorities []int32) *internaltypes.Node {
+	node := Test32CpuNode(priorities)
 
 	node = TestNodeFactory.AddTaints([]*internaltypes.Node{node},
 		[]v1.Taint{
@@ -815,8 +815,8 @@ func ItTestTainted32CpuNode(priorities []int32) *internaltypes.Node {
 	return node
 }
 
-func ItTest8GpuNode(priorities []int32) *internaltypes.Node {
-	node := ItTestNode(
+func Test8GpuNode(priorities []int32) *internaltypes.Node {
+	node := TestNode(
 		priorities,
 		map[string]resource.Quantity{
 			"cpu":            resource.MustParse("64"),
