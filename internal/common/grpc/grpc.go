@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -8,10 +9,11 @@ import (
 	"sync"
 	"time"
 
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
+
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -25,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/certs"
+	grpc_armadacontext "github.com/armadaproject/armada/internal/common/grpc/armadacontext"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
@@ -36,13 +39,12 @@ func CreateGrpcServer(
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []auth.AuthService,
 	tlsConfig configuration.TlsConfig,
-	loggingOpts ...grpc_logrus.Option,
 ) *grpc.Server {
-
-	defaultLogger := log.NewEntry(log.StandardLogger())
 
 	authFunction := auth.CreateGrpcMiddlewareAuthFunction(auth.NewMultiAuthService(authServices))
 	srvMetrics := setupPromMetrics()
+
+	loggerOpts := []grpc_logging.Option{grpc_logging.WithLogOnEvents(grpc_logging.StartCall, grpc_logging.FinishCall)}
 
 	return grpc.NewServer(
 		grpc.KeepaliveParams(keepaliveParams),
@@ -51,17 +53,19 @@ func CreateGrpcServer(
 		grpc.ChainUnaryInterceptor(
 			srvMetrics.UnaryServerInterceptor(),
 			requestid.UnaryServerInterceptor(false),
-			grpc_logrus.UnaryServerInterceptor(defaultLogger, loggingOpts...),
-			armadaerrors.UnaryServerInterceptor(2000),
 			grpc_auth.UnaryServerInterceptor(authFunction),
+			grpc_armadacontext.UnaryServerInterceptor(),
+			grpc_logging.UnaryServerInterceptor(InterceptorLogger(), loggerOpts...),
+			armadaerrors.UnaryServerInterceptor(2000),
 			grpc_recovery.UnaryServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
 		),
 		grpc.ChainStreamInterceptor(
 			srvMetrics.StreamServerInterceptor(),
 			requestid.StreamServerInterceptor(false),
-			grpc_logrus.StreamServerInterceptor(defaultLogger, loggingOpts...),
-			armadaerrors.StreamServerInterceptor(2000),
 			grpc_auth.StreamServerInterceptor(authFunction),
+			grpc_armadacontext.StreamServerInterceptor(),
+			grpc_logging.StreamServerInterceptor(InterceptorLogger(), loggerOpts...),
+			armadaerrors.StreamServerInterceptor(2000),
 			grpc_recovery.StreamServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
 		),
 	)
@@ -136,4 +140,29 @@ func setupTls(tlsConfig configuration.TlsConfig) grpc.ServerOption {
 func panicRecoveryHandler(p interface{}) (err error) {
 	log.Errorf("Request triggered panic with cause %v \n%s", p, string(debug.Stack()))
 	return status.Errorf(codes.Internal, "Internal server error caused by %v", p)
+}
+
+func InterceptorLogger() grpc_logging.Logger {
+	return grpc_logging.LoggerFunc(func(ctx context.Context, lvl grpc_logging.Level, msg string, fields ...any) {
+		armadaCtx := armadacontext.FromGrpcCtx(ctx)
+		logFields := make(map[string]any, len(fields)/2)
+		i := grpc_logging.Fields(fields).Iterator()
+		for i.Next() {
+			k, v := i.At()
+			logFields[k] = v
+		}
+		l := armadaCtx.WithFields(logFields)
+		switch lvl {
+		case grpc_logging.LevelDebug:
+			l.Debug(msg)
+		case grpc_logging.LevelInfo:
+			l.Info(msg)
+		case grpc_logging.LevelWarn:
+			l.Warn(msg)
+		case grpc_logging.LevelError:
+			l.Error(msg)
+		default:
+			panic(fmt.Sprintf("unknown level %v", lvl))
+		}
+	})
 }

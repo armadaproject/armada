@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+	grpc_metadata "github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	authv1 "k8s.io/api/authentication/v1"
@@ -151,7 +151,7 @@ func TestAuthenticateKubernetes(t *testing.T) {
 	// Create authentication context
 	payload := createKubernetesAuthPayload(testToken, testCA)
 	ctx := context.Background()
-	metadata := metautils.ExtractIncoming(ctx)
+	metadata := grpc_metadata.ExtractIncoming(ctx)
 	metadata.Set("authorization", payload)
 	ctx = metadata.ToIncoming(ctx)
 
