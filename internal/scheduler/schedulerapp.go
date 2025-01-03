@@ -10,7 +10,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
+	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -183,7 +183,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls, createLogrusLoggingOption())
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls, createGrpcLoggingOption())
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
@@ -369,13 +369,13 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 //   - We only care about failures, so lets only log failures
 //   - We normally use these logs to work out who is calling us, however the Executor API is not public
 //     and is only called by other Armada components
-func createLogrusLoggingOption() grpc_logrus.Option {
-	return grpc_logrus.WithLevels(func(code codes.Code) log.Level {
+func createGrpcLoggingOption() grpc_logging.Option {
+	return grpc_logging.WithLevels(func(code codes.Code) grpc_logging.Level {
 		switch code {
 		case codes.OK:
-			return log.TraceLevel
+			return grpc_logging.LevelDebug
 		default:
-			return grpc_logrus.DefaultCodeToLevel(code)
+			return grpc_logging.DefaultServerCodeToLevel(code)
 		}
 	})
 }

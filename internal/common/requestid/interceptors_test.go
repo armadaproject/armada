@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/renstrom/shortuuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

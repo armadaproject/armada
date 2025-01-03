@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

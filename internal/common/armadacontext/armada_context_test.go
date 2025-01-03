@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -17,13 +15,6 @@ func TestNew(t *testing.T) {
 	ctx := New(context.Background(), defaultLogger)
 	require.Equal(t, defaultLogger, ctx.FieldLogger)
 	require.Equal(t, context.Background(), ctx.Context)
-}
-
-func TestFromGrpcContext(t *testing.T) {
-	grpcCtx := ctxlogrus.ToContext(context.Background(), defaultLogger)
-	ctx := FromGrpcCtx(grpcCtx)
-	require.Equal(t, grpcCtx, ctx.Context)
-	require.Equal(t, defaultLogger, ctx.FieldLogger)
 }
 
 func TestBackground(t *testing.T) {
