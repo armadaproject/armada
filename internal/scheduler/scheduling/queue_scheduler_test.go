@@ -472,7 +472,7 @@ func TestQueueScheduler(t *testing.T) {
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys())
 				require.NoError(t, err)
 			}
 			txn.Commit()

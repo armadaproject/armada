@@ -51,12 +51,14 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	stringInterner := stringinterner.New(1024)
 
-	node := testfixtures.ItTest32CpuNode(priorities)
 	nodeDb, err := NewNodeDb(config, stringInterner)
 	require.NoError(t, err)
-	require.NoError(t, err)
 	nodeDbTxn := nodeDb.Txn(true)
-	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
+	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(
+		nodeDbTxn,
+		jobs,
+		testfixtures.ItTest32CpuNode(priorities),
+	)
 	require.NoError(t, err)
 
 	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)

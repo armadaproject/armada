@@ -1091,20 +1091,11 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 }
 
 func Cpu(cpu string) internaltypes.ResourceList {
-	return TestResourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu": resource.MustParse(cpu),
-		},
-	)
+	return CpuMemGpu(cpu, "0", "0")
 }
 
 func CpuMem(cpu string, memory string) internaltypes.ResourceList {
-	return TestResourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse(cpu),
-			"memory": resource.MustParse(memory),
-		},
-	)
+	return CpuMemGpu(cpu, memory, "0")
 }
 
 func CpuMemGpu(cpu string, memory string, gpu string) internaltypes.ResourceList {
