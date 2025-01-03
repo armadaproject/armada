@@ -11,7 +11,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -20,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -32,13 +30,10 @@ import (
 func TestQueueScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
-		// Total resources across all clusters.
-		// Set to the total resources across all nodes if not provided.
-		TotalResources schedulerobjects.ResourceList
 		// Queues
 		Queues []*api.Queue
 		// Initial resource usage for all queues.
-		InitialAllocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string]
+		InitialAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 		// Nodes to be considered by the scheduler.
 		Nodes []*internaltypes.Node
 		// Jobs to try scheduling.
@@ -263,13 +258,9 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
 			),
 			Queues: []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
-			InitialAllocatedByQueueAndPriorityClass: map[string]schedulerobjects.QuantityByTAndResourceType[string]{
+			InitialAllocatedByQueueAndPriorityClass: map[string]map[string]internaltypes.ResourceList{
 				"A": {
-					testfixtures.PriorityClass0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("100"),
-						},
-					},
+					testfixtures.PriorityClass0: testfixtures.Cpu("100"),
 				},
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(32, 63),
@@ -476,12 +467,8 @@ func TestQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 			}
 			txn.Commit()
-			if tc.TotalResources.Resources == nil {
-				// Default to NodeDb total.
-				tc.TotalResources = schedulerobjects.ResourceList{
-					Resources: nodeDb.TotalKubernetesResources().ToMap(),
-				}
-			}
+
+			totalResources := nodeDb.TotalKubernetesResources()
 
 			queueNameToQueue := map[string]*api.Queue{}
 			for _, q := range tc.Queues {
@@ -500,7 +487,6 @@ func TestQueueScheduler(t *testing.T) {
 				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
 
-			totalResources := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(tc.TotalResources.Resources)
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				totalResources,
 				tc.SchedulingConfig,
@@ -519,10 +505,7 @@ func TestQueueScheduler(t *testing.T) {
 				weight := 1.0 / float64(q.PriorityFactor)
 				err := sctx.AddQueueSchedulingContext(
 					q.Name, weight,
-					internaltypes.RlMapFromJobSchedulerObjects(
-						tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
-						testfixtures.TestResourceListFactory,
-					),
+					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
 					internaltypes.ResourceList{},
 					internaltypes.ResourceList{},
 					rate.NewLimiter(
