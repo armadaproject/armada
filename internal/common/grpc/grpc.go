@@ -40,7 +40,6 @@ func CreateGrpcServer(
 	authServices []auth.AuthService,
 	tlsConfig configuration.TlsConfig,
 ) *grpc.Server {
-
 	authFunction := auth.CreateGrpcMiddlewareAuthFunction(auth.NewMultiAuthService(authServices))
 	srvMetrics := setupPromMetrics()
 
