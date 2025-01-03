@@ -638,10 +638,10 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 		numNodes := int(math.Pow10(e))
 		b.Run(fmt.Sprintf("%d nodes", numNodes), func(b *testing.B) {
 			jobs := testfixtures.N1Cpu4GiJobs("queue-alice", testfixtures.PriorityClass0, 32*numNodes)
-			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+			nodes := testfixtures.ItN32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, node.Pool, jobs[j].PriorityClass().Priority)
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.GetId(), node.GetName(), node.GetPool(), jobs[j].PriorityClass().Priority)
 				}
 			}
 			armadaslices.Shuffle(jobs)
@@ -661,12 +661,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				require.NoError(b, err)
 				b.StartTimer()
 
-				nodeFactory := internaltypes.NewNodeFactory(
-					schedulingConfig.IndexedTaints,
-					schedulingConfig.IndexedNodeLabels,
-					testfixtures.TestResourceListFactory,
-				)
-
 				nodeDb, err := nodedb.NewNodeDb(
 					schedulingConfig.PriorityClasses,
 					schedulingConfig.IndexedResources,
@@ -679,9 +673,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 
 				dbNodes := []*internaltypes.Node{}
 				for _, node := range nodes {
-					dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
-					require.NoError(b, err)
-					dbNodes = append(dbNodes, dbNode)
+					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
 				err = algo.populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
