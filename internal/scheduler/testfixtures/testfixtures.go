@@ -290,32 +290,14 @@ func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfigura
 	return config
 }
 
-func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
-	for _, node := range nodes {
-		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)
-	}
-	return nodes
-}
-
-func ItWithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
+func WithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
 	for _, node := range nodes {
 		internaltypes.MarkAllocated(node.AllocatableByPriority, p, rl)
 	}
 	return nodes
 }
 
-func WithLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
-	for _, node := range nodes {
-		if node.Labels == nil {
-			node.Labels = maps.Clone(labels)
-		} else {
-			maps.Copy(node.Labels, labels)
-		}
-	}
-	return nodes
-}
-
-func ItWithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
+func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		result[i] = internaltypes.CreateNode(node.GetId(),
@@ -337,7 +319,7 @@ func ItWithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltype
 	return result
 }
 
-func ItWithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.Node {
+func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
 		result[i] = internaltypes.CreateNode(nodeId,
@@ -360,7 +342,7 @@ func ItWithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.
 	return result
 }
 
-func ItWithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
+func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 	return internaltypes.CreateNode(node.GetId(),
 		node.GetNodeType(),
 		idx,
@@ -718,109 +700,26 @@ func TestUnitReqs() *schedulerobjects.PodRequirements {
 	}
 }
 
-func TestCluster() []*schedulerobjects.Node {
-	return []*schedulerobjects.Node{
-		{
-			Id:   "node1",
-			Pool: TestPool,
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("3"),
-					"memory": resource.MustParse("3Gi"),
-				},
-			},
-			Labels: map[string]string{
-				TestHostnameLabel: "node1",
-			},
-		},
-		{
-			Id:   "node2",
-			Pool: TestPool,
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("6"),
-					"memory": resource.MustParse("6Gi"),
-				},
-			},
-			Labels: map[string]string{
-				TestHostnameLabel: "node2",
-			},
-		},
-		{
-			Id:   "node3",
-			Pool: TestPool,
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("9"),
-					"memory": resource.MustParse("9Gi"),
-				},
-			},
-			Labels: map[string]string{
-				TestHostnameLabel: "node3",
-			},
-		},
-	}
-}
-
-func N32CpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
+func N32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
+	rv := make([]*internaltypes.Node, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test32CpuNode(priorities)
 	}
 	return rv
 }
 
-func ItN32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
+func NTainted32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = ItTest32CpuNode(priorities)
-	}
-	return rv
-}
-
-func NTainted32CpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
 		rv[i] = TestTainted32CpuNode(priorities)
 	}
 	return rv
 }
 
-func ItNTainted32CpuNodes(n int, priorities []int32) []*internaltypes.Node {
+func N8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
 	rv := make([]*internaltypes.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = ItTestTainted32CpuNode(priorities)
-	}
-	return rv
-}
-
-func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test8GpuNode(priorities)
-	}
-	return rv
-}
-
-func ItN8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
-	rv := make([]*internaltypes.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = ItTest8GpuNode(priorities)
 	}
 	return rv
 }
@@ -829,7 +728,7 @@ func SingleQueuePriorityOne(name string) []*api.Queue {
 	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
 }
 
-func TestNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
+func TestSchedulerObjectsNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
 		Id:             id,
@@ -849,7 +748,26 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 	}
 }
 
-func ItTestNode(priorities []int32, resources map[string]resource.Quantity) *internaltypes.Node {
+func TestSimpleNode(id string) *internaltypes.Node {
+	return internaltypes.CreateNode(
+		id,
+		nil,
+		0,
+		"",
+		"",
+		"",
+		nil,
+		nil,
+		internaltypes.ResourceList{},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil)
+}
+
+func TestNode(priorities []int32, resources map[string]resource.Quantity) *internaltypes.Node {
 	rl := TestNodeFactory.ResourceListFactory().FromNodeProto(resources)
 	id := uuid.NewString()
 	return TestNodeFactory.CreateNodeAndType(id,
@@ -867,7 +785,7 @@ func ItTestNode(priorities []int32, resources map[string]resource.Quantity) *int
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
 }
 
-func Test32CpuNode(priorities []int32) *schedulerobjects.Node {
+func Test32CpuNode(priorities []int32) *internaltypes.Node {
 	return TestNode(
 		priorities,
 		map[string]resource.Quantity{
@@ -877,31 +795,8 @@ func Test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	)
 }
 
-func ItTest32CpuNode(priorities []int32) *internaltypes.Node {
-	return ItTestNode(
-		priorities,
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("32"),
-			"memory": resource.MustParse("256Gi"),
-		},
-	)
-}
-
-func TestTainted32CpuNode(priorities []int32) *schedulerobjects.Node {
+func TestTainted32CpuNode(priorities []int32) *internaltypes.Node {
 	node := Test32CpuNode(priorities)
-	node.Taints = []v1.Taint{
-		{
-			Key:    "largeJobsOnly",
-			Value:  "true",
-			Effect: v1.TaintEffectNoSchedule,
-		},
-	}
-	node.Labels["largeJobsOnly"] = "true"
-	return node
-}
-
-func ItTestTainted32CpuNode(priorities []int32) *internaltypes.Node {
-	node := ItTest32CpuNode(priorities)
 
 	node = TestNodeFactory.AddTaints([]*internaltypes.Node{node},
 		[]v1.Taint{
@@ -920,21 +815,8 @@ func ItTestTainted32CpuNode(priorities []int32) *internaltypes.Node {
 	return node
 }
 
-func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
+func Test8GpuNode(priorities []int32) *internaltypes.Node {
 	node := TestNode(
-		priorities,
-		map[string]resource.Quantity{
-			"cpu":            resource.MustParse("64"),
-			"memory":         resource.MustParse("1024Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
-		},
-	)
-	node.Labels["gpu"] = "true"
-	return node
-}
-
-func ItTest8GpuNode(priorities []int32) *internaltypes.Node {
-	node := ItTestNode(
 		priorities,
 		map[string]resource.Quantity{
 			"cpu":            resource.MustParse("64"),
@@ -946,70 +828,6 @@ func ItTest8GpuNode(priorities []int32) *internaltypes.Node {
 		[]*internaltypes.Node{node},
 		map[string]string{"gpu": "true"},
 	)[0]
-}
-
-func WithLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobjects.Executor) *schedulerobjects.Executor {
-	executor.LastUpdateTime = lastUpdateTime
-	return executor
-}
-
-func TestNodeWithPool(pool string) *schedulerobjects.Node {
-	node := Test32CpuNode(TestPriorities)
-	node.Pool = pool
-	node.Labels[PoolNameLabel] = pool
-	return node
-}
-
-func WithLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
-	node.Taints = append(node.Taints, v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
-	return node
-}
-
-func MakeTestExecutorWithNodes(executorId string, nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
-	for _, node := range nodes {
-		node.Name = fmt.Sprintf("%s-node", executorId)
-		node.Executor = executorId
-	}
-
-	return &schedulerobjects.Executor{
-		Id:             executorId,
-		Pool:           TestPool,
-		Nodes:          nodes,
-		LastUpdateTime: BaseTime,
-	}
-}
-
-func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
-	node := Test32CpuNode(TestPriorities)
-	node.Name = fmt.Sprintf("%s-node", executorId)
-	node.Executor = executorId
-	node.Labels[ClusterNameLabel] = executorId
-	return &schedulerobjects.Executor{
-		Id:             executorId,
-		Pool:           TestPool,
-		Nodes:          []*schedulerobjects.Node{node},
-		LastUpdateTime: BaseTime,
-	}
-}
-
-func MakeTestExecutor(executorId string, nodePools ...string) *schedulerobjects.Executor {
-	nodes := []*schedulerobjects.Node{}
-
-	for _, nodePool := range nodePools {
-		node := Test32CpuNode(TestPriorities)
-		node.Name = fmt.Sprintf("%s-node", executorId)
-		node.Executor = executorId
-		node.Pool = nodePool
-		node.Labels[PoolNameLabel] = nodePool
-		nodes = append(nodes, node)
-	}
-
-	return &schedulerobjects.Executor{
-		Id:             executorId,
-		Pool:           TestPool,
-		Nodes:          nodes,
-		LastUpdateTime: BaseTime,
-	}
 }
 
 func MakeTestQueue() *api.Queue {
@@ -1130,4 +948,22 @@ func GetTestSupportedResourceTypes() []schedulerconfiguration.ResourceType {
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
 		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
 	}
+}
+
+func Cpu(cpu string) internaltypes.ResourceList {
+	return CpuMemGpu(cpu, "0", "0")
+}
+
+func CpuMem(cpu string, memory string) internaltypes.ResourceList {
+	return CpuMemGpu(cpu, memory, "0")
+}
+
+func CpuMemGpu(cpu string, memory string, gpu string) internaltypes.ResourceList {
+	return TestResourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu":            resource.MustParse(cpu),
+			"memory":         resource.MustParse(memory),
+			"nvidia.com/gpu": resource.MustParse(gpu),
+		},
+	)
 }
