@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"google.golang.org/grpc/codes"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -46,6 +47,7 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
@@ -181,7 +183,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls, createGrpcLoggingOption())
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
@@ -359,4 +361,21 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	}
 	ctx.Info("Running with in cluster client configuration")
 	return config, err
+}
+
+// This changes the default logrus grpc logging to log OK messages at trace level
+// The reason for doing this are:
+//   - Reduced logging
+//   - We only care about failures, so lets only log failures
+//   - We normally use these logs to work out who is calling us, however the Executor API is not public
+//     and is only called by other Armada components
+func createGrpcLoggingOption() grpc_logging.Option {
+	return grpc_logging.WithLevels(func(code codes.Code) grpc_logging.Level {
+		switch code {
+		case codes.OK:
+			return grpc_logging.LevelDebug
+		default:
+			return grpc_logging.DefaultServerCodeToLevel(code)
+		}
+	})
 }

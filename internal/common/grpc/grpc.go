@@ -39,11 +39,14 @@ func CreateGrpcServer(
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []auth.AuthService,
 	tlsConfig configuration.TlsConfig,
+	loggerOpts ...grpc_logging.Option,
 ) *grpc.Server {
 	authFunction := auth.CreateGrpcMiddlewareAuthFunction(auth.NewMultiAuthService(authServices))
 	srvMetrics := setupPromMetrics()
 
-	loggerOpts := []grpc_logging.Option{grpc_logging.WithLogOnEvents(grpc_logging.StartCall, grpc_logging.FinishCall)}
+	loggerOpts = append(
+		loggerOpts,
+		grpc_logging.WithLogOnEvents(grpc_logging.StartCall, grpc_logging.FinishCall))
 
 	return grpc.NewServer(
 		grpc.KeepaliveParams(keepaliveParams),
