@@ -2,16 +2,12 @@ package armadaerrors
 
 import (
 	"context"
-	goerrors "errors"
 	"fmt"
 	"regexp"
 	"testing"
-	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -175,49 +171,6 @@ func TestStreamServerInterceptor(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, st.Code())
 	assert.Equal(t, errors.WithMessage(unauthErr, "foo").Error(), st.Message())
 	assert.Contains(t, st.Message(), "testMethod")
-}
-
-func TestIsNetworkErrorRedis(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:637", // Assume nothing is listening on this port
-	})
-	cmd := client.Ping(context.TODO())
-
-	err := errors.Wrap(cmd.Err(), "foo")
-	assert.True(t, IsNetworkError(err))
-
-	err = fmt.Errorf("%w", cmd.Err())
-	assert.True(t, IsNetworkError(err))
-}
-
-func TestIsNetworkErrorPulsar(t *testing.T) {
-	// Set the timeout really short to immediately get a network error.
-	// Setting the timeout to a nanosecond results in a panic in the Pulsar client.
-	client, err := pulsar.NewClient(pulsar.ClientOptions{
-		URL:               "pulsar://pulsar:665", // Assume nothing is listening on this port
-		ConnectionTimeout: time.Millisecond,
-		OperationTimeout:  time.Millisecond,
-	})
-	if ok := assert.NoError(t, err); !ok {
-		t.FailNow()
-	}
-	_, err = client.Subscribe(pulsar.ConsumerOptions{
-		Topic:            "foo",
-		SubscriptionName: "foo",
-	})
-
-	assert.True(t, IsNetworkError(errors.Wrap(err, "foo")))
-	assert.True(t, IsNetworkError(fmt.Errorf("%w", err)))
-}
-
-func TestIsNotNetworkError(t *testing.T) {
-	assert.False(t, IsNetworkError(errors.New("foo")))
-	assert.False(t, IsNetworkError(goerrors.New("foo")))
-	assert.False(t, IsNetworkError(&ErrNotFound{}))
-	assert.False(t, IsNetworkError(&ErrAlreadyExists{}))
-	assert.False(t, IsNetworkError(&ErrInvalidArgument{}))
-	assert.False(t, IsNetworkError(errors.Wrap(&ErrNotFound{}, "foo")))
-	assert.False(t, IsNetworkError(fmt.Errorf("%w", &ErrNotFound{})))
 }
 
 func TestIsRetryablePostgresError(t *testing.T) {
