@@ -25,7 +25,7 @@ func Update(getConnectionDetails client.ConnectionDetails) UpdateAPI {
 		ctx, cancel := common.ContextWithDefaultTimeout()
 		defer cancel()
 
-		client := api.NewSubmitClient(conn)
+		client := api.NewQueueServiceClient(conn)
 		if _, err = client.UpdateQueue(ctx, queue.ToAPI()); err != nil {
 			return fmt.Errorf("failed to create queue with name %s. %s", queue.Name, err)
 		}
