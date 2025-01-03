@@ -1,4 +1,4 @@
-FROM alpine:3.20.3
+FROM alpine:3.21.0
 
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 

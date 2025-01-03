@@ -39,7 +39,7 @@ def create_dummy_job():
         containers=[
             core_v1.Container(
                 name="sleep",
-                image="alpine:3.20.3",
+                image="alpine:3.21.0",
                 args=["sh", "-c", "for i in $(seq 1 60); do echo $i; sleep 1; done"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
