@@ -80,7 +80,6 @@ require (
 	github.com/redis/go-redis/extra/redisprometheus/v9 v9.0.5
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/segmentio/fasthash v1.0.3
-	github.com/sirupsen/logrus v1.9.3
 	github.com/xitongsys/parquet-go v1.6.2
 	go.uber.org/mock v0.5.0
 	go.uber.org/zap v1.27.0
@@ -183,6 +182,7 @@ require (
 	github.com/rivo/uniseg v0.4.2 // indirect
 	github.com/sagikazarmark/locafero v0.6.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
