@@ -4,10 +4,12 @@ import (
 	pulsarlog "github.com/apache/pulsar-client-go/pulsar/log"
 )
 
+// Wrapper to adapt Logger to the logger interface expected by the pulsar client
 type pulsarWrapper struct {
 	l *Logger
 }
 
+// NewPulsarLogger returns a Logger that can be used by the pulsar client
 func NewPulsarLogger() pulsarlog.Logger {
 	return &pulsarWrapper{
 		l: StdLogger(),
@@ -39,19 +41,19 @@ func (p pulsarWrapper) WithError(err error) pulsarlog.Entry {
 }
 
 func (p pulsarWrapper) Debug(args ...any) {
-	p.l.Debug(args)
+	p.l.Debug(args...)
 }
 
 func (p pulsarWrapper) Info(args ...any) {
-	p.l.Info(args)
+	p.l.Info(args...)
 }
 
 func (p pulsarWrapper) Warn(args ...any) {
-	p.l.Warn(args)
+	p.l.Warn(args...)
 }
 
 func (p pulsarWrapper) Error(args ...any) {
-	p.l.Error(args)
+	p.l.Error(args...)
 }
 
 func (p pulsarWrapper) Debugf(format string, args ...any) {

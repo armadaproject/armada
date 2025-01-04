@@ -1,7 +1,6 @@
 package common
 
 import (
-	"bytes"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -63,8 +62,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	var metadata mapstructure.Metadata
 	customHooks := append(slices.Clone(commonconfig.CustomHooks), func(c *mapstructure.DecoderConfig) { c.Metadata = &metadata })
 	if err := v.Unmarshal(config, customHooks...); err != nil {
-		log.Error(err.Error())
-		os.Exit(-1)
+		log.Fatal(err)
 	}
 
 	// Log a warning if there are config keys that don't match a config item in the struct the yaml is decoded into.
@@ -92,22 +90,12 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 	return v.UnmarshalKey(key, item, commonconfig.CustomHooks...)
 }
 
-type CommandLineEncoder struct{}
-
-func (e *CommandLineEncoder) EncodeEntry(entry zapcore.Entry, fields []zapcore.Field) (*bytes.Buffer, error) {
-	var buf bytes.Buffer
-	buf.WriteString(entry.Message)
-	buf.WriteString("\n")
-	return &buf, nil
-}
-
-// TODO Move logging-related code out of common into a new package internal/logging
 func ConfigureCommandLineLogging() {
 	// Define an encoder configuration that only includes the message.
 	encoderConfig := zapcore.EncoderConfig{
-		MessageKey: "message", // Only include the message.
-		LineEnding: "\n",      // Newline after each log entry.
-		// Ignore everything else by leaving their keys empty.
+		MessageKey: "message",
+		LineEnding: "\n",
+		// Ignore everything other than the message by leaving their keys empty.
 		LevelKey:      "",
 		TimeKey:       "",
 		NameKey:       "",
@@ -126,7 +114,7 @@ func ConfigureCommandLineLogging() {
 	)
 
 	l := zap.New(core)
-	log.SetDefaultLogger(log.FromZap(l))
+	log.ReplaceStdLogger(log.FromZap(l))
 }
 
 func ConfigureLogging() {
@@ -139,7 +127,7 @@ func ConfigureLogging() {
 
 	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), readEnvironmentLogLevel())
 	l := zap.New(core, zap.AddCaller()).WithOptions(zap.AddCallerSkip(2))
-	log.SetDefaultLogger(log.FromZap(l))
+	log.ReplaceStdLogger(log.FromZap(l))
 }
 
 func readEnvironmentLogLevel() zapcore.Level {
