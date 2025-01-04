@@ -7,69 +7,69 @@ import (
 
 // Logger wraps a *zap.SugaredLogger so that the rest of the code doesn't depend directly on Zap
 type Logger struct {
-	undlerlying *zap.SugaredLogger
+	underlying *zap.SugaredLogger
 }
 
 // FromZap returns a New Logger backed by the supplied *zap.SugaredLogger
 func FromZap(l *zap.Logger) *Logger {
 	return &Logger{
-		undlerlying: l.Sugar(),
+		underlying: l.Sugar(),
 	}
 }
 
 // Debug logs a message at level Debug
 func (l *Logger) Debug(args ...any) {
-	l.undlerlying.Debug(args...)
+	l.underlying.Debug(args...)
 }
 
 // Info logs a message at level Info
 func (l *Logger) Info(args ...any) {
-	l.undlerlying.Info(args...)
+	l.underlying.Info(args...)
 }
 
 // Warn logs a message at level Warn
 func (l *Logger) Warn(args ...any) {
-	l.undlerlying.Warn(args...)
+	l.underlying.Warn(args...)
 }
 
 // Error logs a message at level Error
 func (l *Logger) Error(args ...any) {
-	l.undlerlying.Error(args...)
+	l.underlying.Error(args...)
 }
 
 // Panic logs a message at level Panic
 func (l *Logger) Panic(args ...any) {
-	l.undlerlying.Panic(args...)
+	l.underlying.Panic(args...)
 }
 
 // Fatal logs a message at level Fatal then the process will exit with status set to 1.
 func (l *Logger) Fatal(args ...any) {
-	l.undlerlying.Fatal(args...)
+	l.underlying.Fatal(args...)
 }
 
 // Debugf logs a message at level Debug.
 func (l *Logger) Debugf(format string, args ...interface{}) {
-	l.undlerlying.Debugf(format, args...)
+	l.underlying.Debugf(format, args...)
 }
 
 // Infof logs a message at level Info.
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.undlerlying.Infof(format, args...)
+	l.underlying.Infof(format, args...)
 }
 
 // Warnf logs a message at level Warn.
 func (l *Logger) Warnf(format string, args ...interface{}) {
-	l.undlerlying.Warnf(format, args...)
+	l.underlying.Warnf(format, args...)
 }
 
 // Errorf logs a message at level Error.
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.undlerlying.Errorf(format, args...)
+	l.underlying.Errorf(format, args...)
 }
 
 // Fatalf logs a message at level Fatal.
 func (l *Logger) Fatalf(format string, args ...interface{}) {
-	l.undlerlying.Fatalf(format, args...)
+	l.underlying.Fatalf(format, args...)
 }
 
 // WithError returns a new Logger with the error added as a field
@@ -90,7 +90,7 @@ func (l *Logger) WithStacktrace(err error) *Logger {
 // WithField returns a new Logger with the key-value pair added as a new field
 func (l *Logger) WithField(key string, value any) *Logger {
 	return &Logger{
-		undlerlying: l.undlerlying.With(key, value),
+		underlying: l.underlying.With(key, value),
 	}
 }
 
@@ -101,7 +101,7 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 		fields = append(fields, zap.Any(key, value))
 	}
 	return &Logger{
-		undlerlying: l.undlerlying.With(fields...),
+		underlying: l.underlying.With(fields...),
 	}
 }
 
@@ -110,7 +110,7 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 // wrapper code as the caller.
 func (l *Logger) WithCallerSkip(skip int) *Logger {
 	return &Logger{
-		undlerlying: l.undlerlying.WithOptions(zap.AddCallerSkip(skip)),
+		underlying: l.underlying.WithOptions(zap.AddCallerSkip(skip)),
 	}
 }
 

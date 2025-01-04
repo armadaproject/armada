@@ -2,12 +2,15 @@ package logging
 
 import (
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"os"
 )
 
-// The default Logger
-var stdLogger = &Logger{zap.S()}
+// The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
+// generally configure their own logging config via ReplaceStdLogger
+var stdLogger = &Logger{underlying: createDefaultLogger()}
 
-// ReplaceStdLogger Replaces the defualt logger.  This should be called once at app startup!
+// ReplaceStdLogger Replaces the global logger.  This should be called once at app startup!
 func ReplaceStdLogger(l *Logger) {
 	stdLogger = l
 }
@@ -90,4 +93,18 @@ func WithError(err error) *Logger {
 // WithStacktrace returns a new Logger with the error and (if available) the stacktrace added as fields
 func WithStacktrace(err error) *Logger {
 	return stdLogger.WithStacktrace(err)
+}
+
+// Default logging options
+func createDefaultLogger() *zap.SugaredLogger {
+	pe := zap.NewProductionEncoderConfig()
+	pe.EncodeTime = zapcore.ISO8601TimeEncoder
+	pe.ConsoleSeparator = " "
+	pe.EncodeLevel = zapcore.CapitalLevelEncoder
+	consoleEncoder := zapcore.NewConsoleEncoder(pe)
+	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel)
+	return zap.
+		New(core, zap.AddCaller()).
+		WithOptions(zap.AddCallerSkip(2)).
+		Sugar()
 }
