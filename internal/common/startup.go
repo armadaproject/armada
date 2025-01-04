@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -91,9 +92,41 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 	return v.UnmarshalKey(key, item, commonconfig.CustomHooks...)
 }
 
+type CommandLineEncoder struct{}
+
+func (e *CommandLineEncoder) EncodeEntry(entry zapcore.Entry, fields []zapcore.Field) (*bytes.Buffer, error) {
+	var buf bytes.Buffer
+	buf.WriteString(entry.Message)
+	buf.WriteString("\n")
+	return &buf, nil
+}
+
 // TODO Move logging-related code out of common into a new package internal/logging
 func ConfigureCommandLineLogging() {
-	panic("not implemented")
+	// Define an encoder configuration that only includes the message.
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey: "message", // Only include the message.
+		LineEnding: "\n",      // Newline after each log entry.
+		// Ignore everything else by leaving their keys empty.
+		LevelKey:      "",
+		TimeKey:       "",
+		NameKey:       "",
+		CallerKey:     "",
+		FunctionKey:   "",
+		StacktraceKey: "",
+	}
+	// Use the console encoder with the custom configuration.
+	encoder := zapcore.NewConsoleEncoder(encoderConfig)
+
+	// Create a core that writes to stdout.
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(os.Stdout),
+		zapcore.InfoLevel,
+	)
+
+	l := zap.New(core)
+	log.SetDefaultLogger(log.FromZap(l))
 }
 
 func ConfigureLogging() {
@@ -198,8 +231,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	}
 }
 
-// ShortCallerEncoder serializes a caller in package/file:line format, trimming
-// all but the final directory from the full path.
+// ShortCallerEncoder serializes a caller in to just file:line format.
 func ShortCallerEncoder(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
 	trimmed := caller.TrimmedPath()
 	lastSlash := strings.LastIndexByte(trimmed, '/')
