@@ -1,6 +1,6 @@
 import { useRef, useState } from "react"
 
-import { Delete, Settings } from "@mui/icons-material"
+import { DashboardCustomize, Delete } from "@mui/icons-material"
 import {
   Button,
   Popover,
@@ -48,9 +48,9 @@ export const CustomViewPicker = ({
 
   return (
     <>
-      <div className={styles.settingsButton} ref={anchorElRef}>
-        <IconButton title={"Customize"} color={"primary"} size="small" onClick={() => setIsOpen(!isOpen)}>
-          <Settings />
+      <div className={styles.customizeButton} ref={anchorElRef}>
+        <IconButton title="Customize" color="secondary" size="small" onClick={() => setIsOpen(!isOpen)}>
+          <DashboardCustomize />
         </IconButton>
       </div>
       <Popover

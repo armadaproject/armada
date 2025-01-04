@@ -1,27 +1,30 @@
 import { memo, useCallback, useMemo, useState } from "react"
 
+import { Clear, FilterAltOff, ViewColumn } from "@mui/icons-material"
 import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
 
 import { CancelDialog } from "./CancelDialog"
+import { ColumnConfigurationDialog } from "./ColumnConfigurationDialog"
 import { CustomViewPicker } from "./CustomViewPicker"
 import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
 import AutoRefreshToggle from "../../components/AutoRefreshToggle"
 import RefreshButton from "../../components/RefreshButton"
-import ColumnSelect from "../../components/lookoutV2/ColumnSelect"
 import GroupBySelect from "../../components/lookoutV2/GroupBySelect"
-import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { JobFilter } from "../../models/lookoutV2Models"
 import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
-import { ColumnId, JobTableColumn } from "../../utils/jobsTableColumns"
+import { ColumnId, JobTableColumn, PINNED_COLUMNS, toColId } from "../../utils/jobsTableColumns"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
   allColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
+  columnOrder: ColumnId[]
+  setColumnOrder: (columnOrder: ColumnId[]) => void
   selectedItemFilters: JobFilter[][]
+  filtersActive: boolean
   customViews: string[]
   activeJobSets: boolean
   onActiveJobSetsChanged: (newVal: boolean) => void
@@ -48,7 +51,10 @@ export const JobsTableActionBar = memo(
     allColumns,
     groupedColumns,
     visibleColumns,
+    columnOrder,
+    setColumnOrder,
     selectedItemFilters,
+    filtersActive,
     customViews,
     activeJobSets,
     onActiveJobSetsChanged,
@@ -68,18 +74,38 @@ export const JobsTableActionBar = memo(
     onDeleteCustomView,
     onLoadCustomView,
   }: JobsTableActionBarProps) => {
+    const [columnConfigurationDialogOpen, setColumnConfigurationDialogOpen] = useState(false)
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
-    const openSnackbar = useCustomSnackbar()
 
-    const selectableColumns = useMemo(() => allColumns.filter((col) => col.enableHiding !== false), [allColumns])
+    const numberSelectedColumns = useMemo(() => {
+      const visibleColumnsSet = new Set(visibleColumns)
+      return allColumns.filter((col) => {
+        const colId = toColId(col.id)
+        return !PINNED_COLUMNS.includes(colId) && visibleColumnsSet.has(colId)
+      }).length
+    }, [allColumns, visibleColumns])
 
     const numSelectedItems = selectedItemFilters.length
 
+    const columnConfigurationDialogOpenOnClose = useCallback(() => setColumnConfigurationDialogOpen(false), [])
     const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
     const reprioritiseDialogOnClose = useCallback(() => setReprioritiseDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
+        <ColumnConfigurationDialog
+          open={columnConfigurationDialogOpen}
+          onClose={columnConfigurationDialogOpenOnClose}
+          allColumns={allColumns}
+          groupedColumnIds={groupedColumns}
+          visibleColumnIds={visibleColumns}
+          columnOrderIds={columnOrder}
+          setColumnOrder={setColumnOrder}
+          toggleColumnVisibility={toggleColumnVisibility}
+          onAddAnnotationColumn={onAddAnnotationColumn}
+          onEditAnnotationColumn={onEditAnnotationColumn}
+          onRemoveAnnotationColumn={onRemoveAnnotationColumn}
+        />
         {cancelDialogOpen && (
           <CancelDialog
             onClose={cancelDialogOnClose}
@@ -120,60 +146,65 @@ export const JobsTableActionBar = memo(
           {onAutoRefreshChange && (
             <AutoRefreshToggle autoRefresh={autoRefresh} onAutoRefreshChange={onAutoRefreshChange} />
           )}
-          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
+          <div>
+            <RefreshButton isLoading={isLoading} onClick={onRefresh} />
+          </div>
           <Divider orientation="vertical" />
-          <Button variant="text" onClick={onClearFilters} color="secondary">
-            Clear Filters
-          </Button>
-          <Button variant="text" onClick={onClearGroups} color="secondary">
-            Clear Groups
-          </Button>
-          <CustomViewPicker
-            customViews={customViews}
-            onAddCustomView={onAddCustomView}
-            onDeleteCustomView={onDeleteCustomView}
-            onLoadCustomView={onLoadCustomView}
-          />
-          <ColumnSelect
-            selectableColumns={selectableColumns}
-            groupedColumns={groupedColumns}
-            visibleColumns={visibleColumns}
-            onAddAnnotation={(annotationKey) => {
-              try {
-                onAddAnnotationColumn(annotationKey)
-              } catch (e) {
-                const err = e as Error
-                console.error(err.message)
-                openSnackbar(`Failed to create annotation column: ${err.message}`, "error")
-              }
-            }}
-            onRemoveAnnotation={(columnId) => {
-              try {
-                onRemoveAnnotationColumn(columnId)
-              } catch (e) {
-                const err = e as Error
-                console.error(err.message)
-                openSnackbar(`Failed to remove annotation column: ${err.message}`, "error")
-              }
-            }}
-            onEditAnnotation={(columnId, annotationKey) => {
-              try {
-                onEditAnnotationColumn(columnId, annotationKey)
-              } catch (e) {
-                const err = e as Error
-                console.error(err.message)
-                openSnackbar(`Failed to edit annotation column: ${err.message}`, "error")
-              }
-            }}
-            onToggleColumn={toggleColumnVisibility}
-          />
+          <div>
+            <Button
+              variant="outlined"
+              onClick={onClearFilters}
+              color="primary"
+              endIcon={<FilterAltOff />}
+              disabled={!filtersActive}
+            >
+              Clear Filters
+            </Button>
+          </div>
+          <div>
+            <Button
+              variant="outlined"
+              onClick={onClearGroups}
+              color="primary"
+              endIcon={<Clear />}
+              disabled={groupedColumns.length === 0}
+            >
+              Clear Groups
+            </Button>
+          </div>
+          <div>
+            <Button
+              variant="outlined"
+              color="secondary"
+              endIcon={<ViewColumn />}
+              onClick={() => setColumnConfigurationDialogOpen(true)}
+            >
+              Configure columns ({numberSelectedColumns})
+            </Button>
+          </div>
+          <div>
+            <CustomViewPicker
+              customViews={customViews}
+              onAddCustomView={onAddCustomView}
+              onDeleteCustomView={onDeleteCustomView}
+              onLoadCustomView={onLoadCustomView}
+            />
+          </div>
           <Divider orientation="vertical" />
-          <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setCancelDialogOpen(true)}>
-            Cancel selected
-          </Button>
-          <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setReprioritiseDialogOpen(true)}>
-            Reprioritize selected
-          </Button>
+          <div>
+            <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setCancelDialogOpen(true)}>
+              Cancel selected
+            </Button>
+          </div>
+          <div>
+            <Button
+              variant="contained"
+              disabled={numSelectedItems === 0}
+              onClick={() => setReprioritiseDialogOpen(true)}
+            >
+              Reprioritize selected
+            </Button>
+          </div>
         </div>
       </div>
     )

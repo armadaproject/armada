@@ -468,7 +468,15 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   {},
 )
 
-export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
+export const PINNED_COLUMNS: ColumnId[] = [StandardColumnId.SelectorCol]
+
+// The ordering of each column
+export const DEFAULT_COLUMN_ORDERING: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
+
+// The order of the columns in the table
+export const DEFAULT_COLUMN_ORDER = JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(
+  ({ id }) => toColId(id),
+)
 
 type Formatter = (val: number | string | string[]) => string
 
