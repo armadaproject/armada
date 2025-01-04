@@ -9,7 +9,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
@@ -183,10 +182,9 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 	return srv.etcdSizeBytes / srv.etcdCapacityBytes
 }
 
-func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *logging.Logger) error {
-	log = log.WithField("service", "EtcdHealthMonitor")
-	log.Info("starting etcd health monitor")
-	defer log.Info("stopping etcd health monitor")
+func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context) error {
+	ctx.Info("starting etcd health monitor")
+	defer ctx.Info("stopping etcd health monitor")
 	ticker := time.NewTicker(srv.scrapeInterval)
 	defer ticker.Stop()
 	for {
@@ -195,24 +193,24 @@ func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *loggin
 			return ctx.Err()
 		case <-ticker.C:
 			t := time.Now()
-			metrics, err := srv.metricsProvider.Collect(ctx, log)
+			metrics, err := srv.metricsProvider.Collect(ctx)
 			srv.mu.Lock()
 			srv.timeOfMostRecentCollectionAttempt = time.Now()
 			if err != nil {
-				log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+				ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 			} else {
 				success := true
 				if err := srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
 					success = false
-					log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+					ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if err := srv.setSizeBytesFromMetrics(metrics); err != nil {
 					success = false
-					log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+					ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if err := srv.setCapacityBytesFromMetrics(metrics); err != nil {
 					success = false
-					log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+					ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if success {
 					srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt

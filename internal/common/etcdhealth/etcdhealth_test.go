@@ -8,7 +8,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
@@ -26,7 +25,7 @@ func TestEtcdReplicaHealthMonitor(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	defer cancel()
 	g, ctx := armadacontext.ErrGroup(ctx)
-	g.Go(func() error { return hm.Run(ctx, logging.StdLogger()) })
+	g.Go(func() error { return hm.Run(ctx) })
 
 	// Should still be unavailable due to missing metrics.
 	hm.BlockUntilNextMetricsCollection(ctx)

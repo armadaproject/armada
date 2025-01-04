@@ -54,7 +54,7 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.Metric.Port)
 	defer shutdownMetricServer()
 
-	shutdown, wg := fake.StartUp(config, nodes)
+	shutdown, wg := fake.StartUp(armadacontext.Background(), config, nodes)
 	go func() {
 		<-shutdownChannel
 		shutdown()

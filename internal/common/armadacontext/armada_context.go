@@ -66,6 +66,11 @@ func (ctx *Context) Errorf(format string, args ...interface{}) {
 	ctx.logger.Errorf(format, args...)
 }
 
+// Fatalf logs a message at level Fatal.
+func (ctx *Context) Fatalf(format string, args ...interface{}) {
+	ctx.logger.Fatalf(format, args...)
+}
+
 // Background creates an empty context with a default logger.  It is analogous to context.Background()
 func Background() *Context {
 	return &Context{

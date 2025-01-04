@@ -9,7 +9,6 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 // MultiHealthMonitor wraps multiple HealthMonitors and itself implements the HealthMonitor interface.
@@ -100,11 +99,11 @@ func (srv *MultiHealthMonitor) IsHealthy() (ok bool, reason string, err error) {
 }
 
 // Run initialises prometheus metrics and starts any child health checkers.
-func (srv *MultiHealthMonitor) Run(ctx *armadacontext.Context, log *logging.Logger) error {
+func (srv *MultiHealthMonitor) Run(ctx *armadacontext.Context) error {
 	g, ctx := armadacontext.ErrGroup(ctx)
 	for _, healthMonitor := range srv.healthMonitorsByName {
 		healthMonitor := healthMonitor
-		g.Go(func() error { return healthMonitor.Run(ctx, log) })
+		g.Go(func() error { return healthMonitor.Run(ctx) })
 	}
 	return g.Wait()
 }

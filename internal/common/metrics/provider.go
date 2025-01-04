@@ -8,12 +8,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 type MetricsProvider interface {
-	Collect(context.Context, *logging.Logger) (map[string]float64, error)
+	Collect(context.Context) (map[string]float64, error)
 }
 
 type ManualMetricsProvider struct {
@@ -36,7 +34,7 @@ func (srv *ManualMetricsProvider) WithCollectionDelay(d time.Duration) *ManualMe
 	return srv
 }
 
-func (srv *ManualMetricsProvider) Collect(_ context.Context, _ *logging.Logger) (map[string]float64, error) {
+func (srv *ManualMetricsProvider) Collect(_ context.Context) (map[string]float64, error) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	if srv.collectionDelay != 0 {
@@ -61,7 +59,7 @@ func NewHttpMetricsProvider(url string, client *http.Client) *HttpMetricsProvide
 	}
 }
 
-func (srv *HttpMetricsProvider) Collect(ctx context.Context, _ *logging.Logger) (map[string]float64, error) {
+func (srv *HttpMetricsProvider) Collect(ctx context.Context) (map[string]float64, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", srv.url, nil)
 	if err != nil {
 		return nil, err
