@@ -1,9 +1,9 @@
 package fake
 
 import (
+	"sync"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-
-
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"

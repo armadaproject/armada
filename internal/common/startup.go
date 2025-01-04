@@ -25,14 +25,10 @@ import (
 
 const baseConfigFileName = "config"
 
-// RFC3339Millis
-const logTimestampFormat = "2006-01-02T15:04:05.999Z07:00"
-
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
-		log.Error(err.Error())
-		os.Exit(-1)
+		log.Fatalf(err.Error())
 	}
 }
 
@@ -109,8 +105,7 @@ func ConfigureLogging() {
 	consoleEncoder := zapcore.NewConsoleEncoder(pe)
 	pe.EncodeCaller = ShortCallerEncoder
 
-	level := zap.InfoLevel
-	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
+	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), readEnvironmentLogLevel())
 	l := zap.New(core, zap.AddCaller()).WithOptions(zap.AddCallerSkip(2))
 	log.SetDefaultLogger(log.FromZap(l))
 }
