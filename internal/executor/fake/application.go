@@ -1,9 +1,8 @@
 package fake
 
 import (
+	"github.com/armadaproject/armada/internal/common/logging"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/executor"
@@ -16,7 +15,7 @@ func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSp
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	return executor.StartUpWithContext(
-		logrus.NewEntry(logrus.StandardLogger()),
+		logging.NewLogger(),
 		config,
 		context.NewFakeClusterContext(config.Application, config.Kubernetes.NodeIdLabel, nodes),
 		nil,

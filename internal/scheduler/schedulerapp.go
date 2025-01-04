@@ -13,7 +13,6 @@ import (
 	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -27,6 +26,7 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
@@ -363,7 +363,7 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	return config, err
 }
 
-// This changes the default logrus grpc logging to log OK messages at trace level
+// This changes the default grpc logging to log OK messages at trace level
 // The reason for doing this are:
 //   - Reduced logging
 //   - We only care about failures, so lets only log failures

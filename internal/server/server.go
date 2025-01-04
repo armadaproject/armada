@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -21,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	controlplaneeventspulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"

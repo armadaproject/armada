@@ -6,12 +6,13 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	log "github.com/armadaproject/armada/internal/common/logging"
+	"github
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
-	"github.com/armadaproject/armada/internal/eventingester/model"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const (

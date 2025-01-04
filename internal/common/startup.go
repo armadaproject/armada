@@ -18,14 +18,14 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"
@@ -36,7 +36,7 @@ const logTimestampFormat = "2006-01-02T15:04:05.999Z07:00"
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
-		log.Error()
+		log.Error(err.Error())
 		os.Exit(-1)
 	}
 }
@@ -72,7 +72,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	var metadata mapstructure.Metadata
 	customHooks := append(slices.Clone(commonconfig.CustomHooks), func(c *mapstructure.DecoderConfig) { c.Metadata = &metadata })
 	if err := v.Unmarshal(config, customHooks...); err != nil {
-		log.Error(err)
+		log.Error(err.Error())
 		os.Exit(-1)
 	}
 

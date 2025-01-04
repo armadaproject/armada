@@ -4,9 +4,9 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 // ManualHealthMonitor is a manually controlled health monitor.
@@ -47,7 +47,7 @@ func (srv *ManualHealthMonitor) IsHealthy() (bool, string, error) {
 	}
 }
 
-func (srv *ManualHealthMonitor) Run(_ *armadacontext.Context, _ *logrus.Entry) error {
+func (srv *ManualHealthMonitor) Run(_ *armadacontext.Context, _ *logging.Logger) error {
 	return nil
 }
 

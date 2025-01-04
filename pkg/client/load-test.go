@@ -6,13 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/domain"
 )
@@ -231,7 +229,6 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 	jobIds chan string,
 	eventChannel chan api.Event,
 ) []string {
-	log := logrus.StandardLogger().WithField("Armada", "LoadTester")
 	var submittedIds []string = nil
 	go func() {
 		ids := []string{}
@@ -258,7 +255,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		return nil
 	})
 	if err != nil {
-		logging.WithStacktrace(log, err).Error("unable to monitor jobs")
+		log.WithStacktrace(log.NewLogger(), err).Error("unable to monitor jobs")
 	}
 	return submittedIds
 }
@@ -281,8 +278,6 @@ func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []
 }
 
 func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId string) {
-	log := logrus.StandardLogger().WithField("Armada", "LoadTester")
-
 	err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 		timeout, _ := common.ContextWithDefaultTimeout()
 		cancelRequest := &api.JobCancelRequest{
@@ -293,7 +288,7 @@ func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId
 		return err
 	})
 	if err != nil {
-		logging.WithStacktrace(log, err).Error("unable to cancel jobs")
+		log.WithStacktrace(log.NewLogger(), err).Error("unable to cancel jobs")
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"k8s.io/utils/clock"
@@ -20,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/etcdhealth"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	"github.com/armadaproject/armada/internal/common/logging"
 	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -39,7 +39,7 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
+func StartUp(ctx *armadacontext.Context, log *logging.Logger, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	err := validateConfig(config)
 	if err != nil {
 		log.Errorf("Invalid config: %s", err)
@@ -117,7 +117,7 @@ func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration
 }
 
 func StartUpWithContext(
-	log *logrus.Entry,
+	log *logging.Logger,
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
 	clusterHealthMonitor healthmonitor.HealthMonitor,
@@ -167,7 +167,7 @@ func StartUpWithContext(
 }
 
 func setupExecutorApiComponents(
-	log *logrus.Entry,
+	log *logging.Logger,
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
 	clusterHealthMonitor healthmonitor.HealthMonitor,

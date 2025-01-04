@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
@@ -184,8 +183,8 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 	return srv.etcdSizeBytes / srv.etcdCapacityBytes
 }
 
-func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *logrus.Entry) error {
-	log = log.WithField("service", "EtcdHealthMonitor")
+func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *logging.Logger) error {
+	log = log.With("service", "EtcdHealthMonitor")
 	log.Info("starting etcd health monitor")
 	defer log.Info("stopping etcd health monitor")
 	ticker := time.NewTicker(srv.scrapeInterval)

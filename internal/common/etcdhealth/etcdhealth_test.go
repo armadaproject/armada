@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
@@ -26,7 +26,7 @@ func TestEtcdReplicaHealthMonitor(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	defer cancel()
 	g, ctx := armadacontext.ErrGroup(ctx)
-	g.Go(func() error { return hm.Run(ctx, logrus.NewEntry(logrus.New())) })
+	g.Go(func() error { return hm.Run(ctx, logging.NewLogger()) })
 
 	// Should still be unavailable due to missing metrics.
 	hm.BlockUntilNextMetricsCollection(ctx)

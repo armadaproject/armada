@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -81,7 +81,7 @@ func TestCordonNode(t *testing.T) {
 			cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
 			ctx := auth.WithPrincipal(context.Background(), principal)
-			err := cordonService.CordonNode(armadacontext.New(ctx, logrus.NewEntry(logrus.New())), &binoculars.CordonRequest{
+			err := cordonService.CordonNode(armadacontext.New(ctx, logging.NewLogger()), &binoculars.CordonRequest{
 				NodeName: defaultNode.Name,
 			})
 			assert.Nil(t, err)

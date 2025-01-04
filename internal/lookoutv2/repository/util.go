@@ -8,7 +8,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
@@ -18,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -706,25 +706,25 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 
 func logQueryDebug(query *Query, description string) {
 	log.
-		WithField("query", removeNewlinesAndTabs(query.Sql)).
-		WithField("values", query.Args).
+		With("query", removeNewlinesAndTabs(query.Sql)).
+		With("values", query.Args).
 		Debug(description)
 }
 
 func logQueryError(query *Query, description string, duration time.Duration) {
 	log.
-		WithField("query", removeNewlinesAndTabs(query.Sql)).
-		WithField("values", query.Args).
-		WithField("duration", duration).
+		With("query", removeNewlinesAndTabs(query.Sql)).
+		With("values", query.Args).
+		With("duration", duration).
 		Errorf("Error executing %s query", description)
 }
 
 func logSlowQuery(query *Query, description string, duration time.Duration) {
 	if duration > 5*time.Second {
 		log.
-			WithField("query", removeNewlinesAndTabs(query.Sql)).
-			WithField("values", query.Args).
-			WithField("duration", duration).
+			With("query", removeNewlinesAndTabs(query.Sql)).
+			With("values", query.Args).
+			With("duration", duration).
 			Infof("Slow %s query detected", description)
 	}
 }

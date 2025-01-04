@@ -4,48 +4,98 @@ import (
 	"context"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 // Context is an extension of Go's context which also includes a logger. This allows us to  pass round a contextual logger
 // while retaining type-safety
 type Context struct {
 	context.Context
-	logrus.FieldLogger
+	Logger *logging.Logger
+}
+
+// Debug logs a message at level Debug
+func (ctx *Context) Debug(msg string) {
+	ctx.Logger.Debug(msg)
+}
+
+// Info logs a message at level Info
+func (ctx *Context) Info(msg string) {
+	ctx.Logger.Info(msg)
+}
+
+// Warn logs a message at level Warn
+func (ctx *Context) Warn(msg string) {
+	ctx.Logger.Warn(msg)
+}
+
+// Error logs a message at level Error
+func (ctx *Context) Error(msg string) {
+	ctx.Logger.Error(msg)
+}
+
+// Panic logs a message at level Panic
+func (ctx *Context) Panic(msg string) {
+	ctx.Logger.Panic(msg)
+}
+
+// Fatal logs a message at level Fatal then the process will exit with status set to 1.
+func (ctx *Context) Fatal(msg string) {
+	ctx.Logger.Fatal(msg)
+}
+
+// Debugf logs a message at level Debug.
+func (ctx *Context) Debugf(format string, args ...interface{}) {
+	ctx.Logger.Debugf(format, args...)
+}
+
+// Infof logs a message at level Info.
+func (ctx *Context) Infof(format string, args ...interface{}) {
+	ctx.Logger.Infof(format, args...)
+}
+
+// Warnf logs a message at level Warn.
+func (ctx *Context) Warnf(format string, args ...interface{}) {
+	ctx.Logger.Warnf(format, args...)
+}
+
+// Errorf logs a message at level Error.
+func (ctx *Context) Errorf(format string, args ...interface{}) {
+	ctx.Logger.Errorf(format, args...)
 }
 
 // Background creates an empty context with a default logger.  It is analogous to context.Background()
 func Background() *Context {
 	return &Context{
-		Context:     context.Background(),
-		FieldLogger: logrus.NewEntry(logrus.StandardLogger()),
+		Context: context.Background(),
+		Logger:  logging.NewLogger(),
 	}
 }
 
 // TODO creates an empty context with a default logger.  It is analogous to context.TODO()
 func TODO() *Context {
 	return &Context{
-		Context:     context.TODO(),
-		FieldLogger: logrus.NewEntry(logrus.StandardLogger()),
+		Context: context.TODO(),
+		Logger:  logging.NewLogger(),
 	}
 }
 
-// FromGrpcCtx creates a context where the logger is extracted via ctxlogrus's Extract() method.
-// Note that this will result in a no-op logger if a logger hasn't already been inserted into the context via ctxlogrus
+// FromGrpcCtx Converts a context.Context to an armadacontext.Context
 func FromGrpcCtx(ctx context.Context) *Context {
 	armadaCtx, ok := ctx.(*Context)
 	if ok {
 		return armadaCtx
 	}
-	return New(ctx, logrus.NewEntry(logrus.StandardLogger()))
+	return New(ctx, logging.NewLogger())
 }
 
 // New returns an  armada context that encapsulates both a go context and a logger
-func New(ctx context.Context, log *logrus.Entry) *Context {
+func New(ctx context.Context, log *logging.Logger) *Context {
 	return &Context{
-		Context:     ctx,
-		FieldLogger: log,
+		Context: ctx,
+		Logger:  log,
 	}
 }
 
@@ -53,8 +103,8 @@ func New(ctx context.Context, log *logrus.Entry) *Context {
 func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	c, cancel := context.WithCancel(parent.Context)
 	return &Context{
-		Context:     c,
-		FieldLogger: parent.FieldLogger,
+		Context: c,
+		Logger:  parent.Logger,
 	}, cancel
 }
 
@@ -63,8 +113,8 @@ func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	c, cancel := context.WithDeadline(parent.Context, d)
 	return &Context{
-		Context:     c,
-		FieldLogger: parent.FieldLogger,
+		Context: c,
+		Logger:  parent.Logger,
 	}, cancel
 }
 
@@ -76,16 +126,16 @@ func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.Canc
 // WithLogField returns a copy of parent with the supplied key-value added to the logger
 func WithLogField(parent *Context, key string, val interface{}) *Context {
 	return &Context{
-		Context:     parent.Context,
-		FieldLogger: parent.FieldLogger.WithField(key, val),
+		Context: parent.Context,
+		Logger:  parent.Logger.With(key, val),
 	}
 }
 
 // WithLogFields returns a copy of parent with the supplied key-values added to the logger
-func WithLogFields(parent *Context, fields logrus.Fields) *Context {
+func WithLogFields(parent *Context, fields map[string]any) *Context {
 	return &Context{
-		Context:     parent.Context,
-		FieldLogger: parent.FieldLogger.WithFields(fields),
+		Context: parent.Context,
+		Logger:  parent.Logger.With(fields),
 	}
 }
 
@@ -93,8 +143,8 @@ func WithLogFields(parent *Context, fields logrus.Fields) *Context {
 // val. It is analogous to context.WithValue()
 func WithValue(parent *Context, key, val any) *Context {
 	return &Context{
-		Context:     context.WithValue(parent, key, val),
-		FieldLogger: parent.FieldLogger,
+		Context: context.WithValue(parent, key, val),
+		Logger:  parent.Logger,
 	}
 }
 
@@ -103,7 +153,7 @@ func WithValue(parent *Context, key, val any) *Context {
 func ErrGroup(ctx *Context) (*errgroup.Group, *Context) {
 	group, goctx := errgroup.WithContext(ctx)
 	return group, &Context{
-		Context:     goctx,
-		FieldLogger: ctx.FieldLogger,
+		Context: goctx,
+		Logger:  ctx.Logger,
 	}
 }

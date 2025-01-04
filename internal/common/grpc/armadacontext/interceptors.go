@@ -4,11 +4,11 @@ import (
 	"context"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
@@ -29,9 +29,8 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func createArmadaCtx(ctx context.Context) *armadacontext.Context {
-	log := logrus.WithFields(map[string]interface{}{
-		"requestId": requestid.FromContextOrMissing(ctx),
-		"user":      auth.GetPrincipal(ctx).GetName(),
-	})
+	log := logging.NewLogger().
+		With("requestId", requestid.FromContextOrMissing(ctx)).
+		With("user", auth.GetPrincipal(ctx).GetName())
 	return armadacontext.New(ctx, log)
 }

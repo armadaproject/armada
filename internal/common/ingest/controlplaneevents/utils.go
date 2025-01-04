@@ -2,12 +2,12 @@ package controlplaneevents
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
-	"github.com/armadaproject/armada/pkg/controlplaneevents"
+	log "github.com/armadaproject/armada/internal/common/logging"
+
 )
 
 func MessageUnmarshaller(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *utils.EventsWithIds[*controlplaneevents.Event] {

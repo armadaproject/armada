@@ -8,9 +8,9 @@ import (
 	"path"
 	"strings"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

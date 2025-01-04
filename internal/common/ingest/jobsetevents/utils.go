@@ -2,13 +2,14 @@ package jobsetevents
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	log "github.com/armadaproject/armada/internal/common/logging"
+	pr
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 func MessageUnmarshaller(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *utils.EventsWithIds[*armadaevents.EventSequence] {

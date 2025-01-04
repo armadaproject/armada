@@ -4,22 +4,21 @@ package lookoutv2
 
 import (
 	"github.com/IBM/pgxpoolprometheus"
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/runtime/middleware"
-	"github.com/jessevdk/go-flags"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/conversions"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/repository"
+	"github.com/go-openapi/loads"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/jessevdk/go-flags"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func Serve(configuration configuration.LookoutV2Config) error {
@@ -48,7 +47,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
-	logger := logrus.NewEntry(logrus.StandardLogger())
+	logger := logging.NewLogger()
 
 	api.Logger = logger.Debugf
 
