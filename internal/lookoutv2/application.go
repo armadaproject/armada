@@ -4,6 +4,11 @@ package lookoutv2
 
 import (
 	"github.com/IBM/pgxpoolprometheus"
+	"github.com/go-openapi/loads"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/jessevdk/go-flags"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -15,10 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/repository"
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/runtime/middleware"
-	"github.com/jessevdk/go-flags"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func Serve(configuration configuration.LookoutV2Config) error {

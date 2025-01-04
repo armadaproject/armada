@@ -1,8 +1,9 @@
 package fake
 
 import (
-	"github.com/armadaproject/armada/internal/common/logging"
 	"sync"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/executor"
@@ -15,7 +16,7 @@ func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSp
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	return executor.StartUpWithContext(
-		logging.NewLogger(),
+		logging.StdLogger(),
 		config,
 		context.NewFakeClusterContext(config.Application, config.Kubernetes.NodeIdLabel, nodes),
 		nil,

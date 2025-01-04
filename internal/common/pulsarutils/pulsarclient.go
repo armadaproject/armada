@@ -1,7 +1,6 @@
 package pulsarutils
 
 import (
-	"github.com/armadaproject/armada/internal/common/logging"
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 func NewPulsarClient(config *commonconfig.PulsarConfig) (pulsar.Client, error) {

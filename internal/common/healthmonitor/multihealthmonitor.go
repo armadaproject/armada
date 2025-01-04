@@ -2,7 +2,6 @@ package healthmonitor
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -10,6 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 // MultiHealthMonitor wraps multiple HealthMonitors and itself implements the HealthMonitor interface.

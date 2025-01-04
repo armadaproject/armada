@@ -79,7 +79,7 @@ func (q *QueueEventGenerator) Generate(eventsCh chan<- *utils.EventsWithIds[*arm
 		}
 		events, err := q.generateEventsAtTime(i)
 		if err != nil {
-			log.Panicf("failed to generate events %s", err)
+			log.Fatalf("failed to generate events %s", err)
 		}
 		if len(events) == 0 {
 			continue

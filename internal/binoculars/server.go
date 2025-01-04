@@ -13,7 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/cluster"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	log "github.com/armadaproject/armada/internal/common/logging"
-
+	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
