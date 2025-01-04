@@ -13,7 +13,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -153,7 +152,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					logging.WithStacktrace(ctx, err).Error("could not become leader")
+					ctx.Logger().WithStacktrace(err).Error("could not become leader")
 					leaderToken = leader.InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -175,7 +174,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
-				logging.WithStacktrace(ctx, err).Error("scheduling cycle failure")
+				ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 				leaderToken = leader.InvalidLeaderToken()
 			}
 
@@ -981,7 +980,9 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 			return nil
 		default:
 			if _, _, err := s.syncState(ctx, true); err != nil {
-				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
+				ctx.Logger().
+					WithStacktrace(err).
+					Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
 				ctx.Info("initialisation succeeded")
@@ -1008,7 +1009,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				logging.WithStacktrace(ctx, err).Error("Error sending marker messages to pulsar")
+				ctx.Logger().
+					WithStacktrace(err).
+					Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -1024,8 +1027,8 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Error("Error querying the database or marker messages")
 			}
 			if numSent == numReceived {

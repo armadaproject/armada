@@ -25,7 +25,6 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/logging"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -118,8 +117,8 @@ func Run(config schedulerconfig.Configuration) error {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
-			logging.
-				WithStacktrace(ctx, err).
+			ctx.Logger().
+				WithStacktrace(err).
 				Warnf("Armada api client didn't close down cleanly")
 		}
 	}()

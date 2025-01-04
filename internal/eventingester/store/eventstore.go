@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/armadaproject/armada/internal/eventingester/model"
 	"regexp"
 	"time"
 
@@ -10,9 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
-	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const (

@@ -47,7 +47,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
-	logger := logging.NewLogger()
+	logger := logging.StdLogger()
 
 	api.Logger = logger.Debugf
 

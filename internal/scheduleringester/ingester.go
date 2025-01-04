@@ -15,7 +15,7 @@ import (
 	controlplaneevents_ingest_utils "github.com/armadaproject/armada/internal/common/ingest/controlplaneevents"
 	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-	log "github.com/armadaproject/armada/internal/common/loggin
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"

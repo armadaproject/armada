@@ -48,7 +48,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	// If a health monitor is provided, avoid leasing jobs when the cluster is unhealthy.
 	if allocationService.clusterHealthMonitor != nil {
 		if ok, reason, err := allocationService.clusterHealthMonitor.IsHealthy(); err != nil {
-			logging.WithStacktrace(logging.NewLogger(), err).Error("failed to check cluster health")
+			logging.WithStacktrace(err).Error("failed to check cluster health")
 			return
 		} else if !ok {
 			log.Warnf("cluster is not healthy; will not request more jobs: %s", reason)

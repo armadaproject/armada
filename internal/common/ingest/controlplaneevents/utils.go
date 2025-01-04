@@ -7,7 +7,7 @@ import (
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
-
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 func MessageUnmarshaller(msg pulsar.ConsumerMessage, metrics *commonmetrics.Metrics) *utils.EventsWithIds[*controlplaneevents.Event] {

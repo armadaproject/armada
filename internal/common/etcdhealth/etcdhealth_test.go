@@ -26,7 +26,7 @@ func TestEtcdReplicaHealthMonitor(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	defer cancel()
 	g, ctx := armadacontext.ErrGroup(ctx)
-	g.Go(func() error { return hm.Run(ctx, logging.NewLogger()) })
+	g.Go(func() error { return hm.Run(ctx, logging.StdLogger()) })
 
 	// Should still be unavailable due to missing metrics.
 	hm.BlockUntilNextMetricsCollection(ctx)
