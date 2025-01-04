@@ -32,7 +32,6 @@ func BindCommandlineArguments() {
 	}
 }
 
-// TODO Move code relating to config out of common into a new package internal/serverconfig
 func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigName(baseConfigFileName)
@@ -102,8 +101,8 @@ func ConfigureLogging() {
 	pe.EncodeTime = zapcore.ISO8601TimeEncoder
 	pe.ConsoleSeparator = " "
 	pe.EncodeLevel = zapcore.CapitalLevelEncoder
-	consoleEncoder := zapcore.NewConsoleEncoder(pe)
 	pe.EncodeCaller = ShortCallerEncoder
+	consoleEncoder := zapcore.NewConsoleEncoder(pe)
 
 	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), readEnvironmentLogLevel())
 	l := zap.New(core, zap.AddCaller()).WithOptions(zap.AddCallerSkip(2))
