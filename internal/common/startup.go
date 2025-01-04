@@ -3,27 +3,22 @@ package common
 import (
 	"crypto/tls"
 	"fmt"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"net/http"
 	"os"
-	"path"
-	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
-
-	"github.com/armadaproject/armada/internal/common/certs"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/weaveworks/promrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/certs"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
@@ -90,7 +85,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	}
 
 	if err := config.Validate(); err != nil {
-		log.Error(commonconfig.FormatValidationErrors(err))
+		log.Error(commonconfig.FormatValidationErrors(err).Error())
 		os.Exit(-1)
 	}
 
@@ -103,58 +98,45 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 
 // TODO Move logging-related code out of common into a new package internal/logging
 func ConfigureCommandLineLogging() {
-	commandLineFormatter := new(logging.CommandLineFormatter)
-	log.SetFormatter(commandLineFormatter)
-	log.SetOutput(os.Stdout)
+	panic("not implemented")
 }
 
 func ConfigureLogging() {
-	log.SetLevel(readEnvironmentLogLevel())
-	log.SetFormatter(readEnvironmentLogFormat())
-	log.SetReportCaller(true)
-	log.SetOutput(os.Stdout)
+	pe := zap.NewProductionEncoderConfig()
+	pe.EncodeTime = zapcore.ISO8601TimeEncoder
+	pe.ConsoleSeparator = " "
+	pe.EncodeLevel = zapcore.CapitalLevelEncoder
+	consoleEncoder := zapcore.NewConsoleEncoder(pe)
+	pe.EncodeCaller = ShortCallerEncoder
+
+	level := zap.InfoLevel
+	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
+	l := zap.New(core, zap.AddCaller()).WithOptions(zap.AddCallerSkip(2))
+	log.SetDefaultLogger(log.FromZap(l))
 }
 
-func readEnvironmentLogLevel() log.Level {
+func readEnvironmentLogLevel() zapcore.Level {
 	level, ok := os.LookupEnv("LOG_LEVEL")
 	if ok {
-		logLevel, err := log.ParseLevel(level)
-		if err == nil {
-			return logLevel
+		// Parse the log level
+		switch level {
+		case "debug":
+			return zapcore.DebugLevel
+		case "info":
+			return zapcore.InfoLevel
+		case "warn", "warning":
+			return zapcore.WarnLevel
+		case "error":
+			return zapcore.ErrorLevel
+		case "panic":
+			return zapcore.PanicLevel
+		case "fatal":
+			return zapcore.FatalLevel
+		default:
+			println(fmt.Sprintf("Unknown log level %s", level))
 		}
 	}
-	return log.InfoLevel
-}
-
-func readEnvironmentLogFormat() log.Formatter {
-	formatStr, ok := os.LookupEnv("LOG_FORMAT")
-	if !ok {
-		formatStr = "colourful"
-	}
-
-	textFormatter := &log.TextFormatter{
-		ForceColors:     true,
-		FullTimestamp:   true,
-		TimestampFormat: logTimestampFormat,
-		CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
-			fileName := path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
-			return "", fileName
-		},
-	}
-
-	switch strings.ToLower(formatStr) {
-	case "json":
-		return &log.JSONFormatter{TimestampFormat: logTimestampFormat}
-	case "colourful":
-		return textFormatter
-	case "text":
-		textFormatter.ForceColors = false
-		textFormatter.DisableColors = true
-		return textFormatter
-	default:
-		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return textFormatter
-	}
+	return zapcore.InfoLevel
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {
@@ -162,9 +144,6 @@ func ServeMetrics(port uint16) (shutdown func()) {
 }
 
 func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()) {
-	hook := promrus.MustNewPrometheusHook()
-	log.AddHook(hook)
-
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 	return ServeHttp(port, mux)
@@ -192,7 +171,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	}
 
 	go func() {
-		log.Printf("Starting %s server listening on %d", scheme, port)
+		log.Infof("Starting %s server listening on %d", scheme, port)
 		var err error
 		if useTls {
 			certWatcher := certs.NewCachedCertificateService(certFile, keyFile, time.Minute)
@@ -217,10 +196,23 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	return func() {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 		defer cancel()
-		log.Printf("Stopping %s server listening on %d", scheme, port)
+		log.Infof("Stopping %s server listening on %d", scheme, port)
 		e := srv.Shutdown(ctx)
 		if e != nil {
 			panic(e)
 		}
+	}
+}
+
+// ShortCallerEncoder serializes a caller in package/file:line format, trimming
+// all but the final directory from the full path.
+func ShortCallerEncoder(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
+	trimmed := caller.TrimmedPath()
+	lastSlash := strings.LastIndexByte(trimmed, '/')
+	if lastSlash != -1 && lastSlash != len(trimmed)-1 {
+		fileName := trimmed[lastSlash+1:]
+		enc.AppendString(fileName)
+	} else {
+		enc.AppendString(trimmed)
 	}
 }

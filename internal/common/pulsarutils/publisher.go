@@ -10,7 +10,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
-	"github.com/armadaproject/armada/internal/common/logging"
 	psutils "github.com/armadaproject/armada/internal/common/pulsarutils/utils"
 )
 
@@ -78,8 +77,8 @@ func (p *PulsarPublisher[T]) PublishMessages(ctx *armadacontext.Context, events 
 	for _, msg := range msgs {
 		p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 			if err != nil {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Error("error sending message to Pulsar")
 				errored = true
 			}

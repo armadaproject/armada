@@ -10,7 +10,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/logging"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/common/serve"
@@ -54,7 +53,7 @@ func SetupPprof(config *configuration.ProfilingConfig, ctx *armadacontext.Contex
 
 	serveFunc := func() error {
 		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
-			logging.WithStacktrace(ctx.Logger, err).Error("pprof server failure")
+			ctx.Logger().WithStacktrace(err).Error("pprof server failure")
 		}
 		return err
 	}

@@ -219,7 +219,7 @@ type NodeTypeIterator struct {
 	priority int32
 	// Used to index into node.keys to assert that keys are always increasing.
 	// This to detect if the iterator gets stuck.
-	// TODO(albin): With better testing we should be able to remove this.
+	// TODO(albin): WithField better testing we should be able to remove this.
 	keyIndex int
 	// Name of the memdb index used for node iteration.
 	// Should correspond to the priority set for this iterator.

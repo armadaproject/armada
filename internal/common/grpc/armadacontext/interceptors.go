@@ -29,8 +29,8 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func createArmadaCtx(ctx context.Context) *armadacontext.Context {
-	log := logging.NewLogger().
-		With("requestId", requestid.FromContextOrMissing(ctx)).
-		With("user", auth.GetPrincipal(ctx).GetName())
+	log := logging.StdLogger().
+		WithField("requestId", requestid.FromContextOrMissing(ctx)).
+		WithField("user", auth.GetPrincipal(ctx).GetName())
 	return armadacontext.New(ctx, log)
 }

@@ -147,13 +147,7 @@ func panicRecoveryHandler(p interface{}) (err error) {
 func InterceptorLogger() grpc_logging.Logger {
 	return grpc_logging.LoggerFunc(func(ctx context.Context, lvl grpc_logging.Level, msg string, fields ...any) {
 		armadaCtx := armadacontext.FromGrpcCtx(ctx)
-		logFields := make(map[string]any, len(fields)/2)
-		i := grpc_logging.Fields(fields).Iterator()
-		for i.Next() {
-			k, v := i.At()
-			logFields[k] = v
-		}
-		l := armadaCtx.Logger.With(logFields)
+		l := armadaCtx.Logger().WithField(fields...)
 		switch lvl {
 		case grpc_logging.LevelDebug:
 			l.Debug(msg)

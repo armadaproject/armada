@@ -255,7 +255,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		return nil
 	})
 	if err != nil {
-		log.WithStacktrace(log.NewLogger(), err).Error("unable to monitor jobs")
+		log.WithStacktrace(err).Error("unable to monitor jobs")
 	}
 	return submittedIds
 }
@@ -288,7 +288,7 @@ func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId
 		return err
 	})
 	if err != nil {
-		log.WithStacktrace(log.NewLogger(), err).Error("unable to cancel jobs")
+		log.WithStacktrace(err).Error("unable to cancel jobs")
 	}
 }
 

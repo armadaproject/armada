@@ -13,64 +13,64 @@ import (
 // while retaining type-safety
 type Context struct {
 	context.Context
-	Logger *logging.Logger
+	logger *logging.Logger
 }
 
 // Debug logs a message at level Debug
 func (ctx *Context) Debug(msg string) {
-	ctx.Logger.Debug(msg)
+	ctx.logger.Debug(msg)
 }
 
 // Info logs a message at level Info
 func (ctx *Context) Info(msg string) {
-	ctx.Logger.Info(msg)
+	ctx.logger.Info(msg)
 }
 
 // Warn logs a message at level Warn
 func (ctx *Context) Warn(msg string) {
-	ctx.Logger.Warn(msg)
+	ctx.logger.Warn(msg)
 }
 
 // Error logs a message at level Error
 func (ctx *Context) Error(msg string) {
-	ctx.Logger.Error(msg)
+	ctx.logger.Error(msg)
 }
 
 // Panic logs a message at level Panic
 func (ctx *Context) Panic(msg string) {
-	ctx.Logger.Panic(msg)
+	ctx.logger.Panic(msg)
 }
 
 // Fatal logs a message at level Fatal then the process will exit with status set to 1.
 func (ctx *Context) Fatal(msg string) {
-	ctx.Logger.Fatal(msg)
+	ctx.logger.Fatal(msg)
 }
 
 // Debugf logs a message at level Debug.
 func (ctx *Context) Debugf(format string, args ...interface{}) {
-	ctx.Logger.Debugf(format, args...)
+	ctx.logger.Debugf(format, args...)
 }
 
 // Infof logs a message at level Info.
 func (ctx *Context) Infof(format string, args ...interface{}) {
-	ctx.Logger.Infof(format, args...)
+	ctx.logger.Infof(format, args...)
 }
 
 // Warnf logs a message at level Warn.
 func (ctx *Context) Warnf(format string, args ...interface{}) {
-	ctx.Logger.Warnf(format, args...)
+	ctx.logger.Warnf(format, args...)
 }
 
 // Errorf logs a message at level Error.
 func (ctx *Context) Errorf(format string, args ...interface{}) {
-	ctx.Logger.Errorf(format, args...)
+	ctx.logger.Errorf(format, args...)
 }
 
 // Background creates an empty context with a default logger.  It is analogous to context.Background()
 func Background() *Context {
 	return &Context{
 		Context: context.Background(),
-		Logger:  logging.NewLogger(),
+		logger:  logging.StdLogger().WithCallerSkip(1),
 	}
 }
 
@@ -78,7 +78,7 @@ func Background() *Context {
 func TODO() *Context {
 	return &Context{
 		Context: context.TODO(),
-		Logger:  logging.NewLogger(),
+		logger:  logging.StdLogger().WithCallerSkip(1),
 	}
 }
 
@@ -88,15 +88,19 @@ func FromGrpcCtx(ctx context.Context) *Context {
 	if ok {
 		return armadaCtx
 	}
-	return New(ctx, logging.NewLogger())
+	return New(ctx, logging.StdLogger().WithCallerSkip(1))
 }
 
 // New returns an  armada context that encapsulates both a go context and a logger
 func New(ctx context.Context, log *logging.Logger) *Context {
 	return &Context{
 		Context: ctx,
-		Logger:  log,
+		logger:  log,
 	}
+}
+
+func (ctx *Context) Logger() *logging.Logger {
+	return ctx.logger.WithCallerSkip(-1)
 }
 
 // WithCancel returns a copy of parent with a new Done channel. It is analogous to context.WithCancel()
@@ -104,7 +108,7 @@ func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	c, cancel := context.WithCancel(parent.Context)
 	return &Context{
 		Context: c,
-		Logger:  parent.Logger,
+		logger:  parent.logger,
 	}, cancel
 }
 
@@ -114,7 +118,7 @@ func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	c, cancel := context.WithDeadline(parent.Context, d)
 	return &Context{
 		Context: c,
-		Logger:  parent.Logger,
+		logger:  parent.logger,
 	}, cancel
 }
 
@@ -127,7 +131,7 @@ func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.Canc
 func WithLogField(parent *Context, key string, val interface{}) *Context {
 	return &Context{
 		Context: parent.Context,
-		Logger:  parent.Logger.With(key, val),
+		logger:  parent.logger.WithField(key, val),
 	}
 }
 
@@ -135,7 +139,7 @@ func WithLogField(parent *Context, key string, val interface{}) *Context {
 func WithLogFields(parent *Context, fields map[string]any) *Context {
 	return &Context{
 		Context: parent.Context,
-		Logger:  parent.Logger.With(fields),
+		logger:  parent.logger.WithFields(fields),
 	}
 }
 
@@ -144,7 +148,7 @@ func WithLogFields(parent *Context, fields map[string]any) *Context {
 func WithValue(parent *Context, key, val any) *Context {
 	return &Context{
 		Context: context.WithValue(parent, key, val),
-		Logger:  parent.Logger,
+		logger:  parent.logger,
 	}
 }
 
@@ -154,6 +158,6 @@ func ErrGroup(ctx *Context) (*errgroup.Group, *Context) {
 	group, goctx := errgroup.WithContext(ctx)
 	return group, &Context{
 		Context: goctx,
-		Logger:  ctx.Logger,
+		logger:  ctx.logger,
 	}
 }

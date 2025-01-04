@@ -9,11 +9,10 @@ import (
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
-	clusterCont
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type EventReporter interface {

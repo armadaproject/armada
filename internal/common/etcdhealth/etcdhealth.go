@@ -184,7 +184,7 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 }
 
 func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *logging.Logger) error {
-	log = log.With("service", "EtcdHealthMonitor")
+	log = log.WithField("service", "EtcdHealthMonitor")
 	log.Info("starting etcd health monitor")
 	defer log.Info("stopping etcd health monitor")
 	ticker := time.NewTicker(srv.scrapeInterval)
@@ -199,20 +199,20 @@ func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *loggin
 			srv.mu.Lock()
 			srv.timeOfMostRecentCollectionAttempt = time.Now()
 			if err != nil {
-				logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+				log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 			} else {
 				success := true
 				if err := srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
 					success = false
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+					log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if err := srv.setSizeBytesFromMetrics(metrics); err != nil {
 					success = false
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+					log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if err := srv.setCapacityBytesFromMetrics(metrics); err != nil {
 					success = false
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+					log.WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if success {
 					srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt

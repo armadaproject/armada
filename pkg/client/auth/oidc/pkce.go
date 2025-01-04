@@ -94,14 +94,14 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 
 	go func() {
 		if err := server.Serve(listener); err != nil {
-			log.WithStacktrace(log.NewLogger(), err).Error("unable to serve")
+			log.WithStacktrace(err).Error("unable to serve")
 		}
 	}()
 
 	cmd, err := openBrowser("http://" + localUrl)
 	defer func() {
 		if err := cmd.Process.Kill(); err != nil {
-			log.WithStacktrace(log.NewLogger(), err).Error("unable to kill process")
+			log.WithStacktrace(err).Error("unable to kill process")
 		}
 	}()
 

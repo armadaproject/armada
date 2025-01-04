@@ -707,15 +707,15 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 func logQueryDebug(query *Query, description string) {
 	log.
 		With("query", removeNewlinesAndTabs(query.Sql)).
-		With("values", query.Args).
+		WithField("values", query.Args).
 		Debug(description)
 }
 
 func logQueryError(query *Query, description string, duration time.Duration) {
 	log.
 		With("query", removeNewlinesAndTabs(query.Sql)).
-		With("values", query.Args).
-		With("duration", duration).
+		WithField("values", query.Args).
+		WithField("duration", duration).
 		Errorf("Error executing %s query", description)
 }
 
@@ -723,8 +723,8 @@ func logSlowQuery(query *Query, description string, duration time.Duration) {
 	if duration > 5*time.Second {
 		log.
 			With("query", removeNewlinesAndTabs(query.Sql)).
-			With("values", query.Args).
-			With("duration", duration).
+			WithField("values", query.Args).
+			WithField("duration", duration).
 			Infof("Slow %s query detected", description)
 	}
 }

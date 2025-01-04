@@ -1,6 +1,7 @@
 package pulsarutils
 
 import (
+	"github.com/armadaproject/armada/internal/common/logging"
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -39,5 +40,6 @@ func NewPulsarClient(config *commonconfig.PulsarConfig) (pulsar.Client, error) {
 		TLSAllowInsecureConnection: config.TLSAllowInsecureConnection,
 		MaxConnectionsPerBroker:    config.MaxConnectionsPerBroker,
 		Authentication:             authentication,
+		Logger:                     logging.NewPulsarLogger(),
 	})
 }
