@@ -81,7 +81,7 @@ func (c *InstructionConverter) convertSequence(
 		var err error
 		if event.Created == nil {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-			log.WithError(err).Warnf("Missing timestamp for event at index %d.", idx)
+			log.Warnf("Missing timestamp for event at index %d.", idx)
 			continue
 		}
 		ts := protoutil.ToStdTime(event.Created)

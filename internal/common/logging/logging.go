@@ -76,7 +76,7 @@ func (l *Logger) Fatalf(format string, args ...interface{}) {
 }
 
 func (l *Logger) WithError(err error) *Logger {
-	return l.WithField("error", err.Error())
+	return l.WithField("error", err)
 }
 
 // WithStacktrace returns a new Logger obtained by adding error information and, if available, a stack trace
