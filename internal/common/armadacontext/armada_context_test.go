@@ -14,7 +14,7 @@ var defaultLogger = logging.StdLogger().WithField("foo", "bar")
 
 func TestNew(t *testing.T) {
 	ctx := New(context.Background(), defaultLogger)
-	require.Equal(t, defaultLogger, ctx.Logger())
+	require.Equal(t, defaultLogger, ctx.logger)
 	require.Equal(t, context.Background(), ctx.Context)
 }
 
