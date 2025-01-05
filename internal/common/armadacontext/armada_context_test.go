@@ -2,11 +2,12 @@ package armadacontext
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 var defaultLogger = logging.StdLogger().WithField("foo", "bar")

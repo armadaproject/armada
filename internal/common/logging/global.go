@@ -1,9 +1,10 @@
 package logging
 
 import (
+	"os"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"os"
 )
 
 // The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should

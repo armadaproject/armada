@@ -12,7 +12,6 @@ import (
 )
 
 func TestWithField(t *testing.T) {
-
 	logger, observedLogs := testLogger()
 
 	newLogger := logger.WithField("foo", "bar")
@@ -29,7 +28,6 @@ func TestWithField(t *testing.T) {
 }
 
 func TestWithFields(t *testing.T) {
-
 	logger, observedLogs := testLogger()
 
 	newLogger := logger.WithFields(map[string]any{

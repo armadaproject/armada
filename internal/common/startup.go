@@ -131,7 +131,6 @@ func ConfigureLogging() {
 }
 
 func readEnvironmentLogFormat(pe zapcore.EncoderConfig) zapcore.Encoder {
-
 	formatStr, ok := os.LookupEnv("LOG_FORMAT")
 	if !ok {
 		formatStr = "text"
