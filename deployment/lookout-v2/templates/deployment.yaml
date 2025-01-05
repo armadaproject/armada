@@ -101,8 +101,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "lookout_v2.config.name" . }}
+          configMap:
+            name: {{ include "lookout_v2.config.name" . }}
         {{- if .Values.applicationConfig.tls.enabled }}
         - name: tls-certs
           secret:

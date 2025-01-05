@@ -87,8 +87,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "event_ingester.config.name" . }}
+          configMap:
+            name: {{ include "event_ingester.config.name" . }}
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:

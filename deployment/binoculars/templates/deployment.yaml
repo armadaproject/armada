@@ -102,8 +102,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "binoculars.config.name" . }}
+          configMap:
+            name: {{ include "binoculars.config.name" . }}
         {{- if .Values.applicationConfig.grpc.tls.enabled }}
         - name: tls-certs
           secret:

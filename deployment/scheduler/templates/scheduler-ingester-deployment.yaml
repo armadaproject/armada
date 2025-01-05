@@ -87,8 +87,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "armada-scheduler-ingester.config.name" . }}
+          configMap:
+            name: {{ include "armada-scheduler-ingester.config.name" . }}
         {{- if .Values.ingester.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:

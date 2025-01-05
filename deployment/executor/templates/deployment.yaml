@@ -92,8 +92,8 @@ spec:
         {{- toYaml .Values.tolerations | nindent 8 }}
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "executor.config.name" . }}
+          configMap:
+            name: {{ include "executor.config.name" . }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}
