@@ -123,11 +123,29 @@ func ConfigureLogging() {
 	pe.ConsoleSeparator = " "
 	pe.EncodeLevel = zapcore.CapitalLevelEncoder
 	pe.EncodeCaller = ShortCallerEncoder
-	consoleEncoder := zapcore.NewConsoleEncoder(pe)
+	encoder := readEnvironmentLogFormat(pe)
 
-	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), readEnvironmentLogLevel())
+	core := zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), readEnvironmentLogLevel())
 	l := zap.New(core, zap.AddCaller()).WithOptions(zap.AddCallerSkip(2))
 	log.ReplaceStdLogger(log.FromZap(l))
+}
+
+func readEnvironmentLogFormat(pe zapcore.EncoderConfig) zapcore.Encoder {
+
+	formatStr, ok := os.LookupEnv("LOG_FORMAT")
+	if !ok {
+		formatStr = "text"
+	}
+
+	switch strings.ToLower(formatStr) {
+	case "json":
+		return zapcore.NewJSONEncoder(pe)
+	case "text":
+		return zapcore.NewConsoleEncoder(pe)
+	default:
+		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to text format", formatStr))
+		return zapcore.NewConsoleEncoder(pe)
+	}
 }
 
 func readEnvironmentLogLevel() zapcore.Level {
