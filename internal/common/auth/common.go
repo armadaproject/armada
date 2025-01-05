@@ -123,6 +123,8 @@ func CreateGrpcMiddlewareAuthFunction(authService AuthService) func(ctx context.
 		if err != nil {
 			return nil, err
 		}
+		// record username for request logging
+		ctx = context.WithValue(ctx, "user", principal.GetName())
 		return WithPrincipal(ctx, principal), nil
 	}
 }

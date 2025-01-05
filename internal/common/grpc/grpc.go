@@ -27,7 +27,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/certs"
-	grpc_armadacontext "github.com/armadaproject/armada/internal/common/grpc/armadacontext"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
@@ -56,7 +55,6 @@ func CreateGrpcServer(
 			srvMetrics.UnaryServerInterceptor(),
 			requestid.UnaryServerInterceptor(false),
 			grpc_auth.UnaryServerInterceptor(authFunction),
-			grpc_armadacontext.UnaryServerInterceptor(),
 			grpc_logging.UnaryServerInterceptor(InterceptorLogger(), loggerOpts...),
 			armadaerrors.UnaryServerInterceptor(2000),
 			grpc_recovery.UnaryServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
@@ -65,7 +63,6 @@ func CreateGrpcServer(
 			srvMetrics.StreamServerInterceptor(),
 			requestid.StreamServerInterceptor(false),
 			grpc_auth.StreamServerInterceptor(authFunction),
-			grpc_armadacontext.StreamServerInterceptor(),
 			grpc_logging.StreamServerInterceptor(InterceptorLogger(), loggerOpts...),
 			armadaerrors.StreamServerInterceptor(2000),
 			grpc_recovery.StreamServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
@@ -146,14 +143,15 @@ func panicRecoveryHandler(p interface{}) (err error) {
 
 func InterceptorLogger() grpc_logging.Logger {
 	return grpc_logging.LoggerFunc(func(ctx context.Context, lvl grpc_logging.Level, msg string, fields ...any) {
-		armadaCtx := armadacontext.FromGrpcCtx(ctx)
-		logFields := make(map[string]any, len(fields)/2)
+		logFields := make(map[string]any, len(fields)/2+2)
+		logFields["user"] = ctx.Value("user")
+		logFields["requestId"] = ctx.Value("requestId")
 		i := grpc_logging.Fields(fields).Iterator()
 		for i.Next() {
 			k, v := i.At()
 			logFields[k] = v
 		}
-		l := armadaCtx.WithFields(logFields)
+		l := log.WithFields(logFields)
 		switch lvl {
 		case grpc_logging.LevelDebug:
 			l.Debug(msg)
