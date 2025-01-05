@@ -2,6 +2,10 @@ package armadacontext
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	"testing"
 	"time"
 
@@ -28,17 +32,40 @@ func TestTODO(t *testing.T) {
 	require.Equal(t, ctx.Context, context.TODO())
 }
 
-//func TestWithLogField(t *testing.T) {
-//	ctx := WithLogField(Background(), "fish", "chips")
-//	require.Equal(t, context.Background(), ctx.Context)
-//	require.Equal(t, map[string]any{"fish": "chips"}, ctx.Logger().(*logrus.Entry).Data)
-//}
-//
-//func TestWithLogFields(t *testing.T) {
-//	ctx := WithLogFields(Background(), map[string]any{"fish": "chips", "salt": "pepper"})
-//	require.Equal(t, context.Background(), ctx.Context)
-//	require.Equal(t, map[string]any{"fish": "chips", "salt": "pepper"}, ctx.FieldLogger.(*logrus.Entry).Data)
-//}
+func TestWithLogField(t *testing.T) {
+	logger, observedLogs := testLogger()
+	ctx := WithLogField(New(context.Background(), logger), "fish", "chips")
+	require.Equal(t, context.Background(), ctx.Context)
+
+	ctx.Info("test message")
+
+	// Check the captured log entries
+	entries := observedLogs.All()
+	require.Len(t, entries, 1, "Expected exactly one log entry")
+
+	// Verify the fields
+	logEntry := entries[0]
+	assert.Equal(t, "test message", logEntry.Message)
+	assert.Equal(t, "chips", logEntry.ContextMap()["fish"])
+}
+
+func TestWithLogFields(t *testing.T) {
+	logger, observedLogs := testLogger()
+	ctx := WithLogFields(New(context.Background(), logger), map[string]any{"fish": "chips", "salt": "pepper"})
+	require.Equal(t, context.Background(), ctx.Context)
+
+	ctx.Info("test message")
+
+	// Check the captured log entries
+	entries := observedLogs.All()
+	require.Len(t, entries, 1, "Expected exactly one log entry")
+
+	// Verify the fields
+	logEntry := entries[0]
+	assert.Equal(t, "test message", logEntry.Message)
+	assert.Equal(t, "chips", logEntry.ContextMap()["fish"])
+	assert.Equal(t, "pepper", logEntry.ContextMap()["salt"])
+}
 
 func TestWithTimeout(t *testing.T) {
 	ctx, _ := WithTimeout(Background(), 100*time.Millisecond)
@@ -78,4 +105,11 @@ func quiescent(t *testing.T) time.Duration {
 
 	const arbitraryCleanupMargin = 1 * time.Second
 	return time.Until(deadline) - arbitraryCleanupMargin
+}
+
+func testLogger() (*logging.Logger, *observer.ObservedLogs) {
+	core, observedLogs := observer.New(zapcore.DebugLevel)
+	baseLogger := zap.New(core)
+	logger := logging.FromZap(baseLogger)
+	return logger, observedLogs
 }
