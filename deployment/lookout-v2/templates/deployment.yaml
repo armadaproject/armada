@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "lookout_v2.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "lookout_v2.labels.all" . | nindent 8 }}
     spec:

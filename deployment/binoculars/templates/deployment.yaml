@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "binoculars.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "binoculars.labels.all" . | nindent 8 }}
     spec:

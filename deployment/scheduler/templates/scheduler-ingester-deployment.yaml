@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "armada-scheduler.name" . }}-ingester
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/scheduler-ingester-secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/scheduler-ingester-configmap.yaml") . | sha256sum }}
       labels:
         {{- include "armada-scheduler-ingester.labels.all" . | nindent 8 }}
     spec:
