@@ -1,4 +1,4 @@
-import { RefObject } from "react"
+import { ReactNode, RefObject } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box, styled } from "@mui/material"
@@ -7,10 +7,11 @@ import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react
 import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 import { JobRow, JobTableRow } from "../../models/jobsTableModels"
-import { Match } from "../../models/lookoutV2Models"
-import { FilterType, getColumnMetadata, toColId } from "../../utils/jobsTableColumns"
+import { JobState, Match } from "../../models/lookoutV2Models"
+import { ColumnId, FilterType, getColumnMetadata, StandardColumnId, toColId } from "../../utils/jobsTableColumns"
 import { matchForColumn } from "../../utils/jobsTableUtils"
 import { ActionableValueOnHover } from "../ActionableValueOnHover"
+import { JobGroupStateCountsColumnHeader } from "./JobGroupStateCountsColumnHeader"
 
 const sharedCellStyle = {
   padding: 0,
@@ -19,14 +20,14 @@ const sharedCellStyle = {
   whiteSpace: "nowrap",
   overflow: "hidden",
   borderRight: "1px solid #cccccc",
-}
+} as const
 
 const sharedCellStyleWithOpacity = {
   ...sharedCellStyle,
   "&:hover": {
     opacity: 0.85,
   },
-}
+} as const
 
 const HeaderTableCell = styled(TableCell)(({ theme }) => ({
   backgroundColor: theme.palette.grey[200],
@@ -34,6 +35,13 @@ const HeaderTableCell = styled(TableCell)(({ theme }) => ({
     backgroundColor: theme.palette.grey[800],
   }),
 }))
+
+const JobGroupStateCountsColumnHeaderContainer = styled("div")({
+  marginTop: 5,
+  // Body cells have 8px horizontal padding while header cells have 10px. -2px margin on this container adjusts for this
+  marginLeft: -2,
+  marginRight: -2 - 5, // -5px to adjust for the column resizer
+})
 
 export interface HeaderCellProps {
   header: Header<JobRow, unknown>
@@ -43,6 +51,7 @@ export interface HeaderCellProps {
   parseError: string | undefined
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
   onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+  groupedColumns: ColumnId[]
 }
 
 export function HeaderCell({
@@ -53,6 +62,7 @@ export function HeaderCell({
   parseError,
   onColumnMatchChange,
   onSetTextFieldRef,
+  groupedColumns,
 }: HeaderCellProps) {
   const id = toColId(header.id)
   const columnDef = header.column.columnDef
@@ -178,6 +188,15 @@ export function HeaderCell({
               onSetTextFieldRef={onSetTextFieldRef}
             />
           )}
+
+          {header.column.id === StandardColumnId.State &&
+            groupedColumns.filter((id) => id !== StandardColumnId.State)?.length > 0 && (
+              <JobGroupStateCountsColumnHeaderContainer>
+                <JobGroupStateCountsColumnHeader
+                  jobStatesToDisplay={header.column.getFilterValue() as JobState[] | undefined}
+                />
+              </JobGroupStateCountsColumnHeaderContainer>
+            )}
         </div>
         <div
           {...{
@@ -197,6 +216,11 @@ export function HeaderCell({
   )
 }
 
+const BodyTableCell = styled(TableCell)({
+  ...sharedCellStyleWithOpacity,
+  padding: "2px 8px 2px 8px",
+})
+
 export interface BodyCellProps {
   cell: Cell<JobRow, unknown>
   rowIsGroup: boolean
@@ -204,21 +228,16 @@ export interface BodyCellProps {
   onExpandedChange: () => void
   onClickRowCheckbox: (row: Row<JobTableRow>) => void
 }
+
 export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, onClickRowCheckbox }: BodyCellProps) => {
   const columnMetadata = getColumnMetadata(cell.column.columnDef)
   const cellHasValue = cell.renderValue()
   const isRightAligned = columnMetadata.isRightAligned ?? false
-  return (
-    <TableCell
-      key={cell.id}
-      align={isRightAligned ? "right" : "left"}
-      sx={{
-        ...sharedCellStyleWithOpacity,
-        padding: "2px 8px 2px 8px",
-      }}
-    >
-      {rowIsGroup && cell.column.getIsGrouped() && cellHasValue ? (
-        // If it's a grouped cell, add an expander and row count
+
+  const cellContent = ((): ReactNode => {
+    // If it's a grouped cell, add an expander and row count
+    if (rowIsGroup && cell.column.getIsGrouped() && cellHasValue) {
+      return (
         <Box
           sx={{
             display: "flex",
@@ -251,39 +270,48 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </div>
         </Box>
-      ) : cell.getIsAggregated() ? (
-        // If the cell is aggregated, use the Aggregated
-        // renderer for cell
-        flexRender(cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell, {
+      )
+    }
+
+    // If the cell is aggregated, use the Aggregated renderer for cell
+    if (cell.getIsAggregated()) {
+      return flexRender(cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell, {
+        ...cell.getContext(),
+        onClickRowCheckbox,
+      })
+    }
+
+    return (
+      <ActionableValueOnHover
+        stopPropogationOnActionClick
+        copyAction={
+          !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy
+            ? { copyContent: String(cell.getValue()) }
+            : undefined
+        }
+        filterAction={
+          rowIsGroup || !cell.getValue() || columnMetadata.filterType === undefined
+            ? undefined
+            : {
+                onFilter: () => {
+                  cell.column.setFilterValue(
+                    columnMetadata.filterType === FilterType.Enum ? [cell.getValue()] : cell.getValue(),
+                  )
+                },
+              }
+        }
+      >
+        {flexRender(cell.column.columnDef.cell, {
           ...cell.getContext(),
           onClickRowCheckbox,
-        })
-      ) : (
-        <ActionableValueOnHover
-          stopPropogationOnActionClick
-          copyAction={
-            !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy
-              ? { copyContent: String(cell.getValue()) }
-              : undefined
-          }
-          filterAction={
-            rowIsGroup || !cell.getValue() || columnMetadata.filterType === undefined
-              ? undefined
-              : {
-                  onFilter: () => {
-                    cell.column.setFilterValue(
-                      columnMetadata.filterType === FilterType.Enum ? [cell.getValue()] : cell.getValue(),
-                    )
-                  },
-                }
-          }
-        >
-          {flexRender(cell.column.columnDef.cell, {
-            ...cell.getContext(),
-            onClickRowCheckbox,
-          })}
-        </ActionableValueOnHover>
-      )}
-    </TableCell>
+        })}
+      </ActionableValueOnHover>
+    )
+  })()
+
+  return (
+    <BodyTableCell key={cell.id} align={isRightAligned ? "right" : "left"}>
+      {cellContent}
+    </BodyTableCell>
   )
 }

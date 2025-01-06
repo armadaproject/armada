@@ -238,7 +238,12 @@ export const JOB_COLUMNS: JobTableColumn[] = [
           cell.row.original.stateCounts &&
           cell.row.original.groupedField !== "state"
         ) {
-          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+          return (
+            <JobGroupStateCounts
+              stateCounts={cell.row.original.stateCounts}
+              jobStatesToDisplay={cell.column.getFilterValue() as JobState[] | undefined}
+            />
+          )
         } else {
           return <JobStateChip state={cell.getValue()} />
         }
@@ -251,7 +256,12 @@ export const JOB_COLUMNS: JobTableColumn[] = [
           cell.row.original.stateCounts &&
           cell.row.original.groupedField !== "state"
         ) {
-          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+          return (
+            <JobGroupStateCounts
+              stateCounts={cell.row.original.stateCounts}
+              jobStatesToDisplay={cell.column.getFilterValue() as JobState[] | undefined}
+            />
+          )
         } else {
           return <JobStateChip state={cell.getValue()} />
         }
