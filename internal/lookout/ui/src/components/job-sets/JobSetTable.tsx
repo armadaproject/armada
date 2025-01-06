@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { forwardRef, useCallback, useEffect, useState } from "react"
 
 import {
   Alert,
@@ -15,7 +15,7 @@ import {
   TableSortLabel,
 } from "@mui/material"
 import { visuallyHidden } from "@mui/utils"
-import { Truncate } from "@re-dev/react-truncate"
+import { TableVirtuoso, TableComponents } from "react-virtuoso"
 
 import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutV2Models"
 import { JobSet } from "../../services/JobService"
@@ -31,7 +31,33 @@ const JOB_STATES_TO_DISPLAY = [
   [JobState.Cancelled, "jobsCancelled"],
 ] as const
 
-const MinWidthTableCell = styled(TableCell)({ width: "0%", textWrap: "nowrap" })
+interface TableContext {
+  selectedJobSetIds: Set<string>
+}
+
+const NoWrapTableCell = styled(TableCell)({ textWrap: "nowrap" })
+const MinWidthTableCell = styled(NoWrapTableCell)({ width: "0%" })
+const MaxWidthTableCell = styled(TableCell)({ width: "100%" })
+
+const StyledTable = styled(Table)({
+  borderCollapse: "separate",
+})
+
+const TableHeaderRowCell = styled(TableCell)(({ theme }) => ({ background: theme.palette.background.paper }))
+
+const TableHeaderRowMinWidthCell = styled(MinWidthTableCell)(({ theme }) => ({
+  background: theme.palette.background.paper,
+}))
+
+const VirtuosoTableComponents: TableComponents<JobSet, TableContext> = {
+  Scroller: forwardRef<HTMLDivElement>((props, ref) => <TableContainer {...props} ref={ref} />),
+  Table: (props) => <StyledTable {...props} size="small" />,
+  TableHead: forwardRef<HTMLTableSectionElement>((props, ref) => <TableHead {...props} ref={ref} />),
+  TableRow: ({ context, ...props }) => (
+    <TableRow {...props} hover selected={context?.selectedJobSetIds.has(props.item.jobSetId)} />
+  ),
+  TableBody: forwardRef<HTMLTableSectionElement>((props, ref) => <TableBody {...props} ref={ref} />),
+}
 
 interface JobSetTableProps {
   queue: string
@@ -89,82 +115,77 @@ export default function JobSetTable({
   }
 
   return (
-    <TableContainer>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
+    <TableVirtuoso<JobSet, TableContext>
+      data={jobSets}
+      components={VirtuosoTableComponents}
+      context={{ selectedJobSetIds: new Set(selectedJobSets.keys()) }}
+      fixedHeaderContent={() => (
+        <TableRow>
+          <TableHeaderRowCell padding="checkbox">
+            <Checkbox
+              color="primary"
+              inputProps={{
+                "aria-label": "select all job sets",
+              }}
+              indeterminate={0 < selectedJobSets.size && selectedJobSets.size < jobSets.length}
+              checked={selectedJobSets.size === jobSets.length}
+              onChange={(_, checked) => (checked ? onSelectAllClick() : onDeselectAllClick())}
+            />
+          </TableHeaderRowCell>
+          <TableHeaderRowCell>Job Set</TableHeaderRowCell>
+          <TableHeaderRowCell>
+            <TableSortLabel active direction={newestFirst ? "desc" : "asc"} onClick={() => onOrderChange(!newestFirst)}>
+              Submission time
+              <Box component="span" sx={visuallyHidden}>
+                {newestFirst ? "sorted descending" : "sorted ascending"}
+              </Box>
+            </TableSortLabel>
+          </TableHeaderRowCell>
+          {JOB_STATES_TO_DISPLAY.map(([jobState]) => {
+            const Icon = jobStateIcons[jobState]
+            return (
+              <TableHeaderRowMinWidthCell key={jobState} align="right">
+                <Stack direction="row" spacing={1} alignItems="center" display="inline">
+                  <span>{formatJobState(jobState)}</span>
+                  <Icon fontSize="inherit" color={jobStateColors[jobState]} />
+                </Stack>
+              </TableHeaderRowMinWidthCell>
+            )
+          })}
+        </TableRow>
+      )}
+      itemContent={(jobSetIndex, { jobSetId, latestSubmissionTime, ...jobSetRest }) => {
+        const rowSelected = selectedJobSets.has(jobSetId)
+        return (
+          <>
             <TableCell padding="checkbox">
               <Checkbox
                 color="primary"
                 inputProps={{
-                  "aria-label": "select all job sets",
+                  "aria-label": `select job set ${jobSetId}`,
                 }}
-                indeterminate={0 < selectedJobSets.size && selectedJobSets.size < jobSets.length}
-                checked={selectedJobSets.size === jobSets.length}
-                onChange={(_, checked) => (checked ? onSelectAllClick() : onDeselectAllClick())}
+                checked={rowSelected}
+                onChange={(_, checked) =>
+                  shiftKeyPressed ? onShiftSelectJobSet(jobSetIndex, checked) : onSelectJobSet(jobSetIndex, checked)
+                }
               />
             </TableCell>
-            <TableCell>Job Set</TableCell>
-            <TableCell>
-              <TableSortLabel
-                active
-                direction={newestFirst ? "desc" : "asc"}
-                onClick={() => onOrderChange(!newestFirst)}
-              >
-                Submission time
-                <Box component="span" sx={visuallyHidden}>
-                  {newestFirst ? "sorted descending" : "sorted ascending"}
-                </Box>
-              </TableSortLabel>
-            </TableCell>
-            {JOB_STATES_TO_DISPLAY.map(([jobState]) => {
-              const Icon = jobStateIcons[jobState]
-              return (
-                <MinWidthTableCell key={jobState} align="right">
-                  <Stack direction="row" spacing={1} alignItems="center" display="inline">
-                    <span>{formatJobState(jobState)}</span>
-                    <Icon fontSize="inherit" color={jobStateColors[jobState]} />
-                  </Stack>
-                </MinWidthTableCell>
-              )
-            })}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {jobSets.map(({ jobSetId, latestSubmissionTime, ...jobSetRest }, jobSetIndex) => {
-            const rowSelected = selectedJobSets.has(jobSetId)
-            return (
-              <TableRow key={jobSetId} hover selected={rowSelected}>
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    color="primary"
-                    inputProps={{
-                      "aria-label": `select job set ${jobSetId}`,
-                    }}
-                    checked={rowSelected}
-                    onChange={(_, checked) =>
-                      shiftKeyPressed ? onShiftSelectJobSet(jobSetIndex, checked) : onSelectJobSet(jobSetIndex, checked)
-                    }
+            <MaxWidthTableCell>{jobSetId}</MaxWidthTableCell>
+            <NoWrapTableCell>{latestSubmissionTime}</NoWrapTableCell>
+            {JOB_STATES_TO_DISPLAY.map(([jobState, jobSetKey]) => (
+              <MinWidthTableCell key={jobState} align="right">
+                <div>
+                  <JobStateCountChip
+                    state={jobState}
+                    count={jobSetRest[jobSetKey]}
+                    onClick={() => onJobSetStateClick(jobSetIndex, jobState)}
                   />
-                </TableCell>
-                <TableCell>
-                  <Truncate lines={1}>{jobSetId}</Truncate>
-                </TableCell>
-                <TableCell>{latestSubmissionTime}</TableCell>
-                {JOB_STATES_TO_DISPLAY.map(([jobState, jobSetKey]) => (
-                  <MinWidthTableCell key={jobState} align="right">
-                    <JobStateCountChip
-                      state={jobState}
-                      count={jobSetRest[jobSetKey]}
-                      onClick={() => onJobSetStateClick(jobSetIndex, jobState)}
-                    />
-                  </MinWidthTableCell>
-                ))}
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
+                </div>
+              </MinWidthTableCell>
+            ))}
+          </>
+        )
+      }}
+    />
   )
 }

@@ -988,11 +988,6 @@
   resolved "https://registry.yarnpkg.com/@popperjs/core/-/core-2.11.8.tgz#6b79032e760a0899cd4204710beede972a3a185f"
   integrity sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==
 
-"@re-dev/react-truncate@^0.4.3":
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/@re-dev/react-truncate/-/react-truncate-0.4.3.tgz#89ed2935a30f271a80f6af8fa66c9fe471baf742"
-  integrity sha512-dMtHgU/uOorC5gQNtJBjIf9Zv5+lRa11+0YSTEbfD1KCyKKb0bcCjVCEVyyKUSv0/vEmiG+twQIt2eVKETaRNA==
-
 "@remix-run/router@1.7.2":
   version "1.7.2"
   resolved "https://registry.yarnpkg.com/@remix-run/router/-/router-1.7.2.tgz#cba1cf0a04bc04cb66027c51fa600e9cbc388bc8"
@@ -4246,6 +4241,11 @@ react-transition-group@^4.4.5:
     dom-helpers "^5.0.1"
     loose-envify "^1.4.0"
     prop-types "^15.6.2"
+
+react-virtuoso@^4.12.3:
+  version "4.12.3"
+  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.12.3.tgz#beecf0582b31058c5a6ed3ec58fc43fd780e5844"
+  integrity sha512-6X1p/sU7hecmjDZMAwN+r3go9EVjofKhwkUbVlL8lXhBZecPv9XVCkZ/kBPYOr0Mv0Vl5+Ziwgexg9Kh7+NNXQ==
 
 react@^18:
   version "18.3.1"

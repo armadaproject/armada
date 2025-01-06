@@ -57,7 +57,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(
 		nodeDbTxn,
 		jobs,
-		testfixtures.ItTest32CpuNode(priorities),
+		testfixtures.Test32CpuNode(priorities),
 	)
 	require.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}{
 		"balancing three queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -166,7 +166,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"balancing two queues weighted": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -204,7 +204,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"balancing two queues weighted with inactive queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -244,7 +244,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"don't prempt jobs where we don't know the queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -264,7 +264,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"avoid preemption when not improving fairness": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -287,7 +287,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"avoid preemption when not improving fairness reverse queue naming": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -310,7 +310,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"preemption when improving fairness": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -341,7 +341,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"reschedule onto same node": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -368,7 +368,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"reschedule onto same node reverse order": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -395,7 +395,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"urgency-based preemption stability": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -432,7 +432,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"avoid urgency-based preemption when possible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -458,7 +458,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"preempt in order of priority": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -497,7 +497,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"avoid urgency-based preemption when possible cross-queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -549,7 +549,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"gang preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Fill half of node 1 and half of node 2.
@@ -596,7 +596,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 		"gang preemption avoid cascading preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(3, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Schedule a gang spanning nodes 1 and 2.
@@ -642,7 +642,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"rescheduled jobs don't count towards global scheduling rate limit": {
 			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(2, 5, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -667,7 +667,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"MaximumSchedulingRate": {
 			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(2, 4, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -703,7 +703,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"rescheduled jobs don't count towards maxQueueLookback": {
 			SchedulingConfig: testfixtures.WithMaxLookbackPerQueueConfig(5, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -733,7 +733,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -758,7 +758,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption two classes": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -788,7 +788,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption cross-queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -819,7 +819,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption not scheduled": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -840,7 +840,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		// - 17 jobs should be preempted to make space;  all the priority zero jobs and a single priority 1 job
 		"priority class preemption through multiple levels": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -906,7 +906,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		//},
 		"priority class preemption four classes": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -948,7 +948,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -984,7 +984,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1052,7 +1052,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				map[string]float64{"cpu": 15.0 / 64.0},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1099,7 +1099,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1119,7 +1119,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue with some scheduled": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1140,7 +1140,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue with non-preemptible jobs": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1160,7 +1160,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue multiple rounds": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1188,7 +1188,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Oversubscribed eviction does not evict non-preemptible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1226,7 +1226,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Cordoning prevents scheduling new jobs but not re-scheduling running jobs": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1259,7 +1259,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				1.0,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1295,7 +1295,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				0.5,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1331,7 +1331,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				0.5,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1375,7 +1375,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				1.0,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1411,7 +1411,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				1.0,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1439,7 +1439,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"DominantResourceFairness": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1462,18 +1462,18 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes: armadaslices.Concatenate(
 				testfixtures.TestNodeFactory.AddLabels(
-					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val1"},
 				),
 				testfixtures.TestNodeFactory.AddLabels(
-					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val2"},
 				),
 				testfixtures.TestNodeFactory.AddLabels(
-					testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val3"},
 				),
-				testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			),
 			Rounds: []SchedulingRound{
 				{
@@ -1507,7 +1507,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			// Schedule job from queue C.
 			// This does not prevent re-scheduling.
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1544,7 +1544,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			// Try to schedule a job from queue B. This fails as the node is cordoned.
 			// This should not prevent re-scheduling jobs in queue A.
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1576,7 +1576,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				return config
 			}(),
 			Nodes: testfixtures.TestNodeFactory.AddTaints(
-				testfixtures.ItN8GpuNodes(2, []int32{29000, 30000}),
+				testfixtures.N8GpuNodes(2, []int32{29000, 30000}),
 				[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 			),
 			Rounds: []SchedulingRound{
@@ -1633,7 +1633,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				return config
 			}(),
 			Nodes: testfixtures.TestNodeFactory.AddTaints(
-				testfixtures.ItN8GpuNodes(2, []int32{29000, 30000}),
+				testfixtures.N8GpuNodes(2, []int32{29000, 30000}),
 				[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 			),
 			Rounds: []SchedulingRound{
@@ -1698,10 +1698,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Nodes: func() []*internaltypes.Node {
 				priorities := []int32{29000, 30000}
 				gpuNodes := testfixtures.TestNodeFactory.AddTaints(
-					testfixtures.ItN8GpuNodes(1, priorities),
+					testfixtures.N8GpuNodes(1, priorities),
 					[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 				)
-				return append(testfixtures.ItN32CpuNodes(1, priorities), gpuNodes...)
+				return append(testfixtures.N32CpuNodes(1, priorities), gpuNodes...)
 			}(),
 			Rounds: []SchedulingRound{
 				{
@@ -1759,10 +1759,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Nodes: func() []*internaltypes.Node {
 				priorities := []int32{29000, 30000}
 				gpuNodes := testfixtures.TestNodeFactory.AddTaints(
-					testfixtures.ItN8GpuNodes(1, priorities),
+					testfixtures.N8GpuNodes(1, priorities),
 					[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 				)
-				return append(testfixtures.ItN32CpuNodes(1, priorities), gpuNodes...)
+				return append(testfixtures.N32CpuNodes(1, priorities), gpuNodes...)
 			}(),
 			Rounds: []SchedulingRound{
 				{
@@ -1831,7 +1831,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				return config
 			}(),
 			Nodes: testfixtures.TestNodeFactory.AddTaints(
-				testfixtures.ItN32CpuNodes(1, []int32{29000, 28000, 30000}),
+				testfixtures.N32CpuNodes(1, []int32{29000, 28000, 30000}),
 				[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 			),
 			Rounds: []SchedulingRound{
@@ -2259,7 +2259,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 	}{
 		"1 node 1 queue 320 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   320,
@@ -2268,7 +2268,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"1 node 10 queues 320 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         10,
 			NumJobsPerQueue:   320,
@@ -2277,7 +2277,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"10 nodes 1 queue 3200 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(10, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(10, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   3200,
@@ -2286,7 +2286,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"10 nodes 10 queues 3200 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(10, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(10, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         10,
 			NumJobsPerQueue:   3200,
@@ -2295,7 +2295,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"100 nodes 1 queue 32000 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(100, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   32000,
@@ -2304,7 +2304,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"100 nodes 10 queues 32000 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(100, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         10,
 			NumJobsPerQueue:   32000,
@@ -2313,7 +2313,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"1000 nodes 1 queue 320000 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(1000, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   320000,
@@ -2322,7 +2322,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		},
 		"1000 nodes 10 queues 320000 jobs": {
 			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
-			Nodes:             testfixtures.ItN32CpuNodes(1000, testfixtures.TestPriorities),
+			Nodes:             testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1Cpu4GiJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   32000,
