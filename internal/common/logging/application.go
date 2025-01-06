@@ -108,6 +108,10 @@ func readConfig(configFilePath string) (Config, error) {
 	if err != nil {
 		return Config{}, errors.Wrap(err, "failed to unmarshall log config file")
 	}
+	err = validate(config)
+	if err != nil {
+		return Config{}, errors.Wrap(err, "invalid log configuration")
+	}
 	return config, nil
 }
 
@@ -119,25 +123,6 @@ func createEncoder(format string, encoderConfig zapcore.EncoderConfig) (zapcore.
 		return zapcore.NewConsoleEncoder(encoderConfig), nil
 	default:
 		return nil, errors.Errorf("unknown format: %s", format)
-	}
-}
-
-func parseLogLevel(level string) (zapcore.Level, error) {
-	switch strings.ToLower(level) {
-	case "debug":
-		return zapcore.DebugLevel, nil
-	case "info":
-		return zapcore.InfoLevel, nil
-	case "warn", "warning":
-		return zapcore.WarnLevel, nil
-	case "error":
-		return zapcore.ErrorLevel, nil
-	case "panic":
-		return zapcore.PanicLevel, nil
-	case "fatal":
-		return zapcore.FatalLevel, nil
-	default:
-		return zapcore.InfoLevel, errors.Errorf("unknown level: %s", level)
 	}
 }
 
