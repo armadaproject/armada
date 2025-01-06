@@ -12,6 +12,7 @@ import {
   ListItemText,
   Stack,
   styled,
+  Tooltip,
 } from "@mui/material"
 
 import { EditAnnotationColumnInput } from "./EditAnnotationColumnInput"
@@ -33,10 +34,17 @@ const EditAnnotationColumnInputContainer = styled(Stack)({
   width: "100%",
 })
 
+const TooltipChildContainer = styled("div")({
+  display: "flex",
+  flexGrow: 1,
+})
+
 export interface OrderableColumnListItemProps {
   column: JobTableColumn
   isVisible: boolean
   onToggleVisibility: () => void
+  filtered: boolean
+  sorted: boolean
   removeAnnotationColumn: () => void
   editAnnotationColumn: (annotationKey: string) => void
   existingAnnotationColumnKeysSet: Set<string>
@@ -46,6 +54,8 @@ export const OrderableColumnListItem = ({
   column,
   isVisible,
   onToggleVisibility,
+  filtered,
+  sorted,
   removeAnnotationColumn,
   editAnnotationColumn,
   existingAnnotationColumnKeysSet,
@@ -58,6 +68,49 @@ export const OrderableColumnListItem = ({
   })
 
   const [isEditing, setIsEditing] = useState(false)
+
+  let listItemButtonNode = (
+    <ListItemButton
+      onClick={onToggleVisibility}
+      dense
+      disabled={filtered || sorted || !column.enableHiding}
+      tabIndex={2}
+      data-no-dnd
+    >
+      <ListItemIcon>
+        <Checkbox
+          edge="start"
+          checked={isVisible}
+          tabIndex={-1}
+          disableRipple
+          inputProps={{ "aria-labelledby": colId }}
+          size="small"
+        />
+      </ListItemIcon>
+      <ListItemText
+        id={colId}
+        primary={colMetadata.displayName}
+        secondary={colIsAnnotation ? "Annotation" : undefined}
+      />
+    </ListItemButton>
+  )
+  if (filtered || sorted) {
+    const title = (() => {
+      if (filtered && sorted) {
+        return `The ${colMetadata.displayName} column cannot be hidden because filtering and sorting has been applied to it`
+      }
+      if (filtered) {
+        return `The ${colMetadata.displayName} column cannot be hidden because filtering has been applied to it`
+      }
+      return `The ${colMetadata.displayName} column cannot be hidden because sorting has been applied to it`
+    })()
+
+    listItemButtonNode = (
+      <Tooltip title={title} arrow={false} followCursor placement="top">
+        <TooltipChildContainer>{listItemButtonNode}</TooltipChildContainer>
+      </Tooltip>
+    )
+  }
 
   return (
     <ListItem
@@ -107,23 +160,7 @@ export const OrderableColumnListItem = ({
           </div>
         </EditAnnotationColumnInputContainer>
       ) : (
-        <ListItemButton onClick={onToggleVisibility} dense disabled={!column.enableHiding} tabIndex={2} data-no-dnd>
-          <ListItemIcon>
-            <Checkbox
-              edge="start"
-              checked={isVisible}
-              tabIndex={-1}
-              disableRipple
-              inputProps={{ "aria-labelledby": colId }}
-              size="small"
-            />
-          </ListItemIcon>
-          <ListItemText
-            id={colId}
-            primary={colMetadata.displayName}
-            secondary={colIsAnnotation ? "Annotation" : undefined}
-          />
-        </ListItemButton>
+        listItemButtonNode
       )}
     </ListItem>
   )

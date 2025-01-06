@@ -762,6 +762,9 @@ export const JobsTableContainer = ({
     flex: 1,
   }
 
+  const filterColumns = useMemo(() => columnFilterState.map(({ id }) => toColId(id)), [columnFilterState])
+  const sortColumns = useMemo(() => [toColId(lookoutOrder.id)], [lookoutOrder])
+
   return (
     <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
       <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
@@ -770,7 +773,8 @@ export const JobsTableContainer = ({
             isLoading={rowsToFetch.length > 0}
             allColumns={columnsForSelect}
             groupedColumns={grouping}
-            filtersActive={columnFilterState.length > 0}
+            filterColumns={filterColumns}
+            sortColumns={sortColumns}
             visibleColumns={visibleColumnIds}
             columnOrder={columnOrder}
             setColumnOrder={setColumnOrder}
