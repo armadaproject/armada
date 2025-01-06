@@ -525,7 +525,7 @@ func (s *Simulator) pushScheduleEvent(time time.Time) {
 
 func (s *Simulator) handleSimulatorEvent(ctx *armadacontext.Context, event Event) error {
 	s.time = event.time
-	ctx = armadacontext.New(ctx.Context, ctx.FieldLogger.WithField("simulated time", event.time))
+	ctx = armadacontext.WithLogField(ctx, "simulated time", event.time)
 	switch e := event.eventSequenceOrScheduleEvent.(type) {
 	case *armadaevents.EventSequence:
 		if err := s.handleEventSequence(ctx, e); err != nil {
@@ -609,10 +609,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 
 		schedulerCtx := ctx
 		if s.SuppressSchedulerLogs {
-			schedulerCtx = &armadacontext.Context{
-				Context:     ctx.Context,
-				FieldLogger: logging.NullLogger,
-			}
+			schedulerCtx = armadacontext.New(ctx.Context, logging.NullLogger)
 		}
 		result, err := sch.Schedule(schedulerCtx)
 		if err != nil {

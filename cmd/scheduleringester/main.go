@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/armadaproject/armada/internal/common/logging"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -24,7 +26,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config scheduleringester.Configuration

@@ -10,7 +10,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
@@ -103,8 +102,8 @@ func (c *MetricsCollector) Run(ctx *armadacontext.Context) error {
 		case <-ticker.C():
 			err := c.refresh(ctx)
 			if err != nil {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Warnf("error refreshing metrics state")
 			}
 		}

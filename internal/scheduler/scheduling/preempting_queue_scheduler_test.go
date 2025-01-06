@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -25,7 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	schedulingcontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
@@ -1939,7 +1940,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			cordonedNodes := map[int]bool{}
 			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
-				ctx.FieldLogger = ctx.WithField("round", i)
+				ctx = armadacontext.WithLogField(ctx, "round", i)
 				ctx.Infof("starting scheduling round %d", i)
 
 				jobsByNodeId := map[string][]*jobdb.Job{}
@@ -2019,7 +2020,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
-				sctx := context.NewSchedulingContext(
+				sctx := schedulingcontext.NewSchedulingContext(
 					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
@@ -2205,7 +2206,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// which jobs are preempted).
 				slices.SortFunc(
 					result.ScheduledJobs,
-					func(a, b *context.JobSchedulingContext) int {
+					func(a, b *schedulingcontext.JobSchedulingContext) int {
 						if a.Job.SubmitTime().Before(b.Job.SubmitTime()) {
 							return -1
 						} else if b.Job.SubmitTime().Before(a.Job.SubmitTime()) {
@@ -2238,7 +2239,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 }
 
-func jobIdsByQueueFromJobContexts(jctxs []*context.JobSchedulingContext) map[string][]string {
+func jobIdsByQueueFromJobContexts(jctxs []*schedulingcontext.JobSchedulingContext) map[string][]string {
 	rv := make(map[string][]string)
 	for _, jctx := range jctxs {
 		job := jctx.Job
@@ -2332,9 +2333,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 	}
 	for name, tc := range tests {
 		b.Run(name, func(b *testing.B) {
-			ctx := armadacontext.Background()
-			ctx.FieldLogger = logging.NullLogger
-
+			ctx := armadacontext.New(context.Background(), logging.NullLogger)
 			jobsByQueue := make(map[string][]*jobdb.Job)
 			priorityFactorByQueue := make(map[string]float64)
 			for i := 0; i < tc.NumQueues; i++ {
@@ -2380,7 +2379,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
-			sctx := context.NewSchedulingContext(
+			sctx := schedulingcontext.NewSchedulingContext(
 				testfixtures.TestPool,
 				fairnessCostProvider,
 				limiter,
@@ -2426,7 +2425,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			err = jobDbTxn.BatchDelete(
 				armadaslices.Map(
 					result.ScheduledJobs,
-					func(jctx *context.JobSchedulingContext) string {
+					func(jctx *schedulingcontext.JobSchedulingContext) string {
 						return jctx.JobId
 					},
 				),
@@ -2451,7 +2450,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				sctx := context.NewSchedulingContext(
+				sctx := schedulingcontext.NewSchedulingContext(
 					"pool",
 					fairnessCostProvider,
 					limiter,

@@ -4,10 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"golang.org/x/exp/slices"
-
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 
 	"github.com/armadaproject/armada/internal/common/util"
 )
@@ -120,16 +118,13 @@ type AuthService interface {
 // request context for logging purposes.
 func CreateGrpcMiddlewareAuthFunction(authService AuthService) func(ctx context.Context) (context.Context, error) {
 	return func(ctx context.Context) (context.Context, error) {
-		authHeader := metautils.ExtractIncoming(ctx).Get("authorization")
+		authHeader := metadata.ExtractIncoming(ctx).Get("authorization")
 		principal, err := authService.Authenticate(ctx, authHeader)
 		if err != nil {
 			return nil, err
 		}
-
 		// record username for request logging
-		grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
-		grpc_ctxtags.Extract(ctx).Set("authService", principal.GetAuthMethod())
-
+		ctx = context.WithValue(ctx, "user", principal.GetName())
 		return WithPrincipal(ctx, principal), nil
 	}
 }
@@ -150,11 +145,6 @@ func CreateHttpMiddlewareAuthFunction(authService AuthService) func(w http.Respo
 			http.Error(w, "auth error:"+err.Error(), http.StatusInternalServerError)
 			return nil, err
 		}
-
-		// record username for request logging
-		grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
-		grpc_ctxtags.Extract(ctx).Set("authService", principal.GetAuthMethod())
-
 		return WithPrincipal(ctx, principal), nil
 	}
 }

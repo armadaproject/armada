@@ -99,7 +99,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
 
 	// Evict preemptible jobs.
-	ctx.WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")
 	evictorResult, inMemoryJobRepo, err := sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict for resource balancing"),
 		NewNodeEvictor(
@@ -144,14 +144,14 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
-	ctx.WithField("stage", "scheduling-algo").Info("Finished evicting preemptible jobs")
+	ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished evicting preemptible jobs")
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
 		preemptedJobsById[jctx.JobId] = jctx
 	}
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
-	ctx.WithField("stage", "scheduling-algo").Info("Performing initial scheduling of jobs onto nodes")
+	ctx.Logger().WithField("stage", "scheduling-algo").Info("Performing initial scheduling of jobs onto nodes")
 	schedulerResult, err := sch.schedule(
 		armadacontext.WithLogField(ctx, "stage", "re-schedule after balancing eviction"),
 		inMemoryJobRepo,
@@ -162,7 +162,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
-	ctx.WithField("stage", "scheduling-algo").Info("Finished initial scheduling of jobs onto nodes")
+	ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished initial scheduling of jobs onto nodes")
 	for _, jctx := range schedulerResult.ScheduledJobs {
 		if _, ok := preemptedJobsById[jctx.JobId]; ok {
 			delete(preemptedJobsById, jctx.JobId)
@@ -173,7 +173,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 	// Evict jobs on oversubscribed nodes.
-	ctx.WithField("stage", "scheduling-algo").Info("Evicting jobs from oversubscribed nodes")
+	ctx.Logger().WithField("stage", "scheduling-algo").Info("Evicting jobs from oversubscribed nodes")
 	reevictResult, inMemoryJobRepo, err := sch.evict(
 		armadacontext.WithLogField(ctx, "stage", "evict oversubscribed"),
 		NewOversubscribedEvictor(
@@ -185,7 +185,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
-	ctx.WithField("stage", "scheduling-algo").Info("Finished evicting jobs from oversubscribed nodes")
+	ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished evicting jobs from oversubscribed nodes")
 	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
 		scheduledJobsById,
 		func(jobId string) bool {
@@ -205,7 +205,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	// Re-schedule evicted jobs/schedule new jobs.
 	// Only necessary if a non-zero number of jobs were evicted.
 	if len(reevictResult.EvictedJctxsByJobId) > 0 {
-		ctx.WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
+		ctx.Logger().WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
 		rescheduleSchedulerResult, rescheduleErr := sch.schedule(
 			armadacontext.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
@@ -217,7 +217,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		if rescheduleErr != nil {
 			return nil, rescheduleErr
 		}
-		ctx.WithField("stage", "scheduling-algo").Info("Finished second scheduling pass")
+		ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished second scheduling pass")
 		for _, jctx := range rescheduleSchedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
 				delete(preemptedJobsById, jctx.JobId)
@@ -231,14 +231,14 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
-	ctx.WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
 	if err := sch.unbindJobs(append(
 		slices.Clone(preemptedJobs),
 		maps.Values(scheduledAndEvictedJobsById)...),
 	); err != nil {
 		return nil, err
 	}
-	ctx.WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
 	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)

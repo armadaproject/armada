@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"

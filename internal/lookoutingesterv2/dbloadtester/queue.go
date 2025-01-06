@@ -8,11 +8,11 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -79,7 +79,7 @@ func (q *QueueEventGenerator) Generate(eventsCh chan<- *utils.EventsWithIds[*arm
 		}
 		events, err := q.generateEventsAtTime(i)
 		if err != nil {
-			log.Panicf("failed to generate events %s", err)
+			log.Fatalf("failed to generate events %s", err)
 		}
 		if len(events) == 0 {
 			continue

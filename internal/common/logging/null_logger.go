@@ -1,14 +1,11 @@
 package logging
 
 import (
-	"io"
-
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-var NullLogger = &logrus.Logger{
-	Out:       io.Discard,
-	Formatter: new(logrus.TextFormatter),
-	Hooks:     make(logrus.LevelHooks),
-	Level:     logrus.PanicLevel,
+// NullLogger is Logger that sends a log lines into the ether
+var NullLogger = &Logger{
+	underlying: zap.New(zapcore.NewNopCore()).Sugar(),
 }

@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -603,7 +603,7 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		}
 		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
-			logrus.Errorf(
+			log.Errorf(
 				"job %s assigned to node %s on executor %s, but no such node found",
 				job.Id(), nodeId, job.LatestRun().Executor(),
 			)
@@ -618,7 +618,7 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		nodeId := job.LatestRun().NodeId()
 		node, ok := nodesById[nodeId]
 		if !ok {
-			logrus.Errorf(
+			log.Errorf(
 				"job %s assigned to node %s on executor %s, but no such node found",
 				job.Id(), nodeId, job.LatestRun().Executor(),
 			)

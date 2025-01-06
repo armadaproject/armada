@@ -10,11 +10,12 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 // CreateGatewayHandler configures the gRPC API gateway
