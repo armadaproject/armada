@@ -9,7 +9,9 @@ import (
 
 // The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
 // generally configure their own logging config via ReplaceStdLogger
-var stdLogger = &Logger{underlying: createDefaultLogger()}
+var (
+	stdLogger = &Logger{underlying: createDefaultLogger()}
+)
 
 // ReplaceStdLogger Replaces the global logger.  This should be called once at app startup!
 func ReplaceStdLogger(l *Logger) {

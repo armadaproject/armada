@@ -117,60 +117,6 @@ func ConfigureCommandLineLogging() {
 	log.ReplaceStdLogger(log.FromZap(l))
 }
 
-func ConfigureLogging() {
-	pe := zap.NewProductionEncoderConfig()
-	pe.EncodeTime = zapcore.ISO8601TimeEncoder
-	pe.ConsoleSeparator = " "
-	pe.EncodeLevel = zapcore.CapitalLevelEncoder
-	pe.EncodeCaller = ShortCallerEncoder
-	encoder := readEnvironmentLogFormat(pe)
-
-	core := zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), readEnvironmentLogLevel())
-	l := zap.New(core, zap.AddCaller()).WithOptions(zap.AddCallerSkip(2))
-	log.ReplaceStdLogger(log.FromZap(l))
-}
-
-func readEnvironmentLogFormat(pe zapcore.EncoderConfig) zapcore.Encoder {
-	formatStr, ok := os.LookupEnv("LOG_FORMAT")
-	if !ok {
-		formatStr = "text"
-	}
-
-	switch strings.ToLower(formatStr) {
-	case "json":
-		return zapcore.NewJSONEncoder(pe)
-	case "text":
-		return zapcore.NewConsoleEncoder(pe)
-	default:
-		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to text format", formatStr))
-		return zapcore.NewConsoleEncoder(pe)
-	}
-}
-
-func readEnvironmentLogLevel() zapcore.Level {
-	level, ok := os.LookupEnv("LOG_LEVEL")
-	if ok {
-		// Parse the log level
-		switch level {
-		case "debug":
-			return zapcore.DebugLevel
-		case "info":
-			return zapcore.InfoLevel
-		case "warn", "warning":
-			return zapcore.WarnLevel
-		case "error":
-			return zapcore.ErrorLevel
-		case "panic":
-			return zapcore.PanicLevel
-		case "fatal":
-			return zapcore.FatalLevel
-		default:
-			println(fmt.Sprintf("Unknown log level %s", level))
-		}
-	}
-	return zapcore.InfoLevel
-}
-
 func ServeMetrics(port uint16) (shutdown func()) {
 	return ServeMetricsFor(port, prometheus.DefaultGatherer)
 }
@@ -233,17 +179,5 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 		if e != nil {
 			panic(e)
 		}
-	}
-}
-
-// ShortCallerEncoder serializes a caller in to just file:line format.
-func ShortCallerEncoder(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-	trimmed := caller.TrimmedPath()
-	lastSlash := strings.LastIndexByte(trimmed, '/')
-	if lastSlash != -1 && lastSlash != len(trimmed)-1 {
-		fileName := trimmed[lastSlash+1:]
-		enc.AppendString(fileName)
-	} else {
-		enc.AppendString(trimmed)
 	}
 }

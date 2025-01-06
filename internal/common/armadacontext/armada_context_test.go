@@ -2,12 +2,13 @@ package armadacontext
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 

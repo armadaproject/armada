@@ -117,7 +117,7 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 }
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.LookoutV2Config
