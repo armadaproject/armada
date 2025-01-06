@@ -3,7 +3,6 @@ package logging
 import (
 	"fmt"
 	"os"
-
 	"strings"
 
 	"github.com/pkg/errors"

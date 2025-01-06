@@ -1,11 +1,11 @@
 package logging
 
 import (
-	"golang.org/x/exp/maps"
 	"strings"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/exp/maps"
 )
 
 var validLogFormats = map[string]bool{
