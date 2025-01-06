@@ -21,7 +21,6 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.6.0
-	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/hashicorp/go-memdb v1.3.4
@@ -72,6 +71,8 @@ require (
 	github.com/go-playground/validator/v10 v10.15.4
 	github.com/gogo/status v1.1.1
 	github.com/goreleaser/goreleaser v1.24.0
+	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.2.0
 	github.com/jackc/pgx/v5 v5.5.4
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
