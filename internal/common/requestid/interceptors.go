@@ -3,7 +3,7 @@ package requestid
 import (
 	"context"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/renstrom/shortuuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -43,6 +43,7 @@ func FromContextOrMissing(ctx context.Context) string {
 // The second return value is true if the operation was successful.
 func AddToIncomingContext(ctx context.Context, id string) (context.Context, bool) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		ctx = context.WithValue(ctx, "requestId", id)
 		md.Set(MetadataKey, id)
 		return metadata.NewIncomingContext(ctx, md), true
 	}
