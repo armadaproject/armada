@@ -1,21 +1,21 @@
 package logging
 
 import (
+	"github.com/rs/zerolog"
 	"os"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"time"
 )
 
 // The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
 // generally configure their own logging config via ReplaceStdLogger
 var (
-	stdLogger = &Logger{underlying: createDefaultLogger()}
+	StdSkipFrames = 4
+	stdLogger     = createDefaultLogger()
 )
 
 // ReplaceStdLogger Replaces the global logger.  This should be called once at app startup!
 func ReplaceStdLogger(l *Logger) {
-	stdLogger = l
+	stdLogger = l.WithCallerSkip(StdSkipFrames)
 }
 
 // StdLogger Returns the default logger
@@ -98,16 +98,19 @@ func WithStacktrace(err error) *Logger {
 	return stdLogger.WithStacktrace(err)
 }
 
-// Default logging options
-func createDefaultLogger() *zap.SugaredLogger {
-	pe := zap.NewProductionEncoderConfig()
-	pe.EncodeTime = zapcore.ISO8601TimeEncoder
-	pe.ConsoleSeparator = " "
-	pe.EncodeLevel = zapcore.CapitalLevelEncoder
-	consoleEncoder := zapcore.NewConsoleEncoder(pe)
-	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel)
-	return zap.
-		New(core, zap.AddCaller()).
-		WithOptions(zap.AddCallerSkip(2)).
-		Sugar()
+// createDefaultLogger returns a new Logger configured with default settings using zerolog.
+func createDefaultLogger() *Logger {
+	consoleWriter := zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.RFC3339,
+		NoColor:    true,
+	}
+	zerologLogger := zerolog.New(consoleWriter).
+		Level(zerolog.InfoLevel).
+		With().
+		CallerWithSkipFrameCount(StdSkipFrames).
+		Timestamp().
+		Logger()
+
+	return FromZerolog(zerologLogger)
 }

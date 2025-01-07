@@ -1,107 +1,117 @@
 package logging
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 )
 
-// Logger wraps a *zap.SugaredLogger so that the rest of the code doesn't depend directly on Zap
+// Logger wraps a zerolog.Logger so that the rest of the code doesn't depend directly on zerolog
 type Logger struct {
-	underlying *zap.SugaredLogger
+	underlying zerolog.Logger
 }
 
-// FromZap returns a New Logger backed by the supplied *zap.SugaredLogger
-func FromZap(l *zap.Logger) *Logger {
+// FromZerolog returns a new Logger backed by the supplied zerolog.Logger
+func FromZerolog(l zerolog.Logger) *Logger {
 	return &Logger{
-		underlying: l.Sugar(),
+		underlying: l,
 	}
 }
 
 // Debug logs a message at level Debug
 func (l *Logger) Debug(args ...any) {
-	l.underlying.Debug(args...)
+	l.underlying.Debug().Msg(fmt.Sprint(args...))
 }
 
 // Info logs a message at level Info
 func (l *Logger) Info(args ...any) {
-	l.underlying.Info(args...)
+	l.underlying.Info().Msg(fmt.Sprint(args...))
 }
 
 // Warn logs a message at level Warn
 func (l *Logger) Warn(args ...any) {
-	l.underlying.Warn(args...)
+	l.underlying.Warn().Msg(fmt.Sprint(args...))
 }
 
 // Error logs a message at level Error
 func (l *Logger) Error(args ...any) {
-	l.underlying.Error(args...)
+	l.underlying.Error().Msg(fmt.Sprint(args...))
 }
 
-// Panic logs a message at level Panic
+// Panic logs a message at level Panic and panics
 func (l *Logger) Panic(args ...any) {
-	l.underlying.Panic(args...)
+	l.underlying.Panic().Msg(fmt.Sprint(args...))
 }
 
-// Fatal logs a message at level Fatal then the process will exit with status set to 1.
+// Fatal logs a message at level Fatal and exits the application
 func (l *Logger) Fatal(args ...any) {
-	l.underlying.Fatal(args...)
+	l.underlying.Fatal().Msg(fmt.Sprint(args...))
 }
 
-// Debugf logs a message at level Debug.
+// Debugf logs a formatted message at level Debug
 func (l *Logger) Debugf(format string, args ...interface{}) {
-	l.underlying.Debugf(format, args...)
+	l.underlying.Debug().Msgf(format, args...)
 }
 
-// Infof logs a message at level Info.
+// Infof logs a formatted message at level Info
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.underlying.Infof(format, args...)
+	l.underlying.Info().Msgf(format, args...)
 }
 
-// Warnf logs a message at level Warn.
+// Warnf logs a formatted message at level Warn
 func (l *Logger) Warnf(format string, args ...interface{}) {
-	l.underlying.Warnf(format, args...)
+	l.underlying.Warn().Msgf(format, args...)
 }
 
-// Errorf logs a message at level Error.
+// Errorf logs a formatted message at level Error
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.underlying.Errorf(format, args...)
+	l.underlying.Error().Msgf(format, args...)
 }
 
-// Fatalf logs a message at level Fatal.
+// Fatalf logs a formatted message at level Fatal and exits the application
 func (l *Logger) Fatalf(format string, args ...interface{}) {
-	l.underlying.Fatalf(format, args...)
+	l.underlying.Fatal().Msgf(format, args...)
 }
 
 // WithError returns a new Logger with the error added as a field
 func (l *Logger) WithError(err error) *Logger {
-	return l.WithField("error", err)
+	return &Logger{
+		underlying: l.underlying.
+			With().
+			AnErr("error", err).
+			CallerWithSkipFrameCount(StdSkipFrames - 1).
+			Logger(),
+	}
 }
 
 // WithStacktrace returns a new Logger with the error and (if available) the stacktrace added as fields
 func (l *Logger) WithStacktrace(err error) *Logger {
 	logger := l.WithError(err)
 	if stackErr, ok := err.(stackTracer); ok {
-		return logger.WithField("stacktrace", stackErr.StackTrace())
-	} else {
-		return logger
+		return logger.WithField("stacktrace", fmt.Sprintf("%+v", stackErr.StackTrace()))
 	}
+	return logger
 }
 
 // WithField returns a new Logger with the key-value pair added as a new field
 func (l *Logger) WithField(key string, value any) *Logger {
 	return &Logger{
-		underlying: l.underlying.With(key, value),
+		underlying: l.underlying.
+			With().
+			Interface(key, value).
+			CallerWithSkipFrameCount(StdSkipFrames - 1).
+			Logger(),
 	}
 }
 
 // WithFields returns a new Logger with all key-value pairs in the map added as new fields
 func (l *Logger) WithFields(args map[string]any) *Logger {
-	fields := make([]any, 0, len(args))
+	event := l.underlying.With()
 	for key, value := range args {
-		fields = append(fields, zap.Any(key, value))
+		event = event.Interface(key, value)
 	}
 	return &Logger{
-		underlying: l.underlying.With(fields...),
+		underlying: event.CallerWithSkipFrameCount(StdSkipFrames - 1).Logger(),
 	}
 }
 
@@ -109,8 +119,9 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 // This is needed when building wrappers around the Logger so as to prevent us from always reporting the
 // wrapper code as the caller.
 func (l *Logger) WithCallerSkip(skip int) *Logger {
+
 	return &Logger{
-		underlying: l.underlying.WithOptions(zap.AddCallerSkip(skip)),
+		underlying: l.underlying.With().CallerWithSkipFrameCount(skip).Logger(),
 	}
 }
 

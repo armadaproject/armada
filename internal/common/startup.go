@@ -13,8 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -91,30 +89,30 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 }
 
 func ConfigureCommandLineLogging() {
-	// Define an encoder configuration that only includes the message.
-	encoderConfig := zapcore.EncoderConfig{
-		MessageKey: "message",
-		LineEnding: "\n",
-		// Ignore everything other than the message by leaving their keys empty.
-		LevelKey:      "",
-		TimeKey:       "",
-		NameKey:       "",
-		CallerKey:     "",
-		FunctionKey:   "",
-		StacktraceKey: "",
-	}
-	// Use the console encoder with the custom configuration.
-	encoder := zapcore.NewConsoleEncoder(encoderConfig)
-
-	// Create a core that writes to stdout.
-	core := zapcore.NewCore(
-		encoder,
-		zapcore.AddSync(os.Stdout),
-		zapcore.InfoLevel,
-	)
-
-	l := zap.New(core)
-	log.ReplaceStdLogger(log.FromZap(l))
+	//// Define an encoder configuration that only includes the message.
+	//encoderConfig := zapcore.EncoderConfig{
+	//	MessageKey: "message",
+	//	LineEnding: "\n",
+	//	// Ignore everything other than the message by leaving their keys empty.
+	//	LevelKey:      "",
+	//	TimeKey:       "",
+	//	NameKey:       "",
+	//	CallerKey:     "",
+	//	FunctionKey:   "",
+	//	StacktraceKey: "",
+	//}
+	//// Use the console encoder with the custom configuration.
+	//encoder := zapcore.NewConsoleEncoder(encoderConfig)
+	//
+	//// Create a core that writes to stdout.
+	//core := zapcore.NewCore(
+	//	encoder,
+	//	zapcore.AddSync(os.Stdout),
+	//	zapcore.InfoLevel,
+	//)
+	//
+	//l := zap.New(core)
+	//log.ReplaceStdLogger(log.FromZap(l))
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {

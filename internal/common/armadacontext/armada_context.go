@@ -75,7 +75,7 @@ func (ctx *Context) Fatalf(format string, args ...interface{}) {
 func Background() *Context {
 	return &Context{
 		Context: context.Background(),
-		logger:  logging.StdLogger().WithCallerSkip(1),
+		logger:  logging.StdLogger(),
 	}
 }
 
@@ -83,7 +83,7 @@ func Background() *Context {
 func TODO() *Context {
 	return &Context{
 		Context: context.TODO(),
-		logger:  logging.StdLogger().WithCallerSkip(1),
+		logger:  logging.StdLogger(),
 	}
 }
 
@@ -93,7 +93,7 @@ func FromGrpcCtx(ctx context.Context) *Context {
 	if ok {
 		return armadaCtx
 	}
-	logger := logging.StdLogger().WithCallerSkip(1).
+	logger := logging.StdLogger().
 		WithField("user", ctx.Value("user")).
 		WithField("requestId", ctx.Value("requestId"))
 	return New(ctx, logger)
@@ -108,7 +108,7 @@ func New(ctx context.Context, log *logging.Logger) *Context {
 }
 
 func (ctx *Context) Logger() *logging.Logger {
-	return ctx.logger.WithCallerSkip(-1)
+	return ctx.logger.WithCallerSkip(logging.StdSkipFrames - 1)
 }
 
 // WithCancel returns a copy of parent with a new Done channel. It is analogous to context.WithCancel()
