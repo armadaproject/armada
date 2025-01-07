@@ -7,6 +7,6 @@ metadata:
     {{- include "armada-scheduler.labels.all" . | nindent 4 }}
 data:
   {{ include "armada-scheduler.config.filename" . }}: |
-    {{- if .Values.scheduler.applicationConfig }}
-    {{ toYaml .Values.scheduler.applicationConfig | indent 4 }}
-    {{- end }}
+{{- if .Values.scheduler.applicationConfig }}
+{{ toYaml .Values.scheduler.applicationConfig | indent 4 }}
+{{- end }}
