@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "armada.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "armada.labels.all" . | nindent 8 }}
     spec:
@@ -131,8 +131,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "armada.config.name" . }}
+          configMap:
+            name: {{ include "armada.config.name" . }}
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:
