@@ -19,7 +19,7 @@ import (
 var (
 	defaultLogConfigPath = "config/logging.yaml"
 	logConfigPathEnvVar  = "ARMADA_LOG_CONFIG"
-	logTimestampFormat   = "2006-01-02T15:04:05.999Z07:00"
+	RFC3339Milli         = "2006-01-02T15:04:05.000Z07:00"
 )
 
 // MustConfigureApplicationLogging sets up logging suitable for an application. Logging configuration is loaded from
@@ -102,7 +102,7 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 		level: level,
 		writer: zerolog.ConsoleWriter{
 			Out:        os.Stdout,
-			TimeFormat: logTimestampFormat,
+			TimeFormat: RFC3339Milli,
 			FormatLevel: func(i interface{}) string {
 				return strings.ToUpper(fmt.Sprintf("%s", i))
 			},

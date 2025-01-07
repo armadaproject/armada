@@ -3,7 +3,6 @@ package logging
 import (
 	"github.com/rs/zerolog"
 	"os"
-	"time"
 )
 
 // The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
@@ -102,7 +101,7 @@ func WithStacktrace(err error) *Logger {
 func createDefaultLogger() *Logger {
 	consoleWriter := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
-		TimeFormat: time.RFC3339,
+		TimeFormat: RFC3339Milli,
 		NoColor:    true,
 	}
 	zerologLogger := zerolog.New(consoleWriter).
