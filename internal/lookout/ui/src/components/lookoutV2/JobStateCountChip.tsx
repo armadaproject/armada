@@ -13,7 +13,7 @@ export const JobStateCountChip = ({ state, count, onClick }: JobStateCountChipPr
   const label = count.toString()
 
   return count > 0 ? (
-    <StyledChip label={label} color={jobStateColors[state]} clickable onClick={onClick} variant="filled" size="small" />
+    <StyledChip label={label} color={jobStateColors[state]} clickable onClick={onClick} variant="shaded" size="small" />
   ) : (
     <>{label}</>
   )

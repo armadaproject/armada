@@ -825,6 +825,7 @@ export const JobsTableContainer = ({
                         onSetTextFieldRef={(ref) => {
                           setTextFieldRef(header.id, ref)
                         }}
+                        groupedColumns={grouping}
                       />
                     ))}
                   </TableRow>
