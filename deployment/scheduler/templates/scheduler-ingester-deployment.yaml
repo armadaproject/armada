@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "armada-scheduler.name" . }}-ingester
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/scheduler-ingester-secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/scheduler-ingester-configmap.yaml") . | sha256sum }}
       labels:
         {{- include "armada-scheduler-ingester.labels.all" . | nindent 8 }}
     spec:
@@ -87,8 +87,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "armada-scheduler-ingester.config.name" . }}
+          configMap:
+            name: {{ include "armada-scheduler-ingester.config.name" . }}
         {{- if .Values.ingester.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:
