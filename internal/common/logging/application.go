@@ -38,7 +38,7 @@ func MustConfigureApplicationLogging() {
 func ConfigureApplicationLogging() error {
 
 	// Set some global logging properties
-	zerolog.TimeFieldFormat = time.RFC3339Nano
+	zerolog.TimeFieldFormat = time.RFC3339Nano // needs to be higher or greater precision than the writer format.
 	zerolog.CallerMarshalFunc = shortCallerEncoder
 
 	// Load config file
@@ -83,7 +83,7 @@ func createFileLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	return &FilteredLevelWriter{
 		level: level,
 		writer: &lumberjack.Logger{
-			Filename:   "app.log",
+			Filename:   logConfig.File.LogFile,
 			MaxSize:    logConfig.File.Rotation.MaxSizeMb,
 			MaxBackups: logConfig.File.Rotation.MaxBackups,
 			MaxAge:     logConfig.File.Rotation.MaxAgeDays,

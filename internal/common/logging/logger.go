@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -9,6 +10,11 @@ import (
 // Logger wraps a zerolog.Logger so that the rest of the code doesn't depend directly on zerolog
 type Logger struct {
 	underlying zerolog.Logger
+}
+
+// NullLogger is Logger that discards all log lines
+var NullLogger = &Logger{
+	underlying: zerolog.Nop(),
 }
 
 // FromZerolog returns a new Logger backed by the supplied zerolog.Logger
@@ -119,7 +125,6 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 // This is needed when building wrappers around the Logger so as to prevent us from always reporting the
 // wrapper code as the caller.
 func (l *Logger) WithCallerSkip(skip int) *Logger {
-
 	return &Logger{
 		underlying: l.underlying.With().CallerWithSkipFrameCount(skip).Logger(),
 	}
