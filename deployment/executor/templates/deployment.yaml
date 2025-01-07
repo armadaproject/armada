@@ -14,7 +14,7 @@ spec:
     metadata:
       name: {{ include "executor.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "executor.labels.all" . | nindent 8 }}
     spec:
@@ -90,8 +90,8 @@ spec:
       {{- end }}
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "executor.config.name" . }}
+          configMap:
+            name: {{ include "executor.config.name" . }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}
