@@ -7,6 +7,6 @@ metadata:
     {{- include "lookout_v2.labels.all" . | nindent 4 }}
 data:
   {{ include "lookout_v2.config.filename" . }}: |
-    {{- if .Values.applicationConfig }}
-    {{ toYaml .Values.applicationConfig | indent 4 }}
-    {{- end }}
+{{- if .Values.applicationConfig }}
+{{ toYaml .Values.applicationConfig | indent 4 }}
+{{- end }}
