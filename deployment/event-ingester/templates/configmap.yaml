@@ -10,4 +10,3 @@ data:
 {{- if .Values.applicationConfig }}
 {{ toYaml .Values.applicationConfig | indent 4 }}
 {{- end }}
-

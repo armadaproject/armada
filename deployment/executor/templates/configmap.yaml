@@ -7,6 +7,6 @@ metadata:
     {{- include "executor.labels.all" . | nindent 4 }}
 data:
   {{ include "executor.config.filename" . }}: |
-  {{- if .Values.applicationConfig }}
-  {{ toYaml .Values.applicationConfig | indent 4 }}
-  {{- end }}
+{{- if .Values.applicationConfig }}
+{{ toYaml .Values.applicationConfig | indent 4 }}
+{{- end }}
