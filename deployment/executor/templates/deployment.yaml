@@ -88,8 +88,6 @@ spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
-      tolerations:
-        {{- toYaml .Values.tolerations | nindent 8 }}
       volumes:
         - name: user-config
           configMap:
