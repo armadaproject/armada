@@ -82,6 +82,8 @@ declare module "@mui/material/Button" {
 declare module "@mui/material/Chip" {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface ChipPropsColorOverrides extends CustomPaletteColorTokensTrueMap {}
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  interface ChipClasses extends Record<`color${Capitalize<CustomPaletteColorToken>}`, string> {}
 }
 
 declare module "@mui/material/SvgIcon" {
