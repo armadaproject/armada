@@ -4,16 +4,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
-
-	"path/filepath"
 	"sigs.k8s.io/yaml"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -36,7 +35,6 @@ func MustConfigureApplicationLogging() {
 // ConfigureApplicationLogging sets up logging suitable for an application. Logging configuration is loaded from
 // a filepath given by the ARMADA_LOG_CONFIG environmental variable or from config/logging.yaml if this var is unset.
 func ConfigureApplicationLogging() error {
-
 	// Set some global logging properties
 	zerolog.TimeFieldFormat = time.RFC3339Nano // needs to be higher or greater precision than the writer format.
 	zerolog.CallerMarshalFunc = shortCallerEncoder

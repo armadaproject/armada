@@ -1,19 +1,25 @@
 package armadacontext
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"github.com/rs/zerolog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/logging"
 )
+
+type testLogEntry struct {
+	Level        string `json:"level"`
+	Message      string `json:"message"`
+	CustomField1 string `json:"customField1,omitempty"`
+	CustomField2 string `json:"customField2,omitempty"`
+}
 
 var defaultLogger = logging.StdLogger().WithField("foo", "bar")
 
@@ -33,39 +39,130 @@ func TestTODO(t *testing.T) {
 	require.Equal(t, ctx.Context, context.TODO())
 }
 
+func TestLogAtLevel(t *testing.T) {
+	tests := map[string]struct {
+		logFunction   func(ctx *Context)
+		expectedLevel string
+		expectedMsg   string
+	}{
+		"Debug": {
+			logFunction: func(ctx *Context) {
+				ctx.Debug("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "debug",
+		},
+		"Debugf": {
+			logFunction: func(ctx *Context) {
+				ctx.Debugf("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "debug",
+		},
+		"Info": {
+			logFunction: func(ctx *Context) {
+				ctx.Info("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "info",
+		},
+		"Infof": {
+			logFunction: func(ctx *Context) {
+				ctx.Infof("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "info",
+		},
+		"Warn": {
+			logFunction: func(ctx *Context) {
+				ctx.Warn("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "warn",
+		},
+		"Warnf": {
+			logFunction: func(ctx *Context) {
+				ctx.Warnf("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "warn",
+		},
+		"Error": {
+			logFunction: func(ctx *Context) {
+				ctx.Errorf("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "error",
+		},
+		"Errorf": {
+			logFunction: func(ctx *Context) {
+				ctx.Errorf("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "error",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			logger, buf := testLogger()
+			ctx := New(context.Background(), logger)
+			tc.logFunction(ctx)
+			assertLogLineExpected(
+				t,
+				&testLogEntry{
+					Level:   tc.expectedLevel,
+					Message: tc.expectedMsg,
+				},
+				buf,
+			)
+		})
+	}
+}
+
 func TestWithLogField(t *testing.T) {
-	logger, observedLogs := testLogger()
-	ctx := WithLogField(New(context.Background(), logger), "fish", "chips")
+	logger, buf := testLogger()
+	ctx := WithLogField(New(context.Background(), logger), "customField1", "foo")
+
+	// Ensure the context is correctly set
 	require.Equal(t, context.Background(), ctx.Context)
 
 	ctx.Info("test message")
+	require.NotEmpty(t, buf.Bytes(), "Expected log entry in buffer")
 
-	// Check the captured log entries
-	entries := observedLogs.All()
-	require.Len(t, entries, 1, "Expected exactly one log entry")
+	var entry testLogEntry
+	err := json.Unmarshal(buf.Bytes(), &entry)
+	require.NoError(t, err, "Failed to unmarshal log entry")
 
-	// Verify the fields
-	logEntry := entries[0]
-	assert.Equal(t, "test message", logEntry.Message)
-	assert.Equal(t, "chips", logEntry.ContextMap()["fish"])
+	assert.Equal(t, "test message", entry.Message)
+	assert.Equal(t, "foo", entry.CustomField1)
+	assert.Equal(t, "info", entry.Level)
 }
 
 func TestWithLogFields(t *testing.T) {
-	logger, observedLogs := testLogger()
-	ctx := WithLogFields(New(context.Background(), logger), map[string]any{"fish": "chips", "salt": "pepper"})
+	logger, buf := testLogger()
+
+	ctx := WithLogFields(
+		New(context.Background(), logger),
+		map[string]interface{}{
+			"customField1": "bar",
+			"customField2": "baz",
+		},
+	)
+
+	// Ensure the context is correctly set
 	require.Equal(t, context.Background(), ctx.Context)
 
 	ctx.Info("test message")
+	require.NotEmpty(t, buf.Bytes(), "Expected log entry in buffer")
 
-	// Check the captured log entries
-	entries := observedLogs.All()
-	require.Len(t, entries, 1, "Expected exactly one log entry")
+	var entry testLogEntry
+	err := json.Unmarshal(buf.Bytes(), &entry)
+	require.NoError(t, err, "Failed to unmarshal log entry")
 
-	// Verify the fields
-	logEntry := entries[0]
-	assert.Equal(t, "test message", logEntry.Message)
-	assert.Equal(t, "chips", logEntry.ContextMap()["fish"])
-	assert.Equal(t, "pepper", logEntry.ContextMap()["salt"])
+	assert.Equal(t, "test message", entry.Message)
+	assert.Equal(t, "bar", entry.CustomField1)
+	assert.Equal(t, "baz", entry.CustomField2)
+	assert.Equal(t, "info", entry.Level)
 }
 
 func TestWithTimeout(t *testing.T) {
@@ -108,9 +205,21 @@ func quiescent(t *testing.T) time.Duration {
 	return time.Until(deadline) - arbitraryCleanupMargin
 }
 
-func testLogger() (*logging.Logger, *observer.ObservedLogs) {
-	core, observedLogs := observer.New(zapcore.DebugLevel)
-	baseLogger := zap.New(core)
-	logger := logging.FromZap(baseLogger)
-	return logger, observedLogs
+// testLogger sets up a Zerolog logger that writes to a buffer for testing
+func testLogger() (*logging.Logger, *bytes.Buffer) {
+	var buf bytes.Buffer
+	baseLogger := zerolog.New(&buf).Level(zerolog.DebugLevel).With().Timestamp().Logger()
+	logger := logging.FromZerolog(baseLogger)
+	return logger, &buf
+}
+
+func assertLogLineExpected(t *testing.T, expected *testLogEntry, logOutput *bytes.Buffer) {
+	var entry testLogEntry
+	err := json.Unmarshal(logOutput.Bytes(), &entry)
+	require.NoError(t, err, "Failed to unmarshal log entry")
+
+	assert.Equal(t, expected.Message, entry.Message)
+	assert.Equal(t, expected.Level, entry.Level)
+	assert.Equal(t, expected.CustomField1, entry.CustomField1)
+	assert.Equal(t, expected.CustomField2, entry.CustomField2)
 }
