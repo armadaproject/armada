@@ -95,7 +95,6 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &FilteredLevelWriter{
 		level: level,
 		writer: zerolog.ConsoleWriter{

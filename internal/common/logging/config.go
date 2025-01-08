@@ -9,8 +9,9 @@ import (
 )
 
 var validLogFormats = map[string]bool{
-	"text": true,
-	"json": true,
+	"text":     true,
+	"json":     true,
+	"colorful": true,
 }
 
 // Config defines Armada logging configuration.
@@ -19,7 +20,7 @@ type Config struct {
 	Console struct {
 		// Log level, e.g. INFO, ERROR etc
 		Level string `yaml:"level"`
-		// Logging format, either text or json
+		// Logging format, either text, json or colorful
 		Format string `yaml:"format"`
 	} `yaml:"console"`
 	// Defines configuration for file logging
@@ -28,7 +29,7 @@ type Config struct {
 		Enabled bool `yaml:"enabled"`
 		// Log level, e.g. INFO, ERROR etc
 		Level string `yaml:"level"`
-		// Logging format, either text or json
+		// Logging format, either text, json or or colorful
 		Format string `yaml:"format"`
 		// The Location of the logfile on disk
 		LogFile string `yaml:"logfile"`
