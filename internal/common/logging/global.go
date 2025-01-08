@@ -1,8 +1,9 @@
 package logging
 
 import (
-	"github.com/rs/zerolog"
 	"os"
+
+	"github.com/rs/zerolog"
 )
 
 // The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
