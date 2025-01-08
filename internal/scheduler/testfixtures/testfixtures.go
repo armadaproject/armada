@@ -102,7 +102,7 @@ var (
 			Taints: []v1.Taint{{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule}},
 		},
 	}
-	TestNodeFactory = internaltypes.NewNodeFactory(TestIndexedTaints, TestIndexedNodeLabels, TestResourceListFactory)
+	TestNodeFactory = internaltypes.NewNodeFactory(TestIndexedTaints, TestIndexedNodeLabels, TestPriorityClasses, TestResourceListFactory)
 	jobTimestamp    atomic.Int64
 	// SchedulingKeyGenerator to use in testing.
 	// Has to be consistent since creating one involves generating a random key.
