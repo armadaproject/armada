@@ -218,6 +218,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	nodeFactory := internaltypes.NewNodeFactory(
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
+		l.schedulingConfig.PriorityClasses,
 		l.resourceListFactory,
 	)
 

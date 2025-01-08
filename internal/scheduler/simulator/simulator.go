@@ -318,6 +318,7 @@ func (s *Simulator) setupClusters() error {
 
 	nodeFactory := internaltypes.NewNodeFactory(s.schedulingConfig.IndexedTaints,
 		indexedNodeLabels,
+		s.schedulingConfig.PriorityClasses,
 		s.resourceListFactory)
 
 	for _, cluster := range s.ClusterSpec.Clusters {
@@ -359,10 +360,7 @@ func (s *Simulator) setupClusters() error {
 						nodeTemplate.TotalResources,
 					),
 				}
-				dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
-				if err != nil {
-					return err
-				}
+				dbNode := nodeFactory.FromSchedulerObjectsNode(node)
 
 				txn := nodeDb.Txn(true)
 				if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {

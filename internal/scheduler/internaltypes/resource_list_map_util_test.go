@@ -6,6 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRlMapToString(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, "a=(memory=1024,cpu=1) b=(memory=2048,cpu=2)", RlMapToString(testMapAllPositive(factory)))
+}
+
 func TestRlMapSumValues(t *testing.T) {
 	factory := testFactory()
 
