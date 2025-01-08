@@ -75,6 +75,8 @@ export interface ColumnConfigurationDialogProps {
   onClose: () => void
   allColumns: JobTableColumn[]
   groupedColumnIds: ColumnId[]
+  filterColumnIds: ColumnId[]
+  sortColumnIds: ColumnId[]
   visibleColumnIds: ColumnId[]
   columnOrderIds: ColumnId[]
   setColumnOrder: (columnOrder: ColumnId[]) => void
@@ -89,6 +91,8 @@ export const ColumnConfigurationDialog = ({
   onClose,
   allColumns,
   groupedColumnIds,
+  filterColumnIds,
+  sortColumnIds,
   visibleColumnIds,
   columnOrderIds,
   setColumnOrder,
@@ -109,14 +113,16 @@ export const ColumnConfigurationDialog = ({
     [allColumns],
   )
 
+  const groupedColumnsSet = useMemo(() => new Set(groupedColumnIds), [groupedColumnIds])
+  const filterColumnsSet = useMemo(() => new Set(filterColumnIds), [filterColumnIds])
+  const sortColumnsSet = useMemo(() => new Set(sortColumnIds), [sortColumnIds])
+  const visibleColumnsSet = useMemo(() => new Set(visibleColumnIds), [visibleColumnIds])
+
   const orderedColumns = useMemo(() => {
-    const groupedColumnsSet = new Set(groupedColumnIds)
     return columnOrderIds
       .filter((id) => !groupedColumnsSet.has(id) && !PINNED_COLUMNS.includes(toColId(id)) && id in allColumnsById)
       .map((id) => allColumnsById[id])
-  }, [columnOrderIds, groupedColumnIds, allColumnsById])
-
-  const visibleColumnsSet = useMemo(() => new Set(visibleColumnIds), [visibleColumnIds])
+  }, [columnOrderIds, groupedColumnIds, allColumnsById, groupedColumnsSet])
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
@@ -220,6 +226,8 @@ export const ColumnConfigurationDialog = ({
                         column={column}
                         isVisible={visibleColumnsSet.has(colId)}
                         onToggleVisibility={() => toggleColumnVisibility(colId)}
+                        filtered={filterColumnsSet.has(colId)}
+                        sorted={sortColumnsSet.has(colId)}
                         removeAnnotationColumn={() => onRemoveAnnotationColumn(colId)}
                         editAnnotationColumn={(annotationKey) => onEditAnnotationColumn(colId, annotationKey)}
                         existingAnnotationColumnKeysSet={annotationColumnKeysSet}

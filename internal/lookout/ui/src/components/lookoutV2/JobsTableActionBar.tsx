@@ -20,11 +20,12 @@ export interface JobsTableActionBarProps {
   isLoading: boolean
   allColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
+  filterColumns: ColumnId[]
+  sortColumns: ColumnId[]
   visibleColumns: ColumnId[]
   columnOrder: ColumnId[]
   setColumnOrder: (columnOrder: ColumnId[]) => void
   selectedItemFilters: JobFilter[][]
-  filtersActive: boolean
   customViews: string[]
   activeJobSets: boolean
   onActiveJobSetsChanged: (newVal: boolean) => void
@@ -50,11 +51,12 @@ export const JobsTableActionBar = memo(
     isLoading,
     allColumns,
     groupedColumns,
+    filterColumns,
+    sortColumns,
     visibleColumns,
     columnOrder,
     setColumnOrder,
     selectedItemFilters,
-    filtersActive,
     customViews,
     activeJobSets,
     onActiveJobSetsChanged,
@@ -98,6 +100,8 @@ export const JobsTableActionBar = memo(
           onClose={columnConfigurationDialogOpenOnClose}
           allColumns={allColumns}
           groupedColumnIds={groupedColumns}
+          filterColumnIds={filterColumns}
+          sortColumnIds={sortColumns}
           visibleColumnIds={visibleColumns}
           columnOrderIds={columnOrder}
           setColumnOrder={setColumnOrder}
@@ -156,7 +160,7 @@ export const JobsTableActionBar = memo(
               onClick={onClearFilters}
               color="primary"
               endIcon={<FilterAltOff />}
-              disabled={!filtersActive}
+              disabled={filterColumns.length === 0}
             >
               Clear Filters
             </Button>
