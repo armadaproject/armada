@@ -1,6 +1,6 @@
 console:
   level: INFO
-  format: text
+  format: colorful
 file:
   enabled: true
   level: INFO

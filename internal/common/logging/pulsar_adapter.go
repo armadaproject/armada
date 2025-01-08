@@ -4,7 +4,7 @@ import (
 	pulsarlog "github.com/apache/pulsar-client-go/pulsar/log"
 )
 
-var pulsarAdapterSkipFrames = StdSkipFrames + 1
+var pulsarAdapterSkipFrames = StdSkipFrames
 
 // Wrapper to adapt Logger to the logger interface expected by the pulsar client
 type pulsarWrapper struct {

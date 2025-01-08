@@ -2,17 +2,15 @@ package logging
 
 import (
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"io"
+	"os"
+	"path/filepath"
 	"sigs.k8s.io/yaml"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -36,7 +34,7 @@ func MustConfigureApplicationLogging() {
 // a filepath given by the ARMADA_LOG_CONFIG environmental variable or from config/logging.yaml if this var is unset.
 func ConfigureApplicationLogging() error {
 	// Set some global logging properties
-	zerolog.TimeFieldFormat = time.RFC3339Nano // needs to be higher or greater precision than the writer format.
+	zerolog.TimeFieldFormat = RFC3339Milli // needs to be higher or greater precision than the writer format.
 	zerolog.CallerMarshalFunc = shortCallerEncoder
 
 	// Load config file
@@ -73,21 +71,25 @@ func ConfigureApplicationLogging() error {
 }
 
 func createFileLogger(logConfig Config) (*FilteredLevelWriter, error) {
-	level, err := zerolog.ParseLevel(logConfig.Console.Level)
+	level, err := zerolog.ParseLevel(logConfig.File.Level)
 	if err != nil {
 		return nil, err
 	}
 
-	return &FilteredLevelWriter{
-		level: level,
-		writer: &lumberjack.Logger{
-			Filename:   logConfig.File.LogFile,
-			MaxSize:    logConfig.File.Rotation.MaxSizeMb,
-			MaxBackups: logConfig.File.Rotation.MaxBackups,
-			MaxAge:     logConfig.File.Rotation.MaxAgeDays,
-			Compress:   logConfig.File.Rotation.Compress,
-		},
-	}, nil
+	// Set up lumberjack for log rotation
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   logConfig.File.LogFile,
+		MaxSize:    logConfig.File.Rotation.MaxSizeMb,
+		MaxBackups: logConfig.File.Rotation.MaxBackups,
+		MaxAge:     logConfig.File.Rotation.MaxAgeDays,
+		Compress:   logConfig.File.Rotation.Compress,
+	}
+
+	if strings.ToLower(logConfig.File.Format) == "text" || strings.ToLower(logConfig.File.Format) == "colorful" {
+		return createConsoleWriter(lumberjackLogger, level, logConfig.File.Format), nil
+	} else {
+		return createJsonWriter(lumberjackLogger, level), nil
+	}
 }
 
 func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
@@ -95,10 +97,25 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	if err != nil {
 		return nil, err
 	}
+	if strings.ToLower(logConfig.Console.Format) == "text" || strings.ToLower(logConfig.Console.Format) == "colorful" {
+		return createConsoleWriter(os.Stdout, level, logConfig.Console.Format), nil
+	} else {
+		return createJsonWriter(os.Stdout, level), nil
+	}
+}
+
+func createJsonWriter(out io.Writer, level zerolog.Level) *FilteredLevelWriter {
+	return &FilteredLevelWriter{
+		level:  level,
+		writer: out,
+	}
+}
+
+func createConsoleWriter(out io.Writer, level zerolog.Level, format string) *FilteredLevelWriter {
 	return &FilteredLevelWriter{
 		level: level,
 		writer: zerolog.ConsoleWriter{
-			Out:        os.Stdout,
+			Out:        out,
 			TimeFormat: RFC3339Milli,
 			FormatLevel: func(i interface{}) string {
 				return strings.ToUpper(fmt.Sprintf("%s", i))
@@ -106,9 +123,9 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 			FormatCaller: func(i interface{}) string {
 				return filepath.Base(fmt.Sprintf("%s", i))
 			},
-			NoColor: true,
+			NoColor: strings.ToLower(format) == "text",
 		},
-	}, nil
+	}
 }
 
 func readConfig(configFilePath string) (Config, error) {
