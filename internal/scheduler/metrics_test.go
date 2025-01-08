@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
@@ -515,7 +515,13 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 }
 
 func createNode(nodeType string) *schedulerobjects.Node {
-	node := testfixtures.Test32CpuNode([]int32{})
+	node := testfixtures.TestSchedulerObjectsNode(
+		[]int32{},
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("32"),
+			"memory": resource.MustParse("256Gi"),
+		},
+	)
 	node.ReportingNodeType = nodeType
 	node.StateByJobRunId = map[string]schedulerobjects.JobRunState{}
 	node.ResourceUsageByQueueAndPool = []*schedulerobjects.PoolQueueResource{}

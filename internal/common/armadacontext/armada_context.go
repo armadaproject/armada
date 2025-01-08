@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -39,8 +38,10 @@ func FromGrpcCtx(ctx context.Context) *Context {
 	if ok {
 		return armadaCtx
 	}
-	log := ctxlogrus.Extract(ctx)
-	return New(ctx, log)
+	logger := logrus.NewEntry(logrus.StandardLogger()).
+		WithField("user", ctx.Value("user")).
+		WithField("requestId", ctx.Value("requestId"))
+	return New(ctx, logger)
 }
 
 // New returns an  armada context that encapsulates both a go context and a logger

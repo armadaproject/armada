@@ -24,7 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -52,13 +51,14 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	stringInterner := stringinterner.New(1024)
 
-	node := testfixtures.Test32CpuNode(priorities)
 	nodeDb, err := NewNodeDb(config, stringInterner)
 	require.NoError(t, err)
-	dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-	require.NoError(t, err)
 	nodeDbTxn := nodeDb.Txn(true)
-	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, dbNode)
+	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(
+		nodeDbTxn,
+		jobs,
+		testfixtures.Test32CpuNode(priorities),
+	)
 	require.NoError(t, err)
 
 	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
@@ -100,7 +100,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
 		// Nodes to be considered by the scheduler.
-		Nodes []*schedulerobjects.Node
+		Nodes []*internaltypes.Node
 		// Each item corresponds to a call to Reschedule().
 		Rounds []SchedulingRound
 		// Map from queue to the priority factor associated with that queue.
@@ -884,7 +884,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		//   time="2024-09-27T09:09:05+01:00" level=info msg="Scheduling new jobs; affected queues [B]; resources map[B:{cpu: 16, memory: 64Gi}]; jobs per queue map[B:16]" round=1
 		//"broken priority class preemption with non-preemptible priority classes": {
 		//	SchedulingConfig: testfixtures.TestSchedulingConfig(),
-		//	Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+		//	Nodes:            testfixtures.ItN32CpuNodes(1, testfixtures.TestPriorities),
 		//	Rounds: []SchedulingRound{
 		//		{
 		//			JobsByQueue: map[string][]*jobdb.Job{
@@ -1461,17 +1461,17 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		"nodeAffinity node notIn": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes: armadaslices.Concatenate(
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val1"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					map[string]string{"key": "val2"},
-					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
-				testfixtures.WithLabelsNodes(
-					map[string]string{"key": "val3"},
+				testfixtures.TestNodeFactory.AddLabels(
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{"key": "val3"},
 				),
 				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			),
@@ -1575,13 +1575,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
-				nodes := testfixtures.N8GpuNodes(2, []int32{29000, 30000})
-				for _, node := range nodes {
-					node.Taints = []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}
-				}
-				return nodes
-			}(),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(
+				testfixtures.N8GpuNodes(2, []int32{29000, 30000}),
+				[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+			),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1635,13 +1632,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				config.DefaultPriorityClassName = "armada-preemptible"
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
-				nodes := testfixtures.N8GpuNodes(2, []int32{29000, 30000})
-				for _, node := range nodes {
-					node.Taints = []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}
-				}
-				return nodes
-			}(),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(
+				testfixtures.N8GpuNodes(2, []int32{29000, 30000}),
+				[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+			),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1701,12 +1695,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
+			Nodes: func() []*internaltypes.Node {
 				priorities := []int32{29000, 30000}
-				gpuNodes := testfixtures.N8GpuNodes(1, priorities)
-				for _, node := range gpuNodes {
-					node.Taints = []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}
-				}
+				gpuNodes := testfixtures.TestNodeFactory.AddTaints(
+					testfixtures.N8GpuNodes(1, priorities),
+					[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+				)
 				return append(testfixtures.N32CpuNodes(1, priorities), gpuNodes...)
 			}(),
 			Rounds: []SchedulingRound{
@@ -1762,12 +1756,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				config.DefaultPriorityClassName = "armada-preemptible"
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
+			Nodes: func() []*internaltypes.Node {
 				priorities := []int32{29000, 30000}
-				gpuNodes := testfixtures.N8GpuNodes(1, priorities)
-				for _, node := range gpuNodes {
-					node.Taints = []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}
-				}
+				gpuNodes := testfixtures.TestNodeFactory.AddTaints(
+					testfixtures.N8GpuNodes(1, priorities),
+					[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+				)
 				return append(testfixtures.N32CpuNodes(1, priorities), gpuNodes...)
 			}(),
 			Rounds: []SchedulingRound{
@@ -1836,12 +1830,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				return config
 			}(),
-			Nodes: func() []*schedulerobjects.Node {
-				priorities := []int32{29000, 28000, 30000}
-				nodes := testfixtures.N32CpuNodes(1, priorities)
-				nodes[0].Taints = []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}
-				return nodes
-			}(),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(
+				testfixtures.N32CpuNodes(1, []int32{29000, 28000, 30000}),
+				[]v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+			),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
@@ -1950,11 +1942,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				ctx.FieldLogger = ctx.WithField("round", i)
 				ctx.Infof("starting scheduling round %d", i)
 
-				jobsByNode := map[string][]*jobdb.Job{}
+				jobsByNodeId := map[string][]*jobdb.Job{}
 				for _, job := range jobDbTxn.GetAll() {
 					if job.LatestRun() != nil && !job.LatestRun().InTerminalState() {
 						node := job.LatestRun().NodeId()
-						jobsByNode[node] = append(jobsByNode[node], job)
+						jobsByNodeId[node] = append(jobsByNodeId[node], job)
 					}
 				}
 
@@ -1962,9 +1954,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				nodeDbTxn := nodeDb.Txn(true)
 				for _, node := range tc.Nodes {
-					dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-					require.NoError(t, err)
-					err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsByNode[node.Name], dbNode)
+					err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsByNodeId[node.GetId()], node.DeepCopyNilKeys())
 					require.NoError(t, err)
 				}
 				nodeDbTxn.Commit()
@@ -2011,7 +2001,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				for idx, isCordoned := range cordonedNodes {
 					if isCordoned {
-						node, err := nodeDb.GetNode(tc.Nodes[idx].Id)
+						node, err := nodeDb.GetNode(tc.Nodes[idx].GetId())
 						require.NoError(t, err)
 						ctx.Infof("Cordoned node %s", node.GetId())
 						taints := append(slices.Clone(node.GetTaints()), internaltypes.UnschedulableTaint())
@@ -2260,7 +2250,7 @@ func jobIdsByQueueFromJobContexts(jctxs []*context.JobSchedulingContext) map[str
 func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 	tests := map[string]struct {
 		SchedulingConfig  configuration.SchedulingConfig
-		Nodes             []*schedulerobjects.Node
+		Nodes             []*internaltypes.Node
 		JobFunc           func(queue string, priorityClassName string, n int) []*jobdb.Job
 		NumQueues         int
 		NumJobsPerQueue   int
@@ -2357,9 +2347,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-				require.NoError(b, err)
-				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys())
 				require.NoError(b, err)
 			}
 			txn.Commit()
@@ -2454,9 +2442,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 			txn = nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-				require.NoError(b, err)
-				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], dbNode)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.GetId()], node.DeepCopyNilKeys())
 				require.NoError(b, err)
 			}
 			txn.Commit()

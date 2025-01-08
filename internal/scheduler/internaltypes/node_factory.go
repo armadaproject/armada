@@ -6,6 +6,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -27,6 +28,9 @@ type NodeFactory struct {
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]bool
 
+	// Allowed priorities, includes home and away (from config)
+	allowedPriorities []int32
+
 	// Factory for internaltypes.ResourceList
 	resourceListFactory *ResourceListFactory
 
@@ -37,11 +41,13 @@ type NodeFactory struct {
 func NewNodeFactory(
 	indexedTaints []string,
 	indexedNodeLabels []string,
+	priorityClasses map[string]types.PriorityClass,
 	resourceListFactory *ResourceListFactory,
 ) *NodeFactory {
 	return &NodeFactory{
 		indexedTaints:       util.StringListToSet(indexedTaints),
 		indexedNodeLabels:   util.StringListToSet(indexedNodeLabels),
+		allowedPriorities:   types.AllowedPriorities(priorityClasses),
 		resourceListFactory: resourceListFactory,
 		nodeIndexCounter:    atomic.Uint64{},
 	}
@@ -76,11 +82,12 @@ func (f *NodeFactory) CreateNodeAndType(
 	)
 }
 
-func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) (*Node, error) {
+func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) *Node {
 	return FromSchedulerObjectsNode(node,
 		f.allocateNodeIndex(),
 		f.indexedTaints,
 		f.indexedNodeLabels,
+		f.allowedPriorities,
 		f.resourceListFactory,
 	)
 }
@@ -93,12 +100,7 @@ func (f *NodeFactory) FromSchedulerObjectsExecutors(executors []*schedulerobject
 				errorLogger(fmt.Sprintf("Executor name mismatch: %q != %q", node.Executor, executor.Id))
 				continue
 			}
-			itNode, err := f.FromSchedulerObjectsNode(node)
-			if err != nil {
-				errorLogger(fmt.Sprintf("Invalid node %s: %v", node.Name, err))
-				continue
-			}
-			result = append(result, itNode)
+			result = append(result, f.FromSchedulerObjectsNode(node))
 		}
 	}
 	return result

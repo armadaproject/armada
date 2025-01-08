@@ -4,10 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+func TestRlMapToString(t *testing.T) {
+	factory := testFactory()
+
+	assert.Equal(t, "a=(memory=1024,cpu=1) b=(memory=2048,cpu=2)", RlMapToString(testMapAllPositive(factory)))
+}
 
 func TestRlMapSumValues(t *testing.T) {
 	factory := testFactory()
@@ -36,35 +39,6 @@ func TestRlMapHasNegativeValues(t *testing.T) {
 	assert.False(t, RlMapHasNegativeValues(testMapEmpty(factory)))
 }
 
-func TestRlMapFromJobSchedulerObjects(t *testing.T) {
-	factory := testFactory()
-
-	input := make(schedulerobjects.QuantityByTAndResourceType[string])
-	input.AddResourceList("priorityClass1",
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("1Ki"),
-			},
-		},
-	)
-	input.AddResourceList("priorityClass2",
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("2"),
-				"memory": resource.MustParse("2Ki"),
-			},
-		},
-	)
-
-	expected := map[string]ResourceList{
-		"priorityClass1": testResourceList(factory, "1", "1Ki"),
-		"priorityClass2": testResourceList(factory, "2", "2Ki"),
-	}
-
-	assert.Equal(t, expected, RlMapFromJobSchedulerObjects(input, factory))
-}
-
 func TestRlMapRemoveZeros(t *testing.T) {
 	factory := testFactory()
 
@@ -83,9 +57,10 @@ func TestNewAllocatableByPriorityAndResourceType(t *testing.T) {
 	rl := testResourceList(factory, "2", "2Ki")
 
 	result := NewAllocatableByPriorityAndResourceType([]int32{1, 2}, rl)
-	assert.Equal(t, 2, len(result))
+	assert.Equal(t, 3, len(result))
 	assert.Equal(t, int64(2000), result[1].GetByNameZeroIfMissing("cpu"))
 	assert.Equal(t, int64(2000), result[2].GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(2000), result[EvictedPriority].GetByNameZeroIfMissing("cpu"))
 }
 
 func TestMarkAllocated(t *testing.T) {
