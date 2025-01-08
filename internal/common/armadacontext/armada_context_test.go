@@ -123,19 +123,18 @@ func TestWithLogField(t *testing.T) {
 	logger, buf := testLogger()
 	ctx := WithLogField(New(context.Background(), logger), "customField1", "foo")
 
-	// Ensure the context is correctly set
-	require.Equal(t, context.Background(), ctx.Context)
-
 	ctx.Info("test message")
-	require.NotEmpty(t, buf.Bytes(), "Expected log entry in buffer")
 
-	var entry testLogEntry
-	err := json.Unmarshal(buf.Bytes(), &entry)
-	require.NoError(t, err, "Failed to unmarshal log entry")
-
-	assert.Equal(t, "test message", entry.Message)
-	assert.Equal(t, "foo", entry.CustomField1)
-	assert.Equal(t, "info", entry.Level)
+	require.Equal(t, context.Background(), ctx.Context)
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:        "info",
+			Message:      "test message",
+			CustomField1: "foo",
+		},
+		buf,
+	)
 }
 
 func TestWithLogFields(t *testing.T) {
@@ -149,20 +148,19 @@ func TestWithLogFields(t *testing.T) {
 		},
 	)
 
-	// Ensure the context is correctly set
-	require.Equal(t, context.Background(), ctx.Context)
-
 	ctx.Info("test message")
-	require.NotEmpty(t, buf.Bytes(), "Expected log entry in buffer")
 
-	var entry testLogEntry
-	err := json.Unmarshal(buf.Bytes(), &entry)
-	require.NoError(t, err, "Failed to unmarshal log entry")
-
-	assert.Equal(t, "test message", entry.Message)
-	assert.Equal(t, "bar", entry.CustomField1)
-	assert.Equal(t, "baz", entry.CustomField2)
-	assert.Equal(t, "info", entry.Level)
+	require.Equal(t, context.Background(), ctx.Context)
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:        "info",
+			Message:      "test message",
+			CustomField1: "bar",
+			CustomField2: "baz",
+		},
+		buf,
+	)
 }
 
 func TestWithTimeout(t *testing.T) {

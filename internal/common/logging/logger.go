@@ -94,7 +94,7 @@ func (l *Logger) WithError(err error) *Logger {
 func (l *Logger) WithStacktrace(err error) *Logger {
 	logger := l.WithError(err)
 	if stackErr, ok := err.(stackTracer); ok {
-		return logger.WithField("stacktrace", fmt.Sprintf("%+v", stackErr.StackTrace()))
+		return logger.WithField("stacktrace", fmt.Sprintf("%v", stackErr.StackTrace()))
 	}
 	return logger
 }
@@ -125,6 +125,7 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 // This is needed when building wrappers around the Logger so as to prevent us from always reporting the
 // wrapper code as the caller.
 func (l *Logger) WithCallerSkip(skip int) *Logger {
+
 	return &Logger{
 		underlying: l.underlying.With().CallerWithSkipFrameCount(skip).Logger(),
 	}

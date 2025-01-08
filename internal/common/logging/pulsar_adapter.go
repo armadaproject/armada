@@ -57,19 +57,19 @@ func (p pulsarWrapper) Error(args ...any) {
 }
 
 func (p pulsarWrapper) Debugf(format string, args ...any) {
-	p.l.Debugf(format, args)
+	p.l.Debugf(format, args...)
 }
 
 func (p pulsarWrapper) Infof(format string, args ...any) {
-	p.l.Infof(format, args)
+	p.l.Infof(format, args...)
 }
 
 func (p pulsarWrapper) Warnf(format string, args ...any) {
-	p.l.Warnf(format, args)
+	p.l.Warnf(format, args...)
 }
 
 func (p pulsarWrapper) Errorf(format string, args ...any) {
-	p.l.Errorf(format, args)
+	p.l.Errorf(format, args...)
 }
 
 func newPulsarLogger(l *Logger) pulsarlog.Logger {
