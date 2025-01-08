@@ -112,6 +112,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	nodeFactory := internaltypes.NewNodeFactory(
 		srv.schedulingConfig.IndexedTaints,
 		srv.schedulingConfig.IndexedNodeLabels,
+		srv.schedulingConfig.PriorityClasses,
 		srv.resourceListFactory)
 
 	executorsByPoolAndId := map[string]map[string]*executor{}

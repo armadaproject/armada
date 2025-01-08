@@ -11,5 +11,7 @@ export const JobStateChip = ({ state }: JobStateChipProps) => {
     return null
   }
   const Icon = jobStateIcons[state]
-  return <Chip label={formatJobState(state)} size="small" color={jobStateColors[state]} icon={<Icon />} />
+  return (
+    <Chip label={formatJobState(state)} size="small" color={jobStateColors[state]} icon={<Icon />} variant="shaded" />
+  )
 }
