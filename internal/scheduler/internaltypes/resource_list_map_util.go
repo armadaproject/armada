@@ -1,13 +1,18 @@
 package internaltypes
 
 import (
+	"sort"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
 func RlMapToString(m map[string]ResourceList) string {
+	keys := maps.Keys(m)
+	sort.Strings(keys)
 	results := []string{}
-	for k, v := range m {
-		results = append(results, k+"="+v.String())
+	for _, k := range keys {
+		results = append(results, k+"="+m[k].String())
 	}
 	return strings.Join(results, " ")
 }
