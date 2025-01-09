@@ -518,6 +518,13 @@ func (l *FairSchedulingAlgo) SchedulePool(
 
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
+	var defragConfig *configuration.DefragConfig
+	for _, poolConfig := range l.schedulingConfig.Pools {
+		if poolConfig.Name == pool {
+			defragConfig = poolConfig.Defrag
+		}
+	}
+
 	protectedFractionOfFairShare := l.schedulingConfig.GetProtectedFractionOfFairShare(pool)
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,
@@ -532,6 +539,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 		marketDriven,
+		defragConfig,
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f",

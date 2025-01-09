@@ -4,24 +4,22 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 type DefragQueueScheduler struct {
-	constraints           schedulerconstraints.SchedulingConstraints
-	floatingResourceTypes *floatingresources.FloatingResourceTypes
-	nodeScheduler         *NodeScheduler
-	jobDb                 JobRepository
-	jobIteratorByQueue    map[string]JobContextIterator
-	maxQueueLookBack      uint
+	nodeScheduler    *NodeScheduler
+	jobDb            JobRepository
+	maxQueueLookBack uint
 }
 
-func NewDefragQueueScheduler(nodeScheduler *NodeScheduler) *DefragQueueScheduler {
+func NewDefragQueueScheduler(jobDb JobRepository, nodeScheduler *NodeScheduler, maxQueueLookBack uint) *DefragQueueScheduler {
 	return &DefragQueueScheduler{
-		nodeScheduler: nodeScheduler,
+		nodeScheduler:    nodeScheduler,
+		jobDb:            jobDb,
+		maxQueueLookBack: maxQueueLookBack,
 	}
 }
 
@@ -56,6 +54,20 @@ func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedu
 			}
 			continue
 		}
+		alreadyScheduled := false
+		for _, jctx := range gctx.JobSchedulingContexts {
+			if _, scheduled := sctx.QueueSchedulingContexts[gctx.Queue].SuccessfulJobSchedulingContexts[jctx.JobId]; scheduled {
+				alreadyScheduled = true
+				break
+			}
+		}
+
+		if alreadyScheduled {
+			if err := gangIterator.Clear(); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			// TODO: Better to push ctx into next and have that control it.
@@ -65,7 +77,7 @@ func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedu
 		default:
 		}
 		start := time.Now()
-		scheduledOk, unschedulableReason, err := q.nodeScheduler.Schedule(ctx, gctx)
+		scheduledOk, unschedulableReason, err := q.nodeScheduler.Schedule(ctx, gctx, sctx)
 		if err != nil {
 			return nil, err
 		} else if scheduledOk {

@@ -189,6 +189,22 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 	return evictedInThisRound, nil
 }
 
+func (qctx *QueueSchedulingContext) preemptJob(job *jobdb.Job) (bool, error) {
+	jobId := job.Id()
+
+	pcName := job.PriorityClassName()
+	rl := job.AllResourceRequirements()
+	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	if scheduledInThisRound {
+		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
+		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+	}
+	qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(job.AllResourceRequirements())
+	qctx.Allocated = qctx.Allocated.Subtract(job.AllResourceRequirements())
+
+	return scheduledInThisRound, nil
+}
+
 func (qctx *QueueSchedulingContext) evictJob(job *jobdb.Job) (bool, error) {
 	jobId := job.Id()
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jobId]; ok {

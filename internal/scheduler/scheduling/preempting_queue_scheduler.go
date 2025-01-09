@@ -59,6 +59,7 @@ func NewPreemptingQueueScheduler(
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
 	marketDriven bool,
+	defragConfig *configuration.DefragConfig,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
@@ -86,6 +87,7 @@ func NewPreemptingQueueScheduler(
 		jobIdsByGangId:               initialJobIdsByGangId,
 		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
 		marketDriven:                 marketDriven,
+		defragConfig:                 defragConfig,
 	}
 }
 
@@ -244,8 +246,28 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 	if sch.defragConfig != nil && sch.defragConfig.Enabled {
 		nodeScheduler := NewNodeScheduler(sch.jobRepo, sch.nodeDb, *sch.defragConfig)
-		defragQueueScheduler := NewDefragQueueScheduler(nodeScheduler)
-		defragQueueScheduler.Schedule(ctx, sch.schedulingContext)
+		defragQueueScheduler := NewDefragQueueScheduler(sch.jobRepo, nodeScheduler, sch.maxQueueLookBack)
+		defragSchedulerResult, err := defragQueueScheduler.Schedule(ctx, sch.schedulingContext)
+		if err != nil {
+			return nil, err
+		}
+		for _, jctx := range defragSchedulerResult.ScheduledJobs {
+			if _, ok := preemptedJobsById[jctx.JobId]; ok {
+				delete(preemptedJobsById, jctx.JobId)
+			} else {
+				scheduledJobsById[jctx.JobId] = jctx
+			}
+		}
+		for _, jctx := range defragSchedulerResult.PreemptedJobs {
+			if _, ok := scheduledJobsById[jctx.JobId]; ok {
+				// Scheduled and preempted in same round, no need to actually preempt the job
+				delete(scheduledJobsById, jctx.JobId)
+			} else {
+				preemptedJobsById[jctx.JobId] = jctx
+			}
+		}
+
+		maps.Copy(sch.nodeIdByJobId, defragSchedulerResult.NodeIdByJobId)
 	}
 
 	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)

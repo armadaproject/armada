@@ -352,6 +352,27 @@ func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
 	return ok
 }
 
+func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, error) {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return false, errors.Errorf("failed preempting job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound, err := qctx.evictJob(jctx.Job)
+	if err != nil {
+		return false, err
+	}
+
+	if scheduledInThisRound {
+		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumScheduledJobs--
+	}
+
+	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+	return scheduledInThisRound, nil
+}
+
 func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error) {
 	queue := sctx.resolveQueueName(jctx.Job)
 	qctx, ok := sctx.QueueSchedulingContexts[queue]

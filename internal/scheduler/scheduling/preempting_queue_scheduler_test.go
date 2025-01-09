@@ -2072,6 +2072,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 					false,
+					nil,
 				)
 
 				result, err := sch.Schedule(ctx)
@@ -2426,6 +2427,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 				false,
+				nil,
 			)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
@@ -2490,6 +2492,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 					false,
+					nil,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)
