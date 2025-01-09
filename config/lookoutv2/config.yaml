@@ -16,6 +16,8 @@ postgres:
     password: psw
     dbname: lookout
     sslmode: disable
+schedulerApiConnection:
+  armadaUrl: "localhost:50052"
 prunerConfig:
   expireAfter: 1008h # 42 days / 6 weeks
   deduplicationExpireAfter: 168h # 7 days

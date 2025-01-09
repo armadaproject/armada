@@ -6,9 +6,11 @@ import (
 	"github.com/IBM/pgxpoolprometheus"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -20,7 +22,11 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/repository"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/client"
 )
+
+const defaultSchedulingReportVerbosity int32 = 0
 
 func Serve(configuration configuration.LookoutV2Config) error {
 	// load embedded swagger file
@@ -36,6 +42,13 @@ func Serve(configuration configuration.LookoutV2Config) error {
 
 	collector := pgxpoolprometheus.NewCollector(db, map[string]string{})
 	prometheus.MustRegister(collector)
+
+	schedulerAPIConn, err := client.CreateApiConnection(&configuration.SchedulerApiConnection)
+	if err != nil {
+		return err
+	}
+	defer schedulerAPIConn.Close()
+	schedulerReportingClient := schedulerobjects.NewSchedulerReportingClient(schedulerAPIConn)
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
@@ -151,6 +164,68 @@ func Serve(configuration configuration.LookoutV2Config) error {
 			return operations.NewGetJobSpecOK().WithPayload(&operations.GetJobSpecOKBody{
 				Job: result,
 			})
+		},
+	)
+
+	api.GetJobReportByIDHandler = operations.GetJobReportByIDHandlerFunc(
+		func(params operations.GetJobReportByIDParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+
+			jobReportRequest := &schedulerobjects.JobReportRequest{JobId: params.JobID}
+			response, err := schedulerReportingClient.GetJobReport(ctx, jobReportRequest)
+			if err != nil {
+				httpStatus := 500
+				if statusError, ok := status.FromError(err); ok {
+					httpStatus = runtime.HTTPStatusFromCode(statusError.Code())
+				}
+				return operations.NewGetJobReportByIDDefault(httpStatus).WithPayload(err.Error())
+			}
+			return operations.NewGetJobReportByIDOK().WithPayload(response.Report)
+		},
+	)
+
+	api.GetQueueReportByNameHandler = operations.GetQueueReportByNameHandlerFunc(
+		func(params operations.GetQueueReportByNameParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			verbosity := defaultSchedulingReportVerbosity
+			if params.Verbosity != nil {
+				verbosity = int32(*params.Verbosity)
+			}
+
+			queueReportRequest := &schedulerobjects.QueueReportRequest{
+				QueueName: params.QueueName,
+				Verbosity: verbosity,
+			}
+			response, err := schedulerReportingClient.GetQueueReport(ctx, queueReportRequest)
+			if err != nil {
+				httpStatus := 500
+				if statusError, ok := status.FromError(err); ok {
+					httpStatus = runtime.HTTPStatusFromCode(statusError.Code())
+				}
+				return operations.NewGetQueueReportByNameDefault(httpStatus).WithPayload(err.Error())
+			}
+			return operations.NewGetQueueReportByNameOK().WithPayload(response.Report)
+		},
+	)
+
+	api.GetSchedulingReportHandler = operations.GetSchedulingReportHandlerFunc(
+		func(params operations.GetSchedulingReportParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			verbosity := defaultSchedulingReportVerbosity
+			if params.Verbosity != nil {
+				verbosity = int32(*params.Verbosity)
+			}
+
+			schedulingReportRequest := &schedulerobjects.SchedulingReportRequest{Verbosity: verbosity}
+			response, err := schedulerReportingClient.GetSchedulingReport(ctx, schedulingReportRequest)
+			if err != nil {
+				httpStatus := 500
+				if statusError, ok := status.FromError(err); ok {
+					httpStatus = runtime.HTTPStatusFromCode(statusError.Code())
+				}
+				return operations.NewGetSchedulingReportDefault(httpStatus).WithPayload(err.Error())
+			}
+			return operations.NewGetSchedulingReportOK().WithPayload(response.Report)
 		},
 	)
 
