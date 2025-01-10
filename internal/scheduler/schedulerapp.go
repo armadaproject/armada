@@ -125,6 +125,7 @@ func Run(config schedulerconfig.Configuration) error {
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
+	queueCache.Initialise(ctx)
 	services = append(services, func() error { return queueCache.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////
