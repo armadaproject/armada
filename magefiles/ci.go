@@ -52,7 +52,11 @@ func TestSuite() error {
 
 // Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
-	time.Sleep(30 * time.Second)
+	// 70s gives time for:
+	// Scheduler + executor to start up
+	// Executor to report its state
+	// Scheduler to update its executor states (runs every 60s)
+	time.Sleep(70 * time.Second)
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account
