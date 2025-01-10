@@ -20,7 +20,13 @@ export const CopyIconButton = ({ content, size, onClick, hidden = false }: CopyI
   const [tooltipOpen, setTooltipOpen] = useState(false)
 
   return (
-    <Tooltip title="Copied!" onClose={() => setTooltipOpen(false)} open={tooltipOpen} leaveDelay={LEAVE_DELAY_MS}>
+    <Tooltip
+      title="Copied!"
+      onClose={() => setTooltipOpen(false)}
+      open={tooltipOpen}
+      leaveDelay={LEAVE_DELAY_MS}
+      arrow={false}
+    >
       <StyledIconButton
         size={size}
         onClick={(e) => {

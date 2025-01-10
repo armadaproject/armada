@@ -2,9 +2,11 @@ package internaltypes
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -26,23 +28,28 @@ type NodeFactory struct {
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]bool
 
+	// Allowed priorities, includes home and away (from config)
+	allowedPriorities []int32
+
 	// Factory for internaltypes.ResourceList
 	resourceListFactory *ResourceListFactory
 
 	// Used for assigning node index
-	nodeIndexCounter uint64
+	nodeIndexCounter atomic.Uint64
 }
 
 func NewNodeFactory(
 	indexedTaints []string,
 	indexedNodeLabels []string,
+	priorityClasses map[string]types.PriorityClass,
 	resourceListFactory *ResourceListFactory,
 ) *NodeFactory {
 	return &NodeFactory{
 		indexedTaints:       util.StringListToSet(indexedTaints),
 		indexedNodeLabels:   util.StringListToSet(indexedNodeLabels),
+		allowedPriorities:   types.AllowedPriorities(priorityClasses),
 		resourceListFactory: resourceListFactory,
-		nodeIndexCounter:    0,
+		nodeIndexCounter:    atomic.Uint64{},
 	}
 }
 
@@ -58,10 +65,9 @@ func (f *NodeFactory) CreateNodeAndType(
 	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 ) *Node {
-	f.nodeIndexCounter++
 	return CreateNodeAndType(
 		id,
-		f.nodeIndexCounter,
+		f.allocateNodeIndex(),
 		executor,
 		name,
 		pool,
@@ -76,12 +82,12 @@ func (f *NodeFactory) CreateNodeAndType(
 	)
 }
 
-func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) (*Node, error) {
-	f.nodeIndexCounter++
+func (f *NodeFactory) FromSchedulerObjectsNode(node *schedulerobjects.Node) *Node {
 	return FromSchedulerObjectsNode(node,
-		f.nodeIndexCounter,
+		f.allocateNodeIndex(),
 		f.indexedTaints,
 		f.indexedNodeLabels,
+		f.allowedPriorities,
 		f.resourceListFactory,
 	)
 }
@@ -94,13 +100,59 @@ func (f *NodeFactory) FromSchedulerObjectsExecutors(executors []*schedulerobject
 				errorLogger(fmt.Sprintf("Executor name mismatch: %q != %q", node.Executor, executor.Id))
 				continue
 			}
-			itNode, err := f.FromSchedulerObjectsNode(node)
-			if err != nil {
-				errorLogger(fmt.Sprintf("Invalid node %s: %v", node.Name, err))
-				continue
-			}
-			result = append(result, itNode)
+			result = append(result, f.FromSchedulerObjectsNode(node))
 		}
 	}
 	return result
+}
+
+func (f *NodeFactory) ResourceListFactory() *ResourceListFactory {
+	return f.resourceListFactory
+}
+
+func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []*Node {
+	result := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		newLabels := util.MergeMaps(node.GetLabels(), extraLabels)
+		result[i] = CreateNodeAndType(node.GetId(),
+			node.GetIndex(),
+			node.GetExecutor(),
+			node.GetName(),
+			node.GetPool(),
+			false,
+			node.GetTaints(),
+			newLabels,
+			f.indexedTaints,
+			f.indexedNodeLabels,
+			node.GetTotalResources(),
+			node.GetUnallocatableResources(),
+			node.AllocatableByPriority,
+		)
+	}
+	return result
+}
+
+func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
+	result := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		result[i] = CreateNodeAndType(node.GetId(),
+			node.GetIndex(),
+			node.GetExecutor(),
+			node.GetName(),
+			node.GetPool(),
+			false,
+			append(node.GetTaints(), extraTaints...),
+			node.GetLabels(),
+			f.indexedTaints,
+			f.indexedNodeLabels,
+			node.GetTotalResources(),
+			node.GetUnallocatableResources(),
+			node.AllocatableByPriority,
+		)
+	}
+	return result
+}
+
+func (f *NodeFactory) allocateNodeIndex() uint64 {
+	return f.nodeIndexCounter.Add(1)
 }

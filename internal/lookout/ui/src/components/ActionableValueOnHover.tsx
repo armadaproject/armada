@@ -6,11 +6,16 @@ import { CopyIconButton } from "./CopyIconButton"
 import { AddFilter } from "./icons"
 
 const OuterContainer = styled("div")({
-  display: "flex",
+  display: "inline-flex",
+  width: "100%",
   flexDirection: "row",
   alignItems: "center",
   gap: "0.5ch",
 })
+
+const ContentContainer = styled("div")<{ minWidth: boolean }>(({ minWidth }) => ({
+  flexGrow: minWidth ? undefined : 1,
+}))
 
 const StyledIconButton = styled(IconButton)<IconButtonProps & { hidden: boolean }>(({ hidden }) => ({
   visibility: hidden ? "hidden" : "unset",
@@ -40,7 +45,7 @@ export const ActionableValueOnHover = ({
   const [hovering, setHovering] = useState(false)
   return (
     <OuterContainer onMouseEnter={() => setHovering(true)} onMouseLeave={() => setHovering(false)}>
-      <div>{children}</div>
+      <ContentContainer minWidth={Boolean(copyAction || filterAction)}>{children}</ContentContainer>
       {copyAction && (
         <div>
           <CopyIconButton

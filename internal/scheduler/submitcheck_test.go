@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -329,7 +329,7 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 }
 
 func GpuNode(pool string) *schedulerobjects.Node {
-	node := testfixtures.TestNode(
+	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
 		map[string]resource.Quantity{
 			"cpu":            resource.MustParse("30"),
@@ -348,7 +348,7 @@ func GpuNode(pool string) *schedulerobjects.Node {
 }
 
 func SmallNode(pool string) *schedulerobjects.Node {
-	node := testfixtures.TestNode(
+	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
 		map[string]resource.Quantity{
 			"cpu":    resource.MustParse("2"),

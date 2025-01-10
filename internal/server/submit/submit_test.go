@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
-	commonMocks "github.com/armadaproject/armada/internal/common/mocks/jobsetevents"
+	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
@@ -24,7 +24,7 @@ import (
 )
 
 type mockObjects struct {
-	publisher    *commonMocks.MockPublisher
+	publisher    *commonMocks.MockPublisher[*armadaevents.EventSequence]
 	queueRepo    *mocks.MockQueueRepository
 	deduplicator *mocks.MockDeduplicator
 	authorizer   *mocks.MockActionAuthorizer
@@ -33,7 +33,7 @@ type mockObjects struct {
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:    commonMocks.NewMockPublisher(ctrl),
+		publisher:    commonMocks.NewMockPublisher[*armadaevents.EventSequence](ctrl),
 		queueRepo:    mocks.NewMockQueueRepository(ctrl),
 		deduplicator: mocks.NewMockDeduplicator(ctrl),
 		authorizer:   mocks.NewMockActionAuthorizer(ctrl),

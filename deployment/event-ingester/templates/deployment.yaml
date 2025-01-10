@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "event_ingester.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "event_ingester.labels.all" . | nindent 8 }}
     spec:
@@ -87,8 +87,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "event_ingester.config.name" . }}
+          configMap:
+            name: {{ include "event_ingester.config.name" . }}
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:
