@@ -114,7 +114,7 @@ scheduling:
       resolution: "1Gi"
   executorTimeout: "10m"
   maxUnacknowledgedJobsPerExecutor: 2500
-  executorUpdateFrequency: "60s"
+  executorUpdateFrequency: "10s"
   experimentalIndicativePricing:
     basePrice: 100.0
     basePriority: 500.0
