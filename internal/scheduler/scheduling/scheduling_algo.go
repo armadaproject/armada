@@ -239,7 +239,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	})
 
 	homeJobs := jobSchedulingInfo.jobsByPool[pool.Name]
-	awayJobs := []*jobdb.Job{}
+	otherPoolJobs := []*jobdb.Job{}
 
 	for _, otherPool := range l.schedulingConfig.Pools {
 		if pool.Name == otherPool.Name {
@@ -247,16 +247,14 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 		if slices.Contains(otherPool.AwayPools, pool.Name) {
 			homeJobs = append(homeJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
+		} else {
+			otherPoolJobs = append(otherPoolJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
 		}
-	}
-
-	for _, awayPool := range pool.AwayPools {
-		awayJobs = append(awayJobs, jobSchedulingInfo.jobsByPool[awayPool]...)
 	}
 
 	nodePools := append(pool.AwayPools, pool.Name)
 
-	nodeDb, err := l.constructNodeDb(homeJobs, awayJobs,
+	nodeDb, err := l.constructNodeDb(homeJobs, otherPoolJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
 	if err != nil {
 		return nil, err
@@ -331,17 +329,6 @@ func calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet m
 			pools = []string{pool}
 		}
 
-		matches := false
-		for _, pool := range pools {
-			if slices.Contains(allPools, pool) {
-				matches = true
-				break
-			}
-		}
-		if !matches {
-			continue
-		}
-
 		if slices.Contains(pools, currentPool) {
 			queueResources, ok := demandByQueueAndPriorityClass[job.Queue()]
 			if !ok {
@@ -369,6 +356,21 @@ func calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet m
 		}
 
 		pool := job.LatestRun().Pool()
+		if _, present := jobsByPool[pool]; !present {
+			jobsByPool[pool] = []*jobdb.Job{}
+		}
+		jobsByPool[pool] = append(jobsByPool[pool], job)
+
+		matches := false
+		for _, pool := range pools {
+			if slices.Contains(allPools, pool) {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
 
 		if _, isActive := activeExecutorsSet[executorId]; isActive {
 			if pool == currentPool {
@@ -387,10 +389,7 @@ func calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet m
 				awayAllocation[job.PriorityClassName()] = awayAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
 			}
 		}
-		if _, present := jobsByPool[pool]; !present {
-			jobsByPool[pool] = []*jobdb.Job{}
-		}
-		jobsByPool[pool] = append(jobsByPool[pool], job)
+
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
 		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
@@ -420,7 +419,7 @@ func calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet m
 	}, nil
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(homeJobs []*jobdb.Job, awayJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(homeJobs []*jobdb.Job, otherPoolJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -432,7 +431,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(homeJobs []*jobdb.Job, awayJobs []*
 	if err != nil {
 		return nil, err
 	}
-	if err := l.populateNodeDb(nodeDb, homeJobs, awayJobs, nodes); err != nil {
+	if err := l.populateNodeDb(nodeDb, homeJobs, otherPoolJobs, nodes); err != nil {
 		return nil, err
 	}
 
@@ -590,7 +589,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
-func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*jobdb.Job, awayJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
+func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*jobdb.Job, otherPoolJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	nodesById := armadaslices.GroupByFuncUnique(
@@ -612,20 +611,17 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 	}
-	for _, job := range awayJobs {
+	for _, job := range otherPoolJobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
 		nodeId := job.LatestRun().NodeId()
 		node, ok := nodesById[nodeId]
 		if !ok {
-			logrus.Errorf(
-				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), nodeId, job.LatestRun().Executor(),
-			)
+			// Job is allocated to a node which isn't part of this pool, ignore it
 			continue
 		}
-
+		// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
 		markResourceUnallocatable(node.AllocatableByPriority, job.KubernetesResourceRequirements())
 	}
 
