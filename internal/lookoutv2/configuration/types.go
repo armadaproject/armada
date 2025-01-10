@@ -5,7 +5,6 @@ import (
 
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
-	"github.com/armadaproject/armada/pkg/client"
 )
 
 type LookoutV2Config struct {
@@ -17,8 +16,6 @@ type LookoutV2Config struct {
 	Tls                TlsConfig
 
 	Postgres configuration.PostgresConfig
-
-	SchedulerApiConnection client.ApiConnectionDetails
 
 	PrunerConfig PrunerConfig
 

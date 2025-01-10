@@ -49,9 +49,6 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 		GetJobErrorHandler: GetJobErrorHandlerFunc(func(params GetJobErrorParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetJobError has not yet been implemented")
 		}),
-		GetJobReportByIDHandler: GetJobReportByIDHandlerFunc(func(params GetJobReportByIDParams) middleware.Responder {
-			return middleware.NotImplemented("operation GetJobReportByID has not yet been implemented")
-		}),
 		GetJobRunDebugMessageHandler: GetJobRunDebugMessageHandlerFunc(func(params GetJobRunDebugMessageParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetJobRunDebugMessage has not yet been implemented")
 		}),
@@ -63,12 +60,6 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 		}),
 		GetJobsHandler: GetJobsHandlerFunc(func(params GetJobsParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetJobs has not yet been implemented")
-		}),
-		GetQueueReportByNameHandler: GetQueueReportByNameHandlerFunc(func(params GetQueueReportByNameParams) middleware.Responder {
-			return middleware.NotImplemented("operation GetQueueReportByName has not yet been implemented")
-		}),
-		GetSchedulingReportHandler: GetSchedulingReportHandlerFunc(func(params GetSchedulingReportParams) middleware.Responder {
-			return middleware.NotImplemented("operation GetSchedulingReport has not yet been implemented")
 		}),
 		GroupJobsHandler: GroupJobsHandlerFunc(func(params GroupJobsParams) middleware.Responder {
 			return middleware.NotImplemented("operation GroupJobs has not yet been implemented")
@@ -116,8 +107,6 @@ type LookoutAPI struct {
 	GetHealthHandler GetHealthHandler
 	// GetJobErrorHandler sets the operation handler for the get job error operation
 	GetJobErrorHandler GetJobErrorHandler
-	// GetJobReportByIDHandler sets the operation handler for the get job report by Id operation
-	GetJobReportByIDHandler GetJobReportByIDHandler
 	// GetJobRunDebugMessageHandler sets the operation handler for the get job run debug message operation
 	GetJobRunDebugMessageHandler GetJobRunDebugMessageHandler
 	// GetJobRunErrorHandler sets the operation handler for the get job run error operation
@@ -126,10 +115,6 @@ type LookoutAPI struct {
 	GetJobSpecHandler GetJobSpecHandler
 	// GetJobsHandler sets the operation handler for the get jobs operation
 	GetJobsHandler GetJobsHandler
-	// GetQueueReportByNameHandler sets the operation handler for the get queue report by name operation
-	GetQueueReportByNameHandler GetQueueReportByNameHandler
-	// GetSchedulingReportHandler sets the operation handler for the get scheduling report operation
-	GetSchedulingReportHandler GetSchedulingReportHandler
 	// GroupJobsHandler sets the operation handler for the group jobs operation
 	GroupJobsHandler GroupJobsHandler
 
@@ -218,9 +203,6 @@ func (o *LookoutAPI) Validate() error {
 	if o.GetJobErrorHandler == nil {
 		unregistered = append(unregistered, "GetJobErrorHandler")
 	}
-	if o.GetJobReportByIDHandler == nil {
-		unregistered = append(unregistered, "GetJobReportByIDHandler")
-	}
 	if o.GetJobRunDebugMessageHandler == nil {
 		unregistered = append(unregistered, "GetJobRunDebugMessageHandler")
 	}
@@ -232,12 +214,6 @@ func (o *LookoutAPI) Validate() error {
 	}
 	if o.GetJobsHandler == nil {
 		unregistered = append(unregistered, "GetJobsHandler")
-	}
-	if o.GetQueueReportByNameHandler == nil {
-		unregistered = append(unregistered, "GetQueueReportByNameHandler")
-	}
-	if o.GetSchedulingReportHandler == nil {
-		unregistered = append(unregistered, "GetSchedulingReportHandler")
 	}
 	if o.GroupJobsHandler == nil {
 		unregistered = append(unregistered, "GroupJobsHandler")
@@ -340,10 +316,6 @@ func (o *LookoutAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/api/v1/jobError"] = NewGetJobError(o.context, o.GetJobErrorHandler)
-	if o.handlers["GET"] == nil {
-		o.handlers["GET"] = make(map[string]http.Handler)
-	}
-	o.handlers["GET"]["/api/v1/jobs/{jobId}/report"] = NewGetJobReportByID(o.context, o.GetJobReportByIDHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
@@ -360,14 +332,6 @@ func (o *LookoutAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/api/v1/jobs"] = NewGetJobs(o.context, o.GetJobsHandler)
-	if o.handlers["GET"] == nil {
-		o.handlers["GET"] = make(map[string]http.Handler)
-	}
-	o.handlers["GET"]["/api/v1/queues/{queueName}/report"] = NewGetQueueReportByName(o.context, o.GetQueueReportByNameHandler)
-	if o.handlers["GET"] == nil {
-		o.handlers["GET"] = make(map[string]http.Handler)
-	}
-	o.handlers["GET"]["/api/v1/schedulingReport"] = NewGetSchedulingReport(o.context, o.GetSchedulingReportHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
