@@ -11,7 +11,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -90,16 +89,16 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	queues, err := srv.queueCache.GetAll(ctx)
 	if err != nil {
-		logging.
-			WithStacktrace(ctx, err).
+		ctx.Logger().
+			WithStacktrace(err).
 			Error("Error fetching queues")
 		return
 	}
 
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		logging.
-			WithStacktrace(ctx, err).
+		ctx.Logger().
+			WithStacktrace(err).
 			Error("Error fetching executors")
 		return
 	}
@@ -141,8 +140,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 					nodeDb: nodeDb,
 				}
 			} else {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Warnf("Error constructing nodedb for executor: %s", ex.Id)
 			}
 		}

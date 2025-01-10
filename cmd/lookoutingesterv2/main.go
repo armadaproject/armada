@@ -1,11 +1,11 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/benchmark"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"

@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 type KubernetesDetails struct {

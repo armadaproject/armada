@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
@@ -28,7 +28,7 @@ The location of this file can be passed in using --config argument or picked fro
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Error(err)
+		log.Error(err.Error())
 		os.Exit(1)
 	}
 }
@@ -37,7 +37,7 @@ var cfgFile string
 
 func initConfig() {
 	if err := client.LoadCommandlineArgsFromConfigFile(cfgFile); err != nil {
-		log.Error(err)
+		log.Error(err.Error())
 		os.Exit(1)
 	}
 }

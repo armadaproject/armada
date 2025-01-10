@@ -2,18 +2,23 @@ package armadacontext
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
-var defaultLogger = logrus.WithField("foo", "bar")
+var defaultLogger = logging.StdLogger().WithField("foo", "bar")
 
 func TestNew(t *testing.T) {
 	ctx := New(context.Background(), defaultLogger)
-	require.Equal(t, defaultLogger, ctx.FieldLogger)
+	require.Equal(t, defaultLogger, ctx.logger)
 	require.Equal(t, context.Background(), ctx.Context)
 }
 
@@ -28,15 +33,38 @@ func TestTODO(t *testing.T) {
 }
 
 func TestWithLogField(t *testing.T) {
-	ctx := WithLogField(Background(), "fish", "chips")
+	logger, observedLogs := testLogger()
+	ctx := WithLogField(New(context.Background(), logger), "fish", "chips")
 	require.Equal(t, context.Background(), ctx.Context)
-	require.Equal(t, logrus.Fields{"fish": "chips"}, ctx.FieldLogger.(*logrus.Entry).Data)
+
+	ctx.Info("test message")
+
+	// Check the captured log entries
+	entries := observedLogs.All()
+	require.Len(t, entries, 1, "Expected exactly one log entry")
+
+	// Verify the fields
+	logEntry := entries[0]
+	assert.Equal(t, "test message", logEntry.Message)
+	assert.Equal(t, "chips", logEntry.ContextMap()["fish"])
 }
 
 func TestWithLogFields(t *testing.T) {
-	ctx := WithLogFields(Background(), logrus.Fields{"fish": "chips", "salt": "pepper"})
+	logger, observedLogs := testLogger()
+	ctx := WithLogFields(New(context.Background(), logger), map[string]any{"fish": "chips", "salt": "pepper"})
 	require.Equal(t, context.Background(), ctx.Context)
-	require.Equal(t, logrus.Fields{"fish": "chips", "salt": "pepper"}, ctx.FieldLogger.(*logrus.Entry).Data)
+
+	ctx.Info("test message")
+
+	// Check the captured log entries
+	entries := observedLogs.All()
+	require.Len(t, entries, 1, "Expected exactly one log entry")
+
+	// Verify the fields
+	logEntry := entries[0]
+	assert.Equal(t, "test message", logEntry.Message)
+	assert.Equal(t, "chips", logEntry.ContextMap()["fish"])
+	assert.Equal(t, "pepper", logEntry.ContextMap()["salt"])
 }
 
 func TestWithTimeout(t *testing.T) {
@@ -77,4 +105,11 @@ func quiescent(t *testing.T) time.Duration {
 
 	const arbitraryCleanupMargin = 1 * time.Second
 	return time.Until(deadline) - arbitraryCleanupMargin
+}
+
+func testLogger() (*logging.Logger, *observer.ObservedLogs) {
+	core, observedLogs := observer.New(zapcore.DebugLevel)
+	baseLogger := zap.New(core)
+	logger := logging.FromZap(baseLogger)
+	return logger, observedLogs
 }

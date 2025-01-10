@@ -8,6 +8,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 func NewPulsarClient(config *commonconfig.PulsarConfig) (pulsar.Client, error) {
@@ -39,5 +40,6 @@ func NewPulsarClient(config *commonconfig.PulsarConfig) (pulsar.Client, error) {
 		TLSAllowInsecureConnection: config.TLSAllowInsecureConnection,
 		MaxConnectionsPerBroker:    config.MaxConnectionsPerBroker,
 		Authentication:             authentication,
+		Logger:                     logging.NewPulsarLogger(),
 	})
 }

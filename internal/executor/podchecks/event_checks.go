@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 )
 

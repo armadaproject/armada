@@ -15,7 +15,6 @@ import (
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -28,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/certs"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
@@ -89,9 +89,9 @@ func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 	}
 
 	go func() {
-		defer log.Println("Stopping server.")
+		defer log.Infof("Stopping server.")
 
-		log.Printf("Grpc listening on %d", port)
+		log.Infof("Grpc listening on %d", port)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}

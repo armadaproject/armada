@@ -351,7 +351,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			cordonedNodes := map[int]bool{}
 			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
-				ctx.FieldLogger = ctx.WithField("round", i)
+				ctx = armadacontext.WithLogField(ctx, "round", i)
 				ctx.Infof("starting scheduling round %d", i)
 
 				jobsByNodeId := map[string][]*jobdb.Job{}

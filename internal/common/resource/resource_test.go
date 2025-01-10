@@ -142,7 +142,7 @@ func TestTotalResourceRequest_ShouldSumAllContainers(t *testing.T) {
 func TestTotalResourceRequestShouldReportMaxInitContainerValues(t *testing.T) {
 	highCpuResource := makeContainerResource(1000, 5)
 	highRamResource := makeContainerResource(100, 500)
-	// With init containers, it should take the max of each individual resource from all init containers
+	// WithField init containers, it should take the max of each individual resource from all init containers
 	expectedResult := makeContainerResource(1000, 500)
 
 	pod := makePodWithResource([]*v1.ResourceList{}, []*v1.ResourceList{&highCpuResource, &highRamResource})

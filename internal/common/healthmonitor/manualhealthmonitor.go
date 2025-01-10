@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
@@ -47,7 +46,7 @@ func (srv *ManualHealthMonitor) IsHealthy() (bool, string, error) {
 	}
 }
 
-func (srv *ManualHealthMonitor) Run(_ *armadacontext.Context, _ *logrus.Entry) error {
+func (srv *ManualHealthMonitor) Run(_ *armadacontext.Context) error {
 	return nil
 }
 

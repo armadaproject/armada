@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const (

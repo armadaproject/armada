@@ -6,9 +6,9 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
@@ -219,7 +219,7 @@ type NodeTypeIterator struct {
 	priority int32
 	// Used to index into node.keys to assert that keys are always increasing.
 	// This to detect if the iterator gets stuck.
-	// TODO(albin): With better testing we should be able to remove this.
+	// TODO(albin): WithField better testing we should be able to remove this.
 	keyIndex int
 	// Name of the memdb index used for node iteration.
 	// Should correspond to the priority set for this iterator.

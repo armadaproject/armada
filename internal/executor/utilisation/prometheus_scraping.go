@@ -6,13 +6,12 @@ import (
 	"net/http"
 	"sync"
 
-	discovery "k8s.io/api/discovery/v1"
-
-	commonUtil "github.com/armadaproject/armada/internal/common/util"
-
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	log "github.com/sirupsen/logrus"
+	discovery "k8s.io/api/discovery/v1"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
 )
 
 type httpGetter interface {
