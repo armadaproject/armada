@@ -103,6 +103,6 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Result/ }))
 
-    getByText("This job has not run.")
+    getByText("This job did not run.")
   })
 })
