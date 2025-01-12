@@ -2,13 +2,13 @@ package logging
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -101,7 +101,6 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 }
 
 func createWriter(out io.Writer, level zerolog.Level, format LogFormat) (*FilteredLevelWriter, error) {
-
 	level = overrideLevelFromEnv(level)
 	format = overrideFormatFromEnv(format)
 
@@ -141,6 +140,13 @@ func shortCallerEncoder(_ uintptr, file string, line int) string {
 	}
 	file = short
 	return file + ":" + strconv.Itoa(line)
+}
+
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
 }
 
 func overrideLevelFromEnv(level zerolog.Level) zerolog.Level {
