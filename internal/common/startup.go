@@ -88,33 +88,6 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 	return v.UnmarshalKey(key, item, commonconfig.CustomHooks...)
 }
 
-func ConfigureCommandLineLogging() {
-	//// Define an encoder configuration that only includes the message.
-	//encoderConfig := zapcore.EncoderConfig{
-	//	MessageKey: "message",
-	//	LineEnding: "\n",
-	//	// Ignore everything other than the message by leaving their keys empty.
-	//	LevelKey:      "",
-	//	TimeKey:       "",
-	//	NameKey:       "",
-	//	CallerKey:     "",
-	//	FunctionKey:   "",
-	//	StacktraceKey: "",
-	//}
-	//// Use the console encoder with the custom configuration.
-	//encoder := zapcore.NewConsoleEncoder(encoderConfig)
-	//
-	//// Create a core that writes to stdout.
-	//core := zapcore.NewCore(
-	//	encoder,
-	//	zapcore.AddSync(os.Stdout),
-	//	zapcore.InfoLevel,
-	//)
-	//
-	//l := zap.New(core)
-	//log.ReplaceStdLogger(log.FromZap(l))
-}
-
 func ServeMetrics(port uint16) (shutdown func()) {
 	return ServeMetricsFor(port, prometheus.DefaultGatherer)
 }
