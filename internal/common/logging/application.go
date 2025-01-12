@@ -110,8 +110,7 @@ func createWriter(out io.Writer, level zerolog.Level, format LogFormat) (*Filter
 			level:  level,
 			writer: out,
 		}, nil
-	case FormatColourful:
-	case FormatText:
+	case FormatColourful, FormatText:
 		return &FilteredLevelWriter{
 			level: level,
 			writer: zerolog.ConsoleWriter{
