@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -105,7 +106,7 @@ func (lf *LogFormat) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode(&s); err != nil {
 		return err
 	}
-
+	s = strings.ToLower(s)
 	switch LogFormat(s) {
 	case FormatText, FormatJSON, FormatColourful:
 		*lf = LogFormat(s)
@@ -113,11 +114,4 @@ func (lf *LogFormat) UnmarshalYAML(value *yaml.Node) error {
 	default:
 		return fmt.Errorf("invalid log format %q: valid values are %q, %q, or %q", s, FormatText, FormatJSON, FormatColourful)
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
-	}
-	return defaultValue
 }
