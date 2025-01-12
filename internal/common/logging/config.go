@@ -114,3 +114,10 @@ func (lf *LogFormat) UnmarshalYAML(value *yaml.Node) error {
 		return fmt.Errorf("invalid log format %q: valid values are %q, %q, or %q", s, FormatText, FormatJSON, FormatColourful)
 	}
 }
+
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}

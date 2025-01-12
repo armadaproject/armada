@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,9 +14,13 @@ import (
 )
 
 const (
-	defaultLogConfigPath = "config/logging.yaml"
-	logConfigPathEnvVar  = "ARMADA_LOG_CONFIG"
-	RFC3339Milli         = "2006-01-02T15:04:05.000Z07:00"
+	defaultConfigPath = "config/logging.yaml"
+	configPathEnvVar  = "ARMADA_LOG_CONFIG"
+	RFC3339Milli      = "2006-01-02T15:04:05.000Z07:00"
+
+	// legacy env vars- will be removedin a future release
+	legacyLogFormatEnvVar = "LOG_FORMAT"
+	legacyLogLevelEnvVar  = "LOG_LEVEL"
 )
 
 // MustConfigureApplicationLogging sets up logging suitable for an application. Logging configuration is loaded from
@@ -37,7 +42,7 @@ func ConfigureApplicationLogging() error {
 	zerolog.CallerMarshalFunc = shortCallerEncoder
 
 	// Load config file
-	configPath := getEnv(logConfigPathEnvVar, defaultLogConfigPath)
+	configPath := getEnv(configPathEnvVar, defaultConfigPath)
 	logConfig, err := readConfig(configPath)
 	if err != nil {
 		return err
@@ -84,11 +89,7 @@ func createFileLogger(logConfig Config) (*FilteredLevelWriter, error) {
 		Compress:   logConfig.File.Rotation.Compress,
 	}
 
-	if logConfig.Console.Format == FormatText || logConfig.Console.Format == FormatColourful {
-		return createConsoleWriter(lumberjackLogger, level, logConfig.File.Format), nil
-	} else {
-		return createJsonWriter(lumberjackLogger, level), nil
-	}
+	return createWriter(lumberjackLogger, level, logConfig.File.Format)
 }
 
 func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
@@ -96,35 +97,38 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	if logConfig.Console.Format == FormatText || logConfig.Console.Format == FormatColourful {
-		return createConsoleWriter(os.Stdout, level, logConfig.Console.Format), nil
-	} else {
-		return createJsonWriter(os.Stdout, level), nil
-	}
+	return createWriter(os.Stdout, level, logConfig.Console.Format)
 }
 
-func createJsonWriter(out io.Writer, level zerolog.Level) *FilteredLevelWriter {
-	return &FilteredLevelWriter{
-		level:  level,
-		writer: out,
-	}
-}
+func createWriter(out io.Writer, level zerolog.Level, format LogFormat) (*FilteredLevelWriter, error) {
 
-func createConsoleWriter(out io.Writer, level zerolog.Level, format LogFormat) *FilteredLevelWriter {
-	return &FilteredLevelWriter{
-		level: level,
-		writer: zerolog.ConsoleWriter{
-			Out:        out,
-			TimeFormat: RFC3339Milli,
-			FormatLevel: func(i interface{}) string {
-				return strings.ToUpper(fmt.Sprintf("%s", i))
+	level = overrideLevelFromEnv(level)
+	format = overrideFormatFromEnv(format)
+
+	switch format {
+	case FormatJSON:
+		return &FilteredLevelWriter{
+			level:  level,
+			writer: out,
+		}, nil
+	case FormatColourful:
+	case FormatText:
+		return &FilteredLevelWriter{
+			level: level,
+			writer: zerolog.ConsoleWriter{
+				Out:        out,
+				TimeFormat: RFC3339Milli,
+				FormatLevel: func(i interface{}) string {
+					return strings.ToUpper(fmt.Sprintf("%s", i))
+				},
+				FormatCaller: func(i interface{}) string {
+					return filepath.Base(fmt.Sprintf("%s", i))
+				},
+				NoColor: format == FormatText,
 			},
-			FormatCaller: func(i interface{}) string {
-				return filepath.Base(fmt.Sprintf("%s", i))
-			},
-			NoColor: format == FormatText,
-		},
+		}, nil
 	}
+	return nil, errors.Errorf("unknown log format: %s", format)
 }
 
 func shortCallerEncoder(_ uintptr, file string, line int) string {
@@ -139,9 +143,32 @@ func shortCallerEncoder(_ uintptr, file string, line int) string {
 	return file + ":" + strconv.Itoa(line)
 }
 
-func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
+func overrideLevelFromEnv(level zerolog.Level) zerolog.Level {
+	levelOverrideStr, ok := os.LookupEnv(legacyLogLevelEnvVar)
+	if !ok {
+		return level
 	}
-	return defaultValue
+	if ok {
+		levelOverride, err := zerolog.ParseLevel(levelOverrideStr)
+		if err == nil {
+			return levelOverride
+		}
+	}
+	return level
+}
+
+func overrideFormatFromEnv(format LogFormat) LogFormat {
+	levelFormatStr, ok := os.LookupEnv(legacyLogFormatEnvVar)
+	if !ok {
+		return format
+	}
+	switch strings.ToLower(levelFormatStr) {
+	case "json":
+		return FormatJSON
+	case "colourful":
+		return FormatColourful
+	case "text":
+		return FormatText
+	}
+	return format
 }
