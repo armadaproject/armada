@@ -2,18 +2,17 @@ package logging
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
-	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
 	"path/filepath"
-	"sigs.k8s.io/yaml"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var (
+const (
 	defaultLogConfigPath = "config/logging.yaml"
 	logConfigPathEnvVar  = "ARMADA_LOG_CONFIG"
 	RFC3339Milli         = "2006-01-02T15:04:05.000Z07:00"
@@ -85,7 +84,7 @@ func createFileLogger(logConfig Config) (*FilteredLevelWriter, error) {
 		Compress:   logConfig.File.Rotation.Compress,
 	}
 
-	if strings.ToLower(logConfig.File.Format) == "text" || strings.ToLower(logConfig.File.Format) == "colourful" {
+	if logConfig.Console.Format == FormatText || logConfig.Console.Format == FormatColourful {
 		return createConsoleWriter(lumberjackLogger, level, logConfig.File.Format), nil
 	} else {
 		return createJsonWriter(lumberjackLogger, level), nil
@@ -97,7 +96,7 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.ToLower(logConfig.Console.Format) == "text" || strings.ToLower(logConfig.Console.Format) == "colourful" {
+	if logConfig.Console.Format == FormatText || logConfig.Console.Format == FormatColourful {
 		return createConsoleWriter(os.Stdout, level, logConfig.Console.Format), nil
 	} else {
 		return createJsonWriter(os.Stdout, level), nil
@@ -111,7 +110,7 @@ func createJsonWriter(out io.Writer, level zerolog.Level) *FilteredLevelWriter {
 	}
 }
 
-func createConsoleWriter(out io.Writer, level zerolog.Level, format string) *FilteredLevelWriter {
+func createConsoleWriter(out io.Writer, level zerolog.Level, format LogFormat) *FilteredLevelWriter {
 	return &FilteredLevelWriter{
 		level: level,
 		writer: zerolog.ConsoleWriter{
@@ -123,27 +122,9 @@ func createConsoleWriter(out io.Writer, level zerolog.Level, format string) *Fil
 			FormatCaller: func(i interface{}) string {
 				return filepath.Base(fmt.Sprintf("%s", i))
 			},
-			NoColor: strings.ToLower(format) == "text",
+			NoColor: format == FormatText,
 		},
 	}
-}
-
-func readConfig(configFilePath string) (Config, error) {
-	yamlConfig, err := os.ReadFile(configFilePath)
-	if err != nil {
-		return Config{}, errors.Wrap(err, "failed to read log config file")
-	}
-
-	var config Config
-	err = yaml.Unmarshal(yamlConfig, &config)
-	if err != nil {
-		return Config{}, errors.Wrap(err, "failed to unmarshall log config file")
-	}
-	err = validate(config)
-	if err != nil {
-		return Config{}, errors.Wrap(err, "invalid log configuration")
-	}
-	return config, nil
 }
 
 func shortCallerEncoder(_ uintptr, file string, line int) string {
@@ -163,23 +144,4 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-}
-
-type FilteredLevelWriter struct {
-	writer io.Writer
-	level  zerolog.Level
-}
-
-// Write writes to the underlying Writer.
-func (w *FilteredLevelWriter) Write(p []byte) (int, error) {
-	return w.writer.Write(p)
-}
-
-// WriteLevel calls WriteLevel of the underlying Writer only if the level is equal
-// or above the Level.
-func (w *FilteredLevelWriter) WriteLevel(level zerolog.Level, p []byte) (int, error) {
-	if level >= w.level {
-		return w.writer.Write(p)
-	}
-	return len(p), nil
 }

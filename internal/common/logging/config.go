@@ -1,17 +1,22 @@
 package logging
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"golang.org/x/exp/maps"
-	"strings"
+	"gopkg.in/yaml.v3"
 )
 
-var validLogFormats = map[string]bool{
-	"text":      true,
-	"json":      true,
-	"colourful": true,
-}
+type LogFormat string
+
+// Allowed values for LogFormat.
+const (
+	FormatText      LogFormat = "text"
+	FormatJSON      LogFormat = "json"
+	FormatColourful LogFormat = "colourful"
+)
 
 // Config defines Armada logging configuration.
 type Config struct {
@@ -19,8 +24,8 @@ type Config struct {
 	Console struct {
 		// Log level, e.g. INFO, ERROR etc
 		Level string `yaml:"level"`
-		// Logging format, either text, json or colorful
-		Format string `yaml:"format"`
+		// Logging format, either text, json or colourful
+		Format LogFormat `yaml:"format"`
 	} `yaml:"console"`
 	// Defines configuration for file logging
 	File struct {
@@ -28,8 +33,8 @@ type Config struct {
 		Enabled bool `yaml:"enabled"`
 		// Log level, e.g. INFO, ERROR etc
 		Level string `yaml:"level"`
-		// Logging format, either text, json or or colorful
-		Format string `yaml:"format"`
+		// Logging format, either text, json or or colourful
+		Format LogFormat `yaml:"format"`
 		// The Location of the logfile on disk
 		LogFile string `yaml:"logfile"`
 		// Log Rotation Options
@@ -54,18 +59,8 @@ func validate(c Config) error {
 		return err
 	}
 
-	err = validateLogFormat(c.Console.Format)
-	if err != nil {
-		return err
-	}
-
 	if c.File.Enabled {
 		_, err := zerolog.ParseLevel(c.File.Level)
-		if err != nil {
-			return err
-		}
-
-		err = validateLogFormat(c.File.Format)
 		if err != nil {
 			return err
 		}
@@ -87,15 +82,35 @@ func validate(c Config) error {
 	return nil
 }
 
-func validateLogFormat(f string) error {
-	_, ok := validLogFormats[f]
-	if !ok {
-		err := errors.Errorf(
-			"unknown log format: %s.  Valid formats are %s",
-			f,
-			strings.Join(maps.Keys(validLogFormats), ","),
-		)
+func readConfig(configFilePath string) (Config, error) {
+	yamlConfig, err := os.ReadFile(configFilePath)
+	if err != nil {
+		return Config{}, errors.Wrap(err, "failed to read log config file")
+	}
+
+	var config Config
+	err = yaml.Unmarshal(yamlConfig, &config)
+	if err != nil {
+		return Config{}, errors.Wrap(err, "failed to unmarshall log config file")
+	}
+	err = validate(config)
+	if err != nil {
+		return Config{}, errors.Wrap(err, "invalid log configuration")
+	}
+	return config, nil
+}
+
+func (lf *LogFormat) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
 		return err
 	}
-	return nil
+
+	switch LogFormat(s) {
+	case FormatText, FormatJSON, FormatColourful:
+		*lf = LogFormat(s)
+		return nil
+	default:
+		return fmt.Errorf("invalid log format %q: valid values are %q, %q, or %q", s, FormatText, FormatJSON, FormatColourful)
+	}
 }
