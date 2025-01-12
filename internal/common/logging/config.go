@@ -1,17 +1,16 @@
 package logging
 
 import (
-	"strings"
-
 	"github.com/pkg/errors"
-	"go.uber.org/zap/zapcore"
+	"github.com/rs/zerolog"
 	"golang.org/x/exp/maps"
+	"strings"
 )
 
 var validLogFormats = map[string]bool{
-	"text":     true,
-	"json":     true,
-	"colorful": true,
+	"text":      true,
+	"json":      true,
+	"colourful": true,
 }
 
 // Config defines Armada logging configuration.
@@ -50,7 +49,7 @@ type Config struct {
 }
 
 func validate(c Config) error {
-	_, err := parseLogLevel(c.Console.Level)
+	_, err := zerolog.ParseLevel(c.Console.Level)
 	if err != nil {
 		return err
 	}
@@ -61,7 +60,7 @@ func validate(c Config) error {
 	}
 
 	if c.File.Enabled {
-		_, err := parseLogLevel(c.File.Level)
+		_, err := zerolog.ParseLevel(c.File.Level)
 		if err != nil {
 			return err
 		}
@@ -91,27 +90,12 @@ func validate(c Config) error {
 func validateLogFormat(f string) error {
 	_, ok := validLogFormats[f]
 	if !ok {
-		err := errors.Errorf("unknown log format: %s.  Valid formats are %s", f, maps.Keys(validLogFormats))
+		err := errors.Errorf(
+			"unknown log format: %s.  Valid formats are %s",
+			f,
+			strings.Join(maps.Keys(validLogFormats), ","),
+		)
 		return err
 	}
 	return nil
-}
-
-func parseLogLevel(level string) (zapcore.Level, error) {
-	switch strings.ToLower(level) {
-	case "debug":
-		return zapcore.DebugLevel, nil
-	case "info":
-		return zapcore.InfoLevel, nil
-	case "warn", "warning":
-		return zapcore.WarnLevel, nil
-	case "error":
-		return zapcore.ErrorLevel, nil
-	case "panic":
-		return zapcore.PanicLevel, nil
-	case "fatal":
-		return zapcore.FatalLevel, nil
-	default:
-		return zapcore.InfoLevel, errors.Errorf("unknown level: %s", level)
-	}
 }

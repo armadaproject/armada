@@ -85,7 +85,7 @@ func createFileLogger(logConfig Config) (*FilteredLevelWriter, error) {
 		Compress:   logConfig.File.Rotation.Compress,
 	}
 
-	if strings.ToLower(logConfig.File.Format) == "text" || strings.ToLower(logConfig.File.Format) == "colorful" {
+	if strings.ToLower(logConfig.File.Format) == "text" || strings.ToLower(logConfig.File.Format) == "colourful" {
 		return createConsoleWriter(lumberjackLogger, level, logConfig.File.Format), nil
 	} else {
 		return createJsonWriter(lumberjackLogger, level), nil
@@ -97,7 +97,7 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.ToLower(logConfig.Console.Format) == "text" || strings.ToLower(logConfig.Console.Format) == "colorful" {
+	if strings.ToLower(logConfig.Console.Format) == "text" || strings.ToLower(logConfig.Console.Format) == "colourful" {
 		return createConsoleWriter(os.Stdout, level, logConfig.Console.Format), nil
 	} else {
 		return createJsonWriter(os.Stdout, level), nil
