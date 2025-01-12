@@ -18,7 +18,7 @@ const (
 	configPathEnvVar  = "ARMADA_LOG_CONFIG"
 	RFC3339Milli      = "2006-01-02T15:04:05.000Z07:00"
 
-	// legacy env vars- will be removedin a future release
+	// legacy env vars: will be removed in a future release
 	legacyLogFormatEnvVar = "LOG_FORMAT"
 	legacyLogLevelEnvVar  = "LOG_LEVEL"
 )
