@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ import (
 )
 
 const defaultMaxLeasedJobs int = 5
+const defaultMaxRequestDuration time.Duration = 30 * time.Second
 
 func TestRequestJobsRuns_HandlesLeaseRequestError(t *testing.T) {
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
@@ -257,7 +259,15 @@ func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mock
 	utilisationService.ClusterAvailableCapacityReport = &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{},
 	}
-	jobRequester := NewJobRequester(clusterId, eventReporter, leaseRequester, stateStore, utilisationService, podDefaults, defaultMaxLeasedJobs)
+	jobRequester := NewJobRequester(
+		clusterId,
+		eventReporter,
+		leaseRequester,
+		stateStore,
+		utilisationService,
+		podDefaults,
+		defaultMaxLeasedJobs,
+		defaultMaxRequestDuration)
 	return jobRequester, eventReporter, leaseRequester, stateStore, utilisationService
 }
 
