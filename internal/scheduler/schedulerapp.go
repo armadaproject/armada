@@ -42,12 +42,12 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
@@ -226,8 +226,8 @@ func Run(config schedulerconfig.Configuration) error {
 	reportServer := reports.NewServer(schedulingContextRepository)
 
 	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader)
-	schedulingReportServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
-	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+	schedulingSchedulerReportingServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingSchedulerReportingServer)
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Scheduling

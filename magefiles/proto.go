@@ -99,6 +99,7 @@ func protoGenerate() error {
 		"internal/scheduler/schedulerobjects/*.proto",
 		"internal/scheduler/simulator/*.proto",
 		"pkg/api/binoculars/*.proto",
+		"pkg/schedulerobjects/*.proto",
 		"pkg/executorapi/*.proto",
 	}
 	for _, pattern := range patterns {
@@ -118,6 +119,11 @@ func protoGenerate() error {
 	}
 
 	err = protoProtocRun(false, true, "./pkg/api/binoculars/api", "pkg/api/binoculars/binoculars.proto")
+	if err != nil {
+		return err
+	}
+
+	err = protoProtocRun(false, true, "./pkg/schedulerobjects/api", "pkg/schedulerobjects/scheduler_reporting.proto")
 	if err != nil {
 		return err
 	}
@@ -158,7 +164,7 @@ func protoGenerate() error {
 		return err
 	}
 
-	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./pkg/controlplaneevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./pkg/controlplaneevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/", "./pkg/schedulerobjects/")
 	if err != nil {
 		return err
 	}

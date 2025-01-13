@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/scheduler/leader"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 type LeaderProxyingSchedulingReportsServer struct {

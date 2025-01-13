@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 func TestLeaderProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {

@@ -1,0 +1,205 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "pkg/schedulerobjects/scheduler_reporting.proto",
+    "version": "version not set"
+  },
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/job/{jobId}/scheduler-report": {
+      "get": {
+        "summary": "Return the most recent scheduling report for each executor for the given job.",
+        "operationId": "GetJobReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/schedulerobjectsJobReport"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SchedulerReporting"
+        ]
+      }
+    },
+    "/v1/queue/{queueName}/scheduler-report": {
+      "get": {
+        "summary": "Return the most recent report scheduling for each executor for the given queue.",
+        "operationId": "GetQueueReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/schedulerobjectsQueueReport"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "queueName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "verbosity",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "SchedulerReporting"
+        ]
+      }
+    },
+    "/v1/scheduling-report": {
+      "get": {
+        "summary": "Return the most recent scheduling report for each executor.",
+        "operationId": "GetSchedulingReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/schedulerobjectsSchedulingReport"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mostRecentForQueue.queueName",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "mostRecentForJob.jobId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "verbosity",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "SchedulerReporting"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "typeUrl": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "runtimeError": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "schedulerobjectsJobReport": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "type": "string"
+        }
+      }
+    },
+    "schedulerobjectsMostRecentForJob": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        }
+      },
+      "description": "Deprecated. This will be removed in a future release. Please use GetJobReport instead."
+    },
+    "schedulerobjectsMostRecentForQueue": {
+      "type": "object",
+      "properties": {
+        "queueName": {
+          "type": "string"
+        }
+      },
+      "description": "Deprecated. This will be removed in a future release. Please use GetQueueReport instead."
+    },
+    "schedulerobjectsQueueReport": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "type": "string"
+        }
+      }
+    },
+    "schedulerobjectsSchedulingReport": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -25,7 +25,6 @@ import (
 	controlplaneeventspulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/event"
 	"github.com/armadaproject/armada/internal/server/executor"
@@ -36,6 +35,7 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
+	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {

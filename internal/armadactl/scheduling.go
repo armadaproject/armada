@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 func (a *App) executeGetSchedulingReport(request *schedulerobjects.SchedulingReportRequest) error {
