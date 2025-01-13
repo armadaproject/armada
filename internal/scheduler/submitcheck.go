@@ -73,36 +73,45 @@ func NewSubmitChecker(
 	}
 }
 
+func (srv *SubmitChecker) Initialise(ctx *armadacontext.Context) error {
+	err := srv.updateExecutors(ctx)
+	if err != nil {
+		ctx.Errorf("Error initialising submit checker: %v", err)
+	}
+
+	return err
+}
+
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	ctx.Infof("Will refresh executor state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
-	srv.updateExecutors(ctx)
+	if err := srv.updateExecutors(ctx); err != nil {
+		logging.WithStacktrace(ctx, err).Error("Error fetching executors")
+	}
+
 	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			srv.updateExecutors(ctx)
+
+			if err := srv.updateExecutors(ctx); err != nil {
+				logging.WithStacktrace(ctx, err).Error("Error fetching executors")
+			}
 		}
 	}
 }
 
-func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
+func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 	queues, err := srv.queueCache.GetAll(ctx)
 	if err != nil {
-		logging.
-			WithStacktrace(ctx, err).
-			Error("Error fetching queues")
-		return
+		return fmt.Errorf("failed fetching queues from queue cache - %s", err)
 	}
-
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		logging.
-			WithStacktrace(ctx, err).
-			Error("Error fetching executors")
-		return
+		return fmt.Errorf("failed fetching executors from db - %s", err)
 	}
+
 	ctx.Infof("Retrieved %d executors", len(executors))
 	jobSchedulingResultsCache, err := lru.New(10000)
 	if err != nil {
@@ -167,6 +176,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 		constraintsByPool:         constraintsByPool,
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
 	})
+
+	return nil
 }
 
 func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {

@@ -125,7 +125,10 @@ func Run(config schedulerconfig.Configuration) error {
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
-	queueCache.Initialise(ctx)
+	err = queueCache.Initialise(ctx)
+	if err != nil {
+		return errors.WithMessage(err, "error initialising queue cache")
+	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -242,6 +245,10 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 		resourceListFactory,
 	)
+	err = submitChecker.Initialise(ctx)
+	if err != nil {
+		return errors.WithMessage(err, "error initialising submit checker")
+	}
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)
 	})
