@@ -26,6 +26,5 @@ COPY lookoutv2 /app/
 COPY config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
 COPY lookoutingesterv2 /app/
 COPY config/lookoutingesterv2/ /app/config/lookoutingesterv2
-COPY config/logging.yaml /app/config/logging.yaml
 WORKDIR /app
 ENTRYPOINT ["./lookoutv2"]

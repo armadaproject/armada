@@ -31,7 +31,7 @@ func init() {
 }
 
 func main() {
-	log.MustConfigureApplicationLogging()
+	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.ExecutorConfiguration
@@ -61,7 +61,7 @@ func main() {
 	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(armadacontext.Background(), config)
+	shutdown, wg := executor.StartUp(armadacontext.Background(), log.NewEntry(log.StandardLogger()), config)
 	go func() {
 		<-shutdownChannel
 		shutdown()

@@ -10,7 +10,6 @@ USER armada
 
 COPY server /app/
 COPY config/server/config.yaml /app/config/server/config.yaml
-COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 

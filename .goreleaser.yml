@@ -197,7 +197,6 @@ dockers:
       - scheduler
       - scheduleringester
     extra_files:
-      - config/logging.yaml
       - config/server/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
@@ -218,7 +217,6 @@ dockers:
       - lookoutv2
       - lookoutingesterv2
     extra_files:
-      - config/logging.yaml
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
       - internal/lookout/ui
@@ -246,7 +244,6 @@ dockers:
       - lookoutingesterv2
       - fakeexecutor
     extra_files:
-      - config/logging.yaml
       - config/server/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
@@ -272,7 +269,6 @@ dockers:
       - server
     extra_files:
       - config/server/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/server/Dockerfile
 
   - id: executor
@@ -287,7 +283,6 @@ dockers:
       - executor
     extra_files:
       - config/executor/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/executor/Dockerfile
 
   - id: fakeexecutor
@@ -302,7 +297,6 @@ dockers:
       - fakeexecutor
     extra_files:
       - config/executor/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/fakeexecutor/Dockerfile
 
   - id: armadaloadtester
@@ -341,7 +335,6 @@ dockers:
       - lookoutingesterv2
     extra_files:
       - config/lookoutingesterv2/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/lookoutingesterv2/Dockerfile
 
   - id: lookoutv2
@@ -361,7 +354,6 @@ dockers:
       - pkg/api/binoculars/api.swagger.json
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/lookoutv2/Dockerfile
 
   - id: eventingester
@@ -376,7 +368,6 @@ dockers:
       - eventingester
     extra_files:
       - config/eventingester/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/eventingester/Dockerfile
 
   - id: scheduler
@@ -391,7 +382,6 @@ dockers:
       - scheduler
     extra_files:
       - config/scheduler/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/scheduler/Dockerfile
 
   - id: scheduleringester
@@ -406,7 +396,6 @@ dockers:
       - scheduleringester
     extra_files:
       - config/scheduleringester/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/scheduleringester/Dockerfile
 
   - id: binoculars
@@ -421,7 +410,6 @@ dockers:
       - binoculars
     extra_files:
       - config/binoculars/config.yaml
-      - config/logging.yaml
     dockerfile: ./build/binoculars/Dockerfile
 
   - id: armadactl

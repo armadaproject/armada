@@ -138,11 +138,11 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		log.Infof("Will write profiling information to %s", profilingFile)
 		f, err := os.Create(profilingFile)
 		if err != nil {
-			log.Fatal(err.Error())
+			log.Fatal(err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
-			log.Fatal(err.Error())
+			log.Fatal(err)
 		}
 		defer pprof.StopCPUProfile()
 	}

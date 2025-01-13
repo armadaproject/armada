@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/eventingester"
 
 	"github.com/spf13/pflag"
@@ -25,7 +24,7 @@ func init() {
 }
 
 func main() {
-	logging.MustConfigureApplicationLogging()
+	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.EventIngesterConfiguration

@@ -102,7 +102,7 @@ func WithStacktrace(err error) *Logger {
 func createDefaultLogger() *Logger {
 	consoleWriter := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
-		TimeFormat: RFC3339Milli,
+		TimeFormat: "2006-01-02T15:04:05.000Z07:00",
 		NoColor:    true,
 	}
 	zerologLogger := zerolog.New(consoleWriter).

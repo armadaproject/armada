@@ -35,7 +35,7 @@ func init() {
 }
 
 func main() {
-	log.MustConfigureApplicationLogging()
+	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.BinocularsConfig

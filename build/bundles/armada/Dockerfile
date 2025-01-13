@@ -7,9 +7,6 @@ LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 
-# Logging (share between all components)
-COPY config/logging.yaml /app/config/logging.yaml
-
 # Server
 COPY config/server/config.yaml /app/config/server/config.yaml
 
