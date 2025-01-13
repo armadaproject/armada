@@ -226,6 +226,7 @@ func setupExecutorApiComponents(
 		clusterUtilisationService,
 		config.Kubernetes.PodDefaults,
 		config.Application.MaxLeasedJobs,
+		config.Application.JobLeaseRequestTimeout,
 	)
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
