@@ -24,8 +24,10 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-const defaultMaxLeasedJobs int = 5
-const defaultMaxRequestDuration time.Duration = 30 * time.Second
+const (
+	defaultMaxLeasedJobs      int = 5
+	defaultMaxRequestDuration     = 30 * time.Second
+)
 
 func TestRequestJobsRuns_HandlesLeaseRequestError(t *testing.T) {
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
