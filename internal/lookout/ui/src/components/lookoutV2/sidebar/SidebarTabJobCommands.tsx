@@ -1,8 +1,11 @@
 import { OpenInNew } from "@mui/icons-material"
-import { Link, Stack, Typography } from "@mui/material"
+import { Link, Stack } from "@mui/material"
 import { template, templateSettings } from "lodash"
+import { Fragment } from "react/jsx-runtime"
 import validator from "validator"
 
+import { NoRunsAlert } from "./NoRunsAlert"
+import { SidebarTabHeading } from "./sidebarTabContentComponents"
 import { Job } from "../../../models/lookoutV2Models"
 import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
@@ -26,19 +29,17 @@ function getCommandText(job: Job, commandSpec: CommandSpec): string {
 
 export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobCommandsProps) => {
   if ((job.runs ?? []).length === 0) {
-    return null
+    return <NoRunsAlert jobState={job.state} />
   }
 
   return (
-    <Stack spacing={SPACING.sm}>
+    <>
       {commandSpecs.map((commandSpec) => {
         const { name } = commandSpec
         const commandText = getCommandText(job, commandSpec)
         return (
-          <div key={name}>
-            <Typography variant="h6" component="h3">
-              {name}
-            </Typography>
+          <Fragment key={name}>
+            <SidebarTabHeading>{name}</SidebarTabHeading>
             {validator.isURL(commandText) ? (
               <Link href={commandText} target="_blank">
                 <Stack direction="row" spacing={SPACING.xs} alignItems="center">
@@ -47,11 +48,17 @@ export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobComman
                 </Stack>
               </Link>
             ) : (
-              <CodeBlock code={commandText} language="bash" downloadable={false} showLineNumbers={false} />
+              <CodeBlock
+                code={commandText}
+                language="bash"
+                downloadable={false}
+                showLineNumbers={false}
+                loading={false}
+              />
             )}
-          </div>
+          </Fragment>
         )
       })}
-    </Stack>
+    </>
   )
 }

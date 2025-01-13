@@ -1,8 +1,12 @@
-import { Table, TableBody, TableCell, TableRow, Link } from "@mui/material"
+import { Table, TableBody, TableCell, TableRow, Link, styled } from "@mui/material"
 import validator from "validator"
 
-import styles from "./KeyValuePairTable.module.css"
 import { ActionableValueOnHover } from "../../ActionableValueOnHover"
+
+const StyledTableCell = styled(TableCell)({
+  width: "50%",
+  wordBreak: "break-all",
+})
 
 export interface KeyValuePairTable {
   data: {
@@ -35,12 +39,12 @@ export const KeyValuePairTable = ({ data }: KeyValuePairTable) => {
             )
           return (
             <TableRow key={key}>
-              <TableCell className={styles.cell}>{key}</TableCell>
-              <TableCell className={styles.cell}>
+              <StyledTableCell>{key}</StyledTableCell>
+              <StyledTableCell>
                 <ActionableValueOnHover copyAction={allowCopy ? { copyContent: value } : undefined}>
                   {nodeToDisplay}
                 </ActionableValueOnHover>
-              </TableCell>
+              </StyledTableCell>
             </TableRow>
           )
         })}
