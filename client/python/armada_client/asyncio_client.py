@@ -105,6 +105,7 @@ class ArmadaAsyncIOClient:
         event_timeout: timedelta = timedelta(minutes=15),
     ) -> None:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
+        self.queue_stub = submit_pb2_grpc.QueueServiceStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
         self.job_stub = job_pb2_grpc.JobsStub(channel)
         self.event_timeout = event_timeout
@@ -390,7 +391,7 @@ class ArmadaAsyncIOClient:
         :param queue: A queue to create.
         """
 
-        response = await self.submit_stub.CreateQueue(queue)
+        response = await self.queue_stub.CreateQueue(queue)
         return response
 
     async def update_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
@@ -400,7 +401,7 @@ class ArmadaAsyncIOClient:
         :param queue: A queue to update.
         """
 
-        response = await self.submit_stub.UpdateQueue(queue)
+        response = await self.queue_stub.UpdateQueue(queue)
         return response
 
     async def create_queues(
@@ -413,7 +414,7 @@ class ArmadaAsyncIOClient:
         """
 
         queue_list = submit_pb2.QueueList(queues=queues)
-        response = await self.submit_stub.CreateQueues(queue_list)
+        response = await self.queue_stub.CreateQueues(queue_list)
         return response
 
     async def update_queues(
@@ -426,7 +427,7 @@ class ArmadaAsyncIOClient:
         """
 
         queue_list = submit_pb2.QueueList(queues=queues)
-        response = await self.submit_stub.UpdateQueues(queue_list)
+        response = await self.queue_stub.UpdateQueues(queue_list)
         return response
 
     async def delete_queue(self, name: str) -> None:
@@ -438,7 +439,7 @@ class ArmadaAsyncIOClient:
         :return: None
         """
         request = submit_pb2.QueueDeleteRequest(name=name)
-        await self.submit_stub.DeleteQueue(request)
+        await self.queue_stub.DeleteQueue(request)
 
     async def get_queue(self, name: str) -> submit_pb2.Queue:
         """Get the queue by name.
@@ -449,7 +450,7 @@ class ArmadaAsyncIOClient:
         :return: A queue object. See the api definition.
         """
         request = submit_pb2.QueueGetRequest(name=name)
-        response = await self.submit_stub.GetQueue(request)
+        response = await self.queue_stub.GetQueue(request)
         return response
 
     @staticmethod
