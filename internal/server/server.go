@@ -32,10 +32,10 @@ import (
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
-	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {

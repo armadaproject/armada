@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 type ProxyingSchedulingReportsServer struct {

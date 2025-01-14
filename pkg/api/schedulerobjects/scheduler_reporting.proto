@@ -1,7 +1,7 @@
 syntax = 'proto3';
 
 package schedulerobjects;
-option go_package = "github.com/armadaproject/armada/pkg/schedulerobjects";
+option go_package = "github.com/armadaproject/armada/pkg/api/schedulerobjects";
 
 import "google/api/annotations.proto";
 

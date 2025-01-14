@@ -11,7 +11,7 @@ import (
 	"github.com/openconfig/goyang/pkg/indent"
 	"google.golang.org/grpc/codes"
 
-	"github.com/armadaproject/armada/pkg/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 type Server struct {

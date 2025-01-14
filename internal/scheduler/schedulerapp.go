@@ -44,10 +44,10 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
-	"github.com/armadaproject/armada/pkg/schedulerobjects"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received

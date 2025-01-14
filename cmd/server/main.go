@@ -21,7 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/server"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 const CustomConfigLocation string = "config"

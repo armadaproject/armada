@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/pkg/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 func TestProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {
