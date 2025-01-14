@@ -130,7 +130,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		start := time.Now()
 		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name, pool.MarketDriven)
 
-		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool, time.Now().Sub(start), err)
+		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			// We've reached the scheduling time limit;
