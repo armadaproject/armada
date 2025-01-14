@@ -67,7 +67,12 @@ func ConfigureApplicationLogging() error {
 
 	// Combine loggers
 	multiWriter := zerolog.MultiLevelWriter(writers...)
-	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
+	logger := zerolog.
+		New(multiWriter).
+		Hook(NewPrometheusHook()).
+		With().
+		Timestamp().
+		Logger()
 
 	// Set our new logger to be the default
 	ReplaceStdLogger(FromZerolog(logger))
@@ -148,6 +153,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// Sets level from legacy env var.  Will be removed in a subsequent release
 func overrideLevelFromEnv(level zerolog.Level) zerolog.Level {
 	levelOverrideStr, ok := os.LookupEnv(legacyLogLevelEnvVar)
 	if !ok {
@@ -162,6 +168,7 @@ func overrideLevelFromEnv(level zerolog.Level) zerolog.Level {
 	return level
 }
 
+// Sets format from legacy env var.  Will be removed in a subsequent release
 func overrideFormatFromEnv(format LogFormat) LogFormat {
 	levelFormatStr, ok := os.LookupEnv(legacyLogFormatEnvVar)
 	if !ok {
