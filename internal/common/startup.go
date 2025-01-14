@@ -111,7 +111,6 @@ func ConfigureCommandLineLogging() {
 }
 
 func ConfigureLogging() {
-
 	// needs to be higher or greater precision than the writer format.
 	zerolog.TimeFieldFormat = logTimestampFormat
 

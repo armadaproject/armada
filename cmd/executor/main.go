@@ -61,7 +61,7 @@ func main() {
 	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(armadacontext.Background(), log.NewEntry(log.StandardLogger()), config)
+	shutdown, wg := executor.StartUp(armadacontext.Background(), config)
 	go func() {
 		<-shutdownChannel
 		shutdown()
