@@ -65,8 +65,8 @@ spec:
                 allowPrivilegeEscalation: false
           volumes:
             - name: user-config
-              secret:
-                secretName: {{ include "armada-scheduler-pruner.config.name" . }}
+              configMap:
+                name: {{ include "armada-scheduler-pruner.config.name" . }}
             {{- if .Values.scheduler.additionalVolumes }}
             {{- toYaml .Values.scheduler.additionalVolumes | nindent 12 }}
             {{- end }}
