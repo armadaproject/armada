@@ -88,7 +88,6 @@ require (
 	golang.org/x/time v0.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
 	gopkg.in/inf.v0 v0.9.1
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
