@@ -1,6 +1,7 @@
 # Armada helm charts
 
 Armada provides helm charts to assist with deployment of armada executors and services.
+These require Helm `3.10.0` or later.
 
 ## Executor helm chart
 
@@ -62,6 +63,16 @@ applicationConfig:
     clusterId: "cluster-1"
   apiConnection:
     armadaUrl: "server.url.com:443"  
+```
+
+**Note:** The values you enter in this section will be placed into a K8s configmap. For senistive values (e.g. database passwords) we recommend setting them as environmental variables from a non-helm managed secret:
+```yaml
+env:
+- name: ARMADA_POSTGRES_CONNECTION_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      key: password
+      name: lookout-postgres-password
 ```
 
 #### Credentials

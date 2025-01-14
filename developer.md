@@ -51,13 +51,13 @@ Please see these documents for more information about Armadas Design:
 
 ## Pre-requisites
 
-- [Go](https://go.dev/doc/install) (version 1.21 or later)
+- [Go](https://go.dev/doc/install) (version 1.23 or later)
 - gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/))
 - [mage](https://magefile.org/)
 - [docker](https://docs.docker.com/get-docker/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
 - [protoc](https://github.com/protocolbuffers/protobuf/releases)
-
+- [helm](https://helm.sh/docs/intro/install/) (version 3.10.0 or later)
 
 ## Using Mage
 
@@ -227,7 +227,6 @@ External Debug Port Mappings:
 |lookoutv2          |localhost:4005|
 |lookoutingester    |localhost:4006|
 |lookoutingesterv2  |localhost:4007|
-|jobservice         |localhost:4008|
 
 
 ## GoLand Run Configurations
