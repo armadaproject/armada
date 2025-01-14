@@ -65,6 +65,16 @@ applicationConfig:
     armadaUrl: "server.url.com:443"  
 ```
 
+**Note:** The values you enter in this section will be placed into a K8s configmap. For values that you wish to remain secret (for example database passwords) we recommend setting them as environmnetal variables from a non-helm managed secret:
+```yaml
+env:
+- name: ARMADA_POSTGRES_CONNECTION_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      key: password
+      name: lookout-postgres-password
+```
+
 #### Credentials
 
 ##### Open Id
