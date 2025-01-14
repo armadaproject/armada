@@ -6,11 +6,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
-// generally configure their own logging config via ReplaceStdLogger
 var (
 	StdSkipFrames = 4
-	stdLogger     = createDefaultLogger()
+	// The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
+	// generally configure their own logging config via ReplaceStdLogger
+	stdLogger = createDefaultLogger()
 )
 
 // ReplaceStdLogger Replaces the global logger.  This should be called once at app startup!
@@ -23,57 +23,57 @@ func StdLogger() *Logger {
 	return stdLogger
 }
 
-// Debug logs a message at level Debug.
+// Debug logs a message at level Debug on the default logger.
 func Debug(args ...any) {
 	stdLogger.Debug(args...)
 }
 
-// Info logs a message at level Info.
+// Info logs a message at level Info on the default logger.
 func Info(args ...any) {
 	stdLogger.Info(args...)
 }
 
-// Warn logs a message at level Warn on the standard logger.
+// Warn logs a message at level Warn on the default logger.
 func Warn(args ...any) {
 	stdLogger.Warn(args...)
 }
 
-// Error logs a message at level Error on the standard logger.
+// Error logs a message at level Error on the default logger.
 func Error(args ...any) {
 	stdLogger.Error(args...)
 }
 
-// Panic logs a message at level Panic on the standard logger.
+// Panic logs a message at level Panic on the default logger.
 func Panic(args ...any) {
 	stdLogger.Panic(args...)
 }
 
-// Fatal logs a message at level Fatal on the standard logger then the process will exit with status set to 1.
+// Fatal logs a message at level Fatal on the default logger then the process will exit with status set to 1.
 func Fatal(args ...any) {
 	stdLogger.Fatal(args...)
 }
 
-// Debugf logs a message at level Debug on the standard logger.
+// Debugf logs a message at level Debug on the default logger.
 func Debugf(format string, args ...any) {
 	stdLogger.Debugf(format, args...)
 }
 
-// Infof logs a message at level Info on the standard logger.
+// Infof logs a message at level Info on the default logger.
 func Infof(format string, args ...any) {
 	stdLogger.Infof(format, args...)
 }
 
-// Warnf logs a message at level Warn on the standard logger.
+// Warnf logs a message at level Warn on the default logger.
 func Warnf(format string, args ...any) {
 	stdLogger.Warnf(format, args...)
 }
 
-// Errorf logs a message at level Error on the standard logger.
+// Errorf logs a message at level Error on the default logger.
 func Errorf(format string, args ...any) {
 	stdLogger.Errorf(format, args...)
 }
 
-// Fatalf logs a message at level Fatal on the standard logger then the process will exit with status set to 1.
+// Fatalf logs a message at level Fatal on the default logger then the process will exit with status set to 1.
 func Fatalf(format string, args ...any) {
 	stdLogger.Fatalf(format, args...)
 }
