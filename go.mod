@@ -83,7 +83,6 @@ require (
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
 	go.uber.org/mock v0.5.0
-	go.uber.org/zap v1.27.0
 	golang.org/x/term v0.25.0
 	golang.org/x/time v0.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
