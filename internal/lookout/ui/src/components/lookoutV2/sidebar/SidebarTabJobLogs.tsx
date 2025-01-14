@@ -5,7 +5,6 @@ import {
   Alert,
   alpha,
   Checkbox,
-  CircularProgress,
   FormControl,
   FormControlLabel,
   FormGroup,
@@ -13,11 +12,11 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Stack,
+  Skeleton,
   styled,
 } from "@mui/material"
 
-import styles from "./SidebarTabJobLogs.module.css"
+import { NoRunsAlert } from "./NoRunsAlert"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job, JobRun } from "../../../models/lookoutV2Models"
 import { LogLine } from "../../../services/lookoutV2/LogService"
@@ -25,9 +24,17 @@ import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
 import { useGetLogs } from "../../../services/lookoutV2/useGetLogs"
 import { SPACING } from "../../../styling/spacing"
 
-const Container = styled(Stack)({
-  height: "100%",
+const LogsHeader = styled("div")(({ theme }) => ({
   maxWidth: "100%",
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "start",
+  gap: theme.spacing(SPACING.lg),
+}))
+
+const ContainerSelect = styled(Select)({
+  width: "25ch",
 })
 
 export interface SidebarTabJobLogsProps {
@@ -127,18 +134,15 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   }, [getLogsResult.fetchNextPage, getLogsResult.status, getLogsEnabled])
 
   if (job.runs.length === 0) {
-    return <div className={styles.didNotRun}>This job did not run.</div>
+    return <NoRunsAlert jobState={job.state} />
   }
 
   return (
-    <Container spacing={SPACING.md}>
-      <div className={styles.logsHeader}>
-        <div className={styles.logOption}>
+    <>
+      <LogsHeader>
+        <div>
           <FormControl
             variant="standard"
-            style={{
-              width: "100%",
-            }}
             disabled={
               getJobSpecResult.status === "pending" ||
               getLogsResult.status === "pending" ||
@@ -155,9 +159,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 const index = e.target.value as number
                 setRunIndex(index)
               }}
-              style={{
-                maxWidth: "300px",
-              }}
             >
               {runsNewestFirst.map((run, i) => (
                 <MenuItem value={i} key={i}>
@@ -167,16 +168,13 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             </Select>
           </FormControl>
         </div>
-        <div className={styles.logOption}>
+        <div>
           <FormControl
             variant="standard"
-            style={{
-              width: "100%",
-            }}
             disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
           >
             <InputLabel id="select-container-label">Container</InputLabel>
-            <Select
+            <ContainerSelect
               labelId="select-container-label"
               variant="standard"
               value={selectedContainer}
@@ -186,19 +184,16 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 setSelectedContainer(container)
               }}
               size="small"
-              style={{
-                maxWidth: "250px",
-              }}
             >
               {containers.map((container) => (
                 <MenuItem value={container} key={container}>
                   {container}
                 </MenuItem>
               ))}
-            </Select>
+            </ContainerSelect>
           </FormControl>
         </div>
-        <div className={styles.logOption}>
+        <div>
           <FormGroup>
             <FormControlLabel
               control={
@@ -214,7 +209,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             />
           </FormGroup>
         </div>
-        <div className={styles.logOption}>
+        <div>
           <FormGroup>
             <FormControlLabel
               control={
@@ -230,12 +225,16 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             />
           </FormGroup>
         </div>
-      </div>
+      </LogsHeader>
       {getJobSpecResult.status === "pending" ||
         (getLogsResult.status === "pending" && (
-          <div className={styles.loading}>
-            <CircularProgress size={24} />
-          </div>
+          <LogsContainer>
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+          </LogsContainer>
         ))}
       {getLogsResult.status === "success" && (
         <LogView logLines={getLogsResult.data?.pages?.flat() ?? []} showTimestamps={showTimestamps} />
@@ -254,7 +253,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
           </Alert>
         </div>
       )}
-    </Container>
+    </>
   )
 }
 
@@ -315,9 +314,9 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
 
   if (logLines.length === 0) {
     return (
-      <div key={"EMPTY"} className={styles.emptyLogView}>
+      <Alert variant="outlined" severity="info">
         No logs to display
-      </div>
+      </Alert>
     )
   }
 
