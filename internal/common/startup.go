@@ -136,6 +136,7 @@ func ConfigureLogging() {
 
 	zerologLogger := zerolog.New(outStream).
 		Level(level).
+		Hook(log.NewPrometheusHook()).
 		With().
 		CallerWithSkipFrameCount(log.StdSkipFrames).
 		Timestamp().
