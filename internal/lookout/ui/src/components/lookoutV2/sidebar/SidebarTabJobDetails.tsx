@@ -1,7 +1,8 @@
-import { Typography } from "@mui/material"
+import { Alert } from "@mui/material"
 
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
+import { SidebarTabHeading } from "./sidebarTabContentComponents"
 import { Job } from "../../../models/lookoutV2Models"
 import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
@@ -21,9 +22,9 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
   ]
   return (
     <>
-      <Typography variant="subtitle2">Info:</Typography>
+      <SidebarTabHeading>Info</SidebarTabHeading>
       <KeyValuePairTable data={details} />
-      <Typography variant="subtitle2">Requests:</Typography>
+      <SidebarTabHeading>Requests</SidebarTabHeading>
       <KeyValuePairTable
         data={[
           { key: "CPUs", value: formatCpu(job.cpu) },
@@ -32,7 +33,7 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
           { key: "Ephemeral storage", value: formatBytes(job.ephemeralStorage) },
         ]}
       />
-      <Typography variant="subtitle2">Annotations:</Typography>
+      <SidebarTabHeading>Annotations</SidebarTabHeading>
       {Object.keys(job.annotations).length > 0 ? (
         <KeyValuePairTable
           data={Object.keys(job.annotations).map((annotationKey) => ({
@@ -43,8 +44,9 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
           }))}
         />
       ) : (
-        " No annotations"
+        <Alert severity="info">No annotations</Alert>
       )}
+      <SidebarTabHeading>Containers</SidebarTabHeading>
       <ContainerDetails job={job} />
     </>
   )

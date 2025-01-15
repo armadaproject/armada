@@ -1,9 +1,7 @@
 import { useEffect } from "react"
 
-import { CircularProgress } from "@mui/material"
 import yaml from "js-yaml"
 
-import styles from "./SidebarTabJobYaml.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutV2Models"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
@@ -50,12 +48,8 @@ export const SidebarTabJobYaml = ({ job }: SidebarTabJobYamlProps) => {
   }, [getJobSpecResult.status, getJobSpecResult.error])
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
-      {getJobSpecResult.status === "pending" && (
-        <div className={styles.loading}>
-          <CircularProgress size={24} />
-        </div>
-      )}
+    <>
+      {getJobSpecResult.status === "pending" && <CodeBlock loading showLineNumbers downloadable={false} />}
       {getJobSpecResult.status === "success" && (
         <CodeBlock
           language="yaml"
@@ -64,8 +58,9 @@ export const SidebarTabJobYaml = ({ job }: SidebarTabJobYamlProps) => {
           downloadable={getJobSpecResult.status === "success"}
           downloadBlobType="text/plain"
           downloadFileName={`${job.jobId}.yaml`}
+          loading={false}
         />
       )}
-    </div>
+    </>
   )
 }
