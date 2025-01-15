@@ -223,6 +223,11 @@ func (o *GroupJobsBody) contextValidateFilters(ctx context.Context, formats strf
 	for i := 0; i < len(o.Filters); i++ {
 
 		if o.Filters[i] != nil {
+
+			if swag.IsZero(o.Filters[i]) { // not required
+				return nil
+			}
+
 			if err := o.Filters[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("groupJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
@@ -241,6 +246,7 @@ func (o *GroupJobsBody) contextValidateFilters(ctx context.Context, formats strf
 func (o *GroupJobsBody) contextValidateGroupedField(ctx context.Context, formats strfmt.Registry) error {
 
 	if o.GroupedField != nil {
+
 		if err := o.GroupedField.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("groupJobsRequest" + "." + "groupedField")
@@ -257,6 +263,7 @@ func (o *GroupJobsBody) contextValidateGroupedField(ctx context.Context, formats
 func (o *GroupJobsBody) contextValidateOrder(ctx context.Context, formats strfmt.Registry) error {
 
 	if o.Order != nil {
+
 		if err := o.Order.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("groupJobsRequest" + "." + "order")
@@ -358,6 +365,11 @@ func (o *GroupJobsOKBody) contextValidateGroups(ctx context.Context, formats str
 	for i := 0; i < len(o.Groups); i++ {
 
 		if o.Groups[i] != nil {
+
+			if swag.IsZero(o.Groups[i]) { // not required
+				return nil
+			}
+
 			if err := o.Groups[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("groupJobsOK" + "." + "groups" + "." + strconv.Itoa(i))

@@ -174,6 +174,11 @@ func (o *GetJobsBody) contextValidateFilters(ctx context.Context, formats strfmt
 	for i := 0; i < len(o.Filters); i++ {
 
 		if o.Filters[i] != nil {
+
+			if swag.IsZero(o.Filters[i]) { // not required
+				return nil
+			}
+
 			if err := o.Filters[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("getJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
@@ -192,6 +197,7 @@ func (o *GetJobsBody) contextValidateFilters(ctx context.Context, formats strfmt
 func (o *GetJobsBody) contextValidateOrder(ctx context.Context, formats strfmt.Registry) error {
 
 	if o.Order != nil {
+
 		if err := o.Order.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("getJobsRequest" + "." + "order")
@@ -291,6 +297,11 @@ func (o *GetJobsOKBody) contextValidateJobs(ctx context.Context, formats strfmt.
 	for i := 0; i < len(o.Jobs); i++ {
 
 		if o.Jobs[i] != nil {
+
+			if swag.IsZero(o.Jobs[i]) { // not required
+				return nil
+			}
+
 			if err := o.Jobs[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("getJobsOK" + "." + "jobs" + "." + strconv.Itoa(i))
