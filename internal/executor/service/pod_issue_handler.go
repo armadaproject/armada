@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -31,6 +32,7 @@ const (
 	ActiveDeadlineExceeded
 	ExternallyDeleted
 	ErrorDuringIssueHandling
+	FailedStartingUp
 )
 
 type podIssue struct {
@@ -66,6 +68,7 @@ type IssueHandler struct {
 	clusterContext    executorContext.ClusterContext
 	eventReporter     reporter.EventReporter
 	pendingPodChecker podchecks.PodChecker
+	failedPodChecker  failedpodchecks.RetryChecker
 	stateChecksConfig configuration.StateChecksConfiguration
 
 	stuckTerminatingPodExpiry time.Duration
@@ -83,6 +86,7 @@ func NewIssueHandler(
 	eventReporter reporter.EventReporter,
 	stateChecksConfig configuration.StateChecksConfiguration,
 	pendingPodChecker podchecks.PodChecker,
+	failedPodChecker failedpodchecks.RetryChecker,
 	stuckTerminatingPodExpiry time.Duration,
 ) (*IssueHandler, error) {
 	issueHandler := &IssueHandler{
@@ -90,6 +94,7 @@ func NewIssueHandler(
 		clusterContext:            clusterContext,
 		eventReporter:             eventReporter,
 		pendingPodChecker:         pendingPodChecker,
+		failedPodChecker:          failedPodChecker,
 		stateChecksConfig:         stateChecksConfig,
 		stuckTerminatingPodExpiry: stuckTerminatingPodExpiry,
 		knownPodIssues:            map[string]*runIssue{},
@@ -114,7 +119,7 @@ func NewIssueHandler(
 	return issueHandler, nil
 }
 
-func (p *IssueHandler) hasIssue(runId string) bool {
+func (p *IssueHandler) HasIssue(runId string) bool {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
 
@@ -126,21 +131,61 @@ func (p *IssueHandler) hasIssue(runId string) bool {
 	return exists
 }
 
-func (p *IssueHandler) registerIssue(issue *runIssue) {
+func (p *IssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, error) {
+	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
+		return false, nil
+	}
+	jobId := util.ExtractJobId(pod)
+	runId := util.ExtractJobRunId(pod)
+
+	podEvents, err := p.clusterContext.GetPodEvents(pod)
+	if err != nil {
+		return false, fmt.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+	}
+
+	shouldReturn, message := p.failedPodChecker.IsRetryable(pod, podEvents)
+	if shouldReturn {
+		return p.registerIssue(&runIssue{
+			JobId: jobId,
+			RunId: runId,
+			PodIssue: &podIssue{
+				OriginalPodState:  pod,
+				Message:           message,
+				DebugMessage:      createDebugMessage(podEvents),
+				Retryable:         true,
+				DeletionRequested: false,
+				Type:              FailedStartingUp,
+			},
+			Reported: false,
+		})
+	} else {
+		return false, nil
+	}
+}
+
+func (p *IssueHandler) registerIssue(issue *runIssue) (bool, error) {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
 
 	runId := issue.RunId
 	if runId == "" {
-		log.Warnf("Not registering an issue for job %s as run id was empty", issue.JobId)
-		return
+		return false, fmt.Errorf("Not registering an issue for job %s as run id was empty", issue.JobId)
 	}
 	_, exists := p.knownPodIssues[issue.RunId]
 	if !exists {
 		log.Infof("Issue for job %s run %s is registered", issue.JobId, issue.RunId)
 		p.knownPodIssues[issue.RunId] = issue
+		return true, nil
 	} else {
 		log.Warnf("Not registering an issue for job %s (runId %s) as it already has an issue set", issue.JobId, issue.RunId)
+		return false, nil
+	}
+}
+
+func (p *IssueHandler) attemptToRegisterIssue(issue *runIssue) {
+	_, err := p.registerIssue(issue)
+	if err != nil {
+		log.Warn(err)
 	}
 }
 
@@ -170,7 +215,7 @@ func (p *IssueHandler) HandlePodIssues() {
 
 func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 	for _, pod := range allManagedPods {
-		if p.hasIssue(util.ExtractJobRunId(pod)) {
+		if p.HasIssue(util.ExtractJobRunId(pod)) {
 			continue
 		}
 		if util.IsInTerminalState(pod) && util.HasCurrentStateBeenReported(pod) {
@@ -188,7 +233,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				Type:             StuckTerminating,
 			}
 
-			p.registerIssue(&runIssue{
+			p.attemptToRegisterIssue(&runIssue{
 				JobId:    util.ExtractJobId(pod),
 				RunId:    util.ExtractJobRunId(pod),
 				PodIssue: issue,
@@ -204,7 +249,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				Type:             ActiveDeadlineExceeded,
 			}
 
-			p.registerIssue(&runIssue{
+			p.attemptToRegisterIssue(&runIssue{
 				JobId:    util.ExtractJobId(pod),
 				RunId:    util.ExtractJobRunId(pod),
 				PodIssue: issue,
@@ -242,7 +287,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 					Retryable:        retryable,
 					Type:             podIssueType,
 				}
-				p.registerIssue(&runIssue{
+				p.attemptToRegisterIssue(&runIssue{
 					JobId:    util.ExtractJobId(pod),
 					RunId:    util.ExtractJobRunId(pod),
 					PodIssue: issue,
@@ -386,7 +431,7 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 		if issue.CurrentPodState.Status.Phase != v1.PodPending {
 			p.markIssuesResolved(issue.RunIssue)
 			if issue.RunIssue.PodIssue.DeletionRequested {
-				p.registerIssue(&runIssue{
+				p.attemptToRegisterIssue(&runIssue{
 					JobId: issue.RunIssue.JobId,
 					RunId: issue.RunIssue.RunId,
 					PodIssue: &podIssue{
@@ -473,7 +518,7 @@ func (p *IssueHandler) handleDeletedPod(pod *v1.Pod) {
 	if jobId != "" {
 		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if isUnexpectedDeletion {
-			p.registerIssue(&runIssue{
+			p.attemptToRegisterIssue(&runIssue{
 				JobId: jobId,
 				RunId: util.ExtractJobRunId(pod),
 				PodIssue: &podIssue{
@@ -565,10 +610,10 @@ func (p *IssueHandler) detectReconciliationIssues(pods []*v1.Pod) {
 	for _, run := range runs {
 		_, present := runIdsToPod[run.Meta.RunId]
 		if !present {
-			if p.hasIssue(run.Meta.RunId) {
+			if p.HasIssue(run.Meta.RunId) {
 				continue
 			}
-			p.registerIssue(&runIssue{
+			p.attemptToRegisterIssue(&runIssue{
 				JobId: run.Meta.JobId,
 				RunId: run.Meta.RunId,
 				ReconciliationIssue: &reconciliationIssue{

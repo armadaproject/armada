@@ -32,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/metrics/runstate"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
@@ -196,12 +197,19 @@ func setupExecutorApiComponents(
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
+	failedPodChecker, err := failedpodchecks.NewPodRetryChecker(config.Kubernetes.FailedPodChecks)
+	if err != nil {
+		log.Errorf("Config error in failed pod checks: %s", err)
+		os.Exit(-1)
+	}
+
 	eventReporter, stopReporter, err := reporter.NewJobEventReporter(
 		clusterContext,
 		jobRunState,
 		eventSender,
 		clock.RealClock{},
-		200)
+		200,
+		nil)
 	if err != nil {
 		log.Errorf("Failed to create job event reporter: %s", err)
 		os.Exit(-1)
@@ -240,6 +248,7 @@ func setupExecutorApiComponents(
 		eventReporter,
 		config.Kubernetes.StateChecks,
 		pendingPodChecker,
+		failedPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
 	)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/executor/service"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -35,6 +36,7 @@ type JobEventReporter struct {
 	clusterContext   clusterContext.ClusterContext
 	clock            clock.WithTicker
 	maxBatchSize     int
+	podIssueHandler  *service.IssueHandler
 }
 
 func NewJobEventReporter(
@@ -43,6 +45,7 @@ func NewJobEventReporter(
 	eventSender EventSender,
 	clock clock.WithTicker,
 	maxBatchSize int,
+	podIssueHandler *service.IssueHandler,
 ) (*JobEventReporter, chan bool, error) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
@@ -54,6 +57,7 @@ func NewJobEventReporter(
 		eventQueuedMutex: sync.Mutex{},
 		clock:            clock,
 		maxBatchSize:     maxBatchSize,
+		podIssueHandler:  podIssueHandler,
 	}
 
 	_, err := clusterContext.AddPodEventHandler(reporter.podEventHandler())
@@ -119,6 +123,23 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 	}
 
 	event, err := CreateEventForCurrentState(pod, eventReporter.clusterContext.GetClusterId())
+	if pod.Status.Phase == v1.PodFailed {
+		hasIssue := eventReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
+		if hasIssue {
+			// Pod already being handled by issue handler
+			return
+		}
+		issueAdded, err := eventReporter.podIssueHandler.DetectAndRegisterFailedPodIssue(pod)
+		if issueAdded {
+			// Pod already being handled by issue handler
+			return
+		}
+		if err != nil {
+			log.Errorf("Failed detecting issue on failed pod %s(%s) - %v", pod.Name, util.ExtractJobRunId(pod), err)
+			// Don't return here, as it is very important we don't block reporting a terminal event (failed)
+		}
+	}
+
 	if err != nil {
 		log.Errorf("Failed to report event: %v", err)
 		return
