@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/client"
 )
 

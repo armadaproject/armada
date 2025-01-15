@@ -14,7 +14,7 @@ export interface CommandSpec {
   template: string
 }
 
-interface UIConfig {
+export interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
   binocularsBaseUrlPattern: string
