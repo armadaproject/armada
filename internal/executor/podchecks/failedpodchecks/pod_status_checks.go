@@ -48,7 +48,7 @@ func (f *PodStatusChecker) IsRetryable(pod *v1.Pod) (bool, string) {
 		}
 
 		if check.regexp.MatchString(pod.Status.Message) {
-			return true, "message"
+			return true, pod.Status.Message
 		}
 	}
 

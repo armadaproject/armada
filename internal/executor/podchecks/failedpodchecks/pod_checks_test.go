@@ -71,7 +71,24 @@ func TestPodRetryCheckerIsRetryable_ChecksPodHasNotStartedAnyContainers(t *testi
 			pod:             &v1.Pod{},
 			expectRetryable: true,
 		},
-		"pod with container status - not retryable": {
+		"pod with pending container - retryable": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							LastTerminationState: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}},
+						},
+					},
+					InitContainerStatuses: []v1.ContainerStatus{
+						{
+							LastTerminationState: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}},
+						},
+					},
+				},
+			},
+			expectRetryable: true,
+		},
+		"pod with running init container - not retryable": {
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					ContainerStatuses: []v1.ContainerStatus{
@@ -83,12 +100,36 @@ func TestPodRetryCheckerIsRetryable_ChecksPodHasNotStartedAnyContainers(t *testi
 			},
 			expectRetryable: false,
 		},
-		"pod with init container status - not retryable": {
+		"pod with running container - not retryable": {
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					ContainerStatuses: []v1.ContainerStatus{
 						{
 							LastTerminationState: v1.ContainerState{Running: &v1.ContainerStateRunning{}},
+						},
+					},
+				},
+			},
+			expectRetryable: false,
+		},
+		"pod with terminated init container - not retryable": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}},
+						},
+					},
+				},
+			},
+			expectRetryable: false,
+		},
+		"pod with terminated container - not retryable": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}},
 						},
 					},
 				},

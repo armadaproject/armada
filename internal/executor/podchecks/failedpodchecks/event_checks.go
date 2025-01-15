@@ -59,7 +59,7 @@ func (f *PodEventsChecker) IsRetryable(podEvents []*v1.Event) (bool, string) {
 			}
 
 			if check.regexp.MatchString(podEvent.Message) {
-				return true, "message"
+				return true, podEvent.Message
 			}
 		}
 	}

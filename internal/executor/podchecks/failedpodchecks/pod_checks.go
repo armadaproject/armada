@@ -48,5 +48,10 @@ func (f *PodRetryChecker) IsRetryable(pod *v1.Pod, podEvents []*v1.Event) (bool,
 func hasStartedContainers(pod *v1.Pod) bool {
 	containers := pod.Status.ContainerStatuses
 	containers = append(containers, pod.Status.InitContainerStatuses...)
-	return len(containers) > 0
+	for _, container := range containers {
+		if container.LastTerminationState.Terminated != nil || container.LastTerminationState.Running != nil {
+			return true
+		}
+	}
+	return false
 }
