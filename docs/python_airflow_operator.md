@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, reattach_policy=None, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, reattach_policy=None, extra_links=None, \*\*kwargs)
 Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
@@ -63,6 +63,9 @@ and handles job cancellation if the Airflow task is killed.
     * **reattach_policy** (*Optional**[**str**] **| **Callable**[**[**JobState**, **str**]**, **bool**]*) – 
 
 
+    * **extra_links** (*Optional**[**Dict**[**str**, **str**]**]*) – 
+
+
 
 #### execute(context)
 Submits the job to Armada and polls for completion.
@@ -97,9 +100,32 @@ operator needs to be cleaned up, or it will leave ghost processes behind.
 
 
 
-#### operator_extra_links(_: Collection[BaseOperatorLink_ _ = (LookoutLink(),_ )
-
 #### _property_ pod_manager(_: KubernetesPodLogManage_ )
+
+#### render_extra_links_urls(context, jinja_env=None)
+Template all URLs listed in self.extra_links.
+This pushes all URL values to xcom for values to be picked up by UI.
+
+Args:
+
+    context (Context): The execution context provided by Airflow.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Airflow Context dict wi1th values to apply on content
+
+
+    * **jinja_env** (*Environment** | **None*) – jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
 
 #### render_template_fields(context, jinja_env=None)
 Template all attributes listed in self.template_fields.
@@ -173,7 +199,45 @@ acknowledged by Armada.
 :param reattach_policy: Operator reattach policy to use (defaults to: never)
 :type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
+:param extra_links: Extra links to be shown in addition to Lookout URL.
+:type extra_links: Optional[Dict[str, str]]
+:param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
+
+### _class_ armada.operators.armada.DynamicLink(name)
+Bases: `BaseOperatorLink`, `LoggingMixin`
+
+
+* **Parameters**
+
+    **name** (*str*) – 
+
+
+
+#### get_link(operator, \*, ti_key)
+Link to external system.
+
+Note: The old signature of this function was `(self, operator, dttm: datetime)`. That is still
+supported at runtime but is deprecated.
+
+
+* **Parameters**
+
+    
+    * **operator** (*BaseOperator*) – The Airflow operator object this link is associated to.
+
+
+    * **ti_key** (*TaskInstanceKey*) – TaskInstance ID to return link for.
+
+
+
+* **Returns**
+
+    link to external system
+
+
+
+#### name(_: st_ )
 
 ### _class_ armada.operators.armada.LookoutLink()
 Bases: `BaseOperatorLink`
