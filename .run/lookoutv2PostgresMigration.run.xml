@@ -4,7 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="--migrateDatabase" />
     <envs>
-      <env name="ARMADA_CORSALLOWEDORIGINS" value="&quot;http://localhost:3000,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089&quot;" />
+      <env name="ARMADA_CORSALLOWEDORIGINS" value="&quot;http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089&quot;" />
       <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
       <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
     </envs>
