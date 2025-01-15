@@ -233,4 +233,4 @@ sudo yum install aspnetcore-runtime-7.0
 <img src = "https://user-images.githubusercontent.com/101946115/224552173-6a4e15f8-1db0-453f-9a9f-683d2c53c2a1.png" />
 </p>
 
-- ### Please see [Our Developer Docs](../developer.md) for more information on how to get started with the codebase.
+- ### Please see [Our Developer Docs](./README.md) for more information on how to get started with the codebase.

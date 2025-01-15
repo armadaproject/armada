@@ -7,7 +7,7 @@ This document is meant to be a guide for new users of how to create and submit J
 
 For more information about the design of Armada (e.g., how jobs are prioritised), see:
 
-- [System overview](./design.md)
+- [System overview](./design/README.md)
 
 The Armada workflow is:
 

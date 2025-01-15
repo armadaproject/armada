@@ -34,7 +34,7 @@ Please see these documents for more information about Armadas Design:
 
 * [Armada Components Diagram](../design/relationships_diagram.md)
 * [Armada Architecture](../design/architecture.md)
-* [Armada Design](../design/index.md)
+* [Armada Design](../design/README.md)
 * [How Priority Functions](../design/priority.md)
 * [Armada Scheduler Design](../design/scheduler.md)
 
