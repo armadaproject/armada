@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { ReactNode, useCallback } from "react"
 
 import { Download } from "@mui/icons-material"
 import { IconButton, Skeleton, styled, useColorScheme } from "@mui/material"
@@ -45,6 +45,7 @@ const StyledPre = styled("pre")(({ theme }) => ({
   minHeight: 50,
   display: "flex",
   alignItems: "center",
+  margin: 0,
 }))
 
 const Code = styled("code")({
@@ -72,6 +73,12 @@ const CodeLineNumber = styled("span")({
   },
 })
 
+interface CodeBlockActionProps {
+  title: string
+  onClick: () => void
+  icon: ReactNode
+}
+
 interface CodeBlockLoadingProps {
   loading: true
   code?: undefined | string
@@ -96,13 +103,14 @@ interface CodeBlockNonDownloadbaleProps {
   downloadFileName?: undefined | string
 }
 
-interface CodeBlockbaseProps {
+interface CodeBlockBaseProps {
   showLineNumbers: boolean
   loadingLines?: number
   loadingLineLength?: number
+  additionalActions?: CodeBlockActionProps[]
 }
 
-export type CodeBlockProps = CodeBlockbaseProps &
+export type CodeBlockProps = CodeBlockBaseProps &
   (CodeBlockLoadedProps | CodeBlockLoadingProps) &
   (CodeBlockDownloadbaleProps | CodeBlockNonDownloadbaleProps)
 
@@ -116,6 +124,7 @@ export const CodeBlock = ({
   showLineNumbers,
   loadingLines = DEFAULT_LOADING_LINES,
   loadingLineLength = DEFAULT_LOADING_LINE_LENGTH,
+  additionalActions = [],
 }: CodeBlockProps) => {
   const { colorScheme } = useColorScheme()
 
@@ -177,6 +186,11 @@ export const CodeBlock = ({
             <Download />
           </IconButton>
         )}
+        {additionalActions.map(({ title, onClick, icon }) => (
+          <IconButton key={title} size="small" title={title} onClick={onClick}>
+            {icon}
+          </IconButton>
+        ))}
       </CodeActionsContainer>
       <Highlight
         prism={Prism}

@@ -63,7 +63,7 @@ and handles job cancellation if the Airflow task is killed.
     * **reattach_policy** (*Optional**[**str**] **| **Callable**[**[**JobState**, **str**]**, **bool**]*) – 
 
 
-    * **extra_links** (*Optional**[**Dict**[**str**, **str**]**]*) – 
+    * **extra_links** (*Optional**[**Dict**[**str**, **Union**[**str**, **re.Pattern**]**]**]*) – 
 
 
 
@@ -199,74 +199,10 @@ acknowledged by Armada.
 :param reattach_policy: Operator reattach policy to use (defaults to: never)
 :type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
-:param extra_links: Extra links to be shown in addition to Lookout URL.
-:type extra_links: Optional[Dict[str, str]]
+:param extra_links: Extra links to be shown in addition to Lookout URL. Regex patterns will be extracted from container logs (taking first match).
+:type extra_links: Optional[Dict[str, Union[str, re.Pattern]]]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 
-
-### _class_ armada.operators.armada.DynamicLink(name)
-Bases: `BaseOperatorLink`, `LoggingMixin`
-
-
-* **Parameters**
-
-    **name** (*str*) – 
-
-
-
-#### get_link(operator, \*, ti_key)
-Link to external system.
-
-Note: The old signature of this function was `(self, operator, dttm: datetime)`. That is still
-supported at runtime but is deprecated.
-
-
-* **Parameters**
-
-    
-    * **operator** (*BaseOperator*) – The Airflow operator object this link is associated to.
-
-
-    * **ti_key** (*TaskInstanceKey*) – TaskInstance ID to return link for.
-
-
-
-* **Returns**
-
-    link to external system
-
-
-
-#### name(_: st_ )
-
-### _class_ armada.operators.armada.LookoutLink()
-Bases: `BaseOperatorLink`
-
-
-#### get_link(operator, \*, ti_key)
-Link to external system.
-
-Note: The old signature of this function was `(self, operator, dttm: datetime)`. That is still
-supported at runtime but is deprecated.
-
-
-* **Parameters**
-
-    
-    * **operator** (*BaseOperator*) – The Airflow operator object this link is associated to.
-
-
-    * **ti_key** (*TaskInstanceKey*) – TaskInstance ID to return link for.
-
-
-
-* **Returns**
-
-    link to external system
-
-
-
-#### name(_ = 'Lookout_ )
 ## armada.triggers.armada module
 
 ## armada.auth module

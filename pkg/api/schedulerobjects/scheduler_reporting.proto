@@ -1,0 +1,71 @@
+syntax = 'proto3';
+
+package schedulerobjects;
+option go_package = "github.com/armadaproject/armada/pkg/api/schedulerobjects";
+
+import "google/api/annotations.proto";
+
+
+// Deprecated. This will be removed in a future release. Please use GetQueueReport instead.
+message MostRecentForQueue {
+    string queue_name = 1;
+}
+
+// Deprecated. This will be removed in a future release. Please use GetJobReport instead.
+message MostRecentForJob {
+    string job_id = 1;
+}
+
+message SchedulingReportRequest {
+    oneof filter {
+      // Deprecated. This will be removed in a future release. Please use GetQueueReport instead.
+        MostRecentForQueue most_recent_for_queue = 1;
+      // Deprecated. This will be removed in a future release. Please use GetJobReport instead.
+        MostRecentForJob most_recent_for_job = 2;
+    }
+
+    int32 verbosity = 3;
+}
+
+message SchedulingReport {
+    string report = 1;
+}
+
+message QueueReportRequest {
+    string queue_name = 1;
+
+    int32 verbosity = 2;
+}
+
+message QueueReport {
+    string report = 1;
+}
+
+message JobReportRequest {
+    string job_id = 1;
+}
+
+message JobReport {
+    string report = 1;
+}
+
+service SchedulerReporting {
+    // Return the most recent scheduling report for each executor.
+    rpc GetSchedulingReport (SchedulingReportRequest) returns (SchedulingReport) {
+        option (google.api.http) = {
+            get: "/v1/scheduling-report"
+        };
+    }
+    // Return the most recent report scheduling for each executor for the given queue.
+    rpc GetQueueReport (QueueReportRequest) returns (QueueReport) {
+        option (google.api.http) = {
+            get: "/v1/queue/{queue_name}/scheduler-report"
+        };
+    }
+    // Return the most recent scheduling report for each executor for the given job.
+    rpc GetJobReport (JobReportRequest) returns (JobReport) {
+        option (google.api.http) = {
+            get: "/v1/job/{job_id}/scheduler-report"
+        };
+    }
+}
