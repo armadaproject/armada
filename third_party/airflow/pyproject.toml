@@ -25,7 +25,7 @@ classifiers=[
 
 [project.optional-dependencies]
 format = ["black>=24.0.0", "flake8>=7.0.0", "pylint>=2.17.5"]
-test = ["pytest>=7.3.1", "coverage>=7.3.2", "pytest-asyncio>=0.21.1",
+test = ["pytest==7.3.1", "coverage==6.5.0", "pytest-asyncio==0.21.1",
   "pytest-mock>=3.14.0"]
 # note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
 docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
