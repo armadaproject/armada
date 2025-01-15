@@ -691,10 +691,10 @@ Subject is a NamedTuple that represents a subject in the permission system.
 * **Fields**
 
     
-    1.  **kind** (`str`) – Alias for field number 0
+    1. **kind** (`str`) – Alias for field number 0
 
 
-    2.  **name** (`str`) – Alias for field number 1
+    2. **name** (`str`) – Alias for field number 1
 
 
 
