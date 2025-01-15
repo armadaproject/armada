@@ -1,0 +1,94 @@
+{% if page.url != "/" and page.featured_image and site.data.settings.header_settings.allow_transparent == "yes" %}
+<nav id="navbar-main" class="navbar navbar-main navbar-expand-lg navbar-transparent headroom headroom--pinned">
+  {% elsif site.data.settings.header_settings.theme == "blue" %}
+  <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-primary navbar-dark headroom headroom--pinned">
+    {% elsif site.data.settings.header_settings.theme == "dark" %}
+    <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-default navbar-dark headroom headroom--pinned">
+      {% else %}
+      <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-white headroom headroom--pinned">
+        {% endif %}
+
+        <div class="container">
+          {% if site.data.settings.header_settings.logo_image %}
+          <a href="{{ site.baseurl }}/" class="navbar-brand mr-lg-5">
+            <img src="{{ site.data.settings.header_settings.logo_image | relative_url }}">
+          </a>
+          {% else %}
+          <a href="{{ site.baseurl }}/" class="navbar-brand mr-lg-5">
+            {{site.data.settings.basic_settings.site_title}}
+          </a>
+          {% endif %}
+
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar_global"
+            aria-controls="navbar_global" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="navbar-collapse collapse" id="navbar_global">
+            <div class="navbar-collapse-header">
+              <div class="row">
+                <div class="col-6 collapse-brand">
+                  {% if site.data.settings.header_settings.mobile_logo_image %}
+                  <a href="{{ site.baseurl }}/">
+                    <img src="{{ site.data.settings.header_settings.mobile_logo_image | relative_url }}">
+                  </a>
+                  {% elsif site.data.settings.header_settings.logo_image %}
+                  <a href="{{ site.baseurl }}/">
+                    <img src="{{ site.data.settings.header_settings.logo_image | relative_url }}">
+                  </a>
+                  {% else %}
+                  <a class="navbar-brand" href="{{ site.baseurl }}/">
+                    {{ site.data.settings.basic_settings.site_title }}
+                  </a>
+                  {% endif %}
+                </div>
+                <div class="col-6 collapse-close">
+                  <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar_global"
+                    aria-controls="navbar_global" aria-expanded="false" aria-label="Toggle navigation">
+                    <span></span>
+                    <span></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ul class="navbar-nav navbar-nav-hover align-items-lg-center ml-lg-auto">
+              {% for item in site.data.settings.menu_settings.menu_items %}
+                {% if item.submenu_items %}
+                  <li class="nav-item dropdown">
+                    <a href="javascript:;" class="nav-link" data-toggle="dropdown" role="button">
+                      <span class="nav-link-inner--text">{{ item.title }}</span>
+                    </a>
+                    <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+                      {% for subitem in item.submenu_items %}
+                      <a class="dropdown-item" href="{{ subitem.url | relative_url}}">
+                        <i class="ni {{ subitem.icon }}"></i>
+                        {{subitem.title}}
+                      </a>
+                      {% endfor %}
+                    </div>
+                  </li>
+                {% else %}
+                  <li class="nav-item">
+                    <a href="{{ item.url | relative_url }}" class="nav-link">
+                      <span class="nav-link-inner--text">{{ item.title }}</span>
+                    </a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+              <li class="nav-item social-logo-header desktop"><a class="" href="https://github.com/G-Research/armada" target="_blank">
+                <img src="{{ '/assets/img/brand/GitHub-Mark-Light-120px-plus.png' | relative_url }}" width="40" height="40"></a>
+              </li>
+              <li class="nav-item social-logo-header desktop"><a class="" href="https://cloud-native.slack.com/archives/C03T9CBCEMC" target="_blank">
+                <img src="{{ '/assets/img/brand/Slack-Mark-Light-120px.png' | relative_url }}" width="40" height="40"></a>
+              </li>
+              <li class="nav-item mobile">
+                <a href="https://github.com/G-Research/armada" class="nav-link" target="_blank">
+                  <span class="nav-link-inner--text">Github</span>
+                </a>
+                <a href="https://cloud-native.slack.com/archives/C03T9CBCEMC" class="nav-link" target="_blank">
+                  <span class="nav-link-inner--text">Slack</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>

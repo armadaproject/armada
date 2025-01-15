@@ -1,0 +1,77 @@
+basic_settings:
+  site_title: Armada Project
+  favicon_image: /assets/img/Armada-favicon.png
+
+header_settings:
+  logo_image: /assets/img/brand/Armada-white-rectangle.png
+  mobile_logo_image: /assets/img/brand/Armada-dark-rectangle.png
+  # Choose a color for your header [blue, dark, light].
+  theme: dark
+  # If the page has a featured image, it turns transparent if allow_transparent is set to "yes".
+  allow_transparent: "yes"
+
+home_settings:
+  # Choose a layout for your home page:
+    # landing – an example landing page made using the Argon design system
+    # blog – use your blog posts as the home page
+  theme: landing
+
+blog_settings:
+  # Choose a format for your blog listings:
+    # basic – a simple list of posts
+    # narrow – a masonary grid of posts
+    # grid – a full-width square grid of posts
+  theme: narrow
+  # Should we display a narrow grid of other posts at the bottom of each blog post?
+  read_more: "yes"
+
+# Setup your navigation below – how to use the icons:
+  # 1. See all the icons available here https://demos.creative-tim.com/argon-design-system-pro/docs/1.0/foundation/icons.html
+  # 2. Get the name of the icon e.g basket, then prefix with ni to make ni-basket.
+  # 3. Add a color of the icon - text-primary, text-success, text-info, text-danger, text-warning and text-default all work!
+menu_settings:
+  menu_items:
+    - title: 'Design'
+      url: '/design/'
+    - title: 'Documentation'
+      submenu_items:
+      - title: 'Quickstart'
+        url: '/quickstart'
+      - title: 'User Guide'
+        url: '/user'
+      - title: 'Libraries'
+        url: '/libraries'
+    - title: 'Contribute'
+      url: '/contribute'
+
+footer_settings:
+  footer_tagline: Armada Project
+
+contact_settings:
+  form_action: 'https://formspree.io/hello@jekyllthemes.io'
+  confirmation_url: '/thanks'
+  email_subject: 'Contact form submission'
+  send_button_text: 'Send Message'
+
+social_settings:
+  facebook_url: ''
+  discussions_url: 'https://github.com/armadaproject/armada/discussions'
+  twitter_url: 'https://twitter.com/oss_gr'
+  instagram_url: ''
+  youtube_url: ''
+  vimeo_url: ''
+  pinterest_url: ''
+  gitter_url: ''
+  dribbble_url: ''
+  behance_url: ''
+  github_url: 'https://github.com/armadaproject/armada'
+  reddit_url: ''
+  linkedin_url: ''
+  slack_url: 'https://cloud-native.slack.com/archives/C03T9CBCEMC'
+
+authors:
+
+advanced_settings:
+  analytics_code: 'G-SKPDW30VNF'
+  header_js:
+  footer_js:
