@@ -1,3 +1,7 @@
+---
+permalink: /api
+---
+
 # Armada API
 
 Armada exposes an API via gRPC or REST.
