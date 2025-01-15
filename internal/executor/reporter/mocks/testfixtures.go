@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	v1 "k8s.io/api/core/v1"
 )
 
 type FakeEventReporter struct {
@@ -26,4 +27,8 @@ func (f *FakeEventReporter) Report(events []reporter.EventMessage) error {
 func (f *FakeEventReporter) QueueEvent(event reporter.EventMessage, callback func(error)) {
 	e := f.Report([]reporter.EventMessage{event})
 	callback(e)
+}
+
+func (f *FakeEventReporter) HasPendingEvents(pod *v1.Pod) bool {
+	return false
 }

@@ -203,17 +203,7 @@ func setupExecutorApiComponents(
 		os.Exit(-1)
 	}
 
-	eventReporter, stopReporter, err := reporter.NewJobEventReporter(
-		clusterContext,
-		jobRunState,
-		eventSender,
-		clock.RealClock{},
-		200,
-		nil)
-	if err != nil {
-		log.Errorf("Failed to create job event reporter: %s", err)
-		os.Exit(-1)
-	}
+	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
 
 	submitter := job.NewSubmitter(
 		clusterContext,
@@ -242,7 +232,7 @@ func setupExecutorApiComponents(
 		submitter,
 		clusterHealthMonitor,
 	)
-	podIssueService, err := service.NewIssueHandler(
+	podIssueService, err := service.NewPodIssuerHandler(
 		jobRunState,
 		clusterContext,
 		eventReporter,
@@ -256,12 +246,23 @@ func setupExecutorApiComponents(
 		os.Exit(-1)
 	}
 
+	jobStateReporter, err := service.NewJobStateReporter(
+		clusterContext,
+		jobRunState,
+		eventReporter,
+		podIssueService,
+	)
+	if err != nil {
+		log.Errorf("Failed to create job state reporter: %s", err)
+		os.Exit(-1)
+	}
+
 	taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
 	taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
 	taskManager.Register(removeRunProcessor.Run, config.Task.StateProcessorInterval, "remove_runs")
 	taskManager.Register(jobRequester.RequestJobsRuns, config.Task.JobLeaseRenewalInterval, "request_runs")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")
-	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
+	taskManager.Register(jobStateReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	_, err = pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 	if err != nil {
 		log.Errorf("Failed to setup cluster context metrics: %s", err)

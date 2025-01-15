@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -303,22 +304,24 @@ func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 	assert.Len(t, runStateStore.GetAll(), 1)
 }
 
-func setupTestComponents(initialRunState []*job.RunState) (*IssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
+func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
-	pendingPodChecker := makePodChecker()
+	pendingPodChecker := makePendingPodChecker()
+	failedPodChecker := makeFailedPodChecker()
 	runStateStore := job.NewJobRunStateStoreWithInitialState(initialRunState)
 	stateChecksConfig := configuration.StateChecksConfiguration{
 		DeadlineForSubmittedPodConsideredMissing: time.Minute * 15,
 		DeadlineForActivePodConsideredMissing:    time.Minute * 5,
 	}
 
-	podIssueHandler, err := NewIssueHandler(
+	podIssueHandler, err := NewPodIssuerHandler(
 		runStateStore,
 		fakeClusterContext,
 		eventReporter,
 		stateChecksConfig,
 		pendingPodChecker,
+		failedPodChecker,
 		time.Minute*3,
 	)
 
@@ -420,7 +423,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 	return pod
 }
 
-func makePodChecker() podchecks.PodChecker {
+func makePendingPodChecker() podchecks.PodChecker {
 	var cfg podchecksConfig.Checks
 	cfg.Events = []podchecksConfig.EventCheck{
 		{Regexp: "Image pull has failed", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
@@ -432,6 +435,15 @@ func makePodChecker() podchecks.PodChecker {
 	}
 
 	checker, err := podchecks.NewPodChecks(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
+	}
+
+	return checker
+}
+
+func makeFailedPodChecker() failedpodchecks.RetryChecker {
+	checker, err := failedpodchecks.NewPodRetryChecker(podchecksConfig.FailedChecks{})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
 	}
