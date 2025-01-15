@@ -1,7 +1,7 @@
 import dataclasses
 from datetime import timedelta
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 
 import pytest
 from airflow.exceptions import TaskDeferred
@@ -226,6 +226,7 @@ def test_polls_for_logs(context):
         pod="armada-test_job-0",
         container="alpine",
         since_time=None,
+        link_extractor=ANY,
     )
 
 

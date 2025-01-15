@@ -7,11 +7,13 @@ from typing import List, Optional, Tuple, cast
 import pendulum
 import tenacity
 from airflow.utils.log.logging_mixin import LoggingMixin
-from armada.auth import TokenRetriever
 from kubernetes import client, config
 from pendulum import DateTime
 from pendulum.parsing.exceptions import ParserError
 from urllib3.exceptions import HTTPError
+
+from .auth import TokenRetriever
+from .links import UrlFromLogsExtractor
 
 
 class KubernetesPodLogManager(LoggingMixin):
@@ -54,6 +56,7 @@ class KubernetesPodLogManager(LoggingMixin):
         pod: str,
         container: str,
         since_time: Optional[DateTime],
+        link_extractor: UrlFromLogsExtractor,
     ) -> Optional[DateTime]:
         """
         Fetches container logs, do not follow container logs.
@@ -81,10 +84,14 @@ class KubernetesPodLogManager(LoggingMixin):
             self.log.exception(f"There was an error reading the kubernetes API: {e}.")
             raise
 
-        return self._stream_logs(container, since_time, logs)
+        return self._stream_logs(container, since_time, logs, link_extractor)
 
     def _stream_logs(
-        self, container: str, since_time: Optional[DateTime], logs: HTTPResponse
+        self,
+        container: str,
+        since_time: Optional[DateTime],
+        logs: HTTPResponse,
+        link_extractor: UrlFromLogsExtractor,
     ) -> Optional[DateTime]:
         messages: List[str] = []
         message_timestamp = None
@@ -97,8 +104,7 @@ class KubernetesPodLogManager(LoggingMixin):
                 if line_timestamp:  # detect new log-line (starts with timestamp)
                     if since_time and line_timestamp <= since_time:
                         continue
-                    self._log_container_message(container, messages)
-                    messages.clear()
+                    self._log_container_message(container, messages, link_extractor)
                     message_timestamp = line_timestamp
                 messages.append(message)
         except HTTPError as e:
@@ -106,12 +112,17 @@ class KubernetesPodLogManager(LoggingMixin):
                 f"Reading of logs interrupted for container {container} with error {e}."
             )
 
-        self._log_container_message(container, messages)
+        self._log_container_message(container, messages, link_extractor)
         return message_timestamp
 
-    def _log_container_message(self, container: str, messages: List[str]):
-        if messages:
-            self.log.info("[%s] %s", container, "\n".join(messages))
+    def _log_container_message(
+        self, container: str, messages: List[str], link_extractor: UrlFromLogsExtractor
+    ):
+        message = "\n".join(messages)
+        if message:
+            link_extractor.extract_and_persist_urls(message)
+            self.log.info("[%s] %s", container, message)
+        messages.clear()
 
     def _parse_log_line(self, line: bytes) -> Tuple[DateTime | None, str]:
         """
