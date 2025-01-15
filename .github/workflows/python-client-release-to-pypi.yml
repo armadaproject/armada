@@ -19,8 +19,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/workflows/python-tests
         with:
-          python-version: '3.8'
-          tox-env: 'py38'
+          python-version: '3.9'
+          tox-env: 'py39'
           path: 'client/python'
           github-token: ${{secrets.GITHUB_TOKEN}}
       - name: Publish package to PyPI
