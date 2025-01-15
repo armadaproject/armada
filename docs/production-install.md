@@ -1,3 +1,7 @@
+---
+permalink: /production
+---
+
 # Production Installation
 
 ### Prerequisites
