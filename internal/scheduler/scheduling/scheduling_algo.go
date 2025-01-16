@@ -252,6 +252,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		} else {
 			// Jobs not used by the current pool belong to other pools we aren't currently considering
 			// Add them here, so their resource can made unallocatable in the nodeDb, preventing us scheduling over them
+			// The cases this is needed (a node has jobs from multiple pools is)
+            // - The pool of the node was changed, but still has jobs running from the pool it was previously in
+	        // - A node running home jobs and cross-pool away jobs. In this case when scheduling the cross-pool away jobs
+			//   we need to not schedule over resource used by the home jobs
 			otherPoolsJobs = append(otherPoolsJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
 		}
 	}
