@@ -9,29 +9,25 @@ import (
 
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type JobStateReporter struct {
-	eventReporter    reporter.EventReporter
-	jobRunStateStore *job.JobRunStateStore
-	clusterContext   clusterContext.ClusterContext
-	podIssueHandler  IssueHandler
+	eventReporter   reporter.EventReporter
+	clusterContext  clusterContext.ClusterContext
+	podIssueHandler IssueHandler
 }
 
 func NewJobStateReporter(
 	clusterContext clusterContext.ClusterContext,
-	jobRunState *job.JobRunStateStore,
 	eventReporter reporter.EventReporter,
 	podIssueHandler IssueHandler,
 ) (*JobStateReporter, error) {
 	stateReporter := &JobStateReporter{
-		eventReporter:    eventReporter,
-		clusterContext:   clusterContext,
-		jobRunStateStore: jobRunState,
-		podIssueHandler:  podIssueHandler,
+		eventReporter:   eventReporter,
+		clusterContext:  clusterContext,
+		podIssueHandler: podIssueHandler,
 	}
 
 	_, err := clusterContext.AddPodEventHandler(stateReporter.podEventHandler())
@@ -91,6 +87,11 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	}
 
 	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId())
+	if err != nil {
+		log.Errorf("Failed to report event: %v", err)
+		return
+	}
+
 	if pod.Status.Phase == v1.PodFailed {
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
@@ -106,11 +107,6 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			log.Errorf("Failed detecting issue on failed pod %s(%s) - %v", pod.Name, util.ExtractJobRunId(pod), err)
 			// Don't return here, as it is very important we don't block reporting a terminal event (failed)
 		}
-	}
-
-	if err != nil {
-		log.Errorf("Failed to report event: %v", err)
-		return
 	}
 
 	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {

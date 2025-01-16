@@ -148,13 +148,13 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 		return false, fmt.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
 	}
 
-	shouldReturn, message := p.failedPodChecker.IsRetryable(pod, podEvents)
-	if shouldReturn {
+	isRetryable, message := p.failedPodChecker.IsRetryable(pod, podEvents)
+	if isRetryable {
 		return p.registerIssue(&runIssue{
 			JobId: jobId,
 			RunId: runId,
 			PodIssue: &podIssue{
-				OriginalPodState:  pod,
+				OriginalPodState:  pod.DeepCopy(),
 				Message:           message,
 				DebugMessage:      createDebugMessage(podEvents),
 				Retryable:         true,
@@ -433,7 +433,7 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 	log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 	if issue.CurrentPodState != nil {
-		if issue.CurrentPodState.Status.Phase != v1.PodPending {
+		if issue.RunIssue.PodIssue.OriginalPodState.Status.Phase == v1.PodPending && issue.CurrentPodState.Status.Phase != v1.PodPending {
 			p.markIssuesResolved(issue.RunIssue)
 			if issue.RunIssue.PodIssue.DeletionRequested {
 				p.attemptToRegisterIssue(&runIssue{
@@ -454,7 +454,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		}
 
 		err := p.clusterContext.DeletePodWithCondition(issue.CurrentPodState, func(pod *v1.Pod) bool {
-			return pod.Status.Phase == v1.PodPending
+			return pod.Status.Phase == issue.RunIssue.PodIssue.OriginalPodState.Status.Phase
 		}, true)
 		if err != nil {
 			log.Errorf("Failed to delete pod of running job %s because %s", issue.RunIssue.JobId, err)
@@ -527,7 +527,7 @@ func (p *PodIssueHandler) handleDeletedPod(pod *v1.Pod) {
 				JobId: jobId,
 				RunId: util.ExtractJobRunId(pod),
 				PodIssue: &podIssue{
-					OriginalPodState: pod,
+					OriginalPodState: pod.DeepCopy(),
 					Message:          "Pod was unexpectedly deleted",
 					Retryable:        false,
 					Type:             ExternallyDeleted,
