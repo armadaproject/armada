@@ -248,7 +248,6 @@ func setupExecutorApiComponents(
 
 	jobStateReporter, err := service.NewJobStateReporter(
 		clusterContext,
-		jobRunState,
 		eventReporter,
 		podIssueService,
 	)
