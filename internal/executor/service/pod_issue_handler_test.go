@@ -556,7 +556,8 @@ func makeFailedPodChecker() failedpodchecks.RetryChecker {
 			{
 				Regexp: fmt.Sprintf("^%s$", retryableFailedPodStatusMessage),
 			},
-		}})
+		},
+	})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
 	}

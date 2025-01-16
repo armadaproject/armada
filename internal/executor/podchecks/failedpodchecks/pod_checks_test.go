@@ -3,10 +3,11 @@ package failedpodchecks
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 )
 
 func TestPodRetryChecker(t *testing.T) {

@@ -205,6 +205,7 @@ func (s *stubIssueHandler) HasIssue(runId string) bool {
 	_, exists := s.runIdsWithIssues[runId]
 	return exists
 }
+
 func (s *stubIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, error) {
 	return s.detectAndRegisterFailedPodIssueResult, s.detectAndRegisterFailedPodIssueError
 }

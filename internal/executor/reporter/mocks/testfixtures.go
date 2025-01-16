@@ -3,8 +3,9 @@ package mocks
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/executor/reporter"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/internal/executor/reporter"
 )
 
 type FakeEventReporter struct {
