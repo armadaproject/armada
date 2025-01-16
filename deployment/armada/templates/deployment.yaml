@@ -79,6 +79,8 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "armada.config.filename" . }}
               readOnly: true
+            - name: logs
+              mountPath: /log
             {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
             - name: pulsar-token
               mountPath: "/pulsar/tokens"
@@ -117,6 +119,19 @@ spec:
             initialDelaySeconds: 10
             timeoutSeconds: 10
             failureThreshold: 3
+          - name: filebeat
+            image: docker.elastic.co/beats/filebeat:7.17.0
+            imagePullPolicy: IfNotPresent
+            args:
+              - "-e"
+              - "-c"
+              - "/etc/filebeat/filebeat.yml"
+            volumeMounts:
+              - name: filebeat-config
+                mountPath: /etc/filebeat/filebeat.yml
+                subPath: filebeat.yml
+              - name: log
+                mountPath: /log
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -133,6 +148,8 @@ spec:
         - name: user-config
           configMap:
             name: {{ include "armada.config.name" . }}
+        - name: logs
+          emptyDir: { }
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:

@@ -63,3 +63,8 @@ release: {{ .Release.Name }}
 {{ toYaml .Values.additionalLabels }}
 {{- end }}
 {{- end -}}
+
+
+{{- define "armada.filebeat.config.name" -}}
+{{- printf "%s-%s" ( include "armada.name" .) "filebeat-config" -}}
+{{- end }}

@@ -10,3 +10,20 @@ data:
 {{- if .Values.applicationConfig }}
 {{ toYaml .Values.applicationConfig | indent 4 }}
 {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "armada.filebeat.config.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada.labels.all" . | nindent 4 }}
+data:
+  filebeat.yml: |-
+    filebeat.inputs:
+      - type: log
+        enabled: true
+        paths:
+          - /log/*.json
+    output.logstash:
+      hosts: ["${LOGSTASH_HOST}:${LOGSTASH_PORT:5044}"]
