@@ -246,7 +246,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 			continue
 		}
 		if slices.Contains(pool.AwayPools, currentPool.Name) {
-			// Jobs from away pools need to be considered in the current scheduling around, so should be added here
+			// Jobs from away pools need to be considered in the current scheduling round, so should be added here
 			// This is so the jobs are available for eviction, if a home job needs to take their place
 			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
 		} else {
