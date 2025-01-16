@@ -111,7 +111,7 @@ type Job struct {
 
 	// state
 	// Required: true
-	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED LEASED REJECTED]
+	// Enum: ["QUEUED","PENDING","RUNNING","SUCCEEDED","FAILED","CANCELLED","PREEMPTED","LEASED","REJECTED"]
 	State string `json:"state"`
 
 	// submitted
@@ -492,6 +492,11 @@ func (m *Job) contextValidateRuns(ctx context.Context, formats strfmt.Registry) 
 	for i := 0; i < len(m.Runs); i++ {
 
 		if m.Runs[i] != nil {
+
+			if swag.IsZero(m.Runs[i]) { // not required
+				return nil
+			}
+
 			if err := m.Runs[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("runs" + "." + strconv.Itoa(i))
