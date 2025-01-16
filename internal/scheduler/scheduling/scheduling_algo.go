@@ -238,23 +238,27 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		ctx.Error(errMes)
 	})
 
-	homeJobs := jobSchedulingInfo.jobsByPool[pool.Name]
-	otherPoolJobs := []*jobdb.Job{}
+	currentPoolJobs := jobSchedulingInfo.jobsByPool[pool.Name]
+	otherPoolsJobs := []*jobdb.Job{}
 
 	for _, otherPool := range l.schedulingConfig.Pools {
 		if pool.Name == otherPool.Name {
 			continue
 		}
 		if slices.Contains(otherPool.AwayPools, pool.Name) {
-			homeJobs = append(homeJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
+			// Jobs from away pools need to be considered in the current scheduling around, so should be added here
+			// This is so the jobs are available for eviction, if a home job needs to take their place
+			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
 		} else {
-			otherPoolJobs = append(otherPoolJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
+			// Jobs not used by the current pool belong to other pools we aren't currently considering
+			// Add them here, so their resource can made unallocatable in the nodeDb, preventing us scheduling over them
+			otherPoolsJobs = append(otherPoolsJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
 		}
 	}
 
 	nodePools := append(pool.AwayPools, pool.Name)
 
-	nodeDb, err := l.constructNodeDb(homeJobs, otherPoolJobs,
+	nodeDb, err := l.constructNodeDb(currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
 	if err != nil {
 		return nil, err
@@ -419,7 +423,7 @@ func calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet m
 	}, nil
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(homeJobs []*jobdb.Job, otherPoolJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -431,7 +435,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(homeJobs []*jobdb.Job, otherPoolJob
 	if err != nil {
 		return nil, err
 	}
-	if err := l.populateNodeDb(nodeDb, homeJobs, otherPoolJobs, nodes); err != nil {
+	if err := l.populateNodeDb(nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
 		return nil, err
 	}
 
@@ -589,7 +593,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
-func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*jobdb.Job, otherPoolJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
+func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	nodesById := armadaslices.GroupByFuncUnique(
@@ -597,7 +601,7 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		func(node *internaltypes.Node) string { return node.GetId() },
 	)
 	jobsByNodeId := make(map[string][]*jobdb.Job, len(nodes))
-	for _, job := range homeJobs {
+	for _, job := range currentPoolJobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
@@ -611,7 +615,7 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, homeJobs []*j
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 	}
-	for _, job := range otherPoolJobs {
+	for _, job := range otherPoolsJobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
