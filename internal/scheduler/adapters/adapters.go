@@ -4,6 +4,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -17,9 +19,11 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec) *schedulerobjects.PodRequir
 		preemptionPolicy = string(*podSpec.PreemptionPolicy)
 	}
 	return &schedulerobjects.PodRequirements{
-		NodeSelector:         podSpec.NodeSelector,
-		Affinity:             podSpec.Affinity,
-		Tolerations:          podSpec.Tolerations,
+		NodeSelector: podSpec.NodeSelector,
+		Affinity:     podSpec.Affinity,
+		Tolerations: armadaslices.Map(podSpec.Tolerations, func(t v1.Toleration) *v1.Toleration {
+			return &t
+		}),
 		PreemptionPolicy:     preemptionPolicy,
 		ResourceRequirements: api.SchedulingResourceRequirementsFromPodSpec(podSpec),
 	}

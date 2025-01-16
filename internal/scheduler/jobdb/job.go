@@ -517,8 +517,8 @@ func (job *Job) Tolerations() []v1.Toleration {
 // ResourceRequirements returns the resource requirements of the Job
 // KubernetesResourceRequirements below is preferred
 func (job *Job) resourceRequirements() v1.ResourceRequirements {
-	if req := job.PodRequirements(); req != nil {
-		return req.ResourceRequirements
+	if job.PodRequirements() != nil && job.PodRequirements().ResourceRequirements != nil {
+		return *job.PodRequirements().ResourceRequirements
 	}
 	return v1.ResourceRequirements{}
 }

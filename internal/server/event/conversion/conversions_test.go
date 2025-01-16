@@ -234,7 +234,7 @@ func TestConvertLeased(t *testing.T) {
 				JobId:      jobId,
 				ExecutorId: executorId,
 				PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-					Tolerations: []v1.Toleration{
+					Tolerations: []*v1.Toleration{
 						{
 							Key:    "whale",
 							Value:  "true",

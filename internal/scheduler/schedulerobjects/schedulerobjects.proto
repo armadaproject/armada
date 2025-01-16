@@ -107,14 +107,14 @@ message PodRequirements {
     // Kubernetes scheduling requirements.
     k8s.io.api.core.v1.Affinity affinity = 2;
     // Kubernetes tolerations.
-    repeated k8s.io.api.core.v1.Toleration tolerations = 3 [(gogoproto.nullable) = false];
+    repeated k8s.io.api.core.v1.Toleration tolerations = 3;
     // Kubernetes annotations. Included here since we use annotations with special meaning.
     map<string, string> annotations = 7;
     // One of Never, PreemptLowerPriority.
     // Defaults to PreemptLowerPriority if unset.
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
-    k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
+    k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6;
 }
 
 message ExecutorSettings {
