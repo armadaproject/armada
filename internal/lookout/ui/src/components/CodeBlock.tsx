@@ -1,7 +1,7 @@
-import { useCallback } from "react"
+import { ReactNode, useCallback } from "react"
 
 import { Download } from "@mui/icons-material"
-import { IconButton, styled, useColorScheme } from "@mui/material"
+import { IconButton, Skeleton, styled, useColorScheme } from "@mui/material"
 import { Highlight, themes } from "prism-react-renderer"
 import Prism from "prismjs"
 import "prismjs/components/prism-bash"
@@ -12,6 +12,9 @@ import { CopyIconButton } from "./CopyIconButton"
 // All langauges in this set must be imported from Prism in the form:
 // import "prismjs/components/prism-{language}"
 type SupportedLanguage = "bash" | "yaml"
+
+const DEFAULT_LOADING_LINES = 20
+const DEFAULT_LOADING_LINE_LENGTH = 80
 
 const DARK_PRISM_THEME = themes.oneDark
 const LIGHT_PRISM_THEME = themes.oneLight
@@ -42,6 +45,7 @@ const StyledPre = styled("pre")(({ theme }) => ({
   minHeight: 50,
   display: "flex",
   alignItems: "center",
+  margin: 0,
 }))
 
 const Code = styled("code")({
@@ -69,31 +73,63 @@ const CodeLineNumber = styled("span")({
   },
 })
 
-export type CodeBlockProps = {
-  language: SupportedLanguage | "text"
+interface CodeBlockActionProps {
+  title: string
+  onClick: () => void
+  icon: ReactNode
+}
+
+interface CodeBlockLoadingProps {
+  loading: true
+  code?: undefined | string
+  language?: undefined | SupportedLanguage | "text"
+}
+
+interface CodeBlockLoadedProps {
+  loading: false
   code: string
+  language: SupportedLanguage | "text"
+}
+
+interface CodeBlockDownloadbaleProps {
+  downloadable: true
+  downloadBlobType: string
+  downloadFileName: string
+}
+
+interface CodeBlockNonDownloadbaleProps {
+  downloadable: false
+  downloadBlobType?: undefined | string
+  downloadFileName?: undefined | string
+}
+
+interface CodeBlockBaseProps {
   showLineNumbers: boolean
-} & (
-  | {
-      downloadable: true
-      downloadBlobType: string
-      downloadFileName: string
-    }
-  | { downloadable: false; downloadBlobType?: undefined | string; downloadFileName?: undefined | string }
-)
+  loadingLines?: number
+  loadingLineLength?: number
+  additionalActions?: CodeBlockActionProps[]
+}
+
+export type CodeBlockProps = CodeBlockBaseProps &
+  (CodeBlockLoadedProps | CodeBlockLoadingProps) &
+  (CodeBlockDownloadbaleProps | CodeBlockNonDownloadbaleProps)
 
 export const CodeBlock = ({
   language,
   code,
-  showLineNumbers,
+  loading,
   downloadable,
   downloadBlobType,
   downloadFileName,
+  showLineNumbers,
+  loadingLines = DEFAULT_LOADING_LINES,
+  loadingLineLength = DEFAULT_LOADING_LINE_LENGTH,
+  additionalActions = [],
 }: CodeBlockProps) => {
   const { colorScheme } = useColorScheme()
 
   const downloadFile = useCallback(() => {
-    if (!downloadable) {
+    if (!downloadable || loading) {
       return
     }
 
@@ -107,6 +143,40 @@ export const CodeBlock = ({
     element.click()
   }, [code, downloadable, downloadBlobType, downloadFileName])
 
+  if (loading) {
+    return (
+      <CodeBlockContainer>
+        <Highlight
+          prism={Prism}
+          theme={colorScheme === "dark" ? DARK_PRISM_THEME : LIGHT_PRISM_THEME}
+          language="text"
+          code={Array(loadingLines).fill("").join("\n")}
+        >
+          {({ style, tokens, getLineProps }) => (
+            <StyledPre style={style}>
+              <Code>
+                {tokens.map((line, i) =>
+                  showLineNumbers ? (
+                    <CodeLine key={i} {...getLineProps({ line })}>
+                      <CodeLineNumber />
+                      <span>
+                        <Skeleton>{Array(loadingLineLength).fill(" ").join("")}</Skeleton>
+                      </span>
+                    </CodeLine>
+                  ) : (
+                    <div key={i} {...getLineProps({ line })}>
+                      <Skeleton>{Array(loadingLineLength).fill(" ").join("")}</Skeleton>
+                    </div>
+                  ),
+                )}
+              </Code>
+            </StyledPre>
+          )}
+        </Highlight>
+      </CodeBlockContainer>
+    )
+  }
+
   return (
     <CodeBlockContainer>
       <CodeActionsContainer className="codeActionsContainer">
@@ -116,6 +186,11 @@ export const CodeBlock = ({
             <Download />
           </IconButton>
         )}
+        {additionalActions.map(({ title, onClick, icon }) => (
+          <IconButton key={title} size="small" title={title} onClick={onClick}>
+            {icon}
+          </IconButton>
+        ))}
       </CodeActionsContainer>
       <Highlight
         prism={Prism}

@@ -22,7 +22,7 @@ type Order struct {
 
 	// direction
 	// Required: true
-	// Enum: [ASC DESC]
+	// Enum: ["ASC","DESC"]
 	Direction string `json:"direction"`
 
 	// field
