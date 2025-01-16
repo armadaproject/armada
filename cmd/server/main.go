@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/server"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 const CustomConfigLocation string = "config"
@@ -92,6 +93,7 @@ func main() {
 		api.RegisterSubmitHandler,
 		api.RegisterEventHandler,
 		api.RegisterJobsHandler,
+		schedulerobjects.RegisterSchedulerReportingHandler,
 	)
 	defer shutdownGateway()
 

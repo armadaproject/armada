@@ -52,8 +52,8 @@ spec:
                 allowPrivilegeEscalation: false
           volumes:
             - name: user-config
-              secret:
-                secretName: {{ include "lookout_v2.config.name" . }}
+              configMap:
+                name: {{ include "lookout_v2.config.name" . }}
             {{- if .Values.additionalVolumes }}
             {{- toYaml .Values.additionalVolumes | nindent 12 }}
             {{- end }}
