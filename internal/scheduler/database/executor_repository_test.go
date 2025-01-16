@@ -101,7 +101,7 @@ func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
 				},
 				{
 					Id:             "test-executor-2",
-					LastUpdateTime: protoutil.ToTimestamp(t1),
+					LastUpdateTime: protoutil.ToTimestamp(t2),
 				},
 			},
 			expectedUpdateTimes: map[string]time.Time{"test-executor-1": t1, "test-executor-2": t2},
