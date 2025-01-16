@@ -80,3 +80,42 @@ jobs:
               echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
           fi
         continue-on-error: true
+
+  protobuf-lint:
+    name: Lint Protobuf
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: protobuf-lint
+
+      - name: Lint using clang-format 17
+        uses: jidicula/clang-format-action@v4.14.0
+        with:
+          clang-format-version: "17"
+          fallback-style: Google
+          exclude-regex: '^proto\/'
+          include-regex: '^.*\.proto$'
+
+      - name: Lint using protolint
+        uses: plexsystems/protolint-action@v0.7.0
+        with:
+          configDirectory: "."
+
+      - name: Generating Protobuf lint results as summary
+        if: ${{ always() }}
+        run: |
+          protolint lint . > protolint_results.txt || true
+          protolint_results=$(cat protolint_results.txt)
+          echo -e "## 🪧 Protolint Lint Results\n" >> $GITHUB_STEP_SUMMARY
+          if [ -z "$protolint_results" ]; then
+            echo -e "### No Lint Issues found.\n" >> $GITHUB_STEP_SUMMARY
+          else
+              echo -e "###  List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+              echo -e "${protolint_results}" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
