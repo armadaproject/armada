@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -90,7 +91,7 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 func NodeTemplate32Cpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
 		Number: n,
-		TotalResources: schedulerobjects.ResourceList{
+		TotalResources: &schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
 				"memory": resource.MustParse("256Gi"),
@@ -102,7 +103,7 @@ func NodeTemplate32Cpu(n int64) *NodeTemplate {
 func NodeTemplateGpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
 		Number: n,
-		TotalResources: schedulerobjects.ResourceList{
+		TotalResources: &schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
 				"cpu":            resource.MustParse("128"),
 				"memory":         resource.MustParse("4096Gi"),
@@ -128,7 +129,7 @@ func WithDependenciesJobTemplate(jobTemplate *JobTemplate, dependencyIds ...stri
 }
 
 func WithMinSubmitTimeJobTemplate(jobTemplate *JobTemplate, minSubmitTime time.Duration) *JobTemplate {
-	jobTemplate.EarliestSubmitTime = minSubmitTime
+	jobTemplate.EarliestSubmitTime = protoutil.ToDuration(minSubmitTime)
 	return jobTemplate
 }
 
@@ -137,7 +138,7 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 		Number:            n,
 		JobSet:            jobSet,
 		PriorityClassName: priorityClassName,
-		Requirements: schedulerobjects.PodRequirements{
+		Requirements: &schedulerobjects.PodRequirements{
 			ResourceRequirements: v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":    resource.MustParse("32"),
@@ -145,7 +146,7 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 				},
 			},
 		},
-		RuntimeDistribution: ShiftedExponential{Minimum: 1 * time.Minute},
+		RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(1 * time.Minute)},
 	}
 }
 
@@ -160,7 +161,7 @@ func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 		Number:            n,
 		JobSet:            jobSet,
 		PriorityClassName: priorityClassName,
-		Requirements: schedulerobjects.PodRequirements{
+		Requirements: &schedulerobjects.PodRequirements{
 			ResourceRequirements: v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":    resource.MustParse("1"),
@@ -168,7 +169,7 @@ func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 				},
 			},
 		},
-		RuntimeDistribution: ShiftedExponential{Minimum: time.Minute},
+		RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(time.Minute)},
 	}
 }
 

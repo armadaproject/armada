@@ -348,16 +348,18 @@ func (s *Simulator) setupClusters() error {
 			for i := 0; i < int(nodeTemplate.Number); i++ {
 				nodeId := fmt.Sprintf("%s-%d-%d", cluster.Name, nodeTemplateIndex, i)
 				node := &schedulerobjects.Node{
-					Id:             nodeId,
-					Name:           nodeId,
-					Executor:       cluster.Name,
-					Pool:           cluster.Pool,
-					Taints:         slices.Clone(nodeTemplate.Taints),
+					Id:       nodeId,
+					Name:     nodeId,
+					Executor: cluster.Name,
+					Pool:     cluster.Pool,
+					Taints: armadaslices.Map(nodeTemplate.Taints, func(t *v1.Taint) v1.Taint {
+						return *t
+					}),
 					Labels:         labels,
 					TotalResources: nodeTemplate.TotalResources.DeepCopy(),
 					AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 						types.AllowedPriorities(s.schedulingConfig.PriorityClasses),
-						nodeTemplate.TotalResources,
+						*nodeTemplate.TotalResources,
 					),
 				}
 				dbNode := nodeFactory.FromSchedulerObjectsNode(node)
@@ -395,6 +397,9 @@ func (s *Simulator) bootstrapWorkload() error {
 			if len(jobTemplate.Dependencies) > 0 {
 				continue
 			}
+
+			earliestSubmitTime := protoutil.ToStdDuration(jobTemplate.EarliestSubmitTime)
+
 			eventSequence := &armadaevents.EventSequence{
 				Queue:      queue.Name,
 				JobSetName: jobTemplate.JobSet,
@@ -412,7 +417,7 @@ func (s *Simulator) bootstrapWorkload() error {
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
-						Created: protoutil.ToTimestamp(s.time.Add(jobTemplate.EarliestSubmitTime)),
+						Created: protoutil.ToTimestamp(s.time.Add(earliestSubmitTime)),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
 							SubmitJob: submitJobFromJobTemplate(jobId, jobTemplate, gangId),
 						},
@@ -464,7 +469,9 @@ func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId str
 			annotations[serverconfig.GangNodeUniformityLabelAnnotation] = "armadaproject.io/clusterName"
 		}
 		// Make it so gang jobs end at the same time, this means they don't have a distribution currently
-		jobTemplate.RuntimeDistribution.TailMean = 0
+		if jobTemplate.GetRuntimeDistribution().GetTailMean() != nil {
+			jobTemplate.RuntimeDistribution.TailMean = nil
+		}
 	}
 
 	return &armadaevents.SubmitJob{
@@ -860,15 +867,20 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 	return updatedJob, true, nil
 }
 
-func (s *Simulator) generateRandomShiftedExponentialDuration(rv ShiftedExponential) time.Duration {
+func (s *Simulator) generateRandomShiftedExponentialDuration(rv *ShiftedExponential) time.Duration {
 	return generateRandomShiftedExponentialDuration(s.rand, rv)
 }
 
-func generateRandomShiftedExponentialDuration(r *rand.Rand, rv ShiftedExponential) time.Duration {
-	if rv.TailMean == 0 {
-		return rv.Minimum
+func generateRandomShiftedExponentialDuration(r *rand.Rand, rv *ShiftedExponential) time.Duration {
+	if rv == nil || rv.GetMinimum() == nil {
+		return 0
+	}
+	if rv.GetTailMean() == nil {
+		return protoutil.ToStdDuration(rv.GetMinimum())
 	} else {
-		return rv.Minimum + time.Duration(r.ExpFloat64()*float64(rv.TailMean))
+		minimum := protoutil.ToStdDuration(rv.GetMinimum())
+		tailMean := protoutil.ToStdDuration(rv.GetTailMean())
+		return minimum + time.Duration(r.ExpFloat64()*float64(tailMean))
 	}
 }
 
@@ -922,6 +934,8 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 			if len(dependentJobTemplate.Dependencies) > 0 {
 				continue
 			}
+			dependentEarliestSubmit := protoutil.ToStdDuration(dependentJobTemplate.EarliestSubmitTime)
+			dependentEarliestSubmitFromDependencyCompletion := protoutil.ToStdDuration(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion)
 			eventSequence := &armadaevents.EventSequence{
 				Queue:      dependentJobTemplate.Queue,
 				JobSetName: dependentJobTemplate.JobSet,
@@ -937,7 +951,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
 						// EarliestSubmitTimeFromDependencyCompletion must be positive
-						Created: protoutil.ToTimestamp(maxTime(time.Time{}.Add(dependentJobTemplate.EarliestSubmitTime), s.time.Add(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion))),
+						Created: protoutil.ToTimestamp(maxTime(time.Time{}.Add(dependentEarliestSubmit), s.time.Add(dependentEarliestSubmitFromDependencyCompletion))),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
 							SubmitJob: submitJobFromJobTemplate(jobId, dependentJobTemplate, gangId),
 						},
@@ -1049,12 +1063,13 @@ func expandRepeatingTemplates(w *WorkloadSpec) *WorkloadSpec {
 		var templates []*JobTemplate
 		for _, template := range q.GetJobTemplates() {
 			if template.Repeat != nil {
-				period := *template.Repeat.Period
+				period := protoutil.ToStdDuration(template.Repeat.Period)
+				earliestSubmit := protoutil.ToStdDuration(template.EarliestSubmitTime)
 				for i := 0; i < int(template.Repeat.NumTimes); i++ {
 					t := proto.Clone(template).(*JobTemplate)
 					t.Repeat = nil
 					t.Id = fmt.Sprintf("%s-repeat-%d", t.Id, i)
-					t.EarliestSubmitTime = t.EarliestSubmitTime + time.Duration(i)*period
+					t.EarliestSubmitTime = protoutil.ToDuration(earliestSubmit + time.Duration(i)*period)
 					templates = append(templates, t)
 				}
 			} else {
