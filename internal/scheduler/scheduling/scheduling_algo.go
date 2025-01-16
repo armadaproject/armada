@@ -177,7 +177,7 @@ type FairSchedulingAlgoContext struct {
 	Txn               *jobdb.Txn
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, pool configuration.PoolConfig) (*FairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, currentPool configuration.PoolConfig) (*FairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
@@ -194,12 +194,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	awayAllocationPools := []string{}
 	for _, otherPool := range l.schedulingConfig.Pools {
-		if slices.Contains(otherPool.AwayPools, pool.Name) {
+		if slices.Contains(otherPool.AwayPools, currentPool.Name) {
 			awayAllocationPools = append(awayAllocationPools, otherPool.Name)
 		}
 	}
-	allPools := []string{pool.Name}
-	allPools = append(allPools, pool.AwayPools...)
+	allPools := []string{currentPool.Name}
+	allPools = append(allPools, currentPool.AwayPools...)
 	allPools = append(allPools, awayAllocationPools...)
 
 	jobSchedulingInfo, err := calculateJobSchedulingInfo(ctx,
@@ -208,7 +208,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 			func(_ *schedulerobjects.Executor) bool { return true }),
 		queueByName,
 		txn.GetAll(),
-		pool.Name,
+		currentPool.Name,
 		awayAllocationPools,
 		allPools)
 	if err != nil {
@@ -238,25 +238,25 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		ctx.Error(errMes)
 	})
 
-	currentPoolJobs := jobSchedulingInfo.jobsByPool[pool.Name]
+	currentPoolJobs := jobSchedulingInfo.jobsByPool[currentPool.Name]
 	otherPoolsJobs := []*jobdb.Job{}
 
-	for _, otherPool := range l.schedulingConfig.Pools {
-		if pool.Name == otherPool.Name {
+	for _, pool := range l.schedulingConfig.Pools {
+		if currentPool.Name == pool.Name {
 			continue
 		}
-		if slices.Contains(otherPool.AwayPools, pool.Name) {
+		if slices.Contains(pool.AwayPools, currentPool.Name) {
 			// Jobs from away pools need to be considered in the current scheduling around, so should be added here
 			// This is so the jobs are available for eviction, if a home job needs to take their place
-			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
+			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
 		} else {
 			// Jobs not used by the current pool belong to other pools we aren't currently considering
 			// Add them here, so their resource can made unallocatable in the nodeDb, preventing us scheduling over them
-			otherPoolsJobs = append(otherPoolsJobs, jobSchedulingInfo.jobsByPool[otherPool.Name]...)
+			otherPoolsJobs = append(otherPoolsJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
 		}
 	}
 
-	nodePools := append(pool.AwayPools, pool.Name)
+	nodePools := append(currentPool.AwayPools, currentPool.Name)
 
 	nodeDb, err := l.constructNodeDb(currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
@@ -265,10 +265,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	totalResources := nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(currentPool.Name))
 
 	schedulingContext, err := l.constructSchedulingContext(
-		pool.Name,
+		currentPool.Name,
 		totalResources,
 		jobSchedulingInfo.demandByQueueAndPriorityClass,
 		jobSchedulingInfo.allocatedByQueueAndPriorityClass,
@@ -280,7 +280,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	return &FairSchedulingAlgoContext{
 		queues:            queueByName,
-		pool:              pool.Name,
+		pool:              currentPool.Name,
 		nodeDb:            nodeDb,
 		schedulingContext: schedulingContext,
 		nodeIdByJobId:     jobSchedulingInfo.nodeIdByJobId,
