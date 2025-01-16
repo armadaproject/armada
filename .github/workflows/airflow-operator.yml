@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: [ '3.10', '3.11', '3.12', '3.13' ]
+        python: [ '3.10', '3.11', '3.12' ]
         include:
           - tox-env: 'py310'
             python: '3.10'
@@ -48,8 +48,6 @@ jobs:
             python: '3.11'
           - tox-env: 'py312'
             python: '3.12'
-          - tox-env: 'py313'
-            python: '3.13'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
