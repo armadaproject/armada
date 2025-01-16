@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -81,7 +80,7 @@ type Server struct {
 	ListenLimit  int           `long:"listen-limit" description:"limit the number of outstanding requests"`
 	KeepAlive    time.Duration `long:"keep-alive" description:"sets the TCP keep-alive timeouts on accepted connections. It prunes dead TCP connections ( e.g. closing laptop mid-download)" default:"3m"`
 	ReadTimeout  time.Duration `long:"read-timeout" description:"maximum duration before timing out read of the request" default:"30s"`
-	WriteTimeout time.Duration `long:"write-timeout" description:"maximum duration before timing out write of the response" default:"60s"`
+	WriteTimeout time.Duration `long:"write-timeout" description:"maximum duration before timing out write of the response" default:"30s"`
 	httpServerL  net.Listener
 
 	TLSHost           string         `long:"tls-host" description:"the IP to listen on for tls, when not specified it's the same as --host" env:"TLS_HOST"`
@@ -274,7 +273,7 @@ func (s *Server) Serve() (err error) {
 
 		if s.TLSCACertificate != "" {
 			// include specified CA certificate
-			caCert, caCertErr := ioutil.ReadFile(string(s.TLSCACertificate))
+			caCert, caCertErr := os.ReadFile(string(s.TLSCACertificate))
 			if caCertErr != nil {
 				return caCertErr
 			}

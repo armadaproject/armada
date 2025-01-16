@@ -10,8 +10,8 @@ def get_provider_info():
         "name": "Armada Airflow Operator",
         "description": "Armada Airflow Operator.",
         "extra-links": [
-            "armada.operators.armada.LookoutLink",
-            "armada.operators.armada.DynamicLink",
+            "armada.links.LookoutLink",
+            "armada.links.DynamicLink",
         ],
         "versions": ["1.0.0"],
     }

@@ -10,6 +10,7 @@ import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
 import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobResult } from "./SidebarTabJobResult"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
+import { SidebarTabScheduling } from "./SidebarTabScheduling"
 import { Job, JobState } from "../../../models/lookoutV2Models"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
@@ -20,6 +21,7 @@ import { CommandSpec } from "../../../utils"
 enum SidebarTab {
   JobDetails = "JobDetails",
   JobResult = "JobResult",
+  Scheduling = "Scheduling",
   Yaml = "Yaml",
   Logs = "Logs",
   Commands = "Commands",
@@ -149,6 +151,11 @@ export const Sidebar = memo(
     commandSpecs,
   }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
+    useEffect(() => {
+      if (openTab === SidebarTab.Scheduling && job.state !== JobState.Queued) {
+        setOpenTab(SidebarTab.JobDetails)
+      }
+    }, [openTab, job.state])
 
     const handleTabChange = useCallback((_: SyntheticEvent, newValue: SidebarTab) => {
       setOpenTab(newValue)
@@ -254,6 +261,9 @@ export const Sidebar = memo(
                   <SidebarTabs value={openTab} onChange={handleTabChange}>
                     <StyledSidebarTab label="Details" value={SidebarTab.JobDetails} />
                     <StyledSidebarTab label="Result" value={SidebarTab.JobResult} />
+                    {job.state === JobState.Queued && (
+                      <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
+                    )}
                     <StyledSidebarTab label="Yaml" value={SidebarTab.Yaml} />
                     <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
                     <StyledSidebarTab
@@ -277,6 +287,12 @@ export const Sidebar = memo(
                     cordonService={cordonService}
                   />
                 </SidebarTabPanel>
+
+                {job.state === JobState.Queued && (
+                  <SidebarTabPanel value={SidebarTab.Scheduling}>
+                    <SidebarTabScheduling key={job.jobId} job={job} />
+                  </SidebarTabPanel>
+                )}
 
                 <SidebarTabPanel value={SidebarTab.Yaml}>
                   <SidebarTabJobYaml key={job.jobId} job={job} />

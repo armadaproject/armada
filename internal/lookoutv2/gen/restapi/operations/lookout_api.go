@@ -377,6 +377,6 @@ func (o *LookoutAPI) AddMiddlewareFor(method, path string, builder middleware.Bu
 	}
 	o.Init()
 	if h, ok := o.handlers[um][path]; ok {
-		o.handlers[method][path] = builder(h)
+		o.handlers[um][path] = builder(h)
 	}
 }

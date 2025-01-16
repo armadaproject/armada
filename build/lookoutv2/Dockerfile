@@ -7,6 +7,7 @@ FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
+COPY pkg/api/schedulerobjects/*.swagger.json /project/pkg/api/schedulerobjects/
 RUN ./project/internal/lookout/ui/openapi.sh
 
 FROM ${NODE_BUILD_IMAGE} AS NODE
