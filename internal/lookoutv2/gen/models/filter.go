@@ -30,7 +30,7 @@ type Filter struct {
 
 	// match
 	// Required: true
-	// Enum: [exact anyOf startsWith contains greaterThan lessThan greaterThanOrEqualTo lessThanOrEqualTo exists]
+	// Enum: ["exact","anyOf","startsWith","contains","greaterThan","lessThan","greaterThanOrEqualTo","lessThanOrEqualTo","exists"]
 	Match string `json:"match"`
 
 	// value
