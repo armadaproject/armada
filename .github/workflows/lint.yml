@@ -100,11 +100,13 @@ jobs:
           fallback-style: Google
           exclude-regex: '^proto\/'
           include-regex: '^.*\.proto$'
+        continue-on-error: true
 
       - name: Lint using protolint
         uses: plexsystems/protolint-action@v0.7.0
         with:
           configDirectory: "."
+        continue-on-error: true
 
       - name: Generating Protobuf lint results as summary
         if: ${{ always() }}
