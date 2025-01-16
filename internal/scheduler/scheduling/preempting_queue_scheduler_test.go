@@ -2206,9 +2206,9 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				slices.SortFunc(
 					result.ScheduledJobs,
 					func(a, b *context.JobSchedulingContext) int {
-						if a.Job.SubmitTime().Before(b.Job.SubmitTime()) {
+						if a.Job.SubmitTime() < b.Job.SubmitTime() {
 							return -1
-						} else if b.Job.SubmitTime().Before(a.Job.SubmitTime()) {
+						} else if b.Job.SubmitTime() < a.Job.SubmitTime() {
 							return 1
 						} else {
 							return 0

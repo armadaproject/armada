@@ -94,7 +94,7 @@ func (j *JobWriter) createJobRunRow(st *model.StateTransition) ([]*JobRunRow, er
 				EphemeralStorage: ephemeralStorageLimit.AsApproximateFloat64(),
 				ExitCode:         0,
 				State:            j.toEventState(event),
-				SubmittedTime:    associatedJob.SubmitTime().UnixNano() / 1000000000,
+				SubmittedTime:    associatedJob.SubmitTime() / 1000000000,
 				ScheduledTime:    associatedJob.LatestRun().Created() / 1000000000,
 				FinishedTime:     eventTime.UnixNano() / 1000000000,
 			})

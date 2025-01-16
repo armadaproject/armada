@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -370,7 +371,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
-		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
+		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, protoutil.ToTimestamp(now)); err != nil {
 			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
@@ -382,7 +383,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:                req.ExecutorId,
 		Pool:              req.Pool,
 		Nodes:             nodes,
-		LastUpdateTime:    now,
+		LastUpdateTime:    protoutil.ToTimestamp(now),
 		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }

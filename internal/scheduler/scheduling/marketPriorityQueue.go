@@ -140,7 +140,7 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 	} else {
 		item.runtime = 0
 	}
-	item.submittedTime = job.SubmitTime().UnixNano()
+	item.submittedTime = job.SubmitTime()
 
 	return nil
 }

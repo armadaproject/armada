@@ -543,7 +543,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		0.0,
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
-			SubmitTime:        submitTime,
+			SubmitTime:        protoutil.ToTimestamp(submitTime),
 			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 				{
 					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -861,7 +861,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		0.0,
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
-			SubmitTime:        BaseTime,
+			SubmitTime:        protoutil.ToTimestamp(BaseTime),
 			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 				{
 					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{

@@ -45,7 +45,7 @@ func TestConvertEventSequence(t *testing.T) {
 				Priority:       int64(f.Priority),
 				Submitted:      f.BaseTime.UnixNano(),
 				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo()),
 			}}},
 		},
 		"job run leased": {
@@ -395,7 +395,7 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 	assert.Equal(t, expectedError, actualError)
 }
 
-func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
+func getExpectedSubmitMessageSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:          0,
 		AtMostOnce:        true,
@@ -404,7 +404,7 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 		Version:           0,
 		PriorityClassName: "test-priority",
 		Priority:          3,
-		SubmitTime:        f.BaseTime,
+		SubmitTime:        protoutil.ToTimestamp(f.BaseTime),
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{

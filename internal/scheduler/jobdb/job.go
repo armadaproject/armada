@@ -2,7 +2,6 @@ package jobdb
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-multierror"
@@ -398,12 +397,9 @@ func (job *Job) SchedulingKey() schedulerobjects.SchedulingKey {
 	return job.schedulingKey
 }
 
-// SubmitTime exists for compatibility with the LegacyJob interface.
-func (job *Job) SubmitTime() time.Time {
-	if job.jobSchedulingInfo == nil {
-		return time.Time{}
-	}
-	return job.jobSchedulingInfo.SubmitTime
+// SubmitTime returns the time the job was submitted in nanos since the epoch
+func (job *Job) SubmitTime() int64 {
+	return job.submittedTime
 }
 
 // RequestedPriority returns the requested priority of the job.

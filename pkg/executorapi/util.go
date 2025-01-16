@@ -1,8 +1,7 @@
 package executorapi
 
 import (
-	"time"
-
+	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -14,7 +13,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
+func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen *types.Timestamp) (*schedulerobjects.Node, error) {
 	if executor == "" {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "executor",

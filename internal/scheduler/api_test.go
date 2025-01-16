@@ -92,11 +92,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen:          testClock.Now().UTC(),
+				LastSeen:          protoutil.ToTimestamp(testClock.Now()),
 				ReportingNodeType: "node-type-1",
 			},
 		},
-		LastUpdateTime:    testClock.Now().UTC(),
+		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now()),
 		UnassignedJobRuns: []string{runId3},
 	}
 

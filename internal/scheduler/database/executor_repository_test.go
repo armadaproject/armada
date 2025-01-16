@@ -10,11 +10,13 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestExecutorRepository_LoadAndSave(t *testing.T) {
 	t1 := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
+
 	tests := map[string]struct {
 		executors []*schedulerobjects.Executor
 	}{
@@ -26,10 +28,10 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 					Nodes: []*schedulerobjects.Node{
 						{
 							Id:       "test-node-1",
-							LastSeen: t1,
+							LastSeen: protoutil.ToTimestamp(t1),
 						},
 					},
-					LastUpdateTime:    t1,
+					LastUpdateTime:    protoutil.ToTimestamp(t1),
 					UnassignedJobRuns: []string{"run1", "run2"},
 				},
 				{
@@ -38,10 +40,10 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 					Nodes: []*schedulerobjects.Node{
 						{
 							Id:       "test-node-2",
-							LastSeen: t1,
+							LastSeen: protoutil.ToTimestamp(t1),
 						},
 					},
-					LastUpdateTime:    t1,
+					LastUpdateTime:    protoutil.ToTimestamp(t1),
 					UnassignedJobRuns: []string{"run3", "run4"},
 				},
 			},
@@ -95,11 +97,11 @@ func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
 			executors: []*schedulerobjects.Executor{
 				{
 					Id:             "test-executor-1",
-					LastUpdateTime: t1,
+					LastUpdateTime: protoutil.ToTimestamp(t1),
 				},
 				{
 					Id:             "test-executor-2",
-					LastUpdateTime: t2,
+					LastUpdateTime: protoutil.ToTimestamp(t1),
 				},
 			},
 			expectedUpdateTimes: map[string]time.Time{"test-executor-1": t1, "test-executor-2": t2},
