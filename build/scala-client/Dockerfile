@@ -1,7 +1,4 @@
-ARG PLATFORM=x86_64
-ARG BASE_IMAGE=ubuntu:24.04
-
-FROM --platform=$PLATFORM ${BASE_IMAGE}
+FROM ubuntu:24.04
 
 ARG SCALA_VERSION=2.13.15
 ARG SBT_VERSION=1.10.7
@@ -18,6 +15,10 @@ RUN set -ex && \
     curl -s -O https://downloads.lightbend.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.deb && \
     apt install -y ./scala-${SCALA_VERSION}.deb && \
     curl -s -L -O https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz && \
+    cd / && \
     tar xzvf sbt-${SBT_VERSION}.tgz
 
-ENTRYPOINT [ "/bin/bash" ]
+COPY scripts/build-scala-client.sh /
+RUN chmod +x /build-scala-client.sh
+
+ENTRYPOINT [ "/build-scala-client.sh" ]
