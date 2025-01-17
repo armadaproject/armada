@@ -8,24 +8,6 @@ declare module "@mui/material/Chip" {
 
 type ChipColor = Exclude<ChipProps["color"], undefined>
 
-const getShadedChipTextColor = (color: ChipColor, theme: Theme): string => {
-  switch (theme.palette.mode) {
-    case "light":
-      return color === "default" ? theme.palette.grey[400] : theme.palette[color].dark
-    case "dark":
-      return color === "default" ? theme.palette.grey[700] : theme.palette[color].light
-  }
-}
-
-const getShadedChipBackgroundColor = (color: ChipColor, theme: Theme): string | undefined => {
-  switch (theme.palette.mode) {
-    case "light":
-      return color === "default" ? undefined : alpha(theme.palette[color].light, 0.12)
-    case "dark":
-      return color === "default" ? undefined : alpha(theme.palette[color].dark, 0.12)
-  }
-}
-
 const ChipColorClassesKeyMap: Record<ChipColor, keyof ChipClasses> = {
   default: "colorDefault",
   primary: "colorPrimary",
@@ -54,10 +36,16 @@ export const MuiChip: Components<Theme>["MuiChip"] = {
             return {
               ...acc,
 
-              [`&.MuiChip-${chipClassesKey}`]: {
-                backgroundColor: getShadedChipBackgroundColor(color, theme),
-                color: getShadedChipTextColor(color, theme),
-              },
+              [`&.MuiChip-${chipClassesKey}`]: [
+                {
+                  backgroundColor: color === "default" ? undefined : alpha(theme.palette[color].light, 0.12),
+                  color: color === "default" ? theme.palette.grey[400] : theme.palette[color].dark,
+                },
+                theme.applyStyles("dark", {
+                  backgroundColor: color === "default" ? undefined : alpha(theme.palette[color].dark, 0.12),
+                  color: color === "default" ? theme.palette.grey[700] : theme.palette[color].light,
+                }),
+              ],
             }
           }, {}),
         },

@@ -3,8 +3,8 @@ package client
 import (
 	"google.golang.org/grpc"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 func WithConnection(apiConnectionDetails *ApiConnectionDetails, action func(*grpc.ClientConn) error) error {

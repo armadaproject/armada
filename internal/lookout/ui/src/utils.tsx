@@ -9,12 +9,16 @@ export interface OidcConfig {
   clientId: string
   scope: string
 }
+
 export interface CommandSpec {
   name: string
   template: string
+  descriptionMd?: string
+  alertMessageMd?: string
+  alertLevel?: string
 }
 
-interface UIConfig {
+export interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
   binocularsBaseUrlPattern: string
@@ -75,9 +79,27 @@ export async function getUIConfig(): Promise<UIConfig> {
         scope: json.Oidc.Scope,
       }
       if (json.CommandSpecs) {
-        config.commandSpecs = json.CommandSpecs.map((c: { Name: string; Template: string }) => {
-          return { name: c.Name, template: c.Template }
-        })
+        config.commandSpecs = json.CommandSpecs.map(
+          ({
+            Name,
+            Template,
+            DescriptionMd,
+            AlertMessageMd,
+            AlertLevel,
+          }: {
+            Name: string
+            Template: string
+            DescriptionMd: string
+            AlertMessageMd: string
+            AlertLevel: string
+          }) => ({
+            name: Name,
+            template: Template,
+            descriptionMd: DescriptionMd,
+            alertMessageMd: AlertMessageMd,
+            alertLevel: AlertLevel,
+          }),
+        )
       }
     }
     if (json.Backend) config.backend = json.Backend

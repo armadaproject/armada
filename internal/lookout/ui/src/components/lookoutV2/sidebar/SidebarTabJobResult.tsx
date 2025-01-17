@@ -6,26 +6,43 @@ import {
   AccordionDetails,
   AccordionSummary,
   Button,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Skeleton,
+  styled,
   Tooltip,
   Typography,
 } from "@mui/material"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
-import styles from "./SidebarTabJobResult.module.css"
+import { NoRunsAlert } from "./NoRunsAlert"
+import { SidebarTabHeading, SidebarTabSubheading } from "./sidebarTabContentComponents"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job, JobRun, JobState } from "../../../models/lookoutV2Models"
 import { getAccessToken, useUserManager } from "../../../oidc"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
+import { SPACING } from "../../../styling/spacing"
 import { getErrorMessage } from "../../../utils"
 import { formatJobRunState, formatTimeSince, formatUtcDate } from "../../../utils/jobsTableFormatters"
 import { CodeBlock } from "../../CodeBlock"
+
+const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
+  display: "flex",
+  justifyContent: "center",
+  padding: theme.spacing(SPACING.sm),
+}))
+
+const loadingAccordion = (
+  <Accordion>
+    <AccordionDetails>
+      <Skeleton />
+    </AccordionDetails>
+  </Accordion>
+)
 
 export interface SidebarTabJobResultProps {
   job: Job
@@ -216,126 +233,132 @@ export const SidebarTabJobResult = ({
     }
   }
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <>
       {topLevelError !== "" ? (
         <>
-          <Typography variant="subtitle2">{topLevelErrorTitle}:</Typography>
-          <CodeBlock code={topLevelError} language="text" downloadable={false} showLineNumbers={false} />
+          <SidebarTabHeading>{topLevelErrorTitle}</SidebarTabHeading>
+          <CodeBlock
+            code={topLevelError}
+            language="text"
+            downloadable={false}
+            showLineNumbers={false}
+            loading={false}
+          />
         </>
       ) : null}
-      <Typography variant="subtitle2">Runs:</Typography>
-      {runsNewestFirst.map((run, i) => {
-        return (
-          <Accordion key={run.runId} defaultExpanded={i === 0}>
-            <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1a-content">
-              <Typography>
-                {formatUtcDate(getRunScheduledTime(run))} UTC ({formatJobRunState(run.jobRunState)})
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails sx={{ padding: 0 }}>
-              <KeyValuePairTable
-                data={[
-                  { key: "Run ID", value: run.runId, allowCopy: true },
-                  { key: "State", value: formatJobRunState(run.jobRunState) },
-                  { key: "Leased (UTC)", value: formatUtcDate(run.leased) },
-                  { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
-                  { key: "Started (UTC)", value: formatUtcDate(run.started) },
-                  { key: "Finished (UTC)", value: formatUtcDate(run.finished) },
-                  {
-                    key: "Runtime",
-                    value:
-                      run.started && run.finished ? formatTimeSince(run.started, new Date(run.finished).getTime()) : "",
-                  },
-                  { key: "Cluster", value: run.cluster, allowCopy: true },
-                  { key: "Node", value: run.node ?? "", allowCopy: true },
-                  { key: "Exit code", value: run.exitCode?.toString() ?? "" },
-                ].filter((pair) => pair.value !== "")}
-              />
-            </AccordionDetails>
-            {run.node !== undefined && run.node !== "" && (
-              <>
-                <div className={styles.markUnschedulableButton}>
-                  <Tooltip title={`Take node ${run.node} out of the farm`} placement="bottom">
-                    <Button color="secondary" onClick={handleClickOpen}>
-                      Mark node as unschedulable
-                    </Button>
-                  </Tooltip>
-                  <Dialog
-                    open={open}
-                    onClose={handleClose}
-                    fullWidth
-                    maxWidth="md"
-                    className={styles.markUnschedulableDialog}
-                  >
-                    <DialogTitle>Mark node as unschedulable</DialogTitle>
-                    <DialogContent>
-                      <Typography>
-                        Are you sure you want to take node <span>{run.node}</span> out of the farm?
-                      </Typography>
-                    </DialogContent>
-                    <DialogActions>
-                      <Button color="error" onClick={handleClose}>
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={async () => {
-                          await cordon(run.cluster, run.node as string)
-                          handleClose()
-                        }}
-                        autoFocus
-                      >
-                        Confirm
-                      </Button>
-                    </DialogActions>
-                  </Dialog>
-                </div>
-              </>
-            )}
-            {runErrorLoadingMap.has(run.runId) && runErrorLoadingMap.get(run.runId) === "Loading" && (
-              <div className={styles.loading}>
-                <CircularProgress size={24} />
-              </div>
-            )}
-            {runErrorMap.has(run.runId) && runErrorMap.get(run.runId) !== "" && (
-              <Accordion key={run.runId + "error"}>
-                <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
-                  Error
-                </AccordionSummary>
-                <AccordionDetails>
-                  <CodeBlock
-                    code={runErrorMap.get(run.runId) ?? ""}
-                    language="text"
-                    downloadable={false}
-                    showLineNumbers={false}
-                  />
-                </AccordionDetails>
-              </Accordion>
-            )}
-            {runDebugMessageLoadingMap.has(run.runId) && runDebugMessageLoadingMap.get(run.runId) === "Loading" && (
-              <div className={styles.loading}>
-                <CircularProgress size={24} />
-              </div>
-            )}
-            {runDebugMessageMap.has(run.runId) && runDebugMessageMap.get(run.runId) !== "" && (
-              <Accordion key={run.runId + "debug"}>
-                <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
-                  Debug
-                </AccordionSummary>
-                <AccordionDetails>
-                  <CodeBlock
-                    code={runDebugMessageMap.get(run.runId) ?? ""}
-                    language="text"
-                    downloadable={false}
-                    showLineNumbers={false}
-                  />
-                </AccordionDetails>
-              </Accordion>
-            )}
-          </Accordion>
-        )
-      })}
-      {runsNewestFirst.length === 0 && <>This job has not run.</>}
-    </div>
+      {runsNewestFirst.length === 0 ? (
+        <NoRunsAlert jobState={job.state} />
+      ) : (
+        <>
+          <SidebarTabHeading>Runs</SidebarTabHeading>
+          <div>
+            {runsNewestFirst.map((run, i) => {
+              const node = run.node || undefined // set to undefined if it is an empty string
+              const runErrorLoading = runErrorLoadingMap.get(run.runId) === "Loading"
+              const runError = runErrorMap.get(run.runId) || undefined // set to undefined if it is an empty string
+              const runDebugMessageLoading = runDebugMessageLoadingMap.get(run.runId) === "Loading"
+              const runDebugMessage = runDebugMessageMap.get(run.runId) || undefined // set to undefined if it is an empty string
+              return (
+                <Accordion key={run.runId} defaultExpanded={i === 0}>
+                  <AccordionSummary>
+                    <SidebarTabSubheading>
+                      {formatUtcDate(getRunScheduledTime(run))} UTC ({formatJobRunState(run.jobRunState)})
+                    </SidebarTabSubheading>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <KeyValuePairTable
+                      data={[
+                        { key: "Run ID", value: run.runId, allowCopy: true },
+                        { key: "State", value: formatJobRunState(run.jobRunState) },
+                        { key: "Leased (UTC)", value: formatUtcDate(run.leased) },
+                        { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
+                        { key: "Started (UTC)", value: formatUtcDate(run.started) },
+                        { key: "Finished (UTC)", value: formatUtcDate(run.finished) },
+                        {
+                          key: "Runtime",
+                          value:
+                            run.started && run.finished
+                              ? formatTimeSince(run.started, new Date(run.finished).getTime())
+                              : "",
+                        },
+                        { key: "Cluster", value: run.cluster, allowCopy: true },
+                        { key: "Node", value: run.node ?? "", allowCopy: true },
+                        { key: "Exit code", value: run.exitCode?.toString() ?? "" },
+                      ].filter((pair) => pair.value !== "")}
+                    />
+                    {node && (
+                      <>
+                        <MarkNodeUnschedulableButtonContainer>
+                          <Tooltip title={`Take node ${node} out of the farm`} placement="bottom">
+                            <Button color="secondary" onClick={handleClickOpen} variant="outlined">
+                              Mark node as unschedulable
+                            </Button>
+                          </Tooltip>
+                        </MarkNodeUnschedulableButtonContainer>
+                        <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
+                          <DialogTitle>Mark node as unschedulable</DialogTitle>
+                          <DialogContent>
+                            <Typography>
+                              Are you sure you want to take node <span>{node}</span> out of the farm?
+                            </Typography>
+                          </DialogContent>
+                          <DialogActions>
+                            <Button color="error" onClick={handleClose}>
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={async () => {
+                                await cordon(run.cluster, node)
+                                handleClose()
+                              }}
+                              autoFocus
+                            >
+                              Confirm
+                            </Button>
+                          </DialogActions>
+                        </Dialog>
+                      </>
+                    )}
+                  </AccordionDetails>
+                  {runErrorLoading && <div>{loadingAccordion}</div>}
+                  {runError && (
+                    <Accordion key={run.runId + "error"}>
+                      <AccordionSummary>Error</AccordionSummary>
+                      <AccordionDetails>
+                        <CodeBlock
+                          code={runError}
+                          language="text"
+                          downloadable={false}
+                          showLineNumbers={false}
+                          loading={false}
+                        />
+                      </AccordionDetails>
+                    </Accordion>
+                  )}
+                  {runDebugMessageLoading && <div>{loadingAccordion}</div>}
+                  {runDebugMessage && (
+                    <Accordion key={run.runId + "debug"}>
+                      <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1d-content" id="panel1d-header">
+                        Debug
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <CodeBlock
+                          code={runDebugMessage}
+                          language="text"
+                          downloadable={false}
+                          showLineNumbers={false}
+                          loading={false}
+                        />
+                      </AccordionDetails>
+                    </Accordion>
+                  )}
+                </Accordion>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 
