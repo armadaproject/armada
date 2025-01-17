@@ -1,6 +1,7 @@
 import { OpenInNew } from "@mui/icons-material"
-import { Link, Stack } from "@mui/material"
+import { Alert, AlertColor, Link, Stack } from "@mui/material"
 import { template, templateSettings } from "lodash"
+import { MuiMarkdown } from "mui-markdown"
 import { Fragment } from "react/jsx-runtime"
 import validator from "validator"
 
@@ -10,6 +11,8 @@ import { Job } from "../../../models/lookoutV2Models"
 import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
 import { CodeBlock } from "../../CodeBlock"
+
+const KNOWN_ALERT_COLORS: AlertColor[] = ["success", "info", "warning", "error"]
 
 export interface SidebarTabJobCommandsProps {
   job: Job
@@ -35,27 +38,43 @@ export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobComman
   return (
     <>
       {commandSpecs.map((commandSpec) => {
-        const { name } = commandSpec
+        const { name, descriptionMd, alertLevel, alertMessageMd } = commandSpec
         const commandText = getCommandText(job, commandSpec)
+
+        const alertSeverity: AlertColor =
+          alertLevel && (KNOWN_ALERT_COLORS as string[]).includes(alertLevel) ? (alertLevel as AlertColor) : "info"
+
         return (
           <Fragment key={name}>
             <SidebarTabHeading>{name}</SidebarTabHeading>
-            {validator.isURL(commandText) ? (
-              <Link href={commandText} target="_blank">
-                <Stack direction="row" spacing={SPACING.xs} alignItems="center">
-                  <div>{commandText}</div>
-                  <OpenInNew fontSize="inherit" />
-                </Stack>
-              </Link>
-            ) : (
-              <CodeBlock
-                code={commandText}
-                language="bash"
-                downloadable={false}
-                showLineNumbers={false}
-                loading={false}
-              />
+            {descriptionMd && (
+              <div>
+                <MuiMarkdown>{descriptionMd}</MuiMarkdown>
+              </div>
             )}
+            {alertMessageMd && (
+              <Alert severity={alertSeverity} variant="outlined">
+                <MuiMarkdown>{alertMessageMd}</MuiMarkdown>
+              </Alert>
+            )}
+            <div>
+              {validator.isURL(commandText) ? (
+                <Link href={commandText} target="_blank">
+                  <Stack direction="row" spacing={SPACING.xs} alignItems="center">
+                    <div>{commandText}</div>
+                    <OpenInNew fontSize="inherit" />
+                  </Stack>
+                </Link>
+              ) : (
+                <CodeBlock
+                  code={commandText}
+                  language="bash"
+                  downloadable={false}
+                  showLineNumbers={false}
+                  loading={false}
+                />
+              )}
+            </div>
           </Fragment>
         )
       })}
