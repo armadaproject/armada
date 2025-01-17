@@ -55,10 +55,27 @@ export const useGetUiConfig = (enabled = true) => {
         }
 
         if (json.CommandSpecs) {
-          config.commandSpecs = json.CommandSpecs.map(({ Name, Template }: { Name: string; Template: string }) => ({
-            name: Name,
-            template: Template,
-          }))
+          config.commandSpecs = json.CommandSpecs.map(
+            ({
+              Name,
+              Template,
+              DescriptionMd,
+              AlertMessageMd,
+              AlertLevel,
+            }: {
+              Name: string
+              Template: string
+              DescriptionMd: string
+              AlertMessageMd: string
+              AlertLevel: string
+            }) => ({
+              name: Name,
+              template: Template,
+              descriptionMd: DescriptionMd,
+              alertMessageMd: AlertMessageMd,
+              alertLevel: AlertLevel,
+            }),
+          )
         }
 
         if (json.Backend) config.backend = json.Backend
