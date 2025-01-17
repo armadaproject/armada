@@ -28,9 +28,10 @@ func BuildScala() error {
 	}
 
 	return dockerRun("run",
+		"-u", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		"--rm",
 		"-v", fmt.Sprintf("%s/proto:/proto", wd),
 		"-v", fmt.Sprintf("%s:/go/src/armada", wd),
 		"-w", "/go/src/armada",
-		"armada-scala-client-builder", "./scripts/build-scala-client.sh")
+		"armada-scala-client-builder")
 }
