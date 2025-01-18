@@ -108,7 +108,7 @@ def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChann
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
-        deffered=False,
+        deferrable=False,
     )
 
     operator.execute(context)
@@ -140,7 +140,7 @@ def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelAr
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
-        deffered=False,
+        deferrable=False,
     )
 
     try:
@@ -169,7 +169,7 @@ def success_job(
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
-        deffered=False,
+        deferrable=False,
     )
 
     operator.execute(context)
