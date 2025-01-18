@@ -32,3 +32,7 @@ uiConfig:
       template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} logs armada-{{ jobId }}-0"
     - name: Exec
       template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} exec -it armada-{{ jobId }}-0 /bin/sh"
+      descriptionMd: Execute a command on the job's container.
+      alertMessageMd: |
+        This will only work if the container is still running.
+      alertLevel: info
