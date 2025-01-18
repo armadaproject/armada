@@ -108,6 +108,7 @@ def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChann
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
+        deffered=False,
     )
 
     operator.execute(context)
@@ -116,7 +117,6 @@ def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChann
     assert JobState(response.job_states[job_id]) == JobState.SUCCEEDED
 
 
-@pytest.mark.skip(reason="FIXME: This no longer works we should fix our tests")
 def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
     job_set_name = f"test-{uuid.uuid1()}"
     job = client.submit_jobs(
@@ -140,6 +140,7 @@ def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelAr
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
+        deffered=False,
     )
 
     try:
@@ -168,6 +169,7 @@ def success_job(
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
+        deffered=False,
     )
 
     operator.execute(context)
