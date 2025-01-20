@@ -3,6 +3,8 @@ package mocks
 import (
 	"fmt"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/executor/reporter"
 )
 
@@ -26,4 +28,8 @@ func (f *FakeEventReporter) Report(events []reporter.EventMessage) error {
 func (f *FakeEventReporter) QueueEvent(event reporter.EventMessage, callback func(error)) {
 	e := f.Report([]reporter.EventMessage{event})
 	callback(e)
+}
+
+func (f *FakeEventReporter) HasPendingEvents(pod *v1.Pod) bool {
+	return false
 }
