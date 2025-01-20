@@ -6,13 +6,12 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
