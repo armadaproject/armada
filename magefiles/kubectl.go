@@ -19,11 +19,7 @@ func kubectlOutput(args ...string) (string, error) {
 }
 
 func kubectlRun(args ...string) error {
-	fullArgs := []string{"--insecure-skip-tls-verify"}
-	for _, arg := range args {
-		fullArgs = append(fullArgs, arg)
-	}
-	return sh.Run(kubectlBinary(), fullArgs...)
+	return sh.Run(kubectlBinary(), args...)
 }
 
 func kubectlVersion() (*semver.Version, error) {
