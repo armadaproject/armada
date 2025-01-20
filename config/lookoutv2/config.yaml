@@ -11,7 +11,7 @@ tls:
 postgres:
   connection:
     host: postgres
-    port: 5432
+    port: 5433
     user: postgres
     password: psw
     dbname: lookout

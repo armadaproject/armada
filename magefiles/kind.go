@@ -26,7 +26,6 @@ func getImagesUsedInTestsOrControllers() []string {
 		"nginx:1.27.0", // Used by ingress-controller
 		"alpine:3.20.0",
 		"bitnami/kubectl:1.30",
-		"docker.io/library/python:3.12",
 	}
 }
 

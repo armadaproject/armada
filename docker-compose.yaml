@@ -30,12 +30,6 @@ services:
       - ./developer/dependencies/postgres-init.sh:/docker-entrypoint-initdb.d/init-database.sh
     networks:
       - kind
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "scheduler"]
-      interval: 10s
-      timeout: 60s
-      retries: 5
-      start_period: 80s
 
   pulsar:
     image: ${PULSAR_IMAGE:-apachepulsar/pulsar:3.0.2}
@@ -148,9 +142,8 @@ services:
     networks:
       - kind
     ports:
-      - 8082:8082
+      - 8082:8080
       - 4002:4000
-      - 50053:50051
     volumes:
       - "./.kube/internal:/.kube"
       - "go-cache:/root/.cache/go-build:rw"
@@ -219,9 +212,6 @@ services:
       - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
-    depends_on:
-      lookoutv2-migration:
-        condition: service_started
     env_file:
       - ./developer/env/docker/lookoutv2.env
     working_dir: /app
