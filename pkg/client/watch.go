@@ -5,10 +5,10 @@ import (
 	"io"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/domain"
@@ -71,7 +71,7 @@ func WatchJobSetWithJobIdsFilter(
 		)
 
 		if e != nil {
-			log.Error(e)
+			log.Error(e.Error())
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -94,7 +94,7 @@ func WatchJobSetWithJobIdsFilter(
 					return state
 				}
 				if !isTransportClosingError(e) {
-					log.Error(e)
+					log.Error(e.Error())
 				}
 				time.Sleep(5 * time.Second)
 				break
@@ -104,7 +104,7 @@ func WatchJobSetWithJobIdsFilter(
 			event, e := api.UnwrapEvent(msg.Message)
 			if e != nil {
 				// This can mean that the event type reported from server is unknown to the client
-				log.Error(e)
+				log.Error(e.Error())
 				continue
 			}
 

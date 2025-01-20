@@ -76,6 +76,7 @@ type KubernetesConfiguration struct {
 	MaxTerminatedPods         int
 	PodDefaults               *PodDefaults
 	StateChecks               StateChecksConfiguration
+	FailedPodChecks           podchecks.FailedChecks
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
 	// Minimum amount of resources marked as allocated to non-Armada pods on each node.
