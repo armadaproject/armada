@@ -3,18 +3,18 @@ package jobdb
 import (
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-	k8sResource "k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-var jobSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
+var jobSchedulingInfoProto = &schedulerobjects.JobSchedulingInfo{
 	ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 		{
 			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -34,13 +34,19 @@ var jobSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
 	},
 }
 
+var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: jobSchedulingInfoProto.GetPodRequirements().GetResourceRequirements(),
+	},
+}
+
 var baseJob, _ = jobDb.NewJob(
 	"test-job",
 	"test-jobSet",
 	"test-queue",
 	2,
 	0.0,
-	jobSchedulingInfo,
+	jobSchedulingInfoProto,
 	true,
 	0,
 	false,
@@ -322,10 +328,10 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
+	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfoProto, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
+	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfoProto, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 

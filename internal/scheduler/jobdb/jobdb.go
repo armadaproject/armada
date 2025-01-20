@@ -186,12 +186,18 @@ func (jobDb *JobDb) NewJob(
 	validated bool,
 	pools []string,
 ) (*Job, error) {
+
+	si, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfo)
+	if err != nil {
+		return nil, err
+	}
+
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
-	rr := jobDb.getResourceRequirements(schedulingInfo)
+	rr := jobDb.getResourceRequirements(si)
 
 	job := &Job{
 		jobDb:                          jobDb,
@@ -204,7 +210,7 @@ func (jobDb *JobDb) NewJob(
 		queuedVersion:                  queuedVersion,
 		requestedPriority:              priority,
 		submittedTime:                  created,
-		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(schedulingInfo),
+		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(si),
 		allResourceRequirements:        rr,
 		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
 		priorityClass:                  priorityClass,
@@ -220,12 +226,12 @@ func (jobDb *JobDb) NewJob(
 	return job, nil
 }
 
-func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
+func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
 	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
 }
 
-func safeGetRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) map[string]k8sResource.Quantity {
-	pr := schedulingInfo.GetPodRequirements()
+func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]k8sResource.Quantity {
+	pr := schedulingInfo.PodRequirements
 	if pr == nil {
 		return map[string]k8sResource.Quantity{}
 	}
@@ -238,18 +244,14 @@ func safeGetRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) map
 	return adapters.K8sResourceListToMap(req)
 }
 
-func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
-	for _, requirement := range info.ObjectRequirements {
-		if podRequirement := requirement.GetPodRequirements(); podRequirement != nil {
-			for k, v := range podRequirement.Annotations {
-				podRequirement.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
-			}
+func (jobDb *JobDb) internJobSchedulingInfoStrings(info *internaltypes.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {
+	pr := info.PodRequirements
+	for k, v := range pr.Annotations {
+		pr.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+	}
 
-			for k, v := range podRequirement.NodeSelector {
-				podRequirement.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
-			}
-			podRequirement.PreemptionPolicy = jobDb.stringInterner.Intern(podRequirement.PreemptionPolicy)
-		}
+	for k, v := range pr.NodeSelector {
+		pr.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
 	}
 	return info
 }

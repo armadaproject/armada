@@ -47,7 +47,11 @@ func WithJobDbJobPodRequirements(job *Job, reqs *schedulerobjects.PodRequirement
 	})
 }
 
-func JobWithJobSchedulingInfo(job *Job, jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
+func JobWithJobSchedulingInfo(job *Job, jobSchedulingInfoProto *schedulerobjects.JobSchedulingInfo) *Job {
+	jobSchedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(jobSchedulingInfoProto)
+	if err != nil {
+		panic(err)
+	}
 	j, err := job.WithJobSchedulingInfo(jobSchedulingInfo)
 	if err != nil {
 		panic(err)

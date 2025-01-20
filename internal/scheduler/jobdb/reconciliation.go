@@ -7,6 +7,7 @@ import (
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -139,10 +140,14 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 			job = job.WithRequestedPriority(uint32(jobRepoJob.Priority))
 		}
 		if uint32(jobRepoJob.SchedulingInfoVersion) > job.JobSchedulingInfo().Version {
-			schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
-			if err = proto.Unmarshal(jobRepoJob.SchedulingInfo, schedulingInfo); err != nil {
+			schedulingInfoProto := &schedulerobjects.JobSchedulingInfo{}
+			if err = proto.Unmarshal(jobRepoJob.SchedulingInfo, schedulingInfoProto); err != nil {
 				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
 				return
+			}
+			schedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfoProto)
+			if err != nil {
+				err = errors.Wrapf(err, "error converting scheduler info for job %s", jobRepoJob.JobID)
 			}
 			job, err = job.WithJobSchedulingInfo(schedulingInfo)
 			if err != nil {
