@@ -3,7 +3,7 @@ package ingest
 import (
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 // WithRetry executes the supplied action until it either completes successfully or it returns false, indicating that
