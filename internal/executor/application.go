@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/metrics/runstate"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
@@ -191,15 +192,13 @@ func setupExecutorApiComponents(
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
-	eventReporter, stopReporter, err := reporter.NewJobEventReporter(
-		clusterContext,
-		jobRunState,
-		eventSender,
-		clock.RealClock{},
-		200)
+	failedPodChecker, err := failedpodchecks.NewPodRetryChecker(config.Kubernetes.FailedPodChecks)
 	if err != nil {
-		ctx.Fatalf("Failed to create job event reporter: %s", err)
+		log.Errorf("Failed to create job event reporter: %s", err)
+		os.Exit(-1)
 	}
+
+	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
 
 	submitter := job.NewSubmitter(
 		clusterContext,
@@ -228,16 +227,26 @@ func setupExecutorApiComponents(
 		submitter,
 		clusterHealthMonitor,
 	)
-	podIssueService, err := service.NewIssueHandler(
+	podIssueService, err := service.NewPodIssuerHandler(
 		jobRunState,
 		clusterContext,
 		eventReporter,
 		config.Kubernetes.StateChecks,
 		pendingPodChecker,
+		failedPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create pod issue service: %s", err)
+	}
+
+	jobStateReporter, err := service.NewJobStateReporter(
+		clusterContext,
+		eventReporter,
+		podIssueService,
+	)
+	if err != nil {
+		ctx.Fatalf("Failed to create job state reporter: %s", err)
 	}
 
 	taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
@@ -245,7 +254,7 @@ func setupExecutorApiComponents(
 	taskManager.Register(removeRunProcessor.Run, config.Task.StateProcessorInterval, "remove_runs")
 	taskManager.Register(jobRequester.RequestJobsRuns, config.Task.JobLeaseRenewalInterval, "request_runs")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")
-	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
+	taskManager.Register(jobStateReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	_, err = pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 	if err != nil {
 		ctx.Fatalf("Failed to setup cluster context metrics: %s", err)
