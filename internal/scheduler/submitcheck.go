@@ -11,7 +11,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -76,7 +75,7 @@ func NewSubmitChecker(
 func (srv *SubmitChecker) Initialise(ctx *armadacontext.Context) error {
 	err := srv.updateExecutors(ctx)
 	if err != nil {
-		ctx.Errorf("Error initialising submit checker: %v", err)
+		ctx.Logger().WithStacktrace(err).Errorf("Error initialising submit checker")
 	}
 
 	return err
@@ -85,7 +84,7 @@ func (srv *SubmitChecker) Initialise(ctx *armadacontext.Context) error {
 func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	ctx.Infof("Will refresh executor state every %s", srv.schedulingConfig.ExecutorUpdateFrequency)
 	if err := srv.updateExecutors(ctx); err != nil {
-		logging.WithStacktrace(ctx, err).Error("Error fetching executors")
+		ctx.Logger().WithStacktrace(err).Error("Failed updating executors")
 	}
 
 	ticker := time.NewTicker(srv.schedulingConfig.ExecutorUpdateFrequency)
@@ -94,9 +93,8 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-
 			if err := srv.updateExecutors(ctx); err != nil {
-				logging.WithStacktrace(ctx, err).Error("Error fetching executors")
+				ctx.Logger().WithStacktrace(err).Error("Failed updating executors")
 			}
 		}
 	}
@@ -150,8 +148,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 					nodeDb: nodeDb,
 				}
 			} else {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Warnf("Error constructing nodedb for executor: %s", ex.Id)
 			}
 		}
