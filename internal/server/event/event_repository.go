@@ -10,10 +10,10 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/server/event/conversion"
 	"github.com/armadaproject/armada/internal/server/event/sequence"
 	"github.com/armadaproject/armada/pkg/api"

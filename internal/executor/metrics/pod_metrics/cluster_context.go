@@ -3,11 +3,11 @@ package pod_metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"

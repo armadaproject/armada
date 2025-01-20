@@ -36,12 +36,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/renstrom/shortuuid v3.0.0+incompatible
-	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/weaveworks/promrus v1.2.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/net v0.30.0
 	golang.org/x/oauth2 v0.23.0
@@ -81,6 +79,7 @@ require (
 	github.com/prometheus/common v0.60.0
 	github.com/redis/go-redis/extra/redisprometheus/v9 v9.0.5
 	github.com/redis/go-redis/v9 v9.7.0
+	github.com/rs/zerolog v1.33.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
 	go.uber.org/mock v0.5.0
@@ -161,7 +160,8 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-isatty v0.0.18 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.25 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -183,6 +183,7 @@ require (
 	github.com/rivo/uniseg v0.4.2 // indirect
 	github.com/sagikazarmark/locafero v0.6.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect

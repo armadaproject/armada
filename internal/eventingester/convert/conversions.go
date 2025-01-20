@@ -3,7 +3,6 @@ package convert
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -11,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/eventingester/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
