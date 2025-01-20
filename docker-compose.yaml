@@ -81,7 +81,6 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
-      - server
       - scheduleringester
     working_dir: /app
     env_file:
