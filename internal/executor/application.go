@@ -19,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/etcdhealth"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
-	log "github.com/armadaproject/armada/internal/common/logging"
 	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -195,8 +194,7 @@ func setupExecutorApiComponents(
 
 	failedPodChecker, err := failedpodchecks.NewPodRetryChecker(config.Kubernetes.FailedPodChecks)
 	if err != nil {
-		log.Errorf("Failed to create job event reporter: %s", err)
-		os.Exit(-1)
+		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
