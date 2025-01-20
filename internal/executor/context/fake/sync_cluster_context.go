@@ -21,6 +21,7 @@ type SyncFakeClusterContext struct {
 	Events           map[string][]*v1.Event
 	AnnotationsAdded map[string]map[string]string
 	podEventHandlers []*cache.ResourceEventHandlerFuncs
+	GetPodEventsErr  error
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
@@ -64,6 +65,9 @@ func (c *SyncFakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 }
 
 func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+	if c.GetPodEventsErr != nil {
+		return nil, c.GetPodEventsErr
+	}
 	jobId := util2.ExtractJobId(pod)
 	return c.Events[jobId], nil
 }
@@ -147,6 +151,14 @@ func (c *SyncFakeClusterContext) SimulatePodAddEvent(pod *v1.Pod) {
 	for _, h := range c.podEventHandlers {
 		if h.AddFunc != nil {
 			h.AddFunc(pod)
+		}
+	}
+}
+
+func (c *SyncFakeClusterContext) SimulateUpdateAddEvent(before *v1.Pod, after *v1.Pod) {
+	for _, h := range c.podEventHandlers {
+		if h.AddFunc != nil {
+			h.UpdateFunc(before, after)
 		}
 	}
 }
