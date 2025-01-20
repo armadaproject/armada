@@ -215,6 +215,7 @@ func LocalDev(arg string) error {
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
 	mg.Deps(CheckForPulsarRunning)
+	mg.Deps(CheckForPostgresRunning)
 
 	switch arg {
 	case "minimal":

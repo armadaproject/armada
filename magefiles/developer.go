@@ -140,6 +140,35 @@ func CheckForPulsarRunning() error {
 	}
 }
 
+// Repeatedly check logs until Postgres is ready.
+func CheckForPostgresRunning() error {
+	timeout := time.After(1 * time.Minute)
+	tick := time.Tick(1 * time.Second)
+	seconds := 0
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for Postgres to start")
+		case <-tick:
+			out, err := dockerOutput("compose", "logs", "postgres")
+			if err != nil {
+				return err
+			}
+			if strings.Contains(out, "database system is ready to accept connections") {
+				// if seconds is less than 1, it means that pulsar had already started
+				if seconds < 1 {
+					fmt.Printf("\nPostgres had already started!\n\n")
+					return nil
+				}
+
+				fmt.Printf("\nPostgres took %d seconds to start!\n\n", seconds)
+				return nil
+			}
+			seconds++
+		}
+	}
+}
+
 // Download Dependency Images for Docker Compose
 func downloadDependencyImages() error {
 	timeTaken := time.Now()
