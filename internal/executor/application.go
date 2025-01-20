@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"net/http"
 	"os"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/etcdhealth"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
