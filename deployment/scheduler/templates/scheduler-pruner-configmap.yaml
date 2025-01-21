@@ -8,5 +8,5 @@ metadata:
 data:
   {{ include "armada-scheduler-pruner.config.filename" . }}: |
 {{- if .Values.pruner.applicationConfig }}
-{{ toYaml .Values.pruner.applicationConfig | b64enc | indent 4 }}
+{{ toYaml .Values.pruner.applicationConfig | indent 4 }}
 {{- end }}
