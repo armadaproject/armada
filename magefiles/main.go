@@ -228,6 +228,8 @@ func LocalDev(arg string) error {
 		mg.Deps(StartComponents)
 	}
 
+	mg.Deps(CheckForSeverRunning)
+
 	fmt.Println("Run: `docker compose logs -f` to see logs")
 	return nil
 }
