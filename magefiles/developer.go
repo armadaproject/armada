@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -111,57 +112,34 @@ func StopComponents() error {
 	return nil
 }
 
-// Repeatedly check logs until Pulsar is ready.
-func CheckForPulsarRunning() error {
+// Repeatedly check logs until container is ready.
+func CheckDockerContainerRunning(containerName string, expectedLogRegex string) error {
 	timeout := time.After(1 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
-	for {
-		select {
-		case <-timeout:
-			return fmt.Errorf("timed out waiting for Pulsar to start")
-		case <-tick:
-			out, err := dockerOutput("compose", "logs", "pulsar")
-			if err != nil {
-				return err
-			}
-			if strings.Contains(out, "alive") {
-				// if seconds is less than 1, it means that pulsar had already started
-				if seconds < 1 {
-					fmt.Printf("\nPulsar had already started!\n\n")
-					return nil
-				}
 
-				fmt.Printf("\nPulsar took %d seconds to start!\n\n", seconds)
-				return nil
-			}
-			seconds++
-		}
+	logMatchRegex, err := regexp.Compile(expectedLogRegex)
+	if err != nil {
+		return fmt.Errorf("invalid log regex %s - %s", expectedLogRegex, err)
 	}
-}
 
-// Repeatedly check logs until Postgres is ready.
-func CheckForPostgresRunning() error {
-	timeout := time.After(1 * time.Minute)
-	tick := time.Tick(1 * time.Second)
-	seconds := 0
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("timed out waiting for Postgres to start")
+			return fmt.Errorf("timed out waiting for %s to start", containerName)
 		case <-tick:
-			out, err := dockerOutput("compose", "logs", "postgres")
+			out, err := dockerOutput("compose", "logs", containerName)
 			if err != nil {
 				return err
 			}
-			if strings.Contains(out, "database system is ready to accept connections") {
+			if len(logMatchRegex.FindStringSubmatch(out)) > 0 {
 				// if seconds is less than 1, it means that pulsar had already started
 				if seconds < 1 {
-					fmt.Printf("\nPostgres had already started!\n\n")
+					fmt.Printf("\n%s had already started!\n\n", containerName)
 					return nil
 				}
 
-				fmt.Printf("\nPostgres took %d seconds to start!\n\n", seconds)
+				fmt.Printf("\n%s took %d seconds to start!\n\n", containerName, seconds)
 				return nil
 			}
 			seconds++

@@ -52,12 +52,10 @@ func TestSuite() error {
 
 // Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
-	// 30s gives time for:
-	// Scheduler + executor to start up
-	// Executor to report its state
-	// Scheduler to update its executor states
-	// TODO replace with an API call to work out when executors are loaded into scheduler (armadactl get executors?)
-	time.Sleep(30 * time.Second)
+	// This is a bit of a shonky check, it confirms the scheduler is up and receiving reports from the executor
+	//  at which point the system should be ready
+	// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
+	mg.Deps(CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors"))
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account

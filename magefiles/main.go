@@ -214,13 +214,18 @@ func LocalDev(arg string) error {
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
-	mg.Deps(CheckForPulsarRunning)
-	mg.Deps(CheckForPostgresRunning)
+	mg.Deps(CheckDockerContainerRunning("pulsar", "alive"))
+	mg.Deps(CheckDockerContainerRunning("postgres", "database system is ready to accept connections"))
 
 	switch arg {
 	case "minimal":
 		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
 		mg.Deps(StartComponents)
+		// This is a naive check to confirm the containers are running, it doesn't check they are ready
+		// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
+		mg.Deps(CheckDockerContainerRunning("server", "Starting http server listening on"))
+		mg.Deps(CheckDockerContainerRunning("scheduler", "Starting http server listening on"))
+		mg.Deps(CheckDockerContainerRunning("executor", "Starting http server listening on"))
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
 		return nil
