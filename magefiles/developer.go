@@ -112,6 +112,30 @@ func StopComponents() error {
 	return nil
 }
 
+func CheckPulsarRunning() error {
+	return CheckDockerContainerRunning("pulsar", "alive")
+}
+
+func CheckPostgresRunning() error {
+	return CheckDockerContainerRunning("pulsar", "alive")
+}
+
+func CheckServerRunning() error {
+	return CheckDockerContainerRunning("server", "Starting http server listening on")
+}
+
+func CheckSchedulerRunning() error {
+	return CheckDockerContainerRunning("scheduler", "Starting http server listening on")
+}
+
+func CheckExecutorRunning() error {
+	return CheckDockerContainerRunning("executor", "Starting http server listening on")
+}
+
+func CheckSchedulerReady() error {
+	return CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors")
+}
+
 // Repeatedly check logs until container is ready.
 func CheckDockerContainerRunning(containerName string, expectedLogRegex string) error {
 	timeout := time.After(1 * time.Minute)

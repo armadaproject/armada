@@ -55,7 +55,7 @@ func CheckForArmadaRunning() error {
 	// This is a bit of a shonky check, it confirms the scheduler is up and receiving reports from the executor
 	//  at which point the system should be ready
 	// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
-	mg.Deps(mg.F(CheckDockerContainerRunning, "scheduler", "Retrieved [1-9]+ executors"))
+	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account
