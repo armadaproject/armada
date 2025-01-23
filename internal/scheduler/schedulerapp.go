@@ -126,7 +126,7 @@ func Run(config schedulerconfig.Configuration) error {
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
 	err = queueCache.Initialise(ctx)
 	if err != nil {
-		return errors.WithMessage(err, "error initialising queue cache")
+		ctx.Errorf("error initialising queue cache - %v", err)
 	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
 
@@ -246,7 +246,7 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 	err = submitChecker.Initialise(ctx)
 	if err != nil {
-		return errors.WithMessage(err, "error initialising submit checker")
+		ctx.Errorf("error initialising submit checker - %v", err)
 	}
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)

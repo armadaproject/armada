@@ -73,7 +73,9 @@ func NewSubmitChecker(
 }
 
 func (srv *SubmitChecker) Initialise(ctx *armadacontext.Context) error {
-	err := srv.updateExecutors(ctx)
+	timeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	err := srv.updateExecutors(timeout)
 	if err != nil {
 		ctx.Logger().WithStacktrace(err).Errorf("Error initialising submit checker")
 	}
