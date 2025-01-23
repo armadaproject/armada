@@ -124,7 +124,7 @@ func Run(config schedulerconfig.Configuration) error {
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
-	queueCacheInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*10)
+	queueCacheInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 	err = queueCache.Initialise(queueCacheInitTimeout)
 	if err != nil {
