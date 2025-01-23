@@ -46,7 +46,7 @@ spec:
               value: {{ quote . }}
             {{- end }}
             - name: "ARMADA_LOG_CONFIG"
-              value: {{ include "armada.logging.config.filename" . }}
+              value: /config/{{ include "armada.logging.config.filename" . }}
             - name: SERVICE_ACCOUNT
               valueFrom:
                 fieldRef:
