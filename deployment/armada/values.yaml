@@ -126,8 +126,17 @@ logging:
       maxBackups: 3
       maxAgeDays: 7
       compress: false
-    filebeats:
-      enabled: true
+
+filebeat:
+  enabled: false
+  image:
+    repository: docker.elastic.co/beats/filebeat
+    tag: 7.17.0
+  logstash:
+    host: "localhost"
+    port: 5044
+
+
 
 
 

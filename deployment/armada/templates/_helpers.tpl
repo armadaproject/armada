@@ -11,6 +11,14 @@
 {{- printf "%s%s" ( include "armada.config.name" .) ".yaml" -}}
 {{- end }}
 
+{{- define "armada.logging.config.name" -}}
+{{- printf "%s-%s" ( include "armada.name" .) "logging-config" -}}
+{{- end }}
+
+{{- define "armada.logging.config.filename" -}}
+{{- printf "%s%s" ( include "armada.logging.config.name" .) ".yaml" -}}
+{{- end }}
+
 {{- define "armada.users.name" -}}
 {{- printf "%s-%s" ( include "armada.name" .) "users" -}}
 {{- end }}

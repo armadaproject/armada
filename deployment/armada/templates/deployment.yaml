@@ -45,6 +45,8 @@ spec:
             - name: GOMEMLIMIT
               value: {{ quote . }}
             {{- end }}
+            - name: "ARMADA_LOG_CONFIG"
+              value: {{ include "armada.logging.config.filename" . }}
             - name: SERVICE_ACCOUNT
               valueFrom:
                 fieldRef:
@@ -78,6 +80,10 @@ spec:
             - name: user-config
               mountPath: /config/application_config.yaml
               subPath: {{ include "armada.config.filename" . }}
+              readOnly: true
+            - name: logging-config
+              mountPath: /config/logging_config.yaml
+              subPath: {{ include "armada.logging.config.filename" . }}
               readOnly: true
             - name: logs
               mountPath: /log
@@ -119,19 +125,24 @@ spec:
             initialDelaySeconds: 10
             timeoutSeconds: 10
             failureThreshold: 3
-          - name: filebeat
-            image: docker.elastic.co/beats/filebeat:7.17.0
-            imagePullPolicy: IfNotPresent
-            args:
-              - "-e"
-              - "-c"
-              - "/etc/filebeat/filebeat.yml"
-            volumeMounts:
-              - name: filebeat-config
-                mountPath: /etc/filebeat/filebeat.yml
-                subPath: filebeat.yml
-              - name: log
-                mountPath: /log
+        - name: filebeat
+          image: {{ .Values.filebeat.image.registry }}{{ .Values.filebeat.image.tag }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LOGSTASH_HOST
+              value: {{ .Values.filebeat.logstash.host }}
+            - name: LOGSTASH_PORT
+              value: {{ .Values.filebeat.logstash.port }}
+          args:
+            - "-e"
+            - "-c"
+            - "/etc/filebeat/filebeat.yaml"
+          volumeMounts:
+            - name: filebeat-config
+              mountPath: /etc/filebeat/filebeat.yaml
+              subPath: filebeat.yml
+            - name: log
+              mountPath: /log
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -148,6 +159,9 @@ spec:
         - name: user-config
           configMap:
             name: {{ include "armada.config.name" . }}
+        - name: logging-config
+          configMap:
+            name: {{ include "armada.logging.config.name" . }}
         - name: logs
           emptyDir: { }
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
