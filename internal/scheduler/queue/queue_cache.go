@@ -32,9 +32,7 @@ func NewQueueCache(apiClient api.SubmitClient, updateFrequency time.Duration) *A
 }
 
 func (c *ApiQueueCache) Initialise(ctx *armadacontext.Context) error {
-	timeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-	err := c.fetchQueues(timeout)
+	err := c.fetchQueues(ctx)
 	if err != nil {
 		ctx.Errorf("Error initialising queue cache, failed fetching queues: %v", err)
 	}

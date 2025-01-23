@@ -124,7 +124,9 @@ func Run(config schedulerconfig.Configuration) error {
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
-	err = queueCache.Initialise(ctx)
+	queueCacheInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	err = queueCache.Initialise(queueCacheInitTimeout)
 	if err != nil {
 		ctx.Errorf("error initialising queue cache - %v", err)
 	}
@@ -244,7 +246,9 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 		resourceListFactory,
 	)
-	err = submitChecker.Initialise(ctx)
+	submitCheckerInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	err = submitChecker.Initialise(submitCheckerInitTimeout)
 	if err != nil {
 		ctx.Errorf("error initialising submit checker - %v", err)
 	}
