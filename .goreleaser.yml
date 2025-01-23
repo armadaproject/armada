@@ -224,6 +224,7 @@ dockers:
       - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
+      - pkg/api/schedulerobjects/api.swagger.json
     dockerfile: ./build/bundles/lookout/Dockerfile
 
   - id: full-bundle
@@ -258,6 +259,7 @@ dockers:
       - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
+      - pkg/api/schedulerobjects/api.swagger.json
     dockerfile: ./build/bundles/full/Dockerfile
 
   - id: server
@@ -359,6 +361,7 @@ dockers:
       - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
+      - pkg/api/schedulerobjects/api.swagger.json
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
       - config/logging.yaml

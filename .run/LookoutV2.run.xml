@@ -7,6 +7,8 @@
       <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
       <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
       <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
+      <env name="ARMADA_UICONFIG_ARMADAAPIBASEURL" value="http://localhost:8080" />
+      <env name="ARMADA_UICONFIG_BINOCULARSBASEURLPATTERN" value="http://localhost:8082" />
     </envs>
     <kind value="FILE" />
     <package value="$PROJECT_DIR$/cmd/lookoutv2/main.go" />

@@ -78,69 +78,39 @@ def sleep_pod(image: str):
             )
         ],
     )
-    return [
-        submit_pb2.JobSubmitRequestItem(
-            priority=1, pod_spec=pod, namespace=DEFAULT_NAMESPACE
-        )
-    ]
-
-
-def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
-    job_set_name = f"test-{uuid.uuid1()}"
-    job = client.submit_jobs(
-        queue=DEFAULT_QUEUE,
-        job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="busybox"),
+    return submit_pb2.JobSubmitRequestItem(
+        priority=1, pod_spec=pod, namespace=DEFAULT_NAMESPACE
     )
-    job_id = job.job_response_items[0].job_id
 
-    context["ti"].xcom_pull.return_value = {
-        "armada_queue": DEFAULT_QUEUE,
-        "armada_job_id": job_id,
-        "armada_job_set_id": job_set_name,
-    }
 
-    operator = ArmadaOperator(
+def armada_operator(image: str, channel_args: GrpcChannelArgs):
+    job_set_prefix = f"test-{uuid.uuid1()}"
+    return ArmadaOperator(
         task_id=DEFAULT_TASK_ID,
         name="test_job_success",
         channel_args=channel_args,
         armada_queue=DEFAULT_QUEUE,
-        job_request=sleep_pod(image="busybox")[0],
+        job_request=sleep_pod(image),
+        job_set_prefix=job_set_prefix,
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
+        deferrable=False,
     )
+
+
+def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
+    operator = armada_operator("busybox", channel_args)
 
     operator.execute(context)
+    job = operator.job_context
 
-    response = client.get_job_status([job_id])
-    assert JobState(response.job_states[job_id]) == JobState.SUCCEEDED
+    assert job.state == JobState.SUCCEEDED
+    response = client.get_job_status([job.job_id])
+    assert JobState(response.job_states[job.job_id]) == JobState.SUCCEEDED
 
 
-@pytest.mark.skip(reason="FIXME: This no longer works we should fix our tests")
 def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
-    job_set_name = f"test-{uuid.uuid1()}"
-    job = client.submit_jobs(
-        queue=DEFAULT_QUEUE,
-        job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="NOTACONTAINER"),
-    )
-    job_id = job.job_response_items[0].job_id
-
-    context["ti"].xcom_pull.return_value = {
-        "armada_queue": DEFAULT_QUEUE,
-        "armada_job_id": job_id,
-        "armada_job_set_id": job_set_name,
-    }
-
-    operator = ArmadaOperator(
-        task_id=DEFAULT_TASK_ID,
-        name="test_job_failure",
-        channel_args=channel_args,
-        armada_queue=DEFAULT_QUEUE,
-        job_request=sleep_pod(image="busybox")[0],
-        poll_interval=DEFAULT_POLLING_INTERVAL,
-        job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
-    )
+    operator = armada_operator("BADIMAGE", channel_args)
 
     try:
         operator.execute(context)
@@ -148,8 +118,13 @@ def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelAr
             "Operator did not raise AirflowException on job failure as expected"
         )
     except AirflowException:  # Expected
-        response = client.get_job_status([job_id])
-        assert JobState(response.job_states[job_id]) == JobState.FAILED
+        # Assert state failed
+        job = operator.job_context
+        assert job.state == JobState.FAILED
+
+        # Assert actual job failed too
+        response = client.get_job_status([job.job_id])
+        assert JobState(response.job_states[job.job_id]) == JobState.FAILED
     except Exception as e:
         pytest.fail(
             "Operator did not raise AirflowException on job failure as expected, "
@@ -157,7 +132,8 @@ def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelAr
         )
 
 
-def success_job(
+# Used benchmark parallel execution below
+def _success_job(
     task_number: int, context: Any, channel_args: GrpcChannelArgs, client: ArmadaClient
 ) -> JobState:
     operator = ArmadaOperator(
@@ -168,6 +144,7 @@ def success_job(
         job_request=sleep_pod(image="busybox")[0],
         poll_interval=DEFAULT_POLLING_INTERVAL,
         job_acknowledgement_timeout=DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT,
+        deferrable=False,
     )
 
     operator.execute(context)
@@ -181,12 +158,12 @@ def test_parallel_execution(
     client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
 ):
     threads = []
-    success_job(
+    _success_job(
         task_number=0, context=context, channel_args=channel_args, client=client
     )
     for task_number in range(5):
         t = threading.Thread(
-            target=success_job, args=[task_number, context, channel_args]
+            target=_success_job, args=[task_number, context, channel_args]
         )
         t.start()
         threads.append(t)
@@ -200,12 +177,12 @@ def test_parallel_execution_large(
     client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
 ):
     threads = []
-    success_job(
+    _success_job(
         task_number=0, context=context, channel_args=channel_args, client=client
     )
     for task_number in range(80):
         t = threading.Thread(
-            target=success_job, args=[task_number, context, channel_args]
+            target=_success_job, args=[task_number, context, channel_args]
         )
         t.start()
         threads.append(t)
@@ -219,12 +196,12 @@ def test_parallel_execution_huge(
     client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs, mocker
 ):
     threads = []
-    success_job(
+    _success_job(
         task_number=0, context=context, channel_args=channel_args, client=client
     )
     for task_number in range(500):
         t = threading.Thread(
-            target=success_job, args=[task_number, context, channel_args]
+            target=_success_job, args=[task_number, context, channel_args]
         )
         t.start()
         threads.append(t)

@@ -17,12 +17,11 @@
 # under the License.
 from __future__ import annotations
 
-import attrs
 import dataclasses
 import datetime
 import os
 import time
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jinja2
 import tenacity
@@ -30,9 +29,8 @@ import re
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowFailException
-from airflow.models import BaseOperator, BaseOperatorLink, XCom
+from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance
-from airflow.models.taskinstancekey import TaskInstanceKey
 from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -50,26 +48,7 @@ from ..model import RunningJobContext
 from ..policies.reattach import external_job_uri, policy
 from ..triggers import ArmadaPollJobTrigger
 from ..utils import log_exceptions, xcom_pull_for_ti, resolve_parameter_value
-
-
-class LookoutLink(BaseOperatorLink):
-    name = "Lookout"
-
-    def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
-        task_state = XCom.get_value(ti_key=ti_key, key="job_context")
-        if not task_state:
-            return ""
-
-        return task_state.get("armada_lookout_url", "")
-
-
-@attrs.define(init=True)
-class DynamicLink(BaseOperatorLink, LoggingMixin):
-    name: str
-
-    def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
-        url = XCom.get_value(ti_key=ti_key, key=f"armada_{self.name.lower()}_url")
-        return url
+from ..links import LookoutLink, DynamicLink, persist_link_value, UrlFromLogsExtractor
 
 
 class ArmadaOperator(BaseOperator, LoggingMixin):
@@ -118,8 +97,9 @@ acknowledged by Armada.
 :param reattach_policy: Operator reattach policy to use (defaults to: never)
 :type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
-:param extra_links: Extra links to be shown in addition to Lookout URL.
-:type extra_links: Optional[Dict[str, str]]
+:param extra_links: Extra links to be shown in addition to Lookout URL. \
+Regex patterns will be extracted from container logs (taking first match).
+:type extra_links: Optional[Dict[str, Union[str, re.Pattern]]]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
 """
 
@@ -149,7 +129,7 @@ acknowledged by Armada.
             "armada_operator", "default_dry_run", fallback=False
         ),
         reattach_policy: Optional[str] | Callable[[JobState, str], bool] = None,
-        extra_links: Optional[Dict[str, str]] = None,
+        extra_links: Optional[Dict[str, Union[str, re.Pattern]]] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -326,9 +306,7 @@ acknowledged by Armada.
                 continue
             try:
                 rendered_url = jinja_env.from_string(url).render(context)
-                self._xcom_push(
-                    context, key=f"armada_{name.lower()}_url", value=rendered_url
-                )
+                persist_link_value(context["ti"].key, name, rendered_url)
             except jinja2.TemplateError as e:
                 self.log.error(f"Error rendering template for {name} ({url}): {e}")
 
@@ -485,12 +463,16 @@ acknowledged by Armada.
 
         if self._should_have_a_pod_in_k8s() and self.container_logs:
             try:
+                link_extractor = UrlFromLogsExtractor.create(
+                    self.extra_links, context["ti"].key
+                )
                 last_log_time = self.pod_manager.fetch_container_logs(
                     k8s_context=self.job_context.cluster,
                     namespace=self.job_request.namespace,
                     pod=f"armada-{self.job_context.job_id}-0",
                     container=self.container_logs,
                     since_time=self.job_context.last_log_time,
+                    link_extractor=link_extractor,
                 )
                 if last_log_time:
                     self.job_context = dataclasses.replace(
