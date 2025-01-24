@@ -39,7 +39,6 @@ func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, entry *internaltypes.Node) error {
-
 	nodeDb.addNodeToStats(entry)
 
 	for _, job := range jobs {
