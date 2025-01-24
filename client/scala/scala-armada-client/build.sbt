@@ -16,8 +16,7 @@ Compile / PB.targets := Seq(
 )
 
 // Additional directories to search for imports:
-// Compile / PB.includePaths ++= Seq(file("../../../proto"), file("../../../proto/armada"))
-// Compile / PB.protoSources ++= Seq(file("../../../proto"))
+Compile / PB.protoSources ++= Seq(file("./proto"))
 
 libraryDependencies ++= Seq(
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
