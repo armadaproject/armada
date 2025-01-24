@@ -3,7 +3,7 @@ package io.armadaproject.armada
 import io.grpc.ManagedChannelBuilder
 import api.submit.{Queue, QueueGetRequest, SubmitGrpc}
 
-object Queue {
+object ArmadaQueue {
   val host = "localhost"
   val port = 30002
 

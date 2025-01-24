@@ -2,10 +2,9 @@ package io.armadaproject.armada
 
 import io.grpc.ManagedChannelBuilder
 import k8s.io.api.core.v1.generated.{Container, PodSpec, ResourceRequirements}
-import k8s.io.api.batch.v1.generated.JobStatus
 import k8s.io.apimachinery.pkg.api.resource.generated.Quantity
 import api.submit.SubmitGrpc
-import queryapi.queryapi.{JobStatusRequest, JobStatusResponse, QueryApiGrpc}
+import api.job.{JobStatusRequest, JobStatusResponse, JobsGrpc}
 
 object Job {
   val host = "localhost"
@@ -14,9 +13,9 @@ object Job {
   def getJobStatus(host: String, port: Int, jId: String): JobStatusResponse = {
     val channel =
       ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
-    val blockingStub = QueryApiGrpc.blockingStub(channel)
+    val blockingStub = JobsGrpc.blockingStub(channel)
 
-    val jsReq = JobStatusRequest(jobId = jId)
+    val jsReq = JobStatusRequest(jobIds = Seq(jId))
     val reply: JobStatusResponse = blockingStub.getJobStatus(jsReq)
     reply
   }
