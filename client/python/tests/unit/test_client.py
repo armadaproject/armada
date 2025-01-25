@@ -167,7 +167,7 @@ def test_get_queue():
 
 
 def test_get_queues():
-    queues = tester.get_queues().name
+    queues = tester.get_queues()
     queue_names = [q.name for q in queues]
     assert queue_names == ["test_queue1", "test_queue2", "test_queue3"]
 
