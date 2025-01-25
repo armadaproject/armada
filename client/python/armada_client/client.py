@@ -103,8 +103,9 @@ class ArmadaClient:
     def __init__(self, channel, event_timeout: timedelta = timedelta(minutes=15)):
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
-        self.event_timeout = event_timeout
         self.job_stub = job_pb2_grpc.JobsStub(channel)
+        self.queue_stub = submit_pb2_grpc.QueueServiceStub(channel)
+        self.event_timeout = event_timeout
 
     def get_job_events_stream(
         self,
@@ -378,7 +379,7 @@ class ArmadaClient:
         :param queue: A queue to create.
         """
 
-        response = self.submit_stub.CreateQueue(queue)
+        response = self.queue_stub.CreateQueue(queue)
         return response
 
     def update_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
@@ -401,7 +402,7 @@ class ArmadaClient:
         """
 
         queue_list = submit_pb2.QueueList(queues=queues)
-        response = self.submit_stub.CreateQueues(queue_list)
+        response = self.queue_stub.CreateQueues(queue_list)
         return response
 
     def update_queues(
@@ -414,7 +415,7 @@ class ArmadaClient:
         """
 
         queue_list = submit_pb2.QueueList(queues=queues)
-        response = self.submit_stub.UpdateQueues(queue_list)
+        response = self.queue_stub.UpdateQueues(queue_list)
         return response
 
     def delete_queue(self, name: str) -> None:
@@ -426,7 +427,7 @@ class ArmadaClient:
         :return: None
         """
         request = submit_pb2.QueueDeleteRequest(name=name)
-        self.submit_stub.DeleteQueue(request)
+        self.queue_stub.DeleteQueue(request)
 
     def get_queue(self, name: str) -> submit_pb2.Queue:
         """Get the queue by name.
@@ -437,7 +438,7 @@ class ArmadaClient:
         :return: A queue object. See the api definition.
         """
         request = submit_pb2.QueueGetRequest(name=name)
-        response = self.submit_stub.GetQueue(request)
+        response = self.queue_stub.GetQueue(request)
         return response
 
     @staticmethod

@@ -15,7 +15,7 @@ from armada_client.armada.job_pb2 import JobRunState
 from armada_client.armada.submit_pb2 import JobState
 
 
-class SubmitService(submit_pb2_grpc.SubmitServicer):
+class QueueService(submit_pb2_grpc.QueueServiceServicer):
     def CreateQueue(self, request, context):
         return empty_pb2.Empty()
 
@@ -25,6 +25,30 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
     def GetQueue(self, request, context):
         return submit_pb2.Queue(name=request.name)
 
+    def GetQueueInfo(self, request, context):
+        return submit_pb2.QueueInfo(name=request.name)
+
+    def CreateQueues(self, request, context):
+        return submit_pb2.BatchQueueCreateResponse(
+            failed_queues=[
+                submit_pb2.QueueCreateResponse(queue=submit_pb2.Queue(name=queue.name))
+                for queue in request.queues
+            ]
+        )
+
+    def UpdateQueues(self, request, context):
+        return submit_pb2.BatchQueueUpdateResponse(
+            failed_queues=[
+                submit_pb2.QueueUpdateResponse(queue=submit_pb2.Queue(name=queue.name))
+                for queue in request.queues
+            ]
+        )
+
+    def UpdateQueue(self, request, context):
+        return empty_pb2.Empty()
+
+
+class SubmitService(submit_pb2_grpc.SubmitServicer):
     def SubmitJobs(self, request, context):
         # read job_ids from request.job_request_items
         job_ids = [f"job-{i}" for i in range(1, len(request.job_request_items) + 1)]
@@ -34,9 +58,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         ]
 
         return submit_pb2.JobSubmitResponse(job_response_items=job_response_items)
-
-    def GetQueueInfo(self, request, context):
-        return submit_pb2.QueueInfo(name=request.name)
 
     def CancelJobs(self, request, context):
         return submit_pb2.CancellationResult(
@@ -71,25 +92,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         results = [(k, str(v)) for k, v in results.items()]
 
         return submit_pb2.JobReprioritizeResponse(reprioritization_results=results)
-
-    def UpdateQueue(self, request, context):
-        return empty_pb2.Empty()
-
-    def CreateQueues(self, request, context):
-        return submit_pb2.BatchQueueCreateResponse(
-            failed_queues=[
-                submit_pb2.QueueCreateResponse(queue=submit_pb2.Queue(name=queue.name))
-                for queue in request.queues
-            ]
-        )
-
-    def UpdateQueues(self, request, context):
-        return submit_pb2.BatchQueueUpdateResponse(
-            failed_queues=[
-                submit_pb2.QueueUpdateResponse(queue=submit_pb2.Queue(name=queue.name))
-                for queue in request.queues
-            ]
-        )
 
     def Health(self, request, context):
         return health_pb2.HealthCheckResponse(
