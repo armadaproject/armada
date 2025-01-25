@@ -291,6 +291,7 @@ class ArmadaClient:
     ) -> empty_pb2.Empty:
         """Cancel jobs in a given queue.
 
+
         Uses the CancelJobSet RPC to cancel jobs.
         A filter is used to only cancel jobs in certain states.
 
@@ -440,6 +441,24 @@ class ArmadaClient:
         request = submit_pb2.QueueGetRequest(name=name)
         response = self.queue_stub.GetQueue(request)
         return response
+
+    def get_queues(self) -> [submit_pb2.Queue]:
+      """Get all queues.
+
+      Uses the GetQueues RPC to get the queues.
+
+      :return: list containing all queues
+      """
+      queues = []
+
+      request = submit_pb2.StreamingQueueGetRequest()
+
+      for message in self.queue_stub.GetQueues(request):
+        if message.HasField('queue'):
+          queues.append(message.queue)
+        elif message.HasField('end'):
+          break
+      return queues
 
     @staticmethod
     def unwatch_events(event_stream) -> None:
