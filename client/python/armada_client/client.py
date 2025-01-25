@@ -442,7 +442,7 @@ class ArmadaClient:
         response = self.queue_stub.GetQueue(request)
         return response
 
-    def get_queues(self) -> [submit_pb2.Queue]:
+    def get_queues(self) -> List[submit_pb2.Queue]:
         """Get all queues.
 
         Uses the GetQueues RPC to get the queues.

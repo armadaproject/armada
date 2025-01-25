@@ -461,7 +461,7 @@ Uses the GetQueues RPC to get the queues.
 
 * **Return type**
 
-    [<class ‘armada.submit_pb2.Queue’>]
+    *List*[armada.submit_pb2.Queue]
 
 
 
