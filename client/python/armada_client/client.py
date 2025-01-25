@@ -389,7 +389,7 @@ class ArmadaClient:
         :param queue: A queue to update.
         """
 
-        response = self.submit_stub.UpdateQueue(queue)
+        response = self.queue_stub.UpdateQueue(queue)
         return response
 
     def create_queues(
