@@ -25,6 +25,16 @@ class QueueService(submit_pb2_grpc.QueueServiceServicer):
     def GetQueue(self, request, context):
         return submit_pb2.Queue(name=request.name)
 
+    def GetQueues(self, request, context):
+        queue_names = ["test_queue1", "test_queue2", "test_queue3"]
+        for name in queue_names:
+            queue_message = submit_pb2.StreamingQueueMessage(
+                queue=submit_pb2.Queue(name=name)
+            )
+            yield queue_message
+
+        yield submit_pb2.StreamingQueueMessage(end=submit_pb2.EndMarker())
+
     def GetQueueInfo(self, request, context):
         return submit_pb2.QueueInfo(name=request.name)
 
