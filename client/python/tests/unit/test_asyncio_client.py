@@ -177,7 +177,7 @@ async def test_get_queue(aio_client):
 
 
 @pytest.mark.asyncio
-async def test_get_queues():
+async def test_get_queues(aio_client):
     queues = await aio_client.get_queues()
     queue_names = [q.name for q in queues]
     assert queue_names == ["test_queue1", "test_queue2", "test_queue3"]
