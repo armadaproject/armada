@@ -77,14 +77,14 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		config.Scheduling.SupportedResourceTypes,
-		config.Scheduling.ExperimentalFloatingResources,
+		config.Scheduling.FloatingResources,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources, resourceListFactory)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.FloatingResources, resourceListFactory)
 	if err != nil {
 		return err
 	}
