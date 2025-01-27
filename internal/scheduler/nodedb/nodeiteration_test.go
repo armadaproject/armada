@@ -312,15 +312,15 @@ func TestNodeTypeIterator(t *testing.T) {
 			require.NoError(t, err)
 
 			entries := make([]*internaltypes.Node, len(tc.nodes))
+			txn := nodeDb.Txn(true)
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				newNodeId := fmt.Sprintf("%d", i)
 				entry := testfixtures.WithIdNodes(newNodeId, []*internaltypes.Node{node})[0]
-
-				nodeDb.AddNodeToDb(entry)
+				require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, entry))
 				entries[i] = entry
 			}
-			require.NoError(t, nodeDb.UpsertMany(entries))
+			txn.Commit()
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
 
@@ -639,20 +639,18 @@ func TestNodeTypesIterator(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
+			txn := nodeDb.Txn(true)
 			entries := make([]*internaltypes.Node, len(tc.nodes))
 			for i, node := range tc.nodes {
 				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				nodeId := fmt.Sprintf("%d", i)
 				entry := testfixtures.WithIdNodes(nodeId, []*internaltypes.Node{node})[0]
 				entry = testfixtures.WithIndexNode(uint64(i), entry)
-
 				require.NoError(t, err)
-
-				nodeDb.AddNodeToDb(entry)
-
+				require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, entry))
 				entries[i] = entry
 			}
-			require.NoError(t, nodeDb.UpsertMany(entries))
+			txn.Commit()
 
 			rr := tc.resourceRequests
 
