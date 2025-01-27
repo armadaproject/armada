@@ -126,13 +126,13 @@ func NewSimulator(
 ) (*Simulator, error) {
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		schedulingConfig.SupportedResourceTypes,
-		schedulingConfig.ExperimentalFloatingResources,
+		schedulingConfig.FloatingResources,
 	)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.ExperimentalFloatingResources, resourceListFactory)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.FloatingResources, resourceListFactory)
 	if err != nil {
 		return nil, err
 	}

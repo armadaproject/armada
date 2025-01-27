@@ -447,6 +447,24 @@ Uses the GetQueue RPC to get the queue.
 
 
 
+#### get_queues()
+Get all queues.
+
+Uses the GetQueues RPC to get the queues.
+
+
+* **Returns**
+
+    list containing all queues
+
+
+
+* **Return type**
+
+    *List*[armada.submit_pb2.Queue]
+
+
+
 #### preempt_jobs(queue, job_set_id, job_id)
 Preempt jobs in a given queue.
 
