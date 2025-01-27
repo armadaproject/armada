@@ -5,8 +5,9 @@ import (
 	"strings"
 	"sync"
 
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -70,11 +71,14 @@ func (l *LeaderConnectionProvider) getClientByName(currentLeaderName string) (*g
 }
 
 func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {
-	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	clientMetrics := grpc_prometheus.NewClientMetrics(
+		grpc_prometheus.WithClientHandlingTimeHistogram(),
+	)
+	prometheus.MustRegister(clientMetrics)
 	return client.CreateApiConnectionWithCallOptions(
 		&connectionDetails,
 		[]grpc.CallOption{},
-		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
 	)
 }
