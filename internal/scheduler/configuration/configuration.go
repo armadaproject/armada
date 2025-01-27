@@ -224,7 +224,7 @@ type SchedulingConfig struct {
 	// These can be requested like a normal k8s resource. Note there is no mechanism in armada
 	// to enforce actual usage, it relies on honesty. For example, there is nothing to stop a badly-behaved job
 	// requesting 2 S3 server connections and then opening 10.
-	ExperimentalFloatingResources []FloatingResourceConfig
+	FloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
 	// Executor that haven't heartbeated in this time period are considered stale.
