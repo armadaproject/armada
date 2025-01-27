@@ -6,7 +6,7 @@ import pytest_asyncio
 
 from armada_client.typings import JobState
 from armada_client.armada.job_pb2 import JobRunState
-from server_mock import EventService, SubmitService, QueryAPIService
+from server_mock import EventService, SubmitService, QueueService, QueryAPIService
 
 from armada_client.armada import (
     event_pb2_grpc,
@@ -28,6 +28,7 @@ from armada_client.permissions import Permissions, Subject
 def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
+    submit_pb2_grpc.add_QueueServiceServicer_to_server(QueueService(), server)
     event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
     job_pb2_grpc.add_JobsServicer_to_server(QueryAPIService(), server)
     server.add_insecure_port("[::]:50051")
