@@ -453,6 +453,20 @@ class ArmadaAsyncIOClient:
         response = await self.queue_stub.GetQueue(request)
         return response
 
+    async def get_queues(self) -> list:
+        """Retrieves all queues
+        :return: List containing all queues.
+        """
+        queues = []
+        request = submit_pb2.StreamingQueueGetRequest()
+        async for message in self.queue_stub.GetQueues(request):
+            event_type = message.WhichOneof("event")
+            if event_type == "queue":
+                queues.append(message.queue)
+            elif event_type == "end":
+                break
+        return queues
+
     @staticmethod
     def unwatch_events(event_stream) -> None:
         """Closes gRPC event streams
