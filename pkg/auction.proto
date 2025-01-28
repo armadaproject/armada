@@ -1,0 +1,21 @@
+syntax = "proto3";
+package api;
+option go_package = "pkg/api";
+
+
+message PriorityMultiplierRequest {
+  // Empty for now; future versions may include filtering parameters
+}
+
+message PoolPriorityMultipliers {
+  string pool = 1;
+  map<string, double> multipliers = 2;
+}
+
+message PriorityMultiplierResponse {
+  repeated PoolPriorityMultipliers poolPriorityMultipliers = 1;
+}
+
+service PriorityMultiplierService {
+  rpc GetPriorityMultipliers (PriorityMultiplierRequest) returns (PriorityMultiplierResponse);
+}
