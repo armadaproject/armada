@@ -39,5 +39,5 @@ do
 done
 
 cd $ROOT/$SDIR
-sbt clean && sbt -Dsbt.io.implicit.relative.glob.conversion=allow compile
+sbt clean && sbt -Dsbt.io.implicit.relative.glob.conversion=allow compile && sbt package
 
