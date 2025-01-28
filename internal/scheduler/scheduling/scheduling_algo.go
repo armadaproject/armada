@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"math"
 	"time"
 
@@ -43,7 +44,7 @@ type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueCache                  queue.QueueCache
-	multiplierCache             priorityMultiplier.Cache
+	queueMultiplierProvider     prioritymultiplier.Provider
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -64,6 +65,7 @@ func NewFairSchedulingAlgo(
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	resourceListFactory *internaltypes.ResourceListFactory,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
+	queueMultiplierProvider prioritymultiplier.Provider,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -75,6 +77,7 @@ func NewFairSchedulingAlgo(
 		schedulingConfig:            config,
 		executorRepository:          executorRepository,
 		queueCache:                  queueCache,
+		queueMultiplierProvider:     queueMultiplierProvider,
 		schedulingContextRepository: schedulingContextRepository,
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
@@ -105,6 +108,12 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
+		ctx.Info("scheduling disabled; exiting")
+		return overallSchedulerResult, nil
+	}
+
+	// Exit immediately if priority multipliers are not ready
+	if !l.queueMultiplierProvider.Ready() {
 		ctx.Info("scheduling disabled; exiting")
 		return overallSchedulerResult, nil
 	}
@@ -474,10 +483,15 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 		if allocationByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocationByQueueAndPriorityClass[queue.Name]
 		}
-		var weight float64 = 1
+		var rawWeight float64 = 1
 		if queue.PriorityFactor > 0 {
-			weight = 1 / queue.PriorityFactor
+			rawWeight = 1 / queue.PriorityFactor
 		}
+		multiplier, err := l.queueMultiplierProvider.Multiplier(pool, queue.Name)
+		if err != nil {
+			return nil, err
+		}
+		weight := rawWeight * multiplier
 
 		queueLimiter, ok := l.limiterByQueue[queue.Name]
 		if !ok {
@@ -488,7 +502,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			l.limiterByQueue[queue.Name] = queueLimiter
 		}
 
-		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(cappedDemand), queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(cappedDemand), queueLimiter); err != nil {
 			return nil, err
 		}
 	}
@@ -500,12 +514,17 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			continue
 		}
 
-		var weight float64 = 1
+		var rawWeight float64 = 1
 		if queue.PriorityFactor > 0 {
-			weight = 1 / queue.PriorityFactor
+			rawWeight = 1 / queue.PriorityFactor
 		}
+		multiplier, err := l.queueMultiplierProvider.Multiplier(pool, queue.Name)
+		if err != nil {
+			return nil, err
+		}
+		weight := rawWeight * multiplier
 
-		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
+		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
 		}
 	}

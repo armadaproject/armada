@@ -55,6 +55,8 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
+	// Allows queue priority multipliers to be fetched from an external source
+	PriorityMultiplier PriorityMultiplierConfig
 }
 
 type LeaderConfig struct {
@@ -294,4 +296,11 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 type ExperimentalIndicativePricing struct {
 	BasePrice    float64
 	BasePriority float64
+}
+
+type PriorityMultiplierConfig struct {
+	Enabled         bool
+	UpdateFrequency time.Duration
+	ServiceUrl      string
+	ForceNoTls      bool
 }

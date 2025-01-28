@@ -1,7 +1,6 @@
 syntax = "proto3";
 package api;
-option go_package = "pkg/api";
-
+option go_package = "pkg/priorityoverride";
 
 message PriorityMultiplierRequest {
   // Empty for now; future versions may include filtering parameters

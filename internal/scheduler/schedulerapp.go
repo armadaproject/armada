@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -125,6 +126,19 @@ func Run(config schedulerconfig.Configuration) error {
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
 	services = append(services, func() error { return queueCache.Run(ctx) })
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Priority Multiplier
+	// ////////////////////////////////////////////////////////////////////////
+	priorityMultiplierProvider := prioritymultiplier.NewNoOpProvider()
+	if config.PriorityMultiplier.Enabled {
+		ctx.Infof("Priority Multiplier Service configured, will fetch overrides from %s", config.PriorityMultiplier.ServiceUrl)
+		priorityMultiplierClient, err := prioritymultiplier.NewServiceClient(config.PriorityMultiplier)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating priority multiplier client")
+		}
+		priorityMultiplierProvider = prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -253,6 +267,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		resourceListFactory,
 		floatingResourceTypes,
+		priorityMultiplierProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
