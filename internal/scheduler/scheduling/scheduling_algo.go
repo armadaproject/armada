@@ -43,6 +43,7 @@ type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueCache                  queue.QueueCache
+	multiplierCache             priorityMultiplier.Cache
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
