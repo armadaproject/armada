@@ -7,7 +7,6 @@ import (
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -25,14 +24,16 @@ type LeaderConnectionProvider struct {
 	leaderConfig     configuration.LeaderConfig
 	connectionLock   sync.Mutex
 	connectionByName map[string]*grpc.ClientConn
+	metrics          *grpc_prometheus.ClientMetrics
 }
 
-func NewLeaderConnectionProvider(leaderController LeaderController, leaderConfig configuration.LeaderConfig) *LeaderConnectionProvider {
+func NewLeaderConnectionProvider(leaderController LeaderController, leaderConfig configuration.LeaderConfig, metrics *grpc_prometheus.ClientMetrics) *LeaderConnectionProvider {
 	return &LeaderConnectionProvider{
 		leaderController: leaderController,
 		leaderConfig:     leaderConfig,
 		connectionLock:   sync.Mutex{},
 		connectionByName: map[string]*grpc.ClientConn{},
+		metrics:          metrics,
 	}
 }
 
@@ -61,7 +62,7 @@ func (l *LeaderConnectionProvider) getClientByName(currentLeaderName string) (*g
 	leaderConnectionDetails := l.leaderConfig.LeaderConnection
 	leaderConnectionDetails.ArmadaUrl = strings.ReplaceAll(leaderConnectionDetails.ArmadaUrl, leaseHolderNameToken, currentLeaderName)
 
-	apiConnection, err := createApiConnection(leaderConnectionDetails)
+	apiConnection, err := createApiConnection(leaderConnectionDetails, l.metrics)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error creating connection to leader")
 	}
@@ -70,11 +71,7 @@ func (l *LeaderConnectionProvider) getClientByName(currentLeaderName string) (*g
 	return apiConnection, nil
 }
 
-func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {
-	clientMetrics := grpc_prometheus.NewClientMetrics(
-		grpc_prometheus.WithClientHandlingTimeHistogram(),
-	)
-	prometheus.MustRegister(clientMetrics)
+func createApiConnection(connectionDetails client.ApiConnectionDetails, clientMetrics *grpc_prometheus.ClientMetrics) (*grpc.ClientConn, error) {
 	return client.CreateApiConnectionWithCallOptions(
 		&connectionDetails,
 		[]grpc.CallOption{},
