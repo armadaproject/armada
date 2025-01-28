@@ -39,5 +39,18 @@ do
 done
 
 cd $ROOT/$SDIR
-sbt clean && sbt -Dsbt.io.implicit.relative.glob.conversion=allow compile && sbt package
+sbt clean && \
+sbt -Dsbt.io.implicit.relative.glob.conversion=allow compile && \
+sbt -Dsbt.io.implicit.relative.glob.conversion=allow package
+
+if [ $? -eq 0 ]; then
+  jarfile=$(find . -type f -name 'scala-armada-client*.jar')
+  if [[ $jarfile ]]; then
+    echo "" > /dev/stderr
+    jarfile=$(echo $jarfile | sed -e s%^\./%%)
+    echo "Armada Scala client jar file written to $SDIR/$jarfile" > /dev/stderr
+  fi
+else
+  echo "sbt build exited with exit code $?" > /dev/stderr
+fi
 
