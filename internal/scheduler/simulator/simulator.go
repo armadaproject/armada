@@ -579,6 +579,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			err := sctx.AddQueueSchedulingContext(
 				queue.Name,
 				queue.Weight,
+				queue.Weight,
 				s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
 				demand,
 				demand,

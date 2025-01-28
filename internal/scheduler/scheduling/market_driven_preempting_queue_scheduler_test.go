@@ -445,6 +445,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					err := sctx.AddQueueSchedulingContext(
 						queue,
 						weight,
+						weight,
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
 						queueDemand,

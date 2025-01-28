@@ -2,11 +2,12 @@ package prioritymultiplier
 
 import (
 	"fmt"
+	"sync/atomic"
+	"time"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"sync/atomic"
-	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
