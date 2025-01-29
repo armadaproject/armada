@@ -87,5 +87,6 @@ func (p *ServiceProvider) fetchMultipliers(ctx *armadacontext.Context) error {
 			multipliers[key] = multiplier
 		}
 	}
+	p.multipliers.Store(&multipliers)
 	return nil
 }
