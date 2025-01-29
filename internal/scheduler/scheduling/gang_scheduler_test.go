@@ -615,6 +615,7 @@ func TestGangScheduler(t *testing.T) {
 				err := sctx.AddQueueSchedulingContext(
 					queue,
 					priorityFactor,
+					priorityFactor,
 					nil,
 					internaltypes.ResourceList{},
 					internaltypes.ResourceList{},
