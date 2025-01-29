@@ -31,5 +31,4 @@ func TestNoOp(t *testing.T) {
 		assert.NoError(t, err, testName)
 		assert.Equal(t, 1.0, multiplier, testName)
 	}
-
 }

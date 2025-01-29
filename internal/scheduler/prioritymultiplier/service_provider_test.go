@@ -21,7 +21,7 @@ func TestFetch(t *testing.T) {
 		"No Multipliers": {
 			multipliers: []*priorityoverride.PoolPriorityMultipliers{},
 			expectedMultipliers: map[multiplierKey]float64{
-				multiplierKey{pool: "testpool", queue: "testQueue"}: 1.0,
+				{pool: "testpool", queue: "testQueue"}: 1.0,
 			},
 		},
 		"One Multiplier, One Pool": {
@@ -34,9 +34,9 @@ func TestFetch(t *testing.T) {
 				},
 			},
 			expectedMultipliers: map[multiplierKey]float64{
-				multiplierKey{pool: "testpool", queue: "testqueue"}:  2.0,
-				multiplierKey{pool: "otherpool", queue: "testqueue"}: 1.0,
-				multiplierKey{pool: "testpool", queue: "otherqueue"}: 1.0,
+				{pool: "testpool", queue: "testqueue"}:  2.0,
+				{pool: "otherpool", queue: "testqueue"}: 1.0,
+				{pool: "testpool", queue: "otherqueue"}: 1.0,
 			},
 		},
 		"Multiple Multipliers, Multiple pools": {
@@ -57,10 +57,10 @@ func TestFetch(t *testing.T) {
 				},
 			},
 			expectedMultipliers: map[multiplierKey]float64{
-				multiplierKey{pool: "testpool", queue: "testqueue"}:   2.0,
-				multiplierKey{pool: "testpool", queue: "testqueue2"}:  3.0,
-				multiplierKey{pool: "testpool2", queue: "testqueue"}:  4.0,
-				multiplierKey{pool: "testpool2", queue: "testqueue2"}: 5.0,
+				{pool: "testpool", queue: "testqueue"}:   2.0,
+				{pool: "testpool", queue: "testqueue2"}:  3.0,
+				{pool: "testpool2", queue: "testqueue"}:  4.0,
+				{pool: "testpool2", queue: "testqueue2"}: 5.0,
 			},
 		},
 	}
