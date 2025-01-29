@@ -35,7 +35,8 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil)
+		priorityFactor := priorityFactorByQueue[queue]
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactor, priorityFactor, allocatedByQueueAndPriorityClass[queue], internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil)
 		require.NoError(t, err)
 	}
 
@@ -182,7 +183,7 @@ func TestCalculateFairShares(t *testing.T) {
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
+					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
@@ -269,7 +270,7 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
+					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
 				require.NoError(t, err)
 			}
 			theoreticalShare := sctx.CalculateTheoreticalShare(tc.basePriority)

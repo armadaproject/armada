@@ -40,6 +40,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -126,6 +127,19 @@ func Run(config schedulerconfig.Configuration) error {
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
 	services = append(services, func() error { return queueCache.Run(ctx) })
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Priority Multiplier
+	// ////////////////////////////////////////////////////////////////////////
+	priorityMultiplierProvider := prioritymultiplier.NewNoOpProvider()
+	if config.PriorityMultiplier.Enabled {
+		ctx.Infof("Priority Multiplier Service configured, will fetch overrides from %s", config.PriorityMultiplier.ServiceUrl)
+		priorityMultiplierClient, err := prioritymultiplier.NewServiceClient(config.PriorityMultiplier)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating priority multiplier client")
+		}
+		priorityMultiplierProvider = prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -259,6 +273,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		resourceListFactory,
 		floatingResourceTypes,
+		priorityMultiplierProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
