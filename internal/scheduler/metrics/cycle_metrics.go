@@ -287,11 +287,11 @@ func (m *cycleMetrics) enableLeaderMetrics() {
 func (m *cycleMetrics) disableLeaderMetrics() {
 	m.cycleMetricAccessLock.Lock()
 	defer m.cycleMetricAccessLock.Unlock()
-	m.resetAllMetrics()
+	m.resetLeaderMetrics()
 	m.leaderMetricsEnabled = false
 }
 
-func (m *cycleMetrics) resetAllMetrics() {
+func (m *cycleMetrics) resetLeaderMetrics() {
 	for _, metric := range m.allResettableMetrics {
 		metric.Reset()
 	}
