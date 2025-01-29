@@ -504,7 +504,7 @@ func TestQueueScheduler(t *testing.T) {
 			for _, q := range tc.Queues {
 				weight := 1.0 / float64(q.PriorityFactor)
 				err := sctx.AddQueueSchedulingContext(
-					q.Name, weight,
+					q.Name, weight, weight,
 					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
 					internaltypes.ResourceList{},
 					internaltypes.ResourceList{},
