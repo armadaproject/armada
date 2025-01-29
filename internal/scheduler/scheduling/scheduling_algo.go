@@ -114,7 +114,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	// Exit immediately if priority multipliers are not ready
 	if !l.queueMultiplierProvider.Ready() {
-		ctx.Info("scheduling disabled; exiting")
+		ctx.Warn("queue multipliers are not ready; exiting")
 		return overallSchedulerResult, nil
 	}
 
