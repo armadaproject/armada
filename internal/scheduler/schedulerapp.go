@@ -10,6 +10,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -238,7 +239,12 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingContextRepository := reports.NewSchedulingContextRepository()
 	reportServer := reports.NewServer(schedulingContextRepository)
 
-	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader)
+	clientMetrics := grpc_prometheus.NewClientMetrics(
+		grpc_prometheus.WithClientHandlingTimeHistogram(),
+	)
+	prometheus.MustRegister(clientMetrics)
+
+	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
 	schedulingSchedulerReportingServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingSchedulerReportingServer)
 

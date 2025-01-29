@@ -4,8 +4,6 @@ import (
 	"os"
 	"sync"
 
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/binoculars/server"
 	"github.com/armadaproject/armada/internal/binoculars/service"
@@ -48,7 +46,6 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 	cordonService := service.NewKubernetesCordonService(config.Cordon, permissionsChecker, kubernetesClientProvider)
 	binocularsServer := server.NewBinocularsServer(logService, cordonService)
 	binoculars.RegisterBinocularsServer(grpcServer, binocularsServer)
-	grpc_prometheus.Register(grpcServer)
 
 	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
