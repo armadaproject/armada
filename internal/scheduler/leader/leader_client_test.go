@@ -3,6 +3,7 @@ package leader
 import (
 	"testing"
 
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -28,7 +29,7 @@ var templatedLeader = configuration.LeaderConfig{
 
 func TestGetCurrentLeaderClientConnection(t *testing.T) {
 	leaderController := &FakeLeaderController{}
-	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig)
+	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig, &grpc_prometheus.ClientMetrics{})
 	leaderController.LeaderName = "new-leader"
 
 	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
@@ -40,7 +41,7 @@ func TestGetCurrentLeaderClientConnection(t *testing.T) {
 
 func TestGetCurrentLeaderClientConnection_WithTemplatedConnection(t *testing.T) {
 	leaderController := &FakeLeaderController{}
-	clientProvider := NewLeaderConnectionProvider(leaderController, templatedLeader)
+	clientProvider := NewLeaderConnectionProvider(leaderController, templatedLeader, &grpc_prometheus.ClientMetrics{})
 
 	leaderController.LeaderName = "new-leader"
 	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
@@ -59,7 +60,7 @@ func TestGetCurrentLeaderClientConnection_WithTemplatedConnection(t *testing.T) 
 
 func TestGetCurrentLeaderClientConnection_NoLeader(t *testing.T) {
 	leaderController := &FakeLeaderController{}
-	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig)
+	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig, &grpc_prometheus.ClientMetrics{})
 
 	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
 	assert.Nil(t, result)
@@ -69,7 +70,7 @@ func TestGetCurrentLeaderClientConnection_NoLeader(t *testing.T) {
 
 func TestGetCurrentLeaderClientConnection_OnCurrentProcessIsLeader(t *testing.T) {
 	leaderController := &FakeLeaderController{}
-	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig)
+	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig, &grpc_prometheus.ClientMetrics{})
 	leaderController.IsCurrentlyLeader = true
 
 	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()

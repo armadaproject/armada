@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 // dirWithIndexFallback is a http.FileSystem that serves the index.html file at
@@ -41,7 +40,7 @@ func ListenAndServe(ctx *armadacontext.Context, server *http.Server) error {
 		// Shutdown server on ctx done.
 		<-ctx.Done()
 		if err := server.Shutdown(ctx); err != nil {
-			logging.WithStacktrace(ctx, err).Errorf("failed to shutdown server serving %s", server.Addr)
+			ctx.Logger().WithStacktrace(err).Errorf("failed to shutdown server serving %s", server.Addr)
 		}
 	}()
 	if err := server.ListenAndServe(); err != nil {

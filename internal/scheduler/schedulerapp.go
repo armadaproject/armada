@@ -10,10 +10,10 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -26,7 +26,7 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
@@ -40,6 +40,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -78,14 +79,14 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		config.Scheduling.SupportedResourceTypes,
-		config.Scheduling.ExperimentalFloatingResources,
+		config.Scheduling.FloatingResources,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources, resourceListFactory)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.FloatingResources, resourceListFactory)
 	if err != nil {
 		return err
 	}
@@ -118,14 +119,27 @@ func Run(config schedulerconfig.Configuration) error {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
-			logging.
-				WithStacktrace(ctx, err).
+			ctx.Logger().
+				WithStacktrace(err).
 				Warnf("Armada api client didn't close down cleanly")
 		}
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
 	services = append(services, func() error { return queueCache.Run(ctx) })
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Priority Multiplier
+	// ////////////////////////////////////////////////////////////////////////
+	priorityMultiplierProvider := prioritymultiplier.NewNoOpProvider()
+	if config.PriorityMultiplier.Enabled {
+		ctx.Infof("Priority Multiplier Service configured, will fetch overrides from %s", config.PriorityMultiplier.ServiceUrl)
+		priorityMultiplierClient, err := prioritymultiplier.NewServiceClient(config.PriorityMultiplier)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating priority multiplier client")
+		}
+		priorityMultiplierProvider = prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -225,7 +239,12 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingContextRepository := reports.NewSchedulingContextRepository()
 	reportServer := reports.NewServer(schedulingContextRepository)
 
-	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader)
+	clientMetrics := grpc_prometheus.NewClientMetrics(
+		grpc_prometheus.WithClientHandlingTimeHistogram(),
+	)
+	prometheus.MustRegister(clientMetrics)
+
+	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
 	schedulingSchedulerReportingServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingSchedulerReportingServer)
 
@@ -254,6 +273,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		resourceListFactory,
 		floatingResourceTypes,
+		priorityMultiplierProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -363,7 +383,7 @@ func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	return config, err
 }
 
-// This changes the default logrus grpc logging to log OK messages at trace level
+// This changes the default grpc logging to log OK messages at trace level
 // The reason for doing this are:
 //   - Reduced logging
 //   - We only care about failures, so lets only log failures

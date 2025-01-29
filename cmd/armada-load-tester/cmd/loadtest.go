@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/domain"
 	"github.com/armadaproject/armada/pkg/client/util"
@@ -72,7 +72,7 @@ var loadtestCmd = &cobra.Command{
 		loadTestSpec := &domain.LoadTestSpecification{}
 		err := util.BindJsonOrYaml(filePath, loadTestSpec)
 		if err != nil {
-			log.Error(err)
+			log.Error(err.Error())
 			os.Exit(1)
 		}
 

@@ -100,7 +100,7 @@ func TestGangScheduler(t *testing.T) {
 		"floating resources": {
 			SchedulingConfig: func() configuration.SchedulingConfig {
 				cfg := testfixtures.TestSchedulingConfig()
-				cfg.ExperimentalFloatingResources = testfixtures.TestFloatingResourceConfig
+				cfg.FloatingResources = testfixtures.TestFloatingResourceConfig
 				return cfg
 			}(),
 			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
@@ -615,6 +615,7 @@ func TestGangScheduler(t *testing.T) {
 				err := sctx.AddQueueSchedulingContext(
 					queue,
 					priorityFactor,
+					priorityFactor,
 					nil,
 					internaltypes.ResourceList{},
 					internaltypes.ResourceList{},
@@ -634,7 +635,7 @@ func TestGangScheduler(t *testing.T) {
 					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 				),
 			)
-			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.ExperimentalFloatingResources, testfixtures.TestResourceListFactory)
+			floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(tc.SchedulingConfig.FloatingResources, testfixtures.TestResourceListFactory)
 			require.NoError(t, err)
 			sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)
 			require.NoError(t, err)
