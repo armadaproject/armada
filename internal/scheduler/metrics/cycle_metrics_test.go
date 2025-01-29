@@ -92,7 +92,7 @@ func TestResetLeaderMetrics(t *testing.T) {
 		vec.WithLabelValues(labelValues...).Inc()
 		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 1.0, counterVal)
-		m.resetLeaderMetrics()
+		m.resetAllMetrics()
 		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 0.0, counterVal)
 	}
@@ -100,13 +100,13 @@ func TestResetLeaderMetrics(t *testing.T) {
 		vec.WithLabelValues(labelValues...).Inc()
 		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 1.0, counterVal)
-		m.resetLeaderMetrics()
+		m.resetAllMetrics()
 		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 0.0, counterVal)
 	}
 
 	testResetCounter(m.scheduledJobs, queuePriorityClassLabelValues)
-	testResetCounter(m.premptedJobs, queuePriorityClassLabelValues)
+	testResetCounter(m.preemptedJobs, queuePriorityClassLabelValues)
 	testResetGauge(m.consideredJobs, poolQueueLabelValues)
 	testResetGauge(m.fairShare, poolQueueLabelValues)
 	testResetGauge(m.adjustedFairShare, poolQueueLabelValues)
@@ -132,7 +132,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 
 	collect := func(m *cycleMetrics) []prometheus.Metric {
 		m.scheduledJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
-		m.premptedJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
+		m.preemptedJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
 		m.consideredJobs.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.fairShare.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.adjustedFairShare.WithLabelValues(poolQueueLabelValues...).Inc()
