@@ -177,7 +177,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		pools := job.ResolvedPools()
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
-		resourceRequirements := job.JobSchedulingInfo().GetObjectRequirements()[0].GetPodRequirements().GetResourceRequirements().Requests
+		resourceRequirements := job.JobSchedulingInfo().PodRequirements.ResourceRequirements.Requests
 		jobResources := make(map[string]float64)
 		for key, value := range resourceRequirements {
 			jobResources[string(key)] = resource.QuantityAsFloat64(value)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -15,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -414,10 +414,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	return jobDbJobs, jsts, nil
 }
 
-func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
-	newSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
+	newSchedulingInfo := job.JobSchedulingInfo().DeepCopy()
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
-	podRequirements := newSchedulingInfo.GetPodRequirements()
+	podRequirements := newSchedulingInfo.PodRequirements
 	if podRequirements == nil {
 		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.Id())
 	}
@@ -726,7 +726,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					Event: &armadaevents.EventSequence_Event_JobRequeued{
 						JobRequeued: &armadaevents.JobRequeued{
 							JobId:                job.Id(),
-							SchedulingInfo:       job.JobSchedulingInfo(),
+							SchedulingInfo:       internaltypes.ToSchedulerObjectsJobSchedulingInfo(job.JobSchedulingInfo()),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
 					},

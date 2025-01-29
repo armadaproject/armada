@@ -3,7 +3,6 @@ package jobdb
 import (
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -11,32 +10,19 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-var jobSchedulingInfoProto = &schedulerobjects.JobSchedulingInfo{
-	ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-		{
-			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-				PodRequirements: &schedulerobjects.PodRequirements{
-					ResourceRequirements: v1.ResourceRequirements{
-						Requests: v1.ResourceList{
-							"cpu":                 k8sResource.MustParse("1"),
-							"storage-connections": k8sResource.MustParse("1"),
-						},
-					},
-					Annotations: map[string]string{
-						"foo": "bar",
-					},
-				},
-			},
-		},
-	},
-}
 
 var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 	PodRequirements: &internaltypes.PodRequirements{
-		ResourceRequirements: jobSchedulingInfoProto.GetPodRequirements().GetResourceRequirements(),
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+		},
 	},
 }
 
@@ -46,7 +32,7 @@ var baseJob, _ = jobDb.NewJob(
 	"test-queue",
 	2,
 	0.0,
-	jobSchedulingInfoProto,
+	jobSchedulingInfo,
 	true,
 	0,
 	false,
@@ -328,10 +314,10 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfoProto, true, 0, false, false, false, 3, false, []string{})
+	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfoProto, true, 0, false, false, false, 3, false, []string{})
+	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 
@@ -350,22 +336,16 @@ func TestJob_DeepCopy(t *testing.T) {
 }
 
 func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
-	newSchedInfo := &schedulerobjects.JobSchedulingInfo{
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						ResourceRequirements: v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":                 k8sResource.MustParse("2"),
-								"storage-connections": k8sResource.MustParse("2"),
-							},
-						},
-						Annotations: map[string]string{
-							"fish": "chips",
-						},
-					},
+	newSchedInfo := &internaltypes.JobSchedulingInfo{
+		PodRequirements: &internaltypes.PodRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":                 k8sResource.MustParse("2"),
+					"storage-connections": k8sResource.MustParse("2"),
 				},
+			},
+			Annotations: map[string]string{
+				"fish": "chips",
 			},
 		},
 	}
@@ -385,18 +365,12 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 }
 
 func TestRequestsFloatingResources(t *testing.T) {
-	noFloatingResourcesJob := JobWithJobSchedulingInfo(baseJob, &schedulerobjects.JobSchedulingInfo{
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						ResourceRequirements: v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":                 k8sResource.MustParse("1"),
-								"storage-connections": k8sResource.MustParse("0"),
-							},
-						},
-					},
+	noFloatingResourcesJob := JobWithJobSchedulingInfo(baseJob, &internaltypes.JobSchedulingInfo{
+		PodRequirements: &internaltypes.PodRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":                 k8sResource.MustParse("1"),
+					"storage-connections": k8sResource.MustParse("0"),
 				},
 			},
 		},
@@ -406,20 +380,13 @@ func TestRequestsFloatingResources(t *testing.T) {
 }
 
 func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
-	infoWithNilFields := &schedulerobjects.JobSchedulingInfo{
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{},
-				},
-			},
-		},
+	infoWithNilFields := &internaltypes.JobSchedulingInfo{
+		PodRequirements: &internaltypes.PodRequirements{},
 	}
 
-	infoWithNilFieldsCopy := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
-	assert.NotNil(t, infoWithNilFields.GetPodRequirements())
-	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
-	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
+	infoWithNilFieldsCopy := infoWithNilFields.DeepCopy()
+	assert.Nil(t, infoWithNilFields.PodRequirements.NodeSelector)
+	assert.Nil(t, infoWithNilFields.PodRequirements.Annotations)
 
 	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{})
 	assert.Nil(t, err)
@@ -427,7 +394,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.NotNil(t, job.Annotations())
 
 	// Copy again here, as the fields get mutated so we want a clean copy
-	infoWithNilFieldsCopy2 := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
+	infoWithNilFieldsCopy2 := infoWithNilFields
 	updatedJob := JobWithJobSchedulingInfo(baseJob, infoWithNilFieldsCopy2)
 	assert.NotNil(t, updatedJob.NodeSelector())
 	assert.NotNil(t, updatedJob.Annotations())

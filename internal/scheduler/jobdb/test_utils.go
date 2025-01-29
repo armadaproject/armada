@@ -5,7 +5,6 @@ import (
 
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 var testResourceListFactory = makeTestResourceListFactory()
@@ -33,25 +32,21 @@ func getTestFloatingResourceTypes() []schedulerconfiguration.FloatingResourceCon
 	}
 }
 
-func WithJobDbJobPodRequirements(job *Job, reqs *schedulerobjects.PodRequirements) *Job {
-	return JobWithJobSchedulingInfo(job, &schedulerobjects.JobSchedulingInfo{
-		PriorityClassName: job.JobSchedulingInfo().PriorityClassName,
-		SubmitTime:        job.JobSchedulingInfo().SubmitTime,
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: reqs,
-				},
-			},
-		},
-	})
-}
+//func WithJobDbJobPodRequirements(job *Job, reqs *schedulerobjects.PodRequirements) *Job {
+//	return JobWithJobSchedulingInfo(job, &schedulerobjects.JobSchedulingInfo{
+//		PriorityClassName: job.JobSchedulingInfo().PriorityClassName,
+//		SubmitTime:        job.JobSchedulingInfo().SubmitTime,
+//		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+//			{
+//				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+//					PodRequirements: reqs,
+//				},
+//			},
+//		},
+//	})
+//}
 
-func JobWithJobSchedulingInfo(job *Job, jobSchedulingInfoProto *schedulerobjects.JobSchedulingInfo) *Job {
-	jobSchedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(jobSchedulingInfoProto)
-	if err != nil {
-		panic(err)
-	}
+func JobWithJobSchedulingInfo(job *Job, jobSchedulingInfo *internaltypes.JobSchedulingInfo) *Job {
 	j, err := job.WithJobSchedulingInfo(jobSchedulingInfo)
 	if err != nil {
 		panic(err)

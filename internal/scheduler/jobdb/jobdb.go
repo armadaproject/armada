@@ -176,7 +176,7 @@ func (jobDb *JobDb) NewJob(
 	queue string,
 	priority uint32,
 	bidPrice float64,
-	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	schedulingInfo *internaltypes.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
 	cancelRequested bool,
@@ -186,18 +186,12 @@ func (jobDb *JobDb) NewJob(
 	validated bool,
 	pools []string,
 ) (*Job, error) {
-
-	si, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfo)
-	if err != nil {
-		return nil, err
-	}
-
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
-	rr := jobDb.getResourceRequirements(si)
+	rr := jobDb.getResourceRequirements(schedulingInfo)
 
 	job := &Job{
 		jobDb:                          jobDb,
@@ -210,7 +204,7 @@ func (jobDb *JobDb) NewJob(
 		queuedVersion:                  queuedVersion,
 		requestedPriority:              priority,
 		submittedTime:                  created,
-		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(si),
+		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(schedulingInfo),
 		allResourceRequirements:        rr,
 		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
 		priorityClass:                  priorityClass,

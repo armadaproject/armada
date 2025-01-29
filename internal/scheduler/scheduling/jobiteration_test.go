@@ -10,8 +10,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -269,6 +269,6 @@ func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue 
 	return NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo, jobdb.FairShareOrder)
 }
 
-func jobFromPodSpec(queue string, req *schedulerobjects.PodRequirements) *jobdb.Job {
+func jobFromPodSpec(queue string, req *internaltypes.PodRequirements) *jobdb.Job {
 	return testfixtures.TestJob(queue, util.ULID(), "armada-default", req)
 }
