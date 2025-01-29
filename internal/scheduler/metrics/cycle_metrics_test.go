@@ -92,7 +92,7 @@ func TestResetLeaderMetrics(t *testing.T) {
 		vec.WithLabelValues(labelValues...).Inc()
 		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 1.0, counterVal)
-		m.resetAllMetrics()
+		m.resetLeaderMetrics()
 		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 0.0, counterVal)
 	}
@@ -100,13 +100,46 @@ func TestResetLeaderMetrics(t *testing.T) {
 		vec.WithLabelValues(labelValues...).Inc()
 		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 1.0, counterVal)
-		m.resetAllMetrics()
+		m.resetLeaderMetrics()
 		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
 		assert.Equal(t, 0.0, counterVal)
 	}
 
 	testResetCounter(m.scheduledJobs, queuePriorityClassLabelValues)
 	testResetCounter(m.preemptedJobs, queuePriorityClassLabelValues)
+	testResetGauge(m.consideredJobs, poolQueueLabelValues)
+	testResetGauge(m.fairShare, poolQueueLabelValues)
+	testResetGauge(m.adjustedFairShare, poolQueueLabelValues)
+	testResetGauge(m.actualShare, poolQueueLabelValues)
+	testResetGauge(m.fairnessError, []string{"pool1"})
+	testResetGauge(m.demand, poolQueueLabelValues)
+	testResetGauge(m.cappedDemand, poolQueueLabelValues)
+	testResetGauge(m.gangsConsidered, poolQueueLabelValues)
+	testResetGauge(m.gangsScheduled, poolQueueLabelValues)
+	testResetGauge(m.firstGangQueuePosition, poolQueueLabelValues)
+	testResetGauge(m.lastGangQueuePosition, poolQueueLabelValues)
+	testResetGauge(m.perQueueCycleTime, poolQueueLabelValues)
+	testResetGauge(m.loopNumber, poolLabelValues)
+	testResetGauge(m.evictedJobs, poolQueueLabelValues)
+	testResetGauge(m.evictedResources, poolQueueResouceLabelValues)
+}
+
+func TestResetPerCycleMetrics(t *testing.T) {
+	m := newCycleMetrics()
+
+	poolLabelValues := []string{"pool1"}
+	poolQueueLabelValues := []string{"pool1", "queue1"}
+	poolQueueResouceLabelValues := []string{"pool1", "queue1", "cpu"}
+
+	testResetGauge := func(vec *prometheus.GaugeVec, labelValues []string) {
+		vec.WithLabelValues(labelValues...).Inc()
+		counterVal := testutil.ToFloat64(vec.WithLabelValues(labelValues...))
+		assert.Equal(t, 1.0, counterVal)
+		m.resetPerCycleMetrics()
+		counterVal = testutil.ToFloat64(vec.WithLabelValues(labelValues...))
+		assert.Equal(t, 0.0, counterVal)
+	}
+
 	testResetGauge(m.consideredJobs, poolQueueLabelValues)
 	testResetGauge(m.fairShare, poolQueueLabelValues)
 	testResetGauge(m.adjustedFairShare, poolQueueLabelValues)
