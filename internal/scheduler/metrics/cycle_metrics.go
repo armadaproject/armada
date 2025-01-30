@@ -27,6 +27,8 @@ type cycleMetrics struct {
 	fairnessError           *prometheus.GaugeVec
 	demand                  *prometheus.GaugeVec
 	cappedDemand            *prometheus.GaugeVec
+	queueWeight             *prometheus.GaugeVec
+	rawQueueWeight          *prometheus.GaugeVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
 	gangsConsidered         *prometheus.GaugeVec
@@ -102,6 +104,22 @@ func newCycleMetrics() *cycleMetrics {
 		prometheus.GaugeOpts{
 			Name: prefix + "capped_demand",
 			Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+		},
+		poolAndQueueLabels,
+	)
+
+	queueWeight := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "queue_weight",
+			Help: "Weight of the queue after multipliers have been applied",
+		},
+		poolAndQueueLabels,
+	)
+
+	rawQueueWeight := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "raw_queue_weight",
+			Help: "Weight of the queue before multipliers have been applied",
 		},
 		poolAndQueueLabels,
 	)
@@ -212,6 +230,8 @@ func newCycleMetrics() *cycleMetrics {
 		actualShare:            actualShare,
 		demand:                 demand,
 		cappedDemand:           cappedDemand,
+		queueWeight:            queueWeight,
+		rawQueueWeight:         rawQueueWeight,
 		fairnessError:          fairnessError,
 		scheduleCycleTime:      scheduleCycleTime,
 		gangsConsidered:        gangsConsidered,
@@ -242,6 +262,8 @@ func newCycleMetrics() *cycleMetrics {
 			evictedJobs,
 			evictedResources,
 			spotPrice,
+			queueWeight,
+			rawQueueWeight,
 		},
 		reconciliationCycleTime: reconciliationCycleTime,
 	}
@@ -286,6 +308,8 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			m.actualShare.WithLabelValues(pool, queue).Set(actualShare)
 			m.demand.WithLabelValues(pool, queue).Set(demand)
 			m.cappedDemand.WithLabelValues(pool, queue).Set(cappedDemand)
+			m.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
+			m.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 		}
 		m.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
 		m.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
@@ -331,6 +355,8 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.fairnessError.Describe(ch)
 		m.demand.Describe(ch)
 		m.cappedDemand.Describe(ch)
+		m.queueWeight.Describe(ch)
+		m.rawQueueWeight.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 		m.gangsConsidered.Describe(ch)
 		m.gangsScheduled.Describe(ch)
@@ -357,6 +383,8 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		m.fairnessError.Collect(ch)
 		m.demand.Collect(ch)
 		m.cappedDemand.Collect(ch)
+		m.rawQueueWeight.Collect(ch)
+		m.queueWeight.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
 		m.gangsConsidered.Collect(ch)
 		m.gangsScheduled.Collect(ch)

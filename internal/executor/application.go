@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -285,12 +285,15 @@ func setupExecutorApiComponents(
 }
 
 func createConnectionToApi(connectionDetails client.ApiConnectionDetails, maxMessageSizeBytes int, grpcConfig keepalive.ClientParameters) (*grpc.ClientConn, error) {
-	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	clientMetrics := grpc_prometheus.NewClientMetrics(
+		grpc_prometheus.WithClientHandlingTimeHistogram(),
+	)
+	prometheus.MustRegister(clientMetrics)
 	return client.CreateApiConnectionWithCallOptions(
 		&connectionDetails,
 		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(maxMessageSizeBytes)},
-		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
 		grpc.WithKeepaliveParams(grpcConfig),
 	)
 }

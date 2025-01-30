@@ -10,6 +10,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,6 +40,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -77,14 +79,14 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		config.Scheduling.SupportedResourceTypes,
-		config.Scheduling.ExperimentalFloatingResources,
+		config.Scheduling.FloatingResources,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "Error with the .scheduling.supportedResourceTypes field in config")
 	}
 	ctx.Infof("Supported resource types: %s", resourceListFactory.SummaryString())
 
-	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.ExperimentalFloatingResources, resourceListFactory)
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(config.Scheduling.FloatingResources, resourceListFactory)
 	if err != nil {
 		return err
 	}
@@ -131,6 +133,19 @@ func Run(config schedulerconfig.Configuration) error {
 		ctx.Errorf("error initialising queue cache - %v", err)
 	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Priority Multiplier
+	// ////////////////////////////////////////////////////////////////////////
+	priorityMultiplierProvider := prioritymultiplier.NewNoOpProvider()
+	if config.PriorityMultiplier.Enabled {
+		ctx.Infof("Priority Multiplier Service configured, will fetch overrides from %s", config.PriorityMultiplier.ServiceUrl)
+		priorityMultiplierClient, err := prioritymultiplier.NewServiceClient(config.PriorityMultiplier)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating priority multiplier client")
+		}
+		priorityMultiplierProvider = prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -230,7 +245,12 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingContextRepository := reports.NewSchedulingContextRepository()
 	reportServer := reports.NewServer(schedulingContextRepository)
 
-	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader)
+	clientMetrics := grpc_prometheus.NewClientMetrics(
+		grpc_prometheus.WithClientHandlingTimeHistogram(),
+	)
+	prometheus.MustRegister(clientMetrics)
+
+	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
 	schedulingSchedulerReportingServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingSchedulerReportingServer)
 
@@ -265,6 +285,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		resourceListFactory,
 		floatingResourceTypes,
+		priorityMultiplierProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
