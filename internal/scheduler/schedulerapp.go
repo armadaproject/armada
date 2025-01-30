@@ -138,7 +138,9 @@ func Run(config schedulerconfig.Configuration) error {
 		if err != nil {
 			return errors.WithMessage(err, "Error creating priority multiplier client")
 		}
-		priorityMultiplierProvider = prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+		provider := prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+		services = append(services, func() error { return provider.Run(ctx) })
+		priorityMultiplierProvider = provider
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
