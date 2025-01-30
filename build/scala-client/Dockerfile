@@ -15,8 +15,9 @@ RUN set -ex && \
     curl -s -O https://downloads.lightbend.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.deb && \
     apt install -y ./scala-${SCALA_VERSION}.deb && \
     curl -s -L -O https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz && \
-    cd / && \
-    tar xzvf sbt-${SBT_VERSION}.tgz
+    tar -C / -xzvf ./sbt-${SBT_VERSION}.tgz && \
+    apt-get clean && \
+    rm -rf scala-${SCALA_VERSION}.deb sbt-${SBT_VERSION}.tgz /var/lib/apt/lists/*
 
 COPY scripts/build-scala-client.sh /
 RUN chmod +x /build-scala-client.sh
