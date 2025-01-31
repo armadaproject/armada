@@ -376,7 +376,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQ
 		if _, ok := result[queue][pool]; !ok {
 			result[queue][pool] = armadaresource.ComputeResources{}
 		}
-		result[queue][pool].Add(podUsage.CurrentUsage)
+		result[queue][pool].Add(podUsage.GetCurrentUsage())
 	}
 	return result
 }
