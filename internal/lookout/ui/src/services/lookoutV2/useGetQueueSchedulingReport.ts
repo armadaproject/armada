@@ -21,13 +21,12 @@ export const useGetQueueSchedulingReport = (queueName: string, verbosity: number
     queryKey: ["getQueueSchedulingReport", queueName, verbosity],
     queryFn: async ({ signal }) => {
       try {
-        const headers: HeadersInit = {}
+        const accessToken = userManager === undefined ? undefined : await getAccessToken(userManager)
 
-        if (userManager !== undefined) {
-          Object.assign(headers, getAuthorizationHeaders(await getAccessToken(userManager)))
-        }
-
-        return await schedulerReportingApi.getQueueReport({ queueName, verbosity }, { headers, signal })
+        return await schedulerReportingApi.getQueueReport(
+          { queueName, verbosity },
+          { headers: accessToken ? getAuthorizationHeaders(accessToken) : undefined, signal },
+        )
       } catch (e) {
         throw await getErrorMessage(e)
       }
