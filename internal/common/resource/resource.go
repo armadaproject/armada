@@ -204,6 +204,19 @@ func (a ComputeResources) Sub(b ComputeResources) {
 	}
 }
 
+func (a ComputeResources) Div(b map[string]int64) {
+	for k, v := range b {
+		existing, ok := a[k]
+		if ok {
+			if existing.Format == resource.DecimalSI {
+				a[k] = resource.NewMilliQuantity(existing.MilliValue()/v, existing.Format).DeepCopy()
+			} else {
+				a[k] = resource.NewQuantity(existing.Value()/v, existing.Format).DeepCopy()
+			}
+		}
+	}
+}
+
 func (a ComputeResources) DeepCopy() ComputeResources {
 	targetComputeResource := make(ComputeResources)
 
