@@ -87,7 +87,8 @@ func convertIngressesAndServices(
 	for _, ingressConfig := range jobReq.Ingress {
 		ports := filterServicePorts(availableServicePorts, ingressConfig.Ports)
 		if len(ports) > 0 {
-			serviceObject := createService(jobId, serviceIdx, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceObject := createService(serviceName, jobId, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
 			serviceIdx++
 			ingressObject := createIngressFromService(
 				serviceObject.GetService(),
@@ -111,7 +112,13 @@ func convertIngressesAndServices(
 				serviceType = v1.ServiceTypeNodePort
 				useClusterIp = true
 			}
-			serviceObject := createService(jobId, serviceIdx, ports, serviceType, useClusterIp)
+
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			if len(serviceConfig.Name) > 0 {
+				serviceName = serviceConfig.Name
+			}
+
+			serviceObject := createService(serviceName, jobId, ports, serviceType, useClusterIp)
 			serviceIdx++
 			objects = append(objects, serviceObject)
 		}
@@ -135,8 +142,8 @@ func convertIngressesAndServices(
 }
 
 func createService(
+	serviceName string,
 	jobId string,
-	serviceIdx int,
 	ports []v1.ServicePort,
 	serviceType v1.ServiceType,
 	useClusterIP bool,
@@ -150,7 +157,7 @@ func createService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name:        fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx),
+			Name:        serviceName,
 			Annotations: map[string]string{},
 			Labels:      map[string]string{},
 		},

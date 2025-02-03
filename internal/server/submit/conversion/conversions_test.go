@@ -185,6 +185,47 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 				},
 			}),
 		},
+		"Service With Custom Name": {
+			jobReq: jobSubmitRequestItemWithServices([]*api.ServiceConfig{
+				{
+					Type:  api.ServiceType_NodePort,
+					Ports: []uint32{8080},
+					Name:  "my-custom-service",
+				},
+			}),
+			expectedSubmitJob: SubmitJobMsgWithK8sObjects([]*armadaevents.KubernetesObject{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace: testfixtures.DefaultNamespace,
+						Name:      "my-custom-service",
+						Annotations: map[string]string{
+							"armada_jobset_id": testfixtures.DefaultJobset,
+							"armada_owner":     testfixtures.DefaultOwner,
+						},
+						Labels: map[string]string{
+							"armada_job_id":   "00000000000000000000000001",
+							"armada_queue_id": testfixtures.DefaultQueue.Name,
+						},
+					},
+					Object: &armadaevents.KubernetesObject_Service{
+						Service: &v1.ServiceSpec{
+							Ports: []v1.ServicePort{
+								{
+									Name:     "testContainer-8080",
+									Protocol: "TCP",
+									Port:     8080,
+								},
+							},
+							Selector: map[string]string{
+								"armada_job_id": "00000000000000000000000001",
+							},
+							ClusterIP: "",
+							Type:      v1.ServiceTypeNodePort,
+						},
+					},
+				},
+			}),
+		},
 	}
 
 	for name, tc := range tests {
