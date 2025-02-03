@@ -345,8 +345,9 @@ func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationD
 						},
 					},
 				},
-				MaxResourcesForPeriod: utilisationData.CurrentUsage.ToProtoMap(),
-				TotalCumulativeUsage:  utilisationData.CumulativeUsage.ToProtoMap(),
+				MaxResourcesForPeriod: utilisationData.GetMaxUsage().ToProtoMap(),
+				AvgResourcesForPeriod: utilisationData.GetAvgUsage().ToProtoMap(),
+				TotalCumulativeUsage:  utilisationData.GetCumulativeUsage().ToProtoMap(),
 			},
 		},
 	})
