@@ -2092,6 +2092,9 @@ func SwaggerJsonTemplate() string {
 		"    \"apiServiceConfig\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +

@@ -41,6 +41,7 @@ message IngressConfig {
 message ServiceConfig {
     ServiceType type = 1;
     repeated uint32 ports = 2;
+    string name = 3;
 }
 
 // Ingress type is being kept here to maintain backwards compatibility for a while.
