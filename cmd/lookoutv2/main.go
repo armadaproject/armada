@@ -117,7 +117,7 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 }
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.LookoutV2Config
@@ -148,7 +148,7 @@ func main() {
 	restapi.UIConfig = config.UIConfig
 
 	if err := lookoutv2.Serve(config); err != nil {
-		log.Error(err)
+		log.Error(err.Error())
 		os.Exit(1)
 	}
 }

@@ -9,6 +9,7 @@ USER armada
 
 COPY fakeexecutor /app/
 COPY config/executor/config.yaml /app/config/executor/config.yaml
+COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 
