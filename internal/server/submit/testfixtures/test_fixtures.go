@@ -28,6 +28,11 @@ var (
 		ContainerPort: 8080,
 		Protocol:      "TCP",
 	}
+	MetricsContainerPort = v1.ContainerPort{
+		Name:          "metricsContainerPort",
+		ContainerPort: 9000,
+		Protocol:      "TCP",
+	}
 	DefaultResources = v1.ResourceRequirements{
 		Requests: v1.ResourceList{
 			"cpu":    resource.MustParse("1"),
@@ -41,7 +46,7 @@ var (
 	DefaultContainers = []v1.Container{
 		{
 			Name:      "testContainer",
-			Ports:     []v1.ContainerPort{DefaultContainerPort},
+			Ports:     []v1.ContainerPort{DefaultContainerPort, MetricsContainerPort},
 			Resources: DefaultResources,
 		},
 	}

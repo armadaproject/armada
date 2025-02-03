@@ -116,10 +116,11 @@ func convertIngressesAndServices(
 			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
 			if len(serviceConfig.Name) > 0 {
 				serviceName = serviceConfig.Name
+			} else {
+				serviceIdx++
 			}
 
 			serviceObject := createService(serviceName, jobId, ports, serviceType, useClusterIp)
-			serviceIdx++
 			objects = append(objects, serviceObject)
 		}
 	}
