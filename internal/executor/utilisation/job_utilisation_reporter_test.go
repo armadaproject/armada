@@ -22,21 +22,18 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-var testPodResources = domain.UtilisationData{
-	CurrentUsage: armadaresource.ComputeResources{
+var testPodResources = domain.NewUtilisationData(
+	map[string]resource.Quantity{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("640Ki"),
 	},
-	CumulativeUsage: armadaresource.ComputeResources{
-		"cpu": resource.MustParse("10"),
-	},
-}
+)
 
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, "kubernetes.io/hostname", nil)
 	fakeEventReporter := &mocks.FakeEventReporter{}
-	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
+	fakeUtilisationService := &fakePodUtilisationService{data: testPodResources}
 
 	eventReporter, err := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
 	require.NoError(t, err)
@@ -61,8 +58,9 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	_, ok = fakeEventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
 	assert.True(t, ok)
 
-	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.MaxResourcesForPeriod))
-	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.TotalCumulativeUsage))
+	assert.Equal(t, testPodResources.GetMaxUsage(), armadaresource.FromProtoMap(event1.ResourceUtilisation.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.GetAvgUsage(), armadaresource.FromProtoMap(event1.ResourceUtilisation.AvgResourcesForPeriod))
+	assert.Equal(t, testPodResources.GetCumulativeUsage(), armadaresource.FromProtoMap(event1.ResourceUtilisation.TotalCumulativeUsage))
 
 	event1CreatedTime := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Created
 	event2CreatedTime := fakeEventReporter.ReceivedEvents[1].Event.Events[0].Created

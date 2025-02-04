@@ -21,13 +21,12 @@ export const useGetSchedulingReport = (verbosity: number, enabled = true) => {
     queryKey: ["getSchedulingReport", verbosity],
     queryFn: async ({ signal }) => {
       try {
-        const headers: HeadersInit = {}
+        const accessToken = userManager === undefined ? undefined : await getAccessToken(userManager)
 
-        if (userManager !== undefined) {
-          Object.assign(headers, getAuthorizationHeaders(await getAccessToken(userManager)))
-        }
-
-        return await schedulerReportingApi.getSchedulingReport({ verbosity }, { signal })
+        return await schedulerReportingApi.getSchedulingReport(
+          { verbosity },
+          { headers: accessToken ? getAuthorizationHeaders(accessToken) : undefined, signal },
+        )
       } catch (e) {
         throw await getErrorMessage(e)
       }
