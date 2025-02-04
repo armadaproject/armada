@@ -1,9 +1,10 @@
 package conversion
 
 import (
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"math"
 	"testing"
+
+	"github.com/armadaproject/armada/internal/server/configuration"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -321,7 +322,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 				{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						Namespace: testfixtures.DefaultNamespace,
-						Name:      "armada-00000000000000000000000001-0-service-0",
+						Name:      "armada-00000000000000000000000001-0-service-0", // Validate that custom service names don't increment the service ID
 						Annotations: map[string]string{
 							"armada_jobset_id": testfixtures.DefaultJobset,
 							"armada_owner":     testfixtures.DefaultOwner,

@@ -126,7 +126,6 @@ func convertIngressesAndServices(
 					log.Warnf("Feature flag to allow customized service name %s is not enabled. "+
 						"Using generated service name %s", serviceConfig.Name, serviceName)
 				}
-
 			}
 
 			if !serviceNameCustomized {
