@@ -73,6 +73,10 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 	if podRequirements == nil {
 		return nil, errors.Errorf("job must have pod requirements")
 	}
+	rr := podRequirements.GetResourceRequirements()
+	if rr == nil {
+		rr = &v1.ResourceRequirements{}
+	}
 	return &JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
@@ -83,7 +87,7 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 			Affinity:             podRequirements.Affinity,
 			Tolerations:          podRequirements.Tolerations,
 			Annotations:          podRequirements.Annotations,
-			ResourceRequirements: podRequirements.ResourceRequirements,
+			ResourceRequirements: *rr,
 		},
 		Version: j.Version,
 	}, nil
@@ -104,7 +108,7 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 						Affinity:             podRequirements.Affinity,
 						Tolerations:          podRequirements.Tolerations,
 						Annotations:          podRequirements.Annotations,
-						ResourceRequirements: podRequirements.ResourceRequirements,
+						ResourceRequirements: &podRequirements.ResourceRequirements,
 					},
 				},
 			},

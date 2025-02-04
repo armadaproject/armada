@@ -352,7 +352,7 @@ func TestSimulator(t *testing.T) {
 								JobSet:            "job-set-0",
 								PriorityClassName: "armada-preemptible",
 								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
+									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("128"),
 											"memory":         resource.MustParse("4096Gi"),
@@ -378,7 +378,7 @@ func TestSimulator(t *testing.T) {
 								JobSet:            "job-set-1",
 								PriorityClassName: "armada-preemptible-away",
 								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
+									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("16"),
 											"memory":         resource.MustParse("512Gi"),

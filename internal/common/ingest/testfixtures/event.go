@@ -294,7 +294,7 @@ var JobRequeued = &armadaevents.EventSequence_Event{
 								Tolerations:      Tolerations,
 								PreemptionPolicy: "PreemptLowerPriority",
 								Affinity:         Affinity,
-								ResourceRequirements: v1.ResourceRequirements{
+								ResourceRequirements: &v1.ResourceRequirements{
 									Limits: map[v1.ResourceName]resource.Quantity{
 										"memory": resource.MustParse("64Mi"),
 										"cpu":    resource.MustParse("150m"),

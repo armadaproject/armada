@@ -483,7 +483,7 @@ func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId str
 						PriorityClassName: jobTemplate.PriorityClassName,
 						Containers: []v1.Container{
 							{
-								Resources: jobTemplate.Requirements.ResourceRequirements,
+								Resources: *jobTemplate.Requirements.ResourceRequirements,
 							},
 						},
 					},

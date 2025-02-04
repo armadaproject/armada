@@ -76,6 +76,7 @@ message ResourceList {
 
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
+    reserved 10;
     option (gogoproto.stable_marshaler) = true;
     uint32 lifetime = 1;
     bool at_most_once = 2;
@@ -88,7 +89,6 @@ message JobSchedulingInfo {
     // Kubernetes objects that make up this job and their respective scheduling requirements.
     repeated ObjectRequirements object_requirements = 5;
     uint32 version = 9;
-    // ordinal 10 was previously used for queue_ttl_seconds
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.
@@ -101,7 +101,6 @@ message ObjectRequirements {
 // Captures the scheduling requirements of a pod.
 message PodRequirements {
     reserved 8;
-
     // Kubernetes node selector.
     map<string, string> nodeSelector = 1;
     // Kubernetes scheduling requirements.
@@ -114,7 +113,7 @@ message PodRequirements {
     // Defaults to PreemptLowerPriority if unset.
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
-    k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
+    k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6;
 }
 
 message ExecutorSettings {

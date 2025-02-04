@@ -210,7 +210,7 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 							"salt": "pepper",
 						},
 						PreemptionPolicy: "abc",
-						ResourceRequirements: v1.ResourceRequirements{
+						ResourceRequirements: &v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"cpu":            resource.MustParse("1"),
 								"memory":         resource.MustParse("2"),
@@ -319,7 +319,7 @@ func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
 							"salt": "pepper",
 						},
 						PreemptionPolicy: "abc",
-						ResourceRequirements: v1.ResourceRequirements{
+						ResourceRequirements: &v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"cpu":            resource.MustParse("1"),
 								"memory":         resource.MustParse("2"),
