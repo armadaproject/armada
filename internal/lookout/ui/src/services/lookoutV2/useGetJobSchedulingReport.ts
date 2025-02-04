@@ -21,13 +21,12 @@ export const useGetJobSchedulingReport = (jobId: string, enabled = true) => {
     queryKey: ["getJobSchedulingReport", jobId],
     queryFn: async ({ signal }) => {
       try {
-        const headers: HeadersInit = {}
+        const accessToken = userManager === undefined ? undefined : await getAccessToken(userManager)
 
-        if (userManager !== undefined) {
-          Object.assign(headers, getAuthorizationHeaders(await getAccessToken(userManager)))
-        }
-
-        return await schedulerReportingApi.getJobReport({ jobId }, { headers, signal })
+        return await schedulerReportingApi.getJobReport(
+          { jobId },
+          { headers: accessToken ? getAuthorizationHeaders(accessToken) : undefined, signal },
+        )
       } catch (e) {
         throw await getErrorMessage(e)
       }
