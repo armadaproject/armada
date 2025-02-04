@@ -218,6 +218,8 @@ func TestCreateIngressFromService(t *testing.T) {
 		Type:      v1.ServiceTypeClusterIP,
 	}
 
+	nginxIngressClassName := "nginx"
+
 	defaultIngressRule := networking.IngressRule{
 		Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.",
 		IngressRuleValue: networking.IngressRuleValue{
@@ -261,6 +263,25 @@ func TestCreateIngressFromService(t *testing.T) {
 				},
 			},
 		},
+		"ingressWithCustomClassName": {
+			ingressConfig: &api.IngressConfig{
+				ClassName: nginxIngressClassName,
+			},
+			expectedIngress: &armadaevents.KubernetesObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Name:        "armada-00000000000000000000000001-0-ingress-1",
+					Annotations: map[string]string{},
+					Labels:      map[string]string{},
+				},
+				Object: &armadaevents.KubernetesObject_Ingress{
+					Ingress: &networking.IngressSpec{
+						IngressClassName: &nginxIngressClassName,
+						TLS:              []networking.IngressTLS{},
+						Rules:            []networking.IngressRule{defaultIngressRule},
+					},
+				},
+			},
+		},
 		"ingressWithDefaultTls": {
 			ingressConfig: &api.IngressConfig{
 				TlsEnabled: true,
@@ -288,6 +309,7 @@ func TestCreateIngressFromService(t *testing.T) {
 			ingressConfig: &api.IngressConfig{
 				TlsEnabled: true,
 				CertName:   "testCustomCert",
+				TlsHosts:   []string{"example.com"},
 			},
 			expectedIngress: &armadaevents.KubernetesObject{
 				ObjectMeta: &armadaevents.ObjectMeta{
@@ -299,7 +321,7 @@ func TestCreateIngressFromService(t *testing.T) {
 					Ingress: &networking.IngressSpec{
 						TLS: []networking.IngressTLS{
 							{
-								Hosts:      []string{"testContainer-8080-armada-00000000000000000000000001-0.testNamespace."},
+								Hosts:      []string{"example.com", "testContainer-8080-armada-00000000000000000000000001-0.testNamespace."},
 								SecretName: "testCustomCert",
 							},
 						},

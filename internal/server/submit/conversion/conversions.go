@@ -174,7 +174,7 @@ func createIngressFromService(
 	serviceName, namespace, jobId string,
 ) *armadaevents.KubernetesObject {
 	rules := make([]networking.IngressRule, 0, len(service.Ports))
-	tlsHosts := make([]string, 0, len(service.Ports))
+	tlsHosts := ingressConfig.TlsHosts
 
 	// Rest of the hosts are generated off port information
 	for _, servicePort := range service.Ports {
@@ -220,6 +220,15 @@ func createIngressFromService(
 		})
 	}
 
+	ingressSpec := &networking.IngressSpec{
+		Rules: rules,
+		TLS:   tls,
+	}
+
+	if len(ingressConfig.ClassName) > 0 {
+		ingressSpec.IngressClassName = &ingressConfig.ClassName
+	}
+
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
 			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId), serviceIdx),
@@ -227,10 +236,7 @@ func createIngressFromService(
 			Labels:      map[string]string{},
 		},
 		Object: &armadaevents.KubernetesObject_Ingress{
-			Ingress: &networking.IngressSpec{
-				Rules: rules,
-				TLS:   tls,
-			},
+			Ingress: ingressSpec,
 		},
 	}
 }
