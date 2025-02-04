@@ -36,7 +36,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	// TODO Load relevant config in one place: don't use viper here and in LoadConfig.
