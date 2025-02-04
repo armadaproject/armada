@@ -135,8 +135,3 @@ filebeat:
   logstash:
     host: "localhost"
     port: 5044
-
-
-
-
-
