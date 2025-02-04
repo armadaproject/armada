@@ -1019,7 +1019,7 @@ func TestRun(t *testing.T) {
 		wg.Add(1)
 		sched.onCycleCompleted = func() { wg.Done() }
 		jobId := util.NewULID()
-		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true}}
+		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true, SchedulingInfo: schedulingInfoBytes}}
 		schedulingAlgo.jobsToSchedule = []string{jobId}
 		testClock.Step(10 * time.Second)
 		wg.Wait()

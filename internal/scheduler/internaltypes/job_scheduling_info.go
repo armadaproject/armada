@@ -71,7 +71,7 @@ func (p *PodRequirements) DeepCopy() *PodRequirements {
 func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo) (*JobSchedulingInfo, error) {
 	podRequirements := j.GetPodRequirements()
 	if podRequirements == nil {
-		return nil, errors.Errorf("j must have pod requirements")
+		return nil, errors.Errorf("job must have pod requirements")
 	}
 	return &JobSchedulingInfo{
 		Lifetime:          j.Lifetime,

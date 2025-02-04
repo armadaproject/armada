@@ -17,13 +17,14 @@ import (
 )
 
 func TestInMemoryJobRepository(t *testing.T) {
+	emptyRequirements := &internaltypes.PodRequirements{}
 	jobs := []*jobdb.Job{
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(3).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(1).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(2).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(3),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(0),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(2),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(3).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(1).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(2).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(3),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(0),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(2),
 	}
 	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
