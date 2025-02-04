@@ -8,6 +8,7 @@ import (
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/common"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -26,7 +27,7 @@ func SubmitJobFromApiRequest(
 ) *armadaevents.SubmitJob {
 	jobId := idGen()
 	priority := PriorityAsInt32(jobReq.GetPriority())
-	ingressesAndServices := convertIngressesAndServices(jobReq, jobId, jobSetId, queue, owner)
+	ingressesAndServices := convertIngressesAndServices(config, jobReq, jobId, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
@@ -61,6 +62,7 @@ func SubmitJobFromApiRequest(
 // Creates KubernetesObjects representing ingresses and services from the *api.JobSubmitRequestItem.
 // An ingress will have  a corresponding service created for it.
 func convertIngressesAndServices(
+	config configuration.SubmissionConfig,
 	jobReq *api.JobSubmitRequestItem,
 	jobId, jobsetId, queue, owner string,
 ) []*armadaevents.KubernetesObject {
@@ -114,9 +116,20 @@ func convertIngressesAndServices(
 			}
 
 			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceNameCustomized := false
+
 			if len(serviceConfig.Name) > 0 {
-				serviceName = serviceConfig.Name
-			} else {
+				if config.AllowCustomServiceNames {
+					serviceName = serviceConfig.Name
+					serviceNameCustomized = true
+				} else {
+					log.Warnf("Feature flag to allow customized service name %s is not enabled. "+
+						"Using generated service name %s", serviceConfig.Name, serviceName)
+				}
+
+			}
+
+			if !serviceNameCustomized {
 				serviceIdx++
 			}
 

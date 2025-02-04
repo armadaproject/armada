@@ -79,6 +79,21 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 	}
 }
 
+func SubmissionConfigWithCustomServiceNamesEnabled() configuration.SubmissionConfig {
+	return configuration.SubmissionConfig{
+		AllowedPriorityClassNames: map[string]bool{DefaultPriorityClass: true},
+		DefaultPriorityClassName:  DefaultPriorityClass,
+		DefaultJobLimits:          armadaresource.ComputeResources{"cpu": resource.MustParse("1")},
+		DefaultJobTolerations:     DefaultTolerations,
+		MaxPodSpecSizeBytes:       1000,
+		MinJobResources:           map[v1.ResourceName]resource.Quantity{},
+		MinTerminationGracePeriod: 30 * time.Second,
+		MaxTerminationGracePeriod: 300 * time.Second,
+		DefaultActiveDeadline:     1 * time.Hour,
+		AllowCustomServiceNames:   true,
+	}
+}
+
 func CreatePreemptJobSequenceEvents(jobIds []string, reason string) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
 	for i, jobId := range jobIds {

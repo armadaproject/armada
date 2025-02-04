@@ -1,6 +1,7 @@
 package conversion
 
 import (
+	"github.com/armadaproject/armada/internal/server/configuration"
 	"math"
 	"testing"
 
@@ -19,10 +20,12 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 	tests := map[string]struct {
 		jobReq            *api.JobSubmitRequestItem
 		expectedSubmitJob *armadaevents.SubmitJob
+		submissionConfig  configuration.SubmissionConfig
 	}{
 		"No Services or ingresses": {
 			jobReq:            testfixtures.JobSubmitRequestItem(1),
 			expectedSubmitJob: testfixtures.SubmitJob(1),
+			submissionConfig:  testfixtures.DefaultSubmissionConfig(),
 		},
 		"NodePort Service": {
 			jobReq: jobSubmitRequestItemWithServices([]*api.ServiceConfig{
@@ -63,6 +66,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 					},
 				},
 			}),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
 		},
 		"Headless Service": {
 			jobReq: jobSubmitRequestItemWithServices([]*api.ServiceConfig{
@@ -103,6 +107,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 					},
 				},
 			}),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
 		},
 		"Ingress": {
 			jobReq: jobSubmitRequestItemWithIngresses([]*api.IngressConfig{
@@ -184,8 +189,9 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 					},
 				},
 			}),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
 		},
-		"Service With Custom Name": {
+		"Service With Custom Name With Feature Flag Enabled": {
 			jobReq: jobSubmitRequestItemWithServices([]*api.ServiceConfig{
 				{
 					Type:  api.ServiceType_NodePort,
@@ -225,6 +231,49 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 					},
 				},
 			}),
+			submissionConfig: testfixtures.SubmissionConfigWithCustomServiceNamesEnabled(),
+		},
+		"Service With Custom Name But Feature Flag Disabled": {
+			jobReq: jobSubmitRequestItemWithServices([]*api.ServiceConfig{
+				{
+					Type:  api.ServiceType_NodePort,
+					Ports: []uint32{8080},
+					Name:  "my-custom-service",
+				},
+			}),
+			expectedSubmitJob: SubmitJobMsgWithK8sObjects([]*armadaevents.KubernetesObject{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace: testfixtures.DefaultNamespace,
+						Name:      "armada-00000000000000000000000001-0-service-0",
+						Annotations: map[string]string{
+							"armada_jobset_id": testfixtures.DefaultJobset,
+							"armada_owner":     testfixtures.DefaultOwner,
+						},
+						Labels: map[string]string{
+							"armada_job_id":   "00000000000000000000000001",
+							"armada_queue_id": testfixtures.DefaultQueue.Name,
+						},
+					},
+					Object: &armadaevents.KubernetesObject_Service{
+						Service: &v1.ServiceSpec{
+							Ports: []v1.ServicePort{
+								{
+									Name:     "testContainer-8080",
+									Protocol: "TCP",
+									Port:     8080,
+								},
+							},
+							Selector: map[string]string{
+								"armada_job_id": "00000000000000000000000001",
+							},
+							ClusterIP: "",
+							Type:      v1.ServiceTypeNodePort,
+						},
+					},
+				},
+			}),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
 		},
 		"Multiple Services": {
 			jobReq: jobSubmitRequestItemWithServices([]*api.ServiceConfig{
@@ -300,6 +349,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 					},
 				},
 			}),
+			submissionConfig: testfixtures.SubmissionConfigWithCustomServiceNamesEnabled(),
 		},
 	}
 
@@ -307,7 +357,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual := SubmitJobFromApiRequest(
 				tc.jobReq,
-				testfixtures.DefaultSubmissionConfig(),
+				tc.submissionConfig,
 				testfixtures.DefaultJobset, testfixtures.DefaultQueue.Name, testfixtures.DefaultOwner,
 				func() string {
 					return testfixtures.TestUlid(1)
