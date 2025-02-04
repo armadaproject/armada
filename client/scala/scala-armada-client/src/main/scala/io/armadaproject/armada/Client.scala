@@ -13,7 +13,7 @@ import k8s.io.api.core.v1.generated.{Container, PodSpec, ResourceRequirements}
 import k8s.io.apimachinery.pkg.api.resource.generated.Quantity
 
 class Client(var chan: ManagedChannel, var eventTimed: Duration) {
-   def this(host: String, port: Int) = {
+  def this(host: String, port: Int) = {
     this(
       ManagedChannelBuilder.forAddress(host, port).usePlaintext().build,
       Duration.ofSeconds(60)
