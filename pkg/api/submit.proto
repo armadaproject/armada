@@ -36,6 +36,8 @@ message IngressConfig {
     bool tls_enabled = 4;
     string cert_name = 5;
     bool use_clusterIP = 6;
+    string class_name = 7;
+    repeated string tls_hosts = 8;
 }
 
 message ServiceConfig {
