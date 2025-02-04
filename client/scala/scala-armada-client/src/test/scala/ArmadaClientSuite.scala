@@ -157,5 +157,27 @@ class ArmadaClientSuite extends munit.FunSuite {
     val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
     val response = ac.GetJobStatus("fakeJobId")
     assert(response.jobStates("fakeJobId").isRunning)
+
+  test("test queue existence, creation, deletion") {
+    val ac = new Client(host, port)
+    val qName = "test-queue-" + Random.alphanumeric.take(8).mkString
+    var q: Queue = new Queue()
+
+    // queue should not exist yet
+    intercept[io.grpc.StatusRuntimeException] {
+      q = ac.getQueue(qName)
+    }
+    assertNotEquals(q.name, qName)
+
+    ac.createQueue(qName)
+    q = ac.getQueue(qName)
+    assertEquals(q.name, qName)
+
+    ac.deleteQueue(qName)
+    q = new Queue()
+    intercept[io.grpc.StatusRuntimeException] {
+      q = ac.getQueue(qName)
+    }
+    assertNotEquals(q.name, qName)
   }
 }
