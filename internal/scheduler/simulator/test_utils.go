@@ -137,7 +137,7 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 		Number:            n,
 		JobSet:            jobSet,
 		PriorityClassName: priorityClassName,
-		Requirements: schedulerobjects.PodRequirements{
+		Requirements: &schedulerobjects.PodRequirements{
 			ResourceRequirements: &v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":    resource.MustParse("32"),
@@ -160,7 +160,7 @@ func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 		Number:            n,
 		JobSet:            jobSet,
 		PriorityClassName: priorityClassName,
-		Requirements: schedulerobjects.PodRequirements{
+		Requirements: &schedulerobjects.PodRequirements{
 			ResourceRequirements: &v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":    resource.MustParse("1"),

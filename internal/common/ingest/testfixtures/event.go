@@ -3,6 +3,8 @@ package testfixtures
 import (
 	"time"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
@@ -167,7 +169,7 @@ var Leased = &armadaevents.EventSequence_Event{
 			ScheduledAtPriority:    15,
 			UpdateSequenceNumber:   1,
 			PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-				Tolerations: []v1.Toleration{
+				Tolerations: []*v1.Toleration{
 					{
 						Key:    "whale",
 						Value:  "true",
@@ -290,8 +292,10 @@ var JobRequeued = &armadaevents.EventSequence_Event{
 					{
 						Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 							PodRequirements: &schedulerobjects.PodRequirements{
-								NodeSelector:     NodeSelector,
-								Tolerations:      Tolerations,
+								NodeSelector: NodeSelector,
+								Tolerations: armadaslices.Map(Tolerations, func(t v1.Toleration) *v1.Toleration {
+									return &t
+								}),
 								PreemptionPolicy: "PreemptLowerPriority",
 								Affinity:         Affinity,
 								ResourceRequirements: &v1.ResourceRequirements{

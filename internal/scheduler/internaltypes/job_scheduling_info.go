@@ -83,9 +83,11 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 		SubmitTime:        j.SubmitTime,
 		Priority:          j.Priority,
 		PodRequirements: &PodRequirements{
-			NodeSelector:         podRequirements.NodeSelector,
-			Affinity:             podRequirements.Affinity,
-			Tolerations:          podRequirements.Tolerations,
+			NodeSelector: podRequirements.NodeSelector,
+			Affinity:     podRequirements.Affinity,
+			Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t *v1.Toleration) v1.Toleration {
+				return *t
+			}),
 			Annotations:          podRequirements.Annotations,
 			ResourceRequirements: *rr,
 		},
@@ -104,9 +106,11 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{
-						NodeSelector:         podRequirements.NodeSelector,
-						Affinity:             podRequirements.Affinity,
-						Tolerations:          podRequirements.Tolerations,
+						NodeSelector: podRequirements.NodeSelector,
+						Affinity:     podRequirements.Affinity,
+						Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t v1.Toleration) *v1.Toleration {
+							return &t
+						}),
 						Annotations:          podRequirements.Annotations,
 						ResourceRequirements: &podRequirements.ResourceRequirements,
 					},

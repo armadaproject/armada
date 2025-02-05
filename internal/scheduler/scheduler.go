@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -574,7 +576,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-								Tolerations: jctx.AdditionalTolerations,
+								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
+									return &t
+								}),
 							},
 							Pool: run.Pool(),
 						},

@@ -351,7 +351,7 @@ func TestSimulator(t *testing.T) {
 								Number:            2,
 								JobSet:            "job-set-0",
 								PriorityClassName: "armada-preemptible",
-								Requirements: schedulerobjects.PodRequirements{
+								Requirements: &schedulerobjects.PodRequirements{
 									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("128"),
@@ -359,7 +359,7 @@ func TestSimulator(t *testing.T) {
 											"nvidia.com/gpu": resource.MustParse("8"),
 										},
 									},
-									Tolerations: []v1.Toleration{
+									Tolerations: []*v1.Toleration{
 										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 									},
 								},
@@ -377,7 +377,7 @@ func TestSimulator(t *testing.T) {
 								Number:            32,
 								JobSet:            "job-set-1",
 								PriorityClassName: "armada-preemptible-away",
-								Requirements: schedulerobjects.PodRequirements{
+								Requirements: &schedulerobjects.PodRequirements{
 									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("16"),

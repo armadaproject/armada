@@ -57,7 +57,7 @@ message JobTemplate {
     uint32 queue_priority = 6;
     string priority_class_name = 7;
     // Scheduling requirements for the pod embedded in the job.
-    schedulerobjects.PodRequirements requirements = 8 [(gogoproto.nullable) = false];
+    schedulerobjects.PodRequirements requirements = 8;
     // List of template ids that must be completed before this template is submitted.
     repeated string dependencies = 9;
     // Earliest time at which jobs from this template are submitted.
