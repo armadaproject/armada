@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -692,7 +693,8 @@ func (l *FairSchedulingAlgo) filterStaleExecutors(ctx *armadacontext.Context, ex
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
 	cutoff := l.clock.Now().Add(-l.schedulingConfig.ExecutorTimeout)
 	for _, executor := range executors {
-		if executor.LastUpdateTime.After(cutoff) {
+		lastUpdateTime := protoutil.ToStdTime(executor.LastUpdateTime)
+		if lastUpdateTime.After(cutoff) {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
 			ctx.Infof("Ignoring executor %s because it hasn't heartbeated since %s", executor.Id, executor.LastUpdateTime)

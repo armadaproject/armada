@@ -16,7 +16,7 @@ message Executor {
     // The nodes available for scheduling via this executor.
     repeated Node nodes = 3;
     // Last time the executor provided a heartbeat to say it was still accepting job.
-    google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp lastUpdateTime = 5;
     // Jobs that are owned by the cluster but are not assigned to any node.
     repeated string unassigned_job_runs = 9;
 }

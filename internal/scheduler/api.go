@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
@@ -383,7 +385,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:                req.ExecutorId,
 		Pool:              req.Pool,
 		Nodes:             nodes,
-		LastUpdateTime:    now,
+		LastUpdateTime:    protoutil.ToTimestamp(now),
 		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }

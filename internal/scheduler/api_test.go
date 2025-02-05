@@ -97,7 +97,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				ReportingNodeType: "node-type-1",
 			},
 		},
-		LastUpdateTime:    testClock.Now().UTC(),
+		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),
 		UnassignedJobRuns: []string{runId3},
 	}
 
