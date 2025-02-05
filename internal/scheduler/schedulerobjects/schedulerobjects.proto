@@ -49,7 +49,7 @@ message Node {
     // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
     bool unschedulable = 15;
     // This should only be used for metrics
-    // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
+    // This is the type the node should be reported as. It is simply a label to categorise the group the node belongs to
     string reporting_node_type = 17;
     // The pool that this node belongs to, this is used for scheduling purposes
     string pool = 18;
