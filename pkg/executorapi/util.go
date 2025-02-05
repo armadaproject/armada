@@ -1,7 +1,8 @@
 package executorapi
 
 import (
-	"time"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -60,7 +61,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Name:     nodeInfo.Name,
 		Executor: executor,
 		Pool:     nodeInfo.Pool,
-		LastSeen: lastSeen,
+		LastSeen: protoutil.ToTimestamp(lastSeen),
 		Taints: armadaslices.Map(nodeInfo.GetTaints(), func(v *v1.Taint) v1.Taint {
 			if v != nil {
 				return *v

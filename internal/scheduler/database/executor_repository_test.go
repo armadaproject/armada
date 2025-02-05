@@ -28,7 +28,7 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 					Nodes: []*schedulerobjects.Node{
 						{
 							Id:       "test-node-1",
-							LastSeen: t1,
+							LastSeen: t1Proto,
 						},
 					},
 					LastUpdateTime:    t1Proto,
@@ -40,7 +40,7 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 					Nodes: []*schedulerobjects.Node{
 						{
 							Id:       "test-node-2",
-							LastSeen: t1,
+							LastSeen: t1Proto,
 						},
 					},
 					LastUpdateTime:    t1Proto,
