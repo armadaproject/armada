@@ -1,14 +1,14 @@
 package internaltypes
 
 import (
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )

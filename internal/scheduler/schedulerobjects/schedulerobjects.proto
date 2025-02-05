@@ -77,7 +77,6 @@ message ResourceList {
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
     reserved 10;
-    option (gogoproto.stable_marshaler) = true;
     uint32 lifetime = 1;
     bool at_most_once = 2;
     bool preemptible = 3;
