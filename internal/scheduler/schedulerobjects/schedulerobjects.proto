@@ -43,7 +43,7 @@ message Node {
     // where available resources = unused resources + resources assigned to lower-priority jobs.
     map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false, deprecated = true];
     // Ids of the job runs currently assigned to this node and their current state.
-    map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
+    map<string, JobRunState> state_by_job_run_id = 9;
     // Resource allocated to non-Armada pods on this node.
     map<int32, ResourceList> unallocatable_resources = 13 [(gogoproto.nullable) = false];
     // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
