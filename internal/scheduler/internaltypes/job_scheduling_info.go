@@ -1,7 +1,8 @@
 package internaltypes
 
 import (
-	"time"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
@@ -80,7 +81,7 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 	return &JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
-		SubmitTime:        j.SubmitTime,
+		SubmitTime:        protoutil.ToStdTime(j.SubmitTime),
 		Priority:          j.Priority,
 		PodRequirements: &PodRequirements{
 			NodeSelector: podRequirements.NodeSelector,
@@ -100,7 +101,7 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 	return &schedulerobjects.JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
-		SubmitTime:        j.SubmitTime,
+		SubmitTime:        protoutil.ToTimestamp(j.SubmitTime),
 		Priority:          j.Priority,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{

@@ -83,7 +83,7 @@ message JobSchedulingInfo {
     bool preemptible = 3;
     bool concurrency_safe = 4;
     string priority_class_name = 6;
-    google.protobuf.Timestamp submit_time = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp submit_time = 7;
     // In-queue priority. I.e., not the priority class priority.
     uint32 priority = 8;
     // Kubernetes objects that make up this job and their respective scheduling requirements.

@@ -405,7 +405,7 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 		Version:           0,
 		PriorityClassName: "test-priority",
 		Priority:          3,
-		SubmitTime:        f.BaseTime,
+		SubmitTime:        protoutil.ToTimestamp(f.BaseTime),
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
