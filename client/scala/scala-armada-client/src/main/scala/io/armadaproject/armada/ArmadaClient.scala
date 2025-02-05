@@ -2,7 +2,8 @@ package io.armadaproject.armada
 
 import api.job.{JobStatusRequest, JobStatusResponse, JobsGrpc}
 import api.event.EventGrpc
-import api.submit.{SubmitGrpc, JobSubmitRequest, JobSubmitResponse, JobSubmitRequestItem}
+import api.submit.{SubmitGrpc, JobSubmitRequest, JobSubmitResponse, JobSubmitRequestItem,
+  Queue, QueueDeleteRequest, QueueGetRequest}
 import api.health.HealthCheckResponse
 import api.submit.Job
 import k8s.io.api.core.v1.generated.{Container, PodSpec, ResourceRequirements}
@@ -32,20 +33,20 @@ class ArmadaClient(var channel: ManagedChannel) {
   }
 
   def createQueue(name: String): Unit = {
-    val blockingStub = SubmitGrpc.blockingStub(chan)
+    val blockingStub = SubmitGrpc.blockingStub(channel)
     val q = api.submit.Queue().withName(name).withPriorityFactor(1)
     blockingStub.createQueue(q)
   }
 
   def deleteQueue(name: String): Unit = {
     val qReq = QueueDeleteRequest(name)
-    val blockingStub = SubmitGrpc.blockingStub(chan)
+    val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.deleteQueue(qReq)
   }
 
   def getQueue(name: String): Queue = {
     val qReq = QueueGetRequest(name)
-    val blockingStub = SubmitGrpc.blockingStub(chan)
+    val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.getQueue(qReq)
   }
 }
