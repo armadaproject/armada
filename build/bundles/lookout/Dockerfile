@@ -8,6 +8,9 @@ LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada-loo
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 
+# Logging (shared between both components)
+COPY config/logging.yaml /app/config/logging.yaml
+
 COPY config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
 
 COPY config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml

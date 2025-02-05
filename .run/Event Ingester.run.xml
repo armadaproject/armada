@@ -3,6 +3,7 @@
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
+      <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
       <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
       <env name="ARMADA_REDIS_ADDRS" value="localhost:6379" />
       <env name="ARMADA_METRICSPORT" value="9011" />

@@ -9,5 +9,6 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 COPY scheduleringester /app/
 COPY config/scheduleringester/config.yaml /app/config/scheduleringester/config.yaml
+COPY config/logging.yaml /app/config/logging.yaml
 WORKDIR /app
 ENTRYPOINT ["./scheduleringester"]
