@@ -31,6 +31,23 @@ class ArmadaClient(var channel: ManagedChannel) {
     blockingStub.health(Empty()).status
   }
 
+  def createQueue(name: String): Unit = {
+    val blockingStub = SubmitGrpc.blockingStub(chan)
+    val q = api.submit.Queue().withName(name).withPriorityFactor(1)
+    blockingStub.createQueue(q)
+  }
+
+  def deleteQueue(name: String): Unit = {
+    val qReq = QueueDeleteRequest(name)
+    val blockingStub = SubmitGrpc.blockingStub(chan)
+    blockingStub.deleteQueue(qReq)
+  }
+
+  def getQueue(name: String): Queue = {
+    val qReq = QueueGetRequest(name)
+    val blockingStub = SubmitGrpc.blockingStub(chan)
+    blockingStub.getQueue(qReq)
+  }
 }
 
 object ArmadaClient {
