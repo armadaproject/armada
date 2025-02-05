@@ -33,7 +33,7 @@ message Node {
     // Used to garbage collect nodes that have been removed.
     google.protobuf.Timestamp last_seen = 2;
     // Kubernetes taints.
-    repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
+    repeated k8s.io.api.core.v1.Taint taints = 5;
     // Kubernetes labels.
     map<string, string> labels = 6;
     // Total resources on this node.

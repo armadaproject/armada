@@ -336,7 +336,7 @@ func GpuNode(pool string) *schedulerobjects.Node {
 			"memory":         resource.MustParse("512Gi"),
 			"nvidia.com/gpu": resource.MustParse("8"),
 		})
-	node.Taints = []v1.Taint{
+	node.Taints = []*v1.Taint{
 		{
 			Key:    "gpu",
 			Value:  "true",

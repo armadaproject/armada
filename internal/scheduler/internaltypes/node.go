@@ -78,6 +78,13 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		unallocatableResources[p] = resourceListFactory.FromJobResourceListIgnoreUnknown(u.Resources)
 	}
 
+	taints := make([]v1.Taint, 0, len(node.Taints))
+	for _, t := range node.Taints {
+		if t != nil {
+			taints = append(taints, *t)
+		}
+	}
+
 	return CreateNodeAndType(
 		node.Id,
 		nodeIndex,
@@ -85,7 +92,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		node.Name,
 		node.Pool,
 		node.Unschedulable,
-		node.Taints,
+		taints,
 		node.Labels,
 		indexedTaints,
 		indexedNodeLabels,

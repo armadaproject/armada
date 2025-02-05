@@ -785,7 +785,7 @@ func testNodeWithPool(pool string) *schedulerobjects.Node {
 }
 
 func withLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
-	node.Taints = append(node.Taints, v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
+	node.Taints = append(node.Taints, &v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
 	return node
 }
 

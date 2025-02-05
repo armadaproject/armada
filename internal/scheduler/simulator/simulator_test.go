@@ -323,7 +323,7 @@ func TestSimulator(t *testing.T) {
 				Name: "cluster",
 				Clusters: func() []*Cluster {
 					whaleNodeTemplate := NodeTemplateGpu(2)
-					whaleNodeTemplate.Taints = []v1.Taint{
+					whaleNodeTemplate.Taints = []*v1.Taint{
 						{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 					}
 					return []*Cluster{

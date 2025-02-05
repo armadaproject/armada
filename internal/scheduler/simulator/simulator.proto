@@ -32,7 +32,7 @@ message WorkloadSpec {
 
 message NodeTemplate {
     int64 number = 1;
-    repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
+    repeated k8s.io.api.core.v1.Taint taints = 2;
     map<string, string> labels = 3;
     schedulerobjects.ResourceList total_resources = 4 [(gogoproto.nullable) = false];
 }
