@@ -8,6 +8,7 @@ lazy val root = project
 
     scalaVersion := scala2Version,
 
+    libraryDependencies += "io.armadaproject.armada" %% "scala-armada-client" % "0.1.0-SNAPSHOT",
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.0" % Test
   )
 
