@@ -197,7 +197,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 
 		nodeTypeMetric[phase].count++
 		nodeTypeMetric[phase].resourceRequest.Add(request)
-		nodeTypeMetric[phase].resourceUsage.Add(usage.GetCurrentUsage())
+		nodeTypeMetric[phase].resourceUsage.Add(usage.CurrentUsage)
 	}
 	m.setEmptyMetrics(podMetrics)
 

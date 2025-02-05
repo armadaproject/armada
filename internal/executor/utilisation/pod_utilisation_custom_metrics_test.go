@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -42,18 +43,20 @@ func TestUpdateMetrics(t *testing.T) {
 	updateMetrics(samples, config, podNameToUtilisationData)
 
 	expectedUtilisationData := map[string]*domain.UtilisationData{
-		"pod1": domain.NewUtilisationData(
-			map[string]resource.Quantity{
+		"pod1": {
+			CurrentUsage: armadaresource.ComputeResources{
 				"gpu":                          makeQuantity(1),
 				"accelerator-memory-copy-util": makeQuantity(4),
 			},
-		),
-		"pod2": domain.NewUtilisationData(
-			map[string]resource.Quantity{
+			CumulativeUsage: armadaresource.ComputeResources{},
+		},
+		"pod2": {
+			CurrentUsage: armadaresource.ComputeResources{
 				"gpu":                          makeMilliQuantity(550),
 				"accelerator-memory-copy-util": makeQuantity(5),
 			},
-		),
+			CumulativeUsage: armadaresource.ComputeResources{},
+		},
 		"pod3": domain.EmptyUtilisationData(),
 	}
 
