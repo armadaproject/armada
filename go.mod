@@ -86,6 +86,8 @@ require (
 	golang.org/x/time v0.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
 	gopkg.in/inf.v0 v0.9.1
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -206,7 +208,6 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/cli-runtime v0.26.15 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
