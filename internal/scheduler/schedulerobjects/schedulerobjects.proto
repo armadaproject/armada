@@ -9,6 +9,7 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 // Executor represents an executor running on a worker cluster
 message Executor {
+    reserved 4,6,7,8;
     // Name of the executor.
     string id = 1;
     // Pool that the executor belongs to.
@@ -23,6 +24,7 @@ message Executor {
 
 // Node represents a node in a worker cluster.
 message Node {
+    reserved 3,4,10,11,14,16;
     // Id associated with the node. Must be unique across all clusters.
     string id = 1;
     // Kubernetes node name. Not guaranteed to be unique across clusters.
