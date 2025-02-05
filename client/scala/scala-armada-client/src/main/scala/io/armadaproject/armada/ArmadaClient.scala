@@ -11,7 +11,7 @@ import k8s.io.apimachinery.pkg.api.resource.generated.Quantity
 import com.google.protobuf.empty.Empty
 import io.grpc.{ManagedChannelBuilder, ManagedChannel}
 
-class ArmadaClient(var channel: ManagedChannel) {
+class ArmadaClient(channel: ManagedChannel) {
   def SubmitJobs(queue: String, jobSetId: String, jobRequestItems: Seq[JobSubmitRequestItem]): JobSubmitResponse = {
     val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.submitJobs(JobSubmitRequest(queue, jobSetId, jobRequestItems))
@@ -53,7 +53,12 @@ class ArmadaClient(var channel: ManagedChannel) {
 
 object ArmadaClient {
   // TODO: SSL
-  def GetChannel(host: String, port: Int): ManagedChannel = {
-    ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+  def apply(channel: ManagedChannel): ArmadaClient = {
+    new ArmadaClient(channel)
+  }
+
+  def apply(host: String, port: Int): ArmadaClient = {
+    val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+    ArmadaClient(channel)
   }
 }

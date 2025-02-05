@@ -137,31 +137,31 @@ class ArmadaClientSuite extends munit.FunSuite {
   override def munitFixtures = List(mockEventServer)
 
   test("ArmadaClient.EventHealth()") {
-    val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
+    val ac = ArmadaClient("localhost", testPort)
     val status = ac.EventHealth()
     assertEquals(status, HealthCheckResponse.ServingStatus.SERVING)
   }
 
   test("ArmadaClient.SubmitHealth()") {
-    val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
+    val ac = ArmadaClient("localhost", testPort)
     val status = ac.SubmitHealth()
     assertEquals(status, HealthCheckResponse.ServingStatus.SERVING)
   }
 
   test("ArmadaClient.SubmitJobs()") {
-    val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
+    val ac = ArmadaClient("localhost", testPort)
     val response = ac.SubmitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
     assertEquals(response.jobResponseItems(0), JobSubmitResponseItem("fakeJobId"))
   }
 
   test("ArmadaClient.GetJobStatus()") {
-    val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
+    val ac = ArmadaClient("localhost", testPort)
     val response = ac.GetJobStatus("fakeJobId")
     assert(response.jobStates("fakeJobId").isRunning)
   }
 
   // Queue tests currently disabled - Armada mock server does not implement full queue
-  // state so these fail when running with mock; they pass with a real Armada instance 
+  // state so these fail when running with mock; they pass with a real Armada instance
   // test("test queue existence, creation, deletion") {
   //   val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
   //   val qName = "test-queue-" + Random.alphanumeric.take(8).mkString
