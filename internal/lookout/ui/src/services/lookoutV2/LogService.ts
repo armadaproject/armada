@@ -1,4 +1,4 @@
-import { getAuthorizationHeaders } from "../../oidc"
+import { appendAuthorizationHeaders } from "../../oidcAuth"
 import { BinocularsLogLine, ConfigurationParameters } from "../../openapi/binoculars"
 import { getBinocularsApi } from "../../utils"
 
@@ -38,6 +38,11 @@ export class LogService implements ILogService {
     tailLines: number | undefined,
     accessToken?: string,
   ): Promise<LogLine[]> {
+    const headers = new Headers()
+    if (accessToken) {
+      appendAuthorizationHeaders(headers, accessToken)
+    }
+
     const api = getBinocularsApi(cluster, this.baseUrlPattern, this.config)
     const logResult = await api.logs(
       {
@@ -52,7 +57,7 @@ export class LogService implements ILogService {
           },
         },
       },
-      accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+      { headers },
     )
     return parseLogLines(logResult.log ?? [])
   }
