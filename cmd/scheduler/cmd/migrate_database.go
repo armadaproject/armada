@@ -4,11 +4,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 

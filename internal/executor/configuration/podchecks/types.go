@@ -47,3 +47,19 @@ type ContainerStatusCheck struct {
 	GracePeriod  time.Duration
 	Action       Action
 }
+
+type FailedChecks struct {
+	Events      []PodEventCheck
+	PodStatuses []PodStatusCheck
+}
+
+type PodEventCheck struct {
+	Regexp string
+	Reason string
+	Type   EventType
+}
+
+type PodStatusCheck struct {
+	Regexp string
+	Reason string
+}

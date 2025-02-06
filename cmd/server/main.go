@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -17,6 +16,7 @@ import (
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/server"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -36,7 +36,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	// TODO Load relevant config in one place: don't use viper here and in LoadConfig.
@@ -119,6 +119,6 @@ func main() {
 	}()
 
 	if err := g.Wait(); err != nil {
-		logging.WithStacktrace(log.NewEntry(log.StandardLogger()), err).Error("Armada server shut down")
+		logging.WithStacktrace(err).Error("Armada server shut down")
 	}
 }

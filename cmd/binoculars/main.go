@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
@@ -19,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	api "github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -35,7 +35,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.BinocularsConfig

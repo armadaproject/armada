@@ -9,6 +9,7 @@ USER armada
 
 COPY binoculars /app/
 COPY config/binoculars/config.yaml /app/config/binoculars/config.yaml
+COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 

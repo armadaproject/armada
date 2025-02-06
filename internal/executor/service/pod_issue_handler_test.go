@@ -21,11 +21,14 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
+
+const retryableFailedPodStatusMessage = "retryable"
 
 func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
 	podIssueService, _, _, eventsReporter, err := setupTestComponents([]*job.RunState{})
@@ -86,6 +89,112 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testin
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "terminating")
+}
+
+func TestPodIssueService_HasIssue(t *testing.T) {
+	podIssueService, _, _, _, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+
+	issue := &runIssue{
+		JobId: "abc",
+		RunId: "def",
+	}
+
+	added, err := podIssueService.registerIssue(issue)
+	assert.True(t, added)
+	assert.NoError(t, err)
+
+	// Empty input
+	result := podIssueService.HasIssue("")
+	assert.False(t, result)
+
+	// unknown id
+	result = podIssueService.HasIssue("unknown")
+	assert.False(t, result)
+
+	// known id
+	result = podIssueService.HasIssue(issue.RunId)
+	assert.True(t, result)
+
+	// after issue resolve
+	podIssueService.markIssuesResolved(issue)
+	result = podIssueService.HasIssue(issue.RunId)
+	assert.False(t, result)
+}
+
+func TestPodIssueService_DetectAndRegisterFailedPodIssue(t *testing.T) {
+	failedPodWithRetryableIssue := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+	failedPodWithRetryableIssue.Status.Message = retryableFailedPodStatusMessage
+
+	failedPodWithNonRetryableIssue := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+	failedPodWithNonRetryableIssue.Status.Message = "non-retryable"
+	tests := map[string]struct {
+		pod                      *v1.Pod
+		issueAlreadyExists       bool
+		shouldErrorGettingEvents bool
+		expectIssueAdded         bool
+		expectError              bool
+	}{
+		"FailedPodWithIssue": {
+			pod:              failedPodWithRetryableIssue,
+			expectIssueAdded: true,
+			expectError:      false,
+		},
+		"FailedPodWithoutIssue": {
+			pod:              failedPodWithNonRetryableIssue,
+			expectIssueAdded: false,
+			expectError:      false,
+		},
+		"FailedPodWithIssue_IssueAlreadyRegistered": {
+			pod:                failedPodWithRetryableIssue,
+			issueAlreadyExists: true,
+			expectIssueAdded:   false,
+			expectError:        false,
+		},
+		"FailedPodWithIssue_EventErrors": {
+			pod:                      failedPodWithRetryableIssue,
+			shouldErrorGettingEvents: true,
+			expectIssueAdded:         false,
+			expectError:              true,
+		},
+		"UnmanagedPod": {
+			pod:              &v1.Pod{},
+			expectIssueAdded: false,
+			expectError:      false,
+		},
+		"RunningPod": {
+			pod:              makeRunningPod(),
+			expectIssueAdded: false,
+			expectError:      false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, _, err := setupTestComponents([]*job.RunState{})
+			require.NoError(t, err)
+			if tc.issueAlreadyExists {
+				added, err := podIssueService.registerIssue(&runIssue{
+					JobId: util.ExtractJobId(tc.pod),
+					RunId: util.ExtractJobRunId(tc.pod),
+				})
+				assert.True(t, added)
+				assert.NoError(t, err)
+			}
+			if tc.shouldErrorGettingEvents {
+				fakeClusterContext.GetPodEventsErr = fmt.Errorf("failed getting events")
+			}
+
+			issueAdded, err := podIssueService.DetectAndRegisterFailedPodIssue(tc.pod)
+
+			assert.Equal(t, tc.expectIssueAdded, issueAdded)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *testing.T) {
@@ -303,22 +412,24 @@ func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 	assert.Len(t, runStateStore.GetAll(), 1)
 }
 
-func setupTestComponents(initialRunState []*job.RunState) (*IssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
+func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
-	pendingPodChecker := makePodChecker()
+	pendingPodChecker := makePendingPodChecker()
+	failedPodChecker := makeFailedPodChecker()
 	runStateStore := job.NewJobRunStateStoreWithInitialState(initialRunState)
 	stateChecksConfig := configuration.StateChecksConfiguration{
 		DeadlineForSubmittedPodConsideredMissing: time.Minute * 15,
 		DeadlineForActivePodConsideredMissing:    time.Minute * 5,
 	}
 
-	podIssueHandler, err := NewIssueHandler(
+	podIssueHandler, err := NewPodIssuerHandler(
 		runStateStore,
 		fakeClusterContext,
 		eventReporter,
 		stateChecksConfig,
 		pendingPodChecker,
+		failedPodChecker,
 		time.Minute*3,
 	)
 
@@ -420,7 +531,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 	return pod
 }
 
-func makePodChecker() podchecks.PodChecker {
+func makePendingPodChecker() podchecks.PodChecker {
 	var cfg podchecksConfig.Checks
 	cfg.Events = []podchecksConfig.EventCheck{
 		{Regexp: "Image pull has failed", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
@@ -432,6 +543,21 @@ func makePodChecker() podchecks.PodChecker {
 	}
 
 	checker, err := podchecks.NewPodChecks(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
+	}
+
+	return checker
+}
+
+func makeFailedPodChecker() failedpodchecks.RetryChecker {
+	checker, err := failedpodchecks.NewPodRetryChecker(podchecksConfig.FailedChecks{
+		PodStatuses: []podchecksConfig.PodStatusCheck{
+			{
+				Regexp: fmt.Sprintf("^%s$", retryableFailedPodStatusMessage),
+			},
+		},
+	})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
 	}

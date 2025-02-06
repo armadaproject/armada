@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -43,6 +44,7 @@ type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueCache                  queue.QueueCache
+	queueMultiplierProvider     prioritymultiplier.Provider
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
@@ -63,6 +65,7 @@ func NewFairSchedulingAlgo(
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	resourceListFactory *internaltypes.ResourceListFactory,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
+	queueMultiplierProvider prioritymultiplier.Provider,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -74,6 +77,7 @@ func NewFairSchedulingAlgo(
 		schedulingConfig:            config,
 		executorRepository:          executorRepository,
 		queueCache:                  queueCache,
+		queueMultiplierProvider:     queueMultiplierProvider,
 		schedulingContextRepository: schedulingContextRepository,
 		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:              make(map[string]*rate.Limiter),
@@ -108,6 +112,12 @@ func (l *FairSchedulingAlgo) Schedule(
 		return overallSchedulerResult, nil
 	}
 
+	// Exit immediately if priority multipliers are not ready
+	if !l.queueMultiplierProvider.Ready() {
+		ctx.Warn("queue multipliers are not ready; exiting")
+		return overallSchedulerResult, nil
+	}
+
 	for _, pool := range l.schedulingConfig.Pools {
 		select {
 		case <-ctx.Done():
@@ -130,7 +140,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		start := time.Now()
 		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name, pool.MarketDriven)
 
-		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool, time.Now().Sub(start), err)
+		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			// We've reached the scheduling time limit;
@@ -473,10 +483,15 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 		if allocationByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocationByQueueAndPriorityClass[queue.Name]
 		}
-		var weight float64 = 1
+		var rawWeight float64 = 1
 		if queue.PriorityFactor > 0 {
-			weight = 1 / queue.PriorityFactor
+			rawWeight = 1 / queue.PriorityFactor
 		}
+		multiplier, err := l.queueMultiplierProvider.Multiplier(pool, queue.Name)
+		if err != nil {
+			return nil, err
+		}
+		weight := rawWeight * multiplier
 
 		queueLimiter, ok := l.limiterByQueue[queue.Name]
 		if !ok {
@@ -487,7 +502,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			l.limiterByQueue[queue.Name] = queueLimiter
 		}
 
-		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(cappedDemand), queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(cappedDemand), queueLimiter); err != nil {
 			return nil, err
 		}
 	}
@@ -499,12 +514,17 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			continue
 		}
 
-		var weight float64 = 1
+		var rawWeight float64 = 1
 		if queue.PriorityFactor > 0 {
-			weight = 1 / queue.PriorityFactor
+			rawWeight = 1 / queue.PriorityFactor
 		}
+		multiplier, err := l.queueMultiplierProvider.Multiplier(pool, queue.Name)
+		if err != nil {
+			return nil, err
+		}
+		weight := rawWeight * multiplier
 
-		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
+		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -611,7 +631,7 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJo
 		}
 		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
-			logrus.Errorf(
+			log.Errorf(
 				"job %s assigned to node %s on executor %s, but no such node found",
 				job.Id(), nodeId, job.LatestRun().Executor(),
 			)

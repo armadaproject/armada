@@ -6,9 +6,9 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 

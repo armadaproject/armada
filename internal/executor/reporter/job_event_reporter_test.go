@@ -14,42 +14,13 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	util2 "github.com/armadaproject/armada/internal/common/util"
-	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func TestRequiresIngressToBeReported_FalseWhenIngressHasBeenReported(t *testing.T) {
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				domain.HasIngress:      "true",
-				domain.IngressReported: time.Now().String(),
-			},
-		},
-	}
-	assert.False(t, requiresIngressToBeReported(pod))
-}
-
-func TestRequiresIngressToBeReported_FalseWhenNonIngressPod(t *testing.T) {
-	pod := &v1.Pod{}
-	assert.False(t, requiresIngressToBeReported(pod))
-}
-
-func TestRequiresIngressToBeReported_TrueWhenHasIngressButNotIngressReportedAnnotation(t *testing.T) {
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{domain.HasIngress: "true"},
-		},
-	}
-	assert.True(t, requiresIngressToBeReported(pod))
-}
-
 func TestJobEventReporter_SendsEventImmediately_OnceNumberOfWaitingEventsMatchesBatchSize(t *testing.T) {
-	jobEventReporter, eventSender, _, err := setupBatchEventsTest(2)
-	require.NoError(t, err)
+	jobEventReporter, eventSender, _ := setupBatchEventsTest(2)
 	pod1 := createPod(1)
 	pod2 := createPod(2)
 
@@ -67,8 +38,7 @@ func TestJobEventReporter_SendsEventImmediately_OnceNumberOfWaitingEventsMatches
 }
 
 func TestJobEventReporter_SendsAllEventsInBuffer_EachBatchTickInterval(t *testing.T) {
-	jobEventReporter, eventSender, testClock, err := setupBatchEventsTest(2)
-	require.NoError(t, err)
+	jobEventReporter, eventSender, testClock := setupBatchEventsTest(2)
 	pod1 := createPod(1)
 
 	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod1), util.ExtractJobRunId(pod1)}, func(err error) {})
@@ -90,13 +60,11 @@ func createFailedEvent(t *testing.T, pod *v1.Pod) *armadaevents.EventSequence {
 	return event
 }
 
-func setupBatchEventsTest(batchSize int) (*JobEventReporter, *FakeEventSender, *clock.FakeClock, error) {
-	executorContext := fakecontext.NewSyncFakeClusterContext()
+func setupBatchEventsTest(batchSize int) (*JobEventReporter, *FakeEventSender, *clock.FakeClock) {
 	eventSender := NewFakeEventSender()
-	jobRunState := job.NewJobRunStateStore(executorContext)
 	testClock := clock.NewFakeClock(time.Now())
-	jobEventReporter, _, err := NewJobEventReporter(executorContext, jobRunState, eventSender, testClock, batchSize)
-	return jobEventReporter, eventSender, testClock, err
+	jobEventReporter, _ := NewJobEventReporter(eventSender, testClock, batchSize)
+	return jobEventReporter, eventSender, testClock
 }
 
 func createPod(index int) *v1.Pod {

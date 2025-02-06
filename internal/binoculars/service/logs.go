@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -15,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/cluster"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 

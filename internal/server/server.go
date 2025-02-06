@@ -7,12 +7,11 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -21,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	controlplaneeventspulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
@@ -194,7 +194,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	api.RegisterExecutorServer(grpcServer, executorServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
-	grpc_prometheus.Register(grpcServer)
 
 	// Cancel the errgroup if grpcServer.Serve returns an error.
 	log.Infof("Armada gRPC server listening on %d", config.GrpcPort)
@@ -235,11 +234,14 @@ func validateSubmissionConfig(config configuration.SubmissionConfig) error {
 }
 
 func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {
-	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	clientMetrics := grpc_prometheus.NewClientMetrics(
+		grpc_prometheus.WithClientHandlingTimeHistogram(),
+	)
+	prometheus.MustRegister(clientMetrics)
 	return client.CreateApiConnectionWithCallOptions(
 		&connectionDetails,
 		[]grpc.CallOption{},
-		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
 	)
 }
