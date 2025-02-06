@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { isNil } from "lodash"
 
 import { useGetUiConfig } from "./useGetUiConfig"
-import { useUserManager, getAuthorizationHeaders, getAccessToken } from "../../oidc"
+import { useUserManager, getAuthorizationHeaders, getAccessToken } from "../../oidcAuth"
 import { ApiQueue, ApiQueueFromJSON } from "../../openapi/armada"
 import { getErrorMessage } from "../../utils"
 
