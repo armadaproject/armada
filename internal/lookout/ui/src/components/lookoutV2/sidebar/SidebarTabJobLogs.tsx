@@ -112,13 +112,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   // Get logs
   const getLogsEnabled = Boolean(cluster && namespace && job.jobId && selectedContainer && job.runs.length > 0)
   const getLogsResult = useGetLogs(cluster, namespace, job.jobId, selectedContainer, loadFromStart, getLogsEnabled)
-  useEffect(() => {
-    if (getLogsResult.status === "error") {
-      openSnackbar(`Failed to retrieve Job logs for Job with ID:  ${job.jobId}: ${getLogsResult.error}`, "error", {
-        autoHideDuration: 5000,
-      })
-    }
-  }, [getLogsResult.status, getLogsResult.error])
 
   // Periodically refetch logs
   useEffect(() => {
