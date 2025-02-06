@@ -6,7 +6,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -66,8 +69,11 @@ func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogPa
 		GetLogs(params.PodName, params.LogOptions)
 
 	result := req.Do(ctx)
-	if result.Error() != nil {
-		return nil, result.Error()
+	if err := result.Error(); err != nil {
+		if errors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, "The pod with these logs doesn't exist - this is likely because the job has finished and the pod has been cleaned up")
+		}
+		return nil, err
 	}
 
 	rawLog, err := result.Raw()
