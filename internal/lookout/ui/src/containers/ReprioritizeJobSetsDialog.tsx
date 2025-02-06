@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogTitle } from "@mui/material"
 
 import ReprioritizeJobSets from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSetsOutcome"
-import { getAccessToken, useUserManager } from "../oidc"
+import { useGetAccessToken } from "../oidcAuth"
 import { JobSet } from "../services/JobService"
 import { ReprioritizeJobSetsResponse, UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
 import { ApiResult, priorityIsValid, RequestStatus } from "../utils"
@@ -37,7 +37,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
 
   const jobSetsToReprioritize = getReprioritizeableJobSets(props.selectedJobSets)
 
-  const userManager = useUserManager()
+  const getAccessToken = useGetAccessToken()
 
   async function reprioritizeJobSets() {
     if (requestStatus == "Loading" || !priorityIsValid(priority)) {
@@ -45,7 +45,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
     }
 
     setRequestStatus("Loading")
-    const accessToken = userManager && (await getAccessToken(userManager))
+    const accessToken = await getAccessToken()
     const reprioritizeJobSetsResponse = await props.updateJobSetsService.reprioritizeJobSets(
       props.queue,
       jobSetsToReprioritize,

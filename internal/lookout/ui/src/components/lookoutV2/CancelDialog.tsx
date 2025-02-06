@@ -10,7 +10,7 @@ import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "../../models/lookoutV2Models"
-import { getAccessToken, useUserManager } from "../../oidc"
+import { useGetAccessToken } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis, PlatformCancelReason } from "../../utils"
@@ -41,7 +41,7 @@ export const CancelDialog = ({
   const [isPlatformCancel, setIsPlatformCancel] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
-  const userManager = useUserManager()
+  const getAccessToken = useGetAccessToken()
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
@@ -67,7 +67,7 @@ export const CancelDialog = ({
     setIsCancelling(true)
 
     const reason = isPlatformCancel ? PlatformCancelReason : ""
-    const accessToken = userManager && (await getAccessToken(userManager))
+    const accessToken = await getAccessToken()
     const response = await updateJobsService.cancelJobs(cancellableJobs, reason, accessToken)
 
     if (response.failedJobIds.length === 0) {
