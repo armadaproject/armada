@@ -5,6 +5,7 @@ import { AppBar, IconButton, Tab, Tabs, Toolbar, Typography } from "@mui/materia
 import { Link } from "react-router-dom"
 
 import { SettingsDialog } from "./SettingsDialog"
+import { useUsername } from "../oidcAuth"
 import { Router, withRouter } from "../utils"
 
 import "./NavBar.css"
@@ -46,13 +47,13 @@ function locationFromIndex(pages: Page[], index: number): string {
 interface NavBarProps {
   customTitle: string
   router: Router
-  username?: string
 }
 
-function NavBar({ customTitle, router, username }: NavBarProps) {
+function NavBar({ customTitle, router }: NavBarProps) {
   const currentLocation = router.location.pathname
   const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const username = useUsername()
 
   return (
     <>
