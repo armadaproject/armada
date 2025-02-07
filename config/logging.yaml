@@ -1,0 +1,13 @@
+console:
+  level: INFO
+  format: text
+file:
+  enabled: false
+  level: INFO
+  format: json
+  logfile: app.log
+  rotation:
+    maxSizeMb: 5
+    maxBackups: 3
+    maxAgeDays: 7
+    compress: false

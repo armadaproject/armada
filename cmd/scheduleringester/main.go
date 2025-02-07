@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/armadaproject/armada/internal/scheduleringester"
-
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/scheduleringester"
 )
 
 const CustomConfigLocation string = "config"
@@ -24,7 +24,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config scheduleringester.Configuration

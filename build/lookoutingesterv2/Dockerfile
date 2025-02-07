@@ -10,6 +10,7 @@ USER armada
 
 COPY lookoutingesterv2 /app/
 COPY config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
+COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 

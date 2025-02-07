@@ -45,7 +45,7 @@ const ReportTemplate string = `
 `
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.LookoutIngesterV2Configuration

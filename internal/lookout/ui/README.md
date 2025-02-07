@@ -37,14 +37,30 @@ yarn openapi
 
 You can run a Vite development server to see your changes in the browser in
 real-time. This serves the web app on
-[http://localhost:3000](http://localhost:3000), and proxies API requests to a
-locally-running instance of the Lookout API. Please see
-[the main developer docs](../../../docs/developer/ui.md) for details of how to
-set this up.
+[http://localhost:3000](http://localhost:3000). It proxies API requests to the
+target defined by your `PROXY_TARGET` environment variable, or otherwise your
+locally-running instance of the Lookout server at `http://localhost:10000`
+(please see [the main developer docs](../../../docs/developer/ui.md) for details
+of how to set this up).
 
 ```bash
+# Proxy requests to your locally-running Lookout server
 yarn dev
+
+# Proxy API requests to your staging environment
+PROXY_TARGET=https://your-lookout-staging-environment.com yarn dev
 ```
+
+You should ensure the following for the instance of the Lookout server to which
+you are proxying API requests:
+
+- if OIDC authentication is enabled, the OIDC client allows redirects to
+  `http://localhost:3000/oidc`
+- the configured endpoints for the following services allow requests from the
+  `http://localhost:3000` origin in their responses' CORS headers (set in the
+  `applicationConfig.corsAllowedOrigins` path in their config file):
+  - Armada API
+  - Armada Binoculars
 
 ### Run unit tests
 
@@ -83,3 +99,7 @@ You can then run a server to serve this production bundle locally on
 ```bash
 yarn serve
 ```
+
+In the same way as for `yarn dev`, you may supply a `PROXY_TARGET` environment
+variable. The same requirements apply for the Lookout instance to which requests
+are proxied (for `localhost:4173` instead of `localhost:3000`).

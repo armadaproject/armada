@@ -724,19 +724,26 @@ export const JobsTableContainer = ({
     setSelectedRows({})
   }
 
-  const shiftSelectRow = async (row: Row<JobTableRow>) => {
+  const shiftSelectRow = (row: Row<JobTableRow>) => {
     if (lastSelectedRow === undefined || row.depth !== lastSelectedRow.depth) {
       return
     }
-    const sameDepthRows = table.getRowModel().rows.filter((_row) => row.depth === lastSelectedRow.depth)
-    const lastSelectedIdx = sameDepthRows.indexOf(lastSelectedRow)
-    const currentIdx = sameDepthRows.indexOf(row)
-    const shouldSelect = lastSelectedRow.getIsSelected()
-    // Race condition - if we don't wait here the rows do not get selected
-    await waitMillis(1)
-    for (let i = Math.min(lastSelectedIdx, currentIdx); i <= Math.max(lastSelectedIdx, currentIdx); i++) {
-      sameDepthRows[i].toggleSelected(shouldSelect)
-    }
+
+    const rowIndex = table.getRowModel().rows.indexOf(row)
+    const lastSelectedRowIndex = table.getRowModel().rows.indexOf(lastSelectedRow)
+
+    const selectedValue = lastSelectedRow.getIsSelected()
+    const rowSelectionMask: RowSelectionState = table
+      .getRowModel()
+      .rows.slice(Math.min(rowIndex, lastSelectedRowIndex), Math.max(rowIndex, lastSelectedRowIndex) + 1)
+      .reduce<RowSelectionState>((acc, { id, depth }) => {
+        if (depth === row.depth) {
+          acc[id] = selectedValue
+        }
+        return acc
+      }, {})
+
+    table.setRowSelection((prev) => ({ ...prev, ...rowSelectionMask }))
   }
 
   const selectRow = async (row: Row<JobTableRow>, singleSelect: boolean) => {

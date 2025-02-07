@@ -126,6 +126,12 @@ func Run(config schedulerconfig.Configuration) error {
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
+	queueCacheInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	err = queueCache.Initialise(queueCacheInitTimeout)
+	if err != nil {
+		ctx.Errorf("error initialising queue cache - %v", err)
+	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -138,7 +144,9 @@ func Run(config schedulerconfig.Configuration) error {
 		if err != nil {
 			return errors.WithMessage(err, "Error creating priority multiplier client")
 		}
-		priorityMultiplierProvider = prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+		provider := prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+		services = append(services, func() error { return provider.Run(ctx) })
+		priorityMultiplierProvider = provider
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -260,6 +268,12 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 		resourceListFactory,
 	)
+	submitCheckerInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	err = submitChecker.Initialise(submitCheckerInitTimeout)
+	if err != nil {
+		ctx.Errorf("error initialising submit checker - %v", err)
+	}
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)
 	})

@@ -21,7 +21,7 @@ import { NoRunsAlert } from "./NoRunsAlert"
 import { SidebarTabHeading, SidebarTabSubheading } from "./sidebarTabContentComponents"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job, JobRun, JobState } from "../../../models/lookoutV2Models"
-import { getAccessToken, useUserManager } from "../../../oidc"
+import { useGetAccessToken } from "../../../oidcAuth"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobInfoService } from "../../../services/lookoutV2/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookoutV2/GetRunInfoService"
@@ -216,11 +216,11 @@ export const SidebarTabJobResult = ({
     setOpen(false)
   }
 
-  const userManager = useUserManager()
+  const getAccessToken = useGetAccessToken()
 
   const cordon = async (cluster: string, node: string) => {
     try {
-      const accessToken = userManager && (await getAccessToken(userManager))
+      const accessToken = await getAccessToken()
       await cordonService.cordonNode(cluster, node, accessToken)
       openSnackbar("Successfully cordoned node " + node, "success")
     } catch (e) {
