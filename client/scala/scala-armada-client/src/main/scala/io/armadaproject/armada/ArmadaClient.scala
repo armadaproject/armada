@@ -12,22 +12,22 @@ import com.google.protobuf.empty.Empty
 import io.grpc.{ManagedChannelBuilder, ManagedChannel}
 
 class ArmadaClient(channel: ManagedChannel) {
-  def SubmitJobs(queue: String, jobSetId: String, jobRequestItems: Seq[JobSubmitRequestItem]): JobSubmitResponse = {
+  def submitJobs(queue: String, jobSetId: String, jobRequestItems: Seq[JobSubmitRequestItem]): JobSubmitResponse = {
     val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.submitJobs(JobSubmitRequest(queue, jobSetId, jobRequestItems))
   }
 
-  def GetJobStatus(jobId: String): JobStatusResponse = {
+  def getJobStatus(jobId: String): JobStatusResponse = {
     val blockingStub = JobsGrpc.blockingStub(channel)
     blockingStub.getJobStatus(JobStatusRequest(jobIds = Seq(jobId)))
   }
 
-  def EventHealth(): HealthCheckResponse.ServingStatus = {
+  def eventHealth(): HealthCheckResponse.ServingStatus = {
     val blockingStub = EventGrpc.blockingStub(channel)
     blockingStub.health(Empty()).status
   }
 
-  def SubmitHealth(): HealthCheckResponse.ServingStatus = {
+  def submitHealth(): HealthCheckResponse.ServingStatus = {
     val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.health(Empty()).status
   }

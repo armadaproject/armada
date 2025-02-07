@@ -6,7 +6,7 @@ object Main {
     val port = 30002
 
     val ac = ArmadaClient(host, port)
-    val status = ac.EventHealth()
+    val status = ac.eventHealth()
     println(status)
   }
 }

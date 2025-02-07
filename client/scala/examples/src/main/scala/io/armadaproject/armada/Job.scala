@@ -44,7 +44,7 @@ object Main {
       .withPodSpec(podSpec)
 
     val ac = ArmadaClient("localhost", 30002)
-    val response = ac.SubmitJobs("testQueue", "testJobSetId", List(testJob))
+    val response = ac.submitJobs("testQueue", "testJobSetId", List(testJob))
 
     println(s"Job Submit Response")
     for (respItem <- response.jobResponseItems) {
