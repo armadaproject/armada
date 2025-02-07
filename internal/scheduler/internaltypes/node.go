@@ -80,7 +80,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	for _, p := range allowedPriorities {
 		allocatableByPriority[p] = allocatableResources
 	}
-	allocatableByPriority[EvictedPriority] = allocatableByPriority[minInt32(allowedPriorities)]
+	allocatableByPriority[EvictedPriority] = allocatableResources
 
 	return CreateNodeAndType(
 		node.Id,
