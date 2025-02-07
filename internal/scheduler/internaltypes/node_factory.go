@@ -62,6 +62,7 @@ func (f *NodeFactory) CreateNodeAndType(
 	taints []v1.Taint,
 	labels map[string]string,
 	totalResources ResourceList,
+	allocatableResources ResourceList,
 	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 ) *Node {
@@ -77,6 +78,7 @@ func (f *NodeFactory) CreateNodeAndType(
 		f.indexedTaints,
 		f.indexedNodeLabels,
 		totalResources,
+		allocatableResources,
 		unallocatableResources,
 		allocatableByPriority,
 	)
@@ -125,6 +127,7 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 			f.indexedTaints,
 			f.indexedNodeLabels,
 			node.GetTotalResources(),
+			node.GetAllocatableResources(),
 			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 		)
@@ -146,6 +149,7 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 			f.indexedTaints,
 			f.indexedNodeLabels,
 			node.GetTotalResources(),
+			node.GetAllocatableResources(),
 			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 		)

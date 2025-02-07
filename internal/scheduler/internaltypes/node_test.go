@@ -40,6 +40,12 @@ func TestNode(t *testing.T) {
 			"memory": resource.MustParse("32Gi"),
 		},
 	)
+	allocatableResources := resourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("8"),
+			"memory": resource.MustParse("16Gi"),
+		},
+	)
 	unallocatableResources := map[int32]ResourceList{
 		1: resourceListFactory.FromJobResourceListIgnoreUnknown(
 			map[string]resource.Quantity{
@@ -110,7 +116,9 @@ func TestNode(t *testing.T) {
 		pool,
 		taints,
 		labels,
+		false,
 		totalResources,
+		allocatableResources,
 		unallocatableResources,
 		allocatableByPriority,
 		allocatedByQueue,

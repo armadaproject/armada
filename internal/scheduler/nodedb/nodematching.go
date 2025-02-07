@@ -179,6 +179,8 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, err
 	}
 
+	// We are using total resource here, as it is an optimistic initial check
+	// Ideally we'd use allocatable, however allocatable could be quite dynamic and have an adverse impact on the SubmitCheck
 	matches, reason = resourceRequirementsMet(node.GetTotalResources(), jctx.KubernetesResourceRequirements)
 	if !matches {
 		return matches, reason, nil

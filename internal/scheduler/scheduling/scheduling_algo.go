@@ -654,6 +654,14 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJo
 	}
 
 	for _, node := range nodes {
+		if node.IsUnschedulable() && len(jobsByNodeId[node.GetId()]) == 0 {
+			// Don't add nodes that cannot be scheduled on into the nodedb
+			// - For efficiency
+			// - So the resource of the node is not counted for fairshare
+			// NOTE - Unschedulable nodes with jobs already scheduled on to them still need to be added to the nodeDb,
+			//         so the jobs can be rescheduled onto them if evicted
+			continue
+		}
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.GetId()], node); err != nil {
 			return err
 		}
