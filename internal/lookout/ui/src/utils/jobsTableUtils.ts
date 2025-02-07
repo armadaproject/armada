@@ -1,7 +1,13 @@
 import { ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 
-import { AnnotationColumnId, DEFAULT_COLUMN_MATCHES, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
+import {
+  AnnotationColumnId,
+  DEFAULT_COLUMN_MATCHES,
+  fromAnnotationColId,
+  isStandardColId,
+  VALID_COLUMN_MATCHES,
+} from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
 import { JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
@@ -47,7 +53,9 @@ export const matchForColumn = (columnId: string, columnMatches: Record<string, M
     match = DEFAULT_COLUMN_MATCHES[columnId]
   }
   if (columnId in columnMatches) {
-    match = columnMatches[columnId]
+    match = VALID_COLUMN_MATCHES[columnId].includes(columnMatches[columnId])
+      ? columnMatches[columnId]
+      : VALID_COLUMN_MATCHES[columnId][0]
   }
   return match
 }

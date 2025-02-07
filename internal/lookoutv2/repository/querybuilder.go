@@ -429,6 +429,12 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 		return qb.recordValue(v), nil
 	case model.MatchAnyOf:
 		switch v := value.(type) {
+		case []interface{}:
+			ids := make([]string, len(v))
+			for i, val := range v {
+				ids[i] = qb.recordValue(val)
+			}
+			return fmt.Sprintf("(%s)", strings.Join(ids, ", ")), nil
 		case []int:
 			ids := make([]string, len(v))
 			for i, val := range v {

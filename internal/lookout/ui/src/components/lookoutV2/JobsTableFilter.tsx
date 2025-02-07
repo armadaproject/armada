@@ -18,12 +18,14 @@ import {
 import Menu from "@mui/material/Menu"
 import { useDebouncedCallback } from "use-debounce"
 
+import { QueueFilter } from "./QueueFilter"
 import { Match, MATCH_DISPLAY_STRINGS } from "../../models/lookoutV2Models"
 import { CustomPaletteColorToken } from "../../theme/palette"
 import {
   ANNOTATION_COLUMN_PREFIX,
   FilterType,
   isStandardColId,
+  StandardColumnId,
   VALID_COLUMN_MATCHES,
 } from "../../utils/jobsTableColumns"
 
@@ -64,6 +66,17 @@ export const JobsTableFilter = ({
   onColumnMatchChange,
   onSetTextFieldRef,
 }: JobsTableFilterProps) => {
+  if (id === StandardColumnId.Queue) {
+    return (
+      <QueueFilter
+        filterValue={currentFilter as string[] | undefined}
+        onFilterChange={onFilterChange}
+        parseError={parseError}
+        onSetTextFieldRef={onSetTextFieldRef}
+      />
+    )
+  }
+
   const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
   let possibleMatches = id in VALID_COLUMN_MATCHES ? VALID_COLUMN_MATCHES[id] : [Match.Exact]
   if (!isStandardColId(id)) {

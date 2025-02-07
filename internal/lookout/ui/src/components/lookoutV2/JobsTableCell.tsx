@@ -1,4 +1,4 @@
-import { ReactNode, RefObject } from "react"
+import { ReactNode, RefObject, useCallback } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box, styled } from "@mui/material"
@@ -77,6 +77,11 @@ export function HeaderCell({
   const resizerWidth = 5
   const borderWidth = 1
   const remainingWidth = totalWidth - resizerWidth - borderWidth
+
+  const onFilterChange = useCallback(
+    (newFilter: string | string[] | number | undefined) => header.column.setFilterValue(newFilter),
+    [header.column.setFilterValue],
+  )
 
   const match = matchForColumn(header.id, columnMatches)
   if (header.isPlaceholder) {
@@ -183,7 +188,7 @@ export function HeaderCell({
               matchType={match}
               enumFilterValues={metadata.enumFilterValues}
               parseError={parseError}
-              onFilterChange={(val) => header.column.setFilterValue(val)}
+              onFilterChange={onFilterChange}
               onColumnMatchChange={onColumnMatchChange}
               onSetTextFieldRef={onSetTextFieldRef}
             />
