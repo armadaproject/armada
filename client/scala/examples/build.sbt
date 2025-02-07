@@ -19,16 +19,7 @@ Compile / PB.targets := Seq(
 // Additional directories to search for imports:
 Compile / PB.protoSources ++= Seq(file("./proto"))
 
-// Exclude Armada test examples
-// Compile / packageBin / mappings := {
-//   val originalMappings = (Compile / packageBin / mappings).value
-//   originalMappings.filter { case (file, name) =>
-//     !name.startsWith("io/armadaproject/armada/")
-//   }
-// }
-
 libraryDependencies ++= Seq(
-    "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
     "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
 )
 
