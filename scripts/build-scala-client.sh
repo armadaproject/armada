@@ -38,6 +38,9 @@ do
   cp $pfile $ROOT/$SDIR/proto/$dir/
 done
 
+# the sbt config in the $SDIR directory causes the following commands to generate
+# the scala protobuf files into $SDIR/target/scala-2.13/src_managed/main/
+
 cd $ROOT/$SDIR
 sbt clean && \
 sbt -Dsbt.io.implicit.relative.glob.conversion=allow compile && \

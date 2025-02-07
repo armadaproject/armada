@@ -103,7 +103,7 @@ private class JobsMockServer extends JobsGrpc.Jobs {
   }
 
   def getJobStatus(request: JobStatusRequest): scala.concurrent.Future[JobStatusResponse] = {
-    var response = new JobStatusResponse(Map("fakeJobId" -> JobState.RUNNING))
+    val response = new JobStatusResponse(Map("fakeJobId" -> JobState.RUNNING))
     Future.successful(response)
   }
 
