@@ -1,13 +1,23 @@
 import { Cancel, LowPriority } from "@mui/icons-material"
-import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@mui/material"
+import { Button, Container, FormControlLabel, Checkbox, Tooltip, styled } from "@mui/material"
 
-import JobSetTable from "./JobSetTable"
 import { JobSet } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
-
+import JobSetTable from "./JobSetTable"
 import "./JobSets.css"
+import { QueueSelector } from "./QueueSelector"
+
+const HeaderStartContainer = styled("div")({
+  display: "flex",
+  gap: "1em",
+  alignItems: "center",
+
+  "> *": {
+    flexShrink: "0",
+  },
+})
 
 interface JobSetsProps {
   queue: string
@@ -37,18 +47,12 @@ export default function JobSets(props: JobSetsProps) {
   return (
     <Container className="job-sets" maxWidth={false}>
       <div className="job-sets-header">
-        <div className="job-sets-params">
-          <h2 className="title">Job Sets</h2>
-          <div className="job-sets-field">
-            <TextField
-              className="job-sets-field"
-              value={props.queue}
-              onChange={(event) => {
-                props.onQueueChange(event.target.value)
-              }}
-              label="Queue"
-              variant="outlined"
-            />
+        <HeaderStartContainer>
+          <div>
+            <h2 className="title">Job Sets</h2>
+          </div>
+          <div>
+            <QueueSelector value={props.queue} onChange={props.onQueueChange} />
           </div>
           <div className="job-sets-field">
             <Tooltip title="Only display job sets with at least one active job.">
@@ -67,7 +71,7 @@ export default function JobSets(props: JobSetsProps) {
               />
             </Tooltip>
           </div>
-        </div>
+        </HeaderStartContainer>
         <div className="job-sets-actions">
           <div className="reprioritize-button">
             <Button

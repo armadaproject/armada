@@ -127,10 +127,26 @@ describe("JobsTablePreferencesService", () => {
   })
 
   describe("Column filters", () => {
+    it("makes filter value and match types consistent (migrating to anyOf)", () => {
+      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: "i-am-a-string-and-not-an-array" }] })
+      expect(router.location.search).toContain(
+        "f[0][id]=queue&f[0][value]=i-am-a-string-and-not-an-array&f[0][match]=anyOf",
+      )
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: undefined }])
+    })
+
+    it("makes filter value and match types consistent (migrating from anyOf)", () => {
+      savePartialPrefs({ filters: [{ id: StandardColumnId.JobID, value: ["hello", "i", "am", "an", "array"] }] })
+      expect(router.location.search).toContain(
+        "f[0][id]=jobId&f[0][value][0]=hello&f[0][value][1]=i&f[0][value][2]=am&f[0][value][3]=an&f[0][value][4]=array&f[0][match]=exact",
+      )
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.JobID, value: "hello" }])
+    })
+
     it("round-trips column filters", () => {
-      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: "test" }] })
-      expect(router.location.search).toContain("f[0][id]=queue&f[0][value]=test&f[0][match]=startsWith")
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: "test" }])
+      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: ["test"] }] })
+      expect(router.location.search).toContain("f[0][id]=queue&f[0][value][0]=test&f[0][match]=anyOf")
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: ["test"] }])
     })
 
     it("round-trips state filter", () => {
@@ -141,18 +157,18 @@ describe("JobsTablePreferencesService", () => {
       expect(service.getUserPrefs().filters).toStrictEqual([
         { id: StandardColumnId.State, value: ["QUEUED", "PENDING", "RUNNING"] },
       ])
-      expect(service.getUserPrefs().columnMatches[StandardColumnId.State] === Match.AnyOf)
+      expect(service.getUserPrefs().columnMatches[StandardColumnId.State]).toEqual(Match.AnyOf)
     })
 
     it("round-trips special characters", () => {
-      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: "test & why / do $ this" }] })
+      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: ["test & why / do $ this"] }] })
       expect(router.location.search).toContain(
-        "f[0][id]=queue&f[0][value]=test%20%26%20why%20%2F%20do%20%24%20this&f[0][match]=startsWith",
+        "f[0][id]=queue&f[0][value][0]=test%20%26%20why%20%2F%20do%20%24%20this&f[0][match]=anyOf",
       )
       expect(service.getUserPrefs().filters).toStrictEqual([
-        { id: StandardColumnId.Queue, value: "test & why / do $ this" },
+        { id: StandardColumnId.Queue, value: ["test & why / do $ this"] },
       ])
-      expect(service.getUserPrefs().columnMatches[StandardColumnId.Queue] === Match.StartsWith)
+      expect(service.getUserPrefs().columnMatches[StandardColumnId.Queue]).toEqual(Match.AnyOf)
     })
 
     it("round-trips empty list", () => {
