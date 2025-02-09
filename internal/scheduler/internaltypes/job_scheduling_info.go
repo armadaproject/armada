@@ -14,20 +14,16 @@ import (
 
 // JobSchedulingInfo is a minimal representation of job requirements that the scheduler uses for scheduling
 type JobSchedulingInfo struct {
-	Lifetime          uint32
 	PriorityClassName string
 	SubmitTime        time.Time
-	Priority          uint32
 	PodRequirements   *PodRequirements
 	Version           uint32
 }
 
 func (j *JobSchedulingInfo) DeepCopy() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
-		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
 		SubmitTime:        j.SubmitTime,
-		Priority:          j.Priority,
 		PodRequirements:   j.PodRequirements.DeepCopy(),
 		Version:           j.Version,
 	}
@@ -74,10 +70,8 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 		return nil, errors.Errorf("job must have pod requirements")
 	}
 	return &JobSchedulingInfo{
-		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
 		SubmitTime:        j.SubmitTime,
-		Priority:          j.Priority,
 		PodRequirements: &PodRequirements{
 			NodeSelector:         podRequirements.NodeSelector,
 			Affinity:             podRequirements.Affinity,
@@ -92,10 +86,8 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
 	podRequirements := j.PodRequirements
 	return &schedulerobjects.JobSchedulingInfo{
-		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
 		SubmitTime:        j.SubmitTime,
-		Priority:          j.Priority,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{

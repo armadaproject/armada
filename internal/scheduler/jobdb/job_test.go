@@ -329,7 +329,6 @@ func TestJob_DeepCopy(t *testing.T) {
 	result.activeRun.nodeName = "test"
 	result.runsById[baseJobRun.id].nodeName = "test"
 	result.queue = "test"
-	result.jobSchedulingInfo.Priority = 1
 
 	assert.NotEqual(t, expected, result)
 	assert.Equal(t, expected, original)
