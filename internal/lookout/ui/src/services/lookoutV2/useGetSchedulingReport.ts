@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query"
 
 import { useGetUiConfig } from "./useGetUiConfig"
-import { getAccessToken, getAuthorizationHeaders, useUserManager } from "../../oidc"
+import { appendAuthorizationHeaders, useGetAccessToken } from "../../oidcAuth"
 import { SchedulerReportingApi, Configuration, SchedulerobjectsSchedulingReport } from "../../openapi/schedulerobjects"
 import { getErrorMessage } from "../../utils"
 
 export const useGetSchedulingReport = (verbosity: number, enabled = true) => {
-  const userManager = useUserManager()
+  const getAccessToken = useGetAccessToken()
 
   const { data: uiConfig } = useGetUiConfig(enabled)
   const armadaApiBaseUrl = uiConfig?.armadaApiBaseUrl
@@ -21,12 +21,13 @@ export const useGetSchedulingReport = (verbosity: number, enabled = true) => {
     queryKey: ["getSchedulingReport", verbosity],
     queryFn: async ({ signal }) => {
       try {
-        const accessToken = userManager === undefined ? undefined : await getAccessToken(userManager)
+        const accessToken = await getAccessToken()
+        const headers = new Headers()
+        if (accessToken) {
+          appendAuthorizationHeaders(headers, accessToken)
+        }
 
-        return await schedulerReportingApi.getSchedulingReport(
-          { verbosity },
-          { headers: accessToken ? getAuthorizationHeaders(accessToken) : undefined, signal },
-        )
+        return await schedulerReportingApi.getSchedulingReport({ verbosity }, { headers, signal })
       } catch (e) {
         throw await getErrorMessage(e)
       }

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
