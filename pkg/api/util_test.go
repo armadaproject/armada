@@ -11,7 +11,7 @@ import (
 func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 	tests := map[string]struct {
 		input    *v1.PodSpec
-		expected v1.ResourceRequirements
+		expected *v1.ResourceRequirements
 	}{
 		"containers and initContainers": {
 			input: &v1.PodSpec{
@@ -90,7 +90,7 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 					},
 				},
 			},
-			expected: v1.ResourceRequirements{
+			expected: &v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":            QuantityWithMilliValue(10),
 					"memory":         QuantityWithMilliValue(10),
@@ -150,7 +150,7 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 					},
 				},
 			},
-			expected: v1.ResourceRequirements{
+			expected: &v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":            QuantityWithMilliValue(11),
 					"memory":         QuantityWithMilliValue(7),
@@ -210,7 +210,7 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 					},
 				},
 			},
-			expected: v1.ResourceRequirements{
+			expected: &v1.ResourceRequirements{
 				Requests: v1.ResourceList{
 					"cpu":            QuantityWithMilliValue(10),
 					"memory":         QuantityWithMilliValue(5),
