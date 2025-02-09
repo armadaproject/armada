@@ -1,7 +1,7 @@
 import { InfiniteData, useInfiniteQuery } from "@tanstack/react-query"
 
 import { LogLine } from "./LogService"
-import { getAccessToken, useUserManager } from "../../oidc"
+import { useGetAccessToken } from "../../oidcAuth"
 import { getErrorMessage } from "../../utils"
 import { useServices } from "../context"
 
@@ -16,7 +16,7 @@ export const useGetLogs = (
   enabled = true,
 ) => {
   const { v2LogService } = useServices()
-  const userManager = useUserManager()
+  const getAccessToken = useGetAccessToken()
 
   return useInfiniteQuery<
     LogLine[],
@@ -28,7 +28,7 @@ export const useGetLogs = (
     queryKey: ["getLogs", cluster, namespace, jobId, container, loadFromStart],
     queryFn: async ({ pageParam, signal }) => {
       try {
-        const accessToken = userManager && (await getAccessToken(userManager))
+        const accessToken = await getAccessToken()
         const logLines = await v2LogService.getLogs(
           cluster,
           namespace,

@@ -1,5 +1,5 @@
 import { JobSet } from "../../models/lookoutV2Models"
-import { getAuthorizationHeaders } from "../../oidc"
+import { appendAuthorizationHeaders } from "../../oidcAuth"
 import { ApiJobState, SubmitApi } from "../../openapi/armada"
 import { getErrorMessage } from "../../utils"
 
@@ -32,6 +32,11 @@ export class UpdateJobSetsService {
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
+        const headers = new Headers()
+        if (accessToken) {
+          appendAuthorizationHeaders(headers, accessToken)
+        }
+
         await this.submitApi.cancelJobSet(
           {
             body: {
@@ -43,7 +48,7 @@ export class UpdateJobSetsService {
               reason: reason,
             },
           },
-          accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+          { headers },
         )
         response.cancelledJobSets.push(jobSet)
       } catch (e) {
@@ -65,6 +70,11 @@ export class UpdateJobSetsService {
 
     for (const jobSet of jobSets) {
       try {
+        const headers = new Headers()
+        if (accessToken) {
+          appendAuthorizationHeaders(headers, accessToken)
+        }
+
         const apiResponse = await this.submitApi.reprioritizeJobs(
           {
             body: {
@@ -73,7 +83,7 @@ export class UpdateJobSetsService {
               newPriority: newPriority,
             },
           },
-          accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+          { headers },
         )
         if (apiResponse == null || apiResponse.reprioritizationResults == null) {
           const errorMessage = "No reprioritizationResults found in response body"

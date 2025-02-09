@@ -172,7 +172,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
-      defaultMatchType: Match.StartsWith,
+      defaultMatchType: Match.AnyOf,
       allowCopy: true,
     },
   }),
@@ -521,7 +521,7 @@ export const INPUT_PROCESSORS: Record<ParseType, InputProcessors> = {
 }
 
 export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
-  [StandardColumnId.Queue]: Match.StartsWith,
+  [StandardColumnId.Queue]: Match.AnyOf,
   [StandardColumnId.JobSet]: Match.StartsWith,
   [StandardColumnId.JobID]: Match.Exact,
   [StandardColumnId.State]: Match.AnyOf,
@@ -537,7 +537,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
 
 export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
   [StandardColumnId.JobID]: [Match.Exact],
-  [StandardColumnId.Queue]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.Queue]: [Match.AnyOf],
   [StandardColumnId.JobSet]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Owner]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Namespace]: [Match.Exact, Match.StartsWith, Match.Contains],
