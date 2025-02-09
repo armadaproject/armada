@@ -5,7 +5,6 @@ import (
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )

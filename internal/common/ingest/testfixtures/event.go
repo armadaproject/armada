@@ -3,14 +3,13 @@ package testfixtures
 import (
 	"time"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"

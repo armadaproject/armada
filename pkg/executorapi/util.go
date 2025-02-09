@@ -3,13 +3,12 @@ package executorapi
 import (
 	"time"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
