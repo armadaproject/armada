@@ -10,20 +10,21 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestInMemoryJobRepository(t *testing.T) {
+	emptyRequirements := &internaltypes.PodRequirements{}
 	jobs := []*jobdb.Job{
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(3).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(1).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(2).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(3),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(0),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", nil).WithCreated(0).WithPriority(2),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(3).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(1).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(2).WithPriority(1),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(3),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(0),
+		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(2),
 	}
 	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
@@ -269,6 +270,6 @@ func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue 
 	return NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo, jobdb.FairShareOrder)
 }
 
-func jobFromPodSpec(queue string, req *schedulerobjects.PodRequirements) *jobdb.Job {
+func jobFromPodSpec(queue string, req *internaltypes.PodRequirements) *jobdb.Job {
 	return testfixtures.TestJob(queue, util.ULID(), "armada-default", req)
 }

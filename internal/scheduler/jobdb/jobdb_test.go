@@ -5,7 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -283,18 +283,12 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 }
 
 func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
-	podRequirements := &schedulerobjects.PodRequirements{
+	podRequirements := &internaltypes.PodRequirements{
 		NodeSelector: map[string]string{"foo": "bar"},
 	}
-	jobSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+	jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
 		PriorityClassName: "foo",
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: podRequirements,
-				},
-			},
-		},
+		PodRequirements:   podRequirements,
 	}
 	jobDb := NewTestJobDb()
 	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, 0.0, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
@@ -304,14 +298,14 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 
 func TestJobDb_SchedulingKey(t *testing.T) {
 	tests := map[string]struct {
-		podRequirementsA   *schedulerobjects.PodRequirements
+		podRequirementsA   *internaltypes.PodRequirements
 		priorityClassNameA string
-		podRequirementsB   *schedulerobjects.PodRequirements
+		podRequirementsB   *internaltypes.PodRequirements
 		priorityClassNameB string
 		equal              bool
 	}{
 		"annotations does not affect key": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -328,7 +322,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					"fish": "chips",
 					"salt": "pepper",
 				},
-				PreemptionPolicy: "abc",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("1"),
@@ -342,7 +335,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -358,62 +351,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					"foo":  "bar",
 					"fish": "chips",
 				},
-				PreemptionPolicy: "abc",
-				ResourceRequirements: v1.ResourceRequirements{
-					Limits: map[v1.ResourceName]resource.Quantity{
-						"cpu":            resource.MustParse("1"),
-						"memory":         resource.MustParse("2"),
-						"nvidia.com/gpu": resource.MustParse("3"),
-					},
-					Requests: map[v1.ResourceName]resource.Quantity{
-						"cpu":            resource.MustParse("2"),
-						"memory":         resource.MustParse("2"),
-						"nvidia.com/gpu": resource.MustParse("2"),
-					},
-				},
-			},
-			equal: true,
-		},
-		"preemptionPolicy does not affect key": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
-				NodeSelector: map[string]string{
-					"property1": "value1",
-					"property3": "value3",
-				},
-				Tolerations: []v1.Toleration{{
-					Key:               "a",
-					Operator:          "b",
-					Value:             "b",
-					Effect:            "d",
-					TolerationSeconds: pointer.Int64(1),
-				}},
-				PreemptionPolicy: "abc",
-				ResourceRequirements: v1.ResourceRequirements{
-					Limits: map[v1.ResourceName]resource.Quantity{
-						"cpu":            resource.MustParse("1"),
-						"memory":         resource.MustParse("2"),
-						"nvidia.com/gpu": resource.MustParse("3"),
-					},
-					Requests: map[v1.ResourceName]resource.Quantity{
-						"cpu":            resource.MustParse("2"),
-						"memory":         resource.MustParse("2"),
-						"nvidia.com/gpu": resource.MustParse("2"),
-					},
-				},
-			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
-				NodeSelector: map[string]string{
-					"property1": "value1",
-					"property3": "value3",
-				},
-				Tolerations: []v1.Toleration{{
-					Key:               "a",
-					Operator:          "b",
-					Value:             "b",
-					Effect:            "d",
-					TolerationSeconds: pointer.Int64(1),
-				}},
-				PreemptionPolicy: "abcdef",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("1"),
@@ -430,7 +367,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"limits does not affect key": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -442,7 +379,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				PreemptionPolicy: "abc",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("1"),
@@ -456,7 +392,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -468,7 +404,6 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					Effect:            "d",
 					TolerationSeconds: pointer.Int64(1),
 				}},
-				PreemptionPolicy: "abcdef",
 				ResourceRequirements: v1.ResourceRequirements{
 					Limits: map[v1.ResourceName]resource.Quantity{
 						"cpu":            resource.MustParse("1"),
@@ -485,7 +420,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"priority": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -505,7 +440,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -528,7 +463,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"zero request does not affect key": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -548,7 +483,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -572,7 +507,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"nodeSelector key": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -592,7 +527,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -615,7 +550,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 		"nodeSelector value": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -635,7 +570,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1-2",
@@ -657,12 +592,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 		"nodeSelector different keys, same values": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"my-cool-label": "value",
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"my-other-cool-label": "value",
 				},
@@ -670,7 +605,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: false,
 		},
 		"toleration key": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -690,7 +625,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -712,7 +647,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 		"toleration operator": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -732,7 +667,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -754,7 +689,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 		"toleration value": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -774,7 +709,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -796,7 +731,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 		"toleration effect": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -816,7 +751,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -838,7 +773,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 		"toleration tolerationSeconds": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -858,7 +793,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -881,7 +816,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"key ordering": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property1": "value1",
 					"property3": "value3",
@@ -901,7 +836,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{
 					"property3": "value3",
 					"property1": "value1",
@@ -924,7 +859,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"affinity PodAffinity ignored": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -987,7 +922,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					PodAntiAffinity: nil,
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1053,7 +988,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: true,
 		},
 		"affinity NodeAffinity MatchExpressions": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1079,7 +1014,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1108,7 +1043,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: false,
 		},
 		"affinity NodeAffinity MatchFields": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1134,7 +1069,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1163,7 +1098,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: false,
 		},
 		"affinity NodeAffinity multiple MatchFields": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1189,7 +1124,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 					},
 				},
 			},
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -1223,13 +1158,13 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal: false,
 		},
 		"priority class names equal": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
 				},
 			},
 			priorityClassNameA: "my-cool-priority-class",
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
 				},
@@ -1238,13 +1173,13 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			equal:              true,
 		},
 		"priority class names different": {
-			podRequirementsA: &schedulerobjects.PodRequirements{
+			podRequirementsA: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
 				},
 			},
 			priorityClassNameA: "my-cool-priority-class",
-			podRequirementsB: &schedulerobjects.PodRequirements{
+			podRequirementsB: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
 				},
@@ -1257,14 +1192,14 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			skg := schedulerobjects.NewSchedulingKeyGenerator()
 
-			jobSchedulingInfoA := proto.Clone(jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo)
+			jobSchedulingInfoA := jobSchedulingInfo.DeepCopy()
 			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
-			jobSchedulingInfoA.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsA}
+			jobSchedulingInfoA.PodRequirements = tc.podRequirementsA
 			jobA := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoA)
 
-			jobSchedulingInfoB := proto.Clone(jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo)
+			jobSchedulingInfoB := jobSchedulingInfo.DeepCopy()
 			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
-			jobSchedulingInfoB.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsB}
+			jobSchedulingInfoB.PodRequirements = tc.podRequirementsB
 			jobB := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoB)
 
 			schedulingKeyA := SchedulingKeyFromJob(skg, jobA)
