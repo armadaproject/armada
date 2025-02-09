@@ -74,7 +74,7 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 	if podRequirements == nil {
 		return nil, errors.Errorf("job must have pod requirements")
 	}
-	rr := podRequirements.GetResourceRequirements()
+	rr := podRequirements.GetResourceRequirements().DeepCopy()
 	if rr == nil {
 		rr = &v1.ResourceRequirements{}
 	}
@@ -84,12 +84,13 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 		SubmitTime:        protoutil.ToStdTime(j.SubmitTime),
 		Priority:          j.Priority,
 		PodRequirements: &PodRequirements{
-			NodeSelector: podRequirements.NodeSelector,
-			Affinity:     podRequirements.Affinity,
+			NodeSelector: maps.Clone(podRequirements.NodeSelector),
+			Affinity:     proto.Clone(podRequirements.Affinity).(*v1.Affinity),
 			Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t *v1.Toleration) v1.Toleration {
-				return *t
+				cloned := proto.Clone(t).(*v1.Toleration)
+				return *cloned
 			}),
-			Annotations:          podRequirements.Annotations,
+			Annotations:          maps.Clone(podRequirements.Annotations),
 			ResourceRequirements: *rr,
 		},
 		Version: j.Version,
@@ -107,13 +108,13 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{
-						NodeSelector: podRequirements.NodeSelector,
-						Affinity:     podRequirements.Affinity,
+						NodeSelector: maps.Clone(podRequirements.NodeSelector),
+						Affinity:     podRequirements.Affinity.DeepCopy(),
 						Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t v1.Toleration) *v1.Toleration {
-							return &t
+							return proto.Clone(&t).(*v1.Toleration)
 						}),
-						Annotations:          podRequirements.Annotations,
-						ResourceRequirements: &podRequirements.ResourceRequirements,
+						Annotations:          maps.Clone(podRequirements.Annotations),
+						ResourceRequirements: podRequirements.ResourceRequirements.DeepCopy(),
 					},
 				},
 			},
