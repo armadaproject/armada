@@ -1,6 +1,6 @@
 import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstack/react-table"
+import _ from "lodash"
 import qs from "qs"
-import { SortDirection } from "react-virtualized"
 
 import { LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
 import { isValidMatch, JobId, Match } from "../../models/lookoutV2Models"
@@ -9,16 +9,21 @@ import {
   AnnotationColumnId,
   ColumnId,
   DEFAULT_COLUMN_MATCHES,
-  DEFAULT_COLUMN_ORDER,
+  DEFAULT_COLUMN_ORDERING,
   DEFAULT_COLUMN_VISIBILITY,
+  JOB_COLUMNS,
+  toAnnotationColId,
+  toColId,
   fromAnnotationColId,
   isStandardColId,
+  PINNED_COLUMNS,
 } from "../../utils/jobsTableColumns"
 import { matchForColumn } from "../../utils/jobsTableUtils"
 
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]
   visibleColumns: VisibilityState
+  columnOrder: ColumnId[]
   groupedColumns: ColumnId[]
   expandedState: ExpandedStateList
   pageIndex: number
@@ -37,13 +42,14 @@ export interface JobsTablePreferences {
 export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   annotationColumnKeys: [],
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
+  columnOrder: JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(({ id }) => toColId(id)),
   filters: [],
   columnMatches: DEFAULT_COLUMN_MATCHES,
   groupedColumns: [],
   expandedState: {},
   pageIndex: 0,
   pageSize: 50,
-  order: DEFAULT_COLUMN_ORDER,
+  order: DEFAULT_COLUMN_ORDERING,
   sidebarJobId: undefined,
   sidebarWidth: 600,
   columnSizing: {},
@@ -100,7 +106,7 @@ export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs
     }),
     sort: {
       id: prefs.order.id,
-      desc: String(prefs.order.direction === SortDirection.DESC),
+      desc: String(prefs.order.direction === "DESC"),
     },
     e: Object.entries(prefs.expandedState)
       .filter(([_, expanded]) => expanded)
@@ -135,7 +141,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(page !== undefined && { pageIndex: Number(page) }),
     ...(ps !== undefined && { pageSize: Number(ps) }),
     ...(sort && {
-      order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? SortDirection.DESC : SortDirection.ASC },
+      order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? "DESC" : "ASC" },
     }),
     ...(f && { filters: columnFiltersFromQueryStringFilters(f) }),
     ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
@@ -192,7 +198,26 @@ const mergeQueryParamsAndLocalStorage = (
   return mergedPrefs
 }
 
-// Make sure annotations referenced in filters exist, make sure columns referenced in objects are visible
+// Ensure that the match type and the filter value type are consistent
+const ensureFiltersAreConsistent = (filters: ColumnFiltersState, columnMatches: Record<string, Match>) => {
+  filters.forEach(({ id, value }, i) => {
+    const match = columnMatches[id]
+    if (match === Match.AnyOf && !_.isArray(value)) {
+      // To prevent confusion, we clear the filter completely if the stored value is unexpectedly not an array
+      filters[i].value = undefined
+    }
+
+    if (match !== Match.AnyOf && _.isArray(value)) {
+      // We use the first element of the value array if the stored value is unexpectedly an array
+      filters[i].value = value[0]
+    }
+  })
+}
+
+// Ensure that:
+// - annotations referenced in filters exist
+// - make sure columns referenced in objects are visible
+// - the column order includes exactly all unpinned standard columns and annotations
 export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
   // Make sure annotation columns referenced in filters exist
   if (preferences.annotationColumnKeys === undefined) {
@@ -210,18 +235,38 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
     }
   }
 
+  // Make sure all and only annotation columns and unpinned standard columns are contained in columnOrder
+  const columnOrderSet = new Set(preferences.columnOrder)
+  const annotationKeyColumnIds = preferences.annotationColumnKeys.map(toAnnotationColId)
+  const unpinnedStandardColumnIds = JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(
+    ({ id }) => toColId(id),
+  )
+
+  // Add missing column IDs
+  annotationKeyColumnIds.filter((id) => !columnOrderSet.has(id)).forEach((id) => preferences.columnOrder.push(id))
+  unpinnedStandardColumnIds.filter((id) => !columnOrderSet.has(id)).forEach((id) => preferences.columnOrder.push(id))
+
+  // Remove extraneous column IDs
+  const annotationKeyColumnIdsSet = new Set(annotationKeyColumnIds)
+  const unpinnedStandardColumnIdsSet = new Set(unpinnedStandardColumnIds)
+  preferences.columnOrder = preferences.columnOrder.filter(
+    (id) => annotationKeyColumnIdsSet.has(id as AnnotationColumnId) || unpinnedStandardColumnIdsSet.has(id),
+  )
+
   // Make sure grouped columns, order columns, and filtered columns are visible
   ensureVisible(preferences.visibleColumns, preferences.groupedColumns ?? [])
   ensureVisible(preferences.visibleColumns, preferences.order === undefined ? [] : [preferences.order.id])
   ensureVisible(preferences.visibleColumns, preferences.filters?.map((filter) => filter.id) ?? [])
+
+  // Ensure filters are consistent
+  ensureFiltersAreConsistent(preferences.filters, preferences.columnMatches)
 }
 
-export const stringifyQueryParams = (paramObj: any): string => {
-  return qs.stringify(paramObj, {
+export const stringifyQueryParams = (paramObj: any): string =>
+  qs.stringify(paramObj, {
     encodeValuesOnly: true,
     strictNullHandling: true,
   })
-}
 
 export class JobsTablePreferencesService {
   constructor(private router: Router) {}

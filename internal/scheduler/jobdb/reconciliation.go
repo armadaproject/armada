@@ -7,6 +7,7 @@ import (
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -139,15 +140,20 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 			job = job.WithRequestedPriority(uint32(jobRepoJob.Priority))
 		}
 		if uint32(jobRepoJob.SchedulingInfoVersion) > job.JobSchedulingInfo().Version {
-			schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
-			if err = proto.Unmarshal(jobRepoJob.SchedulingInfo, schedulingInfo); err != nil {
+			schedulingInfoProto := &schedulerobjects.JobSchedulingInfo{}
+			if err = proto.Unmarshal(jobRepoJob.SchedulingInfo, schedulingInfoProto); err != nil {
 				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
-				return
+				return jst, err
+			}
+			schedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfoProto)
+			if err != nil {
+				err = errors.Wrapf(err, "error converting scheduler info for job %s", jobRepoJob.JobID)
+				return jst, err
 			}
 			job, err = job.WithJobSchedulingInfo(schedulingInfo)
 			if err != nil {
 				err = errors.Wrapf(err, "error unmarshalling scheduling info for job %s", jobRepoJob.JobID)
-				return
+				return jst, err
 			}
 		}
 		if jobRepoJob.QueuedVersion > job.QueuedVersion() {
@@ -250,9 +256,14 @@ func (jobDb *JobDb) enforceTerminalStateExclusivity(jobRun *JobRun, rst *RunStat
 
 // schedulerJobFromDatabaseJob creates a new scheduler job from a database job.
 func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, error) {
-	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
-	if err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo); err != nil {
-		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
+	schedulingInfoProto := &schedulerobjects.JobSchedulingInfo{}
+	if err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfoProto); err != nil {
+		return nil, errors.WithMessagef(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
+	}
+
+	schedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfoProto)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "error converting scheduling info for job %s", dbJob.JobID)
 	}
 
 	job, err := jobDb.NewJob(

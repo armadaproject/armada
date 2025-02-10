@@ -1,19 +1,23 @@
-import { FC } from "react"
-
 import { Cancel, LowPriority } from "@mui/icons-material"
-import { Button, Container, TextField, FormControlLabel, Checkbox, Tooltip } from "@mui/material"
-import { AutoSizer as _AutoSizer, AutoSizerProps } from "react-virtualized"
+import { Button, Container, FormControlLabel, Checkbox, Tooltip, styled } from "@mui/material"
 
-import JobSetTable from "./JobSetTable"
 import { JobSet } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
-
+import JobSetTable from "./JobSetTable"
 import "./JobSets.css"
+import { QueueSelector } from "./QueueSelector"
 
-// This works around a type bug in react-virtualized: https://github.com/bvaughn/react-virtualized/issues/1739
-const AutoSizer = _AutoSizer as unknown as FC<AutoSizerProps>
+const HeaderStartContainer = styled("div")({
+  display: "flex",
+  gap: "1em",
+  alignItems: "center",
+
+  "> *": {
+    flexShrink: "0",
+  },
+})
 
 interface JobSetsProps {
   queue: string
@@ -40,38 +44,15 @@ interface JobSetsProps {
 }
 
 export default function JobSets(props: JobSetsProps) {
-  const content = (height: number, width: number) => (
-    <JobSetTable
-      height={height}
-      width={width}
-      queue={props.queue}
-      jobSets={props.jobSets}
-      selectedJobSets={props.selectedJobSets}
-      newestFirst={props.newestFirst}
-      onSelectJobSet={props.onSelectJobSet}
-      onShiftSelectJobSet={props.onShiftSelectJobSet}
-      onDeselectAllClick={props.onDeselectAllClick}
-      onSelectAllClick={props.onSelectAllClick}
-      onOrderChange={props.onOrderChange}
-      onJobSetStateClick={props.onJobSetStateClick}
-    />
-  )
-
   return (
     <Container className="job-sets" maxWidth={false}>
       <div className="job-sets-header">
-        <div className="job-sets-params">
-          <h2 className="title">Job Sets</h2>
-          <div className="job-sets-field">
-            <TextField
-              className="job-sets-field"
-              value={props.queue}
-              onChange={(event) => {
-                props.onQueueChange(event.target.value)
-              }}
-              label="Queue"
-              variant="outlined"
-            />
+        <HeaderStartContainer>
+          <div>
+            <h2 className="title">Job Sets</h2>
+          </div>
+          <div>
+            <QueueSelector value={props.queue} onChange={props.onQueueChange} />
           </div>
           <div className="job-sets-field">
             <Tooltip title="Only display job sets with at least one active job.">
@@ -90,7 +71,7 @@ export default function JobSets(props: JobSetsProps) {
               />
             </Tooltip>
           </div>
-        </div>
+        </HeaderStartContainer>
         <div className="job-sets-actions">
           <div className="reprioritize-button">
             <Button
@@ -125,11 +106,18 @@ export default function JobSets(props: JobSetsProps) {
         </div>
       </div>
       <div className="job-sets-content">
-        <AutoSizer>
-          {({ height, width }) => {
-            return content(height, width)
-          }}
-        </AutoSizer>
+        <JobSetTable
+          queue={props.queue}
+          jobSets={props.jobSets}
+          selectedJobSets={props.selectedJobSets}
+          newestFirst={props.newestFirst}
+          onSelectJobSet={props.onSelectJobSet}
+          onShiftSelectJobSet={props.onShiftSelectJobSet}
+          onDeselectAllClick={props.onDeselectAllClick}
+          onSelectAllClick={props.onSelectAllClick}
+          onOrderChange={props.onOrderChange}
+          onJobSetStateClick={props.onJobSetStateClick}
+        />
       </div>
     </Container>
   )

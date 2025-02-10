@@ -1,29 +1,32 @@
 package armadacontext
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
-var defaultLogger = logrus.WithField("foo", "bar")
+type testLogEntry struct {
+	Level        string `json:"level"`
+	Message      string `json:"message"`
+	CustomField1 string `json:"customField1,omitempty"`
+	CustomField2 string `json:"customField2,omitempty"`
+}
+
+var defaultLogger = logging.StdLogger().WithField("foo", "bar")
 
 func TestNew(t *testing.T) {
 	ctx := New(context.Background(), defaultLogger)
-	require.Equal(t, defaultLogger, ctx.FieldLogger)
+	require.Equal(t, defaultLogger, ctx.logger)
 	require.Equal(t, context.Background(), ctx.Context)
-}
-
-func TestFromGrpcContext(t *testing.T) {
-	grpcCtx := ctxlogrus.ToContext(context.Background(), defaultLogger)
-	ctx := FromGrpcCtx(grpcCtx)
-	require.Equal(t, grpcCtx, ctx.Context)
-	require.Equal(t, defaultLogger, ctx.FieldLogger)
 }
 
 func TestBackground(t *testing.T) {
@@ -36,16 +39,128 @@ func TestTODO(t *testing.T) {
 	require.Equal(t, ctx.Context, context.TODO())
 }
 
+func TestLogAtLevel(t *testing.T) {
+	tests := map[string]struct {
+		logFunction   func(ctx *Context)
+		expectedLevel string
+		expectedMsg   string
+	}{
+		"Debug": {
+			logFunction: func(ctx *Context) {
+				ctx.Debug("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "debug",
+		},
+		"Debugf": {
+			logFunction: func(ctx *Context) {
+				ctx.Debugf("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "debug",
+		},
+		"Info": {
+			logFunction: func(ctx *Context) {
+				ctx.Info("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "info",
+		},
+		"Infof": {
+			logFunction: func(ctx *Context) {
+				ctx.Infof("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "info",
+		},
+		"Warn": {
+			logFunction: func(ctx *Context) {
+				ctx.Warn("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "warn",
+		},
+		"Warnf": {
+			logFunction: func(ctx *Context) {
+				ctx.Warnf("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "warn",
+		},
+		"Error": {
+			logFunction: func(ctx *Context) {
+				ctx.Errorf("test message")
+			},
+			expectedMsg:   "test message",
+			expectedLevel: "error",
+		},
+		"Errorf": {
+			logFunction: func(ctx *Context) {
+				ctx.Errorf("test message %d", 1)
+			},
+			expectedMsg:   "test message 1",
+			expectedLevel: "error",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			logger, buf := testLogger()
+			ctx := New(context.Background(), logger)
+			tc.logFunction(ctx)
+			assertLogLineExpected(
+				t,
+				&testLogEntry{
+					Level:   tc.expectedLevel,
+					Message: tc.expectedMsg,
+				},
+				buf,
+			)
+		})
+	}
+}
+
 func TestWithLogField(t *testing.T) {
-	ctx := WithLogField(Background(), "fish", "chips")
+	logger, buf := testLogger()
+	ctx := WithLogField(New(context.Background(), logger), "customField1", "foo")
+
+	ctx.Info("test message")
+
 	require.Equal(t, context.Background(), ctx.Context)
-	require.Equal(t, logrus.Fields{"fish": "chips"}, ctx.FieldLogger.(*logrus.Entry).Data)
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:        "info",
+			Message:      "test message",
+			CustomField1: "foo",
+		},
+		buf,
+	)
 }
 
 func TestWithLogFields(t *testing.T) {
-	ctx := WithLogFields(Background(), logrus.Fields{"fish": "chips", "salt": "pepper"})
+	logger, buf := testLogger()
+
+	ctx := WithLogFields(
+		New(context.Background(), logger),
+		map[string]interface{}{
+			"customField1": "bar",
+			"customField2": "baz",
+		},
+	)
+
+	ctx.Info("test message")
+
 	require.Equal(t, context.Background(), ctx.Context)
-	require.Equal(t, logrus.Fields{"fish": "chips", "salt": "pepper"}, ctx.FieldLogger.(*logrus.Entry).Data)
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:        "info",
+			Message:      "test message",
+			CustomField1: "bar",
+			CustomField2: "baz",
+		},
+		buf,
+	)
 }
 
 func TestWithTimeout(t *testing.T) {
@@ -86,4 +201,23 @@ func quiescent(t *testing.T) time.Duration {
 
 	const arbitraryCleanupMargin = 1 * time.Second
 	return time.Until(deadline) - arbitraryCleanupMargin
+}
+
+// testLogger sets up a Zerolog logger that writes to a buffer for testing
+func testLogger() (*logging.Logger, *bytes.Buffer) {
+	var buf bytes.Buffer
+	baseLogger := zerolog.New(&buf).Level(zerolog.DebugLevel).With().Timestamp().Logger()
+	logger := logging.FromZerolog(baseLogger)
+	return logger, &buf
+}
+
+func assertLogLineExpected(t *testing.T, expected *testLogEntry, logOutput *bytes.Buffer) {
+	var entry testLogEntry
+	err := json.Unmarshal(logOutput.Bytes(), &entry)
+	require.NoError(t, err, "Failed to unmarshal log entry")
+
+	assert.Equal(t, expected.Message, entry.Message)
+	assert.Equal(t, expected.Level, entry.Level)
+	assert.Equal(t, expected.CustomField1, entry.CustomField1)
+	assert.Equal(t, expected.CustomField2, entry.CustomField2)
 }

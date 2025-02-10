@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -51,7 +50,7 @@ type Job struct {
 	// The current version of the queued state.
 	queuedVersion int32
 	// Scheduling requirements of this job.
-	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	jobSchedulingInfo *internaltypes.JobSchedulingInfo
 	// All resource requirements, including floating resources, for this job
 	allResourceRequirements internaltypes.ResourceList
 	// Kubernetes (i.e. non-floating) resource requirements of this job
@@ -264,17 +263,12 @@ func (job *Job) Assert() error {
 func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
 	// Initialise the annotation and nodeSelector maps if nil.
 	// Since those need to be mutated in-place.
-	if job.jobSchedulingInfo != nil {
-		for _, req := range job.jobSchedulingInfo.ObjectRequirements {
-			if podReq := req.GetPodRequirements(); podReq != nil {
-				if podReq.Annotations == nil {
-					podReq.Annotations = make(map[string]string)
-				}
-				if podReq.NodeSelector == nil {
-					podReq.NodeSelector = make(map[string]string)
-				}
-			}
-		}
+	podReq := job.jobSchedulingInfo.PodRequirements
+	if podReq.Annotations == nil {
+		podReq.Annotations = make(map[string]string)
+	}
+	if podReq.NodeSelector == nil {
+		podReq.NodeSelector = make(map[string]string)
 	}
 }
 
@@ -459,7 +453,7 @@ func (job *Job) WithRequestedPriority(priority uint32) *Job {
 }
 
 // JobSchedulingInfo returns the scheduling requirements associated with the job
-func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
+func (job *Job) JobSchedulingInfo() *internaltypes.JobSchedulingInfo {
 	return job.jobSchedulingInfo
 }
 
@@ -538,8 +532,8 @@ func (job *Job) KubernetesResourceRequirements() internaltypes.ResourceList {
 }
 
 // PodRequirements returns the pod requirements of the Job
-func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
-	return job.jobSchedulingInfo.GetPodRequirements()
+func (job *Job) PodRequirements() *internaltypes.PodRequirements {
+	return job.jobSchedulingInfo.PodRequirements
 }
 
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
@@ -658,11 +652,10 @@ func (job *Job) HasRuns() bool {
 }
 
 func (job *Job) ValidateResourceRequests() error {
-	pr := job.jobSchedulingInfo.GetPodRequirements()
+	pr := job.jobSchedulingInfo.PodRequirements
 	if pr == nil {
 		return nil
 	}
-
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
 		return nil
@@ -801,13 +794,13 @@ func (job *Job) Validated() bool {
 	return job.validated
 }
 
-// Does this job request any floating resources?
+// RequestsFloatingResources returns true if this job requests any floating resources
 func (job *Job) RequestsFloatingResources() bool {
 	return !job.AllResourceRequirements().OfType(internaltypes.Floating).AllZero()
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
-func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) (*Job, error) {
+func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedulingInfo) (*Job, error) {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
@@ -823,7 +816,7 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 
 func (job *Job) DeepCopy() *Job {
 	j := copyJob(*job)
-	j.jobSchedulingInfo = proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j.jobSchedulingInfo = job.jobSchedulingInfo.DeepCopy()
 	j.ensureJobSchedulingInfoFieldsInitialised()
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 

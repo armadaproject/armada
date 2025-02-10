@@ -1,12 +1,28 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo } from "react"
 
-import { CircularProgress, Collapse, ListItemButton, Typography } from "@mui/material"
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Paper,
+  Skeleton,
+  Stack,
+  styled,
+  Typography,
+} from "@mui/material"
 
-import styles from "./ContainerDetails.module.css"
 import { KeyValuePairTable } from "./KeyValuePairTable"
+import { SidebarTabSubheading } from "./sidebarTabContentComponents"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutV2Models"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
+import { SPACING } from "../../../styling/spacing"
+import { CodeBlock } from "../../CodeBlock"
+
+const LoadingContainerPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+}))
 
 export interface ContainerData {
   name: string
@@ -72,17 +88,16 @@ export const ContainerDetails = ({ job }: ContainerDetailsProps) => {
 
   if (getJobSpecResult.status === "pending") {
     return (
-      <div className={styles.container + " " + styles.centerContent}>
-        <CircularProgress />
-      </div>
+      <LoadingContainerPaper variant="outlined">
+        <Skeleton />
+      </LoadingContainerPaper>
     )
   }
   if (containers.length === 0) {
-    return <>No containers found.</>
+    return <Alert severity="info">No containers found.</Alert>
   }
   return (
-    <div className={styles.container}>
-      <Typography>Containers</Typography>
+    <div>
       {containers.map((c, i) => (
         <SingleContainerDetails key={i} container={c} openByDefault={i === 0} />
       ))}
@@ -91,23 +106,19 @@ export const ContainerDetails = ({ job }: ContainerDetailsProps) => {
 }
 
 const SingleContainerDetails = ({ container, openByDefault }: { container: ContainerData; openByDefault: boolean }) => {
-  const [open, setOpen] = useState<boolean>(openByDefault)
   const entrypoint = container.command + " " + container.args
-
-  const handleClick = () => {
-    setOpen(!open)
-  }
-
   const containerName = container.name !== "" ? container.name : "No name"
 
   return (
-    <>
-      <ListItemButton onClick={handleClick}>{containerName}</ListItemButton>
-      <Collapse in={open}>
-        <div className={styles.singleContainer}>
-          <div className={styles.commandContainer}>
+    <Accordion defaultExpanded={openByDefault}>
+      <AccordionSummary>
+        <SidebarTabSubheading>{containerName}</SidebarTabSubheading>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Stack spacing={SPACING.sm}>
+          <div>
             <Typography>Command</Typography>
-            <div className={styles.command}>{entrypoint}</div>
+            <CodeBlock code={entrypoint} language="bash" downloadable={false} showLineNumbers={false} loading={false} />
           </div>
           <div>
             <Typography>Resources</Typography>
@@ -130,8 +141,8 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
               ]}
             />
           </div>
-        </div>
-      </Collapse>
-    </>
+        </Stack>
+      </AccordionDetails>
+    </Accordion>
   )
 }

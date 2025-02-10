@@ -10,7 +10,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
@@ -103,8 +102,8 @@ func (c *MetricsCollector) Run(ctx *armadacontext.Context) error {
 		case <-ticker.C():
 			err := c.refresh(ctx)
 			if err != nil {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Warnf("error refreshing metrics state")
 			}
 		}
@@ -178,7 +177,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		pools := job.ResolvedPools()
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
-		resourceRequirements := job.JobSchedulingInfo().GetObjectRequirements()[0].GetPodRequirements().GetResourceRequirements().Requests
+		resourceRequirements := job.JobSchedulingInfo().PodRequirements.ResourceRequirements.Requests
 		jobResources := make(map[string]float64)
 		for key, value := range resourceRequirements {
 			jobResources[string(key)] = resource.QuantityAsFloat64(value)

@@ -27,6 +27,9 @@ type QueueSchedulingContext struct {
 	Queue string
 	// Determines the fair share of this queue relative to other queues.
 	Weight float64
+	// Raw Weight of the queue before any priority boosts.
+	// This is purely informational as all scheduling decisions are made using Weight
+	RawWeight float64
 	// Limits job scheduling rate for this queue.
 	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter

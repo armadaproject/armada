@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, UIEvent } from "react"
 
 import { Refresh } from "@mui/icons-material"
 import {
+  Alert,
+  alpha,
   Checkbox,
-  CircularProgress,
   FormControl,
   FormControlLabel,
   FormGroup,
@@ -11,14 +12,30 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Skeleton,
+  styled,
 } from "@mui/material"
 
-import styles from "./SidebarTabJobLogs.module.css"
+import { NoRunsAlert } from "./NoRunsAlert"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job, JobRun } from "../../../models/lookoutV2Models"
 import { LogLine } from "../../../services/lookoutV2/LogService"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
 import { useGetLogs } from "../../../services/lookoutV2/useGetLogs"
+import { SPACING } from "../../../styling/spacing"
+
+const LogsHeader = styled("div")(({ theme }) => ({
+  maxWidth: "100%",
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "start",
+  gap: theme.spacing(SPACING.lg),
+}))
+
+const ContainerSelect = styled(Select)({
+  width: "25ch",
+})
 
 export interface SidebarTabJobLogsProps {
   job: Job
@@ -95,13 +112,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   // Get logs
   const getLogsEnabled = Boolean(cluster && namespace && job.jobId && selectedContainer && job.runs.length > 0)
   const getLogsResult = useGetLogs(cluster, namespace, job.jobId, selectedContainer, loadFromStart, getLogsEnabled)
-  useEffect(() => {
-    if (getLogsResult.status === "error") {
-      openSnackbar(`Failed to retrieve Job logs for Job with ID:  ${job.jobId}: ${getLogsResult.error}`, "error", {
-        autoHideDuration: 5000,
-      })
-    }
-  }, [getLogsResult.status, getLogsResult.error])
 
   // Periodically refetch logs
   useEffect(() => {
@@ -117,18 +127,15 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   }, [getLogsResult.fetchNextPage, getLogsResult.status, getLogsEnabled])
 
   if (job.runs.length === 0) {
-    return <div className={styles.didNotRun}>This job did not run.</div>
+    return <NoRunsAlert jobState={job.state} />
   }
 
   return (
-    <div className={styles.sidebarLogsTabContainer}>
-      <div className={styles.logsHeader}>
-        <div className={styles.logOption}>
+    <>
+      <LogsHeader>
+        <div>
           <FormControl
             variant="standard"
-            style={{
-              width: "100%",
-            }}
             disabled={
               getJobSpecResult.status === "pending" ||
               getLogsResult.status === "pending" ||
@@ -145,9 +152,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 const index = e.target.value as number
                 setRunIndex(index)
               }}
-              style={{
-                maxWidth: "300px",
-              }}
             >
               {runsNewestFirst.map((run, i) => (
                 <MenuItem value={i} key={i}>
@@ -157,16 +161,13 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             </Select>
           </FormControl>
         </div>
-        <div className={styles.logOption}>
+        <div>
           <FormControl
             variant="standard"
-            style={{
-              width: "100%",
-            }}
             disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
           >
             <InputLabel id="select-container-label">Container</InputLabel>
-            <Select
+            <ContainerSelect
               labelId="select-container-label"
               variant="standard"
               value={selectedContainer}
@@ -176,19 +177,16 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 setSelectedContainer(container)
               }}
               size="small"
-              style={{
-                maxWidth: "250px",
-              }}
             >
               {containers.map((container) => (
                 <MenuItem value={container} key={container}>
                   {container}
                 </MenuItem>
               ))}
-            </Select>
+            </ContainerSelect>
           </FormControl>
         </div>
-        <div className={styles.logOption}>
+        <div>
           <FormGroup>
             <FormControlLabel
               control={
@@ -204,7 +202,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             />
           </FormGroup>
         </div>
-        <div className={styles.logOption}>
+        <div>
           <FormGroup>
             <FormControlLabel
               control={
@@ -220,41 +218,61 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             />
           </FormGroup>
         </div>
-      </div>
+      </LogsHeader>
       {getJobSpecResult.status === "pending" ||
         (getLogsResult.status === "pending" && (
-          <div className={styles.loading}>
-            <CircularProgress size={24} />
-          </div>
+          <LogsContainer>
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+          </LogsContainer>
         ))}
       {getLogsResult.status === "success" && (
         <LogView logLines={getLogsResult.data?.pages?.flat() ?? []} showTimestamps={showTimestamps} />
       )}
-      <div className={styles.gutter}>
-        {getLogsResult.status === "error" && (
-          <>
-            <div className={styles.errorMessage}>{getLogsResult.error}</div>
-            <div>
-              <IconButton onClick={() => getLogsResult.refetch()}>
+      {getLogsResult.status === "error" && (
+        <div>
+          <Alert
+            severity="error"
+            action={
+              <IconButton color="inherit" size="small" onClick={() => getLogsResult.refetch()}>
                 <Refresh />
               </IconButton>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            }
+          >
+            <code>{getLogsResult.error}</code>
+          </Alert>
+        </div>
+      )}
+    </>
   )
 }
 
-function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
-  if (logLines.length === 0) {
-    return (
-      <div key={"EMPTY"} className={styles.emptyLogView}>
-        No logs to display
-      </div>
-    )
-  }
+const LogsContainer = styled("div")(({ theme }) => ({
+  width: "100%",
+  whiteSpace: "pre-wrap",
+  fontFamily: "monospace",
+  wordWrap: "break-word",
+  marginTop: 5,
+  backgroundColor: theme.palette.background.paper,
+  padding: 5,
+  borderRadius: 5,
+  position: "relative",
+  overflowY: "auto",
+  overflowX: "auto",
+}))
 
+const Timestamp = styled("span")(({ theme }) => ({
+  marginRight: 10,
+  backgroundColor: alpha(theme.palette.primary.light, 0.15),
+  ...theme.applyStyles("dark", {
+    backgroundColor: alpha(theme.palette.primary.main, 0.15),
+  }),
+}))
+
+function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
   const [shouldScrollDown, setShouldScrollDown] = useState<boolean>(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const previousScrollTopRef = useRef<number | undefined>()
@@ -287,16 +305,24 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
     }
   }
 
+  if (logLines.length === 0) {
+    return (
+      <Alert variant="outlined" severity="info">
+        No logs to display
+      </Alert>
+    )
+  }
+
   return (
-    <div className={styles.logView} onScroll={handleScroll}>
+    <LogsContainer onScroll={handleScroll}>
       {logLines.map((logLine, i) => (
         <span key={`${i}-${logLine.timestamp}`}>
-          {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
+          {showTimestamps && <Timestamp>{logLine.timestamp}</Timestamp>}
           {logLine.line + "\n"}
         </span>
       ))}
       <div ref={logsEndRef} key={"END"} />
-    </div>
+    </LogsContainer>
   )
 }
 

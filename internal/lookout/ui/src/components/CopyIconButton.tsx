@@ -6,7 +6,6 @@ import { IconButton, IconButtonProps, styled, Tooltip } from "@mui/material"
 const LEAVE_DELAY_MS = 1_000
 
 const StyledIconButton = styled(IconButton)<IconButtonProps & { hidden: boolean }>(({ hidden }) => ({
-  padding: 0,
   visibility: hidden ? "hidden" : "unset",
 }))
 
@@ -21,7 +20,13 @@ export const CopyIconButton = ({ content, size, onClick, hidden = false }: CopyI
   const [tooltipOpen, setTooltipOpen] = useState(false)
 
   return (
-    <Tooltip title="Copied!" onClose={() => setTooltipOpen(false)} open={tooltipOpen} leaveDelay={LEAVE_DELAY_MS}>
+    <Tooltip
+      title="Copied!"
+      onClose={() => setTooltipOpen(false)}
+      open={tooltipOpen}
+      leaveDelay={LEAVE_DELAY_MS}
+      arrow={false}
+    >
       <StyledIconButton
         size={size}
         onClick={(e) => {

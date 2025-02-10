@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
@@ -411,7 +411,7 @@ func operatorForMatch(match string) (string, error) {
 		return "<=", nil
 	default:
 		err := errors.Errorf("unsupported match type: %s", match)
-		logrus.Error(err)
+		log.Error(err.Error())
 		return "", err
 	}
 }
@@ -429,6 +429,12 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 		return qb.recordValue(v), nil
 	case model.MatchAnyOf:
 		switch v := value.(type) {
+		case []interface{}:
+			ids := make([]string, len(v))
+			for i, val := range v {
+				ids[i] = qb.recordValue(val)
+			}
+			return fmt.Sprintf("(%s)", strings.Join(ids, ", ")), nil
 		case []int:
 			ids := make([]string, len(v))
 			for i, val := range v {

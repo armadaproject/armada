@@ -6,10 +6,11 @@ import (
 
 	"github.com/armadaproject/armada/cmd/scheduler/cmd"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 func main() {
-	common.ConfigureLogging()
+	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 	if err := cmd.RootCmd().Execute(); err != nil {
 		os.Exit(1)

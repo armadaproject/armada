@@ -1,10 +1,13 @@
 import { createTheme } from "@mui/material"
 
-import { palette } from "./palette"
+import { MuiAccordion, MuiAccordionDetails, MuiAccordionSummary } from "./components/accordion"
+import { MuiChip } from "./components/chip"
+import { MuiTooltip } from "./components/tooltip"
+import { darkModePalette, lightModePalette } from "./palette"
 import { typography } from "./typography"
 
 export const theme = createTheme({
-  colorSchemes: { dark: false, light: true },
-  palette,
+  colorSchemes: { dark: { palette: darkModePalette }, light: { palette: lightModePalette } },
+  components: { MuiAccordion, MuiAccordionDetails, MuiAccordionSummary, MuiChip, MuiTooltip },
   typography,
 })

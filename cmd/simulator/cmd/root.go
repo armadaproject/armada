@@ -6,13 +6,12 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -139,11 +138,11 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		log.Infof("Will write profiling information to %s", profilingFile)
 		f, err := os.Create(profilingFile)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(err.Error())
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(err.Error())
 		}
 		defer pprof.StopCPUProfile()
 	}

@@ -2,6 +2,7 @@ import { Location, NavigateFunction, Params } from "react-router-dom"
 
 import {
   DEFAULT_PREFERENCES,
+  ensurePreferencesAreConsistent,
   JobsTablePreferences,
   JobsTablePreferencesService,
   PREFERENCES_KEY,
@@ -10,7 +11,7 @@ import {
 } from "./JobsTablePreferencesService"
 import { Match } from "../../models/lookoutV2Models"
 import { Router } from "../../utils"
-import { ColumnId, DEFAULT_COLUMN_ORDER, StandardColumnId } from "../../utils/jobsTableColumns"
+import { ColumnId, DEFAULT_COLUMN_ORDERING, StandardColumnId } from "../../utils/jobsTableColumns"
 
 class FakeRouter implements Router {
   location: Location
@@ -58,8 +59,8 @@ describe("JobsTablePreferencesService", () => {
         ...DEFAULT_PREFERENCES,
         // From query string above
         pageIndex: 3,
-        groupedColumns: ["state" as ColumnId],
-        order: { id: "jobId", direction: "ASC" },
+        groupedColumns: [StandardColumnId.State],
+        order: { id: StandardColumnId.JobID, direction: "ASC" },
       })
     })
   })
@@ -93,9 +94,9 @@ describe("JobsTablePreferencesService", () => {
 
   describe("Grouped columns", () => {
     it("round-trips columns", () => {
-      savePartialPrefs({ groupedColumns: ["queue", "state"] as ColumnId[] })
+      savePartialPrefs({ groupedColumns: [StandardColumnId.Queue, StandardColumnId.State] })
       expect(router.location.search).toContain("g[0]=queue&g[1]=state")
-      expect(service.getUserPrefs().groupedColumns).toStrictEqual(["queue", "state"])
+      expect(service.getUserPrefs().groupedColumns).toStrictEqual([StandardColumnId.Queue, StandardColumnId.State])
     })
 
     it("round-trips empty list", () => {
@@ -126,28 +127,48 @@ describe("JobsTablePreferencesService", () => {
   })
 
   describe("Column filters", () => {
+    it("makes filter value and match types consistent (migrating to anyOf)", () => {
+      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: "i-am-a-string-and-not-an-array" }] })
+      expect(router.location.search).toContain(
+        "f[0][id]=queue&f[0][value]=i-am-a-string-and-not-an-array&f[0][match]=anyOf",
+      )
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: undefined }])
+    })
+
+    it("makes filter value and match types consistent (migrating from anyOf)", () => {
+      savePartialPrefs({ filters: [{ id: StandardColumnId.JobID, value: ["hello", "i", "am", "an", "array"] }] })
+      expect(router.location.search).toContain(
+        "f[0][id]=jobId&f[0][value][0]=hello&f[0][value][1]=i&f[0][value][2]=am&f[0][value][3]=an&f[0][value][4]=array&f[0][match]=exact",
+      )
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.JobID, value: "hello" }])
+    })
+
     it("round-trips column filters", () => {
-      savePartialPrefs({ filters: [{ id: "queue", value: "test" }] })
-      expect(router.location.search).toContain("f[0][id]=queue&f[0][value]=test&f[0][match]=startsWith")
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "queue", value: "test" }])
+      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: ["test"] }] })
+      expect(router.location.search).toContain("f[0][id]=queue&f[0][value][0]=test&f[0][match]=anyOf")
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: ["test"] }])
     })
 
     it("round-trips state filter", () => {
-      savePartialPrefs({ filters: [{ id: "state", value: ["QUEUED", "PENDING", "RUNNING"] }] })
+      savePartialPrefs({ filters: [{ id: StandardColumnId.State, value: ["QUEUED", "PENDING", "RUNNING"] }] })
       expect(router.location.search).toContain(
         "f[0][id]=state&f[0][value][0]=QUEUED&f[0][value][1]=PENDING&f[0][value][2]=RUNNING&f[0][match]=anyOf",
       )
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "state", value: ["QUEUED", "PENDING", "RUNNING"] }])
-      expect(service.getUserPrefs().columnMatches["state"] === Match.AnyOf)
+      expect(service.getUserPrefs().filters).toStrictEqual([
+        { id: StandardColumnId.State, value: ["QUEUED", "PENDING", "RUNNING"] },
+      ])
+      expect(service.getUserPrefs().columnMatches[StandardColumnId.State]).toEqual(Match.AnyOf)
     })
 
     it("round-trips special characters", () => {
-      savePartialPrefs({ filters: [{ id: "queue", value: "test & why / do $ this" }] })
+      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: ["test & why / do $ this"] }] })
       expect(router.location.search).toContain(
-        "f[0][id]=queue&f[0][value]=test%20%26%20why%20%2F%20do%20%24%20this&f[0][match]=startsWith",
+        "f[0][id]=queue&f[0][value][0]=test%20%26%20why%20%2F%20do%20%24%20this&f[0][match]=anyOf",
       )
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "queue", value: "test & why / do $ this" }])
-      expect(service.getUserPrefs().columnMatches["queue"] === Match.StartsWith)
+      expect(service.getUserPrefs().filters).toStrictEqual([
+        { id: StandardColumnId.Queue, value: ["test & why / do $ this"] },
+      ])
+      expect(service.getUserPrefs().columnMatches[StandardColumnId.Queue]).toEqual(Match.AnyOf)
     })
 
     it("round-trips empty list", () => {
@@ -158,15 +179,15 @@ describe("JobsTablePreferencesService", () => {
 
   describe("Sort order", () => {
     it("round-trips asc sort order", () => {
-      savePartialPrefs({ order: { id: "queue", direction: "ASC" } })
+      savePartialPrefs({ order: { id: StandardColumnId.Queue, direction: "ASC" } })
       expect(router.location.search).toContain("sort[id]=queue&sort[desc]=false")
-      expect(service.getUserPrefs().order).toStrictEqual({ id: "queue", direction: "ASC" })
+      expect(service.getUserPrefs().order).toStrictEqual({ id: StandardColumnId.Queue, direction: "ASC" })
     })
 
     it("round-trips desc sort order", () => {
-      savePartialPrefs({ order: { id: "queue", direction: "DESC" } })
+      savePartialPrefs({ order: { id: StandardColumnId.Queue, direction: "DESC" } })
       expect(router.location.search).toContain("sort[id]=queue&sort[desc]=true")
-      expect(service.getUserPrefs().order).toStrictEqual({ id: "queue", direction: "DESC" })
+      expect(service.getUserPrefs().order).toStrictEqual({ id: StandardColumnId.Queue, direction: "DESC" })
     })
   })
 
@@ -273,10 +294,11 @@ describe("JobsTablePreferencesService", () => {
       const localStorageParams: JobsTablePreferences = {
         annotationColumnKeys: ["hello"],
         expandedState: { foo: true },
-        filters: [{ id: "jobId", value: "112233" }],
+        filters: [{ id: StandardColumnId.JobID, value: "112233" }],
         columnMatches: { jobId: Match.Exact },
-        groupedColumns: ["queue" as ColumnId, "jobSet" as ColumnId],
-        order: { id: "timeInState", direction: "ASC" },
+        groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
+        columnOrder: ["annotation_hello", StandardColumnId.JobID],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
         pageIndex: 5,
         pageSize: 20,
         sidebarJobId: "223344",
@@ -291,7 +313,31 @@ describe("JobsTablePreferencesService", () => {
         expandedState: {},
         filters: [],
         groupedColumns: [],
-        order: DEFAULT_COLUMN_ORDER,
+        columnOrder: [
+          "annotation_hello",
+          StandardColumnId.JobID,
+          StandardColumnId.Queue,
+          StandardColumnId.Namespace,
+          StandardColumnId.JobSet,
+          StandardColumnId.State,
+          StandardColumnId.Count,
+          StandardColumnId.Priority,
+          StandardColumnId.Owner,
+          StandardColumnId.CPU,
+          StandardColumnId.Memory,
+          StandardColumnId.EphemeralStorage,
+          StandardColumnId.GPU,
+          StandardColumnId.PriorityClass,
+          StandardColumnId.LastTransitionTimeUtc,
+          StandardColumnId.TimeInState,
+          StandardColumnId.TimeSubmittedUtc,
+          StandardColumnId.TimeSubmittedAgo,
+          StandardColumnId.Node,
+          StandardColumnId.Cluster,
+          StandardColumnId.ExitCode,
+          StandardColumnId.RuntimeSeconds,
+        ],
+        order: DEFAULT_COLUMN_ORDERING,
         pageIndex: 0,
         pageSize: 50,
         sidebarJobId: "112233",
@@ -308,16 +354,17 @@ describe("JobsTablePreferencesService", () => {
             match: Match.AnyOf,
           },
         ],
-        sort: { id: "timeInState", desc: "false" },
-        g: ["jobSet"],
+        sort: { id: StandardColumnId.TimeInState, desc: "false" },
+        g: [StandardColumnId.JobSet],
       }
       const localStorageParams: JobsTablePreferences = {
         annotationColumnKeys: ["key"],
         expandedState: { foo: true },
-        filters: [{ id: "jobId", value: "112233" }],
+        filters: [{ id: StandardColumnId.JobID, value: "112233" }],
         columnMatches: { jobId: Match.Exact },
-        groupedColumns: ["queue" as ColumnId, "jobSet" as ColumnId],
-        order: { id: "timeInState", direction: "ASC" },
+        groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
+        columnOrder: [StandardColumnId.JobID, "annotation_key"],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
         pageIndex: 5,
         pageSize: 20,
         sidebarJobId: "223344",
@@ -337,8 +384,32 @@ describe("JobsTablePreferencesService", () => {
           },
         ],
         columnMatches: { [StandardColumnId.State]: Match.AnyOf },
-        groupedColumns: ["jobSet"],
-        order: { id: "timeInState", direction: "ASC" },
+        groupedColumns: [StandardColumnId.JobSet],
+        columnOrder: [
+          StandardColumnId.JobID,
+          "annotation_key",
+          StandardColumnId.Queue,
+          StandardColumnId.Namespace,
+          StandardColumnId.JobSet,
+          StandardColumnId.State,
+          StandardColumnId.Count,
+          StandardColumnId.Priority,
+          StandardColumnId.Owner,
+          StandardColumnId.CPU,
+          StandardColumnId.Memory,
+          StandardColumnId.EphemeralStorage,
+          StandardColumnId.GPU,
+          StandardColumnId.PriorityClass,
+          StandardColumnId.LastTransitionTimeUtc,
+          StandardColumnId.TimeInState,
+          StandardColumnId.TimeSubmittedUtc,
+          StandardColumnId.TimeSubmittedAgo,
+          StandardColumnId.Node,
+          StandardColumnId.Cluster,
+          StandardColumnId.ExitCode,
+          StandardColumnId.RuntimeSeconds,
+        ],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
         pageIndex: 0,
         pageSize: 50,
         sidebarJobId: undefined,
@@ -353,4 +424,375 @@ describe("JobsTablePreferencesService", () => {
       ...prefsToSave,
     })
   }
+})
+
+describe("ensurePreferencesAreConsistent", () => {
+  it("does not change valid preferences", () => {
+    const validPreferences: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      expandedState: {},
+      filters: [{ id: StandardColumnId.JobID, value: "112233" }],
+      columnMatches: { jobId: Match.Exact },
+      groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
+      columnOrder: [
+        StandardColumnId.Owner,
+        "annotation_preferenc.es/foo-bravo",
+        StandardColumnId.JobID,
+        StandardColumnId.State,
+        "annotation_preferenc.es/foo-charlie",
+        StandardColumnId.RuntimeSeconds,
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.Priority,
+        StandardColumnId.Count,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.CPU,
+        StandardColumnId.ExitCode,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeInState,
+        StandardColumnId.GPU,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Cluster,
+        "annotation_preferenc.es/foo-alpha",
+        StandardColumnId.Node,
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {
+        "annotation_preferenc.es/foo-charlie": true,
+        "annotation_preferenc.es/foo-bravo": true,
+        queue: true,
+        jobId: true,
+        jobSet: true,
+        timeInState: true,
+      },
+    }
+
+    ensurePreferencesAreConsistent(validPreferences)
+
+    const expected: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      expandedState: {},
+      filters: [{ id: StandardColumnId.JobID, value: "112233" }],
+      columnMatches: { jobId: Match.Exact },
+      groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
+      columnOrder: [
+        StandardColumnId.Owner,
+        "annotation_preferenc.es/foo-bravo",
+        StandardColumnId.JobID,
+        StandardColumnId.State,
+        "annotation_preferenc.es/foo-charlie",
+        StandardColumnId.RuntimeSeconds,
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.Priority,
+        StandardColumnId.Count,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.CPU,
+        StandardColumnId.ExitCode,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeInState,
+        StandardColumnId.GPU,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Cluster,
+        "annotation_preferenc.es/foo-alpha",
+        StandardColumnId.Node,
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {
+        "annotation_preferenc.es/foo-charlie": true,
+        "annotation_preferenc.es/foo-bravo": true,
+        queue: true,
+        jobId: true,
+        jobSet: true,
+        timeInState: true,
+      },
+    }
+
+    expect(validPreferences).toEqual(expected)
+  })
+
+  it("adds annotation key columns for annotations referenced in filters", () => {
+    const validPreferences: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      expandedState: {},
+      filters: [{ id: "annotation_preferenc.es/foo-delta", value: "ddd" }],
+      columnMatches: { "annotation_preferenc.es/foo-delta": Match.StartsWith },
+      groupedColumns: [],
+      columnOrder: [
+        StandardColumnId.JobID,
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.State,
+        StandardColumnId.Count,
+        StandardColumnId.Priority,
+        StandardColumnId.Owner,
+        StandardColumnId.CPU,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.GPU,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeInState,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Node,
+        StandardColumnId.Cluster,
+        StandardColumnId.ExitCode,
+        StandardColumnId.RuntimeSeconds,
+        "annotation_preferenc.es/foo-alpha",
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {
+        "annotation_preferenc.es/foo-alpha": true,
+        queue: true,
+        jobId: true,
+        jobSet: true,
+        timeInState: true,
+      },
+    }
+
+    ensurePreferencesAreConsistent(validPreferences)
+
+    const expected: JobsTablePreferences = {
+      annotationColumnKeys: [
+        "preferenc.es/foo-alpha",
+        "preferenc.es/foo-delta", // added
+      ],
+      expandedState: {},
+      filters: [{ id: "annotation_preferenc.es/foo-delta", value: "ddd" }],
+      columnMatches: { "annotation_preferenc.es/foo-delta": Match.StartsWith },
+      groupedColumns: [],
+      columnOrder: [
+        StandardColumnId.JobID,
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.State,
+        StandardColumnId.Count,
+        StandardColumnId.Priority,
+        StandardColumnId.Owner,
+        StandardColumnId.CPU,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.GPU,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeInState,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Node,
+        StandardColumnId.Cluster,
+        StandardColumnId.ExitCode,
+        StandardColumnId.RuntimeSeconds,
+        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferenc.es/foo-delta", // added
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {
+        "annotation_preferenc.es/foo-alpha": true,
+        "annotation_preferenc.es/foo-delta": true, // added
+        queue: true,
+        jobId: true,
+        jobSet: true,
+        timeInState: true,
+      },
+    }
+
+    expect(validPreferences).toEqual(expected)
+  })
+
+  it("makes grouped, ordered and filtered columns are visible", () => {
+    const validPreferences: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      expandedState: {},
+      filters: [
+        { id: "annotation_preferenc.es/foo-alpha", value: "aaa" },
+        {
+          id: StandardColumnId.State,
+          value: ["QUEUED", "PENDING", "RUNNING"],
+        },
+      ],
+      columnMatches: { "annotation_preferenc.es/foo-alpha": Match.StartsWith, [StandardColumnId.State]: Match.AnyOf },
+      groupedColumns: [StandardColumnId.Queue, "annotation_preferenc.es/foo-alpha", StandardColumnId.JobSet],
+      columnOrder: [
+        StandardColumnId.JobID,
+        "annotation_preferenc.es/foo-alpha",
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.State,
+        StandardColumnId.Count,
+        StandardColumnId.Priority,
+        StandardColumnId.Owner,
+        StandardColumnId.CPU,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.GPU,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeInState,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Node,
+        StandardColumnId.Cluster,
+        StandardColumnId.ExitCode,
+        StandardColumnId.RuntimeSeconds,
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {},
+    }
+
+    ensurePreferencesAreConsistent(validPreferences)
+
+    const expected: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      expandedState: {},
+      filters: [
+        { id: "annotation_preferenc.es/foo-alpha", value: "aaa" },
+        {
+          id: StandardColumnId.State,
+          value: ["QUEUED", "PENDING", "RUNNING"],
+        },
+      ],
+      columnMatches: { "annotation_preferenc.es/foo-alpha": Match.StartsWith, [StandardColumnId.State]: Match.AnyOf },
+      groupedColumns: [StandardColumnId.Queue, "annotation_preferenc.es/foo-alpha", StandardColumnId.JobSet],
+      columnOrder: [
+        StandardColumnId.JobID,
+        "annotation_preferenc.es/foo-alpha",
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.State,
+        StandardColumnId.Count,
+        StandardColumnId.Priority,
+        StandardColumnId.Owner,
+        StandardColumnId.CPU,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.GPU,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeInState,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Node,
+        StandardColumnId.Cluster,
+        StandardColumnId.ExitCode,
+        StandardColumnId.RuntimeSeconds,
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      // All added
+      visibleColumns: {
+        "annotation_preferenc.es/foo-alpha": true,
+        jobSet: true,
+        queue: true,
+        state: true,
+        timeInState: true,
+      },
+    }
+
+    expect(validPreferences).toEqual(expected)
+  })
+
+  it("adds to the column order includes all unpinned standard columns and annotations and removes any columns which are neither", () => {
+    const validPreferences: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      expandedState: {},
+      filters: [],
+      columnMatches: {},
+      groupedColumns: [],
+      columnOrder: [
+        StandardColumnId.TimeInState,
+        "annotation_rubbish-annotation",
+        "annotation_preferenc.es/foo-bravo",
+        "rubbish" as ColumnId,
+        StandardColumnId.JobID,
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {
+        [StandardColumnId.JobID]: true,
+        [StandardColumnId.TimeInState]: true,
+        'annotation_"preferenc.es/foo-bravo': true,
+      },
+    }
+
+    ensurePreferencesAreConsistent(validPreferences)
+
+    const expected: JobsTablePreferences = {
+      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      expandedState: {},
+      filters: [],
+      columnMatches: {},
+      groupedColumns: [],
+      columnOrder: [
+        StandardColumnId.TimeInState,
+        "annotation_preferenc.es/foo-bravo",
+        StandardColumnId.JobID,
+
+        // All the following elements are added
+        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferenc.es/foo-charlie",
+        StandardColumnId.Queue,
+        StandardColumnId.Namespace,
+        StandardColumnId.JobSet,
+        StandardColumnId.State,
+        StandardColumnId.Count,
+        StandardColumnId.Priority,
+        StandardColumnId.Owner,
+        StandardColumnId.CPU,
+        StandardColumnId.Memory,
+        StandardColumnId.EphemeralStorage,
+        StandardColumnId.GPU,
+        StandardColumnId.PriorityClass,
+        StandardColumnId.LastTransitionTimeUtc,
+        StandardColumnId.TimeSubmittedUtc,
+        StandardColumnId.TimeSubmittedAgo,
+        StandardColumnId.Node,
+        StandardColumnId.Cluster,
+        StandardColumnId.ExitCode,
+        StandardColumnId.RuntimeSeconds,
+      ],
+      order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+      pageIndex: 5,
+      pageSize: 20,
+      sidebarJobId: "223344",
+      visibleColumns: {
+        [StandardColumnId.JobID]: true,
+        [StandardColumnId.TimeInState]: true,
+        'annotation_"preferenc.es/foo-bravo': true,
+      },
+    }
+
+    expect(validPreferences).toEqual(expected)
+  })
 })

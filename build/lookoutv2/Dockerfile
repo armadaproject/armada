@@ -1,12 +1,13 @@
 ARG NODE_BUILD_IMAGE=node:22.12-bullseye
 ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
-ARG BASE_IMAGE=alpine:3.20.3
+ARG BASE_IMAGE=alpine:3.21.0
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
+COPY pkg/api/schedulerobjects/*.swagger.json /project/pkg/api/schedulerobjects/
 RUN ./project/internal/lookout/ui/openapi.sh
 
 FROM ${NODE_BUILD_IMAGE} AS NODE
@@ -26,5 +27,6 @@ COPY lookoutv2 /app/
 COPY config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
 COPY lookoutingesterv2 /app/
 COPY config/lookoutingesterv2/ /app/config/lookoutingesterv2
+COPY config/logging.yaml /app/config/logging.yaml
 WORKDIR /app
 ENTRYPOINT ["./lookoutv2"]

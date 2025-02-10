@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -64,8 +66,8 @@ func TestSchedule(t *testing.T) {
 		"scheduling": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
@@ -75,8 +77,8 @@ func TestSchedule(t *testing.T) {
 		"scheduling - home away": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.MakeTestExecutorWithNodes("executor-1",
-					testfixtures.WithLargeNodeTaint(testfixtures.TestNodeWithPool(testfixtures.TestPool))),
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
@@ -86,8 +88,8 @@ func TestSchedule(t *testing.T) {
 		"scheduling - cross pool - home away": {
 			schedulingConfig: multiPoolSchedulingConfig,
 			executors: []*schedulerobjects.Executor{
-				testfixtures.MakeTestExecutorWithNodes("executor-1",
-					testfixtures.WithLargeNodeTaint(testfixtures.TestNodeWithPool(testfixtures.TestPool2))),
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool2))),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool, testfixtures.AwayPool}),
@@ -97,8 +99,8 @@ func TestSchedule(t *testing.T) {
 		"scheduling - mixed pool clusters": {
 			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.MakeTestExecutor("executor-1", "pool-1", "pool-2"),
-				testfixtures.MakeTestExecutor("executor-2", "pool-1"),
+				makeTestExecutor("executor-1", "pool-1", "pool-2"),
+				makeTestExecutor("executor-2", "pool-1"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10), []string{"pool-1", "pool-2"}),
@@ -108,8 +110,8 @@ func TestSchedule(t *testing.T) {
 		"Fair share": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues: []*api.Queue{
 				{
@@ -130,8 +132,8 @@ func TestSchedule(t *testing.T) {
 		"do not schedule onto stale executors": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.WithLastUpdateTimeExecutor(testfixtures.BaseTime.Add(-1*time.Hour), testfixtures.Test1Node32CoreExecutor("executor2")),
+				test1Node32CoreExecutor("executor1"),
+				withLastUpdateTimeExecutor(testfixtures.BaseTime.Add(-1*time.Hour), test1Node32CoreExecutor("executor2")),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
@@ -140,8 +142,8 @@ func TestSchedule(t *testing.T) {
 		"schedule onto executors with some unacknowledged jobs": {
 			schedulingConfig: testfixtures.WithMaxUnacknowledgedJobsPerExecutorConfig(16, testfixtures.TestSchedulingConfig()),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs: testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 48),
@@ -158,8 +160,8 @@ func TestSchedule(t *testing.T) {
 		"do not schedule onto executors with too many unacknowledged jobs": {
 			schedulingConfig: testfixtures.WithMaxUnacknowledgedJobsPerExecutorConfig(15, testfixtures.TestSchedulingConfig()),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs: testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 48),
@@ -176,8 +178,8 @@ func TestSchedule(t *testing.T) {
 		"one executor full": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
@@ -199,8 +201,8 @@ func TestSchedule(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
@@ -221,8 +223,8 @@ func TestSchedule(t *testing.T) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
@@ -239,8 +241,8 @@ func TestSchedule(t *testing.T) {
 		"no queued jobs": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues: []*api.Queue{testfixtures.MakeTestQueue()},
 		},
@@ -257,7 +259,7 @@ func TestSchedule(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			executors: []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:    []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs: []*jobdb.Job{
 				// Submit the next job with a per-queue priority number (i.e., 1) that is larger
@@ -278,7 +280,7 @@ func TestSchedule(t *testing.T) {
 		},
 		"urgency-based preemption within a single queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "A"}},
 			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
@@ -298,7 +300,7 @@ func TestSchedule(t *testing.T) {
 		},
 		"urgency-based preemption between queues": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "A"}, {Name: "B"}},
 			queuedJobs:       testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass1, 2),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
@@ -318,7 +320,7 @@ func TestSchedule(t *testing.T) {
 		},
 		"preemption to fair share": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}, {Name: "B", PriorityFactor: 0.01}},
 			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
@@ -338,7 +340,7 @@ func TestSchedule(t *testing.T) {
 		},
 		"gang scheduling successful": {
 			schedulingConfig:         testfixtures.TestSchedulingConfig(),
-			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			executors:                []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
@@ -346,8 +348,8 @@ func TestSchedule(t *testing.T) {
 		"gang scheduling successful - mixed pool clusters": {
 			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.MakeTestExecutor("executor1", "pool-1", "pool-2"),
-				testfixtures.MakeTestExecutor("executor2", "pool-1"),
+				makeTestExecutor("executor1", "pool-1", "pool-2"),
+				makeTestExecutor("executor2", "pool-1"),
 			},
 			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
 			queuedJobs:               testfixtures.WithPools(testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.PoolNameLabel), []string{"pool-1"}),
@@ -357,22 +359,22 @@ func TestSchedule(t *testing.T) {
 		"not scheduling a gang that does not fit on any executor": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:     []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
 			queuedJobs: testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel),
 		},
 		"not scheduling a gang that does not fit on any pool": {
 			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
-			executors:        []*schedulerobjects.Executor{testfixtures.MakeTestExecutor("executor1", "pool-1", "pool-2")},
+			executors:        []*schedulerobjects.Executor{makeTestExecutor("executor1", "pool-1", "pool-2")},
 			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
 			queuedJobs:       testfixtures.WithPools(testfixtures.WithNodeUniformityGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), testfixtures.ClusterNameLabel), []string{"pool-1", "pool-2"}),
 		},
 		"urgency-based gang preemption": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor1"),
 			},
 			queues:     []*api.Queue{{Name: "queue1", PriorityFactor: 0.01}, {Name: "queue2", PriorityFactor: 0.01}},
 			queuedJobs: testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass1, 1),
@@ -393,7 +395,7 @@ func TestSchedule(t *testing.T) {
 		},
 		"preemption to fair share evicting a gang": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "queue1", PriorityFactor: 0.01}, {Name: "queue2", PriorityFactor: 0.01}},
 			queuedJobs:       testfixtures.N32Cpu256GiJobs("queue2", testfixtures.PriorityClass0, 1),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
@@ -414,8 +416,8 @@ func TestSchedule(t *testing.T) {
 		"Schedule gang job over multiple executors": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass0, 4)),
@@ -424,8 +426,8 @@ func TestSchedule(t *testing.T) {
 		"scheduling from paused queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues:                   []*api.Queue{testfixtures.MakeTestQueueCordoned()},
 			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
@@ -434,8 +436,8 @@ func TestSchedule(t *testing.T) {
 		"multi-queue scheduling": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues: []*api.Queue{testfixtures.MakeTestQueue(), testfixtures.MakeTestQueue2()},
 			queuedJobs: append(
@@ -447,8 +449,8 @@ func TestSchedule(t *testing.T) {
 		"multi-queue scheduling with paused and non-paused queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
 			},
 			queues: []*api.Queue{testfixtures.MakeTestQueueCordoned(), testfixtures.MakeTestQueue()},
 			queuedJobs: append(
@@ -460,10 +462,10 @@ func TestSchedule(t *testing.T) {
 		"multi-queue scheduling with paused and non-paused queue large": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1"),
-				testfixtures.Test1Node32CoreExecutor("executor2"),
-				testfixtures.Test1Node32CoreExecutor("executor3"),
-				testfixtures.Test1Node32CoreExecutor("executor4"),
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
+				test1Node32CoreExecutor("executor3"),
+				test1Node32CoreExecutor("executor4"),
 			},
 			queues: []*api.Queue{testfixtures.MakeTestQueueCordoned(), testfixtures.MakeTestQueue()},
 			queuedJobs: append(
@@ -492,6 +494,7 @@ func TestSchedule(t *testing.T) {
 				schedulingContextRepo,
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
+				prioritymultiplier.NewNoOpProvider(),
 			)
 			require.NoError(t, err)
 
@@ -641,7 +644,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name, node.Pool, jobs[j].PriorityClass().Priority)
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.GetId(), node.GetName(), node.GetPool(), jobs[j].PriorityClass().Priority)
 				}
 			}
 			armadaslices.Shuffle(jobs)
@@ -657,15 +660,10 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					testfixtures.TestResourceListFactory,
 					testfixtures.TestEmptyFloatingResources,
+					prioritymultiplier.NewNoOpProvider(),
 				)
 				require.NoError(b, err)
 				b.StartTimer()
-
-				nodeFactory := internaltypes.NewNodeFactory(
-					schedulingConfig.IndexedTaints,
-					schedulingConfig.IndexedNodeLabels,
-					testfixtures.TestResourceListFactory,
-				)
 
 				nodeDb, err := nodedb.NewNodeDb(
 					schedulingConfig.PriorityClasses,
@@ -679,9 +677,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 
 				dbNodes := []*internaltypes.Node{}
 				for _, node := range nodes {
-					dbNode, err := nodeFactory.FromSchedulerObjectsNode(node)
-					require.NoError(b, err)
-					dbNodes = append(dbNodes, dbNode)
+					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
 				err = algo.populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
@@ -725,5 +721,79 @@ func makeResourceList(resourceName string, value string) internaltypes.ResourceL
 	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]k8sResource.Quantity{
 		resourceName: k8sResource.MustParse(value),
 	},
+	)
+}
+
+func makeTestExecutorWithNodes(executorId string, nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
+	for _, node := range nodes {
+		node.Name = fmt.Sprintf("%s-node", executorId)
+		node.Executor = executorId
+	}
+
+	return &schedulerobjects.Executor{
+		Id:             executorId,
+		Pool:           testfixtures.TestPool,
+		Nodes:          nodes,
+		LastUpdateTime: testfixtures.BaseTime,
+	}
+}
+
+func test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
+	node := test32CpuNode(testfixtures.TestPriorities)
+	node.Name = fmt.Sprintf("%s-node", executorId)
+	node.Executor = executorId
+	node.Labels[testfixtures.ClusterNameLabel] = executorId
+	return &schedulerobjects.Executor{
+		Id:             executorId,
+		Pool:           testfixtures.TestPool,
+		Nodes:          []*schedulerobjects.Node{node},
+		LastUpdateTime: testfixtures.BaseTime,
+	}
+}
+
+func makeTestExecutor(executorId string, nodePools ...string) *schedulerobjects.Executor {
+	nodes := []*schedulerobjects.Node{}
+
+	for _, nodePool := range nodePools {
+		node := test32CpuNode(testfixtures.TestPriorities)
+		node.Name = fmt.Sprintf("%s-node", executorId)
+		node.Executor = executorId
+		node.Pool = nodePool
+		node.Labels[testfixtures.PoolNameLabel] = nodePool
+		nodes = append(nodes, node)
+	}
+
+	return &schedulerobjects.Executor{
+		Id:             executorId,
+		Pool:           testfixtures.TestPool,
+		Nodes:          nodes,
+		LastUpdateTime: testfixtures.BaseTime,
+	}
+}
+
+func withLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobjects.Executor) *schedulerobjects.Executor {
+	executor.LastUpdateTime = lastUpdateTime
+	return executor
+}
+
+func testNodeWithPool(pool string) *schedulerobjects.Node {
+	node := test32CpuNode(testfixtures.TestPriorities)
+	node.Pool = pool
+	node.Labels[testfixtures.PoolNameLabel] = pool
+	return node
+}
+
+func withLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
+	node.Taints = append(node.Taints, v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
+	return node
+}
+
+func test32CpuNode(priorities []int32) *schedulerobjects.Node {
+	return testfixtures.TestSchedulerObjectsNode(
+		priorities,
+		map[string]k8sResource.Quantity{
+			"cpu":    k8sResource.MustParse("32"),
+			"memory": k8sResource.MustParse("256Gi"),
+		},
 	)
 }

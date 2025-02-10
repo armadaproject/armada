@@ -5,12 +5,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/fake"
@@ -29,7 +29,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.ExecutorConfiguration
@@ -54,7 +54,7 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.Metric.Port)
 	defer shutdownMetricServer()
 
-	shutdown, wg := fake.StartUp(config, nodes)
+	shutdown, wg := fake.StartUp(armadacontext.Background(), config, nodes)
 	go func() {
 		<-shutdownChannel
 		shutdown()

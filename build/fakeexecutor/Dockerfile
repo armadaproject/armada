@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.20.3
+ARG BASE_IMAGE=alpine:3.21.0
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=fakeexecutor
 LABEL org.opencontainers.image.description="Fake Executor"
@@ -9,6 +9,7 @@ USER armada
 
 COPY fakeexecutor /app/
 COPY config/executor/config.yaml /app/config/executor/config.yaml
+COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 

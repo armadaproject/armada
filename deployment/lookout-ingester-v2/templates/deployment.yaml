@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "lookout_ingester_v2.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "lookout_ingester_v2.labels.all" . | nindent 8 }}
     spec:
@@ -87,8 +87,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "lookout_ingester_v2.config.name" . }}
+          configMap:
+            name: {{ include "lookout_ingester_v2.config.name" . }}
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:

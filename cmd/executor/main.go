@@ -7,13 +7,13 @@ import (
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/health"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -31,7 +31,7 @@ func init() {
 }
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.ExecutorConfiguration
@@ -61,7 +61,7 @@ func main() {
 	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(armadacontext.Background(), log.NewEntry(log.StandardLogger()), config)
+	shutdown, wg := executor.StartUp(armadacontext.Background(), config)
 	go func() {
 		<-shutdownChannel
 		shutdown()

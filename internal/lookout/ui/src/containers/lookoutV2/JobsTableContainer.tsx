@@ -61,6 +61,7 @@ import {
   INPUT_PROCESSORS,
   JOB_COLUMNS,
   JobTableColumn,
+  PINNED_COLUMNS,
   StandardColumnId,
   toAnnotationColId,
   toColId,
@@ -155,6 +156,7 @@ export const JobsTableContainer = ({
   )
   const columnResizeMode = useMemo(() => "onChange" as ColumnResizeMode, [])
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialPrefs.columnSizing ?? {})
+  const [columnOrder, setColumnOrder] = useState<ColumnId[]>(initialPrefs.columnOrder)
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(initialPrefs.groupedColumns)
@@ -245,24 +247,23 @@ export const JobsTableContainer = ({
     [sidebarJobId, jobInfoMap],
   )
 
-  const prefsFromState = (): JobsTablePreferences => {
-    return {
-      groupedColumns: grouping,
-      expandedState: expanded,
-      pageIndex,
-      pageSize,
-      order: lookoutOrder,
-      columnSizing: columnSizing,
-      filters: columnFilterState,
-      columnMatches: columnMatches,
-      annotationColumnKeys: getAnnotationKeyCols(allColumns),
-      visibleColumns: columnVisibility,
-      sidebarJobId: sidebarJobId,
-      sidebarWidth: sidebarWidth,
-      activeJobSets: activeJobSets,
-      autoRefresh: autoRefresh,
-    }
-  }
+  const prefsFromState = (): JobsTablePreferences => ({
+    groupedColumns: grouping,
+    expandedState: expanded,
+    columnOrder,
+    pageIndex,
+    pageSize,
+    order: lookoutOrder,
+    columnSizing: columnSizing,
+    filters: columnFilterState,
+    columnMatches: columnMatches,
+    annotationColumnKeys: getAnnotationKeyCols(allColumns),
+    visibleColumns: columnVisibility,
+    sidebarJobId: sidebarJobId,
+    sidebarWidth: sidebarWidth,
+    activeJobSets: activeJobSets,
+    autoRefresh: autoRefresh,
+  })
 
   const setTextFields = (filters: ColumnFiltersState) => {
     const filterMap = Object.fromEntries(filters.map((f) => [f.id, f]))
@@ -300,6 +301,7 @@ export const JobsTableContainer = ({
     setColumnMatches(prefs.columnMatches)
     const cols = JOB_COLUMNS.concat(...prefs.annotationColumnKeys.map(createAnnotationColumn))
     setAllColumns(cols)
+    setColumnOrder(prefs.columnOrder)
     setColumnVisibility(prefs.visibleColumns)
     setSidebarJobId(prefs.sidebarJobId)
     setSidebarWidth(prefs.sidebarWidth ?? 600)
@@ -425,10 +427,12 @@ export const JobsTableContainer = ({
     }
 
     const annotationCol = createAnnotationColumn(annotationKey)
+    const annotationColId = toColId(annotationCol.id)
     const newCols = allColumns.concat([annotationCol])
+    setColumnOrder((prev) => [...prev, annotationColId])
     setAllColumns(newCols)
-    if (!colIsVisible(toColId(annotationCol.id))) {
-      onColumnVisibilityChange(toColId(annotationCol.id))
+    if (!colIsVisible(annotationColId)) {
+      onColumnVisibilityChange(annotationColId)
     }
   }
 
@@ -437,6 +441,7 @@ export const JobsTableContainer = ({
     if (filtered.length === allColumns.length) {
       throw new Error(`column "${colId}" was not removed`)
     }
+    setColumnOrder((prev) => prev.filter((prevId) => prevId !== colId))
     setAllColumns(filtered)
     onFilterChange((columnFilters) => {
       return columnFilters.filter((columnFilter) => columnFilter.id !== colId)
@@ -453,16 +458,25 @@ export const JobsTableContainer = ({
     if (index === -1) {
       throw new Error(`column "${colId}" not found`)
     }
+
+    const oldColId = toColId(allColumns[index].id)
+
     // Make old column not visible
-    if (colIsVisible(toColId(allColumns[index].id))) {
-      onColumnVisibilityChange(toColId(allColumns[index].id))
+    if (colIsVisible(oldColId)) {
+      onColumnVisibilityChange(oldColId)
     }
+
     allColumns[index] = createAnnotationColumn(annotationKey)
+    const newColId = toColId(allColumns[index].id)
+
     // Make new column visible
     setAllColumns([...allColumns])
-    if (!colIsVisible(toColId(allColumns[index].id))) {
-      onColumnVisibilityChange(toColId(allColumns[index].id))
+    if (!colIsVisible(toColId(newColId))) {
+      onColumnVisibilityChange(toColId(newColId))
     }
+
+    // Change column ID in ordering
+    setColumnOrder((prev) => prev.map((prevId) => (prevId === oldColId ? newColId : prevId)))
   }
 
   const onGroupingChange = useCallback(
@@ -644,10 +658,11 @@ export const JobsTableContainer = ({
       columnFilters: columnFilterState,
       rowSelection: selectedRows,
       columnPinning: {
-        left: [StandardColumnId.SelectorCol],
+        left: PINNED_COLUMNS,
       },
       columnVisibility,
       sorting,
+      columnOrder,
       columnSizing,
     },
     getCoreRowModel: getCoreRowModel(),
@@ -709,19 +724,26 @@ export const JobsTableContainer = ({
     setSelectedRows({})
   }
 
-  const shiftSelectRow = async (row: Row<JobTableRow>) => {
+  const shiftSelectRow = (row: Row<JobTableRow>) => {
     if (lastSelectedRow === undefined || row.depth !== lastSelectedRow.depth) {
       return
     }
-    const sameDepthRows = table.getRowModel().rows.filter((_row) => row.depth === lastSelectedRow.depth)
-    const lastSelectedIdx = sameDepthRows.indexOf(lastSelectedRow)
-    const currentIdx = sameDepthRows.indexOf(row)
-    const shouldSelect = lastSelectedRow.getIsSelected()
-    // Race condition - if we don't wait here the rows do not get selected
-    await waitMillis(1)
-    for (let i = Math.min(lastSelectedIdx, currentIdx); i <= Math.max(lastSelectedIdx, currentIdx); i++) {
-      sameDepthRows[i].toggleSelected(shouldSelect)
-    }
+
+    const rowIndex = table.getRowModel().rows.indexOf(row)
+    const lastSelectedRowIndex = table.getRowModel().rows.indexOf(lastSelectedRow)
+
+    const selectedValue = lastSelectedRow.getIsSelected()
+    const rowSelectionMask: RowSelectionState = table
+      .getRowModel()
+      .rows.slice(Math.min(rowIndex, lastSelectedRowIndex), Math.max(rowIndex, lastSelectedRowIndex) + 1)
+      .reduce<RowSelectionState>((acc, { id, depth }) => {
+        if (depth === row.depth) {
+          acc[id] = selectedValue
+        }
+        return acc
+      }, {})
+
+    table.setRowSelection((prev) => ({ ...prev, ...rowSelectionMask }))
   }
 
   const selectRow = async (row: Row<JobTableRow>, singleSelect: boolean) => {
@@ -747,6 +769,9 @@ export const JobsTableContainer = ({
     flex: 1,
   }
 
+  const filterColumns = useMemo(() => columnFilterState.map(({ id }) => toColId(id)), [columnFilterState])
+  const sortColumns = useMemo(() => [toColId(lookoutOrder.id)], [lookoutOrder])
+
   return (
     <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
       <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
@@ -755,7 +780,11 @@ export const JobsTableContainer = ({
             isLoading={rowsToFetch.length > 0}
             allColumns={columnsForSelect}
             groupedColumns={grouping}
+            filterColumns={filterColumns}
+            sortColumns={sortColumns}
             visibleColumns={visibleColumnIds}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
             selectedItemFilters={selectedItemsFilters}
             customViews={customViews}
             activeJobSets={activeJobSets}
@@ -807,6 +836,7 @@ export const JobsTableContainer = ({
                         onSetTextFieldRef={(ref) => {
                           setTextFieldRef(header.id, ref)
                         }}
+                        groupedColumns={grouping}
                       />
                     ))}
                   </TableRow>

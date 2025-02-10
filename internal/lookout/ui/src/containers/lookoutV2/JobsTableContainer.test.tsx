@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { getQueriesForElement, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
@@ -22,6 +22,15 @@ import FakeGetJobInfoService from "../../services/lookoutV2/mocks/FakeGetJobInfo
 import FakeGetJobsService from "../../services/lookoutV2/mocks/FakeGetJobsService"
 import { FakeGetRunInfoService } from "../../services/lookoutV2/mocks/FakeGetRunInfoService"
 import FakeGroupJobsService from "../../services/lookoutV2/mocks/FakeGroupJobsService"
+import { MockServer } from "../../services/lookoutV2/mocks/mockServer"
+
+const mockServer = new MockServer()
+
+const intersectionObserverMock = () => ({
+  observe: () => null,
+  disconnect: () => null,
+})
+window.IntersectionObserver = vi.fn().mockImplementation(intersectionObserverMock)
 
 vi.setConfig({
   // This is quite a heavy component, and tests can timeout on a slower machine
@@ -66,6 +75,10 @@ describe("JobsTableContainer", () => {
     jobSpecService: IGetJobInfoService,
     updateJobsService: UpdateJobsService
 
+  beforeAll(() => {
+    mockServer.listen()
+  })
+
   beforeEach(() => {
     runErrorService = new FakeGetRunInfoService(false)
     jobSpecService = new FakeGetJobInfoService(false)
@@ -75,6 +88,14 @@ describe("JobsTableContainer", () => {
     updateJobsService = {
       cancelJobs: vi.fn(),
     } as any
+  })
+
+  afterEach(() => {
+    mockServer.reset()
+  })
+
+  afterAll(() => {
+    mockServer.close()
   })
 
   const renderComponent = (
@@ -177,15 +198,14 @@ describe("JobsTableContainer", () => {
       ["Job Set", "jobSet"],
       ["Queue", "queue"],
       ["State", "state"],
-    ])("should allow grouping by %s", async (displayString, groupKey) => {
+    ] as [string, keyof Job][])("should allow grouping by %s", async (displayString, groupKey) => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
         ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-3", JobState.Running),
       ]
 
-      const jobObjKey = groupKey as keyof Job
-      const numUniqueForJobKey = new Set(jobs.map((j) => j[jobObjKey])).size
+      const numUniqueForJobKey = new Set(jobs.map((j) => j[groupKey])).size
 
       renderComponent(jobs)
       await waitForFinishedLoading()
@@ -197,10 +217,10 @@ describe("JobsTableContainer", () => {
 
       // Expand a row
       const job = jobs[0]
-      await expandRow(job[jobObjKey]!.toString())
+      await expandRow(job[groupKey]!.toString())
 
       // Check the right number of rows is being shown
-      const numShownJobs = jobs.filter((j) => j[jobObjKey] === job[jobObjKey]).length
+      const numShownJobs = jobs.filter((j) => j[groupKey] === job[groupKey]).length
       await assertNumDataRowsShown(numUniqueForJobKey + numShownJobs)
     })
 
@@ -348,14 +368,16 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
 
-      renderComponent(jobs)
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+
+      const { baseElement } = renderComponent(jobs)
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
-      await filterTextColumnTo("Queue", "queue-2")
+      await filterAutocompleteTextColumnTo("Queue", "queue-2", baseElement)
       await assertNumDataRowsShown(10)
 
-      await filterTextColumnTo("Queue", "")
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
 
       await assertNumDataRowsShown(30)
     })
@@ -470,16 +492,19 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-2", JobState.Running),
       ]
-      const { findByText } = renderComponent(jobs)
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2", "queue-3"])
+
+      const { findByText, baseElement } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       // Applying grouping and filtering
       await groupByColumn("Queue")
-      await filterTextColumnTo("Queue", "queue-2")
+      await filterAutocompleteTextColumnTo("Queue", "queue-2", baseElement)
 
       // Check table is updated as expected
       await assertNumDataRowsShown(1)
-      await findByText("queue-2")
+      await findByText("queue-2", { ignore: ".MuiChip-label" })
 
       // Refresh the data
       await triggerRefresh()
@@ -487,7 +512,7 @@ describe("JobsTableContainer", () => {
 
       // Check table is in the same state
       await assertNumDataRowsShown(1)
-      await findByText("queue-2")
+      await findByText("queue-2", { ignore: ".MuiChip-label" })
     })
   })
 
@@ -551,12 +576,16 @@ describe("JobsTableContainer", () => {
 
       await expandRow("job-set-1")
 
-      await clickOnJobRow(jobs[0].jobId)
-
-      expect(router.state.location.search).toContain("g[0]=jobSet")
-      expect(router.state.location.search).not.toContain("g[1]")
-      expect(router.state.location.search).toContain(`sb=${jobs[0].jobId}`)
-      expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
+      await waitFor(
+        async () => {
+          await clickOnJobRow(jobs[0].jobId)
+          expect(router.state.location.search).toContain("g[0]=jobSet")
+          expect(router.state.location.search).not.toContain("g[1]")
+          expect(router.state.location.search).toContain(`sb=${jobs[0].jobId}`)
+          expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
+        },
+        { timeout: 3000 },
+      )
     })
 
     it("should populate table state from query params", async () => {
@@ -653,6 +682,36 @@ describe("JobsTableContainer", () => {
     }
   }
 
+  async function filterAutocompleteTextColumnTo(
+    columnDisplayName: string,
+    filterText: string,
+    baseElement: HTMLElement,
+  ) {
+    const headerCell = await getHeaderCell(columnDisplayName)
+
+    const filterInput = await within(headerCell).findByRole("combobox")
+    await userEvent.click(filterInput)
+
+    const clearButton = within(headerCell).queryByLabelText("Clear")
+    if (clearButton) {
+      await userEvent.click(clearButton)
+    }
+
+    if (filterText.length > 0) {
+      await userEvent.type(filterInput, filterText)
+
+      const portal = await getQueriesForElement(baseElement).findByRole("presentation")
+      await waitFor(async () => {
+        expect(await getQueriesForElement(portal).queryAllByText("Loading\u2026")).toHaveLength(0)
+      })
+      const optionsList = await within(portal).findByRole("listbox")
+      const filterOption = await within(optionsList).findByText(filterText)
+
+      await userEvent.click(filterOption)
+      await userEvent.tab()
+    }
+  }
+
   async function toggleEnumFilterOptions(columnDisplayName: string, filterOptions: string[]) {
     const headerCell = await getHeaderCell(columnDisplayName)
     const dropdownTrigger = await within(headerCell).findByLabelText("Filter\u2026")
@@ -678,21 +737,17 @@ describe("JobsTableContainer", () => {
   }
 
   async function addAnnotationColumn(annotationKey: string) {
-    const editColumnsButton = await screen.findByRole("button", { name: /columns selected/i })
+    const editColumnsButton = await screen.findByRole("button", { name: /configure columns/i })
     await userEvent.click(editColumnsButton)
 
-    const addColumnButton = await screen.findByRole("button", { name: /Add column/i })
-    await userEvent.click(addColumnButton)
-
-    const textbox = await screen.findByRole("textbox", { name: /Annotation key/i })
+    const textbox = await screen.findByRole("textbox", { name: /annotation key/i })
     await userEvent.type(textbox, annotationKey)
 
-    const saveButton = await screen.findByRole("button", { name: /Save/i })
+    const saveButton = await screen.findByRole("button", { name: /add a column for annotation/i })
     await userEvent.click(saveButton)
 
-    // Close pop up
-    await userEvent.click(screen.getByText(/Click here to add an annotation column/i))
-    await userEvent.keyboard("{Escape}")
+    const closeButton = await screen.findByRole("button", { name: /close/i })
+    await userEvent.click(closeButton)
   }
 
   async function clickOnJobRow(jobId: string) {

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ittestfixtures "github.com/armadaproject/armada/internal/scheduler/internaltypes/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -40,25 +40,25 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 		"unknown cause - basic job": {
 			preemptedJobContext: &context.JobSchedulingContext{
 				JobId:        "job-1",
-				AssignedNode: ittestfixtures.TestSimpleNode("node-3"),
+				AssignedNode: testfixtures.TestSimpleNode("node-3"),
 				Job:          makeJob(t, "job-1", false),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNode:          ittestfixtures.TestSimpleNode("node-3"),
+				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", false),
-				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, ittestfixtures.TestSimpleNode("node-3").SummaryString()),
+				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, testfixtures.TestSimpleNode("node-3").SummaryString()),
 			},
 		},
 		"unknown cause - gang job": {
 			preemptedJobContext: &context.JobSchedulingContext{
 				JobId:        "job-1",
-				AssignedNode: ittestfixtures.TestSimpleNode("node-3"),
+				AssignedNode: testfixtures.TestSimpleNode("node-3"),
 				Job:          makeJob(t, "job-1", true),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNode:          ittestfixtures.TestSimpleNode("node-3"),
+				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", true),
 				PreemptionDescription: unknownGangPreemptionCause,
 			},
@@ -66,34 +66,34 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 		"urgency preemption - single preempting job": {
 			preemptedJobContext: &context.JobSchedulingContext{
 				JobId:        "job-1",
-				AssignedNode: ittestfixtures.TestSimpleNode("node-1"),
+				AssignedNode: testfixtures.TestSimpleNode("node-1"),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNode:          ittestfixtures.TestSimpleNode("node-1"),
+				AssignedNode:          testfixtures.TestSimpleNode("node-1"),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionTemplate, "job-2"),
 			},
 		},
 		"urgency preemption - multiple preempting jobs": {
 			preemptedJobContext: &context.JobSchedulingContext{
 				JobId:        "job-1",
-				AssignedNode: ittestfixtures.TestSimpleNode("node-2"),
+				AssignedNode: testfixtures.TestSimpleNode("node-2"),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNode:          ittestfixtures.TestSimpleNode("node-2"),
+				AssignedNode:          testfixtures.TestSimpleNode("node-2"),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionMultiJobTemplate, "job-3,job-4"),
 			},
 		},
 		"fairshare": {
 			preemptedJobContext: &context.JobSchedulingContext{
 				JobId:           "job-1",
-				AssignedNode:    ittestfixtures.TestSimpleNode("node-4"),
+				AssignedNode:    testfixtures.TestSimpleNode("node-4"),
 				PreemptingJobId: "job-7",
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
-				AssignedNode:          ittestfixtures.TestSimpleNode("node-4"),
+				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
 				PreemptingJobId:       "job-7",
 				PreemptionDescription: fmt.Sprintf(fairSharePreemptionTemplate, "job-7"),
 			},
@@ -124,15 +124,9 @@ func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
 	if isGang {
 		annotations[configuration.GangIdAnnotation] = "gang"
 	}
-	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Annotations: annotations,
-					},
-				},
-			},
+	schedulingInfo := &internaltypes.JobSchedulingInfo{
+		PodRequirements: &internaltypes.PodRequirements{
+			Annotations: annotations,
 		},
 	}
 

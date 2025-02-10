@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
@@ -60,20 +59,19 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	nodeIndex uint64,
 	indexedTaints map[string]bool,
 	indexedNodeLabels map[string]bool,
+	allowedPriorities []int32,
 	resourceListFactory *ResourceListFactory,
-) (*Node, error) {
+) *Node {
+	totalResources := resourceListFactory.FromNodeProto(node.TotalResources.Resources)
+
 	allocatableByPriority := map[int32]ResourceList{}
-	minimumPriority := int32(math.MaxInt32)
-	for p, rl := range node.AllocatableByPriorityAndResource {
-		if p < minimumPriority {
-			minimumPriority = p
-		}
-		allocatableByPriority[p] = resourceListFactory.FromNodeProto(rl.Resources)
+	for _, p := range allowedPriorities {
+		allocatableByPriority[p] = totalResources
 	}
-	if minimumPriority < 0 {
-		return nil, errors.Errorf("found negative priority %d on node %s; negative priorities are reserved for internal use", minimumPriority, node.Id)
+	for p, rl := range node.UnallocatableResources {
+		MarkAllocated(allocatableByPriority, p, resourceListFactory.FromJobResourceListIgnoreUnknown(rl.Resources))
 	}
-	allocatableByPriority[EvictedPriority] = allocatableByPriority[minimumPriority]
+	allocatableByPriority[EvictedPriority] = allocatableByPriority[minInt32(allowedPriorities)]
 
 	unallocatableResources := map[int32]ResourceList{}
 	for p, u := range node.UnallocatableResources {
@@ -91,10 +89,10 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		node.Labels,
 		indexedTaints,
 		indexedNodeLabels,
-		resourceListFactory.FromNodeProto(node.TotalResources.Resources),
+		totalResources,
 		unallocatableResources,
 		allocatableByPriority,
-	), nil
+	)
 }
 
 func CreateNodeAndType(
@@ -298,6 +296,14 @@ func deepCopyLabels(labels map[string]string) map[string]string {
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[k] = v
+	}
+	return result
+}
+
+func minInt32(arr []int32) int32 {
+	result := int32(math.MaxInt32)
+	for _, val := range arr {
+		result = min(result, val)
 	}
 	return result
 }

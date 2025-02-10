@@ -1,44 +1,61 @@
 import react from "@vitejs/plugin-react"
 import { defineConfig, ProxyOptions } from "vite"
-import path from "path"
-import fs from "fs"
-import { createRequire } from "node:module"
 
-const require = createRequire(import.meta.url)
-
-// See https://github.com/bvaughn/react-virtualized/issues/1722
-const WRONG_CODE = `import { bpfrpt_proptype_WindowScroller } from "../WindowScroller.js";`
-
-const reactVirtualized = () => {
-  return {
-    name: "my:react-virtualized",
-    configResolved() {
-      const file = require
-        .resolve("react-virtualized")
-        .replace(
-          path.join("dist", "commonjs", "index.js"),
-          path.join("dist", "es", "WindowScroller", "utils", "onScroll.js"),
-        )
-      const code = fs.readFileSync(file, "utf-8")
-      const modified = code.replace(WRONG_CODE, "")
-      fs.writeFileSync(file, modified)
+const PROXY_PATHS = ["/api", "/config"]
+const PROXY_OPTIONS: Record<string, string | ProxyOptions> = PROXY_PATHS.reduce<Record<string, ProxyOptions>>(
+  (acc, path) => ({
+    ...acc,
+    [path]: {
+      target: process.env.PROXY_TARGET || "http://localhost:10000",
+      changeOrigin: true,
+      secure: false,
     },
-  }
-}
+  }),
+  {},
+)
 
 export default defineConfig({
-  plugins: [react(), reactVirtualized()],
+  plugins: [
+    react({
+      jsxImportSource: "@emotion/react",
+      babel: {
+        plugins: [
+          [
+            "@emotion/babel-plugin",
+            {
+              importMap: {
+                "@mui/system": {
+                  styled: {
+                    canonicalImport: ["@emotion/styled", "default"],
+                    styledBaseImport: ["@mui/system", "styled"],
+                  },
+                },
+                "@mui/material/styles": {
+                  styled: {
+                    canonicalImport: ["@emotion/styled", "default"],
+                    styledBaseImport: ["@mui/material/styles", "styled"],
+                  },
+                },
+                "@mui/material": {
+                  styled: {
+                    canonicalImport: ["@emotion/styled", "default"],
+                    styledBaseImport: ["@mui/material", "styled"],
+                  },
+                },
+              },
+            },
+          ],
+        ],
+      },
+    }),
+  ],
+  preview: {
+    port: 4173,
+    proxy: PROXY_OPTIONS,
+  },
   server: {
     port: 3000,
-    proxy: ["/api", "/config"].reduce<Record<string, ProxyOptions>>(
-      (acc, path) => ({
-        ...acc,
-        [path]: {
-          target: "http://localhost:10000",
-        },
-      }),
-      {},
-    ),
+    proxy: PROXY_OPTIONS,
   },
   build: {
     outDir: "build",

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/dbloadtester"
 )
@@ -45,7 +45,7 @@ const ReportTemplate string = `
 `
 
 func main() {
-	common.ConfigureLogging()
+	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
 	var config configuration.LookoutIngesterV2Configuration

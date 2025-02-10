@@ -31,10 +31,13 @@ func NewQueueCache(apiClient api.SubmitClient, updateFrequency time.Duration) *A
 	}
 }
 
-func (c *ApiQueueCache) Initialise(ctx *armadacontext.Context) {
-	if err := c.fetchQueues(ctx); err != nil {
-		ctx.Warnf("Error fetching queues: %v", err)
+func (c *ApiQueueCache) Initialise(ctx *armadacontext.Context) error {
+	err := c.fetchQueues(ctx)
+	if err != nil {
+		ctx.Errorf("Error initialising queue cache, failed fetching queues: %v", err)
 	}
+
+	return err
 }
 
 func (c *ApiQueueCache) Run(ctx *armadacontext.Context) error {

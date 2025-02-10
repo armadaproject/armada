@@ -1,14 +1,18 @@
-import { useCallback } from "react"
-
-import { ContentCopy } from "@mui/icons-material"
-import { IconButton, Link } from "@mui/material"
+import { OpenInNew } from "@mui/icons-material"
+import { Alert, AlertColor, Link, Stack } from "@mui/material"
 import { template, templateSettings } from "lodash"
+import { MuiMarkdown } from "mui-markdown"
+import { Fragment } from "react/jsx-runtime"
 import validator from "validator"
 
-import styles from "./SidebarTabJobCommands.module.css"
-import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { NoRunsAlert } from "./NoRunsAlert"
+import { SidebarTabHeading } from "./sidebarTabContentComponents"
 import { Job } from "../../../models/lookoutV2Models"
+import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
+import { CodeBlock } from "../../CodeBlock"
+
+const KNOWN_ALERT_COLORS: AlertColor[] = ["success", "info", "warning", "error"]
 
 export interface SidebarTabJobCommandsProps {
   job: Job
@@ -27,40 +31,53 @@ function getCommandText(job: Job, commandSpec: CommandSpec): string {
 }
 
 export const SidebarTabJobCommands = ({ job, commandSpecs }: SidebarTabJobCommandsProps) => {
-  const openSnackbar = useCustomSnackbar()
-
-  const copyCommand = useCallback(async (commandText: string) => {
-    await navigator.clipboard.writeText(commandText)
-    openSnackbar("Copied command to clipboard!", "info", {
-      autoHideDuration: 3000,
-      preventDuplicate: true,
-    })
-  }, [])
+  if ((job.runs ?? []).length === 0) {
+    return <NoRunsAlert jobState={job.state} />
+  }
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
-      {job.runs?.length ? (
-        <div>
-          {commandSpecs.map((c, i) => (
-            <>
+    <>
+      {commandSpecs.map((commandSpec) => {
+        const { name, descriptionMd, alertLevel, alertMessageMd } = commandSpec
+        const commandText = getCommandText(job, commandSpec)
+
+        const alertSeverity: AlertColor =
+          alertLevel && (KNOWN_ALERT_COLORS as string[]).includes(alertLevel) ? (alertLevel as AlertColor) : "info"
+
+        return (
+          <Fragment key={name}>
+            <SidebarTabHeading>{name}</SidebarTabHeading>
+            {descriptionMd && (
               <div>
-                {i > 0 ? <br /> : undefined}
-                {c.name}
-                <IconButton size="small" title="Copy to clipboard" onClick={() => copyCommand(getCommandText(job, c))}>
-                  <ContentCopy />
-                </IconButton>
+                <MuiMarkdown>{descriptionMd}</MuiMarkdown>
               </div>
-              {validator.isURL(getCommandText(job, c)) ? (
-                <Link href={getCommandText(job, c)} target="_blank">
-                  <div>{getCommandText(job, c)}</div>
+            )}
+            {alertMessageMd && (
+              <Alert severity={alertSeverity} variant="outlined">
+                <MuiMarkdown>{alertMessageMd}</MuiMarkdown>
+              </Alert>
+            )}
+            <div>
+              {validator.isURL(commandText) ? (
+                <Link href={commandText} target="_blank">
+                  <Stack direction="row" spacing={SPACING.xs} alignItems="center">
+                    <div>{commandText}</div>
+                    <OpenInNew fontSize="inherit" />
+                  </Stack>
                 </Link>
               ) : (
-                <div className={styles.commandsText}>{getCommandText(job, c)}</div>
+                <CodeBlock
+                  code={commandText}
+                  language="bash"
+                  downloadable={false}
+                  showLineNumbers={false}
+                  loading={false}
+                />
               )}
-            </>
-          ))}
-        </div>
-      ) : undefined}
-    </div>
+            </div>
+          </Fragment>
+        )
+      })}
+    </>
   )
 }

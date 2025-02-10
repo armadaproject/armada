@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -36,7 +36,7 @@ type JobSchedulingContext struct {
 	Job *jobdb.Job
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
-	PodRequirements *schedulerobjects.PodRequirements
+	PodRequirements *internaltypes.PodRequirements
 	// Resource requirements in an efficient internaltypes.ResourceList
 	KubernetesResourceRequirements internaltypes.ResourceList
 	// Node selectors to consider in addition to those included with the PodRequirements.
@@ -196,7 +196,7 @@ func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingConte
 func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
 	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
-		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
+		log.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
 	}
 	return &JobSchedulingContext{
 		Created:                        time.Now(),

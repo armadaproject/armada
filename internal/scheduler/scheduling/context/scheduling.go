@@ -90,7 +90,9 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 }
 
 func (sctx *SchedulingContext) AddQueueSchedulingContext(
-	queue string, weight float64,
+	queue string,
+	weight float64,
+	rawWeight float64,
 	initialAllocatedByPriorityClass map[string]internaltypes.ResourceList,
 	demand internaltypes.ResourceList,
 	cappedDemand internaltypes.ResourceList,
@@ -120,6 +122,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Created:                           time.Now(),
 		Queue:                             queue,
 		Weight:                            weight,
+		RawWeight:                         rawWeight,
 		Limiter:                           limiter,
 		Allocated:                         allocated,
 		Demand:                            demand,

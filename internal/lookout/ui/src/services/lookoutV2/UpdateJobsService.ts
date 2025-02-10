@@ -1,7 +1,7 @@
 import _ from "lodash"
 
 import { Job, JobId } from "../../models/lookoutV2Models"
-import { getAuthorizationHeaders } from "../../oidc"
+import { appendAuthorizationHeaders } from "../../oidcAuth"
 import { SubmitApi } from "../../openapi/armada"
 import { getErrorMessage } from "../../utils"
 
@@ -27,6 +27,10 @@ export class UpdateJobsService {
     for (const [queue, jobSetMap] of chunks) {
       for (const [jobSet, batches] of jobSetMap) {
         for (const batch of batches) {
+          const headers = new Headers()
+          if (accessToken) {
+            appendAuthorizationHeaders(headers, accessToken)
+          }
           apiResponsePromises.push({
             promise: this.submitApi.cancelJobs(
               {
@@ -37,7 +41,7 @@ export class UpdateJobsService {
                   reason: reason,
                 },
               },
-              accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+              { headers },
             ),
             jobIds: batch,
           })
@@ -83,6 +87,10 @@ export class UpdateJobsService {
     for (const [queue, jobSetMap] of chunks) {
       for (const [jobSet, batches] of jobSetMap) {
         for (const batch of batches) {
+          const headers = new Headers()
+          if (accessToken) {
+            appendAuthorizationHeaders(headers, accessToken)
+          }
           apiResponsePromises.push({
             promise: this.submitApi.reprioritizeJobs(
               {
@@ -93,7 +101,7 @@ export class UpdateJobsService {
                   newPriority: newPriority,
                 },
               },
-              accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+              { headers },
             ),
             jobIds: batch,
           })

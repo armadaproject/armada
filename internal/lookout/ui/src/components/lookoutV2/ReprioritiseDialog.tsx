@@ -18,7 +18,7 @@ import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "../../models/lookoutV2Models"
-import { getAccessToken, useUserManager } from "../../oidc"
+import { useGetAccessToken } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "../../services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "../../utils"
@@ -51,7 +51,7 @@ export const ReprioritiseDialog = ({
   const [hasAttemptedReprioritise, setHasAttemptedReprioritise] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
-  const userManager = useUserManager()
+  const getAccessToken = useGetAccessToken()
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
@@ -79,7 +79,7 @@ export const ReprioritiseDialog = ({
 
     setIsReprioritising(true)
 
-    const accessToken = userManager && (await getAccessToken(userManager))
+    const accessToken = await getAccessToken()
     const response = await updateJobsService.reprioritiseJobs(reprioritisableJobs, newPriority, accessToken)
 
     if (response.failedJobIds.length === 0) {

@@ -12,12 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/armadaproject/armada/internal/common/logging"
-
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 type PKCEDetails struct {
@@ -29,7 +27,6 @@ type PKCEDetails struct {
 
 func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 	ctx := context.Background()
-	log := logrus.StandardLogger().WithField("auth", "AuthenticatePkce")
 
 	result := make(chan *oauth2.Token)
 	errorResult := make(chan error)
@@ -97,14 +94,14 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 
 	go func() {
 		if err := server.Serve(listener); err != nil {
-			logging.WithStacktrace(log, err).Error("unable to serve")
+			log.WithStacktrace(err).Error("unable to serve")
 		}
 	}()
 
 	cmd, err := openBrowser("http://" + localUrl)
 	defer func() {
 		if err := cmd.Process.Kill(); err != nil {
-			logging.WithStacktrace(log, err).Error("unable to kill process")
+			log.WithStacktrace(err).Error("unable to kill process")
 		}
 	}()
 

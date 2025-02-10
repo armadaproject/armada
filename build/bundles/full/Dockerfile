@@ -1,6 +1,6 @@
 ARG NODE_BUILD_IMAGE=node:22.12-bullseye
 ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
-ARG BASE_IMAGE=alpine:3.20.3
+ARG BASE_IMAGE=alpine:3.21.0
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 LABEL org.opencontainers.image.title=armada-full-bundle
@@ -9,6 +9,7 @@ LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada-ful
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
+COPY pkg/api/schedulerobjects/*.swagger.json /project/pkg/api/schedulerobjects/
 RUN ./project/internal/lookout/ui/openapi.sh
 
 FROM ${NODE_BUILD_IMAGE} AS NODE

@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.20.3
+ARG BASE_IMAGE=alpine:3.21.0
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=armada-lookout-bundle
@@ -7,6 +7,9 @@ LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada-loo
 
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
+
+# Logging (shared between both components)
+COPY config/logging.yaml /app/config/logging.yaml
 
 COPY config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
 

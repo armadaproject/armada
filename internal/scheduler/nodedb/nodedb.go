@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"text/tabwriter"
 	"time"
 
@@ -27,9 +25,8 @@ import (
 
 var empty struct{}
 
-func (nodeDb *NodeDb) AddNodeToDb(node *internaltypes.Node) {
-	nodeDb.mu.Lock()
-	defer nodeDb.mu.Unlock()
+func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
+	nodeDb.numNodes += 1
 	for key := range nodeDb.indexedNodeLabels {
 		if value, ok := node.GetLabelValue(key); ok {
 			nodeDb.indexedNodeLabelValues[key][value] = empty
@@ -42,9 +39,7 @@ func (nodeDb *NodeDb) AddNodeToDb(node *internaltypes.Node) {
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, entry *internaltypes.Node) error {
-	_ = atomic.AddUint64(&nodeDb.numNodes, 1)
-
-	nodeDb.AddNodeToDb(entry)
+	nodeDb.addNodeToStats(entry)
 
 	for _, job := range jobs {
 		priority, ok := job.ScheduledAtPriority()
@@ -121,9 +116,6 @@ type NodeDb struct {
 	//
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]bool
-
-	// Mutex for the remaining fields of this struct, which are mutated after initialization.
-	mu sync.Mutex
 
 	// Map from indexed label names to the set of values that label takes across all nodes in the NodeDb.
 	indexedNodeLabelValues map[string]map[string]struct{}
@@ -305,8 +297,6 @@ func (nodeDb *NodeDb) NumNodes() int {
 }
 
 func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
-	nodeDb.mu.Lock()
-	defer nodeDb.mu.Unlock()
 	return nodeDb.totalResources
 }
 
@@ -1148,8 +1138,6 @@ func nodeIndexName(keyIndex int) string {
 // using a cache to avoid allocating new strings when possible.
 func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason PodRequirementsNotMetReason) string {
 	h := reason.Sum64()
-	nodeDb.mu.Lock()
-	defer nodeDb.mu.Unlock()
 	if s, ok := nodeDb.podRequirementsNotMetReasonStringCache[h]; ok {
 		return s
 	} else {

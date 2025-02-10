@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useEffect } from "react"
 
-import { ContentCopy, Download } from "@mui/icons-material"
-import { CircularProgress } from "@mui/material"
-import { IconButton } from "@mui/material"
 import yaml from "js-yaml"
 
-import styles from "./SidebarTabJobYaml.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutV2Models"
 import { useGetJobSpec } from "../../../services/lookoutV2/useGetJobSpec"
+import { CodeBlock } from "../../CodeBlock"
 
 export interface SidebarTabJobYamlProps {
   job: Job
@@ -50,60 +47,20 @@ export const SidebarTabJobYaml = ({ job }: SidebarTabJobYamlProps) => {
     }
   }, [getJobSpecResult.status, getJobSpecResult.error])
 
-  const submission = useMemo(() => {
-    if (getJobSpecResult.status === "success") {
-      return toJobSubmissionYaml(getJobSpecResult.data)
-    }
-    return undefined
-  }, [getJobSpecResult.status, getJobSpecResult.data])
-
-  const downloadYamlFile = useCallback(() => {
-    if (submission === undefined) {
-      return
-    }
-    const element = document.createElement("a")
-    const file = new Blob([submission], {
-      type: "text/plain",
-    })
-    element.href = URL.createObjectURL(file)
-    element.download = `${job.jobId}.yaml`
-    document.body.appendChild(element)
-    element.click()
-  }, [submission, job])
-
-  const copyYaml = useCallback(async () => {
-    if (submission === undefined) {
-      return
-    }
-    await navigator.clipboard.writeText(submission)
-    openSnackbar("Copied job submission YAML to clipboard!", "info", {
-      autoHideDuration: 3000,
-      preventDuplicate: true,
-    })
-  }, [submission, job])
-
   return (
-    <div style={{ width: "100%", height: "100%" }}>
-      {getJobSpecResult.status === "pending" && (
-        <div className={styles.loading}>
-          <CircularProgress size={24} />
-        </div>
-      )}
+    <>
+      {getJobSpecResult.status === "pending" && <CodeBlock loading showLineNumbers downloadable={false} />}
       {getJobSpecResult.status === "success" && (
-        <div className={styles.jobYaml}>
-          <div className={styles.jobYamlActions}>
-            <div>
-              <IconButton size="small" title="Copy to clipboard" onClick={copyYaml}>
-                <ContentCopy />
-              </IconButton>
-              <IconButton size="small" title="Download as YAML file" onClick={downloadYamlFile}>
-                <Download />
-              </IconButton>
-            </div>
-          </div>
-          {toJobSubmissionYaml(getJobSpecResult.data)}
-        </div>
+        <CodeBlock
+          language="yaml"
+          code={toJobSubmissionYaml(getJobSpecResult.data)}
+          showLineNumbers
+          downloadable={getJobSpecResult.status === "success"}
+          downloadBlobType="text/plain"
+          downloadFileName={`${job.jobId}.yaml`}
+          loading={false}
+        />
       )}
-    </div>
+    </>
   )
 }

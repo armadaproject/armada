@@ -6,6 +6,7 @@ import {
   Checkbox,
   IconButton,
   InputAdornment,
+  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -17,12 +18,14 @@ import {
 import Menu from "@mui/material/Menu"
 import { useDebouncedCallback } from "use-debounce"
 
+import { QueueFilter } from "./QueueFilter"
 import { Match, MATCH_DISPLAY_STRINGS } from "../../models/lookoutV2Models"
 import { CustomPaletteColorToken } from "../../theme/palette"
 import {
   ANNOTATION_COLUMN_PREFIX,
   FilterType,
   isStandardColId,
+  StandardColumnId,
   VALID_COLUMN_MATCHES,
 } from "../../utils/jobsTableColumns"
 
@@ -63,6 +66,17 @@ export const JobsTableFilter = ({
   onColumnMatchChange,
   onSetTextFieldRef,
 }: JobsTableFilterProps) => {
+  if (id === StandardColumnId.Queue) {
+    return (
+      <QueueFilter
+        filterValue={currentFilter as string[] | undefined}
+        onFilterChange={onFilterChange}
+        parseError={parseError}
+        onSetTextFieldRef={onSetTextFieldRef}
+      />
+    )
+  }
+
   const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
   let possibleMatches = id in VALID_COLUMN_MATCHES ? VALID_COLUMN_MATCHES[id] : [Match.Exact]
   if (!isStandardColId(id)) {
@@ -130,7 +144,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
           selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName ?? s).join(", ")
         ) : (
           // Approximately matches the styling for a text input's placeholder
-          <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>{label}</div>
+          <InputLabel>{label}</InputLabel>
         )
       }
       // Matches the styling for TextFilter component below
@@ -186,14 +200,23 @@ const TextFilter = ({
   useEffect(() => {
     onSetTextFieldRef(ref)
   }, [ref])
+  const [textFieldValue, setTextFieldValue] = useState(defaultValue)
+  useEffect(() => {
+    setTextFieldValue(defaultValue)
+  }, [defaultValue])
+
   const debouncedOnChange = useDebouncedCallback(onChange, 300)
+  useEffect(() => {
+    debouncedOnChange(textFieldValue)
+  }, [textFieldValue, debouncedOnChange])
+
   return (
     <TextField
-      onChange={(e) => debouncedOnChange(e.currentTarget.value)}
+      onChange={(e) => setTextFieldValue(e.currentTarget.value)}
+      value={textFieldValue}
       inputRef={ref}
       type={"text"}
       size={"small"}
-      defaultValue={defaultValue}
       error={parseError !== undefined}
       placeholder={label}
       sx={{

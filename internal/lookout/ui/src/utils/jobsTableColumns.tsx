@@ -172,7 +172,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
-      defaultMatchType: Match.StartsWith,
+      defaultMatchType: Match.AnyOf,
       allowCopy: true,
     },
   }),
@@ -238,7 +238,12 @@ export const JOB_COLUMNS: JobTableColumn[] = [
           cell.row.original.stateCounts &&
           cell.row.original.groupedField !== "state"
         ) {
-          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+          return (
+            <JobGroupStateCounts
+              stateCounts={cell.row.original.stateCounts}
+              jobStatesToDisplay={cell.column.getFilterValue() as JobState[] | undefined}
+            />
+          )
         } else {
           return <JobStateChip state={cell.getValue()} />
         }
@@ -251,7 +256,12 @@ export const JOB_COLUMNS: JobTableColumn[] = [
           cell.row.original.stateCounts &&
           cell.row.original.groupedField !== "state"
         ) {
-          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+          return (
+            <JobGroupStateCounts
+              stateCounts={cell.row.original.stateCounts}
+              jobStatesToDisplay={cell.column.getFilterValue() as JobState[] | undefined}
+            />
+          )
         } else {
           return <JobStateChip state={cell.getValue()} />
         }
@@ -468,7 +478,15 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   {},
 )
 
-export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
+export const PINNED_COLUMNS: ColumnId[] = [StandardColumnId.SelectorCol]
+
+// The ordering of each column
+export const DEFAULT_COLUMN_ORDERING: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
+
+// The order of the columns in the table
+export const DEFAULT_COLUMN_ORDER = JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(
+  ({ id }) => toColId(id),
+)
 
 type Formatter = (val: number | string | string[]) => string
 
@@ -503,7 +521,7 @@ export const INPUT_PROCESSORS: Record<ParseType, InputProcessors> = {
 }
 
 export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
-  [StandardColumnId.Queue]: Match.StartsWith,
+  [StandardColumnId.Queue]: Match.AnyOf,
   [StandardColumnId.JobSet]: Match.StartsWith,
   [StandardColumnId.JobID]: Match.Exact,
   [StandardColumnId.State]: Match.AnyOf,
@@ -519,7 +537,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
 
 export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
   [StandardColumnId.JobID]: [Match.Exact],
-  [StandardColumnId.Queue]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.Queue]: [Match.AnyOf],
   [StandardColumnId.JobSet]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Owner]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Namespace]: [Match.Exact, Match.StartsWith, Match.Contains],

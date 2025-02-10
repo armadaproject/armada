@@ -1,15 +1,18 @@
 package internaltypes
 
 import (
+	"sort"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"golang.org/x/exp/maps"
 )
 
 func RlMapToString(m map[string]ResourceList) string {
+	keys := maps.Keys(m)
+	sort.Strings(keys)
 	results := []string{}
-	for k, v := range m {
-		results = append(results, k+"="+v.String())
+	for _, k := range keys {
+		results = append(results, k+"="+m[k].String())
 	}
 	return strings.Join(results, " ")
 }
@@ -40,14 +43,6 @@ func RlMapHasNegativeValues(m map[string]ResourceList) bool {
 	return false
 }
 
-func RlMapFromJobSchedulerObjects(m schedulerobjects.QuantityByTAndResourceType[string], rlFactory *ResourceListFactory) map[string]ResourceList {
-	result := map[string]ResourceList{}
-	for k, v := range m {
-		result[k] = rlFactory.FromJobResourceListIgnoreUnknown(v.Resources)
-	}
-	return result
-}
-
 func RlMapRemoveZeros(m map[string]ResourceList) map[string]ResourceList {
 	result := map[string]ResourceList{}
 	for k, v := range m {
@@ -56,4 +51,29 @@ func RlMapRemoveZeros(m map[string]ResourceList) map[string]ResourceList {
 		}
 	}
 	return result
+}
+
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) map[int32]ResourceList {
+	result := map[int32]ResourceList{}
+	for _, priority := range priorities {
+		result[priority] = rl
+	}
+	result[EvictedPriority] = rl
+	return result
+}
+
+// MarkAllocated indicates resources have been allocated to pods of priority p,
+// hence reducing the resources allocatable to pods of priority p or lower.
+func MarkAllocated(m map[int32]ResourceList, p int32, rs ResourceList) {
+	MarkAllocatable(m, p, rs.Negate())
+}
+
+// MarkAllocatable indicates resources have been released by pods of priority p,
+// thus increasing the resources allocatable to pods of priority p or lower.
+func MarkAllocatable(m map[int32]ResourceList, p int32, rs ResourceList) {
+	for priority, allocatableResourcesAtPriority := range m {
+		if priority <= p {
+			m[priority] = allocatableResourcesAtPriority.Add(rs)
+		}
+	}
 }
