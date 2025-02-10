@@ -11,11 +11,11 @@ import (
 
 type DefragQueueScheduler struct {
 	nodeScheduler    *NodeScheduler
-	jobDb            JobRepository
+	jobDb            jobdb.JobRepository
 	maxQueueLookBack uint
 }
 
-func NewDefragQueueScheduler(jobDb JobRepository, nodeScheduler *NodeScheduler, maxQueueLookBack uint) *DefragQueueScheduler {
+func NewDefragQueueScheduler(jobDb jobdb.JobRepository, nodeScheduler *NodeScheduler, maxQueueLookBack uint) *DefragQueueScheduler {
 	return &DefragQueueScheduler{
 		nodeScheduler:    nodeScheduler,
 		jobDb:            jobDb,

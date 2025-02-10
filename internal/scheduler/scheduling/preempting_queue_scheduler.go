@@ -32,7 +32,7 @@ type PreemptingQueueScheduler struct {
 	protectedFractionOfFairShare float64
 	maxQueueLookBack             uint
 	preferLargeJobOrdering       bool
-	jobRepo                      JobRepository
+	jobRepo                      jobdb.JobRepository
 	nodeDb                       *nodedb.NodeDb
 	defragConfig                 *configuration.DefragConfig
 	// Maps job ids to the id of the node the job is associated with.
@@ -53,7 +53,7 @@ func NewPreemptingQueueScheduler(
 	preferLargeJobOrdering bool,
 	protectedFractionOfFairShare float64,
 	maxQueueLookBack uint,
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
@@ -576,7 +576,7 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 func (sch *PreemptingQueueScheduler) schedule(
 	ctx *armadacontext.Context,
 	inMemoryJobRepo *InMemoryJobRepository,
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityCLassPriority bool,
 ) (*SchedulerResult, error) {

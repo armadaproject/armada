@@ -14,12 +14,12 @@ import (
 )
 
 type NodeScheduler struct {
-	jobDb        JobRepository
+	jobDb        jobdb.JobRepository
 	nodeDb       *nodedb.NodeDb
 	defragConfig configuration.DefragConfig
 }
 
-func NewNodeScheduler(jobDb JobRepository, nodeDb *nodedb.NodeDb, defragConfig configuration.DefragConfig) *NodeScheduler {
+func NewNodeScheduler(jobDb jobdb.JobRepository, nodeDb *nodedb.NodeDb, defragConfig configuration.DefragConfig) *NodeScheduler {
 	return &NodeScheduler{
 		nodeDb:       nodeDb,
 		jobDb:        jobDb,
@@ -72,7 +72,7 @@ func (n *NodeScheduler) Schedule(ctx *armadacontext.Context, gctx *context.GangS
 		// Average age of evicted jobs
 		// Maximum % impact on queue
 		// Tie break on queue name
-		//slices.sort(candidateNodes)
+		// slices.sort(candidateNodes)
 
 		result := candidateNodes[0]
 
@@ -157,6 +157,10 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 		if job == nil {
 			return nil, fmt.Errorf("job %s not found in jobDb", jobId)
 		}
+		if !job.PriorityClass().Preemptible {
+			// Don't evict non-preemptible jobs
+			continue
+		}
 		queue := job.Queue()
 		var scheduledAtPriority int32
 		age := int64(0)
@@ -193,7 +197,7 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 
 	for queue, items := range queues {
 		// TODO sort
-		//slices.Sort(items)
+		// slices.Sort(items)
 
 		queueShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(sctx.QueueSchedulingContexts[queue])
 		originalFairshare := sctx.QueueSchedulingContexts[queue].AdjustedFairShare
@@ -216,8 +220,8 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 	for _, queueItems := range queues {
 		allJobs = append(allJobs, queueItems...)
 	}
-	//TODO sort
-	//slices.Sort(allJobs)
+	// TODO sort
+	// slices.Sort(allJobs)
 
 	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
 	if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
